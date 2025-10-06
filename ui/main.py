@@ -1,6 +1,7 @@
 import flet as ft
 import io
 import os
+import random
 import re
 import tempfile
 import sys
@@ -74,12 +75,36 @@ def extract_base_rom_code(filename: str) -> str:
     return extract_code_from_bytes(code_bytes)
 
 
+def extract_code_from_rom_data(rom_data: bytes, offset: int = 0xAFD4) -> str:
+    """Extract the code from ROM data bytes.
+
+    Args:
+        rom_data: The ROM data bytes
+        offset: Offset to code bytes (default 0xAFD4)
+
+    Returns:
+        str: Comma-separated item names, or "Unknown" if extraction fails
+    """
+    try:
+        code_bytes = rom_data[offset:offset+4]
+        return extract_code_from_bytes(code_bytes)
+    except Exception:
+        return "Unknown"
+
+
 def is_vanilla_rom(filename: str) -> bool:
     try:
         with open(filename, 'rb') as f:
             f.seek(0xAFD4)
             return f.read(4) == b'\xff\xff\xff\xff'
-    except Exception as e:
+    except Exception:
+        return False
+
+def is_vanilla_rom_data(rom_data: bytes) -> bool:
+    """Check if ROM data is from a vanilla ROM by checking for 0xFF bytes at code location."""
+    try:
+        return rom_data[0xAFD4:0xAFD4+4] == b'\xff\xff\xff\xff'
+    except Exception:
         return False
 
 def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
@@ -108,12 +133,78 @@ def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
     return flagstring, seed
 
 
+def info_row(label: str, value: str, label_width: int = 120, value_width: int = None) -> ft.Row:
+    """Create a row with aligned label and value.
+
+    Args:
+        label: The label text
+        value: The value text
+        label_width: Width of the label container (default: 120)
+        value_width: Width of the value container (default: None for auto)
+
+    Returns:
+        ft.Row: A Flet row with aligned label and value
+    """
+    value_text = ft.Text(value, selectable=True)
+    if value_width:
+        value_container = ft.Container(value_text, width=value_width)
+    else:
+        value_container = value_text
+
+    return ft.Row([
+        ft.Container(
+            ft.Text(f"{label}:", weight="w500"),
+            width=label_width
+        ),
+        value_container
+    ], spacing=10)
+
+
+def show_error_dialog(page: ft.Page, title: str, message: str) -> None:
+    """Show an error dialog with a message.
+
+    Args:
+        page: The Flet page object
+        title: The dialog title
+        message: The error message to display
+    """
+    def close_dlg(e):
+        page.close(dialog)
+
+    dialog = ft.AlertDialog(
+        modal=True,
+        title=ft.Text(title),
+        content=ft.Text(message),
+        actions=[
+            ft.TextButton("OK", on_click=close_dlg),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
+    page.open(dialog)
+
+
+def show_snackbar(page: ft.Page, message: str) -> None:
+    """Show a snackbar notification.
+
+    Args:
+        page: The Flet page object
+        message: The message to display
+    """
+    page.snack_bar = ft.SnackBar(ft.Text(message), open=True)
+    page.snack_bar.open = True
+    page.update()
+
+
 # ============================================================================
 # FLAG STATE MANAGEMENT
 # ============================================================================
 
 class FlagState:
     """Manages the state of randomizer flags."""
+
+    # Class-level constants for flagstring encoding
+    LETTER_MAP = ['B', 'C', 'D', 'F', 'G', 'H', 'K', 'L']
+    VALID_LETTERS = {'B': 0, 'C': 1, 'D': 2, 'F': 3, 'G': 4, 'H': 5, 'K': 6, 'L': 7}
 
     def __init__(self):
         # Create a dictionary to store flag states, excluding complex flags
@@ -133,8 +224,6 @@ class FlagState:
         B=000, C=001, D=010, F=011, G=100, H=101, K=110, L=111
         (Avoiding A, E, I, O, U vowels)
         """
-        # Mapping: octal value -> letter
-        LETTER_MAP = ['B', 'C', 'D', 'F', 'G', 'H', 'K', 'L']
 
         # Get all non-complex flags in order
         non_complex_flags = [f for f in FlagsEnum if f.value not in self.complex_flags]
@@ -151,7 +240,7 @@ class FlagState:
         for i in range(0, len(binary_str), 3):
             chunk = binary_str[i:i+3]
             octal_value = int(chunk, 2)
-            letters.append(LETTER_MAP[octal_value])
+            letters.append(self.LETTER_MAP[octal_value])
 
         return ''.join(letters)
 
@@ -161,19 +250,16 @@ class FlagState:
         Returns:
             bool: True if valid flagstring, False otherwise
         """
-        # Mapping: letter -> octal value
-        VALID_LETTERS = {'B': 0, 'C': 1, 'D': 2, 'F': 3, 'G': 4, 'H': 5, 'K': 6, 'L': 7}
-
         s = flagstring.strip().upper()
 
         # Check if all characters are valid letters
-        if not all(c in VALID_LETTERS for c in s):
+        if not all(c in self.VALID_LETTERS for c in s):
             return False
 
         # Convert letters to binary string
         binary_str = ''
         for letter in s:
-            octal_value = VALID_LETTERS[letter]
+            octal_value = self.VALID_LETTERS[letter]
             binary_str += format(octal_value, '03b')
 
         # Apply to flags
@@ -184,57 +270,17 @@ class FlagState:
 
         return True
 
+    def to_randomizer_flags(self):
+        """Convert FlagState to a Flags object for the randomizer.
 
-class BaseROM:
-    """Represents a base ROM file (vanilla or randomized)."""
-
-    def __init__(self, filepath: str, rom_type: str):
-        """Initialize BaseROM.
-
-        Args:
-            filepath: Full path to the ROM file
-            rom_type: Either 'vanilla' or 'randomized'
+        Returns:
+            Flags: A Flags object with all enabled flags set
         """
-        self.filepath = filepath
-        self.rom_type = rom_type
-
-    def get_full_filename(self) -> str:
-        """Return the full filename including path."""
-        return self.filepath
-
-    def get_rom_type(self) -> str:
-        """Return the ROM type (vanilla or randomized)."""
-        return self.rom_type
-
-    def get_flag_string(self) -> str:
-        """Return the flag string if applicable.
-
-        Extracts flag string from filename for randomized ROMs.
-        Returns empty string for vanilla ROMs.
-        """
-        if self.rom_type == 'randomized':
-            flagstring, _ = parse_filename_for_flag_and_seed(os.path.basename(self.filepath))
-            return flagstring
-        return ""
-
-    def get_seed_number(self) -> str:
-        """Return the seed number if applicable.
-
-        Extracts seed number from filename for randomized ROMs.
-        Returns empty string for vanilla ROMs.
-        """
-        if self.rom_type == 'randomized':
-            _, seed = parse_filename_for_flag_and_seed(os.path.basename(self.filepath))
-            return seed
-        return ""
-
-    def get_code(self) -> str:
-        """Return the ROM code.
-
-        Reads bytes at ROM addresses 0xAFD3, 0xAFD2, 0xAFD1, 0xAFD0
-        and returns the item names as a space-separated string.
-        """
-        return extract_base_rom_code(self.filepath)
+        randomizer_flags = Flags()
+        for flag_key, flag_value in self.flags.items():
+            if flag_value:  # Only set flags that are True
+                setattr(randomizer_flags, flag_key, True)
+        return randomizer_flags
 
 
 class RomInfo:
@@ -255,12 +301,6 @@ class RomInfo:
         self.seed = ""
         self.code = ""
 
-    def load_from_file(self, filepath: str):
-        """Load ROM info from a file path."""
-        self.filename = os.path.basename(filepath)
-        self.flagstring, self.seed = parse_filename_for_flag_and_seed(self.filename)
-        self.code = extract_base_rom_code(filepath)
-
 
 # ============================================================================
 # UI COMPONENT BUILDERS
@@ -279,16 +319,6 @@ def build_rom_info_card(rom_info: RomInfo, on_close) -> ft.Card:
         flagstring_display = rom_info.flagstring
         seed_display = rom_info.seed
         code_display = rom_info.code
-
-    def info_row(label: str, value: str):
-        """Create a row with aligned label and value."""
-        return ft.Row([
-            ft.Container(
-                ft.Text(f"{label}:", weight="w500"),
-                width=120
-            ),
-            ft.Text(value, selectable=True)
-        ], spacing=10)
 
     return ft.Card(
         content=ft.Container(
@@ -311,7 +341,54 @@ def build_rom_info_card(rom_info: RomInfo, on_close) -> ft.Card:
                 info_row("ZR Code", code_display)
             ], spacing=5),
             padding=10,
-            margin=0
+            margin=0,
+            border=ft.border.all(2, ft.Colors.BLUE_200),
+            border_radius=10
+        ),
+        elevation=4
+    )
+
+
+def build_zora_settings_card(flagstring: str, seed: str, flag_state) -> ft.Card:
+    """Build the card displaying ZORA settings used for randomization.
+
+    Args:
+        flagstring: The ZORA flagstring
+        seed: The ZORA seed number
+        flag_state: The FlagState object containing all flag values
+    """
+    # Generate lists of enabled and disabled flags
+    enabled_flags = []
+    disabled_flags = []
+
+    for flag in FlagsEnum:
+        if flag_state.flags.get(flag.value, False):
+            enabled_flags.append(flag.display_name)
+        else:
+            disabled_flags.append(flag.display_name)
+
+    # Create flag list displays
+    enabled_text = ", ".join(enabled_flags) if enabled_flags else "None"
+    disabled_text = ", ".join(disabled_flags) if disabled_flags else "None"
+
+    return ft.Card(
+        content=ft.Container(
+            content=ft.Column([
+                ft.Text("ZORA Settings", size=18, weight="bold"),
+                ft.Container(height=5),
+                info_row("ZORA Flag String", flagstring, label_width=140),
+                info_row("ZORA Seed", seed, label_width=140),
+                ft.Container(height=10),
+                ft.Text("Enabled Flags:", weight="w500", size=14),
+                ft.Text(enabled_text, selectable=True),
+                ft.Container(height=10),
+                ft.Text("Disabled Flags:", weight="w500", size=14),
+                ft.Text(disabled_text, selectable=True)
+            ], spacing=5),
+            padding=10,
+            margin=0,
+            border=ft.border.all(2, ft.Colors.PURPLE_200),
+            border_radius=10
         ),
         elevation=4
     )
@@ -347,10 +424,10 @@ def build_step1_container(vanilla_file_picker, randomized_file_picker, generate_
     # Panel A: Select Vanilla ROM
     vanilla_panel = ft.Container(
         content=ft.Column([
-            ft.Text("Option A: Select Vanilla ROM", weight="bold"),
+            ft.Text("Option A: Select Vanilla ROM from disk", weight="bold"),
             choose_vanilla_button
         ], spacing=10),
-        padding=15,
+        padding=ft.padding.only(left=20, right=20, top=20, bottom=20),
         border=ft.border.all(2, ft.Colors.BLUE_200),
         border_radius=10,
         expand=True
@@ -359,7 +436,7 @@ def build_step1_container(vanilla_file_picker, randomized_file_picker, generate_
     # Panel B: Select Randomized ROM
     randomized_panel = ft.Container(
         content=ft.Column([
-            ft.Text("Option B: Select Randomized ROM", weight="bold"),
+            ft.Text("Option B: Select a ROM that was already randomized using Zelda Randomizer", weight="bold"),
             choose_randomized_button
         ], spacing=10),
         padding=ft.padding.only(left=20, right=20, top=20, bottom=20),
@@ -373,7 +450,7 @@ def build_step1_container(vanilla_file_picker, randomized_file_picker, generate_
     is_windows = platform == "windows"
 
     generate_panel_content = ft.Column([
-        ft.Text("Option C: Generate Base ROM with Zelda Randomizer", weight="bold"),
+        ft.Text("Option C: Generate a new Base ROM using Zelda Randomizer", weight="bold"),
         choose_generate_vanilla_button,
         ft.Row([gen_flagstring_input, gen_seed_input], spacing=20),
         generate_rom_button
@@ -403,10 +480,16 @@ def build_step1_container(vanilla_file_picker, randomized_file_picker, generate_
         opacity=1.0 if is_windows else 0.5
     )
 
+    # Wrap generate_panel to match width of the row above
+    generate_panel_row = ft.Container(
+        content=generate_panel,
+        expand=True
+    )
+
     return ft.Column([
         ft.Text("Step 1: Select Base ROM", size=20, weight="bold"),
         ft.Row([vanilla_panel, randomized_panel], spacing=15),
-        generate_panel
+        generate_panel_row
     ], spacing=15)
 
 
@@ -414,13 +497,21 @@ def build_step2_container(
     flag_checkbox_rows: dict,
     flagstring_input: ft.TextField,
     seed_input: ft.TextField,
+    random_seed_button: ft.ElevatedButton,
     on_randomize
 ) -> ft.Container:
     """Build Step 2: Configure Flags & Seed section."""
+    # Wrap seed input and button together
+    seed_with_button = ft.Row(
+        [seed_input, random_seed_button],
+        spacing=10,
+        tight=True
+    )
+
     flag_seed_row = ft.Row(
-        [flagstring_input, seed_input],
-        alignment="spaceBetween",
-        spacing=20
+        [flagstring_input, seed_with_button],
+        spacing=20,
+        wrap=True
     )
 
     randomize_button = ft.ElevatedButton("Randomize", on_click=on_randomize)
@@ -437,7 +528,7 @@ def build_step2_container(
     ], spacing=20)
 
     content = ft.Column([
-        ft.Text("Step 2: Configure ZORA Flags and Seed", size=20, weight="bold"),
+        ft.Text("Step 2: Configure ZORA Flags and Seed Number", size=20, weight="bold"),
         ft.Container(height=5),
         flag_seed_row,
         ft.Divider(),
@@ -448,7 +539,8 @@ def build_step2_container(
     return ft.Container(
         content=content,
         padding=20,
-        border=ft.border.all(1),
+        border=ft.border.all(2, ft.Colors.PURPLE_200),
+        border_radius=10,
         margin=10,
         disabled=True,
         opacity=0.4
@@ -475,16 +567,6 @@ def build_step3_container(
         platform: Platform type - "windows", "macos", or "web"
         on_download: Download button click handler
     """
-    def info_row(label: str, value: str):
-        """Create a row with aligned label and value."""
-        return ft.Row([
-            ft.Container(
-                ft.Text(f"{label}:", weight="w500"),
-                width=120
-            ),
-            ft.Text(value, selectable=True)
-        ], spacing=10)
-
     download_button = ft.ElevatedButton(
         "Download Randomized ROM",
         icon=ft.Icons.DOWNLOAD,
@@ -499,11 +581,11 @@ def build_step3_container(
             ft.Text("Randomization Complete!", size=16, weight="bold", color=ft.Colors.GREEN)
         ], spacing=10),
         ft.Container(height=10),
-        info_row("Output File", output_filename),
-        info_row("ZORA Flagstring", flagstring),
-        info_row("Seed", seed),
-        info_row("Code", code),
-        info_row("ROM Size", f"{len(randomized_rom_data):,} bytes"),
+        info_row("Output File", output_filename, label_width=150, value_width=400),
+        info_row("ZORA Flag String", flagstring, label_width=150, value_width=400),
+        info_row("ZORA Seed", seed, label_width=150),
+        info_row("ZORA Code", code, label_width=150),
+        info_row("ROM Size", f"{len(randomized_rom_data) / 1024:.1f} KB", label_width=150),
         ft.Container(height=15),
         download_button
     ], spacing=5)
@@ -511,9 +593,45 @@ def build_step3_container(
     return ft.Container(
         content=content,
         padding=20,
-        border=ft.border.all(1),
+        border=ft.border.all(2, ft.Colors.GREEN_200),
+        border_radius=10,
         margin=10
     )
+
+
+def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[dict, dict]:
+    """Build flag checkboxes and checkbox rows from FlagsEnum.
+
+    Args:
+        flag_state: FlagState instance containing complex_flags list
+        on_change_callback: Callback function for checkbox changes (flag_key, value)
+
+    Returns:
+        tuple: (flag_checkboxes dict, flag_checkbox_rows dict)
+    """
+    flag_checkboxes = {}
+    flag_checkbox_rows = {}
+
+    for flag in FlagsEnum:
+        if flag.value not in flag_state.complex_flags:
+            checkbox = ft.Checkbox(
+                label=flag.display_name,
+                value=False,
+                on_change=lambda e, key=flag.value: on_change_callback(key, e.control.value)
+            )
+            flag_checkboxes[flag.value] = checkbox
+
+            # Create row with checkbox and help icon
+            flag_checkbox_rows[flag.value] = ft.Row([
+                checkbox,
+                ft.IconButton(
+                    icon=ft.Icons.HELP_OUTLINE,
+                    icon_size=16,
+                    tooltip=flag.help_text
+                )
+            ], spacing=0)
+
+    return flag_checkboxes, flag_checkbox_rows
 
 
 # ============================================================================
@@ -539,6 +657,7 @@ def main(page: ft.Page, platform: str = "web"):
     randomized_rom_data = None
     randomized_rom_filename = None
     step3_container = None
+    zora_settings_card = None
 
     # ========================================================================
     # Event Handlers
@@ -562,6 +681,16 @@ def main(page: ft.Page, platform: str = "web"):
         flag_state.flags[flag_key] = value
         update_flagstring()
 
+    def show_step1():
+        """Show Step 1 UI."""
+        step1_container.visible = True
+        step1_container.update()
+
+    def hide_step1():
+        """Hide Step 1 UI."""
+        step1_container.visible = False
+        step1_container.update()
+
     def enable_step2():
         """Enable Step 2 UI."""
         step2_container.disabled = False
@@ -574,9 +703,39 @@ def main(page: ft.Page, platform: str = "web"):
         step2_container.opacity = 0.4
         step2_container.update()
 
+    def load_rom_and_show_card(disable_seed: bool = False):
+        """Hide Step 1, show ROM info card, and initialize Step 2.
+
+        Args:
+            disable_seed: If True, disable seed input and random seed button
+        """
+        nonlocal file_card
+
+        # Hide Step 1, show ROM info card
+        hide_step1()
+
+        if file_card:
+            page.controls.remove(file_card)
+
+        file_card = build_rom_info_card(rom_info, clear_rom)
+        page.controls.insert(1, file_card)
+        page.update()
+
+        # Initialize Step 2 with ROM data
+        seed_input.value = rom_info.seed
+
+        if disable_seed:
+            seed_input.disabled = True
+            random_seed_button.disabled = True
+            seed_input.update()
+            random_seed_button.update()
+
+        update_flagstring()
+        enable_step2()
+
     def clear_rom(e):
         """Remove ROM and reset UI to initial state."""
-        nonlocal file_card, vanilla_rom_path
+        nonlocal file_card, vanilla_rom_path, zora_settings_card, step3_container
 
         if file_card:
             page.controls.remove(file_card)
@@ -584,137 +743,225 @@ def main(page: ft.Page, platform: str = "web"):
             rom_info.clear()
             vanilla_rom_path = None
 
+            # Remove ZORA settings card if it exists
+            if zora_settings_card:
+                page.controls.remove(zora_settings_card)
+                zora_settings_card = None
+
+            # Remove Step 3 if it exists
+            if step3_container:
+                page.controls.remove(step3_container)
+                step3_container = None
+
             # Reset generate vanilla button text
             choose_generate_vanilla_button.text = "Choose Vanilla ROM"
             choose_generate_vanilla_button.update()
 
-            # Re-enable seed input
+            # Re-enable seed input and random seed button
             seed_input.disabled = False
+            random_seed_button.disabled = False
             seed_input.update()
+            random_seed_button.update()
 
-            step1_container.visible = True
-            step1_container.update()
-
+            show_step1()
             disable_step2()
             page.update()
 
-    def on_vanilla_file_picked(e: ft.FilePickerResultEvent):
-        """Handle vanilla ROM file selection (Option A)."""
+    def create_download_handler(rom_data: bytes, filename: str):
+        """Create a download handler for the given ROM data.
+
+        Args:
+            rom_data: The ROM data bytes to download
+            filename: The filename for the download
+
+        Returns:
+            callable: Event handler for download button
+        """
+        def on_download_rom(e):
+            """Handle download button click."""
+            if platform == "web":
+                # For web, save to downloads directory and show download instructions
+                try:
+                    # Save file to downloads directory
+                    downloads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "downloads")
+                    os.makedirs(downloads_dir, exist_ok=True)
+                    download_path = os.path.join(downloads_dir, filename)
+
+                    with open(download_path, 'wb') as f:
+                        f.write(rom_data)
+
+                    # Create a download link
+                    download_url = f"/assets/{filename}"
+
+                    # Show dialog with download instructions
+                    def close_download_dialog(e):
+                        page.close(download_dialog)
+                        page.update()
+
+                    def copy_url(e):
+                        page.set_clipboard(f"{page.url.rstrip('/')}{download_url}")
+                        show_snackbar(page, "Download URL copied to clipboard!")
+
+                    download_dialog = ft.AlertDialog(
+                        title=ft.Text("Download Ready"),
+                        content=ft.Column([
+                            ft.Text("Your randomized ROM has been generated."),
+                            ft.Container(height=10),
+                            ft.Text("Download URL:", weight="bold"),
+                            ft.Container(
+                                ft.Text(f"{download_url}", selectable=True, size=12),
+                                padding=10,
+                                bgcolor=ft.Colors.GREY_200,
+                                border_radius=5
+                            ),
+                            ft.Container(height=10),
+                            ft.Row([
+                                ft.ElevatedButton("Copy URL", on_click=copy_url, icon=ft.Icons.CONTENT_COPY),
+                                ft.ElevatedButton(
+                                    "Open in New Tab",
+                                    on_click=lambda e: page.launch_url(download_url, web_window_name="_blank"),
+                                    icon=ft.Icons.OPEN_IN_NEW
+                                )
+                            ], spacing=10),
+                            ft.Container(height=10),
+                            ft.Text(
+                                "Tip: Open in new tab, then use browser's 'Save as...' to download the file.",
+                                size=11,
+                                color=ft.Colors.GREY_700,
+                                italic=True
+                            )
+                        ], tight=True, spacing=5),
+                        actions=[
+                            ft.TextButton("Close", on_click=close_download_dialog)
+                        ]
+                    )
+                    page.open(download_dialog)
+                    page.update()
+                except Exception as ex:
+                    show_error_dialog(page, "Download Error", f"Failed to prepare download:\n\n{str(ex)}")
+            else:
+                # For desktop (macOS/Windows), use file picker to save
+                def on_save_result(e: ft.FilePickerResultEvent):
+                    if e.path:
+                        try:
+                            with open(e.path, 'wb') as f:
+                                f.write(rom_data)
+                            show_snackbar(page, f"ROM saved successfully to:\n{e.path}")
+                        except Exception as ex:
+                            show_snackbar(page, f"Error saving file: {str(ex)}")
+
+                save_file_picker = ft.FilePicker(on_result=on_save_result)
+                page.overlay.append(save_file_picker)
+                page.update()
+                # Remove .nes extension from filename since save_file will add it
+                filename_without_ext = filename.replace('.nes', '')
+                save_file_picker.save_file(
+                    file_name=filename_without_ext,
+                    allowed_extensions=["nes"]
+                )
+
+        return on_download_rom
+
+    def process_vanilla_rom(file_info, filepath):
+        """Process a vanilla ROM file (after upload if needed)."""
         nonlocal file_card
 
-        if not e.files:
-            return
+        filename = file_info.name
 
-        filepath = e.files[0].path
+        # Read ROM data from filepath
+        with open(filepath, 'rb') as f:
+            rom_data = f.read()
 
         # Validate that this is a vanilla ROM
-        if not is_vanilla_rom(filepath):
-            def close_dlg(e):
-                page.close(dialog)
-
-            dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Error"),
-                content=ft.Text("This doesn't appear to be a vanilla Legend of Zelda ROM"),
-                actions=[
-                    ft.TextButton("OK", on_click=close_dlg),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
-
-            page.open(dialog)
+        if not is_vanilla_rom_data(rom_data):
+            show_error_dialog(page, "Error", "This doesn't appear to be a vanilla Legend of Zelda ROM")
             return
 
-        # Create BaseROM instance for vanilla ROM
-        base_rom = BaseROM(filepath, 'vanilla')
-
         # Load ROM info for display
-        rom_info.filename = filepath
+        rom_info.filename = filepath if filepath else filename
         rom_info.rom_type = "vanilla"
-        rom_info.flagstring = base_rom.get_flag_string()
-        rom_info.seed = base_rom.get_seed_number()
+        rom_info.flagstring = ""
+        rom_info.seed = ""
 
         # Vanilla ROMs don't have a code (they have 0xFF bytes), which is expected
         try:
-            rom_info.code = base_rom.get_code()
+            rom_info.code = extract_code_from_rom_data(rom_data)
         except (ValueError, KeyError):
             rom_info.code = "n/a"
 
         flag_state.seed = rom_info.seed
+        load_rom_and_show_card(disable_seed=False)
 
-        # Hide Step 1, show ROM info card
-        step1_container.visible = False
-        step1_container.update()
-
-        if file_card:
-            page.controls.remove(file_card)
-
-        file_card = build_rom_info_card(rom_info, clear_rom)
-        page.controls.insert(1, file_card)
-        page.update()
-
-        # Initialize Step 2 with ROM data
-        seed_input.value = rom_info.seed
-        update_flagstring()
-        enable_step2()
-
-    def on_randomized_file_picked(e: ft.FilePickerResultEvent):
-        """Handle randomized ROM file selection (Option B)."""
-        nonlocal file_card
-
+    def on_vanilla_file_picked(e: ft.FilePickerResultEvent):
+        """Handle vanilla ROM file selection (Option A)."""
         if not e.files:
             return
 
-        filepath = e.files[0].path
+        file_info = e.files[0]
 
-        # Create BaseROM instance for randomized ROM
-        base_rom = BaseROM(filepath, 'randomized')
+        if file_info.path:
+            # Desktop platform - process directly
+            process_vanilla_rom(file_info, file_info.path)
+        else:
+            # Web platform - trigger upload first
+            upload_state['vanilla']['file_info'] = file_info
+            upload_state['vanilla']['uploading'] = True
+
+            upload_list = [
+                ft.FilePickerUploadFile(
+                    file_info.name,
+                    upload_url=page.get_upload_url(file_info.name, 600)
+                )
+            ]
+            vanilla_file_picker.upload(upload_list)
+
+    def process_randomized_rom(file_info, filepath):
+        """Process a randomized ROM file (after upload if needed)."""
+        nonlocal file_card
+
+        filename = file_info.name
+
+        # Read ROM data from filepath
+        with open(filepath, 'rb') as f:
+            rom_data = f.read()
 
         # Load ROM info for display
-        rom_info.filename = filepath
+        rom_info.filename = filepath if filepath else filename
         rom_info.rom_type = "randomized"
-        rom_info.flagstring = base_rom.get_flag_string()
-        rom_info.seed = base_rom.get_seed_number()
+        rom_info.flagstring, rom_info.seed = parse_filename_for_flag_and_seed(filename)
 
         # Validate that this is a randomized ROM by trying to extract the code
         try:
-            rom_info.code = base_rom.get_code()
+            rom_info.code = extract_code_from_rom_data(rom_data)
         except Exception:
-            def close_dlg(e):
-                page.close(dialog)
-
-            dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Error"),
-                content=ft.Text("This does not appear to be a ROM randomized using Zelda Randomizer"),
-                actions=[
-                    ft.TextButton("OK", on_click=close_dlg),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
-
-            page.open(dialog)
+            show_error_dialog(page, "Error", "This does not appear to be a ROM randomized using Zelda Randomizer")
             return
 
         flag_state.seed = rom_info.seed
+        load_rom_and_show_card(disable_seed=True)
 
-        # Hide Step 1, show ROM info card
-        step1_container.visible = False
-        step1_container.update()
+    def on_randomized_file_picked(e: ft.FilePickerResultEvent):
+        """Handle randomized ROM file selection (Option B)."""
+        if not e.files:
+            return
 
-        if file_card:
-            page.controls.remove(file_card)
+        file_info = e.files[0]
 
-        file_card = build_rom_info_card(rom_info, clear_rom)
-        page.controls.insert(1, file_card)
-        page.update()
+        if file_info.path:
+            # Desktop platform - process directly
+            process_randomized_rom(file_info, file_info.path)
+        else:
+            # Web platform - trigger upload first
+            upload_state['randomized']['file_info'] = file_info
+            upload_state['randomized']['uploading'] = True
 
-        # Initialize Step 2 with ROM data
-        seed_input.value = rom_info.seed
-        seed_input.disabled = True  # Disable seed input for randomized ROMs
-        seed_input.update()
-        update_flagstring()
-        enable_step2()
+            upload_list = [
+                ft.FilePickerUploadFile(
+                    file_info.name,
+                    upload_url=page.get_upload_url(file_info.name, 600)
+                )
+            ]
+            randomized_file_picker.upload(upload_list)
 
     def on_generate_vanilla_file_picked(e: ft.FilePickerResultEvent):
         """Handle vanilla ROM file selection for Option C."""
@@ -732,21 +979,11 @@ def main(page: ft.Page, platform: str = "web"):
         nonlocal file_card
 
         if not vanilla_rom_path:
-            page.snack_bar = ft.SnackBar(
-                ft.Text("Please select a vanilla ROM first"),
-                open=True
-            )
-            page.snack_bar.open = True
-            page.update()
+            show_snackbar(page, "Please select a vanilla ROM first")
             return
 
         if not gen_flagstring_input.value or not gen_seed_input.value:
-            page.snack_bar = ft.SnackBar(
-                ft.Text("Please enter both flagstring and seed number"),
-                open=True
-            )
-            page.snack_bar.open = True
-            page.update()
+            show_snackbar(page, "Please enter both flagstring and seed number")
             return
 
         # Create zrinterface.txt file in temp directory
@@ -777,68 +1014,30 @@ def main(page: ft.Page, platform: str = "web"):
             rom_info.code = extract_base_rom_code(generated_filename)
             flag_state.seed = rom_info.seed
 
-            # Hide Step 1, show ROM info card
-            step1_container.visible = False
-            step1_container.update()
-
-            if file_card:
-                page.controls.remove(file_card)
-
-            file_card = build_rom_info_card(rom_info, clear_rom)
-            page.controls.insert(1, file_card)
-            page.update()
-
-            # Initialize Step 2 with ROM data
-            seed_input.value = rom_info.seed
-            seed_input.disabled = True  # Disable seed input for generated ROMs
-            seed_input.update()
-            update_flagstring()
-            enable_step2()
+            load_rom_and_show_card(disable_seed=True)
 
         except FileNotFoundError as e:
-            def close_dlg(e):
-                page.close(dialog)
-
-            dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Error Generating ROM"),
-                content=ft.Text(f"Failed to generate or find the randomized ROM file.\n\nError: {str(e)}"),
-                actions=[
-                    ft.TextButton("OK", on_click=close_dlg),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
-            page.open(dialog)
+            show_error_dialog(page, "Error Generating ROM", f"Failed to generate or find the randomized ROM file.\n\nError: {str(e)}")
         except Exception as e:
-            def close_dlg(e):
-                page.close(dialog)
-
-            dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Error"),
-                content=ft.Text(f"An error occurred while generating the ROM:\n\n{str(e)}"),
-                actions=[
-                    ft.TextButton("OK", on_click=close_dlg),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
-            page.open(dialog)
+            show_error_dialog(page, "Error", f"An error occurred while generating the ROM:\n\n{str(e)}")
 
     def on_randomize(e):
         """Handle randomize button click."""
         try:
+            # Validate that seed is provided
+            if not seed_input.value or not seed_input.value.strip():
+                show_error_dialog(page, "Seed Required", "Please enter a seed number before randomizing.")
+                return
+
             # Read the base ROM file
             with open(rom_info.filename, 'rb') as f:
                 rom_bytes = io.BytesIO(f.read())
 
             # Convert flag_state to Flags object for randomizer
-            randomizer_flags = Flags()
-            for flag_key, flag_value in flag_state.flags.items():
-                if flag_value:  # Only set flags that are True
-                    setattr(randomizer_flags, flag_key, True)
+            randomizer_flags = flag_state.to_randomizer_flags()
 
             # Get seed as integer
-            seed = int(seed_input.value) if seed_input.value else 0
+            seed = int(seed_input.value)
 
             # Run the randomizer
             randomizer = Z1Randomizer(rom_bytes, seed, randomizer_flags)
@@ -854,61 +1053,27 @@ def main(page: ft.Page, platform: str = "web"):
                     rom_data[address + i] = byte
 
             # Store the randomized ROM data
-            nonlocal randomized_rom_data, randomized_rom_filename, step3_container
+            nonlocal randomized_rom_data, randomized_rom_filename, step3_container, zora_settings_card
             randomized_rom_data = bytes(rom_data)
             base_name = os.path.splitext(os.path.basename(rom_info.filename))[0]
             randomized_rom_filename = f"{base_name}_zora_{flagstring_input.value}_{seed_input.value}.nes"
 
-            # Disable Step 2
-            step2_container.disabled = True
-            step2_container.opacity = 0.4
+            # Hide Step 2 and show ZORA settings card
+            step2_container.visible = False
             step2_container.update()
 
+            # Create and show ZORA settings card
+            zora_settings_card = build_zora_settings_card(
+                flagstring_input.value,
+                seed_input.value,
+                flag_state
+            )
+            page.add(zora_settings_card)
+            page.update()
+
             # Show Step 3
-            def on_download_rom(e):
-                """Handle download button click."""
-                if platform == "web":
-                    # For web, trigger browser download
-                    page.download(randomized_rom_data, randomized_rom_filename)
-                else:
-                    # For desktop (macOS/Windows), use file picker to save
-                    def on_save_result(e: ft.FilePickerResultEvent):
-                        if e.path:
-                            try:
-                                with open(e.path, 'wb') as f:
-                                    f.write(randomized_rom_data)
-                                page.snack_bar = ft.SnackBar(
-                                    ft.Text(f"ROM saved successfully to:\n{e.path}"),
-                                    open=True
-                                )
-                                page.snack_bar.open = True
-                                page.update()
-                            except Exception as ex:
-                                page.snack_bar = ft.SnackBar(
-                                    ft.Text(f"Error saving file: {str(ex)}"),
-                                    open=True
-                                )
-                                page.snack_bar.open = True
-                                page.update()
-
-                    save_file_picker = ft.FilePicker(on_result=on_save_result)
-                    page.overlay.append(save_file_picker)
-                    page.update()
-                    # Remove .nes extension from filename since save_file will add it
-                    filename_without_ext = randomized_rom_filename.replace('.nes', '')
-                    save_file_picker.save_file(
-                        file_name=filename_without_ext,
-                        allowed_extensions=["nes"]
-                    )
-
-            # Extract code from randomized ROM
-            rom_code = "Unknown"
-            try:
-                # Read code from addresses 0xAFD0-0xAFD3 (with 0x10 NES header offset = 0xAFE0-0xAFE3)
-                code_bytes = randomized_rom_data[0xAFE0:0xAFE4]
-                rom_code = extract_code_from_bytes(code_bytes)
-            except Exception:
-                pass
+            rom_code = extract_code_from_rom_data(randomized_rom_data)
+            download_handler = create_download_handler(randomized_rom_data, randomized_rom_filename)
 
             step3_container = build_step3_container(
                 randomized_rom_data,
@@ -917,33 +1082,69 @@ def main(page: ft.Page, platform: str = "web"):
                 seed_input.value,
                 rom_code,
                 platform,
-                on_download_rom
+                download_handler
             )
             page.add(step3_container)
             page.update()
 
         except Exception as ex:
-            def close_dlg(e):
-                page.close(dialog)
-
-            dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Text("Randomization Error"),
-                content=ft.Text(f"An error occurred while randomizing the ROM:\n\n{str(ex)}"),
-                actions=[
-                    ft.TextButton("OK", on_click=close_dlg),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
-            page.open(dialog)
+            show_error_dialog(page, "Randomization Error", f"An error occurred while randomizing the ROM:\n\n{str(ex)}")
 
     # ========================================================================
     # UI Components
     # ========================================================================
 
-    # File pickers
-    vanilla_file_picker = ft.FilePicker(on_result=on_vanilla_file_picked)
-    randomized_file_picker = ft.FilePicker(on_result=on_randomized_file_picked)
+    # Upload state tracking
+    upload_state = {
+        'vanilla': {'uploading': False, 'file_info': None, 'uploaded_path': None},
+        'randomized': {'uploading': False, 'file_info': None, 'uploaded_path': None}
+    }
+
+    def on_vanilla_upload_progress(e: ft.FilePickerUploadEvent):
+        """Track vanilla ROM upload progress."""
+        if e.error:
+            show_error_dialog(page, "Upload Error", f"Upload failed: {e.error}")
+            return
+
+        if e.progress == 1.0:
+            # Upload complete - process the file
+            upload_state['vanilla']['uploading'] = False
+            # Get absolute path to uploaded file
+            upload_state['vanilla']['uploaded_path'] = os.path.abspath(f"uploads/{e.file_name}")
+
+            # Wait a moment for file to be fully written
+            import time
+            time.sleep(0.1)
+
+            if not os.path.exists(upload_state['vanilla']['uploaded_path']):
+                show_error_dialog(page, "Upload Error", f"File was not uploaded successfully. Expected at: {upload_state['vanilla']['uploaded_path']}")
+                return
+
+            # Now process the uploaded file
+            process_vanilla_rom(upload_state['vanilla']['file_info'], upload_state['vanilla']['uploaded_path'])
+
+    def on_randomized_upload_progress(e: ft.FilePickerUploadEvent):
+        """Track randomized ROM upload progress."""
+        if e.progress == 1.0:
+            # Upload complete - process the file
+            upload_state['randomized']['uploading'] = False
+            # Get absolute path to uploaded file
+            upload_state['randomized']['uploaded_path'] = os.path.abspath(f"uploads/{e.file_name}")
+
+            # Wait a moment for file to be fully written, then verify it exists
+            import time
+            time.sleep(0.1)
+
+            if not os.path.exists(upload_state['randomized']['uploaded_path']):
+                show_error_dialog(page, "Upload Error", f"File was not uploaded successfully. Expected at: {upload_state['randomized']['uploaded_path']}")
+                return
+
+            # Now process the uploaded file
+            process_randomized_rom(upload_state['randomized']['file_info'], upload_state['randomized']['uploaded_path'])
+
+    # File pickers with upload handlers
+    vanilla_file_picker = ft.FilePicker(on_result=on_vanilla_file_picked, on_upload=on_vanilla_upload_progress)
+    randomized_file_picker = ft.FilePicker(on_result=on_randomized_file_picked, on_upload=on_randomized_upload_progress)
     generate_vanilla_file_picker = ft.FilePicker(on_result=on_generate_vanilla_file_picked)
     page.overlay.append(vanilla_file_picker)
     page.overlay.append(randomized_file_picker)
@@ -981,39 +1182,31 @@ def main(page: ft.Page, platform: str = "web"):
     )
 
     # Step 2: Flag checkboxes - dynamically create from FlagsEnum
-    flag_checkboxes = {}
-    flag_checkbox_rows = {}
-
-    for flag in FlagsEnum:
-        if flag.value not in flag_state.complex_flags:
-            checkbox = ft.Checkbox(
-                label=flag.display_name,
-                value=False,
-                on_change=lambda e, key=flag.value: on_checkbox_changed(key, e.control.value)
-            )
-            flag_checkboxes[flag.value] = checkbox
-
-            # Create row with checkbox and help icon
-            flag_checkbox_rows[flag.value] = ft.Row([
-                checkbox,
-                ft.IconButton(
-                    icon=ft.Icons.HELP_OUTLINE,
-                    icon_size=16,
-                    tooltip=flag.help_text
-                )
-            ], spacing=0)
+    flag_checkboxes, flag_checkbox_rows = build_flag_checkboxes(flag_state, on_checkbox_changed)
 
     # Step 2: Inputs
     flagstring_input = ft.TextField(
         label="ZORA Flag String",
         value="",
         on_change=on_flagstring_changed,
-        width=300
+        width=250
     )
     seed_input = ft.TextField(
         label="ZORA Seed Number",
-        value="",
-        width=300
+        value="12345",
+        width=200
+    )
+
+    def on_random_seed_click(e):
+        """Generate a random seed between 10000000 and 99999999."""
+        random_seed = random.randint(10000000, 99999999)
+        seed_input.value = str(random_seed)
+        seed_input.update()
+
+    random_seed_button = ft.ElevatedButton(
+        "Random Seed",
+        on_click=on_random_seed_click,
+        icon=ft.Icons.SHUFFLE
     )
 
     # Step 2: Container
@@ -1021,6 +1214,7 @@ def main(page: ft.Page, platform: str = "web"):
         flag_checkbox_rows,
         flagstring_input,
         seed_input,
+        random_seed_button,
         on_randomize
     )
 

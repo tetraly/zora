@@ -3,7 +3,7 @@ from enum import Enum
 class FlagsEnum(Enum):
     PROGRESSIVE_ITEMS = (
         'progressive_items',
-        'Progressive swords, rings, arrows, and candles',
+        'Progressive Items',
         'If enabled, there will be three wood swords, two wood arrows, two blue rings, and two blue candles in the item pool. Collecting multiples of each will upgrade the item.'
     )
     SHUFFLE_WHITE_SWORD = (
