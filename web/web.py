@@ -28,10 +28,17 @@ if __name__ == "__main__":
     downloads_dir = os.path.join(assets_dir, "downloads")
     os.makedirs(downloads_dir, exist_ok=True)
 
+    # Create Flet app first
+    flet_app = flet_fastapi.app(
+        main,
+        upload_dir=upload_dir,
+        assets_dir=assets_dir
+    )
+
     # Create FastAPI app
     app = FastAPI()
 
-    # Add download endpoint
+    # Add download endpoint BEFORE mounting Flet
     @app.get("/download/{filename}")
     async def download_file(filename: str):
         """Serve file for download with proper headers."""
@@ -45,12 +52,8 @@ if __name__ == "__main__":
         else:
             raise HTTPException(status_code=404, detail=f"{filename} not found")
 
-    # Mount Flet app
-    app.mount("/", flet_fastapi.app(
-        main,
-        upload_dir=upload_dir,
-        assets_dir=assets_dir
-    ))
+    # Mount Flet app (this handles everything else including favicon)
+    app.mount("/", flet_app)
 
     # Run the app
     import uvicorn
