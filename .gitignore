@@ -1,0 +1,72 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# Uploads and downloads
+uploads/
+downloads/
+assets/downloads/
+
+# Web files
+web/uploads/
+
+# PyInstaller Build artifacts
+macos/build/
+macos/dist/
+windows/build/
+windows/dist/
+
+# Temporary files
+*.tmp
+*.log
+runtime.txt
+
+# ROM files
+# *.nes
+
+# Environment variables
+.env
+.env.local
