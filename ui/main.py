@@ -1,10 +1,8 @@
-import base64
 import flet as ft
 import io
 import os
 import random
 import re
-import shutil
 import tempfile
 import sys
 from pathlib import Path
@@ -171,7 +169,7 @@ def show_error_dialog(page: ft.Page, title: str, message: str) -> None:
         title: The dialog title
         message: The error message to display
     """
-    def close_dlg(e):
+    def close_dlg(e) -> None:
         page.close(dialog)
 
     dialog = ft.AlertDialog(
@@ -296,7 +294,7 @@ class RomInfo:
         self.seed = ""
         self.code = ""
 
-    def clear(self):
+    def clear(self) -> None:
         """Reset all ROM info."""
         self.filename = ""
         self.rom_type = ""
@@ -486,7 +484,7 @@ def build_step2_container(
     flagstring_input: ft.TextField,
     seed_input: ft.TextField,
     random_seed_button: ft.ElevatedButton,
-    on_randomize
+    on_randomize: callable
 ) -> ft.Container:
     """Build Step 2: Configure Flags & Seed section."""
     # Wrap seed input and button together
@@ -542,7 +540,7 @@ def build_step3_container(
     seed: str,
     code: str,
     platform: str,
-    on_download
+    on_download: callable
 ) -> ft.Container:
     """Build Step 3: Download Randomized ROM section.
 
@@ -626,7 +624,7 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
 # MAIN APPLICATION
 # ============================================================================
 
-def main(page: ft.Page, platform: str = "web"):
+def main(page: ft.Page, platform: str = "web") -> None:
     """Main application entry point.
 
     Args:
@@ -651,12 +649,12 @@ def main(page: ft.Page, platform: str = "web"):
     # Event Handlers
     # ========================================================================
 
-    def update_flagstring():
+    def update_flagstring() -> None:
         """Update flagstring input based on checkbox states."""
         flagstring_input.value = flag_state.to_flagstring()
         flagstring_input.update()
 
-    def on_flagstring_changed(e):
+    def on_flagstring_changed(e) -> None:
         """Parse flagstring input and update checkboxes if valid."""
         if flag_state.from_flagstring(flagstring_input.value):
             # Update checkbox UI to match parsed state
@@ -664,34 +662,34 @@ def main(page: ft.Page, platform: str = "web"):
                 checkbox.value = flag_state.flags.get(flag_key, False)
                 checkbox.update()
 
-    def on_checkbox_changed(flag_key: str, value: bool):
+    def on_checkbox_changed(flag_key: str, value: bool) -> None:
         """Handle checkbox state changes."""
         flag_state.flags[flag_key] = value
         update_flagstring()
 
-    def show_step1():
+    def show_step1() -> None:
         """Show Step 1 UI."""
         step1_container.visible = True
         step1_container.update()
 
-    def hide_step1():
+    def hide_step1() -> None:
         """Hide Step 1 UI."""
         step1_container.visible = False
         step1_container.update()
 
-    def enable_step2():
+    def enable_step2() -> None:
         """Enable Step 2 UI."""
         step2_container.disabled = False
         step2_container.opacity = 1.0
         step2_container.update()
 
-    def disable_step2():
+    def disable_step2() -> None:
         """Disable Step 2 UI."""
         step2_container.disabled = True
         step2_container.opacity = 0.4
         step2_container.update()
 
-    def load_rom_and_show_card(disable_seed: bool = False):
+    def load_rom_and_show_card(disable_seed: bool = False) -> None:
         """Hide Step 1, show ROM info card, and initialize Step 2.
 
         Args:
@@ -721,7 +719,7 @@ def main(page: ft.Page, platform: str = "web"):
         update_flagstring()
         enable_step2()
 
-    def clear_rom(e):
+    def clear_rom(e) -> None:
         """Remove ROM and reset UI to initial state."""
         nonlocal file_card, vanilla_rom_path, zora_settings_card, step3_container
 
@@ -755,7 +753,7 @@ def main(page: ft.Page, platform: str = "web"):
             disable_step2()
             page.update()
 
-    def create_download_handler(rom_data: bytes, filename: str):
+    def create_download_handler(rom_data: bytes, filename: str) -> callable:
         """Create a download handler for the given ROM data.
 
         Args:
@@ -765,7 +763,7 @@ def main(page: ft.Page, platform: str = "web"):
         Returns:
             callable: Event handler for download button
         """
-        def on_download_rom(e):
+        def on_download_rom(e) -> None:
             """Handle download button click - triggers browser download"""
             if platform == "web":
                 try:
@@ -795,7 +793,7 @@ def main(page: ft.Page, platform: str = "web"):
                     show_error_dialog(page, "Download Error", f"Failed to prepare download:\n\n{str(ex)}")
             else:
                 # For desktop (macOS/Windows), use file picker to save
-                def on_save_result(e: ft.FilePickerResultEvent):
+                def on_save_result(e: ft.FilePickerResultEvent) -> None:
                     if e.path:
                         try:
                             with open(e.path, 'wb') as f:
@@ -816,7 +814,7 @@ def main(page: ft.Page, platform: str = "web"):
 
         return on_download_rom
 
-    def process_vanilla_rom(file_info, filepath):
+    def process_vanilla_rom(file_info, filepath) -> None:
         """Process a vanilla ROM file (after upload if needed)."""
         nonlocal file_card
 
@@ -846,7 +844,7 @@ def main(page: ft.Page, platform: str = "web"):
         flag_state.seed = rom_info.seed
         load_rom_and_show_card(disable_seed=False)
 
-    def on_vanilla_file_picked(e: ft.FilePickerResultEvent):
+    def on_vanilla_file_picked(e: ft.FilePickerResultEvent) -> None:
         """Handle vanilla ROM file selection (Option A)."""
         if not e.files:
             return
@@ -869,7 +867,7 @@ def main(page: ft.Page, platform: str = "web"):
             ]
             vanilla_file_picker.upload(upload_list)
 
-    def process_randomized_rom(file_info, filepath):
+    def process_randomized_rom(file_info, filepath) -> None:
         """Process a randomized ROM file (after upload if needed)."""
         nonlocal file_card
 
@@ -894,7 +892,7 @@ def main(page: ft.Page, platform: str = "web"):
         flag_state.seed = rom_info.seed
         load_rom_and_show_card(disable_seed=True)
 
-    def on_randomized_file_picked(e: ft.FilePickerResultEvent):
+    def on_randomized_file_picked(e: ft.FilePickerResultEvent) -> None:
         """Handle randomized ROM file selection (Option B)."""
         if not e.files:
             return
@@ -917,7 +915,7 @@ def main(page: ft.Page, platform: str = "web"):
             ]
             randomized_file_picker.upload(upload_list)
 
-    def on_generate_vanilla_file_picked(e: ft.FilePickerResultEvent):
+    def on_generate_vanilla_file_picked(e: ft.FilePickerResultEvent) -> None:
         """Handle vanilla ROM file selection for Option C."""
         nonlocal vanilla_rom_path
 
@@ -928,7 +926,7 @@ def main(page: ft.Page, platform: str = "web"):
         choose_generate_vanilla_button.text = f"Vanilla ROM: {os.path.basename(vanilla_rom_path)}"
         choose_generate_vanilla_button.update()
 
-    def on_generate_rom(e):
+    def on_generate_rom(e) -> None:
         """Handle generate ROM button click."""
         nonlocal file_card
 
@@ -975,7 +973,7 @@ def main(page: ft.Page, platform: str = "web"):
         except Exception as e:
             show_error_dialog(page, "Error", f"An error occurred while generating the ROM:\n\n{str(e)}")
 
-    def on_randomize(e):
+    def on_randomize(e) -> None:
         """Handle randomize button click."""
         try:
             # Validate that seed is provided
@@ -1054,7 +1052,7 @@ def main(page: ft.Page, platform: str = "web"):
         'randomized': {'uploading': False, 'file_info': None, 'uploaded_path': None}
     }
 
-    def on_vanilla_upload_progress(e: ft.FilePickerUploadEvent):
+    def on_vanilla_upload_progress(e: ft.FilePickerUploadEvent) -> None:
         """Track vanilla ROM upload progress."""
         if e.error:
             show_error_dialog(page, "Upload Error", f"Upload failed: {e.error}")
@@ -1077,7 +1075,7 @@ def main(page: ft.Page, platform: str = "web"):
             # Now process the uploaded file
             process_vanilla_rom(upload_state['vanilla']['file_info'], upload_state['vanilla']['uploaded_path'])
 
-    def on_randomized_upload_progress(e: ft.FilePickerUploadEvent):
+    def on_randomized_upload_progress(e: ft.FilePickerUploadEvent) -> None:
         """Track randomized ROM upload progress."""
         if e.progress == 1.0:
             # Upload complete - process the file
@@ -1106,19 +1104,19 @@ def main(page: ft.Page, platform: str = "web"):
     page.update()
 
     # Step 1: Create buttons for file picking
-    def on_choose_vanilla_click(e):
+    def on_choose_vanilla_click(e) -> None:
         vanilla_file_picker.pick_files(
             allow_multiple=False,
             allowed_extensions=["nes"]
         )
 
-    def on_choose_randomized_click(e):
+    def on_choose_randomized_click(e) -> None:
         randomized_file_picker.pick_files(
             allow_multiple=False,
             allowed_extensions=["nes"]
         )
 
-    def on_choose_generate_vanilla_click(e):
+    def on_choose_generate_vanilla_click(e) -> None:
         generate_vanilla_file_picker.pick_files(
             allow_multiple=False,
             allowed_extensions=["nes"]
@@ -1178,7 +1176,7 @@ def main(page: ft.Page, platform: str = "web"):
         width=200
     )
 
-    def on_random_seed_click(e):
+    def on_random_seed_click(e) -> None:
         """Generate a random seed between 10000000 and 99999999."""
         random_seed = random.randint(10000000, 99999999)
         seed_input.value = str(random_seed)
