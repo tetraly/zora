@@ -1,6 +1,6 @@
 from enum import IntEnum
 import io
-from typing import IO, List
+from typing import IO, List, Dict
 from .constants import CHAR_MAP
 
 OVERWORLD_DATA_LOCATION = 0x18400
@@ -36,7 +36,7 @@ class RomReader:
             data.append(int(raw_byte))
         return data
 
-    def _GetLevelBlockPointer(self, addr: int) -> List[int]:
+    def _GetLevelBlockPointer(self, addr: int) -> int:
        val = self._ReadMemory(addr, 0x02)
        return val[1]*0x100 + val[0]
 
@@ -66,7 +66,7 @@ class RomReader:
             self._ReadMemory(COAST_ITEM_ADDRESS, 0x01)[0],
         ]
 
-    def GetRequirements(self) -> int:
+    def GetRequirements(self) -> Dict[str, int]:
         return {
             "triforce": self._ReadMemory(TRIFORCE_REQUIREMENT_ADDRESS, 0x01)[0],
             "white_sword": int(self._ReadMemory(WHITE_SWORD_REQUIREMENT_ADDRESS, 0x01)[0] / 0x10) + 1,

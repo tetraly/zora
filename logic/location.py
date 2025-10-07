@@ -67,3 +67,4 @@ class Location(object):
       return "Cave 0x%x Position %d" % (self.level_id, self.sub_id)
     elif self.IsLevelRoom():
       return "Level 0x%x Room %x" % (self.level_id, self.sub_id)
+    return "Unknown Location"

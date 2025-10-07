@@ -1,8 +1,7 @@
 #8192192025 ice's seed
 from typing import List, Tuple
 import logging
-from .constants import Direction
-from .randomizer_constants import CaveNum, Item, LevelNum, Enemy
+from .randomizer_constants import CaveNum, Direction, Item, LevelNum, Enemy
 from .randomizer_constants import Range, RoomNum, RoomType, WallType
 from .data_table import DataTable
 from .inventory import Inventory
@@ -159,13 +158,13 @@ class Validator(object):
       
   def _VisitRoom(self,
                  level_num: int,
-                 room_num: int,
-                 entry_direction: Direction) -> List[Tuple[int, Direction]]:
+                 room_num: RoomNum,
+                 entry_direction: Direction) -> List[Tuple[RoomNum, Direction]]:
       if room_num not in range(0, 0x80):
-        return
+        return []
       room = self.data_table.GetRoom(level_num, room_num)
       if room.IsMarkedAsVisited():
-        return
+        return []
       log.debug("Visiting level %d room %x" % (level_num, room_num))
       room.MarkAsVisited()
       tbr = []
@@ -179,7 +178,7 @@ class Validator(object):
 
       for direction in (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH):
         if self.CanMove(entry_direction, direction, level_num, room_num, room):
-          tbr.append((room_num + direction, Direction(-1 * entry_direction)))
+          tbr.append((RoomNum(room_num + direction), Direction(-1 * direction)))
 
       # Only check for stairways if this room is configured to have a stairway entrance
       if not self._HasStairway(room):
@@ -196,11 +195,11 @@ class Validator(object):
                   stairway_room.GetItem(), Location.LevelRoom(level_num, stairway_room_num))
           # Transport stairway cases. Add the connecting room to be checked.
           elif left_exit == room_num and right_exit != room_num:
-                tbr.append((right_exit, direction.NO_DIRECTION))
+                tbr.append((right_exit, Direction.STAIRCASE))
                 # Stop looking for additional staircases after finding one
                 break
           elif right_exit == room_num and left_exit != room_num:
-                tbr.append((left_exit, direction.NO_DIRECTION))
+                tbr.append((left_exit, Direction.STAIRCASE))
                 # Stop looking for additional staircases after finding one
                 break
       return tbr
@@ -239,7 +238,7 @@ class Validator(object):
 
     wall_type = room.GetWallType(exit_direction)
     if wall_type == WallType.SHUTTER_DOOR and level_num == 9:
-      next_room = self.data_table.GetRoom(level_num, room_num + exit_direction)
+      next_room = self.data_table.GetRoom(level_num, RoomNum(room_num + exit_direction))
       if next_room.GetEnemy() == Enemy.THE_KIDNAPPED:
         return self.inventory.Has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
      

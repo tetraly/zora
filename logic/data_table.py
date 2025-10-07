@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, List
-from .randomizer_constants import CaveNum, Item, LevelNum, Range, RoomNum
-from .constants import OVERWORLD_BLOCK_TYPES, ENTRANCE_DIRECTION_MAP, Direction
+from .randomizer_constants import CaveNum, Direction, Item, LevelNum, Range, RoomNum
+from .constants import OVERWORLD_BLOCK_TYPES, ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
 from .cave import Cave
@@ -47,7 +47,7 @@ class DataTable():
     self._ReadDataForOverworldCaves()
     self.triforce_locations = {}
 
-  def GetAvailableOverworldCaves(self, block_type) -> int:
+  def GetAvailableOverworldCaves(self, block_type) -> List[int]:
     tbr = set()
     for screen_num in range(0, 0x80):
       # Skip any screens that aren't "Secret in 1st Quest"
@@ -151,15 +151,16 @@ class DataTable():
   #  assert level_num in Range.VALID_LEVEL_NUMBERS
   #  return self.LEVEL_START_ROOM_NUMBERS[level_num - 1]
     
-  def GetLevelStartRoomNumber(self, level_num: int) -> int:
-      logging.debug("Level %d start room is %x" % 
+  def GetLevelStartRoomNumber(self, level_num: int) -> RoomNum:
+      logging.debug("Level %d start room is %x" %
                       (level_num, self.level_info[level_num][START_ROOM_OFFSET]))
-      return self.level_info[level_num][START_ROOM_OFFSET]
+      return RoomNum(self.level_info[level_num][START_ROOM_OFFSET])
 
   def GetLevelEntranceDirection(self, level_num: int) -> Direction:
       if not self.is_z1r:
           return Direction.SOUTH
-      return ENTRANCE_DIRECTION_MAP[self._GetRawLevelStairwayRoomNumberList(level_num)[-1]]
+      # Cast from constants.Direction to randomizer_constants.Direction
+      return Direction(ENTRANCE_DIRECTION_MAP[self._GetRawLevelStairwayRoomNumberList(level_num)[-1]])
   # Gets a list of staircase rooms for a level.
   #
   # Note that this will include not just passage staircases between two
@@ -188,12 +189,12 @@ class DataTable():
             stairway_list.append(0x0F)
         return stairway_list
 
-  def GetLevelStaircaseRoomNumberList(self, level_num: int) -> List[int]:
+  def GetLevelStaircaseRoomNumberList(self, level_num: int) -> List[RoomNum]:
         stairway_list = self._GetRawLevelStairwayRoomNumberList(level_num)
         # In randomized roms, the last item in the stairway list is the entrance dir.
         if self.is_z1r:
             stairway_list.pop(-1)
-        return stairway_list
+        return [RoomNum(room) for room in stairway_list]
 
   def GetPatch(self) -> Patch:
     patch = Patch()
