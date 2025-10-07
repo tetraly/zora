@@ -1,5 +1,8 @@
 # Core dependencies
-flet>=0.24.0
+flet>=0.28.2
+flet-web>=0.28.2
 
 # Web server support
+fastapi
+uvicorn
 gunicorn>=21.2.0
