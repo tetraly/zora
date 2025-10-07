@@ -1,10 +1,13 @@
+import base64
 import flet as ft
 import io
 import os
 import random
 import re
+import shutil
 import tempfile
 import sys
+from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from logic.flags import FlagsEnum, Flags
 from logic.randomizer import Z1Randomizer
@@ -394,27 +397,12 @@ def build_zora_settings_card(flagstring: str, seed: str, flag_state) -> ft.Card:
     )
 
 
-def build_step1_container(vanilla_file_picker, randomized_file_picker, generate_vanilla_file_picker, choose_generate_vanilla_button, gen_flagstring_input, gen_seed_input, on_generate_rom, platform: str = "web") -> ft.Column:
+def build_step1_container(choose_vanilla_button, choose_randomized_button, choose_generate_vanilla_button, gen_flagstring_input, gen_seed_input, on_generate_rom, platform: str = "web") -> ft.Column:
     """Build Step 1: Upload Base ROM section.
 
     Args:
         platform: Platform type - "windows", "macos", or "web"
     """
-    choose_vanilla_button = ft.ElevatedButton(
-        "Choose ROM",
-        on_click=lambda _: vanilla_file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=["nes"]
-        )
-    )
-
-    choose_randomized_button = ft.ElevatedButton(
-        "Choose ROM",
-        on_click=lambda _: randomized_file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=["nes"]
-        )
-    )
 
     generate_rom_button = ft.ElevatedButton(
         "Generate Base ROM with Zelda Randomizer",
@@ -778,65 +766,31 @@ def main(page: ft.Page, platform: str = "web"):
             callable: Event handler for download button
         """
         def on_download_rom(e):
-            """Handle download button click."""
+            """Handle download button click - triggers browser download"""
             if platform == "web":
-                # For web, save to downloads directory and show download instructions
                 try:
-                    # Save file to downloads directory
-                    downloads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "downloads")
-                    os.makedirs(downloads_dir, exist_ok=True)
-                    download_path = os.path.join(downloads_dir, filename)
+                    # Copy file to assets/downloads directory so it can be accessed
+                    assets_download_dir = Path("assets") / "downloads"
+                    assets_download_dir.mkdir(parents=True, exist_ok=True)
 
-                    with open(download_path, 'wb') as f:
+                    dest_path = assets_download_dir / filename
+
+                    # Write the ROM data to the assets/downloads directory
+                    with open(dest_path, 'wb') as f:
                         f.write(rom_data)
 
-                    # Create a download link
-                    download_url = f"/assets/{filename}"
+                    # Use the FastAPI download endpoint which sets proper headers
+                    download_url = f"/download/{filename}"
+                    page.launch_url(download_url)
 
-                    # Show dialog with download instructions
-                    def close_download_dialog(e):
-                        page.close(download_dialog)
-                        page.update()
-
-                    def copy_url(e):
-                        page.set_clipboard(f"{page.url.rstrip('/')}{download_url}")
-                        show_snackbar(page, "Download URL copied to clipboard!")
-
-                    download_dialog = ft.AlertDialog(
-                        title=ft.Text("Download Ready"),
-                        content=ft.Column([
-                            ft.Text("Your randomized ROM has been generated."),
-                            ft.Container(height=10),
-                            ft.Text("Download URL:", weight="bold"),
-                            ft.Container(
-                                ft.Text(f"{download_url}", selectable=True, size=12),
-                                padding=10,
-                                bgcolor=ft.Colors.GREY_200,
-                                border_radius=5
-                            ),
-                            ft.Container(height=10),
-                            ft.Row([
-                                ft.ElevatedButton("Copy URL", on_click=copy_url, icon=ft.Icons.CONTENT_COPY),
-                                ft.ElevatedButton(
-                                    "Open in New Tab",
-                                    on_click=lambda e: page.launch_url(download_url, web_window_name="_blank"),
-                                    icon=ft.Icons.OPEN_IN_NEW
-                                )
-                            ], spacing=10),
-                            ft.Container(height=10),
-                            ft.Text(
-                                "Tip: Open in new tab, then use browser's 'Save as...' to download the file.",
-                                size=11,
-                                color=ft.Colors.GREY_700,
-                                italic=True
-                            )
-                        ], tight=True, spacing=5),
-                        actions=[
-                            ft.TextButton("Close", on_click=close_download_dialog)
-                        ]
+                    # Show success message
+                    page.snack_bar = ft.SnackBar(
+                        content=ft.Text(f"✅ Downloading {filename}..."),
+                        bgcolor=ft.Colors.GREEN
                     )
-                    page.open(download_dialog)
+                    page.snack_bar.open = True
                     page.update()
+
                 except Exception as ex:
                     show_error_dialog(page, "Download Error", f"Failed to prepare download:\n\n{str(ex)}")
             else:
@@ -1149,6 +1103,41 @@ def main(page: ft.Page, platform: str = "web"):
     page.overlay.append(vanilla_file_picker)
     page.overlay.append(randomized_file_picker)
     page.overlay.append(generate_vanilla_file_picker)
+    page.update()
+
+    # Step 1: Create buttons for file picking
+    def on_choose_vanilla_click(e):
+        vanilla_file_picker.pick_files(
+            allow_multiple=False,
+            allowed_extensions=["nes"]
+        )
+
+    def on_choose_randomized_click(e):
+        randomized_file_picker.pick_files(
+            allow_multiple=False,
+            allowed_extensions=["nes"]
+        )
+
+    def on_choose_generate_vanilla_click(e):
+        generate_vanilla_file_picker.pick_files(
+            allow_multiple=False,
+            allowed_extensions=["nes"]
+        )
+
+    choose_vanilla_button = ft.ElevatedButton(
+        "Choose ROM",
+        on_click=on_choose_vanilla_click
+    )
+
+    choose_randomized_button = ft.ElevatedButton(
+        "Choose ROM",
+        on_click=on_choose_randomized_click
+    )
+
+    choose_generate_vanilla_button = ft.ElevatedButton(
+        "Choose Vanilla ROM",
+        on_click=on_choose_generate_vanilla_click
+    )
 
     # Step 1: Generate ROM inputs
     gen_flagstring_input = ft.TextField(
@@ -1161,19 +1150,11 @@ def main(page: ft.Page, platform: str = "web"):
         hint_text="e.g., 12345",
         width=300
     )
-    choose_generate_vanilla_button = ft.ElevatedButton(
-        "Choose Vanilla ROM",
-        on_click=lambda _: generate_vanilla_file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=["nes"]
-        )
-    )
 
     # Step 1: Upload ROM
     step1_container = build_step1_container(
-        vanilla_file_picker,
-        randomized_file_picker,
-        generate_vanilla_file_picker,
+        choose_vanilla_button,
+        choose_randomized_button,
         choose_generate_vanilla_button,
         gen_flagstring_input,
         gen_seed_input,
