@@ -6,6 +6,7 @@ import re
 import tempfile
 import sys
 from pathlib import Path
+from typing import Callable, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from logic.flags import FlagsEnum, Flags
 from logic.randomizer import Z1Randomizer
@@ -56,7 +57,9 @@ def extract_code_from_bytes(code_bytes: bytes) -> str:
     if None in items:
         raise ValueError("Unable to determine ROM code - invalid code bytes")
 
-    return ", ".join(items)
+    # Filter out None values for type checker (already verified no None above)
+    valid_items: list[str] = [item for item in items if item is not None]
+    return ", ".join(valid_items)
 
 
 def extract_base_rom_code(filename: str) -> str:
@@ -134,7 +137,7 @@ def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
     return flagstring, seed
 
 
-def info_row(label: str, value: str, label_width: int = 120, value_width: int = None) -> ft.Row:
+def info_row(label: str, value: str, label_width: int = 120, value_width: Optional[int] = None) -> ft.Row:
     """Create a row with aligned label and value.
 
     Args:
@@ -484,7 +487,7 @@ def build_step2_container(
     flagstring_input: ft.TextField,
     seed_input: ft.TextField,
     random_seed_button: ft.ElevatedButton,
-    on_randomize: callable
+    on_randomize: Callable
 ) -> ft.Container:
     """Build Step 2: Configure Flags & Seed section."""
     # Wrap seed input and button together
@@ -540,7 +543,7 @@ def build_step3_container(
     seed: str,
     code: str,
     platform: str,
-    on_download: callable
+    on_download: Callable
 ) -> ft.Container:
     """Build Step 3: Download Randomized ROM section.
 
@@ -753,7 +756,7 @@ def main(page: ft.Page, platform: str = "web") -> None:
             disable_step2()
             page.update()
 
-    def create_download_handler(rom_data: bytes, filename: str) -> callable:
+    def create_download_handler(rom_data: bytes, filename: str) -> Callable:
         """Create a download handler for the given ROM data.
 
         Args:
@@ -1047,9 +1050,9 @@ def main(page: ft.Page, platform: str = "web") -> None:
     # ========================================================================
 
     # Upload state tracking
-    upload_state = {
-        'vanilla': {'uploading': False, 'file_info': None, 'uploaded_path': None},
-        'randomized': {'uploading': False, 'file_info': None, 'uploaded_path': None}
+    upload_state: dict = {
+        'vanilla': {'uploading': False, 'file_info': None, 'uploaded_path': ''},
+        'randomized': {'uploading': False, 'file_info': None, 'uploaded_path': ''}
     }
 
     def on_vanilla_upload_progress(e: ft.FilePickerUploadEvent) -> None:
