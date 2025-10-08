@@ -991,6 +991,25 @@ def main(page: ft.Page, platform: str = "web") -> None:
             # Convert flag_state to Flags object for randomizer
             randomizer_flags = flag_state.to_randomizer_flags()
 
+            # Debug: Print enabled and disabled flags based on randomizer_flags
+            print("\n=== ZORA FLAGS DEBUG ===")
+            enabled_flags = []
+            disabled_flags = []
+            for flag in FlagsEnum:
+                flag_value = getattr(randomizer_flags, flag.value, False)
+                if flag_value:
+                    enabled_flags.append(flag.display_name)
+                else:
+                    disabled_flags.append(flag.display_name)
+
+            print(f"Enabled flags ({len(enabled_flags)}):")
+            for flag in enabled_flags:
+                print(f"  ✓ {flag}")
+            print(f"\nDisabled flags ({len(disabled_flags)}):")
+            for flag in disabled_flags:
+                print(f"  ✗ {flag}")
+            print("========================\n")
+
             # Get seed as integer
             seed = int(seed_input.value)
 
@@ -1043,6 +1062,13 @@ def main(page: ft.Page, platform: str = "web") -> None:
             page.update()
 
         except Exception as ex:
+            print(f"\n!!! RANDOMIZATION ERROR !!!")
+            print(f"Error type: {type(ex).__name__}")
+            print(f"Error message: {str(ex)}")
+            import traceback
+            print("Full traceback:")
+            traceback.print_exc()
+            print("!!!\n")
             show_error_dialog(page, "Randomization Error", f"An error occurred while randomizing the ROM:\n\n{str(ex)}")
 
     # ========================================================================

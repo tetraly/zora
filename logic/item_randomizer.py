@@ -47,7 +47,7 @@ class ItemRandomizer():
       items.append(self.MAGICAL_SWORD_LOCATION)
     # When Progress Items are enabled but not shuffling the magical sword item, change mags to a sword upgrade 
     elif self.flags.progressive_items:
-      self.data_table.SetCaveItem(MAGICAL_SWORD_LOCATION, Item.WOOD_SWORD)
+      self.data_table.SetCaveItem(self.MAGICAL_SWORD_LOCATION, Item.WOOD_SWORD)
     if self.flags.shuffle_coast_item:
       items.append(self.COAST_ITEM_LOCATION)
     if self.flags.shuffle_armos_item:
@@ -189,6 +189,11 @@ class ItemShuffler():
   def ShuffleItems(self) -> None:
     self.item_num_list.append(Item.HEART_CONTAINER)
     shuffle(self.item_num_list)
+
+    print(f"\n=== SHUFFLE ITEMS DEBUG ===")
+    print(f"Starting item_num_list length: {len(self.item_num_list)}")
+    total_locations = 0
+
     for level_num in Range.VALID_LEVEL_AND_CAVE_NUMBERS:
       # Levels 1-8 get a tringle, map, and compass.  Level 9 only gets a map and compass.
       if level_num in Range.VALID_LEVEL_NUMBERS and self.flags.shuffle_minor_dungeon_items:
@@ -199,6 +204,12 @@ class ItemShuffler():
 
       num_locations_needing_an_item = len(self.per_level_item_location_lists[level_num]) - len(
           self.per_level_item_lists[level_num])
+      total_locations += num_locations_needing_an_item
+
+      print(f"Level {level_num}: {len(self.per_level_item_location_lists[level_num])} locations, "
+            f"{len(self.per_level_item_lists[level_num])} pre-assigned items, "
+            f"{num_locations_needing_an_item} need items, "
+            f"{len(self.item_num_list)} items remaining")
 
       while num_locations_needing_an_item > 0:
         self.per_level_item_lists[level_num].append(self.item_num_list.pop())
@@ -206,6 +217,17 @@ class ItemShuffler():
 
       if level_num in range(1, 10):  # Technically this could be for OW and caves too
         shuffle(self.per_level_item_lists[level_num])
+
+    print(f"\nTotal locations needing items: {total_locations}")
+    print(f"Final item_num_list length: {len(self.item_num_list)}")
+    print("===========================\n")
+
+    if self.item_num_list:
+      print(f"\n!!! WARNING: Items remaining after shuffle !!!")
+      print(f"Remaining items: {self.item_num_list}")
+      print(f"Number of remaining items: {len(self.item_num_list)}")
+      print("!!!\n")
+
     assert not self.item_num_list
 
   def HasValidItemConfiguration(self):

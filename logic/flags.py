@@ -95,13 +95,15 @@ class FlagsEnum(Enum):
 
 class Flags:
     def __init__(self):
-        self.flags = {flag.value: flag for flag in FlagsEnum}
+        # Initialize all flags as False (boolean values)
+        self.flags = {flag.value: False for flag in FlagsEnum}
 
     def __getattr__(self, flag_value):
-        return self.flags[flag_value]
+        # Return the boolean value, defaulting to False if not found
+        return self.flags.get(flag_value, False)
 
     def get(self, flag_value):
-        return self.flags[flag_value]
+        return self.flags.get(flag_value, False)
 
     def set(self, flag_value, state: bool):
         if flag_value in self.flags:
