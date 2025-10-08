@@ -27,19 +27,27 @@ class ItemRandomizer():
     log.warning("_GetOverworldItemLocation Couldn't find it :(")
     return None
 
-  #WOOD_SWORD_LOCATION = Location.CavePosition(0, 2)
+  WOOD_SWORD_LOCATION = Location.CavePosition(0, 2)
   WHITE_SWORD_LOCATION = Location.CavePosition(2, 2)
   MAGICAL_SWORD_LOCATION = Location.CavePosition(3, 2)
   LETTER_LOCATION = Location.CavePosition(8, 2)
   ARMOS_ITEM_LOCATION = Location.CavePosition(20, 2)
   COAST_ITEM_LOCATION = Location.CavePosition(21, 2)
+  LEFT_POTION_SHOP_LOCATION = Location.CavePosition(10, 1)
+  MIDDLE_POTION_SHOP_LOCATION = Location.CavePosition(10, 2)
+  RIGHT_POTION_SHOP_LOCATION = Location.CavePosition(10, 3)
 
   def _GetOverworldItemsToShuffle(self) -> List[Location]:
     items: List[Location] = []
+    if self.flags.shuffle_wood_sword:
+      items.append(self.WOOD_SWORD_LOCATION)
     if self.flags.shuffle_white_sword:
       items.append(self.WHITE_SWORD_LOCATION)
     if self.flags.shuffle_magical_sword:
       items.append(self.MAGICAL_SWORD_LOCATION)
+    # When Progress Items are enabled but not shuffling the magical sword item, change mags to a sword upgrade 
+    elif self.flags.progressive_items:
+      self.data_table.SetCaveItem(MAGICAL_SWORD_LOCATION, Item.WOOD_SWORD)
     if self.flags.shuffle_coast_item:
       items.append(self.COAST_ITEM_LOCATION)
     if self.flags.shuffle_armos_item:
@@ -61,6 +69,12 @@ class ItemRandomizer():
     for location in self._GetOverworldItemsToShuffle():
       item_num = self.data_table.GetCaveItem(location)
       self.item_shuffler.AddLocationAndItem(location, item_num)
+    if self.flags.add_l4_sword:
+      self.data_table.SetCaveItem(self.MIDDLE_POTION_SHOP_LOCATION, Item.WOOD_SWORD)
+    if self.flags.shuffle_potion_shop_items:
+      self.item_shuffler.AddLocationAndItem(self.LEFT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
+      self.item_shuffler.AddLocationAndItem(self.MIDDLE_POTION_SHOP_LOCATION, Item.WOOD_SWORD)
+      self.item_shuffler.AddLocationAndItem(self.RIGHT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
 
   def _ReadItemsAndLocationsForUndergroundLevel(self, level_num: LevelNum) -> None:
     log.debug("Reading staircase room data for level %d " % level_num)

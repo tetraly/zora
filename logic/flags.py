@@ -6,6 +6,11 @@ class FlagsEnum(Enum):
         'Progressive Items',
         'If enabled, there will be three wood swords, two wood arrows, two blue rings, and two blue candles in the item pool. Collecting multiples of each will upgrade the item.'
     )
+    SHUFFLE_WOOD_SWORD = (
+        'shuffle_wood_sword',
+        'Shuffle Wood Sword',
+        'Adds the Wood Sword to the item shuffle pool. May or may not make the seed unbeatable. Recommended for advanced players only.'
+    )    
     SHUFFLE_WHITE_SWORD = (
         'shuffle_white_sword',
         'Shuffle White Sword',
@@ -35,6 +40,11 @@ class FlagsEnum(Enum):
         'shuffle_shop_items',
         'Shuffle Shop Items',
         'Adds the blue candle, blue ring, wood arrows, and both baits to the item shuffle pool.'
+    )
+    SHUFFLE_POTION_SHOP_ITEMS = (
+        'shuffle_potion_shop_items',
+        'Shuffle Potion Shop Items',
+        'Adds the potions in the potion shop to the item shuffle pool. Known issue: Red potions in dungeons will be downgraded to blue potions.'
     )
     SHUFFLE_MINOR_DUNGEON_ITEMS = (
         'shuffle_minor_dungeon_items',
@@ -66,10 +76,10 @@ class FlagsEnum(Enum):
         'Speed Up Dungeon Transitions',
         'Speeds up dungeon room transitions to be as fast as overworld screen transitions'
     )
-    PACIFIST_MODE = (
-        'pacifist_mode',
-        'Pacifist Mode',
-        'Auto-opens shutter doors and makes blocks pushable. Also gives more (infinite?) HP to enemies or something?'
+    ADD_L4_SWORD = (
+        'add_l4_sword',
+        'Add L4 Sword',
+        'Adds an additional sword upgrade to the potion shop. Note: Will only be useful with progressive items enabled.'
     )
     
     

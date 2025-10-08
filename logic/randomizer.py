@@ -55,7 +55,7 @@ class Z1Randomizer():
     if self.flags.progressive_items: # New progressive item code 
       patch.AddData(0x6D06, [0x18, 0x79, 0x57, 0x06, 0xEA])
 
-      # Fix for Ring/tunic colors from zora/randomizer.py
+      # Fix for Ring/tunic colors
       patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])
       patch.AddData(0x1FFF4, [0x8E, 0x02, 0x06, 0x8E, 0x72, 0x06, 0xEE, 0x4F, 0x03, 0x60])
 
@@ -73,7 +73,7 @@ class Z1Randomizer():
         patch.AddData(addr, [0xEA, 0xEA])
 
 
-    if self.flags.pacifist_mode:
+    if False: # self.flags.pacifist_mode:
       patch.AddData(0x7563, [0x00])
       patch.AddData(0x757A, [0x00])
       patch.AddData(0x75A6, [0x00, 0x00])
