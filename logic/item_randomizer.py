@@ -164,7 +164,7 @@ class ItemShuffler():
     self.per_level_item_location_lists[level_num].append(location)
     log.debug("Location %d:  %s" %
               (len(self.per_level_item_location_lists[level_num]),location.ToString()))
-    
+
     if item_num in [Item.MAP, Item.COMPASS, Item.TRIFORCE, Item.HEART_CONTAINER]:
       return
     #TODO: This would be more elgant with a dict lookup
@@ -187,12 +187,9 @@ class ItemShuffler():
     log.debug("Item #%d: %s. From %s" % (len(self.item_num_list), item_num, location.ToString()))
 
   def ShuffleItems(self) -> None:
-    self.item_num_list.append(Item.HEART_CONTAINER)
+    if self.flags.shuffle_coast_item:
+      self.item_num_list.append(Item.HEART_CONTAINER)
     shuffle(self.item_num_list)
-
-    print(f"\n=== SHUFFLE ITEMS DEBUG ===")
-    print(f"Starting item_num_list length: {len(self.item_num_list)}")
-    total_locations = 0
 
     for level_num in Range.VALID_LEVEL_AND_CAVE_NUMBERS:
       # Levels 1-8 get a tringle, map, and compass.  Level 9 only gets a map and compass.
@@ -204,12 +201,6 @@ class ItemShuffler():
 
       num_locations_needing_an_item = len(self.per_level_item_location_lists[level_num]) - len(
           self.per_level_item_lists[level_num])
-      total_locations += num_locations_needing_an_item
-
-      print(f"Level {level_num}: {len(self.per_level_item_location_lists[level_num])} locations, "
-            f"{len(self.per_level_item_lists[level_num])} pre-assigned items, "
-            f"{num_locations_needing_an_item} need items, "
-            f"{len(self.item_num_list)} items remaining")
 
       while num_locations_needing_an_item > 0:
         self.per_level_item_lists[level_num].append(self.item_num_list.pop())
@@ -217,10 +208,6 @@ class ItemShuffler():
 
       if level_num in range(1, 10):  # Technically this could be for OW and caves too
         shuffle(self.per_level_item_lists[level_num])
-
-    print(f"\nTotal locations needing items: {total_locations}")
-    print(f"Final item_num_list length: {len(self.item_num_list)}")
-    print("===========================\n")
 
     if self.item_num_list:
       print(f"\n!!! WARNING: Items remaining after shuffle !!!")

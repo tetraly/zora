@@ -12,6 +12,7 @@ from logic.flags import FlagsEnum, Flags
 from logic.randomizer import Z1Randomizer
 from common.constants import CODE_ITEMS
 from windows import zrinterface
+from ui.known_issues import build_known_issues_page
 
 
 # ============================================================================
@@ -627,6 +628,83 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
 # MAIN APPLICATION
 # ============================================================================
 
+def build_header(on_view_known_issues) -> ft.Container:
+    """Build the application header with logo and title.
+
+    Args:
+        on_view_known_issues: Callback function to navigate to known issues page
+    """
+    return ft.Container(
+        content=ft.Column([
+            ft.Row([
+                ft.Image(
+                    src="zora.png",
+                    width=96,
+                    height=96,
+                    fit=ft.ImageFit.CONTAIN
+                ),
+                ft.Column([
+                    ft.Text(
+                        "Zelda One Randomizer Add-Ons (ZORA) beta v0.1",
+                        size=28,
+                        weight="bold",
+                        color=ft.Colors.BLUE_900
+                    ),
+                    ft.Container(height=5),
+                    ft.Text(
+                        spans=[
+                            ft.TextSpan("ZORA is an add-on randomizer for "),
+                            ft.TextSpan(
+                                "Zelda Randomizer",
+                                style=ft.TextStyle(color=ft.Colors.BLUE_700),
+                                url="https://sites.google.com/site/zeldarandomizer/"
+                            ),
+                            ft.TextSpan(
+                                " introducing several new features. "
+                                "It works by re-randomizing a ROM that has already "
+                                "been randomized using the original Zelda Randomizer. "
+                                "It can also randomize an unrandomized (vanilla) Legend of Zelda ROM."
+                            )
+                        ],
+                        size=14,
+                        width=700
+                    ),
+                    ft.Container(height=8),
+                    ft.Column([
+                        ft.Text(
+                            spans=[
+                                ft.TextSpan(
+                                    "WARNING: ",
+                                    style=ft.TextStyle(weight=ft.FontWeight.BOLD)
+                                ),
+                                ft.TextSpan(
+                                    "As of October 2025, ZORA is still an experimental product in early testing. "
+                                    "While everyone is welcomed and encouraged to try it out, please be aware that "
+                                    "any seeds you generate may contain bugs, unexpected glitches, softlocks, "
+                                    "and may be completely unbeatable. Please proceed at your own risk! "
+                                )
+                            ],
+                            size=13,
+                            color=ft.Colors.RED_800,
+                            width=700
+                        ),
+                        ft.TextButton(
+                            "Please click here to view the Known Issues & Bugs page.",
+                            on_click=on_view_known_issues,
+                            style=ft.ButtonStyle(
+                                padding=0,
+                                color=ft.Colors.WHITE
+                            )
+                        )
+                    ], spacing=5)
+                ], spacing=0)
+            ], spacing=20, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            ft.Divider(height=20, thickness=2)
+        ], spacing=10),
+        padding=ft.padding.only(bottom=10)
+    )
+
+
 def main(page: ft.Page, platform: str = "web") -> None:
     """Main application entry point.
 
@@ -647,10 +725,45 @@ def main(page: ft.Page, platform: str = "web") -> None:
     randomized_rom_filename = None
     step3_container = None
     zora_settings_card = None
+    known_issues_page = None
+    main_content = None
 
     # ========================================================================
     # Event Handlers
     # ========================================================================
+
+    def on_view_known_issues(e) -> None:
+        """Navigate to known issues page."""
+        nonlocal known_issues_page, main_content
+
+        # Hide main content
+        main_content.visible = False
+        main_content.update()
+
+        # Build and show known issues page
+        if not known_issues_page:
+            known_issues_page = build_known_issues_page(page, on_back_to_main)
+            page.add(known_issues_page)
+        else:
+            known_issues_page.visible = True
+            known_issues_page.update()
+
+        page.update()
+
+    def on_back_to_main(e) -> None:
+        """Navigate back to main page."""
+        nonlocal known_issues_page, main_content
+
+        # Hide known issues page
+        if known_issues_page:
+            known_issues_page.visible = False
+            known_issues_page.update()
+
+        # Show main content
+        main_content.visible = True
+        main_content.update()
+
+        page.update()
 
     def update_flagstring() -> None:
         """Update flagstring input based on checkbox states."""
@@ -751,6 +864,9 @@ def main(page: ft.Page, platform: str = "web") -> None:
             random_seed_button.disabled = False
             seed_input.update()
             random_seed_button.update()
+
+            # Make sure step 2 is visible (it gets hidden when randomizing)
+            step2_container.visible = True
 
             show_step1()
             disable_step2()
@@ -991,25 +1107,6 @@ def main(page: ft.Page, platform: str = "web") -> None:
             # Convert flag_state to Flags object for randomizer
             randomizer_flags = flag_state.to_randomizer_flags()
 
-            # Debug: Print enabled and disabled flags based on randomizer_flags
-            print("\n=== ZORA FLAGS DEBUG ===")
-            enabled_flags = []
-            disabled_flags = []
-            for flag in FlagsEnum:
-                flag_value = getattr(randomizer_flags, flag.value, False)
-                if flag_value:
-                    enabled_flags.append(flag.display_name)
-                else:
-                    disabled_flags.append(flag.display_name)
-
-            print(f"Enabled flags ({len(enabled_flags)}):")
-            for flag in enabled_flags:
-                print(f"  ✓ {flag}")
-            print(f"\nDisabled flags ({len(disabled_flags)}):")
-            for flag in disabled_flags:
-                print(f"  ✗ {flag}")
-            print("========================\n")
-
             # Get seed as integer
             seed = int(seed_input.value)
 
@@ -1226,6 +1323,16 @@ def main(page: ft.Page, platform: str = "web") -> None:
         on_randomize
     )
 
+    # Build header
+    header = build_header(on_view_known_issues)
+
+    # Build main content container
+    main_content = ft.Column([
+        header,
+        step1_container,
+        step2_container
+    ], spacing=0)
+
     # Add to page
-    page.add(step1_container, step2_container)
+    page.add(main_content)
     page.update()
