@@ -45,7 +45,7 @@ class ItemRandomizer():
       items.append(self.WHITE_SWORD_LOCATION)
     if self.flags.shuffle_magical_sword:
       items.append(self.MAGICAL_SWORD_LOCATION)
-    # When Progress Items are enabled but not shuffling the magical sword item, change mags to a sword upgrade 
+    # When Progressive Items are enabled but not shuffling the magical sword item, change mags to a sword upgrade 
     elif self.flags.progressive_items:
       self.data_table.SetCaveItem(self.MAGICAL_SWORD_LOCATION, Item.WOOD_SWORD)
     if self.flags.shuffle_coast_item:
@@ -151,11 +151,17 @@ class ItemShuffler():
     self.item_num_list: List[Item] = []
     self.per_level_item_location_lists: DefaultDict[LevelNum, List[Location]] = defaultdict(list)
     self.per_level_item_lists: DefaultDict[LevelNum, List[Item]] = defaultdict(list)
+    self.heart_container_count = 0
+    self.temp_location_count = 0
+    self.temp_dung_item_count = 0
 
   def ResetState(self):
     self.item_num_list.clear()
     self.per_level_item_location_lists.clear()
     self.per_level_item_lists.clear()
+    self.heart_container_count = 0
+    self.temp_location_count = 0
+    self.temp_dung_item_count = 0
 
   def AddLocationAndItem(self, location: Location, item_num: Item) -> None:
     if item_num == Item.TRIFORCE_OF_POWER:
@@ -164,8 +170,16 @@ class ItemShuffler():
     self.per_level_item_location_lists[level_num].append(location)
     log.debug("Location %d:  %s" %
               (len(self.per_level_item_location_lists[level_num]),location.ToString()))
-
-    if item_num in [Item.MAP, Item.COMPASS, Item.TRIFORCE, Item.HEART_CONTAINER]:
+              
+    self.temp_location_count += 1
+    log.debug("L%d Adding Location %s" % (self.temp_location_count, location.ToString()))
+    if (item_num == Item.HEART_CONTAINER and self.heart_container_count < 8) or item_num in [Item.MAP, Item.COMPASS, Item.TRIFORCE]:
+      if item_num == Item.HEART_CONTAINER:
+        self.heart_container_count += 1            
+      self.temp_dung_item_count += 1
+      log.debug("T%d Found a thing" % self.temp_dung_item_count)
+      log.debug("%d == %d + %d" % (self.temp_location_count , self.temp_dung_item_count, len(self.item_num_list)))
+      assert (self.temp_location_count == self.temp_dung_item_count + len(self.item_num_list))
       return
     #TODO: This would be more elgant with a dict lookup
     if self.flags.progressive_items:
@@ -184,14 +198,16 @@ class ItemShuffler():
       #  item_num = Item.WOODEN_BOOMERANG
 
     self.item_num_list.append(item_num)
-    log.debug("Item #%d: %s. From %s" % (len(self.item_num_list), item_num, location.ToString()))
+    log.debug("I%d:  %s. From %s" % (len(self.item_num_list), Item(item_num), location.ToString()))
+    log.debug ("%d == %d + %d" % (self.temp_location_count , self.temp_dung_item_count, len(self.item_num_list)))
+    assert (self.temp_location_count == self.temp_dung_item_count + len(self.item_num_list))
 
   def ShuffleItems(self) -> None:
-    if self.flags.shuffle_coast_item:
-      self.item_num_list.append(Item.HEART_CONTAINER)
     shuffle(self.item_num_list)
 
     for level_num in Range.VALID_LEVEL_AND_CAVE_NUMBERS:
+      log.debug("We're in level %d" % level_num)
+      log.debug("There are a total of %d items left" % len(self.item_num_list))
       # Levels 1-8 get a tringle, map, and compass.  Level 9 only gets a map and compass.
       if level_num in Range.VALID_LEVEL_NUMBERS and self.flags.shuffle_minor_dungeon_items:
         self.per_level_item_lists[level_num] = [Item.MAP, Item.COMPASS]
@@ -201,6 +217,7 @@ class ItemShuffler():
 
       num_locations_needing_an_item = len(self.per_level_item_location_lists[level_num]) - len(
           self.per_level_item_lists[level_num])
+      log.debug("In this level, %d locations need an item" % num_locations_needing_an_item)
 
       while num_locations_needing_an_item > 0:
         self.per_level_item_lists[level_num].append(self.item_num_list.pop())
