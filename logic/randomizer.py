@@ -39,8 +39,9 @@ class Z1Randomizer():
     num_iterations = 0
     while not is_valid_seed:
       seed = random.randint(0, 9999999999)
-      num_iterations += 1
       while True:
+        num_iterations += 1
+        print(num_iterations)
         data_table.ResetToVanilla()
         item_randomizer.ResetState()
         item_randomizer.ReadItemsAndLocationsFromTable()
@@ -48,13 +49,13 @@ class Z1Randomizer():
         if item_randomizer.HasValidItemConfiguration():
           print("Success after %d tries" % num_iterations)
           break
+        if num_iterations >= 2000:
+          print("Gave up after %d iterations" % num_iterations)
+          raise Exception(f"Gave up after {num_iterations} possible item shuffles. Are you trying to put three items in a level with only two item locations?")
       
       item_randomizer.WriteItemsAndLocationsToTable()
       is_valid_seed = validator.IsSeedValid()
       
-      if num_iterations >= 1000:
-        print("Gave up after %d iterations" % num_iterations)
-        raise Exception(f"Gave up after {num_iterations} iterations")
     patch = data_table.GetPatch()
 
     if self.flags.progressive_items: # New progressive item code 
