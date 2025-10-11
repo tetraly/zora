@@ -235,6 +235,9 @@ class ItemShuffler():
     assert not self.item_num_list
 
   def HasValidItemConfiguration(self):
+    found_ring_in_level_nine: bool = False
+    found_wand_in_level_nine: bool = False
+    found_arrow_in_level_nine: bool = False
     for level_num in range(0, 11):
       for location, item in zip(self.per_level_item_location_lists[level_num],
                                     self.per_level_item_lists[level_num]):
@@ -243,6 +246,19 @@ class ItemShuffler():
             return False
         if location.IsCavePosition() and location.GetCaveNum() == 0x25 and item == Item.LADDER:
             return False
+        if location.IsLevelRoom() and location.GetLevelNum() == 9:
+          if item in [Item.WOOD_ARROWS, Item.SILVER_ARROWS]:
+            found_arrow_in_level_nine = True
+          if item in [Item.BLUE_RING, Item.RED_RING]:
+            found_ring_in_level_nine = True
+          if item == Item.WAND:
+            found_wand_in_level_nine = True
+    if self.flags.force_arrow_to_level_nine and not found_arrow_in_level_nine:
+      return False        
+    if self.flags.force_ring_to_level_nine and not found_ring_in_level_nine:
+      return False
+    if self.flags.force_wand_to_level_nine and not found_wand_in_level_nine:
+      return False        
     return True   
 
   def GetAllLocationAndItemData(self) -> Iterable[Tuple[Location, Item]]:

@@ -81,7 +81,21 @@ class FlagsEnum(Enum):
         'Add L4 Sword',
         'Adds an additional sword upgrade to the potion shop. Note: Will only be useful with progressive items enabled.'
     )
-    
+    FORCE_ARROW_TO_LEVEL_NINE = (
+        'force_arrow_to_level_nine',
+        'Force an arrow to be in level 9',
+        'Require that an arrow be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
+    )
+    FORCE_RING_TO_LEVEL_NINE = (
+        'force_ring_to_level_nine',
+        'Force a ring to be in level 9',
+        'Require that a ring be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
+    )
+    FORCE_WAND_TO_LEVEL_NINE = (
+        'force_wand_to_level_nine',
+        'Force a wand to be in level 9',
+        'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
+    )
     
     def __init__(self, value, display_name, help_text):
         self._value_ = value
