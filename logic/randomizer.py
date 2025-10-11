@@ -46,10 +46,15 @@ class Z1Randomizer():
         item_randomizer.ReadItemsAndLocationsFromTable()
         item_randomizer.ShuffleItems()
         if item_randomizer.HasValidItemConfiguration():
+          print("Success after %d tries" % num_iterations)
           break
       
       item_randomizer.WriteItemsAndLocationsToTable()
       is_valid_seed = validator.IsSeedValid()
+      
+      if num_iterations >= 1000:
+        print("Gave up after %d iterations" % num_iterations)
+        raise Exception(f"Gave up after {num_iterations} iterations")
     patch = data_table.GetPatch()
 
     if self.flags.progressive_items: # New progressive item code 
