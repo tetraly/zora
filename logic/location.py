@@ -41,7 +41,7 @@ class Location(object):
     return self.level_id in range(0x10, 0x26)
 
   def IsShopPosition(self) -> bool:
-    return self.level_id in range(0x1D, 0x21)
+    return self.level_id == 0x1A or self.level_id in range(0x1D, 0x21)
 
   def GetUniqueIdentifier(self) -> int:
     return 1000 * self.level_id + self.sub_id
