@@ -39,11 +39,11 @@ class ItemRandomizer():
 
   def _GetOverworldItemsToShuffle(self) -> List[Location]:
     items: List[Location] = []
-    if self.flags.shuffle_wood_sword:
+    if self.flags.shuffle_wood_sword_cave_item:
       items.append(self.WOOD_SWORD_LOCATION)
-    if self.flags.shuffle_white_sword:
+    if self.flags.shuffle_white_sword_cave_item:
       items.append(self.WHITE_SWORD_LOCATION)
-    if self.flags.shuffle_magical_sword:
+    if self.flags.shuffle_magical_sword_cave_item:
       items.append(self.MAGICAL_SWORD_LOCATION)
     # When Progressive Items are enabled but not shuffling the magical sword item, change mags to a sword upgrade 
     elif self.flags.progressive_items:
@@ -52,7 +52,7 @@ class ItemRandomizer():
       items.append(self.COAST_ITEM_LOCATION)
     if self.flags.shuffle_armos_item:
       items.append(self.ARMOS_ITEM_LOCATION)
-    if self.flags.shuffle_letter:
+    if self.flags.shuffle_letter_cave_item:
       items.append(self.LETTER_LOCATION)
     if self.flags.shuffle_shop_items:
       items.append(self._GetOverworldItemLocation(Item.WOOD_ARROWS))

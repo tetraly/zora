@@ -6,35 +6,35 @@ class FlagsEnum(Enum):
         'Progressive Items',
         'If enabled, there will be three wood swords, two wood arrows, two blue rings, and two blue candles in the item pool. Collecting multiples of each will upgrade the item.'
     )
-    SHUFFLE_WOOD_SWORD = (
-        'shuffle_wood_sword',
-        'Shuffle Wood Sword',
-        'Adds the Wood Sword to the item shuffle pool. May or may not make the seed unbeatable. Recommended for advanced players only.'
+    SHUFFLE_WOOD_SWORD_CAVE_ITEM = (
+        'shuffle_wood_sword_cave_item',
+        'Shuffle Wood Sword Cave item',
+        'Adds the Wood Sword Cave Item to the item shuffle pool. May or may not make the seed unbeatable. Recommended for advanced players only.'
     )    
-    SHUFFLE_WHITE_SWORD = (
-        'shuffle_white_sword',
-        'Shuffle White Sword',
-        'Adds the White Sword to the item shuffle pool'
+    SHUFFLE_WHITE_SWORD_CAVE_ITEM = (
+        'shuffle_white_sword_cave_item',
+        'Shuffle White Sword Cave item',
+        'Adds the White Sword Cave item to the item shuffle pool'
     )
-    SHUFFLE_MAGICAL_SWORD = (
-        'shuffle_magical_sword',
-        'Shuffle Magical Sword',
+    SHUFFLE_MAGICAL_SWORD_CAVE_ITEM = (
+        'shuffle_magical_sword_cave_item',
+        'Shuffle Magical Sword Cave item',
         'Adds the Magical Sword to the item shuffle pool. Important Note: If the Magical Sword is shuffled into a room that normally has a standing floor item, it will become a drop item. You will need to defeat all enemies in the room for the Magical Sword to appear.'
     )
-    SHUFFLE_LETTER = (
-        'shuffle_letter',
-        'Shuffle Letter',
-        'Adds the letter for the potion shop to the item shuffle.'
+    SHUFFLE_LETTER_CAVE_ITEM = (
+        'shuffle_letter_cave_item',
+        'Shuffle Letter Cave Item',
+        'Adds the Letter Cave Item to the item shuffle.'
     )
     SHUFFLE_ARMOS_ITEM = (
         'shuffle_armos_item',
         'Shuffle the Armos Item',
-        'Adds the Power Bracelet to the item shuffle pool.'
+        'Adds the Armos item (the Power Bracelet in a vanilla seed) to the item shuffle pool.'
     )
     SHUFFLE_COAST_ITEM = (
         'shuffle_coast_item',
         'Shuffle the Coast Item',
-        'Adds the coast heart container to the item shuffle pool.'
+        'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.'
     )
     SHUFFLE_SHOP_ITEMS = (
         'shuffle_shop_items',
