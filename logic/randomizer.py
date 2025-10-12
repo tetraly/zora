@@ -36,25 +36,27 @@ class Z1Randomizer():
     # Main loop: Try a seed, if it isn't valid, try another one until it is valid.
     is_valid_seed = False
 
-    num_iterations = 0
+    inner_counter = 0
+    outer_counter = 0
     while not is_valid_seed:
+      outer_counter += 1
       seed = random.randint(0, 9999999999)
       while True:
-        num_iterations += 1
-        print(num_iterations)
+        inner_counter += 1
         data_table.ResetToVanilla()
         item_randomizer.ResetState()
         item_randomizer.ReadItemsAndLocationsFromTable()
         item_randomizer.ShuffleItems()
         if item_randomizer.HasValidItemConfiguration():
-          print("Success after %d tries" % num_iterations)
+          log.debug("Success after %d inner_counter iterations" % inner_counter)
           break
-        if num_iterations >= 2000:
-          print("Gave up after %d iterations" % num_iterations)
-          raise Exception(f"Gave up after {num_iterations} possible item shuffles. Are you trying to put three items in a level with only two item locations?")
+        if inner_counter >= 2000:
+          log.debug("Gave up after %d inner_counter iterations" % inner_counter)
       
       item_randomizer.WriteItemsAndLocationsToTable()
       is_valid_seed = validator.IsSeedValid()
+      if outer_counter >= 1000:
+          raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
       
     patch = data_table.GetPatch()
 
