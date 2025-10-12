@@ -19,21 +19,6 @@ from ui.known_issues import build_known_issues_page
 # ROM UTILITIES
 # ============================================================================
 
-def generate_base_rom_with_randomizer(vanilla_rom_path: str, flagstring: str, seed: str) -> str:
-    """Generate a base ROM using Zelda Randomizer.
-
-    Args:
-        vanilla_rom_path: Path to vanilla Zelda ROM
-        flagstring: Randomizer flag string
-        seed: Seed number for randomization
-
-    Returns:
-        str: Filename of generated base ROM
-    """
-    # TODO: Implement actual randomizer logic
-    return f"zelda_randomized_{seed}_{flagstring}.nes"
-
-
 def extract_code_from_bytes(code_bytes: bytes) -> str:
     """Extract the code from ROM code bytes.
 
@@ -399,17 +384,12 @@ def build_zora_settings_card(flagstring: str, seed: str, flag_state) -> ft.Card:
     )
 
 
-def build_step1_container(choose_vanilla_button, choose_randomized_button, choose_generate_vanilla_button, gen_flagstring_input, gen_seed_input, on_generate_rom, platform: str = "web") -> ft.Column:
+def build_step1_container(choose_vanilla_button, choose_randomized_button, choose_generate_vanilla_button, gen_flagstring_input, gen_seed_input, gen_random_seed_button, generate_rom_button, platform: str = "web") -> ft.Column:
     """Build Step 1: Upload Base ROM section.
 
     Args:
         platform: Platform type - "windows", "macos", or "web"
     """
-
-    generate_rom_button = ft.ElevatedButton(
-        "Generate Base ROM with Zelda Randomizer",
-        on_click=on_generate_rom
-    )
 
     # Panel A: Select Vanilla ROM
     vanilla_panel = ft.Container(
@@ -439,10 +419,17 @@ def build_step1_container(choose_vanilla_button, choose_randomized_button, choos
     # Only enabled for Windows platform
     is_windows = platform == "windows"
 
+    # Wrap seed input and random seed button together
+    gen_seed_with_button = ft.Row(
+        [gen_seed_input, gen_random_seed_button],
+        spacing=10,
+        tight=True
+    )
+
     generate_panel_content = ft.Column([
         ft.Text("Option C: Generate a new Base ROM using Zelda Randomizer", weight="bold"),
         choose_generate_vanilla_button,
-        ft.Row([gen_flagstring_input, gen_seed_input], spacing=20),
+        ft.Row([gen_flagstring_input, gen_seed_with_button], spacing=20),
         generate_rom_button
     ], spacing=10)
 
@@ -713,8 +700,14 @@ def main(page: ft.Page, platform: str = "web") -> None:
         platform: Platform type - "windows", "macos", or "web"
     """
     page.title = "ZORA (Zelda One Randomizer Add-ons) v0.01"
-    page.scroll = "hidden"
+    page.scroll = "auto"
     page.padding = ft.padding.only(left=20, right=20, top=20, bottom=20)
+
+    # Set window size and icon for desktop platforms
+    if platform in ["windows", "macos"]:
+        page.window.width = 1000
+        page.window.height = 900
+        page.window.icon = "zora.png"
 
     # State
     rom_info = RomInfo()
@@ -817,11 +810,12 @@ def main(page: ft.Page, platform: str = "web") -> None:
         hide_step1()
 
         if file_card:
-            page.controls.remove(file_card)
+            main_content.controls.remove(file_card)
 
         file_card = build_rom_info_card(rom_info, clear_rom)
-        page.controls.insert(1, file_card)
-        page.update()
+        # Insert after header (index 0) and before step2 (which is at index 1 when step1 is hidden)
+        main_content.controls.insert(1, file_card)
+        main_content.update()
 
         # Initialize Step 2 with ROM data
         seed_input.value = rom_info.seed
@@ -1044,10 +1038,16 @@ def main(page: ft.Page, platform: str = "web") -> None:
         vanilla_rom_path = e.files[0].path
         choose_generate_vanilla_button.text = f"Vanilla ROM: {os.path.basename(vanilla_rom_path)}"
         choose_generate_vanilla_button.update()
+        update_generate_button_state()
 
     def on_generate_rom(e) -> None:
         """Handle generate ROM button click."""
         nonlocal file_card
+
+        print("Generate ROM button clicked!")  # Debug
+        print(f"Vanilla ROM path: {vanilla_rom_path}")  # Debug
+        print(f"Flagstring: {gen_flagstring_input.value}")  # Debug
+        print(f"Seed: {gen_seed_input.value}")  # Debug
 
         if not vanilla_rom_path:
             show_snackbar(page, "Please select a vanilla ROM first")
@@ -1057,40 +1057,109 @@ def main(page: ft.Page, platform: str = "web") -> None:
             show_snackbar(page, "Please enter both flagstring and seed number")
             return
 
+        # Validate the vanilla ROM
+        try:
+            if not is_vanilla_rom(vanilla_rom_path):
+                show_error_dialog(page, "Invalid ROM", "The selected file does not appear to be a vanilla Legend of Zelda ROM.")
+                return
+        except Exception as ex:
+            show_error_dialog(page, "Error", f"Unable to read the selected ROM file:\n\n{str(ex)}")
+            return
+
         # Create zrinterface.txt file in temp directory
         temp_dir = tempfile.gettempdir()
         interface_file = os.path.join(temp_dir, "zrinterface.txt")
 
-        with open(interface_file, 'w') as f:
-            f.write(f"{vanilla_rom_path}\n")
-            f.write(f"{gen_flagstring_input.value}\n")
-            f.write(f"{gen_seed_input.value}\n")
+        try:
+            with open(interface_file, 'w') as f:
+                f.write(f"{vanilla_rom_path}\n")
+                f.write(f"{gen_flagstring_input.value}\n")
+                f.write(f"{gen_seed_input.value}\n")
+        except Exception as ex:
+            show_error_dialog(page, "Error", f"Failed to create interface file:\n\n{str(ex)}")
+            return
+
+        # Show progress message
+        show_snackbar(page, "Launching Zelda Randomizer interface...")
 
         # Call zrinterface to generate the ROM
         try:
-            zrinterface.main()
+            # Call zrinterface.main() which will:
+            # 1. Read the zrinterface.txt file
+            # 2. Write ZeldaMessage.tmp for zrinterface.exe
+            # 3. Launch zrinterface.exe to automate Zelda Randomizer
+            success = zrinterface.main()
 
-            # Generate the base ROM
-            generated_filename = generate_base_rom_with_randomizer(
-                vanilla_rom_path,
-                gen_flagstring_input.value,
-                gen_seed_input.value
+            if not success:
+                show_error_dialog(
+                    page,
+                    "Zelda Randomizer Interface Error",
+                    "Failed to interface with Zelda Randomizer.\n\n"
+                    "Please ensure:\n"
+                    "1. Zelda Randomizer 3.5.20 is running\n"
+                    "2. The window is open and visible\n"
+                    "3. zrinterface.exe is in the windows/ directory"
+                )
+                return
+
+            # The randomizer generates a ROM in the same directory as the vanilla ROM
+            # Zelda Randomizer naming: <original_basename>_<seed>_<flagstring>.nes
+            rom_dir = os.path.dirname(vanilla_rom_path)
+            vanilla_basename = os.path.splitext(os.path.basename(vanilla_rom_path))[0]
+            generated_filename = os.path.join(
+                rom_dir,
+                f"{vanilla_basename}_{gen_seed_input.value}_{gen_flagstring_input.value}.nes"
             )
 
-            # Load the generated ROM as if it was picked
+            # Wait a moment for file to be written
+            import time
+            time.sleep(0.5)
+
+            # Check if the ROM was generated
+            if not os.path.exists(generated_filename):
+                show_error_dialog(
+                    page,
+                    "ROM Not Found",
+                    f"The randomized ROM was not found at the expected location:\n\n{generated_filename}\n\n"
+                    "Please check if Zelda Randomizer successfully generated the ROM."
+                )
+                return
+
+            # Load the generated ROM info
             rom_info.filename = generated_filename
             rom_info.rom_type = "randomized"
             rom_info.flagstring = gen_flagstring_input.value
             rom_info.seed = gen_seed_input.value
-            rom_info.code = extract_base_rom_code(generated_filename)
+
+            try:
+                rom_info.code = extract_base_rom_code(generated_filename)
+            except Exception as ex:
+                show_error_dialog(
+                    page,
+                    "Error Reading ROM",
+                    f"The ROM was generated but could not be read:\n\n{str(ex)}"
+                )
+                return
+
             flag_state.seed = rom_info.seed
 
+            # Update UI
             load_rom_and_show_card(disable_seed=True)
+            show_snackbar(page, f"Successfully generated ROM: {os.path.basename(generated_filename)}")
 
         except FileNotFoundError as e:
-            show_error_dialog(page, "Error Generating ROM", f"Failed to generate or find the randomized ROM file.\n\nError: {str(e)}")
+            show_error_dialog(
+                page,
+                "File Not Found",
+                f"A required file was not found:\n\n{str(e)}\n\n"
+                "Make sure zrinterface.exe is in the windows/ directory."
+            )
         except Exception as e:
-            show_error_dialog(page, "Error", f"An error occurred while generating the ROM:\n\n{str(e)}")
+            show_error_dialog(
+                page,
+                "Error",
+                f"An error occurred while generating the ROM:\n\n{str(e)}"
+            )
 
     def on_randomize(e) -> None:
         """Handle randomize button click."""
@@ -1127,7 +1196,14 @@ def main(page: ft.Page, platform: str = "web") -> None:
             nonlocal randomized_rom_data, randomized_rom_filename, step3_container, zora_settings_card
             randomized_rom_data = bytes(rom_data)
             base_name = os.path.splitext(os.path.basename(rom_info.filename))[0]
-            randomized_rom_filename = f"{base_name}_zora_{flagstring_input.value}_{seed_input.value}.nes"
+
+            # Generate filename based on ROM type
+            # For vanilla ROM: [base]_[ZORA seed]_[ZORA flags].nes
+            # For randomized ROM: [base]_[ZR seed]_[ZR flags]_[ZORA flags].nes
+            if rom_info.rom_type == "vanilla":
+                randomized_rom_filename = f"{base_name}_{seed_input.value}_{flagstring_input.value}.nes"
+            else:  # randomized
+                randomized_rom_filename = f"{base_name}_{rom_info.seed}_{rom_info.flagstring}_{flagstring_input.value}.nes"
 
             # Hide Step 2 and show ZORA settings card
             step2_container.visible = False
@@ -1267,13 +1343,49 @@ def main(page: ft.Page, platform: str = "web") -> None:
     gen_flagstring_input = ft.TextField(
         label="Zelda Randomizer Flag String",
         hint_text="e.g., 5JOfkHFLCIuh7WxM4mIYp7TuCHxRYQdJcty",
-        width=300
+        width=350
     )
     gen_seed_input = ft.TextField(
         label="Zelda Randomizer Seed Number",
         hint_text="e.g., 12345",
         width=300
     )
+
+    def on_gen_random_seed_click(e) -> None:
+        """Generate a random seed for Zelda Randomizer."""
+        random_seed = random.randint(10000000, 99999999)
+        gen_seed_input.value = str(random_seed)
+        gen_seed_input.update()
+        update_generate_button_state()
+
+    gen_random_seed_button = ft.ElevatedButton(
+        "Random Seed",
+        on_click=on_gen_random_seed_click,
+        icon=ft.Icons.SHUFFLE
+    )
+
+    # Create generate button
+    generate_rom_button = ft.ElevatedButton(
+        "Generate Base ROM with Zelda Randomizer",
+        on_click=on_generate_rom,
+        disabled=True  # Start disabled
+    )
+
+    def update_generate_button_state() -> None:
+        """Enable/disable generate button based on form validation."""
+        has_rom = vanilla_rom_path is not None
+        has_flagstring = gen_flagstring_input.value and gen_flagstring_input.value.strip()
+        has_seed = gen_seed_input.value and gen_seed_input.value.strip()
+
+        generate_rom_button.disabled = not (has_rom and has_flagstring and has_seed)
+        generate_rom_button.update()
+
+    # Add onchange handlers to inputs
+    def on_gen_input_changed(e) -> None:
+        update_generate_button_state()
+
+    gen_flagstring_input.on_change = on_gen_input_changed
+    gen_seed_input.on_change = on_gen_input_changed
 
     # Step 1: Upload ROM
     step1_container = build_step1_container(
@@ -1282,7 +1394,8 @@ def main(page: ft.Page, platform: str = "web") -> None:
         choose_generate_vanilla_button,
         gen_flagstring_input,
         gen_seed_input,
-        on_generate_rom,
+        gen_random_seed_button,
+        generate_rom_button,
         platform
     )
 

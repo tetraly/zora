@@ -2,14 +2,33 @@
 
 # To build, run pyinstaller app.spec
 
+from PyInstaller.utils.hooks import collect_all
+
 block_cipher = None
 
+datas = [('zrinterface.exe', '.'), ('../assets', 'assets')]
+binaries = []
+hiddenimports = []
+
+# Collect all flet packages
+tmp_ret = collect_all('flet')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+tmp_ret = collect_all('flet_core')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+tmp_ret = collect_all('flet_runtime')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
+tmp_ret = collect_all('flet_desktop')
+datas += tmp_ret[0]; binaries += tmp_ret[1]; hiddenimports += tmp_ret[2]
+
 a = Analysis(
-    ['../main.py'],
+    ['app.py'],
     pathex=[],
-    binaries=[],
-    datas=[('zrinterface.exe', '.')],
-    hiddenimports=[],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -29,7 +48,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='MyApp',
+    name='ZORA',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -42,4 +61,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='../assets/zora.png',
 )
