@@ -1,6 +1,7 @@
 import io
 import os
 import random
+import logging as log
 
 from typing import List
 from .data_table import DataTable
