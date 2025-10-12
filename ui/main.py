@@ -1199,11 +1199,11 @@ def main(page: ft.Page, platform: str = "web") -> None:
 
             # Generate filename based on ROM type
             # For vanilla ROM: [base]_[ZORA seed]_[ZORA flags].nes
-            # For randomized ROM: [base]_[ZR seed]_[ZR flags]_[ZORA flags].nes
+            # For randomized ROM (B/C): [base]_[ZORA flags].nes (just append ZORA flags)
             if rom_info.rom_type == "vanilla":
                 randomized_rom_filename = f"{base_name}_{seed_input.value}_{flagstring_input.value}.nes"
             else:  # randomized
-                randomized_rom_filename = f"{base_name}_{rom_info.seed}_{rom_info.flagstring}_{flagstring_input.value}.nes"
+                randomized_rom_filename = f"{base_name}_{flagstring_input.value}.nes"
 
             # Hide Step 2 and show ZORA settings card
             step2_container.visible = False
