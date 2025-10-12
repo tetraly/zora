@@ -9,6 +9,7 @@ from .item_randomizer import ItemRandomizer
 from .patch import Patch
 from .rom_reader import RomReader
 from .text_data_table import TextDataTable
+from .text_randomizer import TextRandomizer
 from .validator import Validator
 from .flags import Flags
 
@@ -137,4 +138,9 @@ class Z1Randomizer():
           "very_fast" if self.flags.speed_up_text else "normal", random_level_text
           if self.flags.randomize_level_text else "level-")
       patch += text_data_table.GetPatch()
+
+    if self.flags.mystery_setting:
+      text_randomizer = TextRandomizer(self.seed)
+      patch += text_randomizer.GetPatch()
+
     return patch

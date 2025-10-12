@@ -96,7 +96,12 @@ class FlagsEnum(Enum):
         'Force a wand to be in level 9',
         'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
     )
-    
+    RANDOMIZE_NPC_TEXT = (
+        'mystery_setting',
+        'Mystery Setting',
+        'Enables a mystery feature. What could it be?'
+    )
+
     def __init__(self, value, display_name, help_text):
         self._value_ = value
         self.display_name = display_name
