@@ -63,6 +63,22 @@ class Patch:
         """
     self._data[addr] = bytes(data)
 
+  def AddDataFromHexString(self, addr: int, hex_string: str) -> None:
+    """Add data to the patch from a hex string.
+    
+    :param addr: Address for the start of the data.
+    :type addr: int
+    :param hex_string: Hex string (spaces optional), e.g. "FF95 ACCAD0FB" or "FF95ACCAD0FB"
+    :type hex_string: str
+    """
+    # Remove spaces and any other whitespace
+    hex_string = hex_string.replace(" ", "").replace("\n", "").replace("\t", "")
+    
+    # Convert hex string to bytes
+    data = bytes.fromhex(hex_string)
+    
+    self.AddData(addr, data)
+
   def RemoveData(self, addr: int) -> None:
     """Remove data from the patch.
         :param addr: Address the data was added to.
