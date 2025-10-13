@@ -1,13 +1,14 @@
 #8192192025 ice's seed
 from typing import List, Tuple
 import logging
-from .randomizer_constants import CaveNum, Direction, Item, LevelNum, Enemy
+from .randomizer_constants import CaveNum, CaveType, Direction, Item, LevelNum, Enemy
 from .randomizer_constants import Range, RoomNum, RoomType, WallType
 from .data_table import DataTable
 from .inventory import Inventory
 from .location import Location
 from .room import Room
 from .flags import Flags
+from .constants import OVERWORLD_BLOCK_TYPES
 
 import logging as log
 
@@ -26,22 +27,70 @@ class Validator(object):
     self.flags = flags
     self.inventory = Inventory()
 
+  def GetBlockType(self, screen_num: int) -> str:
+    """Get the block type for a given screen, accounting for extra_raft_blocks flag."""
+    # Get the base block type from the constants
+    base_block_type = OVERWORLD_BLOCK_TYPES.get(screen_num)
+
+    # If extra_raft_blocks flag is enabled, override certain screens
+    if self.flags.extra_raft_blocks:
+      # Westlake Mall and Casino Corner screens: 0x34, 0x44, 0x0F, 0x0E, 0x1F, 0x1E
+      if screen_num in [0x34, 0x44, 0x0F, 0x0E, 0x1F]:
+        return "Raft"
+      elif screen_num == 0x1E:
+        # 0x1E is already Bomb-blocked, so it becomes Raft+Bomb
+        return "Raft+Bomb"
+
+    return base_block_type
+
+  def GetAvailableOverworldCaves(self, block_type: str) -> List[int]:
+    tbr = set()
+    for screen_num in range(0, 0x80):
+      # Check if this screen has the required block type
+      if self.GetBlockType(screen_num) != block_type:
+        continue
+
+      # Get the destination for this screen
+      destination = self.data_table.GetScreenDestination(screen_num)
+      if destination != CaveType.NONE:
+        tbr.add(destination)
+
+    return list(tbr)
+
   def GetAccessibleDestinations(self):
-    tbr = []
-    tbr.extend(self.data_table.GetAvailableOverworldCaves("Open"))
-    if self.inventory.HasSwordOrWand():
-      tbr.extend(self.data_table.GetAvailableOverworldCaves("Bomb"))
-      if self.inventory.Has(Item.LADDER):
-        tbr.extend(self.data_table.GetAvailableOverworldCaves("Ladder+Bomb"))
-    if self.inventory.HasCandle():
-      tbr.extend(self.data_table.GetAvailableOverworldCaves("Candle"))
-    if self.inventory.Has(Item.RECORDER):
-      tbr.extend(self.data_table.GetAvailableOverworldCaves("Recorder"))
-    if self.inventory.Has(Item.RAFT):
-      tbr.extend(self.data_table.GetAvailableOverworldCaves("Raft"))
-    if self.inventory.Has(Item.POWER_BRACELET):
-      tbr.extend(self.data_table.GetAvailableOverworldCaves("Power Bracelet"))
-    return list(set(tbr))
+    tbr = set()
+    for screen_num in range(0, 0x80):
+      # Check if this screen has a block type requirement
+      block_type = self.GetBlockType(screen_num)
+      if block_type is None:
+        continue
+
+      # Check if we have the item required to access this screen
+      can_access = False
+      if block_type == "Open":
+        can_access = True
+      elif block_type == "Bomb":
+        can_access = self.inventory.HasSwordOrWand()
+      elif block_type == "Ladder+Bomb":
+        can_access = self.inventory.HasSwordOrWand() and self.inventory.Has(Item.LADDER)
+      elif block_type == "Raft+Bomb":
+        can_access = self.inventory.HasSwordOrWand() and self.inventory.Has(Item.RAFT)
+      elif block_type == "Candle":
+        can_access = self.inventory.HasCandle()
+      elif block_type == "Recorder":
+        can_access = self.inventory.Has(Item.RECORDER)
+      elif block_type == "Raft":
+        can_access = self.inventory.Has(Item.RAFT)
+      elif block_type == "Power Bracelet":
+        can_access = self.inventory.Has(Item.POWER_BRACELET)
+
+      # If we can access this screen, get its destination
+      if can_access:
+        destination = self.data_table.GetScreenDestination(screen_num)
+        if destination != CaveType.NONE:
+          tbr.add(destination)
+
+    return list(tbr)
 
 
   def IsSeedValid(self) -> bool:

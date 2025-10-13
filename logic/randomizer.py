@@ -97,6 +97,36 @@ class Z1Randomizer():
 #       for addr in range(0x1FB5E, 0x1FB5E + 36):
 #         patch.AddData(addr, 0xFF)
 
+    if self.flags.extra_raft_blocks:
+      # Change 1: 0x154F8 (1 byte): 0x80 -> 0x0C
+      patch.AddDataFromHexString(0x154F8, "0C")
+
+      # Change 2: 0x155F7-0x155F8 (2 bytes): 0x51 0x51 -> 0x0C 0x0C
+      patch.AddDataFromHexString(0x155F7, "0C 0C")
+
+      # Change 3: 0x15613 (1 byte): 0xF2 -> 0xEB
+      patch.AddDataFromHexString(0x15613, "EB")
+
+      # Change 4: 0x15615 (1 byte): 0x02 -> 0xAF
+      patch.AddDataFromHexString(0x15615, "AF")
+
+      # Change 5: 0x15715 (1 byte): 0x00 -> 0xB6
+      patch.AddDataFromHexString(0x15715, "B6")
+
+      # Change 6: 0x15765-0x15766 (2 bytes): 0x47 0x91 -> 0x91 0x78
+      patch.AddDataFromHexString(0x15765, "91 78")
+
+      # Change 7: 0x1582F-0x15839 (11 bytes)
+      # Original: 07 18 45 13 13 13 13 13 13 13 00
+      # Modified: 02 08 0B 0B 0B 0B 0B 0B 0B 0B 01
+      patch.AddDataFromHexString(0x1582F, "02 08 0B 0B 0B 0B 0B 0B 0B 0B 01")
+
+      # Change 8: 0x1592F-0x15930 (2 bytes): 0x23 0x23 -> 0x17 0x17
+      patch.AddDataFromHexString(0x1592F, "17 17")
+
+      # Change 9: 0x184D4 (1 byte): 0x76 -> 0x77
+      patch.AddDataFromHexString(0x184D4, "77")
+
     # For Mags patch
     patch.AddData(0x1785F, [0x0E])
 

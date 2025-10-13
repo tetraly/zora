@@ -101,6 +101,11 @@ class FlagsEnum(Enum):
         'Mystery Setting',
         'Enables a mystery feature. What could it be?'
     )
+    EXTRA_RAFT_BLOCKS = (
+        'extra_raft_blocks',
+        'Extra Raft Blocks',
+        'Converts the Westlake Mall and Casino Corner regions into raft-blocked areas, requiring the raft to access additional screens.'
+    )
 
     def __init__(self, value, display_name, help_text):
         self._value_ = value

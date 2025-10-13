@@ -1,7 +1,7 @@
 import logging
 from typing import Dict, List
-from .randomizer_constants import CaveNum, Direction, Item, LevelNum, Range, RoomNum
-from .constants import OVERWORLD_BLOCK_TYPES, ENTRANCE_DIRECTION_MAP
+from .randomizer_constants import CaveNum, CaveType, Direction, Item, LevelNum, Range, RoomNum
+from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
 from .cave import Cave
@@ -47,21 +47,16 @@ class DataTable():
     self._ReadDataForOverworldCaves()
     self.triforce_locations = {}
 
-  def GetAvailableOverworldCaves(self, block_type) -> List[int]:
-    tbr = set()
-    for screen_num in range(0, 0x80):
-      # Skip any screens that aren't "Secret in 1st Quest"
-      if (self.overworld_raw_data[screen_num + 5*0x80] & 0x80) > 0:
-        continue
-      # Cave destination is upper 6 bits of table 1
-      destination = self.overworld_raw_data[screen_num + 1*0x80] >> 2
-      if destination == 0:
-        continue
-      if OVERWORLD_BLOCK_TYPES[screen_num] != block_type:
-        continue
-      tbr.add(destination)
-    return list(tbr)
- 
+  def GetScreenDestination(self, screen_num: int) -> CaveType:
+    # Skip any screens that aren't "Secret in 1st Quest"
+    if (self.overworld_raw_data[screen_num + 5*0x80] & 0x80) > 0:
+      return CaveType.NONE
+    # Cave destination is upper 6 bits of table 1
+    destination = self.overworld_raw_data[screen_num + 1*0x80] >> 2
+    if destination == 0:
+      return CaveType.NONE
+    return CaveType(destination)
+
   def _ReadLevelInfo(self):
     self.is_z1r = True
     for level_num in range(0, 10):
