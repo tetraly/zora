@@ -127,6 +127,12 @@ class Z1Randomizer():
       # Change 9: 0x184D4 (1 byte): 0x76 -> 0x77
       patch.AddDataFromHexString(0x184D4, "77")
 
+    if self.flags.extra_power_bracelet_blocks:
+      patch.AddDataFromHexString(0x15554, "06E7000000")
+      patch.AddDataFromHexString(0x15649, "00A9")
+      patch.AddDataFromHexString(0x1564E, "B6")
+      patch.AddDataFromHexString(0x1574E, "02")
+
     # For Mags patch
     patch.AddData(0x1785F, [0x0E])
 

@@ -40,7 +40,12 @@ class Validator(object):
       elif screen_num == 0x1E:
         # 0x1E is already Bomb-blocked, so it becomes Raft+Bomb
         return "Raft+Bomb"
-
+        
+    # If extra_power_bracelet_blocks flag is enabled, override West Death Mountain screens
+    if self.flags.extra_power_bracelet_blocks:
+      if screen_num in [0x00, 0x01, 0x02, 0x03, 0x10, 0x12, 0x13]:
+        # 0x11 is already Power Bracelet blocked so no change needed
+        return "Power Bracelet+Bomb"
     return base_block_type
 
   def GetAvailableOverworldCaves(self, block_type: str) -> List[int]:
@@ -83,6 +88,8 @@ class Validator(object):
         can_access = self.inventory.Has(Item.RAFT)
       elif block_type == "Power Bracelet":
         can_access = self.inventory.Has(Item.POWER_BRACELET)
+      elif block_type == "Power Bracelet+Bomb":
+        can_access = self.inventory.HasSwordOrWand() and self.inventory.Has(Item.POWER_BRACELET)
 
       # If we can access this screen, get its destination
       if can_access:

@@ -106,6 +106,11 @@ class FlagsEnum(Enum):
         'Extra Raft Blocks',
         'Converts the Westlake Mall and Casino Corner regions into raft-blocked areas, requiring the raft to access additional screens.'
     )
+    EXTRA_POWER_BRACELET_BLOCKS = (
+        'extra_power_bracelet_blocks',
+        'Extra Power Bracelet Blocks',
+        'Adds new power bracelet blocks in West Death Mountain. Intended for use with vanilla any road locations.'
+    )
 
     def __init__(self, value, display_name, help_text):
         self._value_ = value
