@@ -80,9 +80,9 @@ class DataTable():
     self.overworld_caves = []
     for cave_num in Range.VALID_CAVE_NUMBERS:
       if cave_num == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
-        self.overworld_caves.append(Cave([0x3F, Item.POWER_BRACELET, 0x7F, 0x00, 0x00, 0x00]))
+        self.overworld_caves.append(Cave([0x3F, self.rom_reader.GetArmosItem(), 0x7F, 0x00, 0x00, 0x00]))
       elif cave_num == CAVE_NUMBER_REPRESENTING_COAST_ITEM:
-        self.overworld_caves.append(Cave([0x3F, Item.HEART_CONTAINER, 0x7F, 0x00, 0x00, 0x00]))
+        self.overworld_caves.append(Cave([0x3F, self.rom_reader.GetCoastItem(), 0x7F, 0x00, 0x00, 0x00]))
       else:
         assert cave_num in range(0, 0x14)
         cave_data: List[int] = []

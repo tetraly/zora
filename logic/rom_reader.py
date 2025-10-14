@@ -40,6 +40,14 @@ class RomReader:
        val = self._ReadMemory(addr, 0x02)
        return val[1]*0x100 + val[0]
 
+    def GetArmosItem(self) -> int:
+        input("Armos Item: %d" % self._ReadMemory(ARMOS_ITEM_ADDRESS, 1)[0])
+        return self._ReadMemory(ARMOS_ITEM_ADDRESS, 1)[0]
+
+    def GetCoastItem(self) -> int:
+        input("Coast Item: %d" % self._ReadMemory(COAST_ITEM_ADDRESS, 1)[0])
+        return self._ReadMemory(COAST_ITEM_ADDRESS, 1)[0]
+
     def GetLevelBlock(self, level_num: int) -> List[int]:
         if level_num == 0:
             if self._GetLevelBlockPointer(OVERWORLD_POINTER_LOCATION) == 0x8400:
