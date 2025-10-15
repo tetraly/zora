@@ -125,7 +125,7 @@ class Z1Randomizer():
       patch.AddDataFromHexString(0x1592F, "17 17")
 
       # Change 9: 0x184D4 (1 byte): 0x76 -> 0x77
-      patch.AddDataFromHexString(0x184D4, "77")
+      patch.AddData(0x184D4, self.rom_reader.GetSouthWestlakeMallCaveType() | 0x03)
 
     if self.flags.extra_power_bracelet_blocks:
       patch.AddDataFromHexString(0x15554, "06E7000000")

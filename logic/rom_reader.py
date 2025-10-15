@@ -16,6 +16,7 @@ VARIOUS_DATA_LOCATION = 0x19300
 NES_HEADER_OFFSET = 0x10
 ARMOS_ITEM_ADDRESS = 0x10CF5
 COAST_ITEM_ADDRESS = 0x1788A
+SOUTH_WESTLAKE_MALL_CAVE_TYPE_ADDRESS = 0x184D4
 WS_ITEM_ADDRESS = 0x18607
 TRIFORCE_REQUIREMENT_ADDRESS = 0x5F17
 WHITE_SWORD_REQUIREMENT_ADDRESS = 0x48FD
@@ -41,13 +42,14 @@ class RomReader:
        return val[1]*0x100 + val[0]
 
     def GetArmosItem(self) -> int:
-        input("Armos Item: %d" % self._ReadMemory(ARMOS_ITEM_ADDRESS, 1)[0])
         return self._ReadMemory(ARMOS_ITEM_ADDRESS, 1)[0]
 
     def GetCoastItem(self) -> int:
-        input("Coast Item: %d" % self._ReadMemory(COAST_ITEM_ADDRESS, 1)[0])
         return self._ReadMemory(COAST_ITEM_ADDRESS, 1)[0]
 
+    def GetSouthWestlakeMallCaveType(self) -> int:
+        return self._ReadMemory(SOUTH_WESTLAKE_MALL_CAVE_TYPE_ADDRESS, 1)[0]
+        
     def GetLevelBlock(self, level_num: int) -> List[int]:
         if level_num == 0:
             if self._GetLevelBlockPointer(OVERWORLD_POINTER_LOCATION) == 0x8400:
