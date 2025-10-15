@@ -79,7 +79,7 @@ class FlagsEnum(Enum):
     ADD_L4_SWORD = (
         'add_l4_sword',
         'Add L4 Sword',
-        'Adds an additional sword upgrade to the potion shop. Note: Will only be useful with progressive items enabled.'
+        'Adds an additional sword upgrade to the potion shop. Note: Will only be useful with progressive items enabled. Also only melee attacks will do L4 damage, beams will still do L3 damage.'
     )
     FORCE_ARROW_TO_LEVEL_NINE = (
         'force_arrow_to_level_nine',

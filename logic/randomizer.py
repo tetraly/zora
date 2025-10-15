@@ -132,6 +132,11 @@ class Z1Randomizer():
       patch.AddDataFromHexString(0x15649, "00A9")
       patch.AddDataFromHexString(0x1564E, "B6")
       patch.AddDataFromHexString(0x1574E, "02")
+      
+    if self.flags.add_l4_sword:
+      # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3) 
+      # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067 
+      patch.AddDataFromHexString(0x7540, "B0") 
 
     # For Mags patch
     patch.AddData(0x1785F, [0x0E])
