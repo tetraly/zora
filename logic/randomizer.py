@@ -124,8 +124,8 @@ class Z1Randomizer():
       # Change 8: 0x1592F-0x15930 (2 bytes): 0x23 0x23 -> 0x17 0x17
       patch.AddDataFromHexString(0x1592F, "17 17")
 
-      # Change 9: 0x184D4 (1 byte): 0x76 -> 0x77
-      patch.AddData(0x184D4, self.rom_reader.GetSouthWestlakeMallCaveType() | 0x03)
+      # This seems to break the caves in South Westlake and Vanilla 4.
+      # patch.AddData(0x184D4, self.rom_reader.GetSouthWestlakeMallCaveType() | 0x03)
 
     if self.flags.extra_power_bracelet_blocks:
       patch.AddDataFromHexString(0x15554, "06E7000000")
@@ -136,7 +136,7 @@ class Z1Randomizer():
     if self.flags.add_l4_sword:
       # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3) 
       # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067 
-      patch.AddDataFromHexString(0x7540, "B0") 
+      patch.AddDataFromHexString(0x7540, "B0")
 
     # For Mags patch
     patch.AddData(0x1785F, [0x0E])
