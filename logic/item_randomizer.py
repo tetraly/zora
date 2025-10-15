@@ -17,7 +17,7 @@ class ItemRandomizer():
   
   def _GetOverworldItemLocation(self, item: Item):
     log.debug("_GetOverworldItemLocation for %s" % item)
-    for cave_num in Range.VALID_CAVE_NUMBERS:
+    for cave_num in [0x0D, 0x0E, 0x0F, 0x10]:
       for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
         maybe_location = Location(cave_num=cave_num, position_num=position_num)
         if self.data_table.GetCaveItem(maybe_location) == item:
