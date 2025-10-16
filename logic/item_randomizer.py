@@ -14,7 +14,29 @@ class ItemRandomizer():
     self.data_table = data_table
     self.flags = flags
     self.item_shuffler = ItemShuffler(flags)
-  
+
+  def _GetProgressiveReplacementItemIfNeeded(self, item: Item):
+    if self.flags.progressive_items and item == Item.RED_CANDLE:
+      return Item.BLUE_CANDLE
+    if self.flags.progressive_items and item == Item.RED_RING:
+      return Item.BLUE_RING
+    if self.flags.progressive_items and item == Item.SILVER_ARROWS:
+      return Item.WOOD_ARROWS
+    if self.flags.progressive_items and item in [Item.WHITE_SWORD,  Item.MAGICAL_SWORD]:
+      return Item.WOOD_SWORD 
+    if False and item == Item.MAGICAL_BOOMERANG:
+      return Item.WOOD_BOOMERANG
+    return item 
+
+  def ReplaceProgressiveItemsWithUpgrades(self):
+    for cave_num in [0, 2, 3, 8, 0x0D, 0x0E, 0x0F, 0x10, 20, 21]:
+      for position_num in [1, 2, 3]:
+        location = Location.CavePosition(cave_num, position_num)
+        current_item = self.data_table.GetCaveItem(location)
+        replacement_item = self._GetProgressiveReplacementItemIfNeeded(current_item)
+        if current_item != replacement_item:
+          self.data_table.SetCaveItem(location, replacement_item)        
+        
   def _GetOverworldItemLocation(self, item: Item):
     log.debug("_GetOverworldItemLocation for %s" % item)
     for cave_num in [0x0D, 0x0E, 0x0F, 0x10]:
@@ -36,7 +58,7 @@ class ItemRandomizer():
   LEFT_POTION_SHOP_LOCATION = Location.CavePosition(10, 1)
   MIDDLE_POTION_SHOP_LOCATION = Location.CavePosition(10, 2)
   RIGHT_POTION_SHOP_LOCATION = Location.CavePosition(10, 3)
-
+  
   def _GetOverworldItemsToShuffle(self) -> List[Location]:
     items: List[Location] = []
     if self.flags.shuffle_wood_sword_cave_item:

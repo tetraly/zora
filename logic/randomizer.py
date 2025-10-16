@@ -46,6 +46,7 @@ class Z1Randomizer():
       while True:
         inner_counter += 1
         data_table.ResetToVanilla()
+        item_randomizer.ReplaceProgressiveItemsWithUpgrades()
         item_randomizer.ResetState()
         item_randomizer.ReadItemsAndLocationsFromTable()
         item_randomizer.ShuffleItems()
