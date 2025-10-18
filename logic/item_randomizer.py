@@ -37,17 +37,19 @@ class ItemRandomizer():
         if current_item != replacement_item:
           self.data_table.SetCaveItem(location, replacement_item)        
         
-  def _GetOverworldItemLocation(self, item: Item):
+  def _GetOverworldItemLocation(self, item: Item, skip_first=False):
     log.debug("_GetOverworldItemLocation for %s" % item)
     for cave_num in [0x0D, 0x0E, 0x0F, 0x10]:
       for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
         maybe_location = Location(cave_num=cave_num, position_num=position_num)
         if self.data_table.GetCaveItem(maybe_location) == item:
-          log.debug("_GetOverworldItemLocation Found it at cave %d pos %d" % 
+          if skip_first:
+              skip_first = False
+              continue
+          log.debug("_GetOverworldItemLocation Found it at cave %d pos %d" %
                       (maybe_location.GetCaveNum(),maybe_location.GetPositionNum()))
           return maybe_location
-    log.warning("_GetOverworldItemLocation Couldn't find it :(")
-    return None
+    raise Exception(f"_GetOverworldItemLocation: Couldn't find item {item} in overworld caves")
 
   WOOD_SWORD_LOCATION = Location.CavePosition(0, 2)
   WHITE_SWORD_LOCATION = Location.CavePosition(2, 2)
@@ -76,10 +78,30 @@ class ItemRandomizer():
       items.append(self.ARMOS_ITEM_LOCATION)
     if self.flags.shuffle_letter_cave_item:
       items.append(self.LETTER_LOCATION)
-    if self.flags.shuffle_shop_items:
+    if self.flags.shuffle_shop_arrows:
       items.append(self._GetOverworldItemLocation(Item.WOOD_ARROWS))
+    if self.flags.shuffle_shop_candle:
       items.append(self._GetOverworldItemLocation(Item.BLUE_CANDLE))
-      items.append(self._GetOverworldItemLocation(Item.BLUE_RING))
+    if self.flags.shuffle_shop_ring:
+      ring_location = self._GetOverworldItemLocation(Item.BLUE_RING)
+      items.append(ring_location)
+      # Lower the price of the ring shop slot to 150 ± 25 rupees
+      import random
+      new_price = random.randint(125, 175)
+      cave_num = ring_location.GetCaveNum()
+      position_num = ring_location.GetPositionNum()
+      self.data_table.overworld_caves[cave_num].SetPriceAtPosition(new_price, position_num)
+    if self.flags.shuffle_shop_book:
+      try:
+        book_location = self._GetOverworldItemLocation(Item.BOOK)
+        items.append(book_location)
+      except Exception:
+        # If book is not found, flag has no effect
+        pass
+    if self.flags.shuffle_shop_bait:
+      items.append(self._GetOverworldItemLocation(Item.BAIT))
+      second_bait_location = self._GetOverworldItemLocation(Item.BAIT, skip_first=True)
+      self.data_table.SetCaveItem(second_bait_location, Item.MAGICAL_SHIELD)
     return items
 
   def ResetState(self):

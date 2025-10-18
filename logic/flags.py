@@ -31,10 +31,30 @@ class FlagsEnum(Enum):
         'Shuffle the Coast Item',
         'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.'
     )
-    SHUFFLE_SHOP_ITEMS = (
-        'shuffle_shop_items',
-        'Shuffle Shop Items',
-        'Adds the blue candle, blue ring, wood arrows, and both baits to the item shuffle pool.'
+    SHUFFLE_SHOP_ARROWS = (
+        'shuffle_shop_arrows',
+        'Shuffle Shop Arrows',
+        'Adds the wood arrows from the shop to the item shuffle pool.'
+    )
+    SHUFFLE_SHOP_CANDLE = (
+        'shuffle_shop_candle',
+        'Shuffle Shop Candle',
+        'Adds the blue candle from the shop to the item shuffle pool.'
+    )
+    SHUFFLE_SHOP_RING = (
+        'shuffle_shop_ring',
+        'Shuffle Shop Ring',
+        'Adds the blue ring from the shop to the item shuffle pool. The shop location price will be changed to 150 ± 25 rupees.'
+    )
+    SHUFFLE_SHOP_BOOK = (
+        'shuffle_shop_book',
+        'Shuffle Shop Book',
+        'Adds the book from the shop (if one is present) to the item shuffle pool.'
+    )
+    SHUFFLE_SHOP_BAIT = (
+        'shuffle_shop_bait',
+        'Shuffle Shop Bait',
+        'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a magical shield.'
     )
     SHUFFLE_POTION_SHOP_ITEMS = (
         'shuffle_potion_shop_items',
