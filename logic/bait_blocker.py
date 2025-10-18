@@ -12,6 +12,7 @@ This forces players to use bait to pass through the hungry goriya room to reach 
 
 from typing import Optional, Set
 from collections import deque
+import logging as log
 
 from .randomizer_constants import Direction, Range, RoomNum, WallType
 from .data_table import DataTable
@@ -31,15 +32,15 @@ class BaitBlocker:
         Returns:
             True if successfully created partitions, False if impossible/no hungry goriya
         """
-        print(f"=== Level {level_num}: Starting bait blocker ===")
+        log.debug(f"=== Level {level_num}: Starting bait blocker ===")
 
         # Find the hungry goriya room
         hungry_goriya_room_num = self._FindHungryGoriyaRoom(level_num)
         if hungry_goriya_room_num is None:
-            print(f"Level {level_num}: No hungry goriya found")
+            log.debug(f"Level {level_num}: No hungry goriya found")
             return False
 
-        print(f"Level {level_num}: Found hungry goriya in room 0x{hungry_goriya_room_num:02X}")
+        log.debug(f"Level {level_num}: Found hungry goriya in room 0x{hungry_goriya_room_num:02X}")
 
         hungry_goriya_room = self.data_table.GetRoom(level_num, hungry_goriya_room_num)
 
@@ -47,7 +48,7 @@ class BaitBlocker:
         north_room_num = RoomNum(hungry_goriya_room_num + Direction.NORTH)
         if (hungry_goriya_room.GetWallType(Direction.NORTH) == WallType.SOLID_WALL or
             north_room_num not in Range.VALID_ROOM_NUMBERS):
-            print(f"Level {level_num}: Hungry goriya room 0x{hungry_goriya_room_num:02X} has no accessible north exit")
+            log.debug(f"Level {level_num}: Hungry goriya room 0x{hungry_goriya_room_num:02X} has no accessible north exit")
             return False
 
         # Initialize partitions
@@ -65,19 +66,19 @@ class BaitBlocker:
                 hungry_goriya_room.GetWallType(direction) != WallType.SOLID_WALL):
                 partition_a.add(neighbor_num)
 
-        print(f"Level {level_num}: Initial partition A (south of hungry goriya): {sorted([f'0x{r:02X}' for r in partition_a])}")
-        print(f"Level {level_num}: Initial partition B (north of hungry goriya): {sorted([f'0x{r:02X}' for r in partition_b])}")
+        log.debug(f"Level {level_num}: Initial partition A (south of hungry goriya): {sorted([f'0x{r:02X}' for r in partition_a])}")
+        log.debug(f"Level {level_num}: Initial partition B (north of hungry goriya): {sorted([f'0x{r:02X}' for r in partition_b])}")
 
         # Expand both partitions via flood-fill
         self._ExpandPartitions(level_num, partition_a, partition_b)
 
-        print(f"Level {level_num}: Final partition A has {len(partition_a)} rooms: {sorted([f'0x{r:02X}' for r in partition_a])}")
-        print(f"Level {level_num}: Final partition B has {len(partition_b)} rooms: {sorted([f'0x{r:02X}' for r in partition_b])}")
+        log.debug(f"Level {level_num}: Final partition A has {len(partition_a)} rooms: {sorted([f'0x{r:02X}' for r in partition_a])}")
+        log.debug(f"Level {level_num}: Final partition B has {len(partition_b)} rooms: {sorted([f'0x{r:02X}' for r in partition_b])}")
 
         # Solidify all walls between partition A and B (except the hungry goriya passage)
         walls_modified = self._SolidifyWallsBetweenPartitions(level_num, partition_a, partition_b, hungry_goriya_room_num)
 
-        print(f"Level {level_num}: Modified {walls_modified} walls between partitions")
+        log.debug(f"Level {level_num}: Modified {walls_modified} walls between partitions")
 
         return True
 
@@ -111,7 +112,7 @@ class BaitBlocker:
                 enemy_code = room.rom_data[2] & 0x3F
                 if room.rom_data[3] & 0x80 > 0:
                     enemy_code += 0x40
-                print(f"Level {level_num} Room 0x{room_num:02X}: Invalid enemy code {enemy_code} (0x{enemy_code:02X}) - {e}")
+                log.debug(f"Level {level_num} Room 0x{room_num:02X}: Invalid enemy code {enemy_code} (0x{enemy_code:02X}) - {e}")
                 continue
 
             # Add adjacent rooms that are accessible (not solid walls)
@@ -191,7 +192,7 @@ class BaitBlocker:
                 continue
 
             for direction in [Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH]:
-                print("Direction is %x" % direction)
+                log.debug("Direction is %x" % direction)
                 # Skip if there's already a solid wall - no need to process this neighbor
                 if room.GetWallType(direction) == WallType.SOLID_WALL:
                     continue
@@ -200,27 +201,27 @@ class BaitBlocker:
                 # SPECIAL CASE: Don't solidify the wall from hungry goriya room to north
                 # This is the passage that should remain open after feeding bait
                 if room_num == hungry_goriya_room_num and direction == Direction.NORTH:
-                    print(f"  Skipping hungry goriya passage: room 0x{room_num:02X} {direction} -> 0x{neighbor_num:02X}")
+                    log.debug(f"  Skipping hungry goriya passage: room 0x{room_num:02X} {direction} -> 0x{neighbor_num:02X}")
                     continue
 
                 # If neighbor is in partition B, solidify the wall
                 if neighbor_num in partition_b:
                     neighbor_room = self.data_table.GetRoom(level_num, neighbor_num)
-                    print("Neighbor room num is %0x" % neighbor_num)
+                    log.debug("Neighbor room num is %0x" % neighbor_num)
 
                     # Only modify if not already solid
                     if room.GetWallType(direction) != WallType.SOLID_WALL:
                         room.SetWallType(direction, WallType.SOLID_WALL)
                         walls_modified += 1
-                        print(f"  Solidified wall: room {room_num:02X} {direction} -> {neighbor_num:02X}")
+                        log.debug(f"  Solidified wall: room {room_num:02X} {direction} -> {neighbor_num:02X}")
 
                     # Also solidify from the other side
-                    print("Direction is %s  %x" % (direction.name, direction))
+                    log.debug("Direction is %s  %x" % (direction.name, direction))
                     opposite_direction = direction.inverse()
-                    print("Opposite direction is %s  %x" % (opposite_direction.name, opposite_direction))
+                    log.debug("Opposite direction is %s  %x" % (opposite_direction.name, opposite_direction))
                     if neighbor_room.GetWallType(opposite_direction) != WallType.SOLID_WALL:
                         neighbor_room.SetWallType(opposite_direction, WallType.SOLID_WALL)
                         walls_modified += 1
-                        print(f"  Solidified wall: room {neighbor_num:02X} {opposite_direction} -> {room_num:02X}")
+                        log.debug(f"  Solidified wall: room {neighbor_num:02X} {opposite_direction} -> {room_num:02X}")
 
         return walls_modified
