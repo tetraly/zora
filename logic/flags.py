@@ -111,6 +111,11 @@ class FlagsEnum(Enum):
         'Extra Power Bracelet Blocks',
         'Adds new power bracelet blocks in West Death Mountain. Intended for use with vanilla any road locations.'
     )
+    NO_IMPORTANT_ITEMS_IN_LEVEL_NINE = (
+        'no_important_items_in_level_nine',
+        'No Important Items in Level 9',
+        'Prevents important items (raft, power bracelet, recorder, bow, ladder) from being placed in level 9. This setting overrides the corresponding Zelda Randomizer flag setting.'
+    )
 
     def __init__(self, value, display_name, help_text):
         self._value_ = value

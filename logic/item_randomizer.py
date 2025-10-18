@@ -273,6 +273,10 @@ class ItemShuffler():
         if location.IsCavePosition() and location.GetCaveNum() == 0x25 and item == Item.LADDER:
             return False
         if location.IsLevelRoom() and location.GetLevelNum() == 9:
+          # Check if important items are in level 9 when flag is enabled
+          if self.flags.no_important_items_in_level_nine:
+            if item in [Item.RAFT, Item.POWER_BRACELET, Item.RECORDER, Item.BOW, Item.LADDER]:
+              return False
           if item in [Item.WOOD_ARROWS, Item.SILVER_ARROWS]:
             found_arrow_in_level_nine = True
           if item in [Item.BLUE_RING, Item.RED_RING]:
@@ -280,11 +284,11 @@ class ItemShuffler():
           if item == Item.WAND:
             found_wand_in_level_nine = True
     if self.flags.force_arrow_to_level_nine and not found_arrow_in_level_nine:
-      return False        
+      return False
     if self.flags.force_ring_to_level_nine and not found_ring_in_level_nine:
       return False
     if self.flags.force_wand_to_level_nine and not found_wand_in_level_nine:
-      return False        
+      return False
     return True   
 
   def GetAllLocationAndItemData(self) -> Iterable[Tuple[Location, Item]]:
