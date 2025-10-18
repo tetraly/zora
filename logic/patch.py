@@ -108,6 +108,21 @@ class Patch:
       hash_string.update(str(address).encode('utf-8'))
       hash_string.update(self._data[address])
     for int_of_hash in hash_string.digest()[0:4]:
-      to_be_returned += bytes([int_of_hash & 0x1F])
+      val = int_of_hash & 0x1F
+      if val == 0x0E: # Glitchy thing in Triforce of Power's slot -> Clock
+        val = 0x21
+      elif val == 0x02:  # White sword -> Heart
+        val = 0x22 
+      elif val == 0x07:  # Red candle -> Fairy
+        val = 0x23
+      elif val == 0x09:  # Silver arrow -> ?? 24 ??
+        val = 0x24
+      elif val == 0x13:  # Red ring -> ?? 25 ??
+        val = 0x25
+      elif val == 0x18:  # Five Rupee -> ?? 26 ??
+        val = 0x26
+      elif val == 0x1E:  # Mag. Boomerang -> Beam
+        val = 0x27
+      to_be_returned += bytes([val])
     return to_be_returned
 
