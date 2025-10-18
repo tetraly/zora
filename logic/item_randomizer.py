@@ -103,8 +103,9 @@ class ItemRandomizer():
     for staircase_room_num in self.data_table.GetLevelStaircaseRoomNumberList(level_num):
       self._ParseStaircaseRoom(level_num, staircase_room_num)
     level_start_room_num = self.data_table.GetLevelStartRoomNumber(level_num)
+    entrance_direction = self.data_table.GetLevelEntranceDirection(level_num)
     log.debug("Traversing level %d.  Start room is %x. " % (level_num, level_start_room_num))
-    self._ReadItemsAndLocationsRecursively(level_num, level_start_room_num)
+    self._ReadItemsAndLocationsRecursively(level_num, level_start_room_num, entrance_direction)
 
   def _ParseStaircaseRoom(self, level_num: LevelNum, staircase_room_num: RoomNum) -> None:
     staircase_room = self.data_table.GetRoom(level_num, staircase_room_num)
@@ -124,9 +125,10 @@ class ItemRandomizer():
       log.fatal("Room in staircase room number list (%x) didn't have staircase type (%x)." %
                     (staircase_room_num, staircase_room.GetType()))
 
-  def _ReadItemsAndLocationsRecursively(self, level_num: LevelNum, room_num: RoomNum) -> None:
+  def _ReadItemsAndLocationsRecursively(self, level_num: LevelNum, room_num: RoomNum, from_dir: Direction) -> None:
     if room_num not in Range.VALID_ROOM_NUMBERS:
       return  # No escaping back into the overworld! :)
+    log.debug("Visiting level %d room %0x" % (level_num, room_num))
     room = self.data_table.GetRoom(level_num, room_num)
     if room.IsMarkedAsVisited():
       return
@@ -142,14 +144,16 @@ class ItemRandomizer():
       return  # Dead end, no need to traverse further.
     elif room.GetType() == RoomType.TRANSPORT_STAIRCASE:
       for upstairs_room in [room.GetLeftExit(), room.GetRightExit()]:
-        self._ReadItemsAndLocationsRecursively(level_num, upstairs_room)
+        self._ReadItemsAndLocationsRecursively(level_num, upstairs_room, Direction.STAIRCASE)
       return
     # Regular (non-staircase) room case.  Check all four cardinal directions, plus "down".
     for direction in (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH):
+      if direction == from_dir:
+        continue
       if room.GetWallType(direction) != WallType.SOLID_WALL:
-        self._ReadItemsAndLocationsRecursively(level_num, RoomNum(room_num + direction))
+        self._ReadItemsAndLocationsRecursively(level_num, RoomNum(room_num + direction), direction.inverse())
     if room.HasStaircase():
-      self._ReadItemsAndLocationsRecursively(level_num, room.GetStaircaseRoomNumber())
+      self._ReadItemsAndLocationsRecursively(level_num, room.GetStaircaseRoomNumber(), Direction.STAIRCASE)
 
   def ShuffleItems(self) -> None:
     self.item_shuffler.ShuffleItems()
@@ -221,7 +225,7 @@ class ItemShuffler():
 
     self.item_num_list.append(item_num)
     log.debug("I%d:  %s. From %s" % (len(self.item_num_list), Item(item_num), location.ToString()))
-    log.debug ("%d == %d + %d" % (self.temp_location_count , self.temp_dung_item_count, len(self.item_num_list)))
+    log.debug("%d == %d + %d" % (self.temp_location_count , self.temp_dung_item_count, len(self.item_num_list)))
     assert (self.temp_location_count == self.temp_dung_item_count + len(self.item_num_list))
 
   def ShuffleItems(self) -> None:

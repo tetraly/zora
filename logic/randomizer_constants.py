@@ -18,11 +18,23 @@ class Range():
 
 
 class Direction(IntEnum):
-  NORTH = -0x10
-  SOUTH = 0x10
-  STAIRCASE = 0x00
-  WEST = -0x1
-  EAST = 0x1
+    NORTH = -0x10
+    WEST = -0x1
+    STAIRCASE = 0
+    EAST = 0x1
+    SOUTH = 0x10
+
+    @classmethod
+    def inverse(self) -> "Direction":
+      if self == Direction.NORTH:
+          return Direction.SOUTH
+      elif self == Direction.SOUTH:
+          return Direction.NORTH
+      elif self == Direction.WEST:
+          return Direction.EAST
+      elif self == Direction.EAST:
+          return Direction.WEST
+      return Direction.STAIRCASE
 
 
 class Item(IntEnum):
