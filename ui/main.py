@@ -834,7 +834,7 @@ def main(page: ft.Page, platform: str = "web") -> None:
         nonlocal file_card, vanilla_rom_path, zora_settings_card, step3_container
 
         if file_card:
-            page.controls.remove(file_card)
+            main_content.controls.remove(file_card)
             file_card = None
             rom_info.clear()
             vanilla_rom_path = None
