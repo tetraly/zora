@@ -382,7 +382,7 @@ class TextRandomizer:
                 char_upper = char.upper()
                 if char_upper not in self.CHAR_TO_BYTE:
                     # Skip unknown characters or use space
-                    byte_val = self.CHAR_TO_BYTE[' ']
+                    byte_val = self.CHAR_TO_BYTE['~']
                 else:
                     byte_val = self.CHAR_TO_BYTE[char_upper]
 
