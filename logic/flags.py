@@ -1,11 +1,6 @@
 from enum import Enum
 
 class FlagsEnum(Enum):
-    PROGRESSIVE_ITEMS = (
-        'progressive_items',
-        'Progressive Items',
-        'If enabled, there will be three wood swords, two wood arrows, two blue rings, and two blue candles in the item pool. Collecting multiples of each will upgrade the item.'
-    )
     SHUFFLE_WOOD_SWORD_CAVE_ITEM = (
         'shuffle_wood_sword_cave_item',
         'Shuffle Wood Sword Cave item',
@@ -76,11 +71,6 @@ class FlagsEnum(Enum):
         'Speed Up Dungeon Transitions',
         'Speeds up dungeon room transitions to be as fast as overworld screen transitions'
     )
-    ADD_L4_SWORD = (
-        'add_l4_sword',
-        'Add L4 Sword',
-        'Adds an additional sword upgrade to the potion shop. Note: Will only be useful with progressive items enabled. Also only melee attacks will do L4 damage, beams will still do L3 damage.'
-    )
     FORCE_ARROW_TO_LEVEL_NINE = (
         'force_arrow_to_level_nine',
         'Force an arrow to be in level 9',
@@ -115,6 +105,51 @@ class FlagsEnum(Enum):
         'no_important_items_in_level_nine',
         'No Important Items in Level 9',
         'Prevents important items (raft, power bracelet, recorder, bow, ladder) from being placed in level 9. This setting overrides the corresponding Zelda Randomizer flag setting.'
+    )
+    PROGRESSIVE_ITEMS = (
+        'progressive_items',
+        'Old Progressive Items Flag (will be deleted)',
+        'Enables the original progressive item flag that makes swords, candles, arrows, and rings progressive. This will be removed in favor of separate flags for each item'
+    )
+    PROGRESSIVE_ARROWS = (
+        'progressive_arrows',
+        'Progressive Arrows',
+        'Replaces Silver Arrows with Wood Arrows in the item pool. Collecting multiple wood arrows will upgrade your arrows.'
+    )
+    PROGRESSIVE_CANDLES = (
+        'progressive_candles',
+        'Progressive Candles',
+        'Replaces Red Candles with Blue Candles in the item pool. Collecting multiple blue candles will upgrade your candle.'
+    )
+    PROGRESSIVE_RINGS = (
+        'progressive_rings',
+        'Progressive Rings',
+        'Replaces Red Rings with Blue Rings in the item pool. Collecting multiple blue rings will upgrade your ring.'
+    )
+    PROGRESSIVE_SWORDS = (
+        'progressive_swords',
+        'Progressive Swords',
+        'Replaces White and Magical Swords with Wood Swords in the item pool. Collecting multiple wood swords will upgrade your sword to the next level.'
+    )
+    ADD_L4_SWORD = (
+        'add_l4_sword',
+        'Add L4 Sword',
+        'Adds an additional sword upgrade guarded by the level 9 triforce checker. Note that with a L4 sword, melee attacks will do L4 damage but beams do L3 damage.'
+    )
+    PROGRESSIVE_BOOMERANGS = (
+        'progressive_boomerangs',
+        'Progressive Boomerangs',
+        'Replaces Magical Boomerangs with Wood Boomerangs in the item pool. Collecting multiple wood boomerangs will upgrade your boomerang.'
+    )
+    MAGICAL_BOOMERANG_DOES_ONE_HP_DAMAGE = (
+        'magical_boomerang_does_one_hp_damage',
+        'Magical Boomerang Does 1 HP Damage',
+        'Changes the magical boomerang to deal 1 HP of damage (equivalent to the wood sword) to enemies. Note that a boomerang may damage an enemy multiple times in one shot.'
+    )
+    MAGICAL_BOOMERANG_DOES_HALF_HP_DAMAGE = (
+        'magical_boomerang_does_half_hp_damage',
+        'Magical Boomerang Does Half HP Damage',
+        'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior.'
     )
 
     def __init__(self, value, display_name, help_text):

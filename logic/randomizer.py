@@ -63,20 +63,68 @@ class Z1Randomizer():
       
     patch = data_table.GetPatch()
 
-    if self.flags.progressive_items: # New progressive item code 
-      patch.AddData(0x6D06, [0x18, 0x79, 0x57, 0x06, 0xEA])
+    if self.flags.progressive_items:
+      # New progressive item code
+      # Vanilla code for handling a "class 2" (ordered by grade) item starts at 0x6D04 in the ROM
+      # Original .asm from https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm
+      # HandleClass2:
+      #      ; Class 2. We have a type of item that is ordered by grade.
+      #    ; Item value is the grade.
+      #    ;
+      #    ; A: item class
+      #    ; X: item type
+      #    ; Y: item slot
+      #    ; [0A]: item value
+      #    LDA $0A
+      #    CMP Items, Y
+      #    BCC L6D1B_Exit              ; If we have a higher grade of this kind of item, return.
+      #    STA Items, Y                ; Set the new item grade.
+      #    CPY #$0B                    ; Ring item slot
+      #    BNE L6D1B_Exit              ; If the item is not a ring, return.
+          
+      # Original bytecode: A50AD957 06902099 5706C00B
+      # Revised bytecode:  A50A1879 5706EA99 5706C00B
+      # NEw commands:
+      #   18                   CLC          ; Clear the carry bit
+      #   79 57 06             ADC $0657,Y  ; Adds the picked up amount (presumably 1) to the item grade
+      #   EA                   NOP
+      #patch.AddData(0x6D06, [0x18, 0x79, 0x57, 0x06, 0xEA])
 
       # Fix for Ring/tunic colors
       patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])
       patch.AddData(0x1FFF4, [0x8E, 0x02, 0x06, 0x8E, 0x72, 0x06, 0xEE, 0x4F, 0x03, 0x60])
 
     # Old progressive item code
-    """if self.flags.progressive_items: 
+    #ItemIdToDescriptor:
+    #    .BYTE $14, $21, $22, $23, $01, $01, $21, $22
+    #               wood, WS, mags            candles
+    #    .BYTE $21, $22, $01, $01, $01, $01, $01, $15
+    #.          arrows
+    #    .BYTE $01, $01, $21, $22, $01, $01, $01, $01
+    #                    rings
+    #    .BYTE $11, $11, $10, $01, $01, $01, $01, $11
+    #    .BYTE $22, $01, $10, $12
+        
+    if self.flags.progressive_swords: 
       patch.AddData(0x6B49, [0x11, 0x12, 0x13])  # Swords
+    if self.flags.progressive_candles: 
       patch.AddData(0x6B4E, [0x11, 0x12])  # Candles
+    if self.flags.progressive_arrows:
       patch.AddData(0x6B50, [0x11, 0x12])  # Arrows
-      patch.AddData(0x6B5A, [0x11, 0x12])  # Rings """
-
+    if self.flags.progressive_rings:
+      patch.AddData(0x6B5A, [0x11, 0x12])  # Rings
+      # Extra fix for Ring/Tunic colors
+      patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])
+      patch.AddData(0x1FFF4, [0x8E, 0x02, 0x06, 0x8E, 0x72, 0x06, 0xEE, 0x4F, 0x03, 0x60])
+    # Note: There isn't a comparable switch here for progressive boomerangsx because the 
+    # original devs added a separate magic boomerang memory value for some reason.
+    
+    if self.flags.magical_boomerang_does_one_hp_damage:
+      patch.AddDataFromHexString(0x7478, 
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A 0A 85 07 A9 10 95 3D")  
+    elif self.flags.magical_boomerang_does_half_hp_damage:
+      patch.AddDataFromHexString(0x7478, 
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A EA 85 07 A9 10 95 3D")
 
     if self.flags.speed_up_dungeon_transitions:
       # For fast scrolling. Puts NOPs instead of branching based on dungeon vs. Level 0 (OW)

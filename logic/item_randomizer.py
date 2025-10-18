@@ -16,15 +16,15 @@ class ItemRandomizer():
     self.item_shuffler = ItemShuffler(flags)
 
   def _GetProgressiveReplacementItemIfNeeded(self, item: Item):
-    if self.flags.progressive_items and item == Item.RED_CANDLE:
+    if (self.flags.progressive_items or self.flags.progressive_candles) and item == Item.RED_CANDLE:
       return Item.BLUE_CANDLE
-    if self.flags.progressive_items and item == Item.RED_RING:
+    if (self.flags.progressive_items or self.flags.progressive_rings) and item == Item.RED_RING:
       return Item.BLUE_RING
-    if self.flags.progressive_items and item == Item.SILVER_ARROWS:
+    if (self.flags.progressive_items or self.flags.progressive_arrows) and item == Item.SILVER_ARROWS:
       return Item.WOOD_ARROWS
-    if self.flags.progressive_items and item in [Item.WHITE_SWORD,  Item.MAGICAL_SWORD]:
-      return Item.WOOD_SWORD 
-    if False and item == Item.MAGICAL_BOOMERANG:
+    if (self.flags.progressive_items or self.flags.progressive_swords) and item in [Item.WHITE_SWORD,  Item.MAGICAL_SWORD]:
+      return Item.WOOD_SWORD
+    if self.flags.progressive_boomerangs and item == Item.MAGICAL_BOOMERANG:
       return Item.WOOD_BOOMERANG
     return item 
 
@@ -68,7 +68,7 @@ class ItemRandomizer():
     if self.flags.shuffle_magical_sword_cave_item:
       items.append(self.MAGICAL_SWORD_LOCATION)
     # When Progressive Items are enabled but not shuffling the magical sword item, change mags to a sword upgrade 
-    elif self.flags.progressive_items:
+    elif self.flags.progressive_items or self.flags.progressive_swords:
       self.data_table.SetCaveItem(self.MAGICAL_SWORD_LOCATION, Item.WOOD_SWORD)
     if self.flags.shuffle_coast_item:
       items.append(self.COAST_ITEM_LOCATION)
@@ -91,8 +91,6 @@ class ItemRandomizer():
     for location in self._GetOverworldItemsToShuffle():
       item_num = self.data_table.GetCaveItem(location)
       self.item_shuffler.AddLocationAndItem(location, item_num)
-    if self.flags.add_l4_sword:
-      self.data_table.SetCaveItem(self.MIDDLE_POTION_SHOP_LOCATION, Item.WOOD_SWORD)
     if self.flags.shuffle_potion_shop_items:
       self.item_shuffler.AddLocationAndItem(self.LEFT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
       self.item_shuffler.AddLocationAndItem(self.MIDDLE_POTION_SHOP_LOCATION, Item.WOOD_SWORD)
@@ -169,6 +167,12 @@ class ItemRandomizer():
           self.data_table.UpdateTriforceLocation(location)
       elif location.IsCavePosition():
         self.data_table.SetCaveItem(location, item_num)
+    if (self.flags.progressive_items or self.flags.progressive_swords) and self.flags.add_l4_sword:
+      level_nine_start_room_num = self.data_table.GetLevelStartRoomNumber(9)
+      triforce_check_room_num = level_nine_start_room_num - 0x10
+      self.data_table.SetRoomItem(Location.LevelRoom(9, triforce_check_room_num), Item.WOOD_SWORD) 
+      self.data_table.SetItemPosition(Location.LevelRoom(9, triforce_check_room_num), 2) 
+      
 
 
 class ItemShuffler():
@@ -207,21 +211,24 @@ class ItemShuffler():
       log.debug("%d == %d + %d" % (self.temp_location_count , self.temp_dung_item_count, len(self.item_num_list)))
       assert (self.temp_location_count == self.temp_dung_item_count + len(self.item_num_list))
       return
-    #TODO: This would be more elgant with a dict lookup
-    if self.flags.progressive_items:
+    # Incorporate the logic from _GetProgressiveReplacementItemIfNeeded
+    if self.flags.progressive_items or self.flags.progressive_candles:
       if item_num == Item.RED_CANDLE:
         item_num = Item.BLUE_CANDLE
+    if self.flags.progressive_items or self.flags.progressive_rings:
       if item_num == Item.RED_RING:
         item_num = Item.BLUE_RING
+    if self.flags.progressive_items or self.flags.progressive_arrows:
       if item_num == Item.SILVER_ARROWS:
         item_num = Item.WOOD_ARROWS
+    if self.flags.progressive_items or self.flags.progressive_swords:
       if item_num == Item.WHITE_SWORD:
         item_num = Item.WOOD_SWORD
       if item_num == Item.MAGICAL_SWORD:
         item_num = Item.WOOD_SWORD
-      # Removed this b/c some don't consider magical boomerang to be an upgrade
-      #if item_num == Item.MAGICAL_BOOMERANG:
-      #  item_num = Item.WOODEN_BOOMERANG
+    if self.flags.progressive_boomerangs:
+      if item_num == Item.MAGICAL_BOOMERANG:
+        item_num = Item.WOODEN_BOOMERANG
 
     self.item_num_list.append(item_num)
     log.debug("I%d:  %s. From %s" % (len(self.item_num_list), Item(item_num), location.ToString()))
@@ -267,6 +274,17 @@ class ItemShuffler():
     for level_num in range(0, 11):
       for location, item in zip(self.per_level_item_location_lists[level_num],
                                     self.per_level_item_lists[level_num]):
+        if location.IsShopPosition():
+            if (self.flags.progressive_items or self.flags.progressive_arrows) and item == Item.WOOD_ARROWS:
+              return False
+            if (self.flags.progressive_items or self.flags.progressive_candles) and item == Item.BLUE_CANDLE:
+              return False
+            if (self.flags.progressive_items or self.flags.progressive_rings) and item == Item.BLUE_RING:
+              return False
+            if (self.flags.progressive_items or self.flags.progressive_swords) and item == Item.WOOD_SWORD:
+              return False
+            if self.flags.progressive_boomerangs and item == Item.WOOD_BOOMERANG:
+              return False
         if (self.flags.progressive_items and location.IsShopPosition() and
             item.IsProgressiveUpgradeItem()):
             return False

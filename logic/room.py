@@ -136,6 +136,11 @@ class Room():
     assert new_value & 0x1F == item_num
     self.rom_data[4] = new_value
     logging.debug("Changed item %x to %x" % (old_item_num, item_num))
+    
+  def SetItemPosition(self, position_num: int):
+    part_that_shouldnt_be_modified = self.rom_data[5] & 0xCF
+    new_value = part_that_shouldnt_be_modified + position_num * 0x10
+    self.rom_data[5] = new_value
 
   def GetItem(self) -> Item:
     return Item(self.rom_data[4] & 0x1F)

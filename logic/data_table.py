@@ -115,6 +115,13 @@ class DataTable():
     else:
       self.level_1_to_6_rooms[location.GetRoomNum()].SetItem(item)
 
+  def SetItemPosition(self, location: Location, position_num: int) -> None:
+    assert location.IsLevelRoom()
+    if location.GetLevelNum() in [7, 8, 9]:
+      self.level_7_to_9_rooms[location.GetRoomNum()].SetItemPosition(position_num)
+    else:
+      self.level_1_to_6_rooms[location.GetRoomNum()].SetItemPosition(position_num)
+
   def GetCaveItem(self, location: Location) -> Item:
     assert location.IsCavePosition()
     if location.GetCaveNum() == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
