@@ -12,6 +12,8 @@ from .text_data_table import TextDataTable
 from .text_randomizer import TextRandomizer
 from .validator import Validator
 from .flags import Flags
+from .bait_blocker import BaitBlocker
+from .randomizer_constants import Range
 
 class Z1Randomizer():
 #  def __init__(self) -> None:
@@ -57,6 +59,13 @@ class Z1Randomizer():
           log.debug("Gave up after %d inner_counter iterations" % inner_counter)
       
       item_randomizer.WriteItemsAndLocationsToTable()
+
+      # Apply bait blocker if flag is enabled
+      if self.flags.increased_bait_blocks:
+        bait_blocker = BaitBlocker(data_table)
+        for level_num in Range.VALID_LEVEL_NUMBERS:
+          bait_blocker.TryToMakeHungryGoriyaBlockProgress(level_num)
+
       is_valid_seed = validator.IsSeedValid()
       if outer_counter >= 1000:
           raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")

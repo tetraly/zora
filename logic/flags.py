@@ -151,6 +151,11 @@ class FlagsEnum(Enum):
         'Magical Boomerang Does Half HP Damage',
         'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior.'
     )
+    INCREASED_BAIT_BLOCKS = (
+        'increased_bait_blocks',
+        'Increased Bait Blocks',
+        'Modifies dungeon walls to make the hungry goriya block access to a separate region of each level. Best-effort - not guaranteed for all level layouts.'
+    )
 
     def __init__(self, value, display_name, help_text):
         self._value_ = value

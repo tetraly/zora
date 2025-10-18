@@ -24,7 +24,6 @@ class Direction(IntEnum):
     EAST = 0x1
     SOUTH = 0x10
 
-    @classmethod
     def inverse(self) -> "Direction":
       if self == Direction.NORTH:
           return Direction.SOUTH

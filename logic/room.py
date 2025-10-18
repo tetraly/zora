@@ -69,6 +69,19 @@ class Room():
     (table_num, offset) = self.WALL_TYPE_TABLE_NUMBERS_AND_OFFSETS[direction]
     return WallType(self.rom_data[table_num] >> offset & 0x07)
 
+  def SetWallType(self, direction: Direction, wall_type: WallType) -> None:
+    """Sets the wall type for a given direction, preserving all other bits."""
+    assert self.GetType() not in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]
+    (table_num, offset) = self.WALL_TYPE_TABLE_NUMBERS_AND_OFFSETS[direction]
+
+    # Create a mask to clear only the 3 bits at the offset position
+    # 0x07 is 0b00000111, shift it left by offset to align with the wall bits
+    # Then negate to create a mask that preserves everything except those 3 bits
+    clear_mask = ~(0x07 << offset) & 0xFF
+
+    # Clear the 3 wall bits, then OR in the new wall_type value at the correct position
+    self.rom_data[table_num] = (self.rom_data[table_num] & clear_mask) | (int(wall_type) << offset)
+
   ### Staircase room methods ###
   def GetLeftExit(self) -> RoomNum:
     return RoomNum(self.rom_data[0] & 0x7F)

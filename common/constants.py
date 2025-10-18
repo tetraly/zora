@@ -33,7 +33,7 @@ CODE_ITEMS = {
       0x1F: "Potion",
       0x21: "Clock", 
       0x22: "Heart",
-      0x23: "Please tell Tetra what code item 0x23 is",
+      0x23: "Fairy",
       0x24: "Fairy",
       0x25: "Letter",
       0x26: "Compass",
