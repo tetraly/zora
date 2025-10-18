@@ -283,7 +283,7 @@ class ItemShuffler():
               return False
             if (self.flags.progressive_items or self.flags.progressive_swords) and item == Item.WOOD_SWORD:
               return False
-            if self.flags.progressive_boomerangs and item == Item.WOOD_BOOMERANG:
+            if self.flags.progressive_boomerangs and item == Item.WOODEN_BOOMERANG:
               return False
         if (self.flags.progressive_items and location.IsShopPosition() and
             item.IsProgressiveUpgradeItem()):
