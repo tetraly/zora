@@ -293,6 +293,48 @@ class HintWriter:
         ["HAVE ONE ON", "THE HOUSE"],
     ]
 
+    def SetLostHillsHint(self, directions: List[int]) -> None:
+        """
+        Generate and set Lost Hills hint text from direction sequence.
+
+        Args:
+            directions: List of 4 direction values (0x08=Up, 0x04=Down, 0x01=Right)
+        """
+        # Map direction values to text
+        dir_map = {0x08: "UP", 0x04: "DOWN", 0x01: "RIGHT"}
+
+        # Convert directions to text
+        dir_text = [dir_map.get(d, "UP") for d in directions]
+
+        # Format: "GO {dir1}, {dir2}," / "{dir3}, {dir4}" / "THE MOUNTAIN AHEAD"
+        line1 = f"GO {dir_text[0]}, {dir_text[1]},"
+        line2 = f"{dir_text[2]}, {dir_text[3]}"
+        line3 = "THE MOUNTAIN AHEAD"
+
+        hint_text = [line1, line2, line3]
+        self.SetHint(HintType.HINT_4, hint_text)
+
+    def SetDeadWoodsHint(self, directions: List[int]) -> None:
+        """
+        Generate and set Dead Woods hint text from direction sequence.
+
+        Args:
+            directions: List of 4 direction values (0x08=North, 0x04=South, 0x02=West)
+        """
+        # Map direction values to text
+        dir_map = {0x08: "NORTH", 0x04: "SOUTH", 0x02: "WEST"}
+
+        # Convert directions to text
+        dir_text = [dir_map.get(d, "NORTH") for d in directions]
+
+        # Format: "GO {dir1}, {dir2}," / "{dir3}, {dir4} TO" / "THE FOREST OF MAZE"
+        line1 = f"GO {dir_text[0]}, {dir_text[1]},"
+        line2 = f"{dir_text[2]}, {dir_text[3]} TO"
+        line3 = "THE FOREST OF MAZE"
+
+        hint_text = [line1, line2, line3]
+        self.SetHint(HintType.HINT_8, hint_text)
+
     def __init__(self, seed: int = None):
         """Initialize the hint writer with an optional seed.
 
@@ -339,7 +381,7 @@ class HintWriter:
             hint_type = HintType(hint_num)
             if hint_num == 1:
                 self.hints[hint_type] = ""
-            else:
+            elif hint_type not in self.hints:
                 self.hints[hint_type] = f"TEST HINT {hint_num:02d}"
 
     def GetPatch(self) -> Patch:

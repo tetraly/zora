@@ -28,9 +28,17 @@ class Validator(object):
     self.inventory = Inventory()
 
   def GetBlockType(self, screen_num: int) -> str:
-    """Get the block type for a given screen, accounting for extra_raft_blocks flag."""
+    """Get the block type for a given screen, accounting for flags."""
     # Get the base block type from the constants
     base_block_type = OVERWORLD_BLOCK_TYPES.get(screen_num)
+
+    # If randomize_lost_hills flag is enabled, mark Vanilla 5 and the two caves to the east as LostHillsHint
+    if self.flags.randomize_lost_hills and screen_num in [0x0B, 0x0C, 0x0D]:
+      return "LostHillsHint"
+
+    # If randomize_dead_woods flag is enabled, mark screens 0x70, 0x71, 0x72 as DeadWoodsHint
+    if self.flags.randomize_dead_woods and screen_num in [0x70, 0x71, 0x72]:
+      return "DeadWoodsHint"
 
     # If extra_raft_blocks flag is enabled, override certain screens
     if self.flags.extra_raft_blocks:
@@ -62,40 +70,60 @@ class Validator(object):
 
     return list(tbr)
 
+  def CanAccessScreen(self, screen_num: int) -> bool:
+    """Check if the player can access a given screen based on current inventory."""
+    block_type = self.GetBlockType(screen_num)
+    if block_type is None:
+      return False
+
+    # Check if we have the items required for this block type
+    if block_type == "Open":
+      return True
+    elif block_type == "Bomb":
+      return self.inventory.HasSwordOrWand()
+    elif block_type == "Ladder+Bomb":
+      return self.inventory.HasSwordOrWand() and self.inventory.Has(Item.LADDER)
+    elif block_type == "Raft+Bomb":
+      return self.inventory.HasSwordOrWand() and self.inventory.Has(Item.RAFT)
+    elif block_type == "Candle":
+      return self.inventory.HasCandle()
+    elif block_type == "Recorder":
+      return self.inventory.Has(Item.RECORDER)
+    elif block_type == "Raft":
+      return self.inventory.Has(Item.RAFT)
+    elif block_type == "Power Bracelet":
+      return self.inventory.Has(Item.POWER_BRACELET)
+    elif block_type == "Power Bracelet+Bomb":
+      return self.inventory.HasSwordOrWand() and self.inventory.Has(Item.POWER_BRACELET)
+    elif block_type == "LostHillsHint":
+      return self.inventory.Has(Item.LOST_HILLS_HINT_VIRTUAL_ITEM)
+    elif block_type == "DeadWoodsHint":
+      return self.inventory.Has(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM)
+
+    return False
+
   def GetAccessibleDestinations(self):
     tbr = set()
+
     for screen_num in range(0, 0x80):
-      # Check if this screen has a block type requirement
-      block_type = self.GetBlockType(screen_num)
-      if block_type is None:
+      # Check if we can access this screen
+      if not self.CanAccessScreen(screen_num):
         continue
 
-      # Check if we have the item required to access this screen
-      can_access = False
-      if block_type == "Open":
-        can_access = True
-      elif block_type == "Bomb":
-        can_access = self.inventory.HasSwordOrWand()
-      elif block_type == "Ladder+Bomb":
-        can_access = self.inventory.HasSwordOrWand() and self.inventory.Has(Item.LADDER)
-      elif block_type == "Raft+Bomb":
-        can_access = self.inventory.HasSwordOrWand() and self.inventory.Has(Item.RAFT)
-      elif block_type == "Candle":
-        can_access = self.inventory.HasCandle()
-      elif block_type == "Recorder":
-        can_access = self.inventory.Has(Item.RECORDER)
-      elif block_type == "Raft":
-        can_access = self.inventory.Has(Item.RAFT)
-      elif block_type == "Power Bracelet":
-        can_access = self.inventory.Has(Item.POWER_BRACELET)
-      elif block_type == "Power Bracelet+Bomb":
-        can_access = self.inventory.HasSwordOrWand() and self.inventory.Has(Item.POWER_BRACELET)
+      # Get its destination and add it
+      destination = self.data_table.GetScreenDestination(screen_num)
+      if destination != CaveType.NONE:
+        tbr.add(destination)
+        
+        # If we can access the Lost Hills Hint cave, add the virtual item to inventory
+        if destination == CaveType.LOST_HILLS_HINT:
+          self.inventory.AddItem(Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
+                                 Location(cave_num=int(CaveType.LOST_HILLS_HINT)-0x10, position_num=1))
 
-      # If we can access this screen, get its destination
-      if can_access:
-        destination = self.data_table.GetScreenDestination(screen_num)
-        if destination != CaveType.NONE:
-          tbr.add(destination)
+        # If we can access the Dead Woods Clue cave, add the virtual item to inventory
+        if destination == CaveType.DEAD_WOODS_HINT:
+          self.inventory.AddItem(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM,
+                                 Location(cave_num=int(CaveType.DEAD_WOODS_HINT)-0x10, position_num=1))
 
     return list(tbr)
 

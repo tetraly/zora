@@ -201,7 +201,46 @@ class Z1Randomizer():
 
     # Apply hints based on community_hints flag
     hint_writer = HintWriter(seed=seed)
-    if flags.community_hints:
+
+    # Lost Hills randomization
+    if self.flags.randomize_lost_hills:
+      # Generate 3 random directions from {Up, Right, Down} + Up at the end
+      # Up=0x08, Down=0x04, Right=0x01
+      direction_options = [0x08, 0x04, 0x01]  # Up, Down, Right
+      lost_hills_directions = random.choices(direction_options, k=3)
+      lost_hills_directions.append(0x08)  # Always Up at the end
+
+      # Patch the ROM at 0x6DAB-0x6DAE with the direction sequence
+      patch.AddData(0x6DAB, lost_hills_directions)
+      
+      # Patch the overworld to annex the two screens to the right of vanilla Level 5
+      patch.AddDataFromHexString(0x154D7, "01010101010101")
+      patch.AddDataFromHexString(0x154F1, "09")
+      patch.AddDataFromHexString(0x154F5, "06")
+      patch.AddDataFromHexString(0x155DD, "02")
+      patch.AddDataFromHexString(0x155F5, "51")
+
+      # Set Lost Hills hint
+      hint_writer.SetLostHillsHint(lost_hills_directions)
+
+    # Dead Woods randomization
+    if self.flags.randomize_dead_woods:
+      # Generate 3 random directions from {North, West, South} + South at the end
+      # North=0x08, South=0x04, West=0x02
+      direction_options = [0x08, 0x02, 0x04]  # North, West, South
+      dead_woods_directions = random.choices(direction_options, k=3)
+      dead_woods_directions.append(0x04)  # Always South at the end
+
+      # Patch the ROM at 0x6DA7-0x6DAA with the direction sequence
+      patch.AddData(0x6DA7, dead_woods_directions)
+
+      # Patch the overworld (single byte change at 0x15B08)
+      patch.AddDataFromHexString(0x15B08, "29")
+
+      # Set Dead Woods hint
+      hint_writer.SetDeadWoodsHint(dead_woods_directions)
+
+    if self.flags.community_hints:
       hint_writer.FillWithCommunityHints()
     else:
       hint_writer.FillWithBlankHints()
