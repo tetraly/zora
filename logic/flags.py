@@ -176,6 +176,16 @@ class FlagsEnum(Enum):
         'Community Hints',
         'Uses community hints from NextGen and Zelda 2 randomizers for NPC text. If disabled, blank hints will be used instead. This setting overrides any hint setting set in Zelda Randomizer base ROMs.'
     )
+    RANDOMIZE_LOST_HILLS = (
+        'randomize_lost_hills',
+        'Randomize Lost Hills',
+        'Randomizes the Lost Hills direction sequence and adds a hint NPC in the game.'
+    )
+    RANDOMIZE_DEAD_WOODS = (
+        'randomize_dead_woods',
+        'Randomize Dead Woods',
+        'Randomizes the Dead Woods direction sequence and adds a hint NPC in the game.'
+    )
 
     def __init__(self, value, display_name, help_text):
         self._value_ = value
