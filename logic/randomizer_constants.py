@@ -295,6 +295,47 @@ class CaveType(IntEnum):
   SMALL_SECRET = 0x23
 
 
+class HintType(IntEnum):
+  HINT_1 = 1
+  HINT_2 = 2
+  HINT_3 = 3
+  HINT_4 = 4
+  HINT_5 = 5
+  HINT_6 = 6
+  HINT_7 = 7
+  HINT_8 = 8
+  HINT_9 = 9
+  HINT_10 = 10
+  HINT_11 = 11
+  HINT_12 = 12
+  HINT_13 = 13
+  HINT_14 = 14
+  HINT_15 = 15
+  HINT_16 = 16
+  HINT_17 = 17
+  HINT_18 = 18
+  HINT_19 = 19
+  HINT_20 = 20
+  HINT_21 = 21
+  HINT_22 = 22
+  HINT_23 = 23
+  HINT_24 = 24
+  HINT_25 = 25
+  HINT_26 = 26
+  HINT_27 = 27
+  HINT_28 = 28
+  HINT_29 = 29
+  HINT_30 = 30
+  HINT_31 = 31
+  HINT_32 = 32
+  HINT_33 = 33
+  HINT_34 = 34
+  HINT_35 = 35
+  HINT_36 = 36
+  HINT_37 = 37
+  HINT_38 = 38
+
+
 class EnemyList():
   WIZZROBES = [
     Enemy.RED_WIZZROBE,

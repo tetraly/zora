@@ -106,11 +106,6 @@ class FlagsEnum(Enum):
         'Force a wand to be in level 9',
         'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
     )
-    RANDOMIZE_NPC_TEXT = (
-        'mystery_setting',
-        'Mystery Setting',
-        'Enables a mystery feature. What could it be?'
-    )
     EXTRA_RAFT_BLOCKS = (
         'extra_raft_blocks',
         'Extra Raft Blocks',
@@ -175,6 +170,11 @@ class FlagsEnum(Enum):
         'increased_bait_blocks',
         'Increased Bait Blocks',
         'Modifies dungeon walls to make the hungry goriya block access to a separate region of each level. Best-effort - not guaranteed for all level layouts.'
+    )
+    COMMUNITY_HINTS = (
+        'community_hints',
+        'Community Hints',
+        'Uses community hints from NextGen and Zelda 2 randomizers for NPC text. If disabled, blank hints will be used instead. This setting overrides any hint setting set in Zelda Randomizer base ROMs.'
     )
 
     def __init__(self, value, display_name, help_text):

@@ -9,7 +9,7 @@ from .item_randomizer import ItemRandomizer
 from .patch import Patch
 from .rom_reader import RomReader
 from .text_data_table import TextDataTable
-from .text_randomizer import TextRandomizer
+from .hint_writer import HintWriter
 from .validator import Validator
 from .flags import Flags
 from .bait_blocker import BaitBlocker
@@ -199,6 +199,16 @@ class Z1Randomizer():
     # For Mags patch
     patch.AddData(0x1785F, [0x0E])
 
+    # Apply hints based on community_hints flag
+    hint_writer = HintWriter(seed=seed)
+    if flags.community_hints:
+      hint_writer.FillWithCommunityHints()
+    else:
+      hint_writer.FillWithBlankHints()
+
+    hint_patch = hint_writer.GetPatch()
+    patch += hint_patch
+
     # Include everything above in the hash code.
     hash_code = patch.GetHashCode()
     patch.AddData(0xAFD4, list(hash_code))
@@ -237,9 +247,5 @@ class Z1Randomizer():
           "very_fast" if self.flags.speed_up_text else "normal", random_level_text
           if self.flags.randomize_level_text else "level-")
       patch += text_data_table.GetPatch()
-
-    if self.flags.mystery_setting:
-      text_randomizer = TextRandomizer(self.seed)
-      patch += text_randomizer.GetPatch()
 
     return patch
