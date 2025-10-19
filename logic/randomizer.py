@@ -113,14 +113,20 @@ class Z1Randomizer():
     #                    rings
     #    .BYTE $11, $11, $10, $01, $01, $01, $01, $11
     #    .BYTE $22, $01, $10, $12
-        
-    if self.flags.progressive_swords: 
+
+    # Individual progressive flags are temporarily disabled
+    progressive_swords = False
+    progressive_candles = False
+    progressive_arrows = False
+    progressive_rings = False
+
+    if progressive_swords:
       patch.AddData(0x6B49, [0x11, 0x12, 0x13])  # Swords
-    if self.flags.progressive_candles: 
+    if progressive_candles:
       patch.AddData(0x6B4E, [0x11, 0x12])  # Candles
-    if self.flags.progressive_arrows:
+    if progressive_arrows:
       patch.AddData(0x6B50, [0x11, 0x12])  # Arrows
-    if self.flags.progressive_rings:
+    if progressive_rings:
       patch.AddData(0x6B5A, [0x11, 0x12])  # Rings
       # Extra fix for Ring/Tunic colors
       patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])

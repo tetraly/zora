@@ -123,48 +123,48 @@ class FlagsEnum(Enum):
     )
     PROGRESSIVE_ITEMS = (
         'progressive_items',
-        'Old Progressive Items Flag (will be deleted)',
-        'Enables the original progressive item flag that makes swords, candles, arrows, and rings progressive. This will be removed in favor of separate flags for each item'
+        'Progressive Items',
+        'Makes swords, candles, arrows, and rings progressive. Lower-tier items replace higher-tier items in the pool, and collecting multiple copies upgrades them to the next tier.'
     )
-    PROGRESSIVE_ARROWS = (
-        'progressive_arrows',
-        'Progressive Arrows',
-        'Replaces Silver Arrows with Wood Arrows in the item pool. Collecting multiple wood arrows will upgrade your arrows.'
-    )
-    PROGRESSIVE_CANDLES = (
-        'progressive_candles',
-        'Progressive Candles',
-        'Replaces Red Candles with Blue Candles in the item pool. Collecting multiple blue candles will upgrade your candle.'
-    )
-    PROGRESSIVE_RINGS = (
-        'progressive_rings',
-        'Progressive Rings',
-        'Replaces Red Rings with Blue Rings in the item pool. Collecting multiple blue rings will upgrade your ring.'
-    )
-    PROGRESSIVE_SWORDS = (
-        'progressive_swords',
-        'Progressive Swords',
-        'Replaces White and Magical Swords with Wood Swords in the item pool. Collecting multiple wood swords will upgrade your sword to the next level.'
-    )
+    # PROGRESSIVE_ARROWS = (
+    #     'progressive_arrows',
+    #     'Progressive Arrows',
+    #     'Replaces Silver Arrows with Wood Arrows in the item pool. Collecting multiple wood arrows will upgrade your arrows.'
+    # )
+    # PROGRESSIVE_CANDLES = (
+    #     'progressive_candles',
+    #     'Progressive Candles',
+    #     'Replaces Red Candles with Blue Candles in the item pool. Collecting multiple blue candles will upgrade your candle.'
+    # )
+    # PROGRESSIVE_RINGS = (
+    #     'progressive_rings',
+    #     'Progressive Rings',
+    #     'Replaces Red Rings with Blue Rings in the item pool. Collecting multiple blue rings will upgrade your ring.'
+    # )
+    # PROGRESSIVE_SWORDS = (
+    #     'progressive_swords',
+    #     'Progressive Swords',
+    #     'Replaces White and Magical Swords with Wood Swords in the item pool. Collecting multiple wood swords will upgrade your sword to the next level.'
+    # )
     ADD_L4_SWORD = (
         'add_l4_sword',
         'Add L4 Sword',
         'Adds an additional sword upgrade guarded by the level 9 triforce checker. Note that with a L4 sword, melee attacks will do L4 damage but beams do L3 damage.'
     )
-    PROGRESSIVE_BOOMERANGS = (
-        'progressive_boomerangs',
-        'Progressive Boomerangs',
-        'Replaces Magical Boomerangs with Wood Boomerangs in the item pool. Collecting multiple wood boomerangs will upgrade your boomerang.'
-    )
+    # PROGRESSIVE_BOOMERANGS = (
+    #     'progressive_boomerangs',
+    #     'Progressive Boomerangs',
+    #     'Replaces Magical Boomerangs with Wood Boomerangs in the item pool. Collecting multiple wood boomerangs will upgrade your boomerang.'
+    # )
     MAGICAL_BOOMERANG_DOES_ONE_HP_DAMAGE = (
         'magical_boomerang_does_one_hp_damage',
         'Magical Boomerang Does 1 HP Damage',
-        'Changes the magical boomerang to deal 1 HP of damage (equivalent to the wood sword) to enemies. Note that a boomerang may damage an enemy multiple times in one shot.'
+        'Changes the magical boomerang to deal 1 HP of damage (equivalent to the wood sword) to enemies. Note that a boomerang may damage an enemy multiple times in one shot. WARNING: This feature is known to be buggy and may crash the game.'
     )
     MAGICAL_BOOMERANG_DOES_HALF_HP_DAMAGE = (
         'magical_boomerang_does_half_hp_damage',
         'Magical Boomerang Does Half HP Damage',
-        'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior.'
+        'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior. WARNING: This feature is known to be buggy and may crash the game.'
     )
     INCREASED_BAIT_BLOCKS = (
         'increased_bait_blocks',
