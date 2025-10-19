@@ -46,7 +46,7 @@ class Inventory(object):
     #if (item == Item.TRIFORCE_OF_POWER
     #    and not (item_location.GetLevelNum() == 9 and item_location.GetRoomNum() == 0x42)):
     #  return
-    assert (item in range(0, 0x21) or
+    assert (item in range(0, 0x24) or
             item in [Item.BEAST_DEFEATED_VIRTUAL_ITEM, Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM,
                      Item.LOST_HILLS_HINT_VIRTUAL_ITEM, Item.DEAD_WOODS_HINT_VIRTUAL_ITEM])
     if (item_location.GetUniqueIdentifier() in self.item_locations and

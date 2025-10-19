@@ -110,7 +110,7 @@ class ItemRandomizer():
     if self.flags.shuffle_shop_bait:
       items.append(self._GetOverworldItemLocation(Item.BAIT))
       second_bait_location = self._GetOverworldItemLocation(Item.BAIT, skip_first=True)
-      self.data_table.SetCaveItem(second_bait_location, Item.MAGICAL_SHIELD)
+      self.data_table.SetCaveItem(second_bait_location, Item.FAIRY)
     return items
 
   def ResetState(self):

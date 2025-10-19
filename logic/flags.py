@@ -54,7 +54,7 @@ class FlagsEnum(Enum):
     SHUFFLE_SHOP_BAIT = (
         'shuffle_shop_bait',
         'Shuffle Shop Bait',
-        'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a magical shield.'
+        'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a mystery item.'
     )
     SHUFFLE_POTION_SHOP_ITEMS = (
         'shuffle_potion_shop_items',
