@@ -13,7 +13,8 @@ from .hint_writer import HintWriter
 from .validator import Validator
 from .flags import Flags
 from .bait_blocker import BaitBlocker
-from .randomizer_constants import Range
+from .randomizer_constants import Range, Item
+from .location import Location
 
 class Z1Randomizer():
 #  def __init__(self) -> None:
@@ -31,11 +32,96 @@ class Z1Randomizer():
     self.seed = seed
     self.flags = flags
 
+  def _ValidateFlagCompatibility(self, data_table: DataTable) -> None:
+    """Validate that the selected ZORA flags are compatible with the base ROM.
+
+    Checks for incompatible flag combinations and raises ValueError if found:
+    - Progressive Items + Extra Candles
+    - Extra Power Bracelet Blocks + Randomize Any Roads
+
+    Args:
+      data_table: The DataTable instance for reading ROM data
+
+    Raises:
+      ValueError: If an incompatible flag combination is detected
+    """
+    # Check for incompatible flag combination: Progressive Items + Extra Candles
+    if self.flags.progressive_items:
+
+      # Need to call ResetToVanilla first to populate the caves list
+      data_table.ResetToVanilla()
+
+      # Check Wood Sword Cave (cave 0) - all 3 positions
+      wood_sword_cave_items = []
+      for position in [1, 2, 3]:
+        location = Location.CavePosition(0, position)
+        item = data_table.GetCaveItem(location)
+        wood_sword_cave_items.append((position, item))
+
+      # Check Take Any Cave (cave 0x11/17) - all 3 positions
+      take_any_cave_items = []
+      for position in [1, 2, 3]:
+        location = Location.CavePosition(0x11, position)
+        item = data_table.GetCaveItem(location)
+        take_any_cave_items.append((position, item))
+
+      # Check if any candles were found
+      candle_found = False
+      candle_location = None
+
+      for position, item in wood_sword_cave_items:
+        if item in [Item.BLUE_CANDLE, Item.RED_CANDLE]:
+          candle_found = True
+          candle_location = f"Wood Sword Cave position {position}"
+          break
+
+      if not candle_found:
+        for position, item in take_any_cave_items:
+          if item in [Item.BLUE_CANDLE, Item.RED_CANDLE]:
+            candle_found = True
+            candle_location = f"Take Any Cave position {position}"
+            break
+
+      if candle_found:
+        print(f"\n!!! ERROR: Candle detected in {candle_location}")
+        print("Progressive Items is NOT compatible with Extra Candles flag\n")
+        raise ValueError(
+          "Progressive Items is not compatible with the 'Add Extra Candles' flag.\n\n"
+          f"Your base ROM appears to have 'Add Extra Candles' enabled (detected a candle in the {candle_location}).\n\n"
+          "Please regenerate your base ROM with the 'Add Extra Candles' flag turned OFF "
+          "or disable the 'Progressive Items' flag in ZORA."
+        )
+
+
+    # Check for incompatible flag combination: Extra Power Bracelet Blocks + Randomize Any Roads
+    if self.flags.extra_power_bracelet_blocks:
+      # Read the four "take any road" screen IDs from ROM
+      # ROM addresses 0x19334-0x19337 (file offsets 0x19344-0x19347 with iNES header)
+      # Default values: 0x1D, 0x23, 0x49, 0x79
+      ANY_ROAD_ADDRESS = 0x19334
+      DEFAULT_ANY_ROAD_SCREENS = [0x1D, 0x23, 0x49, 0x79]
+
+      any_road_screens = self.rom_reader._ReadMemory(ANY_ROAD_ADDRESS, 4)
+
+      print(f"Any Road screen IDs in ROM: {[hex(x) for x in any_road_screens]}")
+      print(f"Default values:              {[hex(x) for x in DEFAULT_ANY_ROAD_SCREENS]}")
+
+      if any_road_screens != DEFAULT_ANY_ROAD_SCREENS:
+        raise ValueError(
+          "Extra Power Bracelet Blocks is not compatible with the 'Randomize Any Roads' flag.\n\n"
+          "Your base ROM appears to have 'Randomize Any Roads' enabled (detected modified Any Road screen locations).\n\n"
+          "Please regenerate your base ROM with the 'Randomize Any Roads' flag turned OFF "
+          "or disable the 'Extra Power Bracelet Blocks' flag in ZORA."
+        )
+
   def GetPatch(self) -> Patch:
     random.seed(self.seed)
     data_table = DataTable(self.rom_reader)
     item_randomizer = ItemRandomizer(data_table, self.flags)
     validator = Validator(data_table, self.flags)
+
+    # Validate flag compatibility with base ROM
+    self._ValidateFlagCompatibility(data_table)
 
     # Main loop: Try a seed, if it isn't valid, try another one until it is valid.
     is_valid_seed = False

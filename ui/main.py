@@ -1261,6 +1261,45 @@ def main(page: ft.Page, platform: str = "web") -> None:
             page.add(step3_container)
             page.update()
 
+        except ValueError as ex:
+            # Handle validation errors (like progressive items + extra candles, or power bracelet blocks + any roads)
+            print(f"\n!!! VALIDATION ERROR !!!")
+            print(f"Error type: {type(ex).__name__}")
+            print(f"Error message: {str(ex)}")
+            print("!!!\n")
+
+            if "is not compatible" in str(ex):
+                # This covers both "Progressive Items is not compatible" and "Extra Power Bracelet Blocks is not compatible"
+                show_error_dialog(
+                    page,
+                    "Incompatible Flag Combination",
+                    str(ex)
+                )
+            else:
+                show_error_dialog(page, "Validation Error", f"An error occurred during validation:\n\n{str(ex)}")
+
+        except IndexError as ex:
+            # This usually indicates a Race ROM, which has a different format
+            print(f"\n!!! RANDOMIZATION ERROR !!!")
+            print(f"Error type: {type(ex).__name__}")
+            print(f"Error message: {str(ex)}")
+            import traceback
+            print("Full traceback:")
+            traceback.print_exc()
+            print("!!!\n")
+
+            # Check if this looks like a Race ROM error
+            if "list index out of range" in str(ex):
+                show_error_dialog(
+                    page, "Randomization Error",
+                    "This ROM appears to be a Zelda Randomizer Race ROM, which is not supported.\n\n"
+                    "ZORA can only randomize:\n"
+                    "• Vanilla Legend of Zelda ROMs\n"
+                    "• ROMs from Zelda Randomizer with the Race ROM flag turned off."
+                )
+            else:
+                show_error_dialog(page, "Randomization Error", f"An error occurred while reading the ROM:\n\n{str(ex)}")
+
         except Exception as ex:
             print(f"\n!!! RANDOMIZATION ERROR !!!")
             print(f"Error type: {type(ex).__name__}")
