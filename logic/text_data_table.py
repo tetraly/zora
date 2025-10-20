@@ -1,4 +1,4 @@
-import logging
+import logging as log
 import random
 from typing import List
 
@@ -20,7 +20,7 @@ class TextDataTable():
     return self.patch
 
   def _AddTextSpeedToPatchIfNeeded(self) -> None:
-    logging.debug("Updating text speed.")
+    log.debug("Updating text speed.")
 
     if self.text_speed == 'normal':
       return

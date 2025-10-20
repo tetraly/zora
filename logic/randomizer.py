@@ -207,7 +207,7 @@ class Z1Randomizer():
     patch.AddData(0x1785F, [0x0E])
 
     # Apply hints based on community_hints flag
-    hint_writer = HintWriter(seed=seed)
+    hint_writer = HintWriter()
 
     # Lost Hills randomization
     if self.flags.randomize_lost_hills:

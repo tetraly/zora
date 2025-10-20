@@ -1,4 +1,5 @@
 import flet as ft
+import logging as log
 import os
 import sys
 
@@ -9,6 +10,13 @@ from ui import main as ui_main
 
 def main():
     """Windows application entry point."""
+    # Configure logging
+    log.basicConfig(
+        level=log.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
     # Get the assets directory path
     # When running as PyInstaller bundle, use sys._MEIPASS
     if getattr(sys, 'frozen', False):

@@ -1,4 +1,4 @@
-import logging
+import logging as log
 from typing import Dict, List
 from .randomizer_constants import CaveNum, CaveType, Direction, Item, LevelNum, Range, RoomNum
 from .constants import ENTRANCE_DIRECTION_MAP
@@ -142,7 +142,7 @@ class DataTable():
     self.triforce_locations[location.GetLevelNum()] = room_num
 
   def ClearAllVisitMarkers(self) -> None:
-    logging.debug("Clearing Visit markers")
+    log.debug("Clearing Visit markers")
     for room in self.level_1_to_6_rooms:
       room.ClearVisitMark()
     for room in self.level_7_to_9_rooms:
@@ -152,9 +152,9 @@ class DataTable():
   #def GetLevelStartRoomNumber(self, level_num: LevelNum) -> RoomNum:
   #  assert level_num in Range.VALID_LEVEL_NUMBERS
   #  return self.LEVEL_START_ROOM_NUMBERS[level_num - 1]
-    
+
   def GetLevelStartRoomNumber(self, level_num: int) -> RoomNum:
-      logging.debug("Level %d start room is %x" %
+      log.debug("Level %d start room is %x" %
                       (level_num, self.level_info[level_num][START_ROOM_OFFSET]))
       return RoomNum(self.level_info[level_num][START_ROOM_OFFSET])
 

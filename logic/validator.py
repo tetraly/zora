@@ -129,14 +129,14 @@ class Validator(object):
 
 
   def IsSeedValid(self) -> bool:
-    log.info("Starting check of whether the seed is valid or not")
+    log.debug("Starting check of whether the seed is valid or not")
     self.inventory.Reset()
     self.inventory.SetStillMakingProgressBit()
     num_iterations = 0
     while self.inventory.StillMakingProgress():
       num_iterations += 1
-      log.info("Iteration %d of checking" % num_iterations)
-      log.info("Inventory contains: " + self.inventory.ToString())
+      log.debug("Iteration %d of checking" % num_iterations)
+      log.debug("Inventory contains: " + self.inventory.ToString())
       self.inventory.ClearMakingProgressBit()
       self.data_table.ClearAllVisitMarkers()
       log.debug("Checking caves")
@@ -157,11 +157,11 @@ class Validator(object):
       if self.CanEnterLevel(9):
         pass
       if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
-        log.info("Seed appears to be beatable. :)")
+        log.debug("Seed appears to be beatable. :)")
         return True
       elif num_iterations > 100:
         return False
-    log.info("Seed doesn't appear to be beatable. :(")
+    log.debug("Seed doesn't appear to be beatable. :(")
     return False
 
   def CanGetRoomItem(self, entry_direction: Direction, room: Room) -> bool:

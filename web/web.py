@@ -1,6 +1,7 @@
 """Web entry point for Render.com deployment."""
 import flet as ft
 import flet.fastapi as flet_fastapi
+import logging as log
 import os
 import sys
 from pathlib import Path
@@ -18,6 +19,13 @@ def main(page: ft.Page):
 
 
 if __name__ == "__main__":
+    # Configure logging
+    log.basicConfig(
+        level=log.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
     # Set up upload directory
     upload_dir = os.path.abspath("uploads")
     os.makedirs(upload_dir, exist_ok=True)

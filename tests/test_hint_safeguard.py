@@ -2,6 +2,7 @@
 Test that HintWriter safeguard actually replaces hints with blanks
 by temporarily reducing the limit
 """
+import random
 import sys
 import os
 
@@ -19,7 +20,8 @@ def test_safeguard_triggers():
     print("=" * 80)
 
     # Create writer
-    writer = HintWriter(seed=42)
+    random.seed(42)
+    writer = HintWriter()
 
     # Temporarily reduce the limit to force the safeguard to trigger
     original_limit = HintWriter.MAX_HINT_DATA_END

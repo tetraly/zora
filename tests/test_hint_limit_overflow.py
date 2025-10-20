@@ -1,6 +1,7 @@
 """
 Test that HintWriter safeguard prevents overflow by using very long hints
 """
+import random
 import sys
 import os
 
@@ -18,7 +19,8 @@ def test_hint_overflow_protection():
     print("=" * 80)
 
     # Create writer and fill with very long hints to force overflow
-    writer = HintWriter(seed=42)
+    random.seed(42)
+    writer = HintWriter()
 
     # Create maximum length hints (3 lines of 20 chars each)
     long_hint = [

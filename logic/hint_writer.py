@@ -1,4 +1,4 @@
-import logging
+import logging as log
 import random
 from typing import List, Dict
 
@@ -335,16 +335,14 @@ class HintWriter:
         hint_text = [line1, line2, line3]
         self.SetHint(HintType.HINT_8, hint_text)
 
-    def __init__(self, seed: int = None):
-        """Initialize the hint writer with an optional seed.
+    def __init__(self):
+        """Initialize the hint writer.
 
-        Args:
-            seed: Random seed for community hint selection
+        Note: Relies on the random number generator being seeded externally
+        by the main randomizer for deterministic hint selection.
         """
         self.patch = Patch()
         self.hints: Dict[HintType, str] = {}
-        if seed is not None:
-            random.seed(seed)
 
     def SetHint(self, hint_type: HintType, hint: str) -> None:
         """Set a hint for a specific hint type.
@@ -390,7 +388,7 @@ class HintWriter:
         Returns:
             Patch object with hint pointers and data
         """
-        logging.debug("Writing hints to ROM.")
+        log.debug("Writing hints to ROM.")
 
         # Track current write position in ROM
         current_file_offset = self.HINT_DATA_START
@@ -422,7 +420,7 @@ class HintWriter:
                 # Would exceed limit - use shared blank hint
                 if shared_blank_offset is None:
                     # First overflow - write a blank hint at current position
-                    logging.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Creating shared blank hint.")
+                    log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Creating shared blank hint.")
                     encoded_hint = self._encode_text([""])
                     shared_blank_offset = current_file_offset
 
@@ -431,7 +429,7 @@ class HintWriter:
                     current_file_offset += len(encoded_hint)
                 else:
                     # Subsequent overflow - reuse the shared blank hint
-                    logging.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Using shared blank hint.")
+                    log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Using shared blank hint.")
 
                 # Point this hint to the shared blank hint
                 nes_memory_address = 0x8000 + (shared_blank_offset - 0x4010)

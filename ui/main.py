@@ -1,5 +1,6 @@
 import flet as ft
 import io
+import logging as log
 import os
 import random
 import re
@@ -1204,6 +1205,32 @@ def main(page: ft.Page, platform: str = "web") -> None:
                 randomized_rom_filename = f"{base_name}_{seed_input.value}_{flagstring_input.value}.nes"
             else:  # randomized
                 randomized_rom_filename = f"{base_name}_{flagstring_input.value}.nes"
+
+            # Extract output ROM code
+            output_rom_code = extract_code_from_rom_data(randomized_rom_data)
+
+            # Log randomization details
+            log.info("=" * 70)
+            log.info("RANDOMIZATION COMPLETE")
+            log.info("=" * 70)
+            log.info("INPUT ROM:")
+            log.info(f"  Filename: {rom_info.filename}")
+            if rom_info.rom_type == "vanilla":
+                log.info(f"  Type: Vanilla")
+                log.info(f"  Seed: n/a")
+                log.info(f"  Flags: n/a")
+            else:
+                log.info(f"  Type: Randomized (base ROM)")
+                log.info(f"  Seed: {rom_info.seed}")
+                log.info(f"  Flags: {rom_info.flagstring}")
+            log.info(f"  Code: {rom_info.code}")
+            log.info("")
+            log.info("OUTPUT ROM:")
+            log.info(f"  Filename: {randomized_rom_filename}")
+            log.info(f"  ZORA Seed: {seed_input.value}")
+            log.info(f"  ZORA Flags: {flagstring_input.value}")
+            log.info(f"  Code: {output_rom_code}")
+            log.info("=" * 70)
 
             # Hide Step 2 and show ZORA settings card
             step2_container.visible = False
