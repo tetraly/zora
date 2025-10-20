@@ -124,7 +124,6 @@ class ItemRandomizer():
       self.item_shuffler.AddLocationAndItem(location, item_num)
     if self.flags.shuffle_potion_shop_items:
       self.item_shuffler.AddLocationAndItem(self.LEFT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
-      self.item_shuffler.AddLocationAndItem(self.MIDDLE_POTION_SHOP_LOCATION, Item.WOOD_SWORD)
       self.item_shuffler.AddLocationAndItem(self.RIGHT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
 
   def _ReadItemsAndLocationsForUndergroundLevel(self, level_num: LevelNum) -> None:

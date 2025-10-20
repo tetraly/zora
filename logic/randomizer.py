@@ -222,10 +222,10 @@ class Z1Randomizer():
     
     if self.flags.magical_boomerang_does_one_hp_damage:
       patch.AddDataFromHexString(0x7478, 
-          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A 0A 85 07 A9 10 95 3D")  
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A 0A 85 07 A9 10 95 3D EA")  
     elif self.flags.magical_boomerang_does_half_hp_damage:
       patch.AddDataFromHexString(0x7478, 
-          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A EA 85 07 A9 10 95 3D")
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A EA 85 07 A9 10 95 3D EA")
 
     if self.flags.speed_up_dungeon_transitions:
       # For fast scrolling. Puts NOPs instead of branching based on dungeon vs. Level 0 (OW)

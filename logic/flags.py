@@ -159,12 +159,12 @@ class FlagsEnum(Enum):
     MAGICAL_BOOMERANG_DOES_ONE_HP_DAMAGE = (
         'magical_boomerang_does_one_hp_damage',
         'Magical Boomerang Does 1 HP Damage',
-        'Changes the magical boomerang to deal 1 HP of damage (equivalent to the wood sword) to enemies. Note that a boomerang may damage an enemy multiple times in one shot. WARNING: This feature is known to be buggy and may crash the game.'
+        'Changes the magical boomerang to deal 1 HP of damage (equivalent to the wood sword) to enemies. Note that a boomerang may damage an enemy multiple times in one shot.'
     )
     MAGICAL_BOOMERANG_DOES_HALF_HP_DAMAGE = (
         'magical_boomerang_does_half_hp_damage',
         'Magical Boomerang Does Half HP Damage',
-        'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior. WARNING: This feature is known to be buggy and may crash the game.'
+        'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior.'
     )
     INCREASED_BAIT_BLOCKS = (
         'increased_bait_blocks',
