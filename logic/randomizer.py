@@ -183,7 +183,7 @@ class Z1Randomizer():
       #   18                   CLC          ; Clear the carry bit
       #   79 57 06             ADC $0657,Y  ; Adds the picked up amount (presumably 1) to the item grade
       #   EA                   NOP
-      #patch.AddData(0x6D06, [0x18, 0x79, 0x57, 0x06, 0xEA])
+      patch.AddData(0x6D06, [0x18, 0x79, 0x57, 0x06, 0xEA])
 
       # Fix for Ring/tunic colors
       patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])
