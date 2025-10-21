@@ -35,17 +35,17 @@ class HintWriter:
     # Priority hints - always included first
     PRIORITY_HINTS = [
         ["HEJ"],
+        ["YOU GOTTA", "HAVE HEART"],
+        ["STAND CLEAR OF", "THE CLOSING DOORS", "PLEASE"],
         ["!LFG"],
         ["THIS AIN'T", "YOUR OLD MAN'S", "RANDOMIZER!"],
-        ["MEOW MEOW MEOW MEOW"],
-        ["STAND CLEAR OF", "THE CLOSING DOORS", "PLEASE"],
-        ["GO LOCAL", "SPORTS TEAM!"],
+        ["THIS COULD", "BE YOU!"],
         ["WELCOME TO THE", "COFFEE ZONE"],
+        ["ARE YOU IN THE", "CATBIRD SEAT?"],
+        ["MEOW MEOW MEOW MEOW"],
         ["HAPPY BIRTHDAY", "TO YOU!"],
         ["READ THE", "WIKI BRO!"],
-        ["ARE YOU IN THE", "CATBIRD SEAT?"],
-        ["THIS COULD", "BE YOU!"],
-        ["YOU GOTTA", "HAVE HEART"],
+        ["GO LOCAL", "SPORTS TEAM!"],
     ]
 
     HINTS = [
@@ -55,7 +55,6 @@ class HintWriter:
         ["WHY AM I LOCKED", "IN A BASEMENT"],
         ["THAT'S JUST LIKE", "YOUR OPINION MAN"],
         ["THE DUDE ABIDES"],
-        ["10TH ENEMY HAS", "THE BOMB"],
         ["STAY AWHILE", "AND LISTEN"],
         ["YOU TEACH ME", "A SPELL"],
         ["YOU KNOW NOTHING"],
@@ -183,7 +182,6 @@ class HintWriter:
         ["ALL SIGNS POINT", "TO NO"],
         ["COME BACK AS", "ADULT LINK"],
         ["QUIT WASTING", "MY TIME"],
-        ["YOU'RE SIXTEEN", "PIXELS SHORT"],
         ["DO YOU HAVE", "A DIPLOMA?"],
         ["SHOW ME YOUR", "CREDITS!"],
         ["I CANNOT CONTAIN", "MY LAUGHTER"],
@@ -320,6 +318,96 @@ class HintWriter:
         hint_text = [line1, line2, line3]
         self.SetHint(HintType.HINT_8, hint_text)
 
+    # Hint text options for White Sword cave based on heart requirement
+    WHITE_SWORD_HINTS_4_HEARTS = [
+        "FOUR SQUARE",
+        "FANTASTIC FOUR",
+        "SOMETHING ABOUT FOUR",
+        "FOUR SWORDS ADVENTURE",
+    ]
+
+    WHITE_SWORD_HINTS_5_HEARTS = [
+        "FIVE IS RIGHT OUT",
+        "FIVE PIXELS FROM THE EDGE",
+        "GIVE ME FIVE",
+        "HIGH FIVE",
+        "TAKE FIVE",
+        "HOW IT FEELS TO CHEW FIVE GUM",
+    ]
+
+    WHITE_SWORD_HINTS_6_HEARTS = [
+        "SIX SEVEN",
+        "WHY WAS SIX AFRAID OF SEVEN?",
+        "SIXTH SENSE",
+        "DEEP SIX",
+    ]
+
+    # Hint text options for Magical Sword cave based on heart requirement
+    MAGICAL_SWORD_HINTS_10_HEARTS = [
+        "AM I A TEN OR WHAT?",
+        "10TH HEART HAS THE ITEM",
+        "TENTEN",
+        "HANG TEN",
+        "TEN OUT OF TEN",
+        "POWER OF TEN",
+    ]
+
+    MAGICAL_SWORD_HINTS_11_HEARTS = [
+        "THESE GO TO ELEVEN",
+        "ELEVENSIES!",
+        "OCEAN'S ELEVEN",
+        "11!!!!!",
+    ]
+
+    MAGICAL_SWORD_HINTS_12_HEARTS = [
+        "THE DIRTY DOZEN",
+        "A DOZEN HEARTS",
+        "TWELVE LABORS",
+        "TWELVE IS SO VANILLA",
+    ]
+
+    def SetWhiteSwordHeartHint(self, heart_requirement: int) -> None:
+        """
+        Generate and set White Sword cave hint based on heart requirement.
+
+        Args:
+            heart_requirement: The number of hearts required (4, 5, or 6)
+
+        Raises:
+            ValueError: If heart_requirement is not 4, 5, or 6
+        """
+        if heart_requirement == 4:
+            hint_text = random.choice(self.WHITE_SWORD_HINTS_4_HEARTS)
+        elif heart_requirement == 5:
+            hint_text = random.choice(self.WHITE_SWORD_HINTS_5_HEARTS)
+        elif heart_requirement == 6:
+            hint_text = random.choice(self.WHITE_SWORD_HINTS_6_HEARTS)
+        else:
+            raise ValueError(f"Invalid white sword heart requirement: {heart_requirement}. Must be 4, 5, or 6.")
+
+        self.SetHint(HintType.HINT_11, hint_text)
+
+    def SetMagicalSwordHeartHint(self, heart_requirement: int) -> None:
+        """
+        Generate and set Magical Sword cave hint based on heart requirement.
+
+        Args:
+            heart_requirement: The number of hearts required (10, 11, or 12)
+
+        Raises:
+            ValueError: If heart_requirement is not 10, 11, or 12
+        """
+        if heart_requirement == 10:
+            hint_text = random.choice(self.MAGICAL_SWORD_HINTS_10_HEARTS)
+        elif heart_requirement == 11:
+            hint_text = random.choice(self.MAGICAL_SWORD_HINTS_11_HEARTS)
+        elif heart_requirement == 12:
+            hint_text = random.choice(self.MAGICAL_SWORD_HINTS_12_HEARTS)
+        else:
+            raise ValueError(f"Invalid magical sword heart requirement: {heart_requirement}. Must be 10, 11, or 12.")
+
+        self.SetHint(HintType.HINT_2, hint_text)
+
     def __init__(self):
         """Initialize the hint writer.
 
@@ -351,6 +439,8 @@ class HintWriter:
         community_hint_index = 0
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
+            if hint_num == 1:
+                self.hints[hint_type] = ["IT'S DANGEROUS TO CODE", "ALONE! TAKE THIS."]
             if hint_type not in self.hints and community_hint_index < len(all_community_hints):
                 self.hints[hint_type] = all_community_hints[community_hint_index]
                 community_hint_index += 1
@@ -363,7 +453,7 @@ class HintWriter:
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
             if hint_num == 1:
-                self.hints[hint_type] = ""
+                self.hints[hint_type] = ["IT'S DANGEROUS TO CODE", "ALONE! TAKE THIS."]
             elif hint_type not in self.hints:
                 self.hints[hint_type] = f"TEST HINT {hint_num:02d}"
 

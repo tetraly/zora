@@ -22,10 +22,12 @@ class Validator(object):
   ARMOS_VIRTUAL_CAVE_NUMBER = 0x14
   COAST_VIRTUAL_CAVE_NUMBER = 0x15
 
-  def __init__(self, data_table: DataTable, flags: Flags) -> None:
+  def __init__(self, data_table: DataTable, flags: Flags, white_sword_hearts: int = 5, magical_sword_hearts: int = 12) -> None:
     self.data_table = data_table
     self.flags = flags
     self.inventory = Inventory()
+    self.white_sword_hearts = white_sword_hearts
+    self.magical_sword_hearts = magical_sword_hearts
 
   def GetBlockType(self, screen_num: int) -> str:
     """Get the block type for a given screen, accounting for flags."""
@@ -204,13 +206,12 @@ class Validator(object):
     # At this point, assume regular enemies
     return self.inventory.HasReusableWeapon()
 
-  #TODO: Need to update WS and MS caves with actual heart requirements
   def CanGetItemsFromCave(self, cave_num: CaveNum) -> bool:
     if (cave_num == self.WHITE_SWORD_CAVE_NUMBER
-        and self.inventory.GetHeartCount() < self.NUM_HEARTS_FOR_WHITE_SWORD_ITEM):
+        and self.inventory.GetHeartCount() < self.white_sword_hearts):
       return False
     if (cave_num == self.MAGICAL_SWORD_CAVE_NUMBER
-        and self.inventory.GetHeartCount() < self.NUM_HEARTS_FOR_MAGICAL_SWORD_ITEM):
+        and self.inventory.GetHeartCount() < self.magical_sword_hearts):
       return False
     if cave_num == self.POTION_SHOP_NUMBER and not self.inventory.Has(Item.LETTER):
       return False

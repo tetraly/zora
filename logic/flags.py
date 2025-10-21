@@ -186,6 +186,11 @@ class FlagsEnum(Enum):
         'Randomize Dead Woods',
         'Randomizes the Dead Woods direction sequence and adds a hint NPC in the game.'
     )
+    RANDOMIZE_HEART_CONTAINER_REQUIREMENTS = (
+        'randomize_heart_container_requirements',
+        'Randomize Heart Container Requirements',
+        'Randomizes the heart container requirements for the White Sword cave (4-6 hearts) and Magical Sword cave (10-12 hearts). NPCs will provide hints about the requirements.'
+    )
 
     def __init__(self, value, display_name, help_text):
         self._value_ = value

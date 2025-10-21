@@ -7,7 +7,7 @@ from typing import List
 from .data_table import DataTable
 from .item_randomizer import ItemRandomizer
 from .patch import Patch
-from .rom_reader import RomReader
+from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET
 from .text_data_table import TextDataTable
 from .hint_writer import HintWriter
 from .validator import Validator
@@ -118,7 +118,11 @@ class Z1Randomizer():
     random.seed(self.seed)
     data_table = DataTable(self.rom_reader)
     item_randomizer = ItemRandomizer(data_table, self.flags)
-    validator = Validator(data_table, self.flags)
+
+    # Determine heart requirements once for both validation and ROM patching
+    white_sword_hearts = random.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
+    magical_sword_hearts = random.choice([10, 11, 12]) if (self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements) else 12
+    validator = Validator(data_table, self.flags, white_sword_hearts, magical_sword_hearts)
 
     # Validate flag compatibility with base ROM
     self._ValidateFlagCompatibility(data_table)
@@ -157,6 +161,22 @@ class Z1Randomizer():
           raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
       
     patch = data_table.GetPatch()
+
+    # Change White Sword cave to use the hint normally reserved for the letter cave
+    # Vanilla value at 0x45B4 is 0x42, changing to 0x4C
+    patch.AddData(0x45B4, [0x54])
+
+    # Randomize white sword heart requirement if the flag is enabled
+    if self.flags.randomize_heart_container_requirements:
+      # Heart requirement is stored as (hearts - 1) * 16 in the upper nibble
+      # For example: 5 hearts = 0x40, 4 hearts = 0x30, 6 hearts = 0x50
+      patch.AddData(WHITE_SWORD_REQUIREMENT_ADDRESS + NES_HEADER_OFFSET, [(white_sword_hearts - 1) * 16])
+
+    # Randomize magical sword heart requirement if the item is shuffled or the flag is enabled
+    if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
+      # Heart requirement is stored as (hearts - 1) * 16 in the upper nibble
+      # For example: 12 hearts = 0xB0, 11 hearts = 0xA0, 10 hearts = 0x90
+      patch.AddData(MAGICAL_SWORD_REQUIREMENT_ADDRESS + NES_HEADER_OFFSET, [(magical_sword_hearts - 1) * 16])
 
     if self.flags.progressive_items:
       # New progressive item code
@@ -332,6 +352,13 @@ class Z1Randomizer():
 
       # Set Dead Woods hint
       hint_writer.SetDeadWoodsHint(dead_woods_directions)
+
+    # Set heart requirement hints
+    if self.flags.randomize_heart_container_requirements:
+      hint_writer.SetWhiteSwordHeartHint(white_sword_hearts)
+
+    if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
+      hint_writer.SetMagicalSwordHeartHint(magical_sword_hearts)
 
     if self.flags.community_hints:
       hint_writer.FillWithCommunityHints()
