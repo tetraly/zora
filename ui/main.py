@@ -101,27 +101,29 @@ def is_vanilla_rom_data(rom_data: bytes) -> bool:
 def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
     """Extract flagstring and seed from ROM filename.
 
+    Expects pattern: [basename]_[seed]_[flagstring].nes
+
     Returns:
         tuple: (flagstring, seed)
+
+    Raises:
+        ValueError: If the filename doesn't match the expected pattern
     """
-    name = os.path.splitext(filename)[0]
-    parts = name.split("_")
+    # Match pattern: _[digits]_[flagstring].nes
+    # Flagstring can contain uppercase, lowercase, digits, and "!"
+    match = re.search(r'_(\d+)_([A-Za-z0-9!]{23,36})\.nes$', filename)
 
-    # Extract seed (first numeric part)
-    seed = ""
-    for part in parts:
-        if part.isdigit():
-            seed = part
-            break
+    if match:
+        seed = match.group(1)
+        flagstring = match.group(2)
+        return flagstring, seed
 
-    # Extract flagstring (last alphanumeric non-digit part)
-    flagstring = ""
-    for part in reversed(parts):
-        if re.fullmatch(r"[A-Za-z0-9]+", part) and not part.isdigit():
-            flagstring = part
-            break
-
-    return flagstring, seed
+    # If pattern doesn't match, raise an error
+    raise ValueError(
+        f"Invalid ROM filename format.\n\n"
+        f"Expected pattern: [basename]_[seed]_[flagstring].nes\n\n"
+        f"Your filename: {os.path.basename(filename)}"
+    )
 
 
 def info_row(label: str, value: str, label_width: int = 120, value_width: Optional[int] = None) -> ft.Row:
@@ -161,6 +163,7 @@ def show_error_dialog(page: ft.Page, title: str, message: str) -> None:
     """
     def close_dlg(e) -> None:
         page.close(dialog)
+        page.update()
 
     dialog = ft.AlertDialog(
         modal=True,
@@ -172,6 +175,7 @@ def show_error_dialog(page: ft.Page, title: str, message: str) -> None:
         actions_alignment=ft.MainAxisAlignment.END,
     )
     page.open(dialog)
+    page.update()
 
 
 def show_snackbar(page: ft.Page, message: str) -> None:
@@ -994,7 +998,13 @@ def main(page: ft.Page, platform: str = "web") -> None:
         # Load ROM info for display
         rom_info.filename = filepath if filepath else filename
         rom_info.rom_type = "randomized"
-        rom_info.flagstring, rom_info.seed = parse_filename_for_flag_and_seed(filename)
+
+        # Parse filename for seed and flagstring
+        try:
+            rom_info.flagstring, rom_info.seed = parse_filename_for_flag_and_seed(filename)
+        except ValueError as ex:
+            show_error_dialog(page, "Invalid Filename", str(ex))
+            return
 
         # Validate that this is a randomized ROM by trying to extract the code
         try:

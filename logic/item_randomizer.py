@@ -334,6 +334,8 @@ class ItemShuffler():
         if (self.flags.progressive_items and location.IsShopPosition() and
             item.IsProgressiveUpgradeItem()):
             return False
+        if location.IsShopPosition() and item == Item.HEART_CONTAINER:
+            return False        
         if location.IsCavePosition() and location.GetCaveNum() == 0x25 and item == Item.LADDER:
             return False
         if location.IsLevelRoom() and location.GetLevelNum() == 9:
