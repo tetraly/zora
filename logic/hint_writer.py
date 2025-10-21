@@ -328,16 +328,16 @@ class HintWriter:
 
     WHITE_SWORD_HINTS_5_HEARTS = [
         "FIVE IS RIGHT OUT",
-        "FIVE PIXELS FROM THE EDGE",
+        ["FIVE PIXELS ", "FROM THE EDGE"],
         "GIVE ME FIVE",
         "HIGH FIVE",
         "TAKE FIVE",
-        "HOW IT FEELS TO CHEW FIVE GUM",
+        ["HOW IT FEELS TO", "CHEW FIVE GUM"],
     ]
 
     WHITE_SWORD_HINTS_6_HEARTS = [
         "SIX SEVEN",
-        "WHY WAS SIX AFRAID OF SEVEN?",
+        ["WHY WAS SIX ", "AFRAID OF SEVEN?"],
         "SIXTH SENSE",
         "DEEP SIX",
     ]
@@ -345,7 +345,7 @@ class HintWriter:
     # Hint text options for Magical Sword cave based on heart requirement
     MAGICAL_SWORD_HINTS_10_HEARTS = [
         "AM I A TEN OR WHAT?",
-        "10TH HEART HAS THE ITEM",
+        ["10TH HEART ", "HAS THE ITEM"],
         "TENTEN",
         "HANG TEN",
         "TEN OUT OF TEN",
