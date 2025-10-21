@@ -34,11 +34,10 @@ class HintWriter:
     # Community hints adapted from text_randomizer.py
     # Priority hints - always included first
     PRIORITY_HINTS = [
-        ["YOUR MESSAGE HERE", "GITHUB.COM SLASH", "TETRALY SLASH ZORA"],
+        ["HEJ"],
         ["!LFG"],
         ["THIS AIN'T", "YOUR OLD MAN'S", "RANDOMIZER!"],
-        ["SHOUTOUT TO", "NEXT GEN"],
-        ["MEOW MEOW MEOW", "MEOW MEOW MEOW", "MEOW MEOW MEOW"],
+        ["MEOW MEOW MEOW MEOW"],
         ["STAND CLEAR OF", "THE CLOSING DOORS", "PLEASE"],
         ["GO LOCAL", "SPORTS TEAM!"],
         ["WELCOME TO THE", "COFFEE ZONE"],
@@ -47,18 +46,15 @@ class HintWriter:
         ["ARE YOU IN THE", "CATBIRD SEAT?"],
         ["THIS COULD", "BE YOU!"],
         ["YOU GOTTA", "HAVE HEART"],
-        ["AS AN AI LANGUAGE", "MODEL I CANNOT", "DO THAT ..."],
     ]
 
     HINTS = [
         # Generic Wizard Texts
         ["DO YOU KNOW WHY", "WE STOPPED THE CAR?"],
-        ["LINK... I AM YOUR", "FATHER"],
         ["I LIKE BIG BOTS", "AND I CANNOT LIE"],
         ["WHY AM I LOCKED", "IN A BASEMENT"],
         ["THAT'S JUST LIKE", "YOUR OPINION MAN"],
         ["THE DUDE ABIDES"],
-        ["BOY THIS IS REALLY", "EXPENSIVE"],
         ["10TH ENEMY HAS", "THE BOMB"],
         ["STAY AWHILE", "AND LISTEN"],
         ["YOU TEACH ME", "A SPELL"],
@@ -77,7 +73,6 @@ class HintWriter:
         ["I'D LIKE TO BUY", "A VOWEL"],
         ["I ONLY KNOW", "ONE SPELL"],
         ["I WENT TO COLLEGE", "FOR THIS"],
-        ["THIS GAME NEEDS", "MORE CATEGORIES"],
         ["WHO PICKED THESE", "FLAGS"],
         ["I FOUND THIS", "IN THE GARBAGE"],
         ["HAVE YOU HEARD", "MY MIXTAPE"],
@@ -88,7 +83,6 @@ class HintWriter:
         ["DON'T MOVE", "I DROPPED A", "CONTACT LENS"],
         ["PLEASE SUPPORT ZSR"],
         ["THIS WON'T HURT", "A BIT"],
-        ["HOW MANY SHAKES", "CAN A DIGSHAKE", "SHAKE?"],
         ["FREE YOUR MIND"],
         ["DA NA NA NA", "NAAAAAAAAA"],
         ["JOIN THE NINTENDO", "POWER CLUB"],
@@ -119,14 +113,11 @@ class HintWriter:
 
         # Bagu Texts
         ["HAVE YOU SEEN ERROR", "AROUND?"],
-        ["TELL THE RIVERMAN", "I SAID HE'S", "AN IDIOT"],
         ["WANNA SEE A CORPSE?"],
         ["ALIENS ARE REAL"],
         ["RUPEES ARE MIND", "CONTROL DEVICES"],
-        ["PLEASE DON'T TELL", "MY WIFE I AM HERE"],
         ["BAM BAM BAM"],
         ["HERE IS MY LIST", "OF DEMANDS"],
-        ["MY EMAIL TO", "RIVER MAN WAS", "IN MY DRAFTS"],
         ["HEY! LISTEN!"],
         ["PIZZA DUDE'S GOT", "THIRTY SECONDS"],
         ["I AM BATMAN"],
@@ -149,7 +140,6 @@ class HintWriter:
         ["YAKHAMMER ACQUIRED"],
         ["PRESS DOWN TO", "CROUCH"],
         ["KICK PUNCH CHOP", "BLOCK DUCK JUMP"],
-        ["JUMP CROUCH", "IT'S ALL IN", "THE MIND!"],
         ["YOU WALKED PAST ME", "DIDN'T YOU"],
         ["UPSTAB IS THE", "BEST STAB"],
         ["DO THE SAFETY DANCE"],
@@ -160,16 +150,13 @@ class HintWriter:
         # Upstab Texts
         ["BET YOU WISH THIS", "WAS DOWNSTAB"],
         ["YOU PROBABLY WON'T", "NEED THIS"],
-        ["PRESS UP YOU IDIOT"],
         ["PRESS UP TO GO", "IN DOORS"],
         ["ARE YOU SANTA CLAUS?"],
         ["SHORYUKEN!"],
         ["YOU WASTED", "YOUR TIME?"],
         ["MARIO CAN DO THIS", "WITHOUT MAGIC"],
-        ["DOWNSTAB IS THE", "BEST STAB"],
         ["TIGER UPPERCUT!"],
         ["NEVER GONNA LET", "YOU DOWN"],
-        ["THANKS FOR NOT", "SKIPPING ME"],
         ["THE OPPORTUNITY", "ARISES"],
 
         # Know Nothing Texts
@@ -191,7 +178,6 @@ class HintWriter:
         ["WOAH! DUDE!"],
         ["PAY ME AND", "I'LL TALK"],
         ["THE HINT IS IN", "ANOTHER CASTLE"],
-        ["DID YOU CHECK", "THE OLD KASUTO", "HINT?"],
 
         # Not Enough Containers (adapted)
         ["ALL SIGNS POINT", "TO NO"],
@@ -199,7 +185,6 @@ class HintWriter:
         ["QUIT WASTING", "MY TIME"],
         ["YOU'RE SIXTEEN", "PIXELS SHORT"],
         ["DO YOU HAVE", "A DIPLOMA?"],
-        ["THE MAGIC CLASS", "DID NOT HELP YOU", "ENOUGH"],
         ["SHOW ME YOUR", "CREDITS!"],
         ["I CANNOT CONTAIN", "MY LAUGHTER"],
         ["YOU MUST CONSTRUCT", "ADDITIONAL PYLONS"],
@@ -393,9 +378,6 @@ class HintWriter:
         # Track current write position in ROM
         current_file_offset = self.HINT_DATA_START
 
-        # Location for shared blank hint (will be set when first overflow occurs)
-        shared_blank_offset = None
-
         # Iterate through hint types in order
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
@@ -417,32 +399,17 @@ class HintWriter:
 
             # Check if writing this hint would exceed the limit
             if current_file_offset + len(encoded_hint) >= self.MAX_HINT_DATA_END:
-                # Would exceed limit - use shared blank hint
-                if shared_blank_offset is None:
-                    # First overflow - write a blank hint at current position
-                    log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Creating shared blank hint.")
-                    encoded_hint = self._encode_text([""])
-                    shared_blank_offset = current_file_offset
+                # Would exceed limit - write a blank hint instead
+                log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Writing blank hint instead.")
+                encoded_hint = self._encode_text([""])
 
-                    # Write the shared blank hint data
-                    self.patch.AddData(current_file_offset, encoded_hint)
-                    current_file_offset += len(encoded_hint)
-                else:
-                    # Subsequent overflow - reuse the shared blank hint
-                    log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Using shared blank hint.")
+            # Calculate the pointer value
+            nes_memory_address = 0x8000 + (current_file_offset - 0x4010)
+            offset_from_bank_start = nes_memory_address - 0x8000
 
-                # Point this hint to the shared blank hint
-                nes_memory_address = 0x8000 + (shared_blank_offset - 0x4010)
-                offset_from_bank_start = nes_memory_address - 0x8000
-            else:
-                # Normal hint - write it
-                # Calculate the pointer value
-                nes_memory_address = 0x8000 + (current_file_offset - 0x4010)
-                offset_from_bank_start = nes_memory_address - 0x8000
-
-                # Write the encoded hint data
-                self.patch.AddData(current_file_offset, encoded_hint)
-                current_file_offset += len(encoded_hint)
+            # Write the encoded hint data
+            self.patch.AddData(current_file_offset, encoded_hint)
+            current_file_offset += len(encoded_hint)
 
             # Write pointer in little-endian format with 0x80 OR'd into high byte
             # Hint index is 0-based for pointer table (hint_num - 1)
@@ -469,8 +436,8 @@ class HintWriter:
         # Special case: blank hint (empty or all empty lines)
         has_content = any(line.strip() for line in lines)
         if not has_content:
-            # Just return a single byte with end bits set (0x24 | 0xC0 = 0xE4)
-            return [0xE4]
+            # Return one space followed by a second space with EOF bits set
+            return [0x24, 0xE4]
 
         for line_num, line in enumerate(lines):
             # Strip trailing spaces
