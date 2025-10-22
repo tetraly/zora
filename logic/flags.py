@@ -1,130 +1,177 @@
-from enum import Enum
+from enum import Enum, IntEnum
+
+
+class FlagCategory(IntEnum):
+    """Categories for organizing flags in the UI."""
+    ITEM_SHUFFLE = 1
+    ITEM_CHANGES = 2
+    OVERWORLD_RANDOMIZATION = 3
+    LOGIC_AND_DIFFICULTY = 4
+    QUALITY_OF_LIFE = 5
+
+    @property
+    def display_name(self) -> str:
+        """Get user-friendly display name for the category."""
+        names = {
+            FlagCategory.ITEM_SHUFFLE: "Item Shuffle",
+            FlagCategory.ITEM_CHANGES: "Item Changes",
+            FlagCategory.OVERWORLD_RANDOMIZATION: "Overworld Randomization",
+            FlagCategory.LOGIC_AND_DIFFICULTY: "Logic & Difficulty",
+            FlagCategory.QUALITY_OF_LIFE: "Quality of Life / Other"
+        }
+        return names.get(self, "Unknown")
+
 
 class FlagsEnum(Enum):
     SHUFFLE_WOOD_SWORD_CAVE_ITEM = (
         'shuffle_wood_sword_cave_item',
         'Shuffle Wood Sword Cave item',
-        'Adds the Wood Sword Cave Item to the item shuffle pool. May or may not make the seed unbeatable. Recommended for advanced players only.'
-    )    
+        'Adds the Wood Sword Cave Item to the item shuffle pool. May or may not make the seed unbeatable. Recommended for advanced players only.',
+        FlagCategory.ITEM_SHUFFLE
+    )
     SHUFFLE_WHITE_SWORD_CAVE_ITEM = (
         'shuffle_white_sword_cave_item',
         'Shuffle White Sword Cave item',
-        'Adds the White Sword Cave item to the item shuffle pool'
+        'Adds the White Sword Cave item to the item shuffle pool',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_MAGICAL_SWORD_CAVE_ITEM = (
         'shuffle_magical_sword_cave_item',
         'Shuffle Magical Sword Cave item',
-        'Adds the Magical Sword to the item shuffle pool. Important Note: If the Magical Sword is shuffled into a room that normally has a standing floor item, it will become a drop item. You will need to defeat all enemies in the room for the Magical Sword to appear.'
+        'Adds the Magical Sword to the item shuffle pool. Important Note: If the Magical Sword is shuffled into a room that normally has a standing floor item, it will become a drop item. You will need to defeat all enemies in the room for the Magical Sword to appear.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_LETTER_CAVE_ITEM = (
         'shuffle_letter_cave_item',
         'Shuffle Letter Cave Item',
-        'Adds the Letter Cave Item to the item shuffle.'
+        'Adds the Letter Cave Item to the item shuffle.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_ARMOS_ITEM = (
         'shuffle_armos_item',
         'Shuffle the Armos Item',
-        'Adds the Armos item (the Power Bracelet in a vanilla seed) to the item shuffle pool.'
+        'Adds the Armos item (the Power Bracelet in a vanilla seed) to the item shuffle pool.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_COAST_ITEM = (
         'shuffle_coast_item',
         'Shuffle the Coast Item',
-        'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.'
+        'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_SHOP_ARROWS = (
         'shuffle_shop_arrows',
         'Shuffle Shop Arrows',
-        'Adds the wood arrows from the shop to the item shuffle pool.'
+        'Adds the wood arrows from the shop to the item shuffle pool.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_SHOP_CANDLE = (
         'shuffle_shop_candle',
         'Shuffle Shop Candle',
-        'Adds the blue candle from the shop to the item shuffle pool.'
+        'Adds the blue candle from the shop to the item shuffle pool.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_SHOP_RING = (
         'shuffle_shop_ring',
         'Shuffle Shop Ring',
-        'Adds the blue ring from the shop to the item shuffle pool. The shop location price will be changed to 150 ± 25 rupees.'
+        'Adds the blue ring from the shop to the item shuffle pool. The shop location price will be changed to 150 ± 25 rupees.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_SHOP_BOOK = (
         'shuffle_shop_book',
         'Shuffle Shop Book',
-        'Adds the book from the shop (if one is present) to the item shuffle pool.'
+        'Adds the book from the shop (if one is present) to the item shuffle pool.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_SHOP_BAIT = (
         'shuffle_shop_bait',
         'Shuffle Shop Bait',
-        'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a mystery item.'
+        'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a mystery item.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_POTION_SHOP_ITEMS = (
         'shuffle_potion_shop_items',
         'Shuffle Potion Shop Items',
-        'Adds the potions in the potion shop to the item shuffle pool. Known issue: Red potions in dungeons will be downgraded to blue potions.'
+        'Adds the potions in the potion shop to the item shuffle pool. Known issue: Red potions in dungeons will be downgraded to blue potions.',
+        FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_MINOR_DUNGEON_ITEMS = (
         'shuffle_minor_dungeon_items',
         'Shuffle Minor Dungeon Items',
-        'Adds minor items (five rupees, bombs, keys, maps, and compasses) to the item shuffle pool.'
+        'Adds minor items (five rupees, bombs, keys, maps, and compasses) to the item shuffle pool.',
+        FlagCategory.ITEM_SHUFFLE
     )
     AVOID_REQUIRED_HARD_COMBAT = (
         'avoid_required_hard_combat',
         'Avoid Requiring "Hard" Combat',
-        'The logic will not require killing any Blue Darknuts, Blue Wizzrobes, Gleeoks, or Patras to progress without making at least one sword upgrade and at least one ring available in logic.'
+        'The logic will not require killing any Blue Darknuts, Blue Wizzrobes, Gleeoks, or Patras to progress without making at least one sword upgrade and at least one ring available in logic.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     SELECT_SWAP = (
         'select_swap',
         'Enable Item Swap with Select',
-        'Pressing select will cycle through your B button inventory instead of pausing the game.'
+        'Pressing select will cycle through your B button inventory instead of pausing the game.',
+        FlagCategory.QUALITY_OF_LIFE
     )
     RANDOMIZE_LEVEL_TEXT = (
         'randomize_level_text',
         'Randomize Level Text',
-        'Chooses a random value (either literally or figuratively) for the "level-#" text displayed in dungeons.'
+        'Chooses a random value (either literally or figuratively) for the "level-#" text displayed in dungeons.',
+        FlagCategory.QUALITY_OF_LIFE
     )
     SPEED_UP_TEXT = (
         'speed_up_text',
         'Speed Up Text',
-        'Increases the scrolling speed of text displayed in caves and dungeons.'
+        'Increases the scrolling speed of text displayed in caves and dungeons.',
+        FlagCategory.QUALITY_OF_LIFE
     )
     SPEED_UP_DUNGEON_TRANSITIONS = (
         'speed_up_dungeon_transitions',
         'Speed Up Dungeon Transitions',
-        'Speeds up dungeon room transitions to be as fast as overworld screen transitions'
+        'Speeds up dungeon room transitions to be as fast as overworld screen transitions',
+        FlagCategory.QUALITY_OF_LIFE
     )
     FORCE_ARROW_TO_LEVEL_NINE = (
         'force_arrow_to_level_nine',
         'Force an arrow to be in level 9',
-        'Require that an arrow be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
+        'Require that an arrow be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     FORCE_RING_TO_LEVEL_NINE = (
         'force_ring_to_level_nine',
         'Force a ring to be in level 9',
-        'Require that a ring be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
+        'Require that a ring be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     FORCE_WAND_TO_LEVEL_NINE = (
         'force_wand_to_level_nine',
         'Force a wand to be in level 9',
-        'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.'
+        'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     EXTRA_RAFT_BLOCKS = (
         'extra_raft_blocks',
         'Extra Raft Blocks',
-        'Converts the Westlake Mall and Casino Corner regions into raft-blocked areas, requiring the raft to access additional screens.'
+        'Converts the Westlake Mall and Casino Corner regions into raft-blocked areas, requiring the raft to access additional screens.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
     )
     EXTRA_POWER_BRACELET_BLOCKS = (
         'extra_power_bracelet_blocks',
         'Extra Power Bracelet Blocks',
-        'Adds new power bracelet blocks in West Death Mountain. Intended for use with vanilla any road locations.'
+        'Adds new power bracelet blocks in West Death Mountain. Intended for use with vanilla any road locations.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
     )
     NO_IMPORTANT_ITEMS_IN_LEVEL_NINE = (
         'no_important_items_in_level_nine',
         'No Important Items in Level 9',
-        'Prevents important items (raft, power bracelet, recorder, bow, ladder) from being placed in level 9. This setting overrides the corresponding Zelda Randomizer flag setting.'
+        'Prevents important items (raft, power bracelet, recorder, bow, ladder) from being placed in level 9. This setting overrides the corresponding Zelda Randomizer flag setting.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     PROGRESSIVE_ITEMS = (
         'progressive_items',
         'Progressive Items',
-        'Makes swords, candles, arrows, and rings progressive. Lower-tier items replace higher-tier items in the pool, and collecting multiple copies upgrades them to the next tier.'
+        'Makes swords, candles, arrows, and rings progressive. Lower-tier items replace higher-tier items in the pool, and collecting multiple copies upgrades them to the next tier.',
+        FlagCategory.ITEM_CHANGES
     )
     # PROGRESSIVE_ARROWS = (
     #     'progressive_arrows',
@@ -149,7 +196,8 @@ class FlagsEnum(Enum):
     ADD_L4_SWORD = (
         'add_l4_sword',
         'Add L4 Sword',
-        'Adds an additional sword upgrade guarded by the level 9 triforce checker. Note that with a L4 sword, melee attacks will do L4 damage but beams do L3 damage.'
+        'Adds an additional sword upgrade guarded by the level 9 triforce checker. Note that with a L4 sword, melee attacks will do L4 damage but beams do L3 damage.',
+        FlagCategory.ITEM_CHANGES
     )
     # PROGRESSIVE_BOOMERANGS = (
     #     'progressive_boomerangs',
@@ -159,37 +207,44 @@ class FlagsEnum(Enum):
     MAGICAL_BOOMERANG_DOES_ONE_HP_DAMAGE = (
         'magical_boomerang_does_one_hp_damage',
         'Magical Boomerang Does 1 HP Damage',
-        'Changes the magical boomerang to deal 1 HP of damage (equivalent to the wood sword) to enemies. Note that a boomerang may damage an enemy multiple times in one shot.'
+        'Changes the magical boomerang to deal 1 HP of damage (equivalent to the wood sword) to enemies. Note that a boomerang may damage an enemy multiple times in one shot.',
+        FlagCategory.ITEM_CHANGES
     )
     MAGICAL_BOOMERANG_DOES_HALF_HP_DAMAGE = (
         'magical_boomerang_does_half_hp_damage',
         'Magical Boomerang Does Half HP Damage',
-        'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior.'
+        'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior.',
+        FlagCategory.ITEM_CHANGES
     )
     INCREASED_BAIT_BLOCKS = (
         'increased_bait_blocks',
         'Increased Bait Blocks',
-        'Modifies dungeon walls to make the hungry goriya block access to a separate region of each level. Best-effort - not guaranteed for all level layouts.'
+        'Modifies dungeon walls to make the hungry goriya block access to a separate region of each level. Best-effort - not guaranteed for all level layouts.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     COMMUNITY_HINTS = (
         'community_hints',
         'Community Hints',
-        'Uses community hints from NextGen and Zelda 2 randomizers for NPC text. If disabled, blank hints will be used instead. This setting overrides any hint setting set in Zelda Randomizer base ROMs.'
+        'Uses community hints from NextGen and Zelda 2 randomizers for NPC text. If disabled, blank hints will be used instead. This setting overrides any hint setting set in Zelda Randomizer base ROMs.',
+        FlagCategory.QUALITY_OF_LIFE
     )
     RANDOMIZE_LOST_HILLS = (
         'randomize_lost_hills',
         'Randomize Lost Hills',
-        'Randomizes the Lost Hills direction sequence and adds a hint NPC in the game.'
+        'Randomizes the Lost Hills direction sequence and adds a hint NPC in the game.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
     )
     RANDOMIZE_DEAD_WOODS = (
         'randomize_dead_woods',
         'Randomize Dead Woods',
-        'Randomizes the Dead Woods direction sequence and adds a hint NPC in the game.'
+        'Randomizes the Dead Woods direction sequence and adds a hint NPC in the game.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
     )
     RANDOMIZE_HEART_CONTAINER_REQUIREMENTS = (
         'randomize_heart_container_requirements',
         'Randomize Heart Container Requirements',
-        'Randomizes the heart container requirements for the White Sword cave (4-6 hearts) and Magical Sword cave (10-12 hearts). NPCs will provide hints about the requirements.'
+        'Randomizes the heart container requirements for the White Sword cave (4-6 hearts) and Magical Sword cave (10-12 hearts). NPCs will provide hints about the requirements.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
     )
     RANDOMIZE_OVERWORLD_CAVE_DESTINATIONS = (
         'randomize_overworld_cave_destinations',
@@ -202,10 +257,11 @@ class FlagsEnum(Enum):
         'Ensures that either the wood sword cave or letter cave is accessible from an open screen (no special items required) and contains a sword or wand.'
     )
 
-    def __init__(self, value, display_name, help_text):
+    def __init__(self, value, display_name, help_text, category):
         self._value_ = value
         self.display_name = display_name
         self.help_text = help_text
+        self.category = category
 
     @classmethod
     def get_flag_list(cls):

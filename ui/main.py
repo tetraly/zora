@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Callable, Optional
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from logic.flags import FlagsEnum, Flags
+from logic.flags import FlagsEnum, Flags, FlagCategory
 from logic.randomizer import Z1Randomizer
 from common.constants import CODE_ITEMS
 from windows import zrinterface
@@ -476,13 +476,27 @@ def build_step1_container(choose_vanilla_button, choose_randomized_button, choos
 
 
 def build_step2_container(
-    flag_checkbox_rows: dict,
+    categorized_flag_rows: dict,
     flagstring_input: ft.TextField,
     seed_input: ft.TextField,
     random_seed_button: ft.ElevatedButton,
-    on_randomize: Callable
+    on_randomize: Callable,
+    on_expand_all: Callable,
+    on_collapse_all: Callable,
+    expansion_panels_ref: list = None
 ) -> ft.Container:
-    """Build Step 2: Configure Flags & Seed section."""
+    """Build Step 2: Configure Flags & Seed section with categorized accordions.
+
+    Args:
+        categorized_flag_rows: Dict mapping FlagCategory -> list of flag rows
+        flagstring_input: TextField for flagstring
+        seed_input: TextField for seed
+        random_seed_button: Button for random seed
+        on_randomize: Callback for randomize button
+        on_expand_all: Callback for expand all button
+        on_collapse_all: Callback for collapse all button
+        expansion_panels_ref: Optional list to populate with expansion panel references
+    """
     # Wrap seed input and button together
     seed_with_button = ft.Row(
         [seed_input, random_seed_button],
@@ -498,23 +512,81 @@ def build_step2_container(
 
     randomize_button = ft.ElevatedButton("Randomize", on_click=on_randomize)
 
-    # Build list of checkbox row controls and split into two columns
-    checkbox_controls = list(flag_checkbox_rows.values())
-    mid = (len(checkbox_controls) + 1) // 2
-    left_checkboxes = checkbox_controls[:mid]
-    right_checkboxes = checkbox_controls[mid:]
+    # Create expand/collapse buttons
+    expand_collapse_buttons = ft.Row([
+        ft.ElevatedButton(
+            "Expand All",
+            icon=ft.Icons.UNFOLD_MORE,
+            on_click=on_expand_all
+        ),
+        ft.ElevatedButton(
+            "Collapse All",
+            icon=ft.Icons.UNFOLD_LESS,
+            on_click=on_collapse_all
+        )
+    ], spacing=10)
 
-    checkbox_row = ft.Row([
-        ft.Column(left_checkboxes, spacing=10, expand=True),
-        ft.Column(right_checkboxes, spacing=10, expand=True)
-    ], spacing=20)
+    # Define border colors for category headers
+    category_border_colors = {
+        FlagCategory.ITEM_SHUFFLE: ft.Colors.BLUE_600,
+        FlagCategory.ITEM_CHANGES: ft.Colors.PURPLE_600,
+        FlagCategory.OVERWORLD_RANDOMIZATION: ft.Colors.GREEN_600,
+        FlagCategory.LOGIC_AND_DIFFICULTY: ft.Colors.ORANGE_600,
+        FlagCategory.QUALITY_OF_LIFE: ft.Colors.CYAN_600
+    }
+
+    # Build expansion panels for each category
+    expansion_panels = []
+    for category in FlagCategory:
+        if categorized_flag_rows[category]:  # Only show categories with flags
+            # Split flags in this category into two columns
+            flags_in_category = categorized_flag_rows[category]
+            mid = (len(flags_in_category) + 1) // 2
+            left_flags = flags_in_category[:mid]
+            right_flags = flags_in_category[mid:]
+
+            category_content = ft.Row([
+                ft.Column(left_flags, spacing=10, expand=True),
+                ft.Column(right_flags, spacing=10, expand=True)
+            ], spacing=20)
+
+            # Create colored header with border
+            header = ft.Container(
+                content=ft.ListTile(title=ft.Text(category.display_name, weight="bold")),
+                border=ft.border.all(2, category_border_colors.get(category, ft.Colors.GREY_600)),
+                border_radius=5
+            )
+
+            panel = ft.ExpansionPanel(
+                header=header,
+                content=ft.Container(
+                    content=category_content,
+                    padding=10
+                ),
+                can_tap_header=True,
+                expanded=True  # Start expanded
+            )
+            expansion_panels.append(panel)
+
+            # Populate reference list if provided
+            if expansion_panels_ref is not None:
+                expansion_panels_ref.append(panel)
+
+    expansion_panel_list = ft.ExpansionPanelList(
+        controls=expansion_panels,
+        elevation=2,
+        divider_color=ft.Colors.PURPLE_100,
+        expand_icon_color=ft.Colors.PURPLE_700
+    )
 
     content = ft.Column([
         ft.Text("Step 2: Configure ZORA Flags and Seed Number", size=20, weight="bold"),
         ft.Container(height=5),
         flag_seed_row,
         ft.Divider(),
-        checkbox_row,
+        expand_collapse_buttons,
+        ft.Container(height=5),
+        expansion_panel_list,
         ft.Container(randomize_button, alignment=ft.alignment.center, padding=10)
     ], spacing=10)
 
@@ -593,18 +665,25 @@ def build_step3_container(
 
 
 def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[dict, dict]:
-    """Build flag checkboxes and checkbox rows from FlagsEnum.
+    """Build flag checkboxes grouped by category from FlagsEnum.
 
     Args:
         flag_state: FlagState instance containing complex_flags list
         on_change_callback: Callback function for checkbox changes (flag_key, value)
 
     Returns:
-        tuple: (flag_checkboxes dict, flag_checkbox_rows dict)
+        tuple: (flag_checkboxes dict, categorized_flag_rows dict)
+            - flag_checkboxes: flat dict of all checkboxes by flag key
+            - categorized_flag_rows: dict mapping FlagCategory -> list of flag rows
     """
     flag_checkboxes = {}
-    flag_checkbox_rows = {}
+    categorized_flag_rows = {}
 
+    # Initialize categories
+    for category in FlagCategory:
+        categorized_flag_rows[category] = []
+
+    # Build checkboxes and organize by category
     for flag in FlagsEnum:
         if flag.value not in flag_state.complex_flags:
             checkbox = ft.Checkbox(
@@ -615,7 +694,7 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
             flag_checkboxes[flag.value] = checkbox
 
             # Create row with checkbox and help icon
-            flag_checkbox_rows[flag.value] = ft.Row([
+            flag_row = ft.Row([
                 checkbox,
                 ft.IconButton(
                     icon=ft.Icons.HELP_OUTLINE,
@@ -624,7 +703,10 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
                 )
             ], spacing=0)
 
-    return flag_checkboxes, flag_checkbox_rows
+            # Add to appropriate category
+            categorized_flag_rows[flag.category].append(flag_row)
+
+    return flag_checkboxes, categorized_flag_rows
 
 
 # ============================================================================
@@ -1488,7 +1570,7 @@ def main(page: ft.Page, platform: str = "web") -> None:
     )
 
     # Step 2: Flag checkboxes - dynamically create from FlagsEnum
-    flag_checkboxes, flag_checkbox_rows = build_flag_checkboxes(flag_state, on_checkbox_changed)
+    flag_checkboxes, categorized_flag_rows = build_flag_checkboxes(flag_state, on_checkbox_changed)
 
     # Step 2: Inputs
     flagstring_input = ft.TextField(
@@ -1515,13 +1597,32 @@ def main(page: ft.Page, platform: str = "web") -> None:
         icon=ft.Icons.SHUFFLE
     )
 
+    # State to track expansion panels
+    expansion_panels_ref = []
+
+    # Expand/collapse all handlers for accordion
+    def on_expand_all(e) -> None:
+        """Expand all flag category panels."""
+        for panel in expansion_panels_ref:
+            panel.expanded = True
+        page.update()
+
+    def on_collapse_all(e) -> None:
+        """Collapse all flag category panels."""
+        for panel in expansion_panels_ref:
+            panel.expanded = False
+        page.update()
+
     # Step 2: Container
     step2_container = build_step2_container(
-        flag_checkbox_rows,
+        categorized_flag_rows,
         flagstring_input,
         seed_input,
         random_seed_button,
-        on_randomize
+        on_randomize,
+        on_expand_all,
+        on_collapse_all,
+        expansion_panels_ref
     )
 
     # Build header
