@@ -223,8 +223,12 @@ class Validator(object):
       return False
     if cave_num == self.COAST_VIRTUAL_CAVE_NUMBER and not self.inventory.Has(Item.LADDER):
       return False
+    # If the Westlake Mall area is raft blocked, it's possible for the armos item to be raft-blocked
+    if self.flags.EXTRA_RAFT_BLOCKS and not self.inventory.Has(Item.RAFT) and cave_num == self.ARMOS_VIRTUAL_CAVE_NUMBER:
+        return False 
     return True
 
+  #TODO: Refactor this method now that we have more sophisitcated OW validation logic
   def CanEnterLevel(self, level_num: LevelNum) -> bool:
     if level_num == 4 and not self.inventory.Has(Item.RAFT):
       return False
