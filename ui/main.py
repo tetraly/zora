@@ -517,14 +517,16 @@ def build_step2_container(
         ft.ElevatedButton(
             "Expand All",
             icon=ft.Icons.UNFOLD_MORE,
-            on_click=on_expand_all
+            on_click=on_expand_all,
+            height=35
         ),
         ft.ElevatedButton(
             "Collapse All",
             icon=ft.Icons.UNFOLD_LESS,
-            on_click=on_collapse_all
+            on_click=on_collapse_all,
+            height=35
         )
-    ], spacing=10)
+    ], spacing=8)
 
     # Define border colors for category headers
     category_border_colors = {
@@ -546,22 +548,27 @@ def build_step2_container(
             right_flags = flags_in_category[mid:]
 
             category_content = ft.Row([
-                ft.Column(left_flags, spacing=10, expand=True),
-                ft.Column(right_flags, spacing=10, expand=True)
-            ], spacing=20)
+                ft.Column(left_flags, spacing=3, expand=True),
+                ft.Column(right_flags, spacing=3, expand=True)
+            ], spacing=10)
 
             # Create colored header with border
             header = ft.Container(
-                content=ft.ListTile(title=ft.Text(category.display_name, weight="bold")),
+                content=ft.ListTile(
+                    title=ft.Text(category.display_name, weight="bold"),
+                    dense=True,
+                    content_padding=ft.padding.symmetric(horizontal=10, vertical=2)
+                ),
                 border=ft.border.all(2, category_border_colors.get(category, ft.Colors.GREY_600)),
-                border_radius=5
+                border_radius=5,
+                padding=0
             )
 
             panel = ft.ExpansionPanel(
                 header=header,
                 content=ft.Container(
                     content=category_content,
-                    padding=10
+                    padding=ft.padding.only(left=5, right=5, top=5, bottom=2)
                 ),
                 can_tap_header=True,
                 expanded=True  # Start expanded
@@ -581,18 +588,18 @@ def build_step2_container(
 
     content = ft.Column([
         ft.Text("Step 2: Configure ZORA Flags and Seed Number", size=20, weight="bold"),
-        ft.Container(height=5),
+        ft.Container(height=3),
         flag_seed_row,
-        ft.Divider(),
+        ft.Divider(height=1),
         expand_collapse_buttons,
-        ft.Container(height=5),
+        ft.Container(height=3),
         expansion_panel_list,
-        ft.Container(randomize_button, alignment=ft.alignment.center, padding=10)
-    ], spacing=10)
+        ft.Container(randomize_button, alignment=ft.alignment.center, padding=5)
+    ], spacing=5)
 
     return ft.Container(
         content=content,
-        padding=20,
+        padding=15,
         border=ft.border.all(2, ft.Colors.PURPLE_200),
         border_radius=10,
         margin=10,
@@ -699,9 +706,10 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
                 ft.IconButton(
                     icon=ft.Icons.HELP_OUTLINE,
                     icon_size=16,
-                    tooltip=flag.help_text
+                    tooltip=flag.help_text,
+                    style=ft.ButtonStyle(padding=2)
                 )
-            ], spacing=0)
+            ], spacing=0, tight=True)
 
             # Add to appropriate category
             categorized_flag_rows[flag.category].append(flag_row)
