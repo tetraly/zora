@@ -454,4 +454,26 @@ class Z1Randomizer():
           if self.flags.randomize_level_text else "level-")
       patch += text_data_table.GetPatch()
 
+    # Apply experimental IPS patches
+    if self.flags.fast_fill:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'fast_fill.ips'))
+
+    if self.flags.flute_kills_pols_voice:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
+
+    if self.flags.full_health:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'full_health.ips'))
+
+    if self.flags.like_like_rupees:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
+
+    if self.flags.low_hearts_sound:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
+
+    if self.flags.four_potion_inventory:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'four_potion_inventory.ips'))
+
+    if self.flags.auto_show_letter:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'auto_show_letter.ips'))
+
     return patch

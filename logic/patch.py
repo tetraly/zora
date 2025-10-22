@@ -101,6 +101,69 @@ class Patch:
 
     return patch
 
+  def AddFromIPS(self, ips_file_path: str) -> None:
+    """Add patch data from an IPS file.
+
+    IPS (International Patching System) format:
+    - Header: "PATCH" (5 bytes)
+    - Records: Each record contains:
+      - Offset (3 bytes, big-endian)
+      - Size (2 bytes, big-endian)
+      - Data (size bytes)
+      - Special case: If size is 0, it's an RLE record with count (2 bytes) and value (1 byte)
+    - Footer: "EOF" (3 bytes)
+
+    :param ips_file_path: Path to the IPS file
+    :type ips_file_path: str
+    """
+    with open(ips_file_path, 'rb') as f:
+      # Read and verify header
+      header = f.read(5)
+      if header != b'PATCH':
+        raise ValueError(f"Invalid IPS file: {ips_file_path} (missing PATCH header)")
+
+      while True:
+        # Read offset (3 bytes)
+        offset_bytes = f.read(3)
+        if len(offset_bytes) < 3:
+          break
+
+        # Check for EOF marker
+        if offset_bytes == b'EOF':
+          break
+
+        # Convert offset from big-endian
+        offset = (offset_bytes[0] << 16) | (offset_bytes[1] << 8) | offset_bytes[2]
+
+        # Read size (2 bytes)
+        size_bytes = f.read(2)
+        if len(size_bytes) < 2:
+          break
+
+        size = (size_bytes[0] << 8) | size_bytes[1]
+
+        if size == 0:
+          # RLE record: read count and value
+          count_bytes = f.read(2)
+          if len(count_bytes) < 2:
+            break
+          count = (count_bytes[0] << 8) | count_bytes[1]
+
+          value_byte = f.read(1)
+          if len(value_byte) < 1:
+            break
+
+          # Add repeated data
+          data = [value_byte[0]] * count
+          self.AddData(offset, data)
+        else:
+          # Normal record: read data
+          data = f.read(size)
+          if len(data) < size:
+            break
+
+          self.AddData(offset, list(data))
+
   def GetHashCode(self) -> bytes:
     to_be_returned = b''
     hash_string = hashlib.sha224()
@@ -112,7 +175,7 @@ class Patch:
       if val == 0x0E: # Glitchy thing in Triforce of Power's slot -> Clock
         val = 0x21
       elif val == 0x02:  # White sword -> Heart
-        val = 0x22 
+        val = 0x22
       elif val == 0x07:  # Red candle -> Fairy
         val = 0x23
       elif val == 0x09:  # Silver arrow -> ?? 24 ??

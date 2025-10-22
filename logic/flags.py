@@ -8,6 +8,7 @@ class FlagCategory(IntEnum):
     OVERWORLD_RANDOMIZATION = 3
     LOGIC_AND_DIFFICULTY = 4
     QUALITY_OF_LIFE = 5
+    EXPERIMENTAL = 6
 
     @property
     def display_name(self) -> str:
@@ -17,7 +18,8 @@ class FlagCategory(IntEnum):
             FlagCategory.ITEM_CHANGES: "Item Changes",
             FlagCategory.OVERWORLD_RANDOMIZATION: "Overworld Randomization",
             FlagCategory.LOGIC_AND_DIFFICULTY: "Logic & Difficulty",
-            FlagCategory.QUALITY_OF_LIFE: "Quality of Life / Other"
+            FlagCategory.QUALITY_OF_LIFE: "Quality of Life / Other",
+            FlagCategory.EXPERIMENTAL: "Experimental (WARNING: Not thoroughly tested, may cause unexpected behavior or crashes)"
         }
         return names.get(self, "Unknown")
 
@@ -255,6 +257,48 @@ class FlagsEnum(Enum):
         'guarantee_accessible_sword_or_wand',
         'Guarantee Accessible Sword or Wand',
         'Ensures that either the wood sword cave or letter cave is accessible from an open screen (no special items required) and contains a sword or wand.'
+    )
+    FAST_FILL = (
+        'fast_fill',
+        'Fast Fill',
+        'Fill hearts faster from fairy and potions (patch courtesy of snarfblam)',
+        FlagCategory.EXPERIMENTAL
+    )
+    FLUTE_KILLS_POLS_VOICE = (
+        'flute_kills_pols_voice',
+        'Flute Kills Pols Voice',
+        'Play the flute to kill all Pols Voice (patch courtesy of Stratoform)',
+        FlagCategory.EXPERIMENTAL
+    )
+    FULL_HEALTH = (
+        'full_health',
+        'Start with Full Health',
+        'Start the game with full health (patch courtesy of ShadowOne333, kalita-kun, gzip)',
+        FlagCategory.EXPERIMENTAL
+    )
+    LIKE_LIKE_RUPEES = (
+        'like_like_rupees',
+        'Like Likes Eat Rupees',
+        'Like-Likes eat rupees instead of the Magical Shield (patch courtesy of gzip)',
+        FlagCategory.EXPERIMENTAL
+    )
+    LOW_HEARTS_SOUND = (
+        'low_hearts_sound',
+        'Softer Low Hearts Sound',
+        'Change the low hearts sound to a softer heartbeat sound (patch courtesy of gzip)',
+        FlagCategory.EXPERIMENTAL
+    )
+    FOUR_POTION_INVENTORY = (
+        'four_potion_inventory',
+        'Four Potion Inventory',
+        'Increases potion inventory from 2 to 4 blue potions.',
+        FlagCategory.EXPERIMENTAL
+    )
+    AUTO_SHOW_LETTER = (
+        'auto_show_letter',
+        'Auto Show Letter',
+        'Automatically shows the letter to NPCs without equipping and using it.',
+        FlagCategory.EXPERIMENTAL
     )
 
     def __init__(self, value, display_name, help_text, category):
