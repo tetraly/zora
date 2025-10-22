@@ -536,7 +536,8 @@ def build_step3_container(
     seed: str,
     code: str,
     platform: str,
-    on_download: Callable
+    on_download: Callable,
+    on_randomize_another: Callable
 ) -> ft.Container:
     """Build Step 3: Download Randomized ROM section.
 
@@ -548,11 +549,18 @@ def build_step3_container(
         code: The ROM code
         platform: Platform type - "windows", "macos", or "web"
         on_download: Download button click handler
+        on_randomize_another: Handler for randomizing another game
     """
     download_button = ft.ElevatedButton(
         "Download Randomized ROM",
         icon=ft.Icons.DOWNLOAD,
         on_click=on_download
+    )
+
+    randomize_another_button = ft.ElevatedButton(
+        "Randomize Another Game",
+        icon=ft.Icons.RESTART_ALT,
+        on_click=on_randomize_another
     )
 
     content = ft.Column([
@@ -569,7 +577,10 @@ def build_step3_container(
         info_row("ZORA Code", code, label_width=150),
         info_row("ROM Size", f"{len(randomized_rom_data) / 1024:.1f} KB", label_width=150),
         ft.Container(height=15),
-        download_button
+        ft.Row([
+            download_button,
+            randomize_another_button
+        ], spacing=10)
     ], spacing=5)
 
     return ft.Container(
@@ -1266,7 +1277,8 @@ def main(page: ft.Page, platform: str = "web") -> None:
                 seed_input.value,
                 rom_code,
                 platform,
-                download_handler
+                download_handler,
+                clear_rom
             )
             page.add(step3_container)
             page.update()
