@@ -299,44 +299,45 @@ class CaveType(IntEnum):
 
 
 class HintType(IntEnum):
-  HINT_1 = 1
-  HINT_2 = 2
-  HINT_3 = 3
-  HINT_4 = 4
-  HINT_5 = 5
-  HINT_6 = 6
-  HINT_7 = 7
-  HINT_8 = 8
-  HINT_9 = 9
+  WOOD_SWORD_CAVE = 1
+  MAGICAL_SWORD_CAVE = 2
+  TAKE_ANY = 3
+  LOST_HILLS_HINT = 4
+  MONEY_MAKING_GAME = 5
+  DOOR_REPAIR = 6
+  LETTER_CAVE = 7
+  DEAD_WOODS_HINT = 8
+  POTION_SHOP = 9
   HINT_10 = 10
-  HINT_11 = 11
+  WHITE_SWORD_CAVE = 11
   HINT_12 = 12
   HINT_13 = 13
-  HINT_14 = 14
-  HINT_15 = 15
-  HINT_16 = 16
-  HINT_17 = 17
-  HINT_18 = 18
+  SHOP_1 = 14
+  SHOP_2 = 15
+  ANY_ROAD = 16
+  SECRET = 17
+  HUNGRY_ENEMY = 18
   HINT_19 = 19
   HINT_20 = 20
   HINT_21 = 21
   HINT_22 = 22
   HINT_23 = 23
   HINT_24 = 24
-  HINT_25 = 25
+  BOMB_UPGRADE = 25
   HINT_26 = 26
-  HINT_27 = 27
+  MUGGER = 27
   HINT_28 = 28
   HINT_29 = 29
   HINT_30 = 30
   HINT_31 = 31
   HINT_32 = 32
   HINT_33 = 33
-  HINT_34 = 34
+  TRIFORCE_CHECK = 34
   HINT_35 = 35
   HINT_36 = 36
   HINT_37 = 37
   HINT_38 = 38
+  OTHER = 39
 
 
 class EnemyList():
