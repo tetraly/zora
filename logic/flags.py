@@ -191,6 +191,16 @@ class FlagsEnum(Enum):
         'Randomize Heart Container Requirements',
         'Randomizes the heart container requirements for the White Sword cave (4-6 hearts) and Magical Sword cave (10-12 hearts). NPCs will provide hints about the requirements.'
     )
+    RANDOMIZE_OVERWORLD_CAVE_DESTINATIONS = (
+        'randomize_overworld_cave_destinations',
+        'Randomize Overworld Cave Destinations',
+        'Shuffles the destinations of all overworld caves (dungeons, item caves, and shops).'
+    )
+    GUARANTEE_ACCESSIBLE_SWORD_OR_WAND = (
+        'guarantee_accessible_sword_or_wand',
+        'Guarantee Accessible Sword or Wand',
+        'Ensures that either the wood sword cave or letter cave is accessible from an open screen (no special items required) and contains a sword or wand.'
+    )
 
     def __init__(self, value, display_name, help_text):
         self._value_ = value

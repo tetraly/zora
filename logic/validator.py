@@ -132,6 +132,12 @@ class Validator(object):
 
   def IsSeedValid(self) -> bool:
     log.debug("Starting check of whether the seed is valid or not")
+
+    # Check if accessible sword/wand requirement is met (if flag is enabled)
+    if self.flags.guarantee_accessible_sword_or_wand:
+      if not self.HasAccessibleSwordOrWand():
+        return False
+
     self.inventory.Reset()
     self.inventory.SetStillMakingProgressBit()
     num_iterations = 0
@@ -338,3 +344,39 @@ class Validator(object):
     #  else:
     #    return False
     return True
+
+  def HasAccessibleSwordOrWand(self) -> bool:
+    """Check if wood sword cave (cave 0) or letter cave (cave 8) is accessible from an 'open'
+    screen and contains a sword or wand.
+
+    Returns:
+        True if at least one of the two caves meets both conditions:
+        1. Accessible from a screen with block type "Open"
+        2. Contains a sword (any tier) or wand
+    """
+    WOOD_SWORD_CAVE_NUM = 0
+    LETTER_CAVE_NUM = 8
+
+    # Check all screens with "Open" block type
+    for screen_num in range(0x80):
+      block_type = self.GetBlockType(screen_num)
+      if block_type != "Open":
+        continue
+
+      # Get the destination for this open screen
+      destination = self.data_table.GetScreenDestination(screen_num)
+
+      # Check if it leads to wood sword cave or letter cave
+      if destination == CaveType.WOOD_SWORD_CAVE or destination == CaveType.LETTER_CAVE:
+        cave_num = int(destination) - 0x10
+
+        # Check all three positions in the cave for sword or wand
+        for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
+          location = Location(cave_num=cave_num, position_num=position_num)
+          item = self.data_table.GetCaveItem(location)
+
+          # Check if item is a sword or wand
+          if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.WAND]:
+            return True
+
+    return False

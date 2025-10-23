@@ -57,6 +57,18 @@ class DataTable():
       return CaveType.NONE
     return CaveType(destination)
 
+  def SetScreenDestination(self, screen_num: int, cave_type: CaveType) -> None:
+    """Set the cave/level destination for an overworld screen.
+
+    Args:
+        screen_num: The overworld screen number (0-127)
+        cave_type: The CaveType enum value to set as the destination
+    """
+    # Preserve the lower 2 bits of table 1 (which contain other data)
+    lower_bits = self.overworld_raw_data[screen_num + 1*0x80] & 0x03
+    # Set the upper 6 bits to the cave type value (shift left by 2)
+    self.overworld_raw_data[screen_num + 1*0x80] = (int(cave_type) << 2) | lower_bits
+
   def _ReadLevelInfo(self):
     self.is_z1r = True
     for level_num in range(0, 10):
@@ -205,6 +217,7 @@ class DataTable():
     patch += self._GetPatchForLevelGrid(LEVEL_7_TO_9_DATA_START_ADDRESS,
                                         self.level_7_to_9_rooms)
     patch += self._GetPatchForOverworldCaveData()
+    patch += self._GetPatchForOverworldScreenDestinations()
     return patch
 
   def _GetPatchForLevelGrid(self, start_address: int, rooms: List[Room]) -> Patch:
@@ -242,4 +255,17 @@ class DataTable():
                     self.overworld_caves[cave_num].GetItemData())
       patch.AddData(CAVE_PRICE_DATA_START_ADDRESS + (3 * cave_num),
                     self.overworld_caves[cave_num].GetPriceData())
+    return patch
+
+  def _GetPatchForOverworldScreenDestinations(self) -> Patch:
+    """Generate patch data for overworld screen destinations (table 1)."""
+    patch = Patch()
+    # Overworld table 1 starts at OVERWORLD_DATA_LOCATION + 0x80 (table offset)
+    # Each table is 0x80 bytes (128 screens), and table 1 is the second table
+    OVERWORLD_TABLE_1_ADDRESS = 0x18400 + NES_FILE_OFFSET + 0x80  # 0x18490
+
+    # Write all 128 bytes of table 1 (screen destinations)
+    for screen_num in range(0x80):
+      patch.AddData(OVERWORLD_TABLE_1_ADDRESS + screen_num,
+                   [self.overworld_raw_data[screen_num + 1*0x80]])
     return patch
