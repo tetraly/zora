@@ -4,6 +4,7 @@ from typing import List, Dict
 
 from .patch import Patch
 from .randomizer_constants import HintType
+from .hints import COMMUNITY_HINTS, NUMERICAL_HINTS
 
 
 class HintWriter:
@@ -31,251 +32,6 @@ class HintWriter:
         '-': 0x2F
     }
 
-    # Community hints adapted from text_randomizer.py
-    # Priority hints - always included first
-    PRIORITY_HINTS = [
-        ["HEJ"],
-        ["YOU GOTTA", "HAVE HEART"],
-        ["STAND CLEAR OF", "THE CLOSING DOORS", "PLEASE"],
-        ["!LFG"],
-        ["THIS AIN'T", "YOUR OLD MAN'S", "RANDOMIZER!"],
-        ["THIS COULD", "BE YOU!"],
-        ["WELCOME TO THE", "COFFEE ZONE"],
-        ["ARE YOU IN THE", "CATBIRD SEAT?"],
-        ["MEOW MEOW MEOW MEOW"],
-        ["HAPPY BIRTHDAY", "TO YOU!"],
-        ["READ THE", "WIKI BRO!"],
-        ["GO LOCAL", "SPORTS TEAM!"],
-    ]
-
-    HINTS = [
-        # Generic Wizard Texts
-        ["DO YOU KNOW WHY", "WE STOPPED THE CAR?"],
-        ["I LIKE BIG BOTS", "AND I CANNOT LIE"],
-        ["WHY AM I LOCKED", "IN A BASEMENT"],
-        ["THAT'S JUST LIKE", "YOUR OPINION MAN"],
-        ["THE DUDE ABIDES"],
-        ["STAY AWHILE", "AND LISTEN"],
-        ["YOU TEACH ME", "A SPELL"],
-        ["YOU KNOW NOTHING"],
-        ["THAT'S WHAT", "SHE SAID"],
-        ["JUMP IN LAVA FOR", "200 RUPEES"],
-        ["YOU WON'T BE ABLE", "TO CAST THIS"],
-        ["BIG BUCKS", "NO WHAMMYS"],
-        ["BAGU OWES ME", "20 RUPEES"],
-        ["YOU ARE THE", "WEAKEST LINK"],
-        ["LINK I AM", "YOUR FATHER"],
-        ["THERE'S NO WIFI", "HERE"],
-        ["A WILD LINK", "APPEARS"],
-        ["WHAT'S THE WIFI", "PASSWORD"],
-        ["DON'T SEND ME BACK", "TO THE HOME"],
-        ["I'D LIKE TO BUY", "A VOWEL"],
-        ["I ONLY KNOW", "ONE SPELL"],
-        ["I WENT TO COLLEGE", "FOR THIS"],
-        ["WHO PICKED THESE", "FLAGS"],
-        ["I FOUND THIS", "IN THE GARBAGE"],
-        ["HAVE YOU HEARD", "MY MIXTAPE"],
-        ["DOES THIS ROBE", "MAKE ME LOOK FAT?"],
-        ["NO POM POM", "SHAKING HERE"],
-        ["YOU'RE A WIZARD,", "LINK"],
-        ["TAKE ANY ROBE", "YOU WANT"],
-        ["DON'T MOVE", "I DROPPED A", "CONTACT LENS"],
-        ["PLEASE SUPPORT ZSR"],
-        ["THIS WON'T HURT", "A BIT"],
-        ["FREE YOUR MIND"],
-        ["DA NA NA NA", "NAAAAAAAAA"],
-        ["JOIN THE NINTENDO", "POWER CLUB"],
-        ["SILVERS ARE IN", "PALACE 1"],
-        ["NEEDS MORE COWBELL"],
-        ["WHICH TIMELINE", "IS THIS?"],
-        ["HURRY! I HAVE TO", "PREHEAT THE OVEN"],
-        ["POYO!"],
-        ["SPLOOSH KABOOM!"],
-        ["LET ME READ MY", "VOGON POETRY"],
-        ["SOMEBODY SET UP", "US THE BOMB"],
-        ["BOAT LEAGUE", "CONFIRMED"],
-
-        # River Man Texts
-        ["BAGU SAID WHAT?", "THAT JERK!"],
-        ["TRY NOT TO DROWN"],
-        ["WHY CAN'T YOU SWIM?"],
-        ["WHAT IS YOUR QUEST?"],
-        ["TICKETS PLEASE"],
-        ["WRAAAAAAFT"],
-        ["WHICH WAY TO", "DENVER?"],
-        ["DO YOU KNOW", "THE WAY TO", "SAN JOSE?"],
-        ["DO YOU KNOW", "THE MUFFIN MAN"],
-        ["CAN WE FIX IT?"],
-        ["WHAT? YOU CAN'T", "SWIM?"],
-        ["LINK.EXE HAS", "STOPPED WORKING"],
-        ["NO RUNNING BY", "THE POOL"],
-
-        # Bagu Texts
-        ["HAVE YOU SEEN ERROR", "AROUND?"],
-        ["WANNA SEE A CORPSE?"],
-        ["ALIENS ARE REAL"],
-        ["RUPEES ARE MIND", "CONTROL DEVICES"],
-        ["BAM BAM BAM"],
-        ["HERE IS MY LIST", "OF DEMANDS"],
-        ["HEY! LISTEN!"],
-        ["PIZZA DUDE'S GOT", "THIRTY SECONDS"],
-        ["I AM BATMAN"],
-        ["I AM GROOT"],
-        ["BAGU SMAAAAASH"],
-        ["GET OUT OF", "MA SWAMP!!"],
-        ["PRAISE THE SUN"],
-        ["AM I BEING", "DETAINED?"],
-        ["ERROR IS THE", "EVIL TWIN"],
-        ["TINGLE TINGLE", "KOOLOO LIMPAH!"],
-        ["IS THIS A", "PEDESTAL SEED?"],
-        ["DOES SPEC ROCK", "WEAR GLASSES?"],
-        ["EVERYONE GETS", "A BRIDGE"],
-
-        # Downstab Texts
-        ["STICK THEM WITH", "THE POINTY END"],
-        ["YOU'LL STAB YOUR", "EYE OUT"],
-        ["PRESS DOWN", "YOU IDIOT"],
-        ["HAVE A POGO STICK"],
-        ["YAKHAMMER ACQUIRED"],
-        ["PRESS DOWN TO", "CROUCH"],
-        ["KICK PUNCH CHOP", "BLOCK DUCK JUMP"],
-        ["YOU WALKED PAST ME", "DIDN'T YOU"],
-        ["UPSTAB IS THE", "BEST STAB"],
-        ["DO THE SAFETY DANCE"],
-        ["EASY MODE ACTIVATED"],
-        ["NEVER GONNA GIVE", "YOU UP"],
-        ["ARE YOU SCROOGE", "MCDUCK?"],
-
-        # Upstab Texts
-        ["BET YOU WISH THIS", "WAS DOWNSTAB"],
-        ["YOU PROBABLY WON'T", "NEED THIS"],
-        ["PRESS UP TO GO", "IN DOORS"],
-        ["ARE YOU SANTA CLAUS?"],
-        ["SHORYUKEN!"],
-        ["YOU WASTED", "YOUR TIME?"],
-        ["MARIO CAN DO THIS", "WITHOUT MAGIC"],
-        ["TIGER UPPERCUT!"],
-        ["NEVER GONNA LET", "YOU DOWN"],
-        ["THE OPPORTUNITY", "ARISES"],
-
-        # Know Nothing Texts
-        ["I KNOW NOTHING"],
-        ["KNOWLEDGE IS", "NOT MINE"],
-        ["I LIKE WASTING", "YOUR TIME"],
-        ["THIS IS ABOUT", "AS USEFUL AS I AM"],
-        ["NOTHING KNOW I"],
-        ["TRY TO GET A GUIDE"],
-        ["GIT GUD"],
-        ["WHAT? YEAH! OKAY!"],
-        ["NO HINT FOR YOU"],
-        ["WHAT TIMELINE", "IS THIS?"],
-        ["YOUR CALL IS", "IMPORTANT", "PLEASE HOLD"],
-        ["SILENCE IS GOLDEN"],
-        ["BLESS YOU"],
-        ["HOLA!"],
-        ["I AM NOT A VIRE", "IN DISGUISE"],
-        ["WOAH! DUDE!"],
-        ["PAY ME AND", "I'LL TALK"],
-        ["THE HINT IS IN", "ANOTHER CASTLE"],
-
-        # Not Enough Containers (adapted)
-        ["ALL SIGNS POINT", "TO NO"],
-        ["COME BACK AS", "ADULT LINK"],
-        ["QUIT WASTING", "MY TIME"],
-        ["DO YOU HAVE", "A DIPLOMA?"],
-        ["SHOW ME YOUR", "CREDITS!"],
-        ["I CANNOT CONTAIN", "MY LAUGHTER"],
-        ["YOU MUST CONSTRUCT", "ADDITIONAL PYLONS"],
-        ["BET YOU FORGOT", "THIS FLAG WAS ON"],
-        ["I'LL TELL YOU WHEN", "YOU'RE OLDER"],
-
-        # Spell Texts (adapted)
-        ["HAVE YOU TRIED", "NOT DYING?"],
-        ["I ALREADY HAVE ONE"],
-        ["IS THIS A RED RING?"],
-        ["I GET UP AND", "NOTHIN GETS", "ME DOWN"],
-        ["KRIS KROSS WILL", "MAKE YOU"],
-        ["HAVE YOU TRIED THE", "HEALMORE SPELL?"],
-        ["DON'T BLAME ME", "IF THIS IS 1 BAR"],
-        ["HOW MANY BARS", "WILL I HEAL"],
-        ["HEY! LISTEN"],
-        ["JUST DON'T SAY", "HEY LISTEN!"],
-        ["WATCH OUT FOR IRON"],
-        ["THIS IS FINE"],
-        ["USE THIS TO", "BURN GEMS"],
-        ["THIS SPELL IS", "WORTHLESS"],
-        ["GOODNESS GRACIOUS!"],
-        ["THIS ONE GOES OUT", "TO THE ONE I LOVE"],
-        ["ROLLING AROUND", "AT THE SPEED", "OF SOUND"],
-        ["GOTTA GO FAST"],
-        ["USE THE BOOST", "TO GET THROUGH"],
-        ["I AM NOT", "MIRROR SHIELD"],
-        ["CRYSTA WAS HERE"],
-        ["YOU'RE RUBBER,", "THEY'RE GLUE"],
-        ["SEND CAROCK", "MY REGARDS"],
-        ["IS THIS HERA", "BASEMENT?"],
-        ["TITULAR REDUNDANCY", "INCLUDED"],
-        ["WAIT? WHICH SPELL?"],
-        ["YOU SHOULD RESCUE", "ME INSTEAD OF", "ZELDA"],
-        ["CAN YOU USE IT", "IN A SENTENCE?"],
-        ["METAMORPH THY ENEMY"],
-        ["WITH THIS YOU", "CAN NOW BEAT", "THE GAME"],
-        ["ULTRAZORD POWER UP!"],
-        ["TERRIBLE TERRIBLE", "DAMAGE"],
-        ["HE'S DEAD JIM"],
-        ["A WINNER IS YOU"],
-        ["WATER YOU DOING?"],
-        ["YOU SAVED A KID", "FOR THIS?"],
-        ["DON'T FORGET TO GET", "UPSTAB"],
-        ["SORRY ABOUT", "THE MOAS"],
-
-        # Community Non-Spell Get Texts (adapted)
-        ["GET EQUIPPED", "WITH THIS"],
-        ["TIS A GOOD DAY"],
-        ["I CAN'T BELIEVE IT"],
-        ["ALL HAIL HEROES", "RISE AGAIN"],
-        ["CONGRATS!"],
-        ["ONE FISH TWO FISH", "RED FISH"],
-        ["MASTER IT AND YOU", "CAN HAVE THIS"],
-        ["IT'S WHAT PLANTS", "CRAVE"],
-        ["BAGU GIVES IT", "5 STARS"],
-        ["THE POWER IS YOURS"],
-        ["GANON IS JEALOUS"],
-        ["THE SECRET TO LIFE"],
-        ["YOUR LOVE IS", "LIKE BAD"],
-        ["SCREW THE RULES", "I HAVE THIS"],
-        ["EXCUSE ME YOU", "FORGOT THIS"],
-        ["TAKE THIS! NOW I", "CAN RETIRE"],
-        ["YOU GOTTA HAVE IT"],
-        ["I LOVE IT", "IT'S SO BAD"],
-        ["DON'T FEED AFTER", "MIDNIGHT"],
-        ["TAKE IT LEAVE", "THE CANNOLI"],
-        ["YAY!"],
-        ["I WILL GIVE YOU", "THIS TO GO AWAY"],
-        ["DOES NOT SPARK JOY"],
-        ["LET'S TALK ABOUT", "IT BABY!"],
-        ["WHEN ALL ELSE", "FAILS TRY THIS"],
-        ["IT'S WHAT'S FOR", "DINNER"],
-        ["NEEDS FOOD BADLY"],
-        ["DETECTED"],
-        ["BADGER BADGER", "BADGER"],
-        ["THE WORLD IS A"],
-        ["LINK MEETS"],
-        ["A BRAND NEW!!!"],
-        ["EARTH FIRE WIND", "WATER"],
-        ["HAPPY DAY!!"],
-        ["NEVER CHANGES"],
-        ["IS CHEATING"],
-        ["THIS SEED", "SPONSORED BY"],
-        ["WE ALL LIVE IN", "A YELLOW"],
-        ["IT'S TIME!"],
-        ["FRESH 50 RUPEES", "OBO"],
-        ["NO WHAMMY NO", "WHAMMY AND STOP!"],
-        ["ALL YOU NEED IS"],
-        ["THE SECRET WORD IS"],
-        ["HAVE ONE ON", "THE HOUSE"],
-    ]
-
     def SetLostHillsHint(self, directions: List[int]) -> None:
         """
         Generate and set Lost Hills hint text from direction sequence.
@@ -290,12 +46,8 @@ class HintWriter:
         dir_text = [dir_map.get(d, "UP") for d in directions]
 
         # Format: "GO {dir1}, {dir2}," / "{dir3}, {dir4}" / "THE MOUNTAIN AHEAD"
-        line1 = f"GO {dir_text[0]}, {dir_text[1]},"
-        line2 = f"{dir_text[2]}, {dir_text[3]}"
-        line3 = "THE MOUNTAIN AHEAD"
-
-        hint_text = [line1, line2, line3]
-        self.SetHint(HintType.HINT_4, hint_text)
+        hint_text = f"GO {dir_text[0]}, {dir_text[1]},|{dir_text[2]}, {dir_text[3]}|THE MOUNTAIN AHEAD"
+        self.SetHint(HintType.LOST_HILLS_HINT, hint_text)
 
     def SetDeadWoodsHint(self, directions: List[int]) -> None:
         """
@@ -311,60 +63,8 @@ class HintWriter:
         dir_text = [dir_map.get(d, "NORTH") for d in directions]
 
         # Format: "GO {dir1}, {dir2}," / "{dir3}, {dir4} TO" / "THE FOREST OF MAZE"
-        line1 = f"GO {dir_text[0]}, {dir_text[1]},"
-        line2 = f"{dir_text[2]}, {dir_text[3]} TO"
-        line3 = "THE FOREST OF MAZE"
-
-        hint_text = [line1, line2, line3]
-        self.SetHint(HintType.HINT_8, hint_text)
-
-    # Hint text options for White Sword cave based on heart requirement
-    WHITE_SWORD_HINTS_4_HEARTS = [
-        "FOUR SQUARE",
-        "FANTASTIC FOUR",
-        "SOMETHING ABOUT FOUR",
-        "FOUR SWORDS ADVENTURE",
-    ]
-
-    WHITE_SWORD_HINTS_5_HEARTS = [
-        "FIVE IS RIGHT OUT",
-        ["FIVE PIXELS ", "FROM THE EDGE"],
-        "GIVE ME FIVE",
-        "HIGH FIVE",
-        "TAKE FIVE",
-        ["HOW IT FEELS TO", "CHEW FIVE GUM"],
-    ]
-
-    WHITE_SWORD_HINTS_6_HEARTS = [
-        "SIX SEVEN",
-        ["WHY WAS SIX ", "AFRAID OF SEVEN?"],
-        "SIXTH SENSE",
-        "DEEP SIX",
-    ]
-
-    # Hint text options for Magical Sword cave based on heart requirement
-    MAGICAL_SWORD_HINTS_10_HEARTS = [
-        "AM I A TEN OR WHAT?",
-        ["10TH HEART ", "HAS THE ITEM"],
-        "TENTEN",
-        "HANG TEN",
-        "TEN OUT OF TEN",
-        "POWER OF TEN",
-    ]
-
-    MAGICAL_SWORD_HINTS_11_HEARTS = [
-        "THESE GO TO ELEVEN",
-        "ELEVENSIES!",
-        "OCEAN'S ELEVEN",
-        "11!!!!!",
-    ]
-
-    MAGICAL_SWORD_HINTS_12_HEARTS = [
-        "THE DIRTY DOZEN",
-        "A DOZEN HEARTS",
-        "TWELVE LABORS",
-        "TWELVE IS SO VANILLA",
-    ]
+        hint_text = f"GO {dir_text[0]}, {dir_text[1]},|{dir_text[2]}, {dir_text[3]} TO|THE FOREST OF MAZE"
+        self.SetHint(HintType.DEAD_WOODS_HINT, hint_text)
 
     def SetWhiteSwordHeartHint(self, heart_requirement: int) -> None:
         """
@@ -376,16 +76,11 @@ class HintWriter:
         Raises:
             ValueError: If heart_requirement is not 4, 5, or 6
         """
-        if heart_requirement == 4:
-            hint_text = random.choice(self.WHITE_SWORD_HINTS_4_HEARTS)
-        elif heart_requirement == 5:
-            hint_text = random.choice(self.WHITE_SWORD_HINTS_5_HEARTS)
-        elif heart_requirement == 6:
-            hint_text = random.choice(self.WHITE_SWORD_HINTS_6_HEARTS)
-        else:
+        if heart_requirement not in NUMERICAL_HINTS:
             raise ValueError(f"Invalid white sword heart requirement: {heart_requirement}. Must be 4, 5, or 6.")
 
-        self.SetHint(HintType.HINT_11, hint_text)
+        hint_text = random.choice(NUMERICAL_HINTS[heart_requirement])
+        self.SetHint(HintType.WHITE_SWORD_CAVE, hint_text)
 
     def SetMagicalSwordHeartHint(self, heart_requirement: int) -> None:
         """
@@ -397,16 +92,11 @@ class HintWriter:
         Raises:
             ValueError: If heart_requirement is not 10, 11, or 12
         """
-        if heart_requirement == 10:
-            hint_text = random.choice(self.MAGICAL_SWORD_HINTS_10_HEARTS)
-        elif heart_requirement == 11:
-            hint_text = random.choice(self.MAGICAL_SWORD_HINTS_11_HEARTS)
-        elif heart_requirement == 12:
-            hint_text = random.choice(self.MAGICAL_SWORD_HINTS_12_HEARTS)
-        else:
+        if heart_requirement not in NUMERICAL_HINTS:
             raise ValueError(f"Invalid magical sword heart requirement: {heart_requirement}. Must be 10, 11, or 12.")
 
-        self.SetHint(HintType.HINT_2, hint_text)
+        hint_text = random.choice(NUMERICAL_HINTS[heart_requirement])
+        self.SetHint(HintType.MAGICAL_SWORD_CAVE, hint_text)
 
     def __init__(self):
         """Initialize the hint writer.
@@ -422,28 +112,20 @@ class HintWriter:
 
         Args:
             hint_type: The type of hint to set
-            hint: The hint text (can be string or list of lines)
+            hint: The hint text as a pipe-separated string (e.g., "LINE1|LINE2|LINE3")
         """
         self.hints[hint_type] = hint
 
     def FillWithCommunityHints(self) -> None:
-        """Fill empty hint slots with community hints from priority and regular lists."""
-        # Collect all community hints, priority first
-        shuffled_hints = self.HINTS.copy()
-        random.shuffle(shuffled_hints)
+        """Fill empty hint slots with community hints."""
 
-        all_community_hints = self.PRIORITY_HINTS.copy()
-        all_community_hints.extend(shuffled_hints)
-
-        # Fill empty slots
-        community_hint_index = 0
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
-            if hint_num == 1:
-                self.hints[hint_type] = ["IT'S DANGEROUS TO CODE", "ALONE! TAKE THIS."]
-            if hint_type not in self.hints and community_hint_index < len(all_community_hints):
-                self.hints[hint_type] = all_community_hints[community_hint_index]
-                community_hint_index += 1
+            if hint_type not in self.hints:
+                if hint_type in COMMUNITY_HINTS:
+                    self.hints[hint_type] = random.choice(COMMUNITY_HINTS[hint_type])
+                else:
+                    self.hints[hint_type] = random.choice(COMMUNITY_HINTS[HintType.OTHER])
 
     def FillWithBlankHints(self) -> None:
         """Fill all hint slots with blank/test hints.
@@ -452,8 +134,8 @@ class HintWriter:
         """
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
-            if hint_num == 1:
-                self.hints[hint_type] = ["IT'S DANGEROUS TO CODE", "ALONE! TAKE THIS."]
+            if hint_type == HintType.WOOD_SWORD_CAVE:
+                self.hints[hint_type] = "IT'S DANGEROUS TO CODE|ALONE! TAKE THIS."
             elif hint_type not in self.hints:
                 self.hints[hint_type] = f"TEST HINT {hint_num:02d}"
 
@@ -476,13 +158,7 @@ class HintWriter:
             if hint_type not in self.hints:
                 continue
 
-            hint = self.hints[hint_type]
-
-            # Convert string to list if needed
-            if isinstance(hint, str):
-                lines = [hint]
-            else:
-                lines = hint
+            lines = self.hints[hint_type].split('|')
 
             # Encode the hint text
             encoded_hint = self._encode_text(lines)
@@ -493,9 +169,8 @@ class HintWriter:
                 log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Writing blank hint instead.")
                 encoded_hint = self._encode_text([""])
 
-            # Calculate the pointer value
-            nes_memory_address = 0x8000 + (current_file_offset - 0x4010)
-            offset_from_bank_start = nes_memory_address - 0x8000
+            # Calculate the pointer value (offset from pointer table start in ROM file)
+            pointer_offset = current_file_offset - self.HINT_POINTER_TABLE_START
 
             # Write the encoded hint data
             self.patch.AddData(current_file_offset, encoded_hint)
@@ -504,8 +179,8 @@ class HintWriter:
             # Write pointer in little-endian format with 0x80 OR'd into high byte
             # Hint index is 0-based for pointer table (hint_num - 1)
             pointer_file_offset = self.HINT_POINTER_TABLE_START + ((hint_num - 1) * 2)
-            low_byte = offset_from_bank_start & 0xFF
-            high_byte = ((offset_from_bank_start >> 8) & 0xFF) | 0x80
+            low_byte = pointer_offset & 0xFF
+            high_byte = ((pointer_offset >> 8) & 0xFF) | 0x80
             pointer_bytes = [low_byte, high_byte]
             self.patch.AddData(pointer_file_offset, pointer_bytes)
 
