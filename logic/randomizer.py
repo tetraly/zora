@@ -32,6 +32,48 @@ class Z1Randomizer():
     self.seed = seed
     self.flags = flags
 
+  def _ShuffleOverworldCaveDestinations(self, data_table: DataTable) -> None:
+    """Shuffle cave destinations for all 1st quest overworld screens.
+
+    This finds all screens that have cave destinations in the 1st quest,
+    then randomly redistributes those destinations among those same screens.
+
+    Args:
+        data_table: The DataTable instance to modify
+    """
+    from .randomizer_constants import CaveType
+
+    # Find all screens that have cave destinations and should appear in 1st quest
+    # Include screens that are NOT 2nd quest only (bit 7 not set)
+    first_quest_screens = []
+    cave_destinations = []
+
+    for screen_num in range(0x80):
+      table5_byte = data_table.overworld_raw_data[screen_num + 5*0x80]
+
+      # Skip if bit 7 is set (2nd quest only)
+      if (table5_byte & 0x80) != 0:
+        continue
+
+      destination = data_table.GetScreenDestination(screen_num)
+
+      # Only include screens that actually have a destination
+      if destination != CaveType.NONE:
+        first_quest_screens.append(screen_num)
+        cave_destinations.append(destination)
+
+    log.debug(f"Found {len(first_quest_screens)} first quest screens with cave destinations")
+    for screen_num, destination in zip(first_quest_screens, cave_destinations):
+      log.debug(f"BEFORE: Screen {hex(screen_num)}: {destination.name}")
+
+    # Shuffle the destinations
+    random.shuffle(cave_destinations)
+
+    # Redistribute shuffled destinations back to the screens
+    for screen_num, new_destination in zip(first_quest_screens, cave_destinations):
+      log.debug(f"AFTER: Setting screen {hex(screen_num)} to {new_destination.name}")
+      data_table.SetScreenDestination(screen_num, new_destination)
+
   def _ValidateFlagCompatibility(self, data_table: DataTable) -> None:
     """Validate that the selected ZORA flags are compatible with the base ROM.
 
@@ -138,6 +180,11 @@ class Z1Randomizer():
       while True:
         inner_counter += 1
         data_table.ResetToVanilla()
+
+        # Shuffle overworld cave destinations if flag is enabled
+        if self.flags.randomize_overworld_cave_destinations:
+          self._ShuffleOverworldCaveDestinations(data_table)
+
         item_randomizer.ReplaceProgressiveItemsWithUpgrades()
         item_randomizer.ResetState()
         item_randomizer.ReadItemsAndLocationsFromTable()
