@@ -272,12 +272,6 @@ class FlagsEnum(Enum):
         'Play the flute to kill all Pols Voice (patch courtesy of Stratoform)',
         FlagCategory.EXPERIMENTAL
     )
-    FULL_HEALTH = (
-        'full_health',
-        'Start with Full Health',
-        'Start the game with full health (patch courtesy of ShadowOne333, kalita-kun, gzip)',
-        FlagCategory.EXPERIMENTAL
-    )
     LIKE_LIKE_RUPEES = (
         'like_like_rupees',
         'Like Likes Eat Rupees',

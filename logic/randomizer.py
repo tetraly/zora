@@ -461,9 +461,6 @@ class Z1Randomizer():
     if self.flags.flute_kills_pols_voice:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
 
-    if self.flags.full_health:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'full_health.ips'))
-
     if self.flags.like_like_rupees:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
 
