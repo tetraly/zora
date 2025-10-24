@@ -437,7 +437,7 @@ class Z1Randomizer():
     patch.AddDataFromHexString(0x1A129, "23181B0A2424242424242424242424")
 
     # "Replace 'PRESS START BUTTON' with '  ZORA  V0.1 BETA'"
-    patch.AddDataFromHexString(0x1AB40, "24 24 23 18 1B 0A 24 24 1F 00 2C 01 24 0B 0E 1D 0A")
+    patch.AddDataFromHexString(0x1AB40, "24 24 23 18 1B 0A 24 24 1F 00 2C 02 24 0B 0E 1D 0A")
 
     if self.flags.select_swap:
       patch.AddData(0x1EC4C, [0x4C, 0xC0, 0xFF])

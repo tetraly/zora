@@ -44,10 +44,7 @@ def build_known_issues_page(page: ft.Page, on_back) -> ft.Container:
             ft.Text("Critical Issues", size=20, weight="bold", color=ft.Colors.RED_800),
             ft.Container(
                 content=ft.Column([
-                    ft.Text("• Some seed and flag combinations may cause a \"pop from empty list\" error when randomizing.", size=14),
-                    ft.Text("• The code displayed in the UI when generating a seed may not match the code displayed in the player select menu.", size=14),
-                    ft.Text("• Seeds may be unbeatable due to item placement logic still under development", size=14),
-                    ft.Text("• When shuffling shop items, progression items in stores may be unreasonably expensive ", size=14),
+                    ft.Text("• Some seeds may time out and not generate properly. If so, please report this as a bug", size=14),
                 ], spacing=8),
                 padding=10,
                 border=ft.border.all(2, ft.Colors.RED_200),
@@ -60,12 +57,8 @@ def build_known_issues_page(page: ft.Page, on_back) -> ft.Container:
             ft.Text("Known Bugs", size=20, weight="bold", color=ft.Colors.ORANGE_800),
             ft.Container(
                 content=ft.Column([
-                    ft.Text("• Hints that are supposed to be truthful may not be accurate.", size=14),
-                    ft.Text("  - Workaround: Select Community or Blank Hints in Zelda Randomizer", size=14, italic=True),
-                    ft.Text("• An important item may be randomized next to the Wood Sword in the Wood Sword Cave .", size=14),
-                    ft.Text("  - Workaround: Turn off the \"Add extra candles \" setting in Zelda Randomizer", size=14, italic=True),
-                    ft.Text("• Important items may appear in level 9 even if the setting is turned off in Zelda Randomizer.", size=14),
-                    ft.Text("• The new L4 sword may not always deal double Magical Sword damage.", size=14),
+                    ft.Text("• Dungeon items will be shuffled, and triforces can be in item stairways, even though there isn't a flag to turn this off.", size=14),
+                    ft.Text("• The new L4 sword has beams that only do L3 (Magical Sword) damage.", size=14),
                     ft.Text("• Some of the options that shouldn't change the flagstring do change the flagstring.", size=14),                    
                 ], spacing=8),
                 padding=10,
@@ -80,7 +73,7 @@ def build_known_issues_page(page: ft.Page, on_back) -> ft.Container:
             ft.Container(
                 content=ft.Column([
                     ft.Text("• Not all feature combinations have been tested together", size=14),
-                    ft.Text("• Books sold in shop (for boomstick seeds) will not be randomized.", size=14),
+                    ft.Text("• Experimental features may not work or may only work with some flags.", size=14),
                     ft.Text("• Red potions randomized to dungeons may be downgraded to blue potions", size=14, italic=True),
                 ], spacing=8),
                 padding=10,

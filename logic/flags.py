@@ -251,12 +251,14 @@ class FlagsEnum(Enum):
     RANDOMIZE_OVERWORLD_CAVE_DESTINATIONS = (
         'randomize_overworld_cave_destinations',
         'Randomize Overworld Cave Destinations',
-        'Shuffles the destinations of all overworld caves (dungeons, item caves, and shops).'
+        'Shuffles the destinations of all overworld caves (dungeons, item caves, and shops).',
+        FlagCategory.OVERWORLD_RANDOMIZATION
     )
     GUARANTEE_ACCESSIBLE_SWORD_OR_WAND = (
         'guarantee_accessible_sword_or_wand',
         'Guarantee Accessible Sword or Wand',
-        'Ensures that either the wood sword cave or letter cave is accessible from an open screen (no special items required) and contains a sword or wand.'
+        'Ensures that either the wood sword cave or letter cave is accessible from an open screen (no special items required) and contains a sword or wand.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
     )
     FAST_FILL = (
         'fast_fill',

@@ -738,7 +738,7 @@ def build_header(on_view_known_issues) -> ft.Container:
                 ),
                 ft.Column([
                     ft.Text(
-                        "Zelda One Randomizer Add-Ons (ZORA) beta v0.1",
+                        "Zelda One Randomizer Add-Ons (ZORA) beta v0.2",
                         size=28,
                         weight="bold",
                         color=ft.Colors.BLUE_900
