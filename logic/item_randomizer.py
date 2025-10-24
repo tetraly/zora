@@ -31,7 +31,7 @@ class ItemRandomizer():
       return Item.WOOD_ARROWS
     if (self.flags.progressive_items or progressive_swords) and item in [Item.WHITE_SWORD,  Item.MAGICAL_SWORD]:
       return Item.WOOD_SWORD
-    if progressive_boomerangs and item == Item.MAGICAL_BOOMERANG:
+    if (self.flags.progressive_items or progressive_boomerangs) and item == Item.MAGICAL_BOOMERANG:
       return Item.WOOD_BOOMERANG
     return item 
 
@@ -265,7 +265,7 @@ class ItemShuffler():
         item_num = Item.WOOD_SWORD
       if item_num == Item.MAGICAL_SWORD:
         item_num = Item.WOOD_SWORD
-    if progressive_boomerangs:
+    if self.flags.progressive_items or progressive_boomerangs:
       if item_num == Item.MAGICAL_BOOMERANG:
         item_num = Item.WOODEN_BOOMERANG
 
@@ -329,7 +329,7 @@ class ItemShuffler():
               return False
             if (self.flags.progressive_items or progressive_swords) and item == Item.WOOD_SWORD:
               return False
-            if progressive_boomerangs and item == Item.WOODEN_BOOMERANG:
+            if (self.flags.progressive_items or progressive_boomerangs) and item == Item.WOODEN_BOOMERANG:
               return False
         if (self.flags.progressive_items and location.IsShopPosition() and
             item.IsProgressiveUpgradeItem()):
