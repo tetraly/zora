@@ -151,6 +151,30 @@ class FlagsEnum(Enum):
         'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
         FlagCategory.LOGIC_AND_DIFFICULTY
     )
+    FORCE_HEART_CONTAINER_TO_LEVEL_NINE = (
+        'force_heart_container_to_level_nine',
+        'Force a heart container to be in level 9',
+        'Require that at least one heart container be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
+    )
+    FORCE_TWO_HEART_CONTAINERS_TO_LEVEL_NINE = (
+        'force_two_heart_containers_to_level_nine',
+        'Force two heart containers to be in level 9',
+        'Require that at least two heart containers be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
+    )
+    FORCE_HEART_CONTAINER_TO_ARMOS = (
+        'force_heart_container_to_armos',
+        'Force heart container to Armos',
+        'Require that the Armos item be a heart container. Only works when "Shuffle the Armos Item" is enabled.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
+    )
+    FORCE_HEART_CONTAINER_TO_COAST = (
+        'force_heart_container_to_coast',
+        'Force heart container to Coast',
+        'Require that the Coast item be a heart container. Only works when "Shuffle the Coast Item" is enabled.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
+    )
     EXTRA_RAFT_BLOCKS = (
         'extra_raft_blocks',
         'Extra Raft Blocks',

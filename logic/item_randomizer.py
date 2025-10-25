@@ -313,6 +313,9 @@ class ItemShuffler():
     found_ring_in_level_nine: bool = False
     found_wand_in_level_nine: bool = False
     found_arrow_in_level_nine: bool = False
+    heart_container_count_in_level_nine: int = 0
+    found_heart_container_at_armos: bool = False
+    found_heart_container_at_coast: bool = False
     for level_num in range(0, 11):
       for location, item in zip(self.per_level_item_location_lists[level_num],
                                     self.per_level_item_lists[level_num]):
@@ -341,6 +344,13 @@ class ItemShuffler():
             return False
         if location.IsCavePosition() and location.GetCaveNum() == 0x25 and item == Item.LADDER:
             return False
+        # Track heart containers at armos and coast locations
+        if location.IsCavePosition() and location.GetCaveNum() == 20 and location.GetPositionNum() == 2:
+            if item == Item.HEART_CONTAINER:
+                found_heart_container_at_armos = True
+        if location.IsCavePosition() and location.GetCaveNum() == 21 and location.GetPositionNum() == 2:
+            if item == Item.HEART_CONTAINER:
+                found_heart_container_at_coast = True
         # TODO: Remove this constraint once we fix the NO_ITEM vs MAGICAL_SWORD ambiguity
         # The game uses code 0x03 for both MAGICAL_SWORD and NO_ITEM in dungeons, so we cannot
         # safely place Magical Swords in dungeon rooms. This limitation is documented in
@@ -358,11 +368,21 @@ class ItemShuffler():
             found_ring_in_level_nine = True
           if item == Item.WAND:
             found_wand_in_level_nine = True
+          if item == Item.HEART_CONTAINER:
+            heart_container_count_in_level_nine += 1
     if self.flags.force_arrow_to_level_nine and not found_arrow_in_level_nine:
       return False
     if self.flags.force_ring_to_level_nine and not found_ring_in_level_nine:
       return False
     if self.flags.force_wand_to_level_nine and not found_wand_in_level_nine:
+      return False
+    if self.flags.force_heart_container_to_level_nine and heart_container_count_in_level_nine < 1:
+      return False
+    if self.flags.force_two_heart_containers_to_level_nine and heart_container_count_in_level_nine < 2:
+      return False
+    if self.flags.force_heart_container_to_armos and not found_heart_container_at_armos:
+      return False
+    if self.flags.force_heart_container_to_coast and not found_heart_container_at_coast:
       return False
     return True   
 
