@@ -2,13 +2,15 @@
 
 import os
 import sys
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from logic.flags import FlagsEnum, Flags
-
 
 # ============================================================================
 # FLAG STATE MANAGEMENT
 # ============================================================================
+
 
 class FlagState:
     """Manages the state of randomizer flags."""
@@ -40,7 +42,8 @@ class FlagState:
         non_complex_flags = [f for f in FlagsEnum if f.value not in self.complex_flags]
 
         # Build binary string from flags
-        binary_str = ''.join('1' if self.flags.get(f.value, False) else '0' for f in non_complex_flags)
+        binary_str = ''.join(
+            '1' if self.flags.get(f.value, False) else '0' for f in non_complex_flags)
 
         # Pad to multiple of 3 if needed
         while len(binary_str) % 3 != 0:
@@ -49,7 +52,7 @@ class FlagState:
         # Convert to letter format (3 bits per letter)
         letters = []
         for i in range(0, len(binary_str), 3):
-            chunk = binary_str[i:i+3]
+            chunk = binary_str[i:i + 3]
             octal_value = int(chunk, 2)
             letters.append(self.LETTER_MAP[octal_value])
 

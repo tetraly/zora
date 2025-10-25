@@ -4,7 +4,10 @@ import flet as ft
 from typing import Optional
 
 
-def info_row(label: str, value: str, label_width: int = 120, value_width: Optional[int] = None) -> ft.Row:
+def info_row(label: str,
+             value: str,
+             label_width: int = 120,
+             value_width: Optional[int] = None) -> ft.Row:
     """Create a row with aligned label and value.
 
     Args:
@@ -22,13 +25,9 @@ def info_row(label: str, value: str, label_width: int = 120, value_width: Option
     else:
         value_container = value_text
 
-    return ft.Row([
-        ft.Container(
-            ft.Text(f"{label}:", weight="w500"),
-            width=label_width
-        ),
-        value_container
-    ], spacing=10)
+    return ft.Row(
+        [ft.Container(ft.Text(f"{label}:", weight="w500"), width=label_width), value_container],
+        spacing=10)
 
 
 def show_error_dialog(page: ft.Page, title: str, message: str) -> None:
@@ -39,6 +38,7 @@ def show_error_dialog(page: ft.Page, title: str, message: str) -> None:
         title: The dialog title
         message: The error message to display
     """
+
     def close_dlg(e) -> None:
         page.close(dialog)
         page.update()
@@ -48,8 +48,7 @@ def show_error_dialog(page: ft.Page, title: str, message: str) -> None:
         title=ft.Text(title),
         content=ft.Text(message),
         actions=[
-            ft.TextButton("OK", on_click=close_dlg),
-        ],
+            ft.TextButton("OK", on_click=close_dlg),],
         actions_alignment=ft.MainAxisAlignment.END,
     )
     page.open(dialog)

@@ -9,23 +9,16 @@ import time
 from pathlib import Path
 from typing import Callable
 import sys
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from logic.randomizer import Z1Randomizer
 from windows import zrinterface
 from ui.dialogs import show_error_dialog, show_snackbar
-from ui.rom_utils import (
-    extract_base_rom_code,
-    extract_code_from_rom_data,
-    is_vanilla_rom,
-    is_vanilla_rom_data,
-    parse_filename_for_flag_and_seed
-)
-from ui.components import (
-    build_rom_info_card,
-    build_zora_settings_card,
-    build_step3_container
-)
+from ui.rom_utils import (extract_base_rom_code, extract_code_from_rom_data, is_vanilla_rom,
+                          is_vanilla_rom_data, parse_filename_for_flag_and_seed)
+from ui.components import (build_rom_info_card, build_zora_settings_card, build_step3_container)
 from ui.known_issues import build_known_issues_page
 
 
@@ -79,9 +72,14 @@ class EventHandlers:
 
         # Upload state
         self.upload_state = {
-            'vanilla': {'file_info': None, 'uploading': False, 'uploaded_path': None},
-            'randomized': {'file_info': None, 'uploading': False, 'uploaded_path': None}
-        }
+            'vanilla': {
+                'file_info': None,
+                'uploading': False,
+                'uploaded_path': None},
+            'randomized': {
+                'file_info': None,
+                'uploading': False,
+                'uploaded_path': None}}
 
     # Navigation handlers
     def on_view_known_issues(self, e) -> None:
@@ -231,6 +229,7 @@ class EventHandlers:
         Returns:
             callable: Event handler for download button
         """
+
         def on_download_rom(e) -> None:
             """Handle download button click - triggers browser download"""
             if self.platform == "web":
@@ -251,14 +250,13 @@ class EventHandlers:
 
                     # Show success message
                     self.page.snack_bar = ft.SnackBar(
-                        content=ft.Text(f"✅ Downloading {filename}..."),
-                        bgcolor=ft.Colors.GREEN
-                    )
+                        content=ft.Text(f"✅ Downloading {filename}..."), bgcolor=ft.Colors.GREEN)
                     self.page.snack_bar.open = True
                     self.page.update()
 
                 except Exception as ex:
-                    show_error_dialog(self.page, "Download Error", f"Failed to prepare download:\n\n{str(ex)}")
+                    show_error_dialog(self.page, "Download Error",
+                                      f"Failed to prepare download:\n\n{str(ex)}")
             else:
                 # For desktop (macOS/Windows), use file picker to save
                 def on_save_result(e: ft.FilePickerResultEvent) -> None:
@@ -275,10 +273,8 @@ class EventHandlers:
                 self.page.update()
                 # Remove .nes extension from filename since save_file will add it
                 filename_without_ext = filename.replace('.nes', '')
-                save_file_picker.save_file(
-                    file_name=filename_without_ext,
-                    allowed_extensions=["nes"]
-                )
+                save_file_picker.save_file(file_name=filename_without_ext,
+                                           allowed_extensions=["nes"])
 
         return on_download_rom
 
@@ -293,7 +289,8 @@ class EventHandlers:
 
         # Validate that this is a vanilla ROM
         if not is_vanilla_rom_data(rom_data):
-            show_error_dialog(self.page, "Error", "This doesn't appear to be a vanilla Legend of Zelda ROM")
+            show_error_dialog(self.page, "Error",
+                              "This doesn't appear to be a vanilla Legend of Zelda ROM")
             return
 
         # Load ROM info for display
@@ -325,7 +322,8 @@ class EventHandlers:
 
         # Parse filename for seed and flagstring
         try:
-            self.state.rom_info.flagstring, self.state.rom_info.seed = parse_filename_for_flag_and_seed(filename)
+            self.state.rom_info.flagstring, self.state.rom_info.seed = parse_filename_for_flag_and_seed(
+                filename)
         except ValueError as ex:
             show_error_dialog(self.page, "Invalid Filename", str(ex))
             return
@@ -335,8 +333,7 @@ class EventHandlers:
             self.state.rom_info.code = extract_code_from_rom_data(rom_data)
         except (ValueError, KeyError) as ex:
             show_error_dialog(
-                self.page,
-                "Invalid ROM",
+                self.page, "Invalid ROM",
                 "This doesn't appear to be a valid randomized ROM.\n\nCould not extract code from the ROM."
             )
             return
@@ -368,11 +365,8 @@ class EventHandlers:
             self.upload_state['vanilla']['uploading'] = True
 
             upload_list = [
-                ft.FilePickerUploadFile(
-                    file_info.name,
-                    upload_url=self.page.get_upload_url(file_info.name, 600)
-                )
-            ]
+                ft.FilePickerUploadFile(file_info.name,
+                                        upload_url=self.page.get_upload_url(file_info.name, 600))]
             self.vanilla_file_picker.upload(upload_list)
 
     def on_randomized_file_picked(self, e: ft.FilePickerResultEvent) -> None:
@@ -391,11 +385,8 @@ class EventHandlers:
             self.upload_state['randomized']['uploading'] = True
 
             upload_list = [
-                ft.FilePickerUploadFile(
-                    file_info.name,
-                    upload_url=self.page.get_upload_url(file_info.name, 600)
-                )
-            ]
+                ft.FilePickerUploadFile(file_info.name,
+                                        upload_url=self.page.get_upload_url(file_info.name, 600))]
             self.randomized_file_picker.upload(upload_list)
 
     def on_generate_vanilla_file_picked(self, e: ft.FilePickerResultEvent) -> None:
@@ -429,10 +420,13 @@ class EventHandlers:
         # Validate the vanilla ROM
         try:
             if not is_vanilla_rom(self.state.vanilla_rom_path):
-                show_error_dialog(self.page, "Invalid ROM", "The selected file does not appear to be a vanilla Legend of Zelda ROM.")
+                show_error_dialog(
+                    self.page, "Invalid ROM",
+                    "The selected file does not appear to be a vanilla Legend of Zelda ROM.")
                 return
         except Exception as ex:
-            show_error_dialog(self.page, "Error", f"Unable to read the selected ROM file:\n\n{str(ex)}")
+            show_error_dialog(self.page, "Error",
+                              f"Unable to read the selected ROM file:\n\n{str(ex)}")
             return
 
         # Create zrinterface.txt file in temp directory
@@ -457,14 +451,12 @@ class EventHandlers:
 
             if not success:
                 show_error_dialog(
-                    self.page,
-                    "Zelda Randomizer Interface Error",
+                    self.page, "Zelda Randomizer Interface Error",
                     "Failed to interface with Zelda Randomizer.\n\n"
                     "Please ensure:\n"
                     "1. Zelda Randomizer 3.5.20 is running\n"
                     "2. The window is open and visible\n"
-                    "3. zrinterface.exe is in the windows/ directory"
-                )
+                    "3. zrinterface.exe is in the windows/ directory")
                 return
 
             # The randomizer generates a ROM in the same directory as the vanilla ROM
@@ -481,11 +473,9 @@ class EventHandlers:
             # Check if the ROM was generated
             if not os.path.exists(generated_filename):
                 show_error_dialog(
-                    self.page,
-                    "ROM Not Found",
+                    self.page, "ROM Not Found",
                     f"The randomized ROM was not found at the expected location:\n\n{generated_filename}\n\n"
-                    "Please check if Zelda Randomizer successfully generated the ROM."
-                )
+                    "Please check if Zelda Randomizer successfully generated the ROM.")
                 return
 
             # Load the generated ROM info
@@ -497,32 +487,24 @@ class EventHandlers:
             try:
                 self.state.rom_info.code = extract_base_rom_code(generated_filename)
             except Exception as ex:
-                show_error_dialog(
-                    self.page,
-                    "Error Reading ROM",
-                    f"The ROM was generated but could not be read:\n\n{str(ex)}"
-                )
+                show_error_dialog(self.page, "Error Reading ROM",
+                                  f"The ROM was generated but could not be read:\n\n{str(ex)}")
                 return
 
             self.state.flag_state.seed = self.state.rom_info.seed
 
             # Update UI
             self.load_rom_and_show_card(disable_seed=True)
-            show_snackbar(self.page, f"Successfully generated ROM: {os.path.basename(generated_filename)}")
+            show_snackbar(self.page,
+                          f"Successfully generated ROM: {os.path.basename(generated_filename)}")
 
         except FileNotFoundError as e:
             show_error_dialog(
-                self.page,
-                "File Not Found",
-                f"A required file was not found:\n\n{str(e)}\n\n"
-                "Make sure zrinterface.exe is in the windows/ directory."
-            )
+                self.page, "File Not Found", f"A required file was not found:\n\n{str(e)}\n\n"
+                "Make sure zrinterface.exe is in the windows/ directory.")
         except Exception as e:
-            show_error_dialog(
-                self.page,
-                "Error",
-                f"An error occurred while generating the ROM:\n\n{str(e)}"
-            )
+            show_error_dialog(self.page, "Error",
+                              f"An error occurred while generating the ROM:\n\n{str(e)}")
 
     # Randomization handler
     def on_randomize(self, e) -> None:
@@ -530,7 +512,8 @@ class EventHandlers:
         try:
             # Validate that seed is provided
             if not self.seed_input.value or not self.seed_input.value.strip():
-                show_error_dialog(self.page, "Seed Required", "Please enter a seed number before randomizing.")
+                show_error_dialog(self.page, "Seed Required",
+                                  "Please enter a seed number before randomizing.")
                 return
 
             # Read the base ROM file
@@ -577,41 +560,32 @@ class EventHandlers:
                 self.page.controls.remove(self.state.step3_container)
 
             # Show ZORA settings card
-            self.state.zora_settings_card = build_zora_settings_card(
-                zora_flagstring,
-                self.seed_input.value,
-                self.state.flag_state
-            )
+            self.state.zora_settings_card = build_zora_settings_card(zora_flagstring,
+                                                                     self.seed_input.value,
+                                                                     self.state.flag_state)
             self.page.add(self.state.zora_settings_card)
 
             # Build and show Step 3
-            download_handler = self.create_download_handler(
-                self.state.randomized_rom_data,
-                self.state.randomized_rom_filename
-            )
+            download_handler = self.create_download_handler(self.state.randomized_rom_data,
+                                                            self.state.randomized_rom_filename)
 
             # Extract ROM code for display
             rom_code = extract_code_from_rom_data(self.state.randomized_rom_data)
 
             self.state.step3_container = build_step3_container(
-                self.state.randomized_rom_data,
-                self.state.randomized_rom_filename,
-                zora_flagstring,
-                self.seed_input.value,
-                rom_code,
-                self.platform,
-                download_handler,
-                self.clear_rom
-            )
+                self.state.randomized_rom_data, self.state.randomized_rom_filename, zora_flagstring,
+                self.seed_input.value, rom_code, self.platform, download_handler, self.clear_rom)
             self.page.add(self.state.step3_container)
             self.page.update()
 
             show_snackbar(self.page, "✅ Randomization complete! Download your ROM below.")
 
         except ValueError as ve:
-            show_error_dialog(self.page, "Invalid Input", f"Please enter a valid seed number:\n\n{str(ve)}")
+            show_error_dialog(self.page, "Invalid Input",
+                              f"Please enter a valid seed number:\n\n{str(ve)}")
         except Exception as ex:
-            show_error_dialog(self.page, "Error", f"An error occurred during randomization:\n\n{str(ex)}")
+            show_error_dialog(self.page, "Error",
+                              f"An error occurred during randomization:\n\n{str(ex)}")
 
     # Upload progress handlers
     def on_vanilla_upload_progress(self, e: ft.FilePickerUploadEvent) -> None:
@@ -620,17 +594,22 @@ class EventHandlers:
             # Upload complete
             self.upload_state['vanilla']['uploading'] = False
             # Get absolute path to uploaded file
-            self.upload_state['vanilla']['uploaded_path'] = os.path.abspath(f"uploads/{e.file_name}")
+            self.upload_state['vanilla']['uploaded_path'] = os.path.abspath(
+                f"uploads/{e.file_name}")
 
             # Wait a moment for file to be fully written, then verify it exists
             time.sleep(0.1)
 
             if not os.path.exists(self.upload_state['vanilla']['uploaded_path']):
-                show_error_dialog(self.page, "Upload Error", f"File was not uploaded successfully. Expected at: {self.upload_state['vanilla']['uploaded_path']}")
+                show_error_dialog(
+                    self.page, "Upload Error",
+                    f"File was not uploaded successfully. Expected at: {self.upload_state['vanilla']['uploaded_path']}"
+                )
                 return
 
             # Now process the uploaded file
-            self.process_vanilla_rom(self.upload_state['vanilla']['file_info'], self.upload_state['vanilla']['uploaded_path'])
+            self.process_vanilla_rom(self.upload_state['vanilla']['file_info'],
+                                     self.upload_state['vanilla']['uploaded_path'])
 
     def on_randomized_upload_progress(self, e: ft.FilePickerUploadEvent) -> None:
         """Handle randomized ROM upload progress."""
@@ -638,39 +617,36 @@ class EventHandlers:
             # Upload complete
             self.upload_state['randomized']['uploading'] = False
             # Get absolute path to uploaded file
-            self.upload_state['randomized']['uploaded_path'] = os.path.abspath(f"uploads/{e.file_name}")
+            self.upload_state['randomized']['uploaded_path'] = os.path.abspath(
+                f"uploads/{e.file_name}")
 
             # Wait a moment for file to be fully written, then verify it exists
             time.sleep(0.1)
 
             if not os.path.exists(self.upload_state['randomized']['uploaded_path']):
-                show_error_dialog(self.page, "Upload Error", f"File was not uploaded successfully. Expected at: {self.upload_state['randomized']['uploaded_path']}")
+                show_error_dialog(
+                    self.page, "Upload Error",
+                    f"File was not uploaded successfully. Expected at: {self.upload_state['randomized']['uploaded_path']}"
+                )
                 return
 
             # Now process the uploaded file
-            self.process_randomized_rom(self.upload_state['randomized']['file_info'], self.upload_state['randomized']['uploaded_path'])
+            self.process_randomized_rom(self.upload_state['randomized']['file_info'],
+                                        self.upload_state['randomized']['uploaded_path'])
 
     # Button click handlers for file pickers
     def on_choose_vanilla_click(self, e) -> None:
         """Open file picker for vanilla ROM."""
-        self.vanilla_file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=["nes"]
-        )
+        self.vanilla_file_picker.pick_files(allow_multiple=False, allowed_extensions=["nes"])
 
     def on_choose_randomized_click(self, e) -> None:
         """Open file picker for randomized ROM."""
-        self.randomized_file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=["nes"]
-        )
+        self.randomized_file_picker.pick_files(allow_multiple=False, allowed_extensions=["nes"])
 
     def on_choose_generate_vanilla_click(self, e) -> None:
         """Open file picker for vanilla ROM (generate option)."""
-        self.generate_vanilla_file_picker.pick_files(
-            allow_multiple=False,
-            allowed_extensions=["nes"]
-        )
+        self.generate_vanilla_file_picker.pick_files(allow_multiple=False,
+                                                     allowed_extensions=["nes"])
 
     # Random seed generators
     def on_gen_random_seed_click(self, e) -> None:

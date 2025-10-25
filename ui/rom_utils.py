@@ -3,13 +3,15 @@
 import os
 import re
 import sys
+
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from common.constants import CODE_ITEMS
-
 
 # ============================================================================
 # ROM UTILITIES
 # ============================================================================
+
 
 def extract_code_from_bytes(code_bytes: bytes) -> str:
     """Extract the code from ROM code bytes.
@@ -28,8 +30,7 @@ def extract_code_from_bytes(code_bytes: bytes) -> str:
         CODE_ITEMS.get(code_bytes[3]),
         CODE_ITEMS.get(code_bytes[2]),
         CODE_ITEMS.get(code_bytes[1]),
-        CODE_ITEMS.get(code_bytes[0])
-    ]
+        CODE_ITEMS.get(code_bytes[0])]
 
     # Check if any items are None (invalid code bytes)
     if None in items:
@@ -68,7 +69,7 @@ def extract_code_from_rom_data(rom_data: bytes, offset: int = 0xAFD4) -> str:
         str: Comma-separated item names, or "Unknown" if extraction fails
     """
     try:
-        code_bytes = rom_data[offset:offset+4]
+        code_bytes = rom_data[offset:offset + 4]
         return extract_code_from_bytes(code_bytes)
     except Exception:
         return "Unknown"
@@ -82,12 +83,14 @@ def is_vanilla_rom(filename: str) -> bool:
     except Exception:
         return False
 
+
 def is_vanilla_rom_data(rom_data: bytes) -> bool:
     """Check if ROM data is from a vanilla ROM by checking for 0xFF bytes at code location."""
     try:
-        return rom_data[0xAFD4:0xAFD4+4] == b'\xff\xff\xff\xff'
+        return rom_data[0xAFD4:0xAFD4 + 4] == b'\xff\xff\xff\xff'
     except Exception:
         return False
+
 
 def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
     """Extract flagstring and seed from ROM filename.
@@ -110,8 +113,6 @@ def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
         return flagstring, seed
 
     # If pattern doesn't match, raise an error
-    raise ValueError(
-        f"Invalid ROM filename format.\n\n"
-        f"Expected pattern: [basename]_[seed]_[flagstring].nes\n\n"
-        f"Your filename: {os.path.basename(filename)}"
-    )
+    raise ValueError(f"Invalid ROM filename format.\n\n"
+                     f"Expected pattern: [basename]_[seed]_[flagstring].nes\n\n"
+                     f"Your filename: {os.path.basename(filename)}")

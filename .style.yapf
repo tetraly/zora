@@ -1,0 +1,26 @@
+[style]
+# Use Google's Python style guide as the base
+based_on_style = google
+
+# Set line length (Google uses 80, but 100 is more practical for modern screens)
+column_limit = 100
+
+# Indentation
+indent_width = 4
+continuation_indent_width = 4
+
+# Blank lines
+blank_line_before_nested_class_or_def = true
+blank_lines_between_top_level_imports_and_variables = 2
+
+# Alignment
+align_closing_bracket_with_visual_indent = true
+coalesce_brackets = false
+
+# Splitting
+split_before_named_assigns = true
+split_before_closing_bracket = false
+split_before_first_argument = false
+
+# Other
+dedent_closing_brackets = false
