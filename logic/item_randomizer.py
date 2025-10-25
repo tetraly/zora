@@ -1,6 +1,6 @@
 from typing import DefaultDict, List, Tuple, Iterable
 from collections import defaultdict
-from random import shuffle
+from random import randint, shuffle
 import logging as log
 
 from .randomizer_constants import Direction, Item, LevelNum, Range, RoomNum, RoomType, WallType
@@ -111,6 +111,9 @@ class ItemRandomizer():
       items.append(self._GetOverworldItemLocation(Item.BAIT))
       second_bait_location = self._GetOverworldItemLocation(Item.BAIT, skip_first=True)
       self.data_table.SetCaveItem(second_bait_location, Item.FAIRY)
+      cave_num = second_bait_location.GetCaveNum()
+      position_num = second_bait_location.GetPositionNum()
+      self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randint(20, 40), position_num)
     return items
 
   def ResetState(self):
