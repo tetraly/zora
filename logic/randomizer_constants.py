@@ -323,8 +323,8 @@ class HintType(IntEnum):
   HINT_22 = 22
   HINT_23 = 23
   HINT_24 = 24
-  BOMB_UPGRADE = 25
-  HINT_26 = 26
+  HINT_25 = 25
+  BOMB_UPGRADE = 26
   MUGGER = 27
   HINT_28 = 28
   HINT_29 = 29
