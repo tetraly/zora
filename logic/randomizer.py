@@ -13,7 +13,7 @@ from .hint_writer import HintWriter
 from .validator import Validator
 from .flags import Flags
 from .bait_blocker import BaitBlocker
-from .randomizer_constants import Range, Item, CaveType
+from .randomizer_constants import Range, Item, CaveType, RoomAction
 from .location import Location
 
 class Z1Randomizer():
@@ -90,7 +90,7 @@ class Z1Randomizer():
           first_quest_screens.append(screen_num)
           cave_destinations.append(destination)
         else:
-          print(f"Excluding Any Road screen {hex(screen_num)} from shuffle")
+          log.debug(f"Excluding Any Road screen {hex(screen_num)} from shuffle")
 
     log.debug(f"Found {len(first_quest_screens)} first quest screens with cave destinations (excluding Any Road screens)")
     for screen_num, destination in zip(first_quest_screens, cave_destinations):
@@ -239,6 +239,62 @@ class Z1Randomizer():
           "or disable the 'Extra Power Bracelet Blocks' flag in ZORA."
         )
 
+  def _ApplyRoomActionFlags(self, data_table: DataTable) -> None:
+    """Apply room action flag modifications to dungeon rooms.
+
+    These flags modify the SecretTrigger codes (RoomAction) for rooms in levels 1-9:
+    - increased_standing_items: Changes code 7 -> 1 (drop items become standing items)
+    - reduced_push_blocks: Changes code 4 -> 1 (push block requirement removed)
+    - increased_drop_items_in_push_block_rooms: Changes code 4 -> 7 (push block rooms get drop items)
+    - increased_drop_items_in_non_push_block_rooms: Changes code 1 -> 7 (other rooms get drop items)
+
+    Note: Some flags are incompatible and one takes precedence over the other.
+    The room containing TRIFORCE_OF_POWER in level 9 is excluded from all modifications.
+    """
+    for level_num in Range.VALID_LEVEL_NUMBERS:
+      rooms = data_table.level_7_to_9_rooms if level_num >= 7 else data_table.level_1_to_6_rooms
+
+      for room in rooms:
+        # Skip the room with TRIFORCE_OF_POWER (0x0E) in level 9
+        if level_num == 9 and room.GetItem() == Item.TRIFORCE_OF_POWER:
+          continue
+
+        current_action = room.GetRoomAction()
+
+        # Apply increased_standing_items flag (takes precedence over increased_drop_items_in_non_push_block_rooms)
+        # Change code 7 (drop items) -> 1 (standing items)
+        if self.flags.increased_standing_items:
+          if current_action == RoomAction.KillingEnemiesOpensShuttersAndDropsItem:
+            room.SetRoomAction(RoomAction.KillingEnemiesOpensShutters)
+            log.debug(f"Level {level_num}: Changed room action 7 -> 1 (increased_standing_items)")
+
+        # Apply reduced_push_blocks flag (takes precedence over increased_drop_items_in_push_block_rooms)
+        # Change code 4 (push block to open shutters) -> 1 (just kill enemies)
+        if self.flags.reduced_push_blocks:
+          if current_action == RoomAction.PushingBlockOpensShutters:
+            room.SetRoomAction(RoomAction.KillingEnemiesOpensShutters)
+            log.debug(f"Level {level_num}: Changed room action 4 -> 1 (reduced_push_blocks)")
+
+        # Apply increased_drop_items_in_push_block_rooms flag (only if reduced_push_blocks is NOT enabled)
+        # Change code 4 -> 7, but only if the room has an item
+        if (self.flags.increased_drop_items_in_push_block_rooms and
+            not self.flags.reduced_push_blocks):
+          if current_action == RoomAction.PushingBlockOpensShutters:
+            # Check if room has a non-NONE item (0x03 in dungeons means NO_ITEM)
+            if room.GetItem() != Item.NO_ITEM:
+              room.SetRoomAction(RoomAction.KillingEnemiesOpensShuttersAndDropsItem)
+              log.debug(f"Level {level_num}: Changed room action 4 -> 7 (increased_drop_items_in_push_block_rooms)")
+
+        # Apply increased_drop_items_in_non_push_block_rooms flag (only if increased_standing_items is NOT enabled)
+        # Change code 1 -> 7, but only if the room has an item
+        if (self.flags.increased_drop_items_in_non_push_block_rooms and
+            not self.flags.increased_standing_items):
+          if current_action == RoomAction.KillingEnemiesOpensShutters:
+            # Check if room has a non-NONE item (0x03 in dungeons means NO_ITEM)
+            if room.GetItem() != Item.NO_ITEM:
+              room.SetRoomAction(RoomAction.KillingEnemiesOpensShuttersAndDropsItem)
+              log.debug(f"Level {level_num}: Changed room action 1 -> 7 (increased_drop_items_in_non_push_block_rooms)")
+
   def GetPatch(self) -> Patch:
     random.seed(self.seed)
     data_table = DataTable(self.rom_reader)
@@ -291,6 +347,12 @@ class Z1Randomizer():
         bait_blocker = BaitBlocker(data_table)
         for level_num in Range.VALID_LEVEL_NUMBERS:
           bait_blocker.TryToMakeHungryGoriyaBlockProgress(level_num)
+
+      # Apply room action flags if enabled
+      if (self.flags.increased_standing_items or self.flags.reduced_push_blocks or
+          self.flags.increased_drop_items_in_push_block_rooms or
+          self.flags.increased_drop_items_in_non_push_block_rooms):
+        self._ApplyRoomActionFlags(data_table)
 
       is_valid_seed = validator.IsSeedValid()
       if outer_counter >= 1000:

@@ -296,6 +296,30 @@ class FlagsEnum(Enum):
         'Automatically shows the letter to NPCs without equipping and using it.',
         FlagCategory.EXPERIMENTAL
     )
+    INCREASED_STANDING_ITEMS = (
+        'increased_standing_items',
+        'Increased Standing Items',
+        'All floor items (room items) will be visible from the start. There will not be any drop items that only appear after killing all enemies in the room. Incompatible with "Increased Drop Items in Non-Push Block Rooms".',
+        FlagCategory.EXPERIMENTAL
+    )
+    REDUCED_PUSH_BLOCKS = (
+        'reduced_push_blocks',
+        'Reduced Push Blocks',
+        'Rooms that normally require killing all enemies and pushing blocks to open shutter doors will only require killing all enemies. Incompatible with "Increased Drop Items in Push Block Rooms".',
+        FlagCategory.EXPERIMENTAL
+    )
+    INCREASED_DROP_ITEMS_IN_PUSH_BLOCK_ROOMS = (
+        'increased_drop_items_in_push_block_rooms',
+        'Increased Drop Items in Push Block Rooms',
+        'Some types of rooms with standing items (ones that would normally have push blocks) will have drop items instead. The item will appear after killing all enemies. Incompatible with "Reduced Push Blocks".',
+        FlagCategory.EXPERIMENTAL
+    )
+    INCREASED_DROP_ITEMS_IN_NON_PUSH_BLOCK_ROOMS = (
+        'increased_drop_items_in_non_push_block_rooms',
+        'Increased Drop Items in Non-Push Block Rooms',
+        'Other types of rooms with standing items (ones that would normally NOT have push blocks) will have drop items instead. The item will appear after killing all enemies. Incompatible with "Increased Standing Items".',
+        FlagCategory.EXPERIMENTAL
+    )
 
     def __init__(self, value, display_name, help_text, category):
         self._value_ = value

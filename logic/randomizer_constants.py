@@ -298,6 +298,22 @@ class CaveType(IntEnum):
   SMALL_SECRET = 0x23
 
 
+class RoomAction(IntEnum):
+  """Room action codes that determine what triggers open shutters/spawn items.
+
+  These codes are stored in the lowest 3 bits of room table 5 (0-indexed).
+  Also known as SecretTrigger codes in the disassembly.
+  """
+  NothingOpensShutters = 0
+  KillingEnemiesOpensShutters = 1
+  KillingRingleaderKillsEnemiesAndOpensShutters = 2
+  TriforceOfPowerOpensShutters = 3
+  PushingBlockOpensShutters = 4
+  PushingBlockMakesStairwayVisible = 5
+  DefeatingNPCOpensShutters = 6
+  KillingEnemiesOpensShuttersAndDropsItem = 7
+
+
 class HintType(IntEnum):
   WOOD_SWORD_CAVE = 1
   MAGICAL_SWORD_CAVE = 2

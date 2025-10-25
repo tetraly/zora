@@ -1,6 +1,6 @@
 from typing import Dict, List
 import logging
-from .randomizer_constants import Direction, Enemy, EnemyList, Item, Range, RoomNum, RoomType, WallType
+from .randomizer_constants import Direction, Enemy, EnemyList, Item, Range, RoomAction, RoomNum, RoomType, WallType
 
 log = logging.getLogger(__name__)
 
@@ -170,6 +170,20 @@ class Room():
     if self.GetItem() == Item.MAGICAL_SWORD and (self.HasStaircase() or not self.HasDropBitSet()):
       return False
     return True
+
+  ### Room action methods ###
+  def GetRoomAction(self) -> RoomAction:
+    """Get the room action code (SecretTrigger) from the lowest 3 bits of table 5."""
+    return RoomAction(self.rom_data[5] & 0x07)
+
+  def SetRoomAction(self, room_action: RoomAction) -> None:
+    """Set the room action code (SecretTrigger), preserving all other bits in table 5."""
+    # Create a mask to clear only the lowest 3 bits (0x07 = 0b00000111)
+    # Then negate to create a mask that preserves everything except those 3 bits
+    clear_mask = ~0x07 & 0xFF
+
+    # Clear the 3 action bits, then OR in the new room_action value
+    self.rom_data[5] = (self.rom_data[5] & clear_mask) | int(room_action)
 
   ### Enemy-related methods ###
   def GetEnemy(self) -> Enemy:

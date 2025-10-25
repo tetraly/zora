@@ -69,6 +69,10 @@ def build_known_issues_page(page: ft.Page, on_back) -> ft.Container:
                     ft.Text(
                         "• Red potions randomized to dungeons may be downgraded to blue potions",
                         size=14,
+                        italic=True),
+                    ft.Text(
+                        "• Magical Swords cannot be shuffled into dungeon rooms (only overworld caves). This is due to the game using code 0x03 to represent both Magical Sword and 'no item' in dungeons.",
+                        size=14,
                         italic=True),],
                                                spacing=8),
                              padding=10,

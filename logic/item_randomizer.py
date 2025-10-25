@@ -338,8 +338,14 @@ class ItemShuffler():
             item.IsProgressiveUpgradeItem()):
             return False
         if location.IsShopPosition() and item == Item.HEART_CONTAINER:
-            return False        
+            return False
         if location.IsCavePosition() and location.GetCaveNum() == 0x25 and item == Item.LADDER:
+            return False
+        # TODO: Remove this constraint once we fix the NO_ITEM vs MAGICAL_SWORD ambiguity
+        # The game uses code 0x03 for both MAGICAL_SWORD and NO_ITEM in dungeons, so we cannot
+        # safely place Magical Swords in dungeon rooms. This limitation is documented in
+        # ui/known_issues.py. The fix will be to change the NO_ITEM code to a different value.
+        if location.IsLevelRoom() and item == Item.MAGICAL_SWORD:
             return False
         if location.IsLevelRoom() and location.GetLevelNum() == 9:
           # Check if important items are in level 9 when flag is enabled
