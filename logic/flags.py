@@ -254,10 +254,10 @@ class FlagsEnum(Enum):
         'Shuffles the destinations of all overworld caves (dungeons, item caves, and shops).',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
-    GUARANTEE_ACCESSIBLE_SWORD_OR_WAND = (
-        'guarantee_accessible_sword_or_wand',
-        'Guarantee Accessible Sword or Wand',
-        'Ensures that either the wood sword cave or letter cave is accessible from an open screen (no special items required) and contains a sword or wand.',
+    DONT_GUARANTEE_STARTING_SWORD_OR_WAND = (
+        'dont_guarantee_starting_sword_or_wand',
+        'Don\'t Guarantee Starting Sword or Wand',
+        'By default, either the wood sword cave or letter cave is guaranteed to be accessible from an open screen (no special items required) and contains a sword or wand. Enable this flag to remove that guarantee. You may need to find additional progression items and/or dive dungeons weaponless to get a weapon and complete the seed.',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
     FAST_FILL = (

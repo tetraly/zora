@@ -7,13 +7,13 @@ from typing import List
 from .data_table import DataTable
 from .item_randomizer import ItemRandomizer
 from .patch import Patch
-from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET
+from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET, ANY_ROAD_SCREENS_ADDRESS, RECORDER_WARP_DESTINATIONS_ADDRESS
 from .text_data_table import TextDataTable
 from .hint_writer import HintWriter
 from .validator import Validator
 from .flags import Flags
 from .bait_blocker import BaitBlocker
-from .randomizer_constants import Range, Item
+from .randomizer_constants import Range, Item, CaveType
 from .location import Location
 
 class Z1Randomizer():
@@ -31,6 +31,26 @@ class Z1Randomizer():
     self.rom_reader = RomReader(rom_bytes)
     self.seed = seed
     self.flags = flags
+    self.cave_destinations_randomized_in_base_seed = False
+
+  def HasVanillaWoodSwordCaveStartScreen(self, data_table: DataTable) -> bool:
+    """Check if the wood sword cave is at its vanilla screen location.
+
+    The vanilla wood sword cave is at screen 0x77. If it's not there,
+    we assume the base ROM has cave destinations already shuffled.
+
+    Args:
+        data_table: The DataTable instance to read from
+
+    Returns:
+        Whether the wood sword cave is in it's vanilla screen (0x77)
+    """
+    # Vanilla wood sword cave screen
+    VANILLA_WOOD_SWORD_SCREEN = 0x77
+
+    # Check if screen 0x77 has the wood sword cave destination
+    destination = data_table.GetScreenDestination(VANILLA_WOOD_SWORD_SCREEN)
+    return destination == CaveType.WOOD_SWORD_CAVE
 
   def _ShuffleOverworldCaveDestinations(self, data_table: DataTable) -> None:
     """Shuffle cave destinations for all 1st quest overworld screens.
@@ -38,10 +58,16 @@ class Z1Randomizer():
     This finds all screens that have cave destinations in the 1st quest,
     then randomly redistributes those destinations among those same screens.
 
+    Any Road screens are excluded from the shuffle to prevent game crashes.
+
     Args:
         data_table: The DataTable instance to modify
     """
     from .randomizer_constants import CaveType
+
+    # Read the four "take any road" screen IDs from ROM to exclude them from shuffle
+    any_road_screens = list(self.rom_reader._ReadMemory(ANY_ROAD_SCREENS_ADDRESS, 4))
+    log.debug(f"Any Road screen IDs: {[hex(x) for x in any_road_screens]}")
 
     # Find all screens that have cave destinations and should appear in 1st quest
     # Include screens that are NOT 2nd quest only (bit 7 not set)
@@ -59,10 +85,14 @@ class Z1Randomizer():
 
       # Only include screens that actually have a destination
       if destination != CaveType.NONE:
-        first_quest_screens.append(screen_num)
-        cave_destinations.append(destination)
+        # Exclude any road screens from the shuffle to prevent crashes
+        if screen_num not in any_road_screens:
+          first_quest_screens.append(screen_num)
+          cave_destinations.append(destination)
+        else:
+          print(f"Excluding Any Road screen {hex(screen_num)} from shuffle")
 
-    log.debug(f"Found {len(first_quest_screens)} first quest screens with cave destinations")
+    log.debug(f"Found {len(first_quest_screens)} first quest screens with cave destinations (excluding Any Road screens)")
     for screen_num, destination in zip(first_quest_screens, cave_destinations):
       log.debug(f"BEFORE: Screen {hex(screen_num)}: {destination.name}")
 
@@ -73,6 +103,60 @@ class Z1Randomizer():
     for screen_num, new_destination in zip(first_quest_screens, cave_destinations):
       log.debug(f"AFTER: Setting screen {hex(screen_num)} to {new_destination.name}")
       data_table.SetScreenDestination(screen_num, new_destination)
+
+  def _CalculateRecorderWarpDestinations(self, data_table: DataTable) -> List[int]:
+    """Calculate recorder warp destinations for levels 1-8 after cave shuffle.
+
+    The recorder warps Link to a screen one to the left of each level entrance.
+    This is because the whirlwind scrolls Link to the right automatically.
+
+    Args:
+        data_table: The DataTable instance to read level locations from
+
+    Returns:
+        List of 8 bytes representing the warp screen for levels 1-8
+    """
+    from .randomizer_constants import CaveType
+
+    # Map of level number to CaveType enum
+    level_cave_types = [
+      CaveType.LEVEL_1,
+      CaveType.LEVEL_2,
+      CaveType.LEVEL_3,
+      CaveType.LEVEL_4,
+      CaveType.LEVEL_5,
+      CaveType.LEVEL_6,
+      CaveType.LEVEL_7,
+      CaveType.LEVEL_8
+    ]
+
+    warp_destinations = []
+
+    # For each level (1-8), find its screen and calculate warp destination
+    for level_num, cave_type in enumerate(level_cave_types, start=1):
+      level_screen = None
+
+      # Search all overworld screens to find this level
+      for screen_num in range(0x80):
+        destination = data_table.GetScreenDestination(screen_num)
+        if destination == cave_type:
+          level_screen = screen_num
+          break
+
+      if level_screen is None:
+        raise ValueError(f"Could not find screen for Level {level_num}")
+
+      # Calculate warp destination (one screen to the left)
+      # Special case: if level is at screen 0, don't subtract 1
+      if level_screen == 0:
+        warp_screen = 0
+      else:
+        warp_screen = level_screen - 1
+
+      log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}")
+      warp_destinations.append(warp_screen)
+
+    return warp_destinations
 
   def _ValidateFlagCompatibility(self, data_table: DataTable) -> None:
     """Validate that the selected ZORA flags are compatible with the base ROM.
@@ -125,8 +209,8 @@ class Z1Randomizer():
             break
 
       if candle_found:
-        print(f"\n!!! ERROR: Candle detected in {candle_location}")
-        print("Progressive Items is NOT compatible with Extra Candles flag\n")
+        log.debug(f"\n!!! ERROR: Candle detected in {candle_location}")
+        log.debug("Progressive Items is NOT compatible with Extra Candles flag\n")
         raise ValueError(
           "Progressive Items is not compatible with the 'Add Extra Candles' flag.\n\n"
           f"Your base ROM appears to have 'Add Extra Candles' enabled (detected a candle in the {candle_location}).\n\n"
@@ -140,13 +224,12 @@ class Z1Randomizer():
       # Read the four "take any road" screen IDs from ROM
       # ROM addresses 0x19334-0x19337 (file offsets 0x19344-0x19347 with iNES header)
       # Default values: 0x1D, 0x23, 0x49, 0x79
-      ANY_ROAD_ADDRESS = 0x19334
       DEFAULT_ANY_ROAD_SCREENS = [0x1D, 0x23, 0x49, 0x79]
 
-      any_road_screens = self.rom_reader._ReadMemory(ANY_ROAD_ADDRESS, 4)
+      any_road_screens = self.rom_reader._ReadMemory(ANY_ROAD_SCREENS_ADDRESS, 4)
 
-      print(f"Any Road screen IDs in ROM: {[hex(x) for x in any_road_screens]}")
-      print(f"Default values:              {[hex(x) for x in DEFAULT_ANY_ROAD_SCREENS]}")
+      log.debug(f"Any Road screen IDs in ROM: {[hex(x) for x in any_road_screens]}")
+      log.debug(f"Default values:              {[hex(x) for x in DEFAULT_ANY_ROAD_SCREENS]}")
 
       if any_road_screens != DEFAULT_ANY_ROAD_SCREENS:
         raise ValueError(
@@ -160,6 +243,12 @@ class Z1Randomizer():
     random.seed(self.seed)
     data_table = DataTable(self.rom_reader)
     item_randomizer = ItemRandomizer(data_table, self.flags)
+
+    # Detect if cave destinations are already randomized in the base ROM
+    # If wood sword cave is not at vanilla screen 0x77, caves are pre-shuffled
+    if not self.HasVanillaWoodSwordCaveStartScreen(data_table):
+      self.cave_destinations_randomized_in_base_seed = True
+      print("Detected shuffled caves in base ROM - auto-enabling cave shuffle and recorder warp updates")
 
     # Determine heart requirements once for both validation and ROM patching
     white_sword_hearts = random.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
@@ -181,8 +270,8 @@ class Z1Randomizer():
         inner_counter += 1
         data_table.ResetToVanilla()
 
-        # Shuffle overworld cave destinations if flag is enabled
-        if self.flags.randomize_overworld_cave_destinations:
+        # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
+        if self.flags.randomize_overworld_cave_destinations or self.cave_destinations_randomized_in_base_seed:
           self._ShuffleOverworldCaveDestinations(data_table)
 
         item_randomizer.ReplaceProgressiveItemsWithUpgrades()
@@ -208,6 +297,12 @@ class Z1Randomizer():
           raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
       
     patch = data_table.GetPatch()
+
+    # Update recorder warp destinations if cave shuffle is enabled or detected in base ROM
+    if self.flags.randomize_overworld_cave_destinations or self.cave_destinations_randomized_in_base_seed:
+      recorder_warp_destinations = self._CalculateRecorderWarpDestinations(data_table)
+      patch.AddData(RECORDER_WARP_DESTINATIONS_ADDRESS + NES_HEADER_OFFSET, recorder_warp_destinations)
+      print(f"Updated recorder warp destinations: {[hex(x) for x in recorder_warp_destinations]}")
 
     # Change White Sword cave to use the hint normally reserved for the letter cave
     # Vanilla value at 0x45B4 is 0x42, changing to 0x4C
