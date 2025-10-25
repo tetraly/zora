@@ -133,8 +133,8 @@ class Validator(object):
   def IsSeedValid(self) -> bool:
     log.debug("Starting check of whether the seed is valid or not")
 
-    # Check if accessible sword/wand requirement is met (if flag is enabled)
-    if self.flags.guarantee_accessible_sword_or_wand:
+    # Check if accessible sword/wand requirement is met (default behavior, unless disabled by flag)
+    if not self.flags.dont_guarantee_starting_sword_or_wand:
       if not self.HasAccessibleSwordOrWand():
         return False
 
