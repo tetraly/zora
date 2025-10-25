@@ -301,7 +301,7 @@ class CaveType(IntEnum):
 class HintType(IntEnum):
   WOOD_SWORD_CAVE = 1
   MAGICAL_SWORD_CAVE = 2
-  TAKE_ANY = 3
+  ANY_ROAD = 3
   LOST_HILLS_HINT = 4
   MONEY_MAKING_GAME = 5
   DOOR_REPAIR = 6
@@ -315,7 +315,7 @@ class HintType(IntEnum):
   HINT_14 = 14
   SHOP_1 = 15
   SHOP_2 = 16
-  ANY_ROAD = 17
+  TAKE_ANY = 17
   SECRET = 18
   HUNGRY_ENEMY = 19
   HINT_20 = 20
