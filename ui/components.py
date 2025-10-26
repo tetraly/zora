@@ -401,7 +401,17 @@ def build_header(on_view_known_issues) -> ft.Container:
                             width=700),
                     ft.TextButton("Please click here to view the Known Issues & Bugs page.",
                                   on_click=on_view_known_issues,
-                                  style=ft.ButtonStyle(padding=0, color=ft.Colors.WHITE))],
+                                  style=ft.ButtonStyle(padding=0, color=ft.Colors.WHITE)),
+                    ft.Container(height=5),
+                    ft.ElevatedButton(
+                        "Join the ZORA Discord Server",
+                        icon=ft.Icons.DISCORD if hasattr(ft.Icons, 'DISCORD') else ft.Icons.CHAT,
+                        on_click=lambda _: _.page.launch_url("https://discord.gg/PQ8udvrMJ9"),
+                        style=ft.ButtonStyle(
+                            bgcolor=ft.Colors.with_opacity(0.9, "#5865F2"),
+                            color=ft.Colors.WHITE,
+                        ),
+                    )],
                           spacing=5)],
                       spacing=0)],
                spacing=20,

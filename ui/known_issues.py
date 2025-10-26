@@ -24,8 +24,7 @@ def build_known_issues_page(page: ft.Page, on_back) -> ft.Container:
                 # Introduction
                 ft.Text(
                     "This page tracks known issues, bugs, and limitations in ZORA. "
-                    "If you encounter an issue not listed here, please report it "
-                    "on Discord in the #z1r-chat channel on the Next Gen Discord\n",
+                    "If you encounter an issue not listed here, please report it on the ZORA Discord server.\n",
                     size=14,
                     color=ft.Colors.GREY_800),
                 ft.Container(height=10),
@@ -83,11 +82,22 @@ def build_known_issues_page(page: ft.Page, on_back) -> ft.Container:
                 # How to Report
                 ft.Text("How to Report Issues", size=20, weight="bold"),
                 ft.Text(
-                    "When reporting an issue, please include:\n"
+                    "When reporting an issue on the ZORA Discord server, please include:\n"
                     "• The ZORA seed and flagstring\n"
                     "• The base ROM type (vanilla or ZR-randomized)\n"
-                    "• Steps to reproduce the issue",
+                    "• Steps to reproduce the issue\n"
+                    "• Screenshots or videos if applicable",
                     size=14),
+                ft.Container(height=10),
+                ft.ElevatedButton(
+                    "Join the ZORA Discord Server to report bugs",
+                    icon=ft.Icons.DISCORD if hasattr(ft.Icons, 'DISCORD') else ft.Icons.CHAT,
+                    on_click=lambda _: _.page.launch_url("https://discord.gg/PQ8udvrMJ9"),
+                    style=ft.ButtonStyle(
+                        bgcolor=ft.Colors.with_opacity(0.9, "#5865F2"),
+                        color=ft.Colors.WHITE,
+                    ),
+                ),
                 ft.Container(height=20),
 
                 # Back button
