@@ -2,6 +2,10 @@ import io
 import os
 import random
 import logging as log
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from version import __version_rom__
 
 from typing import List
 from .data_table import DataTable
@@ -32,6 +36,40 @@ class Z1Randomizer():
     self.seed = seed
     self.flags = flags
     self.cave_destinations_randomized_in_base_seed = False
+
+  def _ConvertTextToRomHex(self, text: str) -> str:
+    """Convert ASCII text to Zelda ROM character encoding hex string.
+
+    The Zelda ROM uses a custom character encoding for text.
+    Space = 0x24, A-Z = 0x0A-0x23, 0-9 = 0x00-0x09, period = 0x2C
+
+    Args:
+        text: The ASCII text to convert
+
+    Returns:
+        Hex string suitable for patch.AddDataFromHexString()
+    """
+    char_map = {
+        ' ': 0x24,
+        '.': 0x2C,
+        '0': 0x00, '1': 0x01, '2': 0x02, '3': 0x03, '4': 0x04,
+        '5': 0x05, '6': 0x06, '7': 0x07, '8': 0x08, '9': 0x09,
+        'A': 0x0A, 'B': 0x0B, 'C': 0x0C, 'D': 0x0D, 'E': 0x0E, 'F': 0x0F,
+        'G': 0x10, 'H': 0x11, 'I': 0x12, 'J': 0x13, 'K': 0x14, 'L': 0x15,
+        'M': 0x16, 'N': 0x17, 'O': 0x18, 'P': 0x19, 'Q': 0x1A, 'R': 0x1B,
+        'S': 0x1C, 'T': 0x1D, 'U': 0x1E, 'V': 0x1F, 'W': 0x20, 'X': 0x21,
+        'Y': 0x22, 'Z': 0x23
+    }
+
+    hex_bytes = []
+    for char in text.upper():
+        if char in char_map:
+            hex_bytes.append(f"{char_map[char]:02X}")
+        else:
+            # Default to space for unsupported characters
+            hex_bytes.append("24")
+
+    return " ".join(hex_bytes)
 
   def HasVanillaWoodSwordCaveStartScreen(self, data_table: DataTable) -> bool:
     """Check if the wood sword cave is at its vanilla screen location.
@@ -593,8 +631,10 @@ class Z1Randomizer():
     # Display "ZORA" instead of "CODE"
     patch.AddDataFromHexString(0x1A129, "23181B0A2424242424242424242424")
 
-    # "Replace 'PRESS START BUTTON' with '  ZORA  V0.1 BETA'"
-    patch.AddDataFromHexString(0x1AB40, "24 24 23 18 1B 0A 24 24 1F 00 2C 02 24 0B 0E 1D 0A")
+    # Replace 'PRESS START BUTTON' with '  ZORA  V{version} BETA'
+    version_text = f"  ZORA  {__version_rom__}"
+    version_hex = self._ConvertTextToRomHex(version_text)
+    patch.AddDataFromHexString(0x1AB40, version_hex)
 
     if self.flags.select_swap:
       patch.AddData(0x1EC4C, [0x4C, 0xC0, 0xFF])

@@ -401,7 +401,6 @@ class EventHandlers:
             self.state.vanilla_rom_path = file_info.path
             self.choose_generate_vanilla_button.text = f"✓ {file_info.name}"
             self.choose_generate_vanilla_button.update()
-            self.update_generate_button_state()
 
     # Zelda Randomizer interface handler
     def on_generate_rom(self, e) -> None:
@@ -409,12 +408,28 @@ class EventHandlers:
         print(f"Flagstring: {self.gen_flagstring_input.value}")  # Debug
         print(f"Seed: {self.gen_seed_input.value}")  # Debug
 
+        # Validate all required fields and provide helpful error messages
         if not self.state.vanilla_rom_path:
-            show_snackbar(self.page, "Please select a vanilla ROM first")
+            show_error_dialog(
+                self.page, "Vanilla ROM Required",
+                "Please select a vanilla Legend of Zelda ROM file first.\n\n"
+                "Click the 'Choose Vanilla ROM' button to select your ROM file.")
             return
 
-        if not self.gen_flagstring_input.value or not self.gen_seed_input.value:
-            show_snackbar(self.page, "Please enter both flagstring and seed number")
+        if not self.gen_flagstring_input.value or not self.gen_flagstring_input.value.strip():
+            show_error_dialog(
+                self.page, "Flag String Required",
+                "Please enter a Zelda Randomizer flag string.\n\n"
+                "This is the flag string you want to use in the Zelda Randomizer app.\n"
+                "Example: 5JOfkHFLCIuh7WxM4mIYp7TuCHxRYQdJcty")
+            return
+
+        if not self.gen_seed_input.value or not self.gen_seed_input.value.strip():
+            show_error_dialog(
+                self.page, "Seed Number Required",
+                "Please enter a seed number for Zelda Randomizer.\n\n"
+                "You can click the 'Random Seed' button to generate one, or enter your own.\n"
+                "Example: 12345678")
             return
 
         # Validate the vanilla ROM
@@ -654,7 +669,6 @@ class EventHandlers:
         random_seed = random.randint(10000000, 99999999)
         self.gen_seed_input.value = str(random_seed)
         self.gen_seed_input.update()
-        self.update_generate_button_state()
 
     def on_random_seed_click(self, e) -> None:
         """Generate a random seed between 10000000 and 99999999."""
@@ -662,19 +676,6 @@ class EventHandlers:
         self.seed_input.value = str(random_seed)
         self.seed_input.update()
 
-    # Form validation
-    def update_generate_button_state(self) -> None:
-        """Enable/disable generate button based on form validation."""
-        has_rom = self.state.vanilla_rom_path is not None
-        has_flagstring = self.gen_flagstring_input.value and self.gen_flagstring_input.value.strip()
-        has_seed = self.gen_seed_input.value and self.gen_seed_input.value.strip()
-
-        self.generate_rom_button.disabled = not (has_rom and has_flagstring and has_seed)
-        self.generate_rom_button.update()
-
-    def on_gen_input_changed(self, e) -> None:
-        """Handle input change in generate form."""
-        self.update_generate_button_state()
 
     # Accordion expand/collapse handlers
     def on_expand_all(self, e) -> None:

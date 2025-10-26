@@ -7,6 +7,7 @@ from typing import Callable
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from version import __version_display__
 from logic.flags import FlagsEnum, FlagCategory
 from ui.dialogs import info_row
 from ui.state import RomInfo, FlagState
@@ -369,7 +370,7 @@ def build_header(on_view_known_issues) -> ft.Container:
         ft.Row([
             ft.Image(src="zora.png", width=96, height=96, fit=ft.ImageFit.CONTAIN),
             ft.Column([
-                ft.Text("Zelda One Randomizer Add-Ons (ZORA) beta v0.2",
+                ft.Text(f"Zelda One Randomizer Add-Ons (ZORA) {__version_display__}",
                         size=28,
                         weight="bold",
                         color=ft.Colors.BLUE_900),

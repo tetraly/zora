@@ -16,21 +16,21 @@ Opt("WinTitleMatchMode", 2) ; substring match
 ; ================================
 ; CONFIGURABLE VARIABLES
 ; ================================
-Local $expectedVersion = "3.5.20"
+Local $expectedVersion = "3.5.22"
 Local $tempFileName    = "ZeldaMessage.tmp"
 Local $controlROM      = "[NAME:fileName]"            ; Base ROM input field
 Local $controlFlags    = "[NAME:flagNumber]"          ; Flags input field
 Local $controlSeed     = "[NAME:seed]"                ; Seed input field
 Local $controlGenerate = "[NAME:generateButton]"      ; Generate button
-Local $saveDialogTitle = "[TITLE:Zelda Randomizer 3.5.20; CLASS:#32770]" ; Confirmation dialog
+Local $saveDialogTitle = "[TITLE:Zelda Randomizer " & $expectedVersion & "; CLASS:#32770]" ; Confirmation dialog
 Local $waitDialogSec   = 5                     ; Seconds to wait for confirmation dialog
 
 ; ================================
 ; FIND ZELDA RANDOMIZER WINDOW
 ; ================================
-Local $randoWindow = WinGetHandle("Zelda Randomizer 3.5.20")
+Local $randoWindow = WinGetHandle("Zelda Randomizer " & $expectedVersion)
 If $randoWindow = 0 Then
-    MsgBox(16, "Error", "Cannot find Zelda Randomizer 3.5.20 app. Please open it and try again.")
+    MsgBox(16, "Error", "Cannot find Zelda Randomizer " & $expectedVersion & " app. Please open it and try again.")
     Exit
 EndIf
 

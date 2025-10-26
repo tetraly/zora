@@ -10,6 +10,7 @@ from typing import Callable
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from version import __version__
 from logic.randomizer import Z1Randomizer
 from windows import zrinterface
 from ui.known_issues import build_known_issues_page
@@ -34,7 +35,7 @@ def main(page: ft.Page, platform: str = "web") -> None:
         page: Flet page object
         platform: Platform type - "windows", "macos", or "web"
     """
-    page.title = "ZORA (Zelda One Randomizer Add-ons) v0.01"
+    page.title = f"ZORA (Zelda One Randomizer Add-ons) v{__version__}"
     page.scroll = "auto"
     page.padding = ft.padding.only(left=20, right=20, top=20, bottom=20)
 
@@ -97,16 +98,12 @@ def main(page: ft.Page, platform: str = "web") -> None:
                                                on_click=handlers.on_gen_random_seed_click,
                                                icon=ft.Icons.SHUFFLE)
 
-    # Create generate button
+    # Create generate button (always enabled - validation happens on click)
     generate_rom_button = ft.ElevatedButton(
         "Generate Base ROM with Zelda Randomizer",
         on_click=handlers.on_generate_rom,
-        disabled=True  # Start disabled
+        disabled=False
     )
-
-    # Add onchange handlers to inputs
-    gen_flagstring_input.on_change = handlers.on_gen_input_changed
-    gen_seed_input.on_change = handlers.on_gen_input_changed
 
     # Store references in handlers
     handlers.gen_flagstring_input = gen_flagstring_input

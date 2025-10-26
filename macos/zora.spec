@@ -1,4 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
+import sys
+import os
+
+# Add parent directory to path to import version module
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath('.'))))
+from version import __version__
 
 block_cipher = None
 
@@ -65,8 +71,8 @@ app = BUNDLE(
     info_plist={
         'CFBundleName': 'ZORA',
         'CFBundleDisplayName': 'Zelda One Randomizer Add-ons',
-        'CFBundleVersion': '1.0.0',
-        'CFBundleShortVersionString': '1.0.0',
+        'CFBundleVersion': __version__,
+        'CFBundleShortVersionString': __version__,
         'NSHighResolutionCapable': 'True',
         'LSMinimumSystemVersion': '10.13.0',
     },
