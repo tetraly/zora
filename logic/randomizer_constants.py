@@ -161,6 +161,136 @@ class RoomType(IntEnum):
         RoomType.FIVE_PAIR_ROOM,
         RoomType.SINGLE_BLOCK_ROOM,
     ]
+    
+class DropLocation(IntEnum):
+    MIDDLE = 0
+    TOP_RIGHT = 1
+    BOTTOM_LEFT = 2
+    RIGHT = 3
+
+ValidDropLocations = {
+    RoomType.PLAIN_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.SPIKE_TRAP_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.FOUR_SHORT_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.FOUR_TALL_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.AQUAMENTUS_ROOM: [DropLocation.RIGHT, DropLocation.MIDDLE, DropLocation.BOTTOM_LEFT],
+    RoomType.GLEEOK_ROOM: [DropLocation.BOTTOM_LEFT, DropLocation.MIDDLE, DropLocation.RIGHT],
+    RoomType.GOHMA_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT],
+    RoomType.THREE_ROWS: [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.REVERSE_C: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.CIRCLE_WALL: [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.DOUBLE_BLOCK: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.LAVA_MOAT: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.MAZE_ROOM: [DropLocation.RIGHT, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.GRID_ROOM: [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.VERTICAL_CHUTE_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.HORIZONTAL_CHUTE_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.VERTICAL_ROWS: [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.ZIGZAG_ROOM: [DropLocation.MIDDLE, DropLocation.RIGHT],
+    RoomType.T_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.VERTICAL_MOAT_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.CIRCLE_MOAT_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.POINTLESS_MOAT_ROOM: [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.CHEVY_ROOM: [DropLocation.MIDDLE, DropLocation.RIGHT],
+    RoomType.NSU: [DropLocation.MIDDLE, DropLocation.RIGHT],
+    RoomType.HORIZONTAL_MOAT_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.DOUBLE_MOAT_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.DIAMOND_STAIR_ROOM: [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.NARROW_STAIR_ROOM: [DropLocation.MIDDLE, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.SPIRAL_STAIR_ROOM: [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.DOUBLE_SIX_BLOCK_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.SINGLE_SIX_BLOCK_ROOM: [DropLocation.RIGHT, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.FIVE_PAIR_ROOM: [DropLocation.RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.TOP_RIGHT],
+    RoomType.TURNSTILE_ROOM: [DropLocation.RIGHT],
+    RoomType.ENTRANCE_ROOM: [DropLocation.MIDDLE],
+    RoomType.SINGLE_BLOCK_ROOM: [DropLocation.RIGHT, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.TWO_FIREBALL_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.FOUR_FIREBALL_ROOM: [DropLocation.MIDDLE, DropLocation.RIGHT],
+    RoomType.DESERT_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.BLACK_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT],
+    RoomType.ZELDA_ROOM: [DropLocation.MIDDLE],
+    RoomType.GANNON_ROOM: [DropLocation.MIDDLE, DropLocation.RIGHT],
+    RoomType.TRIFORCE_ROOM: [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT],
+    RoomType.TRANSPORT_STAIRCASE: [],
+    RoomType.ITEM_STAIRCASE: []
+}
+
+def getAccessibleItemLocations(room, entry_direction, has_ladder):
+    if ( room == RoomType.LAVA_MOAT ):
+        if ( entry_direction == Direction.SOUTH ):
+            if ( has_ladder ):
+                return [DropLocation.BOTTOM_LEFT, DropLocation.MIDDLE]
+            else:
+                return [DropLocation.MIDDLE]
+        elif ( entry_direction == Direction.WEST ):
+            if ( has_ladder ):
+                return [DropLocation.BOTTOM_LEFT, DropLocation.MIDDLE]
+            else:
+                return [DropLocation.BOTTOM_LEFT]
+        else:
+            return [DropLocation.TOP_RIGHT]
+
+    if ( room == RoomType.VERTICAL_CHUTE_ROOM ):
+        if ( entry_direction == Direction.WEST ):
+            return [DropLocation.BOTTOM_LEFT]
+        elif ( entry_direction == Direction.EAST ):
+            return [DropLocation.RIGHT, DropLocation.TOP_RIGHT]
+        else:
+            return [DropLocation.MIDDLE]
+
+    if ( room == RoomType.HORIZONTAL_CHUTE_ROOM ):
+        if ( entry_direction == Direction.SOUTH ):
+            return [DropLocation.BOTTOM_LEFT]
+        elif ( entry_direction == Direction.NORTH ):
+            return [DropLocation.RIGHT, DropLocation.TOP_RIGHT]
+        else:
+            return [DropLocation.MIDDLE, DropLocation.RIGHT]
+
+    if ( room == RoomType.T_ROOM ):
+        if ( entry_direction == Direction.SOUTH ):
+            return [DropLocation.MIDDLE]
+        else:
+            return [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT]
+
+    if ( room == RoomType.VERTICAL_MOAT_ROOM ):
+        if ( has_ladder ):
+            return [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT]
+        elif ( entry_direction == Direction.EAST ):
+            return [DropLocation.RIGHT, DropLocation.TOP_RIGHT]
+        else:
+            return [DropLocation.MIDDLE, DropLocation.BOTTOM_LEFT]
+
+    if ( room == RoomType.HORIZONTAL_MOAT_ROOM ):
+        if ( has_ladder ):
+            return [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT]
+        elif ( entry_direction == Direction.NORTH ):
+            return [DropLocation.TOP_RIGHT]
+        else:
+            return [DropLocation.MIDDLE, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT]
+
+    if ( room == RoomType.CIRCLE_MOAT_ROOM ):
+        if ( has_ladder ):
+            return [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT]
+        else:
+            return [DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT]
+
+    if ( room == RoomType.CHEVY_ROOM ):
+        if ( has_ladder ):
+            return [DropLocation.MIDDLE, DropLocation.RIGHT]
+        elif ( entry_direction == Direction.EAST ):
+            return [DropLocation.RIGHT]
+        else:
+            return []
+            
+    if ( room == RoomType.DOUBLE_MOAT_ROOM ):
+        if ( has_ladder ):
+            return [DropLocation.MIDDLE, DropLocation.TOP_RIGHT, DropLocation.BOTTOM_LEFT, DropLocation.RIGHT]
+        elif ( entry_direction == Direction.WEST or entry_direction == Direction.EAST ):
+            return [DropLocation.MIDDLE, DropLocation.RIGHT]
+        else:
+            return []
+
+    return ValidDropLocations[room]
 
 class Enemy(IntEnum):
   NOTHING = 0x00
