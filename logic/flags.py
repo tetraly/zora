@@ -162,8 +162,8 @@ class FlagsEnum(Enum):
     FORCE_TWO_HEART_CONTAINERS_TO_LEVEL_NINE = (
         'force_two_heart_containers_to_level_nine',
         'Force two heart containers to be in level 9',
-        'Require that at least two heart containers be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
-        FlagCategory.LOGIC_AND_DIFFICULTY
+        'WARNING: THIS FLAG DOES NOT CURRENTLY WORK AND WILL BE FIXED IN A FUTURE UPDATE. DO NOT USE.',
+        FlagCategory.EXPERIMENTAL
     )
     FORCE_HEART_CONTAINER_TO_ARMOS = (
         'force_heart_container_to_armos',
