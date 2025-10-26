@@ -290,7 +290,7 @@ class FlagsEnum(Enum):
         'fast_fill',
         'Fast Fill',
         'Fill hearts faster from fairy and potions (patch courtesy of snarfblam)',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.QUALITY_OF_LIFE
     )
     FLUTE_KILLS_POLS_VOICE = (
         'flute_kills_pols_voice',
@@ -320,7 +320,7 @@ class FlagsEnum(Enum):
         'auto_show_letter',
         'Auto Show Letter',
         'Automatically shows the letter to NPCs without equipping and using it.',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.QUALITY_OF_LIFE
     )
     INCREASED_STANDING_ITEMS = (
         'increased_standing_items',
