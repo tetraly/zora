@@ -276,8 +276,8 @@ class FlagsEnum(Enum):
     )
     RANDOMIZE_OVERWORLD_CAVE_DESTINATIONS = (
         'randomize_overworld_cave_destinations',
-        'Randomize Overworld Cave Destinations',
-        'Shuffles the destinations of all overworld caves (dungeons, item caves, and shops).',
+        'Shuffle Caves',
+        'Shuffles where caves, shops, levels, etc. are on the overworld. This flag does not currently shuffle the location of "any road" warp caves.',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
     DONT_GUARANTEE_STARTING_SWORD_OR_WAND = (
