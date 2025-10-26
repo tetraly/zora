@@ -128,16 +128,11 @@ class HintWriter:
                     self.hints[hint_type] = random.choice(COMMUNITY_HINTS[HintType.OTHER])
 
     def FillWithBlankHints(self) -> None:
-        """Fill all hint slots with blank/test hints.
-
-        Hint #1 is blank, hints #2-38 are labeled "TEST HINT 02" through "TEST HINT 38".
-        """
+        """Fill all hint slots with blank hints."""
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
-            if hint_type == HintType.WOOD_SWORD_CAVE:
-                self.hints[hint_type] = "IT'S DANGEROUS TO CODE|ALONE! TAKE THIS."
-            elif hint_type not in self.hints:
-                self.hints[hint_type] = f"TEST HINT {hint_num:02d}"
+            if hint_type not in self.hints:
+                self.hints[hint_type] = " "
 
     def GetPatch(self) -> Patch:
         """Generate a patch with hint data.
