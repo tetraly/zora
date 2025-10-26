@@ -589,8 +589,13 @@ class Z1Randomizer():
       # Patch the ROM at 0x6DA7-0x6DAA with the direction sequence
       patch.AddData(0x6DA7, dead_woods_directions)
 
-      # Patch the overworld (single byte change at 0x15B08)
+      # Wall off three southwest caves
       patch.AddDataFromHexString(0x15B08, "29")
+
+      # Add passage from screen above Dead Woods to the west for non-screen-scrollers
+      # This allows access to grave area if caves aren't shuffled
+      if not self.flags.randomize_overworld_cave_destinations:
+        patch.AddDataFromHexString(0x15858, "16")
 
       # Set Dead Woods hint
       hint_writer.SetDeadWoodsHint(dead_woods_directions)
