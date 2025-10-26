@@ -198,7 +198,7 @@ class FlagsEnum(Enum):
     PROGRESSIVE_ITEMS = (
         'progressive_items',
         'Progressive Items',
-        'Makes swords, candles, arrows, and rings progressive. Lower-tier items replace higher-tier items in the pool, and collecting multiple copies upgrades them to the next tier.',
+        'Makes swords, candles, arrows, and rings progressive. Lower-tier items replace higher-tier items in the pool, and collecting multiple copies upgrades them to the next tier. Note: Does not affect boomerangs.',
         FlagCategory.ITEM_CHANGES
     )
     # PROGRESSIVE_ARROWS = (
