@@ -9,6 +9,7 @@ class FlagCategory(IntEnum):
     LOGIC_AND_DIFFICULTY = 4
     QUALITY_OF_LIFE = 5
     EXPERIMENTAL = 6
+    LEGACY = 7
 
     @property
     def display_name(self) -> str:
@@ -19,7 +20,8 @@ class FlagCategory(IntEnum):
             FlagCategory.OVERWORLD_RANDOMIZATION: "Overworld Randomization",
             FlagCategory.LOGIC_AND_DIFFICULTY: "Logic & Difficulty",
             FlagCategory.QUALITY_OF_LIFE: "Quality of Life / Other",
-            FlagCategory.EXPERIMENTAL: "Experimental (WARNING: Not thoroughly tested, may cause unexpected behavior or crashes)"
+            FlagCategory.EXPERIMENTAL: "Experimental (WARNING: Not thoroughly tested, may cause unexpected behavior or crashes)",
+            FlagCategory.LEGACY: "Legacy Flags (Designed for vanilla ROMs, not Zelda Randomizer ROMs)",
         }
         return names.get(self, "Unknown")
 
@@ -100,14 +102,14 @@ class FlagsEnum(Enum):
     SHUFFLE_MINOR_DUNGEON_ITEMS = (
         'shuffle_minor_dungeon_items',
         'Shuffle Minor Dungeon Items',
-        'Adds minor items (five rupees, bombs, keys, maps, and compasses) to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        'Adds minor items (five rupees, bombs, keys, maps, and compasses) to the item shuffle pool. Primarily designed for use with vanilla ROMs, not Zelda Randomizer ROMs.',
+        FlagCategory.LEGACY
     )
     AVOID_REQUIRED_HARD_COMBAT = (
         'avoid_required_hard_combat',
         'Avoid Requiring "Hard" Combat',
-        'The logic will not require killing any Blue Darknuts, Blue Wizzrobes, Gleeoks, or Patras to progress without making at least one sword upgrade and at least one ring available in logic.',
-        FlagCategory.LOGIC_AND_DIFFICULTY
+        'The logic will not require killing any Blue Darknuts, Blue Wizzrobes, Gleeoks, or Patras to progress without making at least one sword upgrade and at least one ring available in logic. Primarily designed for use with vanilla ROMs, not Zelda Randomizer ROMs.',
+        FlagCategory.LEGACY
     )
     SELECT_SWAP = (
         'select_swap',
