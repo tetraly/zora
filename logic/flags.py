@@ -189,10 +189,10 @@ class FlagsEnum(Enum):
         'Adds new power bracelet blocks in West Death Mountain. Intended for use with vanilla any road locations.',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
-    NO_IMPORTANT_ITEMS_IN_LEVEL_NINE = (
-        'no_important_items_in_level_nine',
-        'No Important Items in Level 9',
-        'Prevents important items (raft, power bracelet, recorder, bow, ladder) from being placed in level 9. This setting overrides the corresponding Zelda Randomizer flag setting.',
+    ALLOW_IMPORTANT_ITEMS_IN_LEVEL_NINE = (
+        'allow_important_items_in_level_nine',
+        'Allow Important Items in Level 9',
+        'Allows important items (raft, power bracelet, recorder, bow, ladder) to be placed in level 9. By default, these items are restricted from level 9.',
         FlagCategory.LOGIC_AND_DIFFICULTY
     )
     PROGRESSIVE_ITEMS = (

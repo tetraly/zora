@@ -358,8 +358,8 @@ class ItemShuffler():
         if location.IsLevelRoom() and item == Item.MAGICAL_SWORD:
             return False
         if location.IsLevelRoom() and location.GetLevelNum() == 9:
-          # Check if important items are in level 9 when flag is enabled
-          if self.flags.no_important_items_in_level_nine:
+          # By default, prevent important items in level 9 unless flag is enabled
+          if not self.flags.allow_important_items_in_level_nine:
             if item in [Item.RAFT, Item.POWER_BRACELET, Item.RECORDER, Item.BOW, Item.LADDER]:
               return False
           if item in [Item.WOOD_ARROWS, Item.SILVER_ARROWS]:
