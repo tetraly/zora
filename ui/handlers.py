@@ -2,6 +2,7 @@
 
 import flet as ft
 import io
+import logging as log
 import os
 import random
 import tempfile
@@ -541,6 +542,9 @@ class EventHandlers:
             # Get seed as integer
             seed = int(self.seed_input.value)
 
+            # Start timing
+            start_time = time.time()
+
             # Run the randomizer
             randomizer = Z1Randomizer(rom_bytes, seed, randomizer_flags)
             patch = randomizer.GetPatch()
@@ -586,6 +590,33 @@ class EventHandlers:
 
             # Extract ROM code for display
             rom_code = extract_code_from_rom_data(self.state.randomized_rom_data)
+
+            # Calculate elapsed time
+            elapsed_time = time.time() - start_time
+
+            # Log randomization details
+            log.info("=" * 70)
+            log.info("RANDOMIZATION COMPLETE")
+            log.info("=" * 70)
+            log.info("INPUT ROM:")
+            log.info(f"  Filename: {self.state.rom_info.filename}")
+            if self.state.rom_info.rom_type == "vanilla":
+                log.info(f"  Type: Vanilla")
+                log.info(f"  Seed: n/a")
+                log.info(f"  Flags: n/a")
+            else:
+                log.info(f"  Type: Randomized (base ROM)")
+                log.info(f"  Seed: {self.state.rom_info.seed}")
+                log.info(f"  Flags: {self.state.rom_info.flagstring}")
+            log.info(f"  Code: {self.state.rom_info.code}")
+            log.info("")
+            log.info("OUTPUT ROM:")
+            log.info(f"  Filename: {self.state.randomized_rom_filename}")
+            log.info(f"  ZORA Seed: {self.seed_input.value}")
+            log.info(f"  ZORA Flags: {zora_flagstring}")
+            log.info(f"  Code: {rom_code}")
+            log.info(f"  Generation Time: {elapsed_time:.2f} seconds")
+            log.info("=" * 70)
 
             self.state.step3_container = build_step3_container(
                 self.state.randomized_rom_data, self.state.randomized_rom_filename, zora_flagstring,
