@@ -145,7 +145,7 @@ class Inventory(object):
     return Item.BLUE_CANDLE in self.items or Item.RED_CANDLE in self.items
 
   def HasBoomerang(self) -> bool:
-    return Item.WOODEN_BOOMERANG in self.items or Item.MAGICAL_BOOMERANG in self.items
+    return Item.WOOD_BOOMERANG in self.items or Item.MAGICAL_BOOMERANG in self.items
 
   def HasRing(self) -> bool:
     return Item.BLUE_RING in self.items or Item.RED_RING in self.items
