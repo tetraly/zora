@@ -6,7 +6,7 @@ from PyInstaller.utils.hooks import collect_all
 
 block_cipher = None
 
-datas = [('zrinterface.exe', '.'), ('../assets', 'assets')]
+datas = [('zrinterface.exe', '.'), ('../assets', 'assets'), ('../ips', 'ips')]
 binaries = []
 hiddenimports = []
 

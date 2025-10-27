@@ -12,7 +12,7 @@ a = Analysis(
     ['macos.py'],
     pathex=['..'],
     binaries=[],
-    datas=[],
+    datas=[('../assets', 'assets'), ('../ips', 'ips')],
     hiddenimports=[
         'flet',
         'flet.core',
