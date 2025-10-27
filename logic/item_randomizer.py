@@ -270,7 +270,7 @@ class ItemShuffler():
         item_num = Item.WOOD_SWORD
     if progressive_boomerangs:
       if item_num == Item.MAGICAL_BOOMERANG:
-        item_num = Item.WOODEN_BOOMERANG
+        item_num = Item.WOOD_BOOMERANG
 
     self.item_num_list.append(item_num)
     log.debug("I%d:  %s. From %s" % (len(self.item_num_list), Item(item_num), location.ToString()))
@@ -335,7 +335,7 @@ class ItemShuffler():
               return False
             if (self.flags.progressive_items or progressive_swords) and item == Item.WOOD_SWORD:
               return False
-            if progressive_boomerangs and item == Item.WOODEN_BOOMERANG:
+            if progressive_boomerangs and item == Item.WOOD_BOOMERANG:
               return False
         if (self.flags.progressive_items and location.IsShopPosition() and
             item.IsProgressiveUpgradeItem()):
