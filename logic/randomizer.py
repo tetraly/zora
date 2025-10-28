@@ -595,7 +595,7 @@ class Z1Randomizer():
       # Add passage from screen above Dead Woods to the west for non-screen-scrollers
       # This allows access to grave area if caves aren't shuffled
       if not self.flags.randomize_overworld_cave_destinations:
-        patch.AddDataFromHexString(0x15858, "16")
+        patch.AddDataFromHexString(0x158F8, "16")
 
       # Set Dead Woods hint
       hint_writer.SetDeadWoodsHint(dead_woods_directions)
