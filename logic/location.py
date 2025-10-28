@@ -61,10 +61,18 @@ class Location(object):
   def GetPositionNum(self) -> PositionNum:
     assert self.IsCavePosition()
     return self.sub_id
-
+    
   def ToString(self) -> str:
     if self.IsCavePosition():
-      return "Cave 0x%x Position %d" % (self.level_id, self.sub_id)
+        return "Cave 0x%x Position %d" % (self.GetCaveNum(), self.sub_id)
     elif self.IsLevelRoom():
-      return "Level 0x%x Room %x" % (self.level_id, self.sub_id)
-    return "Unknown Location"
+        return "Level 0x%x Room %x" % (self.level_id, self.sub_id)
+    return "Unknown Location"    
+
+  def __eq__(self, other):
+    if not isinstance(other, Location):
+        return False
+    return self.ToString() == other.ToString()
+
+  def __hash__(self):
+    return hash(self.ToString())

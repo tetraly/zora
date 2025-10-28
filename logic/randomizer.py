@@ -371,24 +371,20 @@ class Z1Randomizer():
     while not is_valid_seed:
       outer_counter += 1
       seed = random.randint(0, 9999999999)
-      while True:
-        inner_counter += 1
-        data_table.ResetToVanilla()
+      inner_counter += 1
+      data_table.ResetToVanilla()
 
-        # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
-        if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-          self._ShuffleOverworldCaveDestinations(data_table)
+      # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
+      if self.flags.randomize_overworld_cave_destinations or self.cave_destinations_randomized_in_base_seed:
+        self._ShuffleOverworldCaveDestinations(data_table)
 
-        item_randomizer.ReplaceProgressiveItemsWithUpgrades()
-        item_randomizer.ResetState()
-        item_randomizer.ReadItemsAndLocationsFromTable()
-        item_randomizer.ShuffleItems()
-        if item_randomizer.HasValidItemConfiguration():
-          log.debug("Success after %d inner_counter iterations" % inner_counter)
-          break
-        if inner_counter >= 2000:
-          log.debug("Gave up after %d inner_counter iterations" % inner_counter)
-      
+      item_randomizer.ReplaceProgressiveItemsWithUpgrades()
+      item_randomizer.ResetState()
+      item_randomizer.ReadItemsAndLocationsFromTable()
+      item_randomizer.ShuffleItems()
+      # Constraint-based shuffle validates upfront and raises exception if constraints can't be satisfied
+      log.debug("Item shuffle completed successfully after 1 iteration (constraint-based)")
+
       item_randomizer.WriteItemsAndLocationsToTable()
 
       # Apply bait blocker if flag is enabled

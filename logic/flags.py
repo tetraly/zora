@@ -101,6 +101,24 @@ class FlagsEnum(Enum):
         'Adds the potions in the potion shop to the item shuffle pool. Known issue: Red potions in dungeons will be downgraded to blue potions.',
         FlagCategory.ITEM_SHUFFLE
     )
+    FULL_MAJOR_ITEM_SHUFFLE = (
+        'full_major_item_shuffle',
+        'Full Major Item Shuffle',
+        'Enables full inter-level shuffling of major items. When disabled, items stay in their original levels. Major items include heart containers, bow, boomerang, potions, and other progression items.',
+        FlagCategory.ITEM_SHUFFLE
+    )
+    HEART_CONTAINER_IN_EACH_LEVEL_1_8 = (
+        'heart_container_in_each_level_1_8',
+        'Heart Container in Each Level 1-8',
+        'Guarantees that each level from 1-8 has at least one heart container. Only applies when Full Major Item Shuffle is enabled.',
+        FlagCategory.ITEM_SHUFFLE
+    )
+    SHUFFLE_ITEMS_WITHIN_LEVELS = (
+        'shuffle_items_within_levels',
+        'Shuffle Items Within Levels',
+        'After inter-level shuffling, randomize which rooms items appear in within each level. When disabled, items stay in their original room positions.',
+        FlagCategory.ITEM_SHUFFLE
+    )
     SHUFFLE_MINOR_DUNGEON_ITEMS = (
         'shuffle_minor_dungeon_items',
         'Shuffle Minor Dungeon Items',
@@ -375,7 +393,18 @@ class Flags:
     def set(self, flag_value, state: bool):
         if flag_value in self.flags:
             self.flags[flag_value] = state
+            # Validate flag prerequisites after setting
+            self._validate_prerequisites()
         else:
             raise KeyError(f"Flag '{flag_value}' not found.")
+
+    def _validate_prerequisites(self):
+        """Validate flag prerequisites and combinations."""
+        # Minor item shuffle requires major item shuffle to be enabled
+        if self.shuffle_minor_dungeon_items and not self.full_major_item_shuffle:
+            raise ValueError(
+                "Minor item shuffle requires major item shuffle to be enabled. "
+                "Please enable 'Full Major Item Shuffle' before enabling 'Shuffle Minor Dungeon Items'."
+            )
 
         

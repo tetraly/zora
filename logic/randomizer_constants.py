@@ -84,7 +84,11 @@ class Item(IntEnum):
        Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BLUE_RING, Item.RED_RING]
 
   def IsMinorDungeonItem(self):
-    return self in [Item.BOMBS, Item.FIVE_RUPEES, Item.KEY, Item.COMPASS, Item.MAP]
+    """Returns True for minor dungeon items that can be shuffled (bombs, keys, rupees).
+
+    Note: MAP and COMPASS are not considered minor items as they never shuffle between levels.
+    """
+    return self in [Item.BOMBS, Item.FIVE_RUPEES, Item.KEY]
 
   def IsMajorItem(self):
       # Check if the current item is one of the sword items
