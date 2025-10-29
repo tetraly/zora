@@ -70,6 +70,7 @@ class EventHandlers:
         self.randomized_file_picker = None
         self.generate_vanilla_file_picker = None
         self.expansion_panels_ref = []
+        self.legacy_note_ref = []
 
         # Upload state
         self.upload_state = {
@@ -154,6 +155,41 @@ class EventHandlers:
         self.step2_container.opacity = 0.4
         self.step2_container.update()
 
+    def update_legacy_flags_state(self) -> None:
+        """Enable/disable LEGACY flags based on ROM type.
+
+        LEGACY flags are only available for vanilla ROMs, not randomized ROMs.
+        """
+        from logic.flags import FlagsEnum, FlagCategory
+        import flet as ft
+
+        is_vanilla = self.state.rom_info.rom_type == "vanilla"
+
+        # Update each LEGACY flag checkbox
+        for flag in FlagsEnum:
+            if flag.category == FlagCategory.LEGACY:
+                if flag.value in self.flag_checkboxes:
+                    checkbox = self.flag_checkboxes[flag.value]
+                    checkbox.disabled = not is_vanilla
+
+                    # Update label color based on state
+                    if not is_vanilla:
+                        # Disabled: grey out text
+                        checkbox.label_style = ft.TextStyle(color=ft.Colors.GREY_500)
+                        checkbox.value = False
+                        self.state.flag_state.flags[flag.value] = False
+                    else:
+                        # Enabled: restore default color
+                        checkbox.label_style = None
+
+                    checkbox.update()
+
+        # Update the legacy note visibility if it exists
+        if self.legacy_note_ref:
+            for legacy_note in self.legacy_note_ref:
+                legacy_note.visible = not is_vanilla
+                legacy_note.update()
+
     # ROM loading handlers
     def load_rom_and_show_card(self, disable_seed: bool = False) -> None:
         """Hide Step 1, show ROM info card, and initialize Step 2.
@@ -182,6 +218,7 @@ class EventHandlers:
             self.random_seed_button.update()
 
         self.update_flagstring()
+        self.update_legacy_flags_state()
         self.enable_step2()
 
     def clear_rom(self, e) -> None:

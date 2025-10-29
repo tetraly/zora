@@ -152,7 +152,7 @@ class Z1Randomizer():
         data_table: The DataTable instance to read level locations from
 
     Returns:
-        List of 8 bytes representing the warp screen for levels 1-8
+        A List of 8 bytes representing the warp screen for levels 1-8 and a List of y coordinates
     """
     from .randomizer_constants import CaveType
 
@@ -191,10 +191,18 @@ class Z1Randomizer():
       else:
         warp_screen = level_screen - 1
 
+      # Special cases for y coordinate of Link warping to a screen 
+      y_coordinate = 0x8D
+      if level_screen in [0x3B, 0x0A, 0x41]:  # Vanilla 2, 5, and 7
+        y_coordinate = 0xAD
+      if level_screen in [0x6C]:  # Vanilla 8
+        y_coordinate = 0x5D
+        
       log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}")
       warp_destinations.append(warp_screen)
+      warp_y_coordinates.append(y_coordinate)
 
-    return warp_destinations
+    return (warp_destinations, warp_y_coordinates)
 
   def _ValidateFlagCompatibility(self, data_table: DataTable) -> None:
     """Validate that the selected ZORA flags are compatible with the base ROM.
@@ -365,7 +373,7 @@ class Z1Randomizer():
         data_table.ResetToVanilla()
 
         # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
-        if self.flags.randomize_overworld_cave_destinations or self.cave_destinations_randomized_in_base_seed:
+        if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
           self._ShuffleOverworldCaveDestinations(data_table)
 
         item_randomizer.ReplaceProgressiveItemsWithUpgrades()
@@ -399,10 +407,12 @@ class Z1Randomizer():
     patch = data_table.GetPatch()
 
     # Update recorder warp destinations if cave shuffle is enabled or detected in base ROM
-    if self.flags.randomize_overworld_cave_destinations or self.cave_destinations_randomized_in_base_seed:
-      recorder_warp_destinations = self._CalculateRecorderWarpDestinations(data_table)
+    if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
+      (recorder_warp_destinations, recorder_y_coordinates) = self._CalculateRecorderWarpDestinations(data_table)
       patch.AddData(RECORDER_WARP_DESTINATIONS_ADDRESS + NES_HEADER_OFFSET, recorder_warp_destinations)
+      patch.AddData(0x6129, recorder_y_coordinates)
       print(f"Updated recorder warp destinations: {[hex(x) for x in recorder_warp_destinations]}")
+      print(f"Updated recorder y coordinates: {[hex(x) for x in recorder_y_coordinates]}")
 
     # Change White Sword cave to use the hint normally reserved for the letter cave
     # Vanilla value at 0x45B4 is 0x42, changing to 0x4C
@@ -594,8 +604,7 @@ class Z1Randomizer():
 
       # Add passage from screen above Dead Woods to the west for non-screen-scrollers
       # This allows access to grave area if caves aren't shuffled
-      if not self.flags.randomize_overworld_cave_destinations:
-        patch.AddDataFromHexString(0x158F8, "16")
+      patch.AddDataFromHexString(0x158F8, "16")
 
       # Set Dead Woods hint
       hint_writer.SetDeadWoodsHint(dead_woods_directions)
@@ -614,6 +623,26 @@ class Z1Randomizer():
 
     hint_patch = hint_writer.GetPatch()
     patch += hint_patch
+    
+    # Apply experimental IPS patches
+    if self.flags.fast_fill:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'fast_fill.ips'))
+
+    if self.flags.flute_kills_pols_voice:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
+
+    if self.flags.like_like_rupees:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
+
+    if self.flags.low_hearts_sound:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
+
+    if self.flags.four_potion_inventory:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'four_potion_inventory.ips'))
+
+    if self.flags.auto_show_letter:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'auto_show_letter.ips'))
+    
 
     # Include everything above in the hash code.
     hash_code = patch.GetHashCode()
@@ -656,23 +685,5 @@ class Z1Randomizer():
           if self.flags.randomize_level_text else "level-")
       patch += text_data_table.GetPatch()
 
-    # Apply experimental IPS patches
-    if self.flags.fast_fill:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'fast_fill.ips'))
-
-    if self.flags.flute_kills_pols_voice:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
-
-    if self.flags.like_like_rupees:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
-
-    if self.flags.low_hearts_sound:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
-
-    if self.flags.four_potion_inventory:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'four_potion_inventory.ips'))
-
-    if self.flags.auto_show_letter:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'auto_show_letter.ips'))
 
     return patch

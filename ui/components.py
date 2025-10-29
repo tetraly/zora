@@ -173,7 +173,8 @@ def build_step2_container(categorized_flag_rows: dict,
                           on_randomize: Callable,
                           on_expand_all: Callable,
                           on_collapse_all: Callable,
-                          expansion_panels_ref: list = None) -> ft.Container:
+                          expansion_panels_ref: list = None,
+                          legacy_note_ref: list = None) -> ft.Container:
     """Build Step 2: Configure Flags & Seed section with categorized accordions.
 
     Args:
@@ -185,6 +186,7 @@ def build_step2_container(categorized_flag_rows: dict,
         on_expand_all: Callback for expand all button
         on_collapse_all: Callback for collapse all button
         expansion_panels_ref: Optional list to populate with expansion panel references
+        legacy_note_ref: Optional list to store reference to legacy note container
     """
     # Wrap seed input and button together
     seed_with_button = ft.Row([seed_input, random_seed_button], spacing=10, tight=True)
@@ -212,6 +214,9 @@ def build_step2_container(categorized_flag_rows: dict,
     # Build expansion panels for each category
     expansion_panels = []
     for category in FlagCategory:
+        # Skip hidden category entirely
+        if category == FlagCategory.HIDDEN:
+            continue
         if categorized_flag_rows[category]:  # Only show categories with flags
             # Split flags in this category into two columns
             flags_in_category = categorized_flag_rows[category]
@@ -219,10 +224,29 @@ def build_step2_container(categorized_flag_rows: dict,
             left_flags = flags_in_category[:mid]
             right_flags = flags_in_category[mid:]
 
-            category_content = ft.Row([
+            # Create flag rows
+            flag_content = ft.Row([
                 ft.Column(left_flags, spacing=3, expand=True),
                 ft.Column(right_flags, spacing=3, expand=True)],
                                       spacing=10)
+
+            # Add a note for LEGACY flags
+            if category == FlagCategory.LEGACY:
+                legacy_note = ft.Container(
+                    content=ft.Text(
+                        "⚠️ Legacy flags are only available for use with vanilla ROMs.",
+                        color=ft.Colors.ORANGE_700,
+                        size=12,
+                        weight="bold"),
+                    padding=ft.padding.only(bottom=10),
+                    visible=False)  # Hidden by default, shown when randomized ROM loaded
+                category_content = ft.Column([legacy_note, flag_content], spacing=5)
+
+                # Store reference if provided
+                if legacy_note_ref is not None:
+                    legacy_note_ref.append(legacy_note)
+            else:
+                category_content = flag_content
 
             # Create colored header with border
             header = ft.Container(
@@ -337,6 +361,9 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
 
     # Build checkboxes and organize by category
     for flag in FlagsEnum:
+        # Skip hidden flags and complex flags
+        if flag.category == FlagCategory.HIDDEN:
+            continue
         if flag.value not in flag_state.complex_flags:
             checkbox = ft.Checkbox(
                 label=flag.display_name,
@@ -392,8 +419,8 @@ def build_header(on_view_known_issues) -> ft.Container:
                     ft.Text(spans=[
                         ft.TextSpan("WARNING: ", style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
                         ft.TextSpan(
-                            "As of October 2025, ZORA is still an experimental product in early testing. "
-                            "While everyone is welcomed and encouraged to try it out, please be aware that "
+                            "As of late October 2025, ZORA is becoming increasingly stable and nearing "
+                            "a full release. However, like with any beta software, please be aware that "
                             "any seeds you generate may contain bugs, unexpected glitches, softlocks, "
                             "and may be completely unbeatable. Please proceed at your own risk! ")],
                             size=13,

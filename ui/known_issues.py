@@ -49,6 +49,10 @@ def build_known_issues_page(page: ft.Page, on_back) -> ft.Container:
                         size=14),
                     ft.Text("• The new L4 sword has beams that only do L3 (Magical Sword) damage.",
                             size=14),
+                    ft.Text("• Only one heart container (the coast heart) can be forced to a specific location.",
+                            size=14),
+                    ft.Text("• A maximum of two items can be forced into level 9.",
+                            size=14),
                     ft.Text(
                         "• Some of the options that shouldn't change the flagstring do change the flagstring.",
                         size=14),],

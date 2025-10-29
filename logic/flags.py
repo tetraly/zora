@@ -10,6 +10,7 @@ class FlagCategory(IntEnum):
     QUALITY_OF_LIFE = 5
     EXPERIMENTAL = 6
     LEGACY = 7
+    HIDDEN = 8
 
     @property
     def display_name(self) -> str:
@@ -21,7 +22,8 @@ class FlagCategory(IntEnum):
             FlagCategory.LOGIC_AND_DIFFICULTY: "Logic & Difficulty",
             FlagCategory.QUALITY_OF_LIFE: "Quality of Life / Other",
             FlagCategory.EXPERIMENTAL: "Experimental (WARNING: Not thoroughly tested, may cause unexpected behavior or crashes)",
-            FlagCategory.LEGACY: "Legacy Flags (Designed for vanilla ROMs, not Zelda Randomizer ROMs)",
+            FlagCategory.LEGACY: "Legacy Flags from Tetra's Item Randomizer (intended for vanilla ROMs only)",
+            FlagCategory.HIDDEN: "Hidden",
         }
         return names.get(self, "Unknown")
 
@@ -163,7 +165,7 @@ class FlagsEnum(Enum):
         'force_two_heart_containers_to_level_nine',
         'Force two heart containers to be in level 9',
         'WARNING: THIS FLAG DOES NOT CURRENTLY WORK AND WILL BE FIXED IN A FUTURE UPDATE. DO NOT USE.',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.HIDDEN
     )
     FORCE_HEART_CONTAINER_TO_ARMOS = (
         'force_heart_container_to_armos',
@@ -192,7 +194,7 @@ class FlagsEnum(Enum):
     ALLOW_IMPORTANT_ITEMS_IN_LEVEL_NINE = (
         'allow_important_items_in_level_nine',
         'Allow Important Items in Level 9',
-        'Allows important items (raft, power bracelet, recorder, bow, ladder) to be placed in level 9. By default, these items are restricted from level 9.',
+        'Allows "important" items (bow, ladder, power bracelet, raft, recorder) to be placed in level 9. By default, these items are restricted from level 9.',
         FlagCategory.LOGIC_AND_DIFFICULTY
     )
     PROGRESSIVE_ITEMS = (
@@ -242,7 +244,7 @@ class FlagsEnum(Enum):
         'magical_boomerang_does_half_hp_damage',
         'Magical Boomerang Does Half HP Damage',
         'Changes the magical boomerang to deal half HP of damage to enemies instead of its normal behavior.',
-        FlagCategory.ITEM_CHANGES
+        FlagCategory.HIDDEN
     )
     INCREASED_BAIT_BLOCKS = (
         'increased_bait_blocks',
@@ -253,7 +255,7 @@ class FlagsEnum(Enum):
     COMMUNITY_HINTS = (
         'community_hints',
         'Community Hints',
-        'Uses community hints from NextGen and Zelda 2 randomizers for NPC text. If disabled, blank hints will be used instead. This setting overrides any hint setting set in Zelda Randomizer base ROMs.',
+        'Uses community hints for non-hint NPCs. If disabled, blank hints will be used instead. This setting overrides any hint setting set in Zelda Randomizer base ROMs.',
         FlagCategory.QUALITY_OF_LIFE
     )
     RANDOMIZE_LOST_HILLS = (
@@ -274,8 +276,8 @@ class FlagsEnum(Enum):
         'Randomizes the heart container requirements for the White Sword cave (4-6 hearts) and Magical Sword cave (10-12 hearts). NPCs will provide hints about the requirements.',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
-    RANDOMIZE_OVERWORLD_CAVE_DESTINATIONS = (
-        'randomize_overworld_cave_destinations',
+    SHUFFLE_CAVES = (
+        'shuffle_caves',
         'Shuffle Caves',
         'Shuffles where caves, shops, levels, etc. are on the overworld. This flag does not currently shuffle the location of "any road" warp caves.',
         FlagCategory.OVERWORLD_RANDOMIZATION
@@ -296,25 +298,19 @@ class FlagsEnum(Enum):
         'flute_kills_pols_voice',
         'Flute Kills Pols Voice',
         'Play the flute to kill all Pols Voice (patch courtesy of Stratoform)',
-        FlagCategory.EXPERIMENTAL
-    )
-    LIKE_LIKE_RUPEES = (
-        'like_like_rupees',
-        'Like Likes Eat Rupees',
-        'Like-Likes eat rupees instead of the Magical Shield (patch courtesy of gzip)',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.QUALITY_OF_LIFE
     )
     LOW_HEARTS_SOUND = (
         'low_hearts_sound',
         'Softer Low Hearts Sound',
         'Change the low hearts sound to a softer heartbeat sound (patch courtesy of gzip)',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.QUALITY_OF_LIFE
     )
     FOUR_POTION_INVENTORY = (
         'four_potion_inventory',
         'Four Potion Inventory',
         'Increases potion inventory from 2 to 4 blue potions.',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.QUALITY_OF_LIFE
     )
     AUTO_SHOW_LETTER = (
         'auto_show_letter',
@@ -326,25 +322,31 @@ class FlagsEnum(Enum):
         'increased_standing_items',
         'Increased Standing Items',
         'All floor items (room items) will be visible from the start. There will not be any drop items that only appear after killing all enemies in the room. Incompatible with "Increased Drop Items in Non-Push Block Rooms".',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     REDUCED_PUSH_BLOCKS = (
         'reduced_push_blocks',
         'Reduced Push Blocks',
         'Rooms that normally require killing all enemies and pushing blocks to open shutter doors will only require killing all enemies. Incompatible with "Increased Drop Items in Push Block Rooms".',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.HIDDEN
     )
     INCREASED_DROP_ITEMS_IN_PUSH_BLOCK_ROOMS = (
         'increased_drop_items_in_push_block_rooms',
         'Increased Drop Items in Push Block Rooms',
         'Some types of rooms with standing items (ones that would normally have push blocks) will have drop items instead. The item will appear after killing all enemies. Incompatible with "Reduced Push Blocks".',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.HIDDEN
     )
     INCREASED_DROP_ITEMS_IN_NON_PUSH_BLOCK_ROOMS = (
         'increased_drop_items_in_non_push_block_rooms',
         'Increased Drop Items in Non-Push Block Rooms',
         'Other types of rooms with standing items (ones that would normally NOT have push blocks) will have drop items instead. The item will appear after killing all enemies. Incompatible with "Increased Standing Items".',
-        FlagCategory.EXPERIMENTAL
+        FlagCategory.HIDDEN
+    )
+    EXAMPLE_HIDDEN_FLAG = (
+        'example_hidden_flag',
+        'Example Hidden Flag',
+        'This is an example hidden flag that will not appear in the UI but can still be used programmatically.',
+        FlagCategory.HIDDEN
     )
 
     def __init__(self, value, display_name, help_text, category):
