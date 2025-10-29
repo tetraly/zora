@@ -351,6 +351,9 @@ class ItemShuffler():
         if location.IsCavePosition() and location.GetCaveNum() == 21 and location.GetPositionNum() == 2:
             if item == Item.HEART_CONTAINER:
                 found_heart_container_at_coast = True
+        for potion_shop_location in [LEFT_POTION_SHOP_LOCATION, MIDDLE_POTION_SHOP_LOCATION, RIGHT_POTION_SHOP_LOCATION]:
+            if location == potion_shop_location and item == Item.LETTER:
+                return False 
         # TODO: Remove this constraint once we fix the NO_ITEM vs MAGICAL_SWORD ambiguity
         # The game uses code 0x03 for both MAGICAL_SWORD and NO_ITEM in dungeons, so we cannot
         # safely place Magical Swords in dungeon rooms. This limitation is documented in
