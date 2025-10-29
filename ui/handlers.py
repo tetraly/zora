@@ -559,6 +559,74 @@ class EventHandlers:
             show_error_dialog(self.page, "Error",
                               f"An error occurred while generating the ROM:\n\n{str(e)}")
 
+    def validate_flag_conflicts(self) -> tuple[bool, str]:
+        """Validate that flag selections don't conflict.
+
+        Returns:
+            tuple: (is_valid, error_message)
+                - is_valid: True if no conflicts, False if conflicts exist
+                - error_message: Description of the conflict (empty if valid)
+        """
+        flags = self.state.flag_state.flags
+        errors = []
+
+        # Check 1: Only one heart container forcing location allowed
+        heart_forcing_flags = [
+            'force_heart_container_to_level_nine',
+            'force_heart_container_to_armos',
+            'force_heart_container_to_coast'
+        ]
+
+        enabled_heart_flags = [flag for flag in heart_forcing_flags if flags.get(flag, False)]
+
+        if len(enabled_heart_flags) > 1:
+            flag_names = [flag.replace('force_heart_container_to_', '').replace('_', ' ').title()
+                         for flag in enabled_heart_flags]
+            errors.append(
+                f"Heart Container Conflict: You can only force a heart container to ONE location.\n"
+                f"Currently enabled: {', '.join(flag_names)}\n"
+                f"Please disable all but one of these flags."
+            )
+
+        # Check 2: Maximum 2 items can be forced into Level 9
+        level_nine_flags = [
+            'force_arrow_to_level_nine',
+            'force_ring_to_level_nine',
+            'force_wand_to_level_nine',
+            'force_heart_container_to_level_nine'
+        ]
+
+        level_nine_count = sum(1 for flag in level_nine_flags if flags.get(flag, False))
+
+        # Safety check: verify force_two_heart_containers_to_level_nine is False
+        if flags.get('force_two_heart_containers_to_level_nine', False):
+            errors.append(
+                "Internal Error: The 'force_two_heart_containers_to_level_nine' flag should not be enabled.\n"
+                "This is a hidden flag. Please contact the developer."
+            )
+
+        if level_nine_count > 2:
+            enabled_items = []
+            if flags.get('force_arrow_to_level_nine'):
+                enabled_items.append('Arrow')
+            if flags.get('force_ring_to_level_nine'):
+                enabled_items.append('Ring')
+            if flags.get('force_wand_to_level_nine'):
+                enabled_items.append('Wand')
+            if flags.get('force_heart_container_to_level_nine'):
+                enabled_items.append('Heart Container')
+
+            errors.append(
+                f"Level 9 Item Limit Exceeded: You can force a maximum of 2 items into Level 9.\n"
+                f"Currently forcing {level_nine_count} items: {', '.join(enabled_items)}\n"
+                f"Please disable at least {level_nine_count - 2} of these flags."
+            )
+
+        if errors:
+            return False, "\n\n".join(errors)
+
+        return True, ""
+
     # Randomization handler
     def on_randomize(self, e) -> None:
         """Handle randomize button click."""
@@ -567,6 +635,13 @@ class EventHandlers:
             if not self.seed_input.value or not self.seed_input.value.strip():
                 show_error_dialog(self.page, "Seed Required",
                                   "Please enter a seed number before randomizing.")
+                return
+
+            # Validate that flags don't conflict
+            is_valid, error_message = self.validate_flag_conflicts()
+            if not is_valid:
+                show_error_dialog(self.page, "Flag Conflict",
+                                  f"The following flag conflicts were detected:\n\n{error_message}")
                 return
 
             # Read the base ROM file
