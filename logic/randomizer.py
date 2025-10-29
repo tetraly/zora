@@ -169,6 +169,7 @@ class Z1Randomizer():
     ]
 
     warp_destinations = []
+    warp_y_coordinates = []
 
     # For each level (1-8), find its screen and calculate warp destination
     for level_num, cave_type in enumerate(level_cave_types, start=1):
