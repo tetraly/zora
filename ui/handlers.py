@@ -9,6 +9,7 @@ import tempfile
 import time
 from pathlib import Path
 from typing import Callable
+from urllib.parse import quote
 import sys
 
 
@@ -279,7 +280,9 @@ class EventHandlers:
                         f.write(rom_data)
 
                     # Use the FastAPI download endpoint which sets proper headers
-                    download_url = f"/download/{filename}"
+                    # URL-encode the filename to handle special characters (spaces, parentheses, etc.)
+                    encoded_filename = quote(filename)
+                    download_url = f"/download/{encoded_filename}"
                     self.page.launch_url(download_url)
 
                     # Show success message
