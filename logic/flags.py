@@ -296,8 +296,8 @@ class FlagsEnum(Enum):
     )
     FLUTE_KILLS_POLS_VOICE = (
         'flute_kills_pols_voice',
-        'Flute Kills Pols Voice',
-        'Play the flute to kill all Pols Voice (patch courtesy of Stratoform)',
+        'Flute Kills Dungeon Pols Voice',
+        'Play the flute to kill all Pols Voice in dungeons. Does not work on the overworld. (patch courtesy of Stratoform)',
         FlagCategory.QUALITY_OF_LIFE
     )
     LOW_HEARTS_SOUND = (
