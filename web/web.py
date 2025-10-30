@@ -55,7 +55,7 @@ if __name__ == "__main__":
             return FileResponse(
                 path=str(file_path),
                 media_type='application/octet-stream',
-                headers={"Content-Disposition": f"attachment; filename={filename}"}
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'}
             )
         else:
             raise HTTPException(status_code=404, detail=f"{filename} not found")

@@ -305,9 +305,8 @@ class EventHandlers:
                 save_file_picker = ft.FilePicker(on_result=on_save_result)
                 self.page.overlay.append(save_file_picker)
                 self.page.update()
-                # Remove .nes extension from filename since save_file will add it
-                filename_without_ext = filename.replace('.nes', '')
-                save_file_picker.save_file(file_name=filename_without_ext,
+                # Use the full filename including .nes extension
+                save_file_picker.save_file(file_name=filename,
                                            allowed_extensions=["nes"])
 
         return on_download_rom
