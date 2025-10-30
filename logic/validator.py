@@ -138,6 +138,18 @@ class Validator(object):
       if not self.HasAccessibleSwordOrWand():
         return False
 
+    # Check that no level's start room number equals its overworld entrance screen
+    for level_num in Range.VALID_LEVEL_NUMBERS:
+      start_room_num = self.data_table.GetLevelStartRoomNumber(level_num)
+      # Find which overworld screen leads to this level
+      for screen_num in range(0, 0x80):
+        destination = self.data_table.GetScreenDestination(screen_num)
+        if destination == level_num:
+          if screen_num == start_room_num:
+            log.warning(f"Invalid seed: Level {level_num} start room ({hex(start_room_num)}) equals overworld entrance screen ({hex(screen_num)})")
+            return False
+          break
+
     self.inventory.Reset()
     self.inventory.SetStillMakingProgressBit()
     num_iterations = 0
