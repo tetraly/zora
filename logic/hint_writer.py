@@ -145,15 +145,19 @@ class HintWriter:
         # Track current write position in ROM
         current_file_offset = self.HINT_DATA_START
 
-        # Iterate through hint types in order
+        # Iterate through ALL hint slots in order
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
 
-            # Get hint text (if not set, skip - should be filled by FillWithCommunityHints)
+            # Get hint text (if not set, use a blank)
             if hint_type not in self.hints:
-                continue
+                log.warning(f"Hint #{hint_num} not set. Using blank hint.")
+                hint_text = " "
+            else:
+                hint_text = self.hints[hint_type]
 
-            lines = self.hints[hint_type].split('|')
+            # Parse the hint text into lines
+            lines = hint_text.split('|')
 
             # Encode the hint text
             encoded_hint = self._encode_text(lines)
@@ -162,8 +166,12 @@ class HintWriter:
             if current_file_offset + len(encoded_hint) >= self.MAX_HINT_DATA_END:
                 # Would exceed limit - write a blank hint instead
                 log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Writing blank hint instead.")
-                encoded_hint = self._encode_text([""])
+                encoded_hint = self._encode_text([" "])
 
+                # Still check if even the blank hint fits
+                if current_file_offset + len(encoded_hint) >= self.MAX_HINT_DATA_END:
+                    log.error(f"Cannot fit any more hints after hint #{hint_num-1}. Pointer table will be incomplete!")
+                    break
             # Calculate the pointer value (offset from pointer table start in ROM file)
             pointer_offset = current_file_offset - self.HINT_POINTER_TABLE_START
 
