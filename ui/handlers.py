@@ -67,19 +67,14 @@ class EventHandlers:
         self.gen_random_seed_button = None
         self.generate_rom_button = None
         self.choose_generate_vanilla_button = None
-        self.vanilla_file_picker = None
-        self.randomized_file_picker = None
+        self.rom_file_picker = None
         self.generate_vanilla_file_picker = None
         self.expansion_panels_ref = []
         self.legacy_note_ref = []
 
         # Upload state
         self.upload_state = {
-            'vanilla': {
-                'file_info': None,
-                'uploading': False,
-                'uploaded_path': None},
-            'randomized': {
+            'rom': {
                 'file_info': None,
                 'uploading': False,
                 'uploaded_path': None}}
@@ -318,8 +313,12 @@ class EventHandlers:
         return on_download_rom
 
     # ROM processing handlers
-    def process_vanilla_rom(self, file_info, filepath) -> None:
-        """Process a vanilla ROM file (after upload if needed)."""
+    def process_rom(self, file_info, filepath) -> None:
+        """Process a ROM file with auto-detection (vanilla or randomized).
+
+        This unified method replaces the separate process_vanilla_rom and
+        process_randomized_rom methods by auto-detecting the ROM type.
+        """
         filename = file_info.name
 
         # Read ROM data from filepath
@@ -342,91 +341,65 @@ class EventHandlers:
                               f"Unable to read the ROM file:\n\n{str(ex)}")
             return
 
-        # Validate that this is a vanilla ROM
-        if not is_vanilla_rom_data(rom_data):
-            show_error_dialog(self.page, "Error",
-                              "This doesn't appear to be a vanilla Legend of Zelda ROM")
-            return
+        # Auto-detect ROM type: vanilla or randomized
+        is_vanilla = is_vanilla_rom_data(rom_data)
 
-        # Load ROM info for display
-        self.state.rom_info.filename = filepath if filepath else filename
-        self.state.rom_info.rom_type = "vanilla"
-        self.state.rom_info.flagstring = ""
-        self.state.rom_info.seed = ""
+        if is_vanilla:
+            # Process as vanilla ROM
+            log.info(f"Auto-detected vanilla ROM: {filename}")
 
-        # Vanilla ROMs don't have a code (they have 0xFF bytes), which is expected
-        try:
-            self.state.rom_info.code = extract_code_from_rom_data(rom_data)
-        except (ValueError, KeyError):
-            self.state.rom_info.code = "n/a"
+            self.state.rom_info.filename = filepath if filepath else filename
+            self.state.rom_info.rom_type = "vanilla"
+            self.state.rom_info.flagstring = ""
+            self.state.rom_info.seed = ""
 
-        self.state.flag_state.seed = self.state.rom_info.seed
-        self.load_rom_and_show_card(disable_seed=False)
+            # Vanilla ROMs don't have a code (they have 0xFF bytes), which is expected
+            try:
+                self.state.rom_info.code = extract_code_from_rom_data(rom_data)
+            except (ValueError, KeyError):
+                self.state.rom_info.code = "n/a"
 
-    def process_randomized_rom(self, file_info, filepath) -> None:
-        """Process a randomized ROM file (after upload if needed)."""
-        filename = file_info.name
+            self.state.flag_state.seed = self.state.rom_info.seed
+            self.load_rom_and_show_card(disable_seed=False)
 
-        # Read ROM data from filepath
-        with open(filepath, 'rb') as f:
-            rom_data = f.read()
+        else:
+            # Process as randomized ROM
+            log.info(f"Auto-detected randomized ROM: {filename}")
 
-        # Check if this is a Race ROM
-        try:
-            rom_reader = RomReader(io.BytesIO(rom_data))
-            is_race = rom_reader.IsRaceRom()
-            log.info(f"Race ROM check result: {is_race}")
-            if is_race:
-                log.info("Detected Race ROM - showing error dialog")
-                show_error_dialog(
-                    self.page, "Race ROM Not Supported",
-                    "This appears to be a Race ROM, which is not supported.\n\n"
-                    "Race ROMs use a modified memory layout that prevents the randomizer\n"
-                    "from reading level data correctly.\n\n"
-                    "Please try again using a ROM generated without the Race ROM feature.")
+            self.state.rom_info.filename = filepath if filepath else filename
+            self.state.rom_info.rom_type = "randomized"
+
+            # Parse filename for seed and flagstring
+            try:
+                self.state.rom_info.flagstring, self.state.rom_info.seed = parse_filename_for_flag_and_seed(
+                    filename)
+            except ValueError as ex:
+                show_error_dialog(self.page, "Invalid Filename", str(ex))
                 return
-        except Exception as ex:
-            log.error(f"Error checking for Race ROM: {str(ex)}")
-            show_error_dialog(self.page, "Error Reading ROM",
-                              f"Unable to read the ROM file:\n\n{str(ex)}")
-            return
 
-        log.info("Race ROM check passed - proceeding with ROM processing")
-        # Load ROM info for display
-        self.state.rom_info.filename = filepath if filepath else filename
-        self.state.rom_info.rom_type = "randomized"
+            # Validate that this is a randomized ROM by trying to extract the code
+            try:
+                self.state.rom_info.code = extract_code_from_rom_data(rom_data)
+            except (ValueError, KeyError) as ex:
+                show_error_dialog(
+                    self.page, "Invalid ROM",
+                    "This doesn't appear to be a valid randomized ROM.\n\nCould not extract code from the ROM."
+                )
+                return
 
-        # Parse filename for seed and flagstring
-        try:
-            self.state.rom_info.flagstring, self.state.rom_info.seed = parse_filename_for_flag_and_seed(
-                filename)
-        except ValueError as ex:
-            show_error_dialog(self.page, "Invalid Filename", str(ex))
-            return
+            # Parse flagstring and update UI
+            if self.state.flag_state.from_flagstring(self.state.rom_info.flagstring):
+                # Update checkbox UI to match parsed state
+                for flag_key, checkbox in self.flag_checkboxes.items():
+                    checkbox.value = self.state.flag_state.flags.get(flag_key, False)
+                    checkbox.update()
 
-        # Validate that this is a randomized ROM by trying to extract the code
-        try:
-            self.state.rom_info.code = extract_code_from_rom_data(rom_data)
-        except (ValueError, KeyError) as ex:
-            show_error_dialog(
-                self.page, "Invalid ROM",
-                "This doesn't appear to be a valid randomized ROM.\n\nCould not extract code from the ROM."
-            )
-            return
-
-        # Parse flagstring and update UI
-        if self.state.flag_state.from_flagstring(self.state.rom_info.flagstring):
-            # Update checkbox UI to match parsed state
-            for flag_key, checkbox in self.flag_checkboxes.items():
-                checkbox.value = self.state.flag_state.flags.get(flag_key, False)
-                checkbox.update()
-
-        self.state.flag_state.seed = self.state.rom_info.seed
-        self.load_rom_and_show_card(disable_seed=True)
+            self.state.flag_state.seed = self.state.rom_info.seed
+            self.load_rom_and_show_card(disable_seed=True)
 
     # File picker handlers
-    def on_vanilla_file_picked(self, e: ft.FilePickerResultEvent) -> None:
-        """Handle vanilla ROM file selection (Option A)."""
+    def on_rom_file_picked(self, e: ft.FilePickerResultEvent) -> None:
+        """Handle ROM file selection (unified handler with auto-detection)."""
         if not e.files:
             return
 
@@ -434,36 +407,16 @@ class EventHandlers:
 
         if file_info.path:
             # Desktop platform - process directly
-            self.process_vanilla_rom(file_info, file_info.path)
+            self.process_rom(file_info, file_info.path)
         else:
             # Web platform - trigger upload first
-            self.upload_state['vanilla']['file_info'] = file_info
-            self.upload_state['vanilla']['uploading'] = True
+            self.upload_state['rom']['file_info'] = file_info
+            self.upload_state['rom']['uploading'] = True
 
             upload_list = [
                 ft.FilePickerUploadFile(file_info.name,
                                         upload_url=self.page.get_upload_url(file_info.name, 600))]
-            self.vanilla_file_picker.upload(upload_list)
-
-    def on_randomized_file_picked(self, e: ft.FilePickerResultEvent) -> None:
-        """Handle randomized ROM file selection (Option B)."""
-        if not e.files:
-            return
-
-        file_info = e.files[0]
-
-        if file_info.path:
-            # Desktop platform - process directly
-            self.process_randomized_rom(file_info, file_info.path)
-        else:
-            # Web platform - trigger upload first
-            self.upload_state['randomized']['file_info'] = file_info
-            self.upload_state['randomized']['uploading'] = True
-
-            upload_list = [
-                ft.FilePickerUploadFile(file_info.name,
-                                        upload_url=self.page.get_upload_url(file_info.name, 600))]
-            self.randomized_file_picker.upload(upload_list)
+            self.rom_file_picker.upload(upload_list)
 
     def on_generate_vanilla_file_picked(self, e: ft.FilePickerResultEvent) -> None:
         """Handle vanilla ROM file selection for Option C (generate)."""
@@ -798,60 +751,33 @@ class EventHandlers:
                               f"An error occurred during randomization:\n\n{str(ex)}")
 
     # Upload progress handlers
-    def on_vanilla_upload_progress(self, e: ft.FilePickerUploadEvent) -> None:
-        """Handle vanilla ROM upload progress."""
+    def on_rom_upload_progress(self, e: ft.FilePickerUploadEvent) -> None:
+        """Handle ROM upload progress (unified handler)."""
         if e.progress == 1.0:
             # Upload complete
-            self.upload_state['vanilla']['uploading'] = False
+            self.upload_state['rom']['uploading'] = False
             # Get absolute path to uploaded file
-            self.upload_state['vanilla']['uploaded_path'] = os.path.abspath(
+            self.upload_state['rom']['uploaded_path'] = os.path.abspath(
                 f"uploads/{e.file_name}")
 
             # Wait a moment for file to be fully written, then verify it exists
             time.sleep(0.1)
 
-            if not os.path.exists(self.upload_state['vanilla']['uploaded_path']):
+            if not os.path.exists(self.upload_state['rom']['uploaded_path']):
                 show_error_dialog(
                     self.page, "Upload Error",
-                    f"File was not uploaded successfully. Expected at: {self.upload_state['vanilla']['uploaded_path']}"
+                    f"File was not uploaded successfully. Expected at: {self.upload_state['rom']['uploaded_path']}"
                 )
                 return
 
-            # Now process the uploaded file
-            self.process_vanilla_rom(self.upload_state['vanilla']['file_info'],
-                                     self.upload_state['vanilla']['uploaded_path'])
-
-    def on_randomized_upload_progress(self, e: ft.FilePickerUploadEvent) -> None:
-        """Handle randomized ROM upload progress."""
-        if e.progress == 1.0:
-            # Upload complete
-            self.upload_state['randomized']['uploading'] = False
-            # Get absolute path to uploaded file
-            self.upload_state['randomized']['uploaded_path'] = os.path.abspath(
-                f"uploads/{e.file_name}")
-
-            # Wait a moment for file to be fully written, then verify it exists
-            time.sleep(0.1)
-
-            if not os.path.exists(self.upload_state['randomized']['uploaded_path']):
-                show_error_dialog(
-                    self.page, "Upload Error",
-                    f"File was not uploaded successfully. Expected at: {self.upload_state['randomized']['uploaded_path']}"
-                )
-                return
-
-            # Now process the uploaded file
-            self.process_randomized_rom(self.upload_state['randomized']['file_info'],
-                                        self.upload_state['randomized']['uploaded_path'])
+            # Now process the uploaded file with auto-detection
+            self.process_rom(self.upload_state['rom']['file_info'],
+                            self.upload_state['rom']['uploaded_path'])
 
     # Button click handlers for file pickers
-    def on_choose_vanilla_click(self, e) -> None:
-        """Open file picker for vanilla ROM."""
-        self.vanilla_file_picker.pick_files(allow_multiple=False, allowed_extensions=["nes"])
-
-    def on_choose_randomized_click(self, e) -> None:
-        """Open file picker for randomized ROM."""
-        self.randomized_file_picker.pick_files(allow_multiple=False, allowed_extensions=["nes"])
+    def on_choose_rom_click(self, e) -> None:
+        """Open file picker for ROM (unified handler with auto-detection)."""
+        self.rom_file_picker.pick_files(allow_multiple=False, allowed_extensions=["nes"])
 
     def on_choose_generate_vanilla_click(self, e) -> None:
         """Open file picker for vanilla ROM (generate option)."""

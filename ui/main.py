@@ -58,27 +58,20 @@ def main(page: ft.Page, platform: str = "web") -> None:
     # ========================================================================
 
     # File pickers with upload handlers
-    vanilla_file_picker = ft.FilePicker(on_result=handlers.on_vanilla_file_picked,
-                                        on_upload=handlers.on_vanilla_upload_progress)
-    randomized_file_picker = ft.FilePicker(on_result=handlers.on_randomized_file_picked,
-                                           on_upload=handlers.on_randomized_upload_progress)
+    rom_file_picker = ft.FilePicker(on_result=handlers.on_rom_file_picked,
+                                    on_upload=handlers.on_rom_upload_progress)
     generate_vanilla_file_picker = ft.FilePicker(on_result=handlers.on_generate_vanilla_file_picked)
 
     # Store file picker references in handlers
-    handlers.vanilla_file_picker = vanilla_file_picker
-    handlers.randomized_file_picker = randomized_file_picker
+    handlers.rom_file_picker = rom_file_picker
     handlers.generate_vanilla_file_picker = generate_vanilla_file_picker
-    page.overlay.append(vanilla_file_picker)
-    page.overlay.append(randomized_file_picker)
+    page.overlay.append(rom_file_picker)
     page.overlay.append(generate_vanilla_file_picker)
     page.update()
 
     # Step 1: Create buttons for file picking
-    choose_vanilla_button = ft.ElevatedButton("Choose ROM",
-                                              on_click=handlers.on_choose_vanilla_click)
-
-    choose_randomized_button = ft.ElevatedButton("Choose ROM",
-                                                 on_click=handlers.on_choose_randomized_click)
+    choose_rom_button = ft.ElevatedButton("Choose ROM",
+                                          on_click=handlers.on_choose_rom_click)
 
     choose_generate_vanilla_button = ft.ElevatedButton(
         "Choose Vanilla ROM", on_click=handlers.on_choose_generate_vanilla_click)
@@ -112,7 +105,7 @@ def main(page: ft.Page, platform: str = "web") -> None:
     handlers.generate_rom_button = generate_rom_button
 
     # Step 1: Upload ROM
-    step1_container = build_step1_container(choose_vanilla_button, choose_randomized_button,
+    step1_container = build_step1_container(choose_rom_button,
                                             choose_generate_vanilla_button, gen_flagstring_input,
                                             gen_seed_input, gen_random_seed_button,
                                             generate_rom_button, platform)

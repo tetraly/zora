@@ -26,10 +26,13 @@ def build_rom_info_card(rom_info: RomInfo, on_close) -> ft.Card:
         seed_display = "n/a"
         code_display = "n/a"
     else:  # randomized
-        rom_type_display = "Randomized using Zelda Randomizer (ZR)"
+        rom_type_display = "Randomized using Zelda Randomizer"
         flagstring_display = rom_info.flagstring
         seed_display = rom_info.seed
         code_display = rom_info.code
+
+    # Extract just the filename from the full path
+    filename_display = os.path.basename(rom_info.filename)
 
     return ft.Card(content=ft.Container(content=ft.Column([
         ft.Row([
@@ -37,7 +40,7 @@ def build_rom_info_card(rom_info: RomInfo, on_close) -> ft.Card:
             ft.IconButton(icon=ft.Icons.CLOSE, tooltip="Remove ROM", on_click=on_close)],
                alignment="spaceBetween"),
         info_row("ROM Type", rom_type_display),
-        info_row("Filename", rom_info.filename),
+        info_row("Filename", filename_display),
         info_row("ZR Flag String", flagstring_display),
         info_row("ZR Seed", seed_display),
         info_row("ZR Code", code_display)],
@@ -90,8 +93,7 @@ def build_zora_settings_card(flagstring: str, seed: str, flag_state) -> ft.Card:
                    elevation=4)
 
 
-def build_step1_container(choose_vanilla_button,
-                          choose_randomized_button,
+def build_step1_container(choose_rom_button,
                           choose_generate_vanilla_button,
                           gen_flagstring_input,
                           gen_seed_input,
@@ -104,26 +106,27 @@ def build_step1_container(choose_vanilla_button,
         platform: Platform type - "windows", "macos", or "web"
     """
 
-    # Panel A: Select Vanilla ROM
-    vanilla_panel = ft.Container(content=ft.Column(
-        [ft.Text("Option A: Select Vanilla ROM from disk", weight="bold"), choose_vanilla_button],
-        spacing=10),
-                                 padding=ft.padding.only(left=20, right=20, top=20, bottom=20),
-                                 border=ft.border.all(2, ft.Colors.BLUE_200),
-                                 border_radius=10,
-                                 expand=True)
-
-    # Panel B: Select Randomized ROM
-    randomized_panel = ft.Container(content=ft.Column([
-        ft.Text("Option B: Select a ROM that was already randomized using Zelda Randomizer",
-                weight="bold"), choose_randomized_button],
+    # Merged Panel: Select ROM (vanilla or randomized with auto-detection)
+    rom_select_panel = ft.Container(content=ft.Column([
+        ft.Text("Select a vanilla Legend of Zelda ROM or a randomized ROM from Zelda Randomizer",
+                weight="bold"),
+        ft.Container(content=ft.Row([
+            ft.Icon(ft.Icons.INFO_OUTLINE, size=16, color=ft.Colors.WHITE),
+            ft.Text(
+                "Don't forget to uncheck the \"Race ROM\" flag in Zelda Randomizer as Race ROMs are not supported.",
+                size=12,
+                color=ft.Colors.WHITE,
+                italic=True)],
+                                    spacing=5),
+                     padding=ft.padding.only(top=5, bottom=5)),
+        choose_rom_button],
                                                       spacing=10),
                                     padding=ft.padding.only(left=20, right=20, top=20, bottom=20),
-                                    border=ft.border.all(2, ft.Colors.PURPLE_200),
+                                    border=ft.border.all(2, ft.Colors.BLUE_200),
                                     border_radius=10,
                                     expand=True)
 
-    # Panel C: Generate ROM with Zelda Randomizer
+    # Alternate Option: Generate ROM with Zelda Randomizer
     # Only enabled for Windows platform
     is_windows = platform == "windows"
 
@@ -131,7 +134,7 @@ def build_step1_container(choose_vanilla_button,
     gen_seed_with_button = ft.Row([gen_seed_input, gen_random_seed_button], spacing=10, tight=True)
 
     generate_panel_content = ft.Column([
-        ft.Text("Option C: Generate a new Base ROM using Zelda Randomizer", weight="bold"),
+        ft.Text("Alternate Option: Integrate with Zelda Randomizer to generate a new Base ROM", weight="bold"),
         choose_generate_vanilla_button,
         ft.Row([gen_flagstring_input, gen_seed_with_button], spacing=20), generate_rom_button],
                                        spacing=10)
@@ -157,12 +160,12 @@ def build_step1_container(choose_vanilla_button,
                                   disabled=not is_windows,
                                   opacity=1.0 if is_windows else 0.5)
 
-    # Wrap generate_panel to match width of the row above
+    # Wrap generate_panel to match width
     generate_panel_row = ft.Container(content=generate_panel, expand=True)
 
     return ft.Column([
         ft.Text("Step 1: Select Base ROM", size=20, weight="bold"),
-        ft.Row([vanilla_panel, randomized_panel], spacing=15), generate_panel_row],
+        rom_select_panel, generate_panel_row],
                      spacing=15)
 
 
