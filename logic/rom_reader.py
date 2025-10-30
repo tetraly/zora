@@ -120,3 +120,32 @@ class RomReader:
        from_len = raw_quote[5 +recorder_len + name_len]
        from_text = raw_quote[4+recorder_len + name_len : 4+recorder_len + name_len + from_len]
        return ' '.join([self.hex_to_text(name_text), self.hex_to_text(from_text)])
+
+    def IsRaceRom(self) -> bool:
+        """Check if this ROM is a Race ROM by verifying level block pointers.
+
+        Race ROMs have modified memory layouts with different pointer values,
+        which prevents the randomizer from reading level data correctly.
+
+        Returns:
+            True if this appears to be a Race ROM (unsupported), False otherwise
+        """
+        import logging as log
+
+        overworld_pointer = self._GetLevelBlockPointer(OVERWORLD_POINTER_LOCATION)
+        level_1_to_6_pointer = self._GetLevelBlockPointer(LEVEL_1_TO_6_POINTER_LOCATION)
+        level_7_to_9_pointer = self._GetLevelBlockPointer(LEVEL_7_TO_9_POINTER_LOCATION)
+
+        log.info(f"ROM Pointers - Overworld: {hex(overworld_pointer)}, L1-6: {hex(level_1_to_6_pointer)}, L7-9: {hex(level_7_to_9_pointer)}")
+
+        # Check if pointers match expected values for vanilla/randomized ROMs
+        valid_overworld = (overworld_pointer == 0x8400)
+        valid_level_1_to_6 = (level_1_to_6_pointer in [0x8700, 0x8D00])
+        valid_level_7_to_9 = (level_7_to_9_pointer in [0x8A00, 0x9000])
+
+        log.info(f"Pointer validation - Overworld: {valid_overworld}, L1-6: {valid_level_1_to_6}, L7-9: {valid_level_7_to_9}")
+
+        # If any pointer is invalid, this is likely a Race ROM
+        is_race = not (valid_overworld and valid_level_1_to_6 and valid_level_7_to_9)
+        log.info(f"IsRaceRom result: {is_race}")
+        return is_race

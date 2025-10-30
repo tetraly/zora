@@ -29,6 +29,16 @@ class DataTable():
 
   def __init__(self, rom_reader: RomReader) -> None:
     self.rom_reader = rom_reader
+
+    # Check if this is a Race ROM before attempting to read level data
+    if self.rom_reader.IsRaceRom():
+      raise ValueError(
+        "This appears to be a Race ROM, which is not supported.\n\n"
+        "Race ROMs use a modified memory layout that prevents the randomizer\n"
+        "from reading level data correctly.\n\n"
+        "Please try again using a ROM generated without the Race ROM feature."
+      )
+
     self.level_1_to_6_raw_data = self.rom_reader.GetLevelBlock(1)
     self.level_7_to_9_raw_data = self.rom_reader.GetLevelBlock(7)
     self.overworld_raw_data = self.rom_reader.GetLevelBlock(0)

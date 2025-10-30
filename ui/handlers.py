@@ -15,6 +15,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from logic.randomizer import Z1Randomizer
+from logic.rom_reader import RomReader
 from windows import zrinterface
 from ui.dialogs import show_error_dialog, show_snackbar
 from ui.rom_utils import (extract_base_rom_code, extract_code_from_rom_data, is_vanilla_rom,
@@ -325,6 +326,22 @@ class EventHandlers:
         with open(filepath, 'rb') as f:
             rom_data = f.read()
 
+        # Check if this is a Race ROM
+        try:
+            rom_reader = RomReader(io.BytesIO(rom_data))
+            if rom_reader.IsRaceRom():
+                show_error_dialog(
+                    self.page, "Race ROM Not Supported",
+                    "This appears to be a Race ROM, which is not supported.\n\n"
+                    "Race ROMs use a modified memory layout that prevents the randomizer\n"
+                    "from reading level data correctly.\n\n"
+                    "Please try again using a ROM generated without the Race ROM feature.")
+                return
+        except Exception as ex:
+            show_error_dialog(self.page, "Error Reading ROM",
+                              f"Unable to read the ROM file:\n\n{str(ex)}")
+            return
+
         # Validate that this is a vanilla ROM
         if not is_vanilla_rom_data(rom_data):
             show_error_dialog(self.page, "Error",
@@ -354,6 +371,27 @@ class EventHandlers:
         with open(filepath, 'rb') as f:
             rom_data = f.read()
 
+        # Check if this is a Race ROM
+        try:
+            rom_reader = RomReader(io.BytesIO(rom_data))
+            is_race = rom_reader.IsRaceRom()
+            log.info(f"Race ROM check result: {is_race}")
+            if is_race:
+                log.info("Detected Race ROM - showing error dialog")
+                show_error_dialog(
+                    self.page, "Race ROM Not Supported",
+                    "This appears to be a Race ROM, which is not supported.\n\n"
+                    "Race ROMs use a modified memory layout that prevents the randomizer\n"
+                    "from reading level data correctly.\n\n"
+                    "Please try again using a ROM generated without the Race ROM feature.")
+                return
+        except Exception as ex:
+            log.error(f"Error checking for Race ROM: {str(ex)}")
+            show_error_dialog(self.page, "Error Reading ROM",
+                              f"Unable to read the ROM file:\n\n{str(ex)}")
+            return
+
+        log.info("Race ROM check passed - proceeding with ROM processing")
         # Load ROM info for display
         self.state.rom_info.filename = filepath if filepath else filename
         self.state.rom_info.rom_type = "randomized"
@@ -472,6 +510,20 @@ class EventHandlers:
 
         # Validate the vanilla ROM
         try:
+            # Read ROM data to check if it's a Race ROM
+            with open(self.state.vanilla_rom_path, 'rb') as f:
+                rom_data = f.read()
+
+            rom_reader = RomReader(io.BytesIO(rom_data))
+            if rom_reader.IsRaceRom():
+                show_error_dialog(
+                    self.page, "Race ROM Not Supported",
+                    "This appears to be a Race ROM, which is not supported.\n\n"
+                    "Race ROMs use a modified memory layout that prevents the randomizer\n"
+                    "from reading level data correctly.\n\n"
+                    "Please try again using a ROM generated without the Race ROM feature.")
+                return
+
             if not is_vanilla_rom(self.state.vanilla_rom_path):
                 show_error_dialog(
                     self.page, "Invalid ROM",
