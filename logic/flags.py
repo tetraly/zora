@@ -110,8 +110,8 @@ class FlagsEnum(Enum):
     AVOID_REQUIRED_HARD_COMBAT = (
         'avoid_required_hard_combat',
         'Avoid Requiring "Hard" Combat',
-        'The logic will not require killing any Blue Darknuts, Blue Wizzrobes, Gleeoks, or Patras to progress without making at least one sword upgrade and at least one ring available in logic. Primarily designed for use with vanilla ROMs, not Zelda Randomizer ROMs.',
-        FlagCategory.LEGACY
+        'The logic will not require killing any Blue Darknuts, Blue Wizzrobes, Gleeoks, or Patras to progress without making at least one sword upgrade and at least one ring available in logic. Now supports both vanilla and Zelda Randomizer ROMs by reading mixed enemy group data directly from the ROM.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     SELECT_SWAP = (
         'select_swap',

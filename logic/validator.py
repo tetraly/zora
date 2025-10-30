@@ -184,6 +184,50 @@ class Validator(object):
     log.debug("Seed doesn't appear to be beatable. :(")
     return False
 
+  def _IsMixedEnemyGroup(self, enemy: Enemy) -> bool:
+    """Check if an enemy code represents a mixed enemy group (0x62-0x7F)."""
+    return int(enemy) >= 0x62 and int(enemy) <= 0x7F
+
+  def _GetActualEnemies(self, enemy: Enemy) -> List[Enemy]:
+    """Get the actual list of enemies, expanding mixed groups from ROM data.
+
+    Args:
+        enemy: The enemy code from the room
+
+    Returns:
+        List containing either the single enemy or all enemies in a mixed group
+    """
+    if self._IsMixedEnemyGroup(enemy):
+      return self.data_table.GetMixedEnemyGroup(enemy)
+    return [enemy]
+
+  def _ContainsEnemyType(self, room_enemy: Enemy, enemy_list: List[Enemy]) -> bool:
+    """Check if room contains any of the specified enemy types.
+
+    Expands mixed enemy groups from ROM data to check actual enemies.
+
+    Args:
+        room_enemy: The enemy code from the room
+        enemy_list: List of enemy types to check for
+
+    Returns:
+        True if the room contains any of the specified enemies
+    """
+    actual_enemies = self._GetActualEnemies(room_enemy)
+    return any(e in enemy_list for e in actual_enemies)
+
+  def _RoomHasOnlyZeroHPEnemies(self, actual_enemies: List[Enemy]) -> bool:
+    """Check if all enemies in the room have zero HP.
+
+    Args:
+        actual_enemies: List of actual enemies (already expanded if mixed group)
+
+    Returns:
+        True if ALL enemies have zero HP
+    """
+    zero_hp_enemies = [Enemy.GEL_1, Enemy.GEL_2, Enemy.BLUE_KEESE, Enemy.RED_KEESE, Enemy.DARK_KEESE]
+    return len(actual_enemies) > 0 and all(e in zero_hp_enemies for e in actual_enemies)
+
   def CanGetRoomItem(self, entry_direction: Direction, room: Room) -> bool:
     # Can't pick up a room in any rooms with water/moats without a ladder.
     # TODO: Make a better determination here based on the drop location and the entry direction.
@@ -204,18 +248,29 @@ class Validator(object):
   def CanDefeatEnemies(self, room: Room) -> bool:
     if room.HasNoEnemiesToKill():
       return True
+
+    room_enemy = room.GetEnemy()
+    actual_enemies = self._GetActualEnemies(room_enemy)
+
+    # Check for specific boss/enemy requirements using ROM data for mixed groups
     if ((room.HasTheBeast() and not self.inventory.HasBowSilverArrowsAndSword())
         or (room.HasDigdogger() and not self.inventory.HasRecorderAndReusableWeapon())
         or (room.HasGohma() and not self.inventory.HasBowAndArrows())
-        or (room.HasWizzrobes() and not self.inventory.HasSword())
-        or (room.GetEnemy().IsGleeokOrPatra() and not self.inventory.HasSwordOrWand())
-        or (room.HasOnlyZeroHPEnemies() and not self.inventory.HasReusableWeaponOrBoomerang())
+        or (self._ContainsEnemyType(room_enemy, [Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE]) and not self.inventory.HasSword())
+        or (room_enemy.IsGleeokOrPatra() and not self.inventory.HasSwordOrWand())
+        or (self._RoomHasOnlyZeroHPEnemies(actual_enemies) and not self.inventory.HasReusableWeaponOrBoomerang())
         or (room.HasHungryGoriya() and not self.inventory.Has(Item.BAIT))):
       return False
-    if (room.HasPolsVoice()
+
+    # Check for Pols Voice using ROM data for mixed groups
+    if (self._ContainsEnemyType(room_enemy, [Enemy.POLS_VOICE])
         and not (self.inventory.HasSwordOrWand() or self.inventory.HasBowAndArrows())):
       return False
-    if (self.flags.avoid_required_hard_combat and room.HasHardCombatEnemies()
+
+    # Check for hard combat enemies using ROM data for mixed groups
+    if (self.flags.avoid_required_hard_combat
+        and self._ContainsEnemyType(room_enemy, [Enemy.GLEEOK_1, Enemy.GLEEOK_2, Enemy.GLEEOK_3, Enemy.GLEEOK_4,
+                                                   Enemy.PATRA_1, Enemy.PATRA_2, Enemy.BLUE_DARKNUT, Enemy.BLUE_WIZZROBE])
         and not (self.inventory.HasRing() and self.inventory.Has(Item.WHITE_SWORD))):
       return False
 

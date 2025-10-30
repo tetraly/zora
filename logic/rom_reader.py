@@ -2,6 +2,7 @@ from enum import IntEnum
 import io
 from typing import IO, List, Dict
 from .constants import CHAR_MAP
+from .randomizer_constants import Enemy
 
 OVERWORLD_DATA_LOCATION = 0x18400
 LEVEL_1_TO_6_FIRST_QUEST_DATA_LOCATION = 0x18700
@@ -24,6 +25,13 @@ MAGICAL_SWORD_REQUIREMENT_ADDRESS = 0x4906
 DOOR_REPAIR_CHARGE_ADDRESS = 0x4890
 ANY_ROAD_SCREENS_ADDRESS = 0x19334
 RECORDER_WARP_DESTINATIONS_ADDRESS = 0x6010
+
+# Mixed enemy group data locations
+MIXED_ENEMY_POINTER_TABLE_ADDRESS = 0x1473F  # Pointer table location
+FIRST_MIXED_GROUP_CODE = 0x62  # Enemy codes >= 0x62 are mixed groups
+POINTER_COUNT = 0x1E  # 30 pointers total (0x62-0x7F)
+BANK_5_ROM_START = 0x14000
+BANK_5_CPU_START = 0x8000
 
 
 class RomReader:
@@ -149,3 +157,61 @@ class RomReader:
         is_race = not (valid_overworld and valid_level_1_to_6 and valid_level_7_to_9)
         log.info(f"IsRaceRom result: {is_race}")
         return is_race
+
+    def _CpuAddressToRomOffset(self, cpu_address: int) -> int:
+        """Convert a CPU address in bank 5 to a ROM offset.
+
+        Bank 5 occupies CPU addresses $8000-$BFFF, which corresponds to
+        ROM addresses $14000-$17FFF.
+        """
+        if cpu_address < BANK_5_CPU_START:
+            raise ValueError(f"CPU address 0x{cpu_address:04X} is below bank 5 range")
+
+        offset_in_bank = cpu_address - BANK_5_CPU_START
+        rom_offset = BANK_5_ROM_START + offset_in_bank
+        return rom_offset
+
+    def _ReadWordLittleEndian(self, address: int) -> int:
+        """Read a 16-bit word in little-endian format."""
+        data = self._ReadMemory(address, 2)
+        return (data[1] << 8) | data[0]
+
+    def GetMixedEnemyGroups(self) -> Dict[int, List[Enemy]]:
+        """Read all mixed enemy group data from ROM.
+
+        Mixed enemy groups are referenced by enemy codes 0x62-0x7F (98-127).
+        These codes index into a pointer table that points to lists of enemy types.
+
+        Returns:
+            Dictionary mapping enemy codes to lists of Enemy enums
+        """
+        mixed_groups = {}
+
+        for i in range(POINTER_COUNT):
+            enemy_code = FIRST_MIXED_GROUP_CODE + i
+
+            # Read the pointer from the pointer table
+            pointer_address = MIXED_ENEMY_POINTER_TABLE_ADDRESS + (i * 2)
+            cpu_address = self._ReadWordLittleEndian(pointer_address)
+
+            # Convert CPU address to ROM offset
+            rom_offset = self._CpuAddressToRomOffset(cpu_address)
+
+            # Read the enemy list (8 enemies max per group)
+            enemy_ids = self._ReadMemory(rom_offset, 8)
+
+            # Convert enemy IDs to Enemy enums
+            enemy_list = []
+            for enemy_id in enemy_ids:
+                try:
+                    enemy_list.append(Enemy(enemy_id))
+                except ValueError:
+                    # If enemy ID is not in Enemy enum, raise an error
+                    raise ValueError(
+                        f"Unknown enemy ID 0x{enemy_id:02X} found in mixed enemy group 0x{enemy_code:02X}. "
+                        f"This enemy type may need to be added to the Enemy enum in randomizer_constants.py"
+                    )
+
+            mixed_groups[enemy_code] = enemy_list
+
+        return mixed_groups

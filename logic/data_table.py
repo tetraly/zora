@@ -1,6 +1,6 @@
 import logging as log
 from typing import Dict, List
-from .randomizer_constants import CaveNum, CaveType, Direction, Item, LevelNum, Range, RoomNum
+from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
@@ -44,12 +44,15 @@ class DataTable():
     self.overworld_raw_data = self.rom_reader.GetLevelBlock(0)
     self.overworld_cave_raw_data = self.rom_reader.GetLevelBlock(0)[0x80*4:0x80*5]
     self.level_info: List[List[int]] = []
-    self._ReadLevelInfo() 
-    
+    self._ReadLevelInfo()
+
     self.level_1_to_6_rooms: List[Room] = []
     self.level_7_to_9_rooms: List[Room] = []
     self.overworld_caves: List[Cave] = []
     self.triforce_locations: Dict[LevelNum, RoomNum] = {}
+
+    # Read mixed enemy group data from ROM
+    self.mixed_enemy_groups = self.rom_reader.GetMixedEnemyGroups()
 
   def ResetToVanilla(self) -> None:
     self.level_1_to_6_rooms = self._ReadDataForLevelGrid(self.level_1_to_6_raw_data)
@@ -279,3 +282,14 @@ class DataTable():
       patch.AddData(OVERWORLD_TABLE_1_ADDRESS + screen_num,
                    [self.overworld_raw_data[screen_num + 1*0x80]])
     return patch
+
+  def GetMixedEnemyGroup(self, enemy: Enemy) -> List[Enemy]:
+    """Get the list of Enemy enums for a mixed enemy group.
+
+    Args:
+        enemy: The Enemy enum representing a mixed enemy group
+
+    Returns:
+        List of Enemy enums in the group, or empty list if not a mixed group
+    """
+    return self.mixed_enemy_groups.get(int(enemy), [])

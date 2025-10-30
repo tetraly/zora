@@ -1,6 +1,6 @@
 from typing import Dict, List
 import logging
-from .randomizer_constants import Direction, Enemy, EnemyList, Item, Range, RoomAction, RoomNum, RoomType, WallType
+from .randomizer_constants import Direction, Enemy, Item, Range, RoomAction, RoomNum, RoomType, WallType
 
 log = logging.getLogger(__name__)
 
@@ -195,26 +195,24 @@ class Room():
   def HasTheBeast(self) -> bool:
     return self.GetEnemy() == Enemy.THE_BEAST
 
-  def HasWizzrobes(self) -> bool:
-    return self.GetEnemy() in EnemyList.WIZZROBES
-
   def HasDigdogger(self) -> bool:
-    return self.GetEnemy() in EnemyList.DIGDOGGERS
+    enemy = self.GetEnemy()
+    return enemy in [Enemy.SINGLE_DIGDOGGER, Enemy.TRIPLE_DIGDOGGER]
 
   def HasGohma(self) -> bool:
-    return self.GetEnemy() in EnemyList.GOHMAS
-
-  def HasHardCombatEnemies(self) -> bool:
-    return self.GetEnemy() in EnemyList.HARD_COMBAT_ENEMIES
-
-  def HasPolsVoice(self) -> bool:
-    return self.GetEnemy() in EnemyList.POLS_VOICES
+    enemy = self.GetEnemy()
+    return enemy in [Enemy.RED_GOHMA, Enemy.BLUE_GOHMA]
 
   def HasHungryGoriya(self) -> bool:
     return self.GetEnemy() == Enemy.HUNGRY_GORIYA
 
-  def HasOnlyZeroHPEnemies(self) -> bool:
-    return self.GetEnemy() in EnemyList.ZERO_HP_ENEMIES
-
   def HasNoEnemiesToKill(self) -> bool:
-    return self.GetEnemy() in EnemyList.UNKILLABLE_ENEMIES
+    enemy = self.GetEnemy()
+    return enemy in [
+      Enemy.BUBBLE,
+      Enemy.THREE_PAIRS_OF_TRAPS,
+      Enemy.CORNER_TRAPS,
+      Enemy.OLD_MAN,
+      Enemy.THE_KIDNAPPED,
+      Enemy.NOTHING
+    ]
