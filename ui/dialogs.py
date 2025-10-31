@@ -19,7 +19,7 @@ def info_row(label: str,
     Returns:
         ft.Row: A Flet row with aligned label and value
     """
-    value_text = ft.Text(value, selectable=True)
+    value_text = ft.Text(value, selectable=True, no_wrap=True)
     if value_width:
         value_container = ft.Container(value_text, width=value_width)
     else:
