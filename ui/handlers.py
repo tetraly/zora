@@ -651,6 +651,22 @@ class EventHandlers:
                                   f"The following flag conflicts were detected:\n\n{error_message}")
                 return
 
+            # Show progress indicator
+            progress_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Generating Seed"),
+                content=ft.Column([
+                    ft.ProgressRing(),
+                    ft.Text("Generating and validating seed...\nThis may take a moment.",
+                           text_align=ft.TextAlign.CENTER)
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                tight=True),
+            )
+            self.page.overlay.append(progress_dialog)
+            progress_dialog.open = True
+            self.page.update()
+
             # Read the base ROM file
             with open(self.state.rom_info.filename, 'rb') as f:
                 rom_bytes = io.BytesIO(f.read())
@@ -739,16 +755,25 @@ class EventHandlers:
 
             self.state.step3_container = build_step3_container(
                 self.state.randomized_rom_data, self.state.randomized_rom_filename, zora_flagstring,
-                self.seed_input.value, rom_code, self.platform, download_handler, self.clear_rom)
+                self.seed_input.value, rom_code, self.platform, download_handler, self.clear_rom, elapsed_time)
             self.page.add(self.state.step3_container)
+
+            # Close progress dialog
+            progress_dialog.open = False
             self.page.update()
 
             show_snackbar(self.page, "✅ Randomization complete! Download your ROM below.")
 
         except ValueError as ve:
+            # Close progress dialog
+            progress_dialog.open = False
+            self.page.update()
             show_error_dialog(self.page, "Invalid Input",
                               f"Please enter a valid seed number:\n\n{str(ve)}")
         except Exception as ex:
+            # Close progress dialog
+            progress_dialog.open = False
+            self.page.update()
             show_error_dialog(self.page, "Error",
                               f"An error occurred during randomization:\n\n{str(ex)}")
 

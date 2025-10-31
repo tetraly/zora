@@ -298,7 +298,7 @@ def build_step2_container(categorized_flag_rows: dict,
 
 def build_step3_container(randomized_rom_data: bytes, output_filename: str, flagstring: str,
                           seed: str, code: str, platform: str, on_download: Callable,
-                          on_randomize_another: Callable) -> ft.Container:
+                          on_randomize_another: Callable, generation_time: float = None) -> ft.Container:
     """Build Step 3: Download Randomized ROM section.
 
     Args:
@@ -310,6 +310,7 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
         platform: Platform type - "windows", "macos", or "web"
         on_download: Download button click handler
         on_randomize_another: Handler for randomizing another game
+        generation_time: Time taken to generate the ROM in seconds (optional)
     """
     download_button = ft.ElevatedButton("Download Randomized ROM",
                                         icon=ft.Icons.DOWNLOAD,
@@ -319,7 +320,8 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
                                                  icon=ft.Icons.RESTART_ALT,
                                                  on_click=on_randomize_another)
 
-    content = ft.Column([
+    # Build info rows list
+    info_rows = [
         ft.Text("Step 3: Download Randomized ROM", size=20, weight="bold"),
         ft.Container(height=10),
         ft.Row([
@@ -332,9 +334,18 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
         info_row("ZORA Seed", seed, label_width=150),
         info_row("ZORA Code", code, label_width=150),
         info_row("ROM Size", f"{len(randomized_rom_data) / 1024:.1f} KB", label_width=150),
+    ]
+
+    # Add generation time if provided
+    if generation_time is not None:
+        info_rows.append(info_row("Generation Time", f"{generation_time:.2f} seconds", label_width=150))
+
+    info_rows.extend([
         ft.Container(height=15),
-        ft.Row([download_button, randomize_another_button], spacing=10)],
-                        spacing=5)
+        ft.Row([download_button, randomize_another_button], spacing=10)
+    ])
+
+    content = ft.Column(info_rows, spacing=5)
 
     return ft.Container(content=content,
                         padding=20,
