@@ -6,7 +6,7 @@ All version references throughout the codebase should import from this file.
 """
 
 # Version number (semantic versioning)
-__version__ = "1.0-RC3"
+__version__ = "1.0-RC4"
 
 # Display name for UI
 __version_display__ = f"v{__version__}"
