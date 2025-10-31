@@ -186,17 +186,19 @@ class Z1Randomizer():
         raise ValueError(f"Could not find screen for Level {level_num}")
 
       # Calculate warp destination (one screen to the left)
-      # Special case: if level is at screen 0, don't subtract 1
+      # Special case: if level is at screen 0, don't subtract 1 and letter cave (warp goes one screen down)
       if level_screen == 0:
         warp_screen = 0
+      elif level_screen == 0x0E: 
+        warp_screen = 0x1D
       else:
         warp_screen = level_screen - 1
 
       # Special cases for y coordinate of Link warping to a screen 
       y_coordinate = 0x8D
-      if level_screen in [0x3B, 0x0A, 0x41]:  # Vanilla 2, 5, and 7
+      if level_screen in [0x3B, 0x0A, 0x41, 0x05, 0x08, 0x09, 0x2B]:  # Vanilla 2, 5, 7, 9, Bogie's Arrow, Waterfall, Monocle Rock
         y_coordinate = 0xAD
-      if level_screen in [0x6C]:  # Vanilla 8
+      elif level_screen in [0x6C]:  # Vanilla 8
         y_coordinate = 0x5D
         
       log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}")
