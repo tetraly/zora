@@ -695,13 +695,39 @@ class EventHandlers:
 
             # Store the randomized ROM data
             self.state.randomized_rom_data = bytes(rom_data)
-            base_name = os.path.splitext(os.path.basename(self.state.rom_info.filename))[0]
 
             # Build ZORA flagstring
             zora_flagstring = self.state.flag_state.to_flagstring()
 
-            # Create filename
-            self.state.randomized_rom_filename = f"{base_name}_zora_{zora_flagstring}_{self.seed_input.value}.nes"
+            # Create filename based on input ROM type
+            # Note: For randomized input, ZORA seed equals Z1R seed (always the same)
+            #
+            # Format for randomized input: {BASE}_{SEED}_{ZR_FLAGS}_{ZORA_FLAGS}.nes
+            #   Example: Legend of Zelda_12345_AbCdEf_XyZ.nes
+            #   where 12345 is the seed (used for both Z1R and ZORA)
+            #
+            # Format for vanilla input: {BASE}_{SEED}_{ZORA_FLAGS}.nes
+            #   Example: Legend of Zelda_12345_XyZ.nes
+            base_filename = os.path.basename(self.state.rom_info.filename)
+            base_name_no_ext = os.path.splitext(base_filename)[0]
+
+            if self.state.rom_info.rom_type == "randomized":
+                # Input is randomized Z1R ROM
+                # Input format: {BASE}_{ZR_SEED}_{ZR_FLAGS}.nes
+                # Output format: {BASE}_{SEED}_{ZR_FLAGS}_{ZORA_FLAGS}.nes
+                # Note: SEED is the same as ZR_SEED (ZORA uses the same seed)
+                parts = base_name_no_ext.rsplit('_', 2)  # Split from right, max 2 splits
+                if len(parts) == 3:
+                    base_name = parts[0]
+                    zr_flags = parts[2]
+                    self.state.randomized_rom_filename = f"{base_name}_{self.seed_input.value}_{zr_flags}_{zora_flagstring}.nes"
+                else:
+                    # Fallback if parsing fails
+                    self.state.randomized_rom_filename = f"{base_name_no_ext}_{self.seed_input.value}_{zora_flagstring}.nes"
+            else:
+                # Input is vanilla ROM
+                # Output format: {BASE}_{SEED}_{ZORA_FLAGS}.nes
+                self.state.randomized_rom_filename = f"{base_name_no_ext}_{self.seed_input.value}_{zora_flagstring}.nes"
 
             # Hide Step 2
             self.step2_container.visible = False
