@@ -684,6 +684,17 @@ class EventHandlers:
             randomizer = Z1Randomizer(rom_bytes, seed, randomizer_flags)
             patch = randomizer.GetPatch()
 
+            # Check if we've exceeded timeout
+            elapsed = time.time() - start_time
+            if elapsed > 30:
+                progress_dialog.open = False
+                self.page.update()
+                show_error_dialog(self.page, "Timeout",
+                                f"Seed generation took too long ({elapsed:.1f}s > 30s).\n\n"
+                                "This may indicate the seed cannot be validated with the current flags.\n"
+                                "Try a different seed or adjust your flag settings.")
+                return
+
             # Apply patch to ROM
             rom_bytes.seek(0)
             rom_data = bytearray(rom_bytes.read())
