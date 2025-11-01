@@ -447,6 +447,9 @@ class CaveType(IntEnum):
   MEDIUM_SECRET = 0x21
   LARGE_SECRET = 0x22
   SMALL_SECRET = 0x23
+  # Virtual caves for overworld items (Armos and Coast)
+  ARMOS_ITEM = 0x24
+  COAST_ITEM = 0x25
 
 
 class RoomAction(IntEnum):

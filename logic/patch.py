@@ -178,14 +178,6 @@ class Patch:
         val = 0x22
       elif val == 0x07:  # Red candle -> Fairy
         val = 0x23
-      elif val == 0x09:  # Silver arrow -> ?? 24 ??
-        val = 0x24
-      elif val == 0x13:  # Red ring -> ?? 25 ??
-        val = 0x25
-      elif val == 0x18:  # Five Rupee -> ?? 26 ??
-        val = 0x26
-      elif val == 0x1E:  # Mag. Boomerang -> Beam
-        val = 0x27
       to_be_returned += bytes([val])
     return to_be_returned
 

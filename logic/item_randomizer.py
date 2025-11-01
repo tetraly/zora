@@ -15,6 +15,38 @@ class ItemRandomizer():
     self.flags = flags
     self.item_shuffler = ItemShuffler(flags)
 
+  def _GetRandomizedShopPrice(self, item: Item) -> int:
+    """Get a randomized price for an item placed in a shop.
+
+    Price tiers:
+    - Sword, Ring, Any Key: 230 ± 25 (range: 205-255)
+    - Bow, Wand, Ladder: 100 ± 20 (range: 80-120)
+    - Recorder, Arrows, HC: 80 ± 20 (range: 60-100)
+    - Everything else: 60 ± 20 (range: 40-80)
+
+    Args:
+        item: The item being placed in the shop
+
+    Returns:
+        The randomized price in rupees
+    """
+    # Tier 1: Sword, Ring, Any Key - 230 ± 25
+    if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD,
+                Item.BLUE_RING, Item.RED_RING, Item.ANY_KEY]:
+      return randint(205, 255)
+
+    # Tier 2: Bow, Wand, Ladder - 100 ± 20
+    elif item in [Item.BOW, Item.WAND, Item.LADDER]:
+      return randint(80, 120)
+
+    # Tier 3: Recorder, Arrows, HC - 80 ± 20
+    elif item in [Item.RECORDER, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.HEART_CONTAINER]:
+      return randint(60, 100)
+
+    # Tier 4: Everything else - 60 ± 20
+    else:
+      return randint(40, 80)
+
   def _GetProgressiveReplacementItemIfNeeded(self, item: Item):
     # Individual progressive flags are temporarily disabled
     progressive_candles = False
@@ -200,6 +232,12 @@ class ItemRandomizer():
           self.data_table.UpdateTriforceLocation(location)
       elif location.IsCavePosition():
         self.data_table.SetCaveItem(location, item_num)
+        # If this item is in a shop, set a randomized price based on item tier
+        if location.IsShopPosition():
+          randomized_price = self._GetRandomizedShopPrice(item_num)
+          cave_num = location.GetCaveNum()
+          position_num = location.GetPositionNum()
+          self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randomized_price, position_num)
     # Individual progressive flags are temporarily disabled
     progressive_swords = False
     if (self.flags.progressive_items or progressive_swords) and self.flags.add_l4_sword:

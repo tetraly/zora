@@ -1,7 +1,7 @@
-#8192192025 ice's seed
 from typing import List, Tuple
-import logging
-from .randomizer_constants import CaveNum, CaveType, Direction, Item, LevelNum, Enemy
+import logging as log
+
+from .randomizer_constants import CaveType, Direction, Item, LevelNum, Enemy
 from .randomizer_constants import Range, RoomNum, RoomType, WallType
 from .data_table import DataTable
 from .inventory import Inventory
@@ -10,17 +10,8 @@ from .room import Room
 from .flags import Flags
 from .constants import OVERWORLD_BLOCK_TYPES
 
-import logging as log
-
 
 class Validator(object):
-  WHITE_SWORD_CAVE_NUMBER = 2
-  MAGICAL_SWORD_CAVE_NUMBER = 3
-  NUM_HEARTS_FOR_WHITE_SWORD_ITEM = 5
-  NUM_HEARTS_FOR_MAGICAL_SWORD_ITEM = 12
-  POTION_SHOP_NUMBER = 10
-  ARMOS_VIRTUAL_CAVE_NUMBER = 0x14
-  COAST_VIRTUAL_CAVE_NUMBER = 0x15
 
   def __init__(self, data_table: DataTable, flags: Flags, white_sword_hearts: int = 5, magical_sword_hearts: int = 12) -> None:
     self.data_table = data_table
@@ -31,6 +22,10 @@ class Validator(object):
 
   def GetBlockType(self, screen_num: int) -> str:
     """Get the block type for a given screen, accounting for flags."""
+    # Special case: Screen 0x5F is the coast item location (requires ladder)
+    if screen_num == 0x5F:
+      return "Ladder"
+
     # Get the base block type from the constants
     base_block_type = OVERWORLD_BLOCK_TYPES.get(screen_num)
 
@@ -57,20 +52,6 @@ class Validator(object):
         # 0x11 is already Power Bracelet blocked so no change needed
         return "Power Bracelet+Bomb"
     return base_block_type
-
-  def GetAvailableOverworldCaves(self, block_type: str) -> List[int]:
-    tbr = set()
-    for screen_num in range(0, 0x80):
-      # Check if this screen has the required block type
-      if self.GetBlockType(screen_num) != block_type:
-        continue
-
-      # Get the destination for this screen
-      destination = self.data_table.GetScreenDestination(screen_num)
-      if destination != CaveType.NONE:
-        tbr.add(destination)
-
-    return list(tbr)
 
   def CanAccessScreen(self, screen_num: int) -> bool:
     """Check if the player can access a given screen based on current inventory."""
@@ -112,20 +93,31 @@ class Validator(object):
       if not self.CanAccessScreen(screen_num):
         continue
 
-      # Get its destination and add it
-      destination = self.data_table.GetScreenDestination(screen_num)
+      # Check for special cases first before calling GetScreenDestination
+      destination = None
+      
+      # Special case: Coast item screen (0x5F)
+      if screen_num == 0x5F:
+        destination = CaveType.COAST_ITEM
+      # Special case: Armos item screen (read from ROM)
+      elif screen_num == self.data_table.GetArmosItemScreen():
+        destination = CaveType.ARMOS_ITEM
+      else:
+        # Normal case: get destination from data table
+        destination = self.data_table.GetScreenDestination(screen_num)
+
       if destination != CaveType.NONE:
         tbr.add(destination)
-        
+
         # If we can access the Lost Hills Hint cave, add the virtual item to inventory
         if destination == CaveType.LOST_HILLS_HINT:
           self.inventory.AddItem(Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=int(CaveType.LOST_HILLS_HINT)-0x10, position_num=1))
+                                 Location(cave_num=CaveType.LOST_HILLS_HINT - 0x10, position_num=1))
 
         # If we can access the Dead Woods Clue cave, add the virtual item to inventory
         if destination == CaveType.DEAD_WOODS_HINT:
           self.inventory.AddItem(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=int(CaveType.DEAD_WOODS_HINT)-0x10, position_num=1))
+                                 Location(cave_num=CaveType.DEAD_WOODS_HINT - 0x10, position_num=1))
 
     return list(tbr)
 
@@ -168,14 +160,13 @@ class Validator(object):
           log.debug("Can access level %d" % level_num)
           self.ProcessLevel(level_num)
         else:
-          cave_num = destination - 0x10
-          log.debug("Can access cave type %x" % cave_num)
-          if self.CanGetItemsFromCave(cave_num):
+          cave_type = destination
+          log.debug("Can access cave type %x" % cave_type)
+          if self.CanGetItemsFromCave(cave_type):
             for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
-              location = Location(cave_num=cave_num, position_num=position_num)
+              # Location constructor still expects cave_num (array index 0x00-0x15)
+              location = Location(cave_num=cave_type - 0x10, position_num=position_num)
               self.inventory.AddItem(self.data_table.GetCaveItem(location), location)
-      if self.CanEnterLevel(9):
-        pass
       if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
         log.debug("Seed appears to be beatable. :)")
         return True
@@ -229,7 +220,7 @@ class Validator(object):
     return len(actual_enemies) > 0 and all(e in zero_hp_enemies for e in actual_enemies)
 
   def CanGetRoomItem(self, entry_direction: Direction, room: Room) -> bool:
-    # Can't pick up a room in any rooms with water/moats without a ladder.
+    # Can't pick up a room item in any rooms with water/moats without a ladder.
     # TODO: Make a better determination here based on the drop location and the entry direction.
     if room.HasPotentialLadderBlock() and not self.inventory.Has(Item.LADDER):
       return False
@@ -277,32 +268,20 @@ class Validator(object):
     # At this point, assume regular enemies
     return self.inventory.HasReusableWeapon()
 
-  def CanGetItemsFromCave(self, cave_num: CaveNum) -> bool:
-    if (cave_num == self.WHITE_SWORD_CAVE_NUMBER
+  def CanGetItemsFromCave(self, cave_type: CaveType) -> bool:
+    if (cave_type == CaveType.WHITE_SWORD_CAVE
         and self.inventory.GetHeartCount() < self.white_sword_hearts):
       return False
-    if (cave_num == self.MAGICAL_SWORD_CAVE_NUMBER
+    if (cave_type == CaveType.MAGICAL_SWORD_CAVE
         and self.inventory.GetHeartCount() < self.magical_sword_hearts):
       return False
-    if cave_num == self.POTION_SHOP_NUMBER and not self.inventory.Has(Item.LETTER):
+    if cave_type == CaveType.POTION_SHOP and not self.inventory.Has(Item.LETTER):
       return False
-    if cave_num == self.COAST_VIRTUAL_CAVE_NUMBER and not self.inventory.Has(Item.LADDER):
+    if cave_type == CaveType.COAST_ITEM and not self.inventory.Has(Item.LADDER):
       return False
     # If the Westlake Mall area is raft blocked, it's possible for the armos item to be raft-blocked
-    if self.flags.EXTRA_RAFT_BLOCKS and not self.inventory.Has(Item.RAFT) and cave_num == self.ARMOS_VIRTUAL_CAVE_NUMBER:
-        return False 
-    return True
-
-  #TODO: Refactor this method now that we have more sophisitcated OW validation logic
-  def CanEnterLevel(self, level_num: LevelNum) -> bool:
-    if level_num == 4 and not self.inventory.Has(Item.RAFT):
-      return False
-    if level_num == 7 and not self.inventory.Has(Item.RECORDER):
-      return False
-    if level_num == 8 and not self.inventory.HasCandle():
-      return False
-    if level_num == 9 and self.inventory.GetTriforceCount() < 8:
-      return False
+    if cave_type == CaveType.ARMOS_ITEM and not self.inventory.Has(Item.RAFT) and self.flags.EXTRA_RAFT_BLOCKS:
+        return False
     return True
 
   def ProcessLevel(self, level_num: int) -> None:
@@ -406,16 +385,11 @@ class Validator(object):
         or (wall_type == WallType.SHUTTER_DOOR and not self.CanDefeatEnemies(room))):
       return False
 
-    # Disable key checking for now
-    #if wall_type in [WallType.LOCKED_DOOR_1, WallType.LOCKED_DOOR_2]:
-    #  if self.inventory.HasKey():
-    #    self.inventory.UseKey(level_num, room_num, exit_direction)
-    #  else:
-    #    return False
+    # TODO: Add key checking logic for locked doors
     return True
 
   def HasAccessibleSwordOrWand(self) -> bool:
-    """Check if wood sword cave (cave 0) or letter cave (cave 8) is accessible from an 'open'
+    """Check if wood sword cave or letter cave is accessible from an 'open'
     screen and contains a sword or wand.
 
     Returns:
@@ -423,9 +397,6 @@ class Validator(object):
         1. Accessible from a screen with block type "Open"
         2. Contains a sword (any tier) or wand
     """
-    WOOD_SWORD_CAVE_NUM = 0
-    LETTER_CAVE_NUM = 8
-
     # Check all screens with "Open" block type
     for screen_num in range(0x80):
       block_type = self.GetBlockType(screen_num)
@@ -437,11 +408,9 @@ class Validator(object):
 
       # Check if it leads to wood sword cave or letter cave
       if destination == CaveType.WOOD_SWORD_CAVE or destination == CaveType.LETTER_CAVE:
-        cave_num = int(destination) - 0x10
-
         # Check all three positions in the cave for sword or wand
         for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
-          location = Location(cave_num=cave_num, position_num=position_num)
+          location = Location(cave_num=destination - 0x10, position_num=position_num)
           item = self.data_table.GetCaveItem(location)
 
           # Check if item is a sword or wand

@@ -353,7 +353,7 @@ class Z1Randomizer():
     # If wood sword cave is not at vanilla screen 0x77, caves are pre-shuffled
     if not self.HasVanillaWoodSwordCaveStartScreen(data_table):
       self.cave_destinations_randomized_in_base_seed = True
-      print("Detected shuffled caves in base ROM - auto-enabling cave shuffle and recorder warp updates")
+      log.debug("Detected shuffled caves in base ROM - auto-enabling cave shuffle and recorder warp updates")
 
     # Determine heart requirements once for both validation and ROM patching
     white_sword_hearts = random.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
@@ -414,8 +414,8 @@ class Z1Randomizer():
       (recorder_warp_destinations, recorder_y_coordinates) = self._CalculateRecorderWarpDestinations(data_table)
       patch.AddData(RECORDER_WARP_DESTINATIONS_ADDRESS + NES_HEADER_OFFSET, recorder_warp_destinations)
       patch.AddData(0x6129, recorder_y_coordinates)
-      print(f"Updated recorder warp destinations: {[hex(x) for x in recorder_warp_destinations]}")
-      print(f"Updated recorder y coordinates: {[hex(x) for x in recorder_y_coordinates]}")
+      log.debug(f"Updated recorder warp destinations: {[hex(x) for x in recorder_warp_destinations]}")
+      log.debug(f"Updated recorder y coordinates: {[hex(x) for x in recorder_y_coordinates]}")
 
     # Change White Sword cave to use the hint normally reserved for the letter cave
     # Vanilla value at 0x45B4 is 0x42, changing to 0x4C
