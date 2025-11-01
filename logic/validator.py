@@ -95,17 +95,13 @@ class Validator(object):
 
       # Check for special cases first before calling GetScreenDestination
       destination = None
-      if screen_num in [0x5F, 0x34]:
-        input("%x  self.data_table.GetArmosItemScreen() is %x" % (screen_num, self.data_table.GetArmosItemScreen()))
       
       # Special case: Coast item screen (0x5F)
       if screen_num == 0x5F:
         destination = CaveType.COAST_ITEM
-        input("Coast!")
       # Special case: Armos item screen (read from ROM)
       elif screen_num == self.data_table.GetArmosItemScreen():
         destination = CaveType.ARMOS_ITEM
-        input("Armos! %x" % screen_num)
       else:
         # Normal case: get destination from data table
         destination = self.data_table.GetScreenDestination(screen_num)
@@ -273,30 +269,19 @@ class Validator(object):
     return self.inventory.HasReusableWeapon()
 
   def CanGetItemsFromCave(self, cave_type: CaveType) -> bool:
-    print()
-    print(f"Checking cave {cave_type.name}")
-    print(f"Inventory {self.inventory.ToString()}")
-    if self.flags.EXTRA_RAFT_BLOCKS:
-        print("Extra raft blocks")
     if (cave_type == CaveType.WHITE_SWORD_CAVE
         and self.inventory.GetHeartCount() < self.white_sword_hearts):
-      print("Not enough for WS")
       return False
     if (cave_type == CaveType.MAGICAL_SWORD_CAVE
         and self.inventory.GetHeartCount() < self.magical_sword_hearts):
-      print("Not enough for Mags")
       return False
     if cave_type == CaveType.POTION_SHOP and not self.inventory.Has(Item.LETTER):
-      print("No letter for Potion")
       return False
     if cave_type == CaveType.COAST_ITEM and not self.inventory.Has(Item.LADDER):
-      input("No ladder for Coast")
       return False
     # If the Westlake Mall area is raft blocked, it's possible for the armos item to be raft-blocked
     if cave_type == CaveType.ARMOS_ITEM and not self.inventory.Has(Item.RAFT) and self.flags.EXTRA_RAFT_BLOCKS:
-        input("No raft for Armos")
         return False
-    print("OK")
     return True
 
   def ProcessLevel(self, level_num: int) -> None:
