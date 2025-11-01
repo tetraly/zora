@@ -20,38 +20,116 @@ class Validator(object):
     self.white_sword_hearts = white_sword_hearts
     self.magical_sword_hearts = magical_sword_hearts
 
-  def GetBlockType(self, screen_num: int) -> str:
-    """Get the block type for a given screen, accounting for flags."""
-    # Special case: Screen 0x5F is the coast item location (requires ladder)
-    if screen_num == 0x5F:
-      return "Ladder"
+  def IsSeedValid(self) -> bool:
+    # Check if accessible sword/wand requirement is met (default behavior, unless disabled by flag)
+    if not self.flags.dont_guarantee_starting_sword_or_wand and not self.HasAccessibleSwordOrWand():
+        return False
 
-    # Get the base block type from the constants
-    base_block_type = OVERWORLD_BLOCK_TYPES.get(screen_num)
+    # Check that no level's start room number equals its overworld entrance screen
+    for level_num in Range.VALID_LEVEL_NUMBERS:
+      for screen_num in range(0, 0x80):
+        if self.data_table.GetScreenDestination(screen_num) == level_num:
+          if self.data_table.GetLevelStartRoomNumber(level_num) == screen_num:
+            log.warning(f"Invalid seed: Level {level_num} start room ({hex(start_room_num)}) equals overworld entrance screen ({hex(screen_num)})")
+            return False
 
-    # If randomize_lost_hills flag is enabled, mark Vanilla 5 and the two caves to the east as LostHillsHint
-    if self.flags.randomize_lost_hills and screen_num in [0x0B, 0x0C, 0x0D]:
-      return "LostHillsHint"
+    self.inventory.Reset()
+    self.inventory.SetStillMakingProgressBit()
+    num_iterations = 0
+    while self.inventory.StillMakingProgress():
+      num_iterations += 1
+      log.debug("Iteration %d of checking" % num_iterations)
+      log.debug("Inventory contains: " + self.inventory.ToString())
+      self.inventory.ClearMakingProgressBit()
+      self.data_table.ClearAllVisitMarkers()
+      for destination in self.GetAccessibleDestinations():
+        if destination in Range.VALID_LEVEL_NUMBERS:
+          level_num = destination
+          if level_num == 9 and self.inventory.GetTriforceCount() < 8:
+            continue
+          log.debug("Can access level %d" % level_num)
+          self.ProcessLevel(level_num)
+        else:
+          cave_type = destination
+          log.debug("Can access cave type %x" % cave_type)
+          if self.CanGetItemsFromCave(cave_type):
+            for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
+              # Location constructor still expects cave_num (array index 0x00-0x15)
+              location = Location(cave_num=cave_type - 0x10, position_num=position_num)
+              self.inventory.AddItem(self.data_table.GetCaveItem(location), location)
+      if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
+        log.debug("Seed appears to be beatable. :)")
+        return True
+      elif num_iterations > 10:
+        return False
+    log.debug("Seed doesn't appear to be beatable. :(")
+    return False
 
-    # If randomize_dead_woods flag is enabled, mark screens 0x70, 0x71, 0x72 as DeadWoodsHint
-    if self.flags.randomize_dead_woods and screen_num in [0x70, 0x71, 0x72]:
-      return "DeadWoodsHint"
+  def HasAccessibleSwordOrWand(self) -> bool:
+    """Check if wood sword cave or letter cave is accessible from an 'open'
+    screen and contains a sword or wand.
 
-    # If extra_raft_blocks flag is enabled, override certain screens
-    if self.flags.extra_raft_blocks:
-      # Westlake Mall and Casino Corner screens: 0x34, 0x44, 0x0F, 0x0E, 0x1F, 0x1E
-      if screen_num in [0x34, 0x44, 0x0F, 0x0E, 0x1F]:
-        return "Raft"
-      elif screen_num == 0x1E:
-        # 0x1E is already Bomb-blocked, so it becomes Raft+Bomb
-        return "Raft+Bomb"
-        
-    # If extra_power_bracelet_blocks flag is enabled, override West Death Mountain screens
-    if self.flags.extra_power_bracelet_blocks:
-      if screen_num in [0x00, 0x01, 0x02, 0x03, 0x10, 0x12, 0x13]:
-        # 0x11 is already Power Bracelet blocked so no change needed
-        return "Power Bracelet+Bomb"
-    return base_block_type
+    Returns:
+        True if at least one of the two caves meets both conditions:
+        1. Accessible from a screen with block type "Open"
+        2. Contains a sword (any tier) or wand
+    """
+    # Check all screens with "Open" block type
+    for screen_num in range(0x80):
+      block_type = self.GetBlockType(screen_num)
+      if block_type != "Open":
+        continue
+
+      # Get the destination for this open screen
+      destination = self.data_table.GetScreenDestination(screen_num)
+
+      # Check if it leads to wood sword cave or letter cave
+      if destination == CaveType.WOOD_SWORD_CAVE or destination == CaveType.LETTER_CAVE:
+        # Check all three positions in the cave for sword or wand
+        for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
+          location = Location(cave_num=destination - 0x10, position_num=position_num)
+          item = self.data_table.GetCaveItem(location)
+
+          # Check if item is a sword or wand
+          if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.WAND]:
+            return True
+
+    return False
+
+  def GetAccessibleDestinations(self):
+    tbr = set()
+
+    for screen_num in range(0, 0x80):
+      # Check if we can access this screen
+      if not self.CanAccessScreen(screen_num):
+        continue
+
+      destination = None      
+      # Special case: Coast item screen (0x5F)
+      if screen_num == 0x5F:
+        destination = CaveType.COAST_ITEM
+      # Special case: Armos item screen (read from ROM)
+      elif screen_num == self.data_table.GetArmosItemScreen():
+        destination = CaveType.ARMOS_ITEM
+      else:
+        # Normal case: get destination from data table
+        destination = self.data_table.GetScreenDestination(screen_num)
+
+      if destination != CaveType.NONE:
+        tbr.add(destination)
+
+        # If we can access the Lost Hills Hint cave, add the virtual item to inventory
+        if destination == CaveType.LOST_HILLS_HINT:
+          self.inventory.AddItem(Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
+                                 Location(cave_num=CaveType.LOST_HILLS_HINT - 0x10, position_num=1))
+
+        # If we can access the Dead Woods Clue cave, add the virtual item to inventory
+        if destination == CaveType.DEAD_WOODS_HINT:
+          self.inventory.AddItem(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM,
+                                 Location(cave_num=CaveType.DEAD_WOODS_HINT - 0x10, position_num=1))
+
+    return list(tbr)
+
 
   def CanAccessScreen(self, screen_num: int) -> bool:
     """Check if the player can access a given screen based on current inventory."""
@@ -85,95 +163,40 @@ class Validator(object):
 
     return False
 
-  def GetAccessibleDestinations(self):
-    tbr = set()
 
-    for screen_num in range(0, 0x80):
-      # Check if we can access this screen
-      if not self.CanAccessScreen(screen_num):
-        continue
+  def GetBlockType(self, screen_num: int) -> str:
+    """Get the block type for a given screen, accounting for flags."""
+    # Special case: Screen 0x5F is the coast item location (requires ladder)
+    if screen_num == 0x5F:
+      return "Ladder"
 
-      # Check for special cases first before calling GetScreenDestination
-      destination = None
-      
-      # Special case: Coast item screen (0x5F)
-      if screen_num == 0x5F:
-        destination = CaveType.COAST_ITEM
-      # Special case: Armos item screen (read from ROM)
-      elif screen_num == self.data_table.GetArmosItemScreen():
-        destination = CaveType.ARMOS_ITEM
-      else:
-        # Normal case: get destination from data table
-        destination = self.data_table.GetScreenDestination(screen_num)
+    # Get the base block type from the constants
+    base_block_type = OVERWORLD_BLOCK_TYPES.get(screen_num)
 
-      if destination != CaveType.NONE:
-        tbr.add(destination)
+    # If randomize_lost_hills flag is enabled, mark Vanilla 5 and the two caves to the east as LostHillsHint
+    if self.flags.randomize_lost_hills and screen_num in [0x0B, 0x0C, 0x0D]:
+      return "LostHillsHint"
 
-        # If we can access the Lost Hills Hint cave, add the virtual item to inventory
-        if destination == CaveType.LOST_HILLS_HINT:
-          self.inventory.AddItem(Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=CaveType.LOST_HILLS_HINT - 0x10, position_num=1))
+    # If randomize_dead_woods flag is enabled, mark screens 0x70, 0x71, 0x72 as DeadWoodsHint
+    if self.flags.randomize_dead_woods and screen_num in [0x70, 0x71, 0x72]:
+      return "DeadWoodsHint"
 
-        # If we can access the Dead Woods Clue cave, add the virtual item to inventory
-        if destination == CaveType.DEAD_WOODS_HINT:
-          self.inventory.AddItem(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=CaveType.DEAD_WOODS_HINT - 0x10, position_num=1))
+    # If extra_raft_blocks flag is enabled, override certain screens
+    if self.flags.extra_raft_blocks:
+      # Westlake Mall and Casino Corner screens: 0x34, 0x44, 0x0F, 0x0E, 0x1F, 0x1E
+      if screen_num in [0x34, 0x44, 0x0F, 0x0E, 0x1F]:
+        return "Raft"
+      elif screen_num == 0x1E:
+        # 0x1E is already Bomb-blocked, so it becomes Raft+Bomb
+        return "Raft+Bomb"
+        
+    # If extra_power_bracelet_blocks flag is enabled, override West Death Mountain screens
+    if self.flags.extra_power_bracelet_blocks:
+      if screen_num in [0x00, 0x01, 0x02, 0x03, 0x10, 0x12, 0x13]:
+        # 0x11 is already Power Bracelet blocked so no change needed
+        return "Power Bracelet+Bomb"
+    return base_block_type
 
-    return list(tbr)
-
-
-  def IsSeedValid(self) -> bool:
-    log.debug("Starting check of whether the seed is valid or not")
-
-    # Check if accessible sword/wand requirement is met (default behavior, unless disabled by flag)
-    if not self.flags.dont_guarantee_starting_sword_or_wand:
-      if not self.HasAccessibleSwordOrWand():
-        return False
-
-    # Check that no level's start room number equals its overworld entrance screen
-    for level_num in Range.VALID_LEVEL_NUMBERS:
-      start_room_num = self.data_table.GetLevelStartRoomNumber(level_num)
-      # Find which overworld screen leads to this level
-      for screen_num in range(0, 0x80):
-        destination = self.data_table.GetScreenDestination(screen_num)
-        if destination == level_num:
-          if screen_num == start_room_num:
-            log.warning(f"Invalid seed: Level {level_num} start room ({hex(start_room_num)}) equals overworld entrance screen ({hex(screen_num)})")
-            return False
-          break
-
-    self.inventory.Reset()
-    self.inventory.SetStillMakingProgressBit()
-    num_iterations = 0
-    while self.inventory.StillMakingProgress():
-      num_iterations += 1
-      log.debug("Iteration %d of checking" % num_iterations)
-      log.debug("Inventory contains: " + self.inventory.ToString())
-      self.inventory.ClearMakingProgressBit()
-      self.data_table.ClearAllVisitMarkers()
-      log.debug("Checking caves")
-      for destination in self.GetAccessibleDestinations():
-        if destination in Range.VALID_LEVEL_NUMBERS:
-          level_num = destination
-          if level_num == 9 and self.inventory.GetTriforceCount() < 8:
-            continue
-          log.debug("Can access level %d" % level_num)
-          self.ProcessLevel(level_num)
-        else:
-          cave_type = destination
-          log.debug("Can access cave type %x" % cave_type)
-          if self.CanGetItemsFromCave(cave_type):
-            for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
-              # Location constructor still expects cave_num (array index 0x00-0x15)
-              location = Location(cave_num=cave_type - 0x10, position_num=position_num)
-              self.inventory.AddItem(self.data_table.GetCaveItem(location), location)
-      if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
-        log.debug("Seed appears to be beatable. :)")
-        return True
-      elif num_iterations > 100:
-        return False
-    log.debug("Seed doesn't appear to be beatable. :(")
-    return False
 
   def _IsMixedEnemyGroup(self, enemy: Enemy) -> bool:
     """Check if an enemy code represents a mixed enemy group (0x62-0x7F)."""
@@ -388,33 +411,4 @@ class Validator(object):
     # TODO: Add key checking logic for locked doors
     return True
 
-  def HasAccessibleSwordOrWand(self) -> bool:
-    """Check if wood sword cave or letter cave is accessible from an 'open'
-    screen and contains a sword or wand.
 
-    Returns:
-        True if at least one of the two caves meets both conditions:
-        1. Accessible from a screen with block type "Open"
-        2. Contains a sword (any tier) or wand
-    """
-    # Check all screens with "Open" block type
-    for screen_num in range(0x80):
-      block_type = self.GetBlockType(screen_num)
-      if block_type != "Open":
-        continue
-
-      # Get the destination for this open screen
-      destination = self.data_table.GetScreenDestination(screen_num)
-
-      # Check if it leads to wood sword cave or letter cave
-      if destination == CaveType.WOOD_SWORD_CAVE or destination == CaveType.LETTER_CAVE:
-        # Check all three positions in the cave for sword or wand
-        for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
-          location = Location(cave_num=destination - 0x10, position_num=position_num)
-          item = self.data_table.GetCaveItem(location)
-
-          # Check if item is a sword or wand
-          if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.WAND]:
-            return True
-
-    return False

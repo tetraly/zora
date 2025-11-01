@@ -64,8 +64,10 @@ windows/dist/
 *.log
 runtime.txt
 
-# ROM files
+# ROM files (full ROMs should not be committed)
 # *.nes
+# Note: testdata/*.bin files should be committed - they contain only
+# extracted portions needed for tests (~4.6 KB total vs 128 KB full ROM)
 
 # Environment variables
 .env
