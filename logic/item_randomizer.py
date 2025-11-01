@@ -32,7 +32,7 @@ class ItemRandomizer():
     """
     # Tier 1: Sword, Ring, Any Key - 230 ± 25
     if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD,
-                Item.BLUE_RING, Item.RED_RING, Item.ANY_KEY]:
+                Item.BLUE_RING, Item.RED_RING, Item.MAGICAL_KEY]:
       return randint(205, 255)
 
     # Tier 2: Bow, Wand, Ladder - 100 ± 20
