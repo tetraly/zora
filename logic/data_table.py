@@ -20,6 +20,7 @@ CAVE_PRICE_DATA_START_ADDRESS = 0x1863C + NES_FILE_OFFSET
 CAVE_NUMBER_REPRESENTING_ARMOS_ITEM = 0x14
 CAVE_NUMBER_REPRESENTING_COAST_ITEM = 0x15
 ARMOS_ITEM_ADDRESS = 0x10CF5 + NES_FILE_OFFSET
+ARMOS_SCREEN_ADDRESS = 0x10CB2  # ROM address (without header) - _ReadMemory adds NES_HEADER_OFFSET
 COAST_ITEM_ADDRESS = 0x1788A + NES_FILE_OFFSET
 COMPASS_ROOM_NUMBER_ADDRESS = 0x1942C + NES_FILE_OFFSET
 SPECIAL_DATA_LEVEL_OFFSET = 0xFC
@@ -81,6 +82,14 @@ class DataTable():
     lower_bits = self.overworld_raw_data[screen_num + 1*0x80] & 0x03
     # Set the upper 6 bits to the cave type value (shift left by 2)
     self.overworld_raw_data[screen_num + 1*0x80] = (int(cave_type) << 2) | lower_bits
+
+  def GetArmosItemScreen(self) -> int:
+    """Get the screen number where the armos item is located.
+
+    Returns:
+        The overworld screen number (0-127) where the armos item statue is located
+    """
+    return self.rom_reader._ReadMemory(ARMOS_SCREEN_ADDRESS, 1)[0]
 
   def _ReadLevelInfo(self):
     self.is_z1r = True

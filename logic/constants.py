@@ -121,6 +121,7 @@ OVERWORLD_BLOCK_TYPES = {
   0x58: "Recorder",  # 2nd quest only
   0x5B: "Candle",
   0x5E: "Open",
+  0x5F: "Ladder",  # Coast item location
   0x60: "Recorder",  # 2nd quest onlye
   0x62: "Candle", # 1st quest only
   0x63: "Candle",
