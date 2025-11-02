@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import List
 import logging
 from .randomizer_constants import Direction, Enemy, Item, Range, RoomAction, RoomNum, RoomType, WallType
 
@@ -22,25 +22,6 @@ class Room():
       Direction.SOUTH: (0, 2)  # Bits 2-5 of table 0
   }
 
-  # Rooms where mobility is restricted without a ladder.
-  # Note that while the player can exit and enter through any door in a CIRCLE_MOAT_ROOM, we keep
-  # it in this Dict since a room item may not be able to be picked up without the ladder.
-  POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS: Dict[RoomType, List[Direction]] = {
-      RoomType.CIRCLE_MOAT_ROOM: [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST],
-      RoomType.DOUBLE_MOAT_ROOM: [Direction.EAST, Direction.WEST],
-      RoomType.HORIZONTAL_MOAT_ROOM: [Direction.EAST, Direction.SOUTH, Direction.WEST],
-      RoomType.VERTICAL_MOAT_ROOM: [Direction.SOUTH, Direction.WEST, Direction.NORTH],
-      RoomType.CHEVY_ROOM: []
-  }
-  POTENTIAL_LADDER_BLOCK_ROOMS = POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS.keys()
-
-  MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS: Dict[RoomType, List[Direction]] = {
-      RoomType.HORIZONTAL_CHUTE_ROOM: [Direction.EAST, Direction.WEST],
-      RoomType.VERTICAL_CHUTE_ROOM: [Direction.NORTH, Direction.SOUTH],
-      RoomType.T_ROOM: [Direction.WEST, Direction.NORTH, Direction.EAST]
-  }
-  MOVEMENT_CONSTRAINED_ROOMS = MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS.keys()
-
   def __init__(self, rom_data: List[int]) -> None:
     if rom_data[4] & 0x1F == 0x03:
       stuff_not_to_change = rom_data[4] & 0xE0
@@ -48,21 +29,11 @@ class Room():
       rom_data[4] = new_value
     self.rom_data = rom_data
 
-    self.marked_as_visited = False
     # -1 is used as a sentinal value indicating a lack of stairway room
     self.staircase_room_num = RoomNum(-1)
 
   def GetRomData(self) -> List[int]:
     return self.rom_data
-
-  def IsMarkedAsVisited(self) -> bool:
-    return self.marked_as_visited
-
-  def MarkAsVisited(self) -> None:
-    self.marked_as_visited = True
-
-  def ClearVisitMark(self) -> None:
-    self.marked_as_visited = False
 
   def GetWallType(self, direction: Direction) -> WallType:
     assert self.GetType() not in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]
@@ -98,33 +69,10 @@ class Room():
 
   def SetStaircaseRoomNumber(self, staircase_room_num: RoomNum) -> None:
     self.staircase_room_num = staircase_room_num
-  
-    
+
   ### Room type-related methods ###
-  def PathUnconditionallyObstructed(self, from_direction: Direction,
-                                    to_direction: Direction) -> bool:
-    if (self.GetType() in self.MOVEMENT_CONSTRAINED_ROOMS
-        and (from_direction not in
-             self.MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS[self.GetType()] or to_direction
-             not in self.MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS[self.GetType()])):
-      return True
-    return False
-
-  def PathObstructedByWater(self, from_direction: Direction, to_direction: Direction,
-                            has_ladder: bool) -> bool:
-    if not has_ladder and self.GetType() in self.POTENTIAL_LADDER_BLOCK_ROOMS:
-      if (from_direction not in
-          self.POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS[self.GetType()] or to_direction
-          not in self.POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS[self.GetType()]):
-        return True
-
-    return False
-
   def GetType(self) -> RoomType:
     return RoomType(self.rom_data[3] & 0x3F)
-
-  def HasPotentialLadderBlock(self) -> bool:
-    return self.GetType() in self.POTENTIAL_LADDER_BLOCK_ROOMS
 
   #def HasUnobstructedStaircase(self) -> bool:
   #  return self.GetType() in [RoomType.SPIRAL_STAIR_ROOM, RoomType.NARROW_STAIR_ROOM]

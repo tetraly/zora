@@ -1,17 +1,32 @@
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import logging as log
 
-from .randomizer_constants import CaveType, Direction, Item, LevelNum, Enemy
-from .randomizer_constants import Range, RoomNum, RoomType, WallType
+from .randomizer_constants import CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
 from .data_table import DataTable
 from .inventory import Inventory
-from .location import Location
-from .room import Room
 from .flags import Flags
 from .constants import OVERWORLD_BLOCK_TYPES
 
 
 class Validator(object):
+  # Rooms where mobility is restricted without a ladder.
+  # Note that while the player can exit and enter through any door in a CIRCLE_MOAT_ROOM, we keep
+  # it in this Dict since a room item may not be able to be picked up without the ladder.
+  POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS: Dict[RoomType, List[Direction]] = {
+      RoomType.CIRCLE_MOAT_ROOM: [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST],
+      RoomType.DOUBLE_MOAT_ROOM: [Direction.EAST, Direction.WEST],
+      RoomType.HORIZONTAL_MOAT_ROOM: [Direction.EAST, Direction.SOUTH, Direction.WEST],
+      RoomType.VERTICAL_MOAT_ROOM: [Direction.SOUTH, Direction.WEST, Direction.NORTH],
+      RoomType.CHEVY_ROOM: []
+  }
+  POTENTIAL_LADDER_BLOCK_ROOMS = POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS.keys()
+
+  MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS: Dict[RoomType, List[Direction]] = {
+      RoomType.HORIZONTAL_CHUTE_ROOM: [Direction.EAST, Direction.WEST],
+      RoomType.VERTICAL_CHUTE_ROOM: [Direction.NORTH, Direction.SOUTH],
+      RoomType.T_ROOM: [Direction.WEST, Direction.NORTH, Direction.EAST]
+  }
+  MOVEMENT_CONSTRAINED_ROOMS = MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS.keys()
 
   def __init__(self, data_table: DataTable, flags: Flags, white_sword_hearts: int = 5, magical_sword_hearts: int = 12) -> None:
     self.data_table = data_table
@@ -19,6 +34,8 @@ class Validator(object):
     self.inventory = Inventory()
     self.white_sword_hearts = white_sword_hearts
     self.magical_sword_hearts = magical_sword_hearts
+    # Track visited rooms as (level_num, room_num) tuples
+    self.visited_rooms: set[tuple[int, int]] = set()
 
   def IsSeedValid(self) -> bool:
     # Check if accessible sword/wand requirement is met (default behavior, unless disabled by flag)
@@ -30,7 +47,7 @@ class Validator(object):
       for screen_num in range(0, 0x80):
         if self.data_table.GetScreenDestination(screen_num) == level_num:
           if self.data_table.GetLevelStartRoomNumber(level_num) == screen_num:
-            log.warning(f"Invalid seed: Level {level_num} start room ({hex(start_room_num)}) equals overworld entrance screen ({hex(screen_num)})")
+            log.warning(f"Invalid seed: Level {level_num} start room number equals overworld entrance screen ({hex(screen_num)})")
             return False
 
     self.inventory.Reset()
@@ -41,7 +58,7 @@ class Validator(object):
       log.debug("Iteration %d of checking" % num_iterations)
       log.debug("Inventory contains: " + self.inventory.ToString())
       self.inventory.ClearMakingProgressBit()
-      self.data_table.ClearAllVisitMarkers()
+      self.visited_rooms.clear()
       for destination in self.GetAccessibleDestinations():
         if destination in Range.VALID_LEVEL_NUMBERS:
           level_num = destination
@@ -52,11 +69,10 @@ class Validator(object):
         else:
           cave_type = destination
           log.debug("Can access cave type %x" % cave_type)
-          if self.CanGetItemsFromCave(cave_type):
+          if self.CaveRequirementsMet(cave_type):
             for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
-              # Location constructor still expects cave_num (array index 0x00-0x15)
-              location = Location(cave_num=cave_type - 0x10, position_num=position_num)
-              self.inventory.AddItem(self.data_table.GetCaveItem(location), location)
+              item = self.data_table.GetCaveItem(cave_type, position_num)
+              self.inventory.AddItem(item, cave_type, position_num)
       if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
         log.debug("Seed appears to be beatable. :)")
         return True
@@ -87,8 +103,7 @@ class Validator(object):
       if destination == CaveType.WOOD_SWORD_CAVE or destination == CaveType.LETTER_CAVE:
         # Check all three positions in the cave for sword or wand
         for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
-          location = Location(cave_num=destination - 0x10, position_num=position_num)
-          item = self.data_table.GetCaveItem(location)
+          item = self.data_table.GetCaveItem(destination, position_num)
 
           # Check if item is a sword or wand
           if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.WAND]:
@@ -120,13 +135,11 @@ class Validator(object):
 
         # If we can access the Lost Hills Hint cave, add the virtual item to inventory
         if destination == CaveType.LOST_HILLS_HINT:
-          self.inventory.AddItem(Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=CaveType.LOST_HILLS_HINT - 0x10, position_num=1))
+          self.inventory.AddItem(Item.LOST_HILLS_HINT_VIRTUAL_ITEM, CaveType.LOST_HILLS_HINT, 1)
 
         # If we can access the Dead Woods Clue cave, add the virtual item to inventory
         if destination == CaveType.DEAD_WOODS_HINT:
-          self.inventory.AddItem(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=CaveType.DEAD_WOODS_HINT - 0x10, position_num=1))
+          self.inventory.AddItem(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM, CaveType.DEAD_WOODS_HINT, 1)
 
     return list(tbr)
 
@@ -164,7 +177,7 @@ class Validator(object):
     return False
 
 
-  def GetBlockType(self, screen_num: int) -> str:
+  def GetBlockType(self, screen_num: int) -> str | None:
     """Get the block type for a given screen, accounting for flags."""
     # Special case: Screen 0x5F is the coast item location (requires ladder)
     if screen_num == 0x5F:
@@ -242,38 +255,66 @@ class Validator(object):
     zero_hp_enemies = [Enemy.GEL_1, Enemy.GEL_2, Enemy.BLUE_KEESE, Enemy.RED_KEESE, Enemy.DARK_KEESE]
     return len(actual_enemies) > 0 and all(e in zero_hp_enemies for e in actual_enemies)
 
-  def CanGetRoomItem(self, entry_direction: Direction, room: Room) -> bool:
+  def CanGetRoomItem(self, entry_direction: Direction, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if the player can get an item in the given room.
+
+    Args:
+        entry_direction: Direction player entered the room from
+        level_num: The level number
+        room_num: The room number
+
+    Returns:
+        True if the player can get the item in this room
+    """
+    room_type = self.data_table.GetRoomType(level_num, room_num)
+
     # Can't pick up a room item in any rooms with water/moats without a ladder.
     # TODO: Make a better determination here based on the drop location and the entry direction.
-    if room.HasPotentialLadderBlock() and not self.inventory.Has(Item.LADDER):
+    if room_type in self.POTENTIAL_LADDER_BLOCK_ROOMS and not self.inventory.Has(Item.LADDER):
       return False
-    if room.HasDropBitSet() and not self.CanDefeatEnemies(room):
-      return False
-    if (room.GetType() == RoomType.HORIZONTAL_CHUTE_ROOM
+
+    has_drop_bit = self.data_table.HasDropBit(level_num, room_num)
+    if has_drop_bit:
+      if not self.CanDefeatEnemies(level_num, room_num):
+        return False
+
+    if (room_type == RoomType.HORIZONTAL_CHUTE_ROOM
         and entry_direction in [Direction.NORTH, Direction.SOUTH]):
       return False
-    if (room.GetType() == RoomType.VERTICAL_CHUTE_ROOM
+    if (room_type == RoomType.VERTICAL_CHUTE_ROOM
         and entry_direction in [Direction.EAST, Direction.WEST]):
       return False
-    if room.GetType() == RoomType.T_ROOM:
+    if room_type == RoomType.T_ROOM:
       return False
     return True
 
-  def CanDefeatEnemies(self, room: Room) -> bool:
-    if room.HasNoEnemiesToKill():
+  def CanDefeatEnemies(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if the player can defeat the enemies in a room.
+
+    Args:
+        level_num: The level number
+        room_num: The room number
+
+    Returns:
+        True if the player has the items needed to defeat the room's enemies
+    """
+    room_enemy = self.data_table.GetRoomEnemy(level_num, room_num)
+
+    # Check if no enemies need to be killed
+    if room_enemy in [Enemy.BUBBLE, Enemy.THREE_PAIRS_OF_TRAPS, Enemy.CORNER_TRAPS,
+                      Enemy.OLD_MAN, Enemy.THE_KIDNAPPED, Enemy.NOTHING]:
       return True
 
-    room_enemy = room.GetEnemy()
     actual_enemies = self._GetActualEnemies(room_enemy)
 
     # Check for specific boss/enemy requirements using ROM data for mixed groups
-    if ((room.HasTheBeast() and not self.inventory.HasBowSilverArrowsAndSword())
-        or (room.HasDigdogger() and not self.inventory.HasRecorderAndReusableWeapon())
-        or (room.HasGohma() and not self.inventory.HasBowAndArrows())
+    if ((room_enemy == Enemy.THE_BEAST and not self.inventory.HasBowSilverArrowsAndSword())
+        or (room_enemy in [Enemy.SINGLE_DIGDOGGER, Enemy.TRIPLE_DIGDOGGER] and not self.inventory.HasRecorderAndReusableWeapon())
+        or (room_enemy in [Enemy.RED_GOHMA, Enemy.BLUE_GOHMA] and not self.inventory.HasBowAndArrows())
         or (self._ContainsEnemyType(room_enemy, [Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE]) and not self.inventory.HasSword())
         or (room_enemy.IsGleeokOrPatra() and not self.inventory.HasSwordOrWand())
         or (self._RoomHasOnlyZeroHPEnemies(actual_enemies) and not self.inventory.HasReusableWeaponOrBoomerang())
-        or (room.HasHungryGoriya() and not self.inventory.Has(Item.BAIT))):
+        or (room_enemy == Enemy.HUNGRY_GORIYA and not self.inventory.Has(Item.BAIT))):
       return False
 
     # Check for Pols Voice using ROM data for mixed groups
@@ -291,7 +332,7 @@ class Validator(object):
     # At this point, assume regular enemies
     return self.inventory.HasReusableWeapon()
 
-  def CanGetItemsFromCave(self, cave_type: CaveType) -> bool:
+  def CaveRequirementsMet(self, cave_type: CaveType) -> bool:
     if (cave_type == CaveType.WHITE_SWORD_CAVE
         and self.inventory.GetHeartCount() < self.white_sword_hearts):
       return False
@@ -301,10 +342,12 @@ class Validator(object):
     if cave_type == CaveType.POTION_SHOP and not self.inventory.Has(Item.LETTER):
       return False
     if cave_type == CaveType.COAST_ITEM and not self.inventory.Has(Item.LADDER):
+      raise Exception("Got to a Coast item check that shouldn't be reached")
       return False
     # If the Westlake Mall area is raft blocked, it's possible for the armos item to be raft-blocked
     if cave_type == CaveType.ARMOS_ITEM and not self.inventory.Has(Item.RAFT) and self.flags.EXTRA_RAFT_BLOCKS:
-        return False
+      raise Exception("Got to an Armos check that shouldn't be reached")
+      return False
     return True
 
   def ProcessLevel(self, level_num: int) -> None:
@@ -324,37 +367,46 @@ class Validator(object):
                  entry_direction: Direction) -> List[Tuple[RoomNum, Direction]]:
       if room_num not in range(0, 0x80):
         return []
-      room = self.data_table.GetRoom(level_num, room_num)
-      if room.IsMarkedAsVisited():
+
+      # Check if this room has already been visited
+      room_key = (level_num, room_num)
+      if room_key in self.visited_rooms:
         return []
+
       log.debug("Visiting level %d room %x" % (level_num, room_num))
-      room.MarkAsVisited()
+      self.visited_rooms.add(room_key)
       tbr = []
 
-      if self.CanGetRoomItem(entry_direction, room) and room.HasItem():
-          self.inventory.AddItem(room.GetItem(), Location.LevelRoom(level_num, room_num))
-      if room.GetEnemy() == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, room):
-          self.inventory.AddItem(Item.BEAST_DEFEATED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
-      if room.GetEnemy() == Enemy.THE_KIDNAPPED:
-          self.inventory.AddItem(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
+      # Check for room items
+      if self.CanGetRoomItem(entry_direction, level_num, room_num):
+        if self.data_table.HasRoomItem(level_num, room_num):
+          room_item = self.data_table.GetRoomItemByCoords(level_num, room_num)
+          self.inventory.AddItem(room_item, level_num, room_num)
+
+      # Check for special enemy items
+      room_enemy = self.data_table.GetRoomEnemy(level_num, room_num)
+      if room_enemy == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, level_num, room_num):
+          self.inventory.AddItem(Item.BEAST_DEFEATED_VIRTUAL_ITEM, level_num, room_num)
+      if room_enemy == Enemy.THE_KIDNAPPED:
+          self.inventory.AddItem(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM, level_num, room_num)
 
       for direction in (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH):
-        if self.CanMove(entry_direction, direction, level_num, room_num, room):
+        if self.CanMove(entry_direction, direction, level_num, room_num):
           tbr.append((RoomNum(room_num + direction), Direction(-1 * direction)))
 
       # Only check for stairways if this room is configured to have a stairway entrance
-      if not self._HasStairway(room):
+      if not self._HasStairway(level_num, room_num):
           return tbr      
       
       for stairway_room_num in self.data_table.GetLevelStaircaseRoomNumberList(level_num):
-          stairway_room = self.data_table.GetRoom(level_num, stairway_room_num)
-          left_exit = stairway_room.GetLeftExit()
-          right_exit = stairway_room.GetRightExit()
+          left_exit = self.data_table.GetStaircaseLeftExit(level_num, stairway_room_num)
+          right_exit = self.data_table.GetStaircaseRightExit(level_num, stairway_room_num)
 
           # Item staircase. Add the item to our inventory.
           if left_exit == room_num and right_exit == room_num:
-              self.inventory.AddItem(
-                  stairway_room.GetItem(), Location.LevelRoom(level_num, stairway_room_num))
+              staircase_item = self.data_table.GetStaircaseItem(level_num, stairway_room_num)
+              if staircase_item is not None:
+                  self.inventory.AddItem(staircase_item, level_num, stairway_room_num)
           # Transport stairway cases. Add the connecting room to be checked.
           elif left_exit == room_num and right_exit != room_num:
                 tbr.append((right_exit, Direction.STAIRCASE))
@@ -366,8 +418,17 @@ class Validator(object):
                 break
       return tbr
 
-  def _HasStairway(self, room: Room) -> bool:
-        room_type = room.GetType()
+  def _HasStairway(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+        """Check if a room has a stairway that can be accessed.
+
+        Args:
+            level_num: The level number
+            room_num: The room number
+
+        Returns:
+            True if the room has an accessible stairway
+        """
+        room_type = self.data_table.GetRoomType(level_num, room_num)
 
         # Spiral Stair, Narrow Stair, and Diamond Stair rooms always have a staircase
         if room_type.HasOpenStaircase():
@@ -376,39 +437,94 @@ class Validator(object):
         # Check if there are any shutter doors in this room. If so, they'll open when a middle
         # row pushblock is pushed instead of a stairway appearing
         for direction in [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST]:
-            if room.GetWallType(direction) == WallType.SHUTTER_DOOR:
+            if self.data_table.GetRoomWallType(level_num, room_num, direction) == WallType.SHUTTER_DOOR:
                 return False
 
         # Check if "Movable block" bit is set in a room_type that has a middle row pushblock
-        if room_type.CanHavePushBlock() and room.HasMovableBlockBitSet():
+        if room_type.CanHavePushBlock() and self.data_table.HasMovableBlockBit(level_num, room_num):
             return True
         return False
 
-
   def CanMove(self, entry_direction: Direction, exit_direction: Direction, level_num: LevelNum,
-              room_num: RoomNum, room: Room) -> bool:
-    if (room.PathUnconditionallyObstructed(entry_direction, exit_direction)
-        or room.PathObstructedByWater(entry_direction, exit_direction,
-                                      self.inventory.Has(Item.LADDER))):
+              room_num: RoomNum) -> bool:
+    """Check if the player can move from one direction to another in a room.
+
+    Args:
+        entry_direction: Direction player entered the room from
+        exit_direction: Direction player is trying to exit
+        level_num: The level number
+        room_num: The room number
+
+    Returns:
+        True if the player can move in the specified direction
+    """
+    # Use new traversal logic methods
+    if (self._IsPathUnconditionallyBlocked(level_num, room_num, entry_direction, exit_direction)
+        or self._HasWaterObstruction(level_num, room_num, entry_direction, exit_direction)):
       return False
 
     # Hungry goriya room doesn't have a closed shutter door.  So need a special check to similate how
     # it's not possible to move up in the room until the goriya has been properly fed.
-    if (exit_direction == Direction.NORTH and room.HasHungryGoriya() and not self.inventory.Has(Item.BAIT)):
+    room_enemy = self.data_table.GetRoomEnemy(level_num, room_num)
+    if (exit_direction == Direction.NORTH and room_enemy == Enemy.HUNGRY_GORIYA
+        and not self.inventory.Has(Item.BAIT)):
       log.debug("Hungry goriya is still hungry :(")
       return False
 
-    wall_type = room.GetWallType(exit_direction)
+    wall_type = self.data_table.GetRoomWallType(level_num, room_num, exit_direction)
     if wall_type == WallType.SHUTTER_DOOR and level_num == 9:
-      next_room = self.data_table.GetRoom(level_num, RoomNum(room_num + exit_direction))
-      if next_room.GetEnemy() == Enemy.THE_KIDNAPPED:
+      next_room_num = RoomNum(room_num + exit_direction)
+      next_room_enemy = self.data_table.GetRoomEnemy(level_num, next_room_num)
+      if next_room_enemy == Enemy.THE_KIDNAPPED:
         return self.inventory.Has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
-     
+
     if (wall_type == WallType.SOLID_WALL
-        or (wall_type == WallType.SHUTTER_DOOR and not self.CanDefeatEnemies(room))):
+        or (wall_type == WallType.SHUTTER_DOOR and not self.CanDefeatEnemies(level_num, room_num))):
       return False
 
-    # TODO: Add key checking logic for locked doors
     return True
 
+  def _IsPathUnconditionallyBlocked(self, level_num: LevelNum, room_num: RoomNum,
+                                     from_direction: Direction, to_direction: Direction) -> bool:
+    """Check if a path through a room is unconditionally blocked due to room layout.
 
+    Args:
+        level_num: The level number
+        room_num: The room number
+        from_direction: Direction entering the room
+        to_direction: Direction exiting the room
+
+    Returns:
+        True if the path is unconditionally blocked (e.g., by chute room constraints)
+    """
+    room_type = self.data_table.GetRoomType(level_num, room_num)
+    if (room_type in self.MOVEMENT_CONSTRAINED_ROOMS
+        and (from_direction not in
+             self.MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS[room_type] or to_direction
+             not in self.MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS[room_type])):
+      return True
+    return False
+
+  def _HasWaterObstruction(self, level_num: LevelNum, room_num: RoomNum,
+                           from_direction: Direction, to_direction: Direction) -> bool:
+    """Check if a path through a room is blocked by water (requires ladder).
+
+    Args:
+        level_num: The level number
+        room_num: The room number
+        from_direction: Direction entering the room
+        to_direction: Direction exiting the room
+
+    Returns:
+        True if the path is blocked by water and player doesn't have ladder
+    """
+    has_ladder = self.inventory.Has(Item.LADDER)
+    room_type = self.data_table.GetRoomType(level_num, room_num)
+
+    if not has_ladder and room_type in self.POTENTIAL_LADDER_BLOCK_ROOMS:
+      if (from_direction not in
+          self.POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS[room_type] or to_direction
+          not in self.POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS[room_type]):
+        return True
+
+    return False

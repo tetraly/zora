@@ -64,11 +64,12 @@ def test_validator_ladder_blocked_ladder(modifiable_data_table, default_flags):
     """
     # Define the locations
     level_4_ladder_location = Location.LevelRoom(4, 0x60)
-    coast_item_location = Location.CavePosition(21, 2)
+    # Coast item: cave_num 21 -> CaveType 0x25 (COAST_ITEM), position 2
+    coast_cave_type = 21 + 0x10
 
     # Swap the items: put heart at level 4, put ladder at coast
     modifiable_data_table.SetRoomItem(level_4_ladder_location, Item.HEART_CONTAINER)
-    modifiable_data_table.SetCaveItem(coast_item_location, Item.LADDER)
+    modifiable_data_table.SetCaveItem(coast_cave_type, 2, Item.LADDER)
 
     # This should make the seed invalid because the ladder is required to reach the coast
     validator = Validator(modifiable_data_table, default_flags)
@@ -88,11 +89,12 @@ def test_validator_starting_sword_requirement(modifiable_data_table):
     be valid because the player can dive level 1 weaponless to get the sword.
     """
     # Define the locations
-    wood_sword_cave_location = Location.CavePosition(0, 2)
+    # Wood sword cave: cave_num 0 -> CaveType 0x10, position 2
+    wood_sword_cave_type = 0 + 0x10
     level_1_key_room_location = Location.LevelRoom(1, 0x74)
 
     # Swap the items: put key in wood sword cave, put wood sword in level 1
-    modifiable_data_table.SetCaveItem(wood_sword_cave_location, Item.KEY)
+    modifiable_data_table.SetCaveItem(wood_sword_cave_type, 2, Item.KEY)
     modifiable_data_table.SetRoomItem(level_1_key_room_location, Item.WOOD_SWORD)
 
     # Test 1: With default flags, this should be invalid

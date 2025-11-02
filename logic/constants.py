@@ -52,7 +52,7 @@ CHAR_MAP = {
   0xFF: " ",
 }
 
-OVERWORLD_BLOCK_TYPES = {
+OVERWORLD_BLOCK_TYPES: Dict[int, str] = {
   0x00: "Bomb",  # 2nd quest level 9
   0x01: "Bomb",
   0x02: "Bomb", #2nd quest only

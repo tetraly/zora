@@ -1,6 +1,6 @@
 import logging as log
 from typing import Dict, List
-from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum
+from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
@@ -156,17 +156,38 @@ class DataTable():
     else:
       self.level_1_to_6_rooms[location.GetRoomNum()].SetItemPosition(position_num)
 
-  def GetCaveItem(self, location: Location) -> Item:
-    assert location.IsCavePosition()
-    if location.GetCaveNum() == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
-      return Item(self.rom_reader.GetOverworldItemData()[0])
-    elif location.GetCaveNum() == CAVE_NUMBER_REPRESENTING_COAST_ITEM:
-      return Item(self.rom_reader.GetOverworldItemData()[1]) 
-    return self.overworld_caves[location.GetCaveNum()].GetItemAtPosition(location.GetPositionNum())
+  def GetCaveItem(self, cave_type: int, position_num: int) -> Item:
+    """Get an item from a cave at a specific position.
 
-  def SetCaveItem(self, location: Location, item: Item) -> None:
-    assert location.IsCavePosition()
-    self.overworld_caves[location.GetCaveNum()].SetItemAtPosition(item, location.GetPositionNum())
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (0-2)
+
+    Returns:
+        The item at the specified location
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+
+    # Special case: Armos item (cave_num would be 0x14)
+    if cave_num == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
+      return Item(self.rom_reader.GetOverworldItemData()[0])
+    # Special case: Coast item (cave_num would be 0x15)
+    elif cave_num == CAVE_NUMBER_REPRESENTING_COAST_ITEM:
+      return Item(self.rom_reader.GetOverworldItemData()[1])
+    return self.overworld_caves[cave_num].GetItemAtPosition(position_num)
+
+  def SetCaveItem(self, cave_type: int, position_num: int, item: Item) -> None:
+    """Set an item in a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (0-2)
+        item: The item to place
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+    self.overworld_caves[cave_num].SetItemAtPosition(item, position_num)
 
   def UpdateTriforceLocation(self, location: Location) -> None:
     room_num = location.GetRoomNum()
@@ -174,13 +195,6 @@ class DataTable():
     if room.IsItemStaircase():
       room_num = room.GetLeftExit()
     self.triforce_locations[location.GetLevelNum()] = room_num
-
-  def ClearAllVisitMarkers(self) -> None:
-    log.debug("Clearing Visit markers")
-    for room in self.level_1_to_6_rooms:
-      room.ClearVisitMark()
-    for room in self.level_7_to_9_rooms:
-      room.ClearVisitMark()
 
   # Gets the Room number of the start screen for a level.
   #def GetLevelStartRoomNumber(self, level_num: LevelNum) -> RoomNum:
@@ -302,3 +316,64 @@ class DataTable():
         List of Enemy enums in the group, or empty list if not a mixed group
     """
     return self.mixed_enemy_groups.get(int(enemy), [])
+
+  # New query methods for validator - Phase 1 refactoring
+
+  def GetRoomEnemy(self, level_num: LevelNum, room_num: RoomNum) -> Enemy:
+    """Get the enemy type in a specific room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetEnemy()
+
+  def GetRoomItemByCoords(self, level_num: LevelNum, room_num: RoomNum) -> Item:
+    """Get the item in a specific room, or None if no item."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetItem()
+
+  def GetRoomType(self, level_num: LevelNum, room_num: RoomNum) -> RoomType:
+    """Get the room type (layout) for a specific room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetType()
+
+  def GetRoomWallType(self, level_num: LevelNum, room_num: RoomNum, direction: Direction) -> WallType:
+    """Get the wall type in a specific direction for a room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetWallType(direction)
+
+  def HasRoomItem(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if a room has an item."""
+    room = self.GetRoom(level_num, room_num)
+    return room.HasItem()
+
+  def HasDropBit(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if a room has the drop bit set (enemy defeat required for item)."""
+    room = self.GetRoom(level_num, room_num)
+    return room.HasDropBitSet()
+
+  def HasMovableBlockBit(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if a room has the movable block bit set."""
+    room = self.GetRoom(level_num, room_num)
+    return room.HasMovableBlockBitSet()
+
+  def GetStaircaseLeftExit(self, level_num: LevelNum, staircase_room_num: RoomNum) -> RoomNum:
+    """Get the left exit room number for a staircase room."""
+    room = self.GetRoom(level_num, staircase_room_num)
+    return room.GetLeftExit()
+
+  def GetStaircaseRightExit(self, level_num: LevelNum, staircase_room_num: RoomNum) -> RoomNum:
+    """Get the right exit room number for a staircase room."""
+    room = self.GetRoom(level_num, staircase_room_num)
+    return room.GetRightExit()
+
+  def IsItemStaircase(self, level_num: LevelNum, staircase_room_num: RoomNum) -> bool:
+    """Check if a staircase is an item staircase (left == right exits)."""
+    room = self.GetRoom(level_num, staircase_room_num)
+    left = room.GetLeftExit()
+    right = room.GetRightExit()
+    return left == right
+
+  def GetStaircaseItem(self, level_num: LevelNum, staircase_room_num: RoomNum) -> Item | None:
+    """Get the item in a staircase room, or None if not an item staircase."""
+    if not self.IsItemStaircase(level_num, staircase_room_num):
+      return None
+    room = self.GetRoom(level_num, staircase_room_num)
+    return room.GetItem()

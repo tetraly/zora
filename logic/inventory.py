@@ -1,7 +1,6 @@
 from typing import List, Set, Tuple
 
-from .randomizer_constants import Direction, Item, LevelNum, RoomNum
-from .location import Location
+from .randomizer_constants import CaveType, Direction, Item, LevelNum, RoomNum
 
 import logging as log
 
@@ -24,7 +23,15 @@ class Inventory(object):
     self.num_keys = 0
     self.levels_with_triforce_obtained = []
     self.still_making_progress_bit = False
-  
+
+  def _IsLevelLocation(self, location_type: int) -> bool:
+    """Check if location_type represents a level (1-9)."""
+    return location_type in range(1, 10)
+
+  def _IsCaveLocation(self, location_type: int) -> bool:
+    """Check if location_type represents a cave (0x10-0x25)."""
+    return location_type in range(0x10, 0x26)
+
   def ToString(self) -> str:
     return ", ".join(item.name for item in self.items)
 
@@ -37,44 +44,53 @@ class Inventory(object):
   def StillMakingProgress(self) -> bool:
     return self.still_making_progress_bit
 
-  def AddItem(self, item: Item, item_location: Location) -> None:
+  def AddItem(self, item: Item, location_type: int, sub_location: int) -> None:
+    """Add an item to the inventory.
+
+    Args:
+        item: The item to add
+        location_type: Either a level number (1-9) or CaveType (0x10-0x25)
+        sub_location: Either room_num (for levels) or position_num (for caves)
+    """
     if item in [
         Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD, Item.BOMBS,
         Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
     ]:
       return
     #if (item == Item.TRIFORCE_OF_POWER
-    #    and not (item_location.GetLevelNum() == 9 and item_location.GetRoomNum() == 0x42)):
+    #    and not (location_type == 9 and sub_location == 0x42)):
     #  return
     assert (item in range(0, 0x24) or
             item in [Item.BEAST_DEFEATED_VIRTUAL_ITEM, Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM,
                      Item.LOST_HILLS_HINT_VIRTUAL_ITEM, Item.DEAD_WOODS_HINT_VIRTUAL_ITEM])
-    if (item_location.GetUniqueIdentifier() in self.item_locations and
-        item != Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
+
+    # Compute unique identifier for this location
+    unique_id = 1000 * location_type + sub_location
+
+    if unique_id in self.item_locations and item != Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM:
       return
-    self.item_locations.add(item_location.GetUniqueIdentifier())
+    self.item_locations.add(unique_id)
 
     self.SetStillMakingProgressBit()
 
     if item == Item.HEART_CONTAINER:
-      # Ignore Take Any Heart Containers
-      if item_location.IsCavePosition() and item_location.GetCaveNum() == 2:
+      # Ignore Take Any Heart Containers (CaveType.TAKE_ANY = 0x11)
+      if self._IsCaveLocation(location_type) and location_type == CaveType.TAKE_ANY:
         return
       self.num_heart_containers += 1
-      if item_location.IsLevelRoom():
-        log.debug("Found Heart Container in level %d. Now have %d HCs" % 
-                  (int(item_location.GetLevelNum()), self.num_heart_containers))
+      if self._IsLevelLocation(location_type):
+        log.debug("Found Heart Container in level %d. Now have %d HCs" %
+                  (location_type, self.num_heart_containers))
       else:
-        log.debug("Found Heart Container in cave %d. Now have %d HCs" % 
-                  (int(item_location.GetCaveNum()), self.num_heart_containers))
+        log.debug("Found Heart Container in cave 0x%x. Now have %d HCs" %
+                  (location_type, self.num_heart_containers))
       assert self.num_heart_containers <= 16
       return
     elif item == Item.TRIFORCE:
-      level_num = int(item_location.GetLevelNum())
-      if int(level_num) not in self.levels_with_triforce_obtained:
-        self.levels_with_triforce_obtained.append(level_num)
-        log.debug("Found triforce in level %d. Now have %d tringles" % 
-                  (level_num, len(self.levels_with_triforce_obtained)))        
+      if location_type not in self.levels_with_triforce_obtained:
+        self.levels_with_triforce_obtained.append(location_type)
+        log.debug("Found triforce in level %d. Now have %d tringles" %
+                  (location_type, len(self.levels_with_triforce_obtained)))
       return
     elif item == Item.KEY:
       self.num_keys += 1

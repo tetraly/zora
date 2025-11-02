@@ -70,23 +70,24 @@ class ItemRandomizer():
   def ReplaceProgressiveItemsWithUpgrades(self):
     for cave_num in [0, 2, 3, 8, 0x0D, 0x0E, 0x0F, 0x10, 20, 21]:
       for position_num in [1, 2, 3]:
-        location = Location.CavePosition(cave_num, position_num)
-        current_item = self.data_table.GetCaveItem(location)
+        cave_type = cave_num + 0x10  # Convert cave_num to CaveType
+        current_item = self.data_table.GetCaveItem(cave_type, position_num)
         replacement_item = self._GetProgressiveReplacementItemIfNeeded(current_item)
         if current_item != replacement_item:
-          self.data_table.SetCaveItem(location, replacement_item)        
+          self.data_table.SetCaveItem(cave_type, position_num, replacement_item)        
         
   def _GetOverworldItemLocation(self, item: Item, skip_first=False):
     log.debug("_GetOverworldItemLocation for %s" % item)
     for cave_num in [0x0D, 0x0E, 0x0F, 0x10]:
       for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
-        maybe_location = Location(cave_num=cave_num, position_num=position_num)
-        if self.data_table.GetCaveItem(maybe_location) == item:
+        cave_type = cave_num + 0x10  # Convert cave_num to CaveType
+        if self.data_table.GetCaveItem(cave_type, position_num) == item:
           if skip_first:
               skip_first = False
               continue
           log.debug("_GetOverworldItemLocation Found it at cave %d pos %d" %
-                      (maybe_location.GetCaveNum(),maybe_location.GetPositionNum()))
+                      (cave_num, position_num))
+          maybe_location = Location(cave_num=cave_num, position_num=position_num)
           return maybe_location
     raise Exception(f"_GetOverworldItemLocation: Couldn't find item {item} in overworld caves")
 
@@ -112,7 +113,8 @@ class ItemRandomizer():
     if self.flags.shuffle_magical_sword_cave_item:
       items.append(self.MAGICAL_SWORD_LOCATION)
     elif self.flags.progressive_items or progressive_swords:
-      self.data_table.SetCaveItem(self.MAGICAL_SWORD_LOCATION, Item.WOOD_SWORD)
+      # MAGICAL_SWORD_LOCATION is cave_num 3, position 2 -> CaveType 0x13
+      self.data_table.SetCaveItem(0x13, 2, Item.WOOD_SWORD)
     if self.flags.shuffle_coast_item:
       items.append(self.COAST_ITEM_LOCATION)
     if self.flags.shuffle_armos_item:
@@ -142,9 +144,10 @@ class ItemRandomizer():
     if self.flags.shuffle_shop_bait:
       items.append(self._GetOverworldItemLocation(Item.BAIT))
       second_bait_location = self._GetOverworldItemLocation(Item.BAIT, skip_first=True)
-      self.data_table.SetCaveItem(second_bait_location, Item.FAIRY)
       cave_num = second_bait_location.GetCaveNum()
       position_num = second_bait_location.GetPositionNum()
+      cave_type = cave_num + 0x10  # Convert cave_num to CaveType
+      self.data_table.SetCaveItem(cave_type, position_num, Item.FAIRY)
       self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randint(20, 40), position_num)
     return items
 
@@ -155,7 +158,10 @@ class ItemRandomizer():
     for level_num in Range.VALID_LEVEL_NUMBERS:
       self._ReadItemsAndLocationsForUndergroundLevel(level_num)
     for location in self._GetOverworldItemsToShuffle():
-      item_num = self.data_table.GetCaveItem(location)
+      cave_num = location.GetCaveNum()
+      position_num = location.GetPositionNum()
+      cave_type = cave_num + 0x10  # Convert cave_num to CaveType
+      item_num = self.data_table.GetCaveItem(cave_type, position_num)
       self.item_shuffler.AddLocationAndItem(location, item_num)
     if self.flags.shuffle_potion_shop_items:
       self.item_shuffler.AddLocationAndItem(self.LEFT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
@@ -168,7 +174,9 @@ class ItemRandomizer():
     level_start_room_num = self.data_table.GetLevelStartRoomNumber(level_num)
     entrance_direction = self.data_table.GetLevelEntranceDirection(level_num)
     log.debug("Traversing level %d.  Start room is %x. " % (level_num, level_start_room_num))
-    self._ReadItemsAndLocationsRecursively(level_num, level_start_room_num, entrance_direction)
+    # Create a visited set for this level traversal
+    visited_rooms = set()
+    self._ReadItemsAndLocationsRecursively(level_num, level_start_room_num, entrance_direction, visited_rooms)
 
   def _ParseStaircaseRoom(self, level_num: LevelNum, staircase_room_num: RoomNum) -> None:
     staircase_room = self.data_table.GetRoom(level_num, staircase_room_num)
@@ -188,14 +196,18 @@ class ItemRandomizer():
       log.fatal("Room in staircase room number list (%x) didn't have staircase type (%x)." %
                     (staircase_room_num, staircase_room.GetType()))
 
-  def _ReadItemsAndLocationsRecursively(self, level_num: LevelNum, room_num: RoomNum, from_dir: Direction) -> None:
+  def _ReadItemsAndLocationsRecursively(self, level_num: LevelNum, room_num: RoomNum,
+                                         from_dir: Direction, visited_rooms: set) -> None:
     if room_num not in Range.VALID_ROOM_NUMBERS:
       return  # No escaping back into the overworld! :)
     log.debug("Visiting level %d room %0x" % (level_num, room_num))
-    room = self.data_table.GetRoom(level_num, room_num)
-    if room.IsMarkedAsVisited():
+
+    # Check if already visited using the local visited set
+    if room_num in visited_rooms:
       return
-    room.MarkAsVisited()
+    visited_rooms.add(room_num)
+
+    room = self.data_table.GetRoom(level_num, room_num)
 
     item = room.GetItem()
     if item not in [Item.NO_ITEM, Item.TRIFORCE_OF_POWER]:
@@ -207,16 +219,16 @@ class ItemRandomizer():
       return  # Dead end, no need to traverse further.
     elif room.GetType() == RoomType.TRANSPORT_STAIRCASE:
       for upstairs_room in [room.GetLeftExit(), room.GetRightExit()]:
-        self._ReadItemsAndLocationsRecursively(level_num, upstairs_room, Direction.STAIRCASE)
+        self._ReadItemsAndLocationsRecursively(level_num, upstairs_room, Direction.STAIRCASE, visited_rooms)
       return
     # Regular (non-staircase) room case.  Check all four cardinal directions, plus "down".
     for direction in (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH):
       if direction == from_dir:
         continue
       if room.GetWallType(direction) != WallType.SOLID_WALL:
-        self._ReadItemsAndLocationsRecursively(level_num, RoomNum(room_num + direction), direction.inverse())
+        self._ReadItemsAndLocationsRecursively(level_num, RoomNum(room_num + direction), direction.inverse(), visited_rooms)
     if room.HasStaircase():
-      self._ReadItemsAndLocationsRecursively(level_num, room.GetStaircaseRoomNumber(), Direction.STAIRCASE)
+      self._ReadItemsAndLocationsRecursively(level_num, room.GetStaircaseRoomNumber(), Direction.STAIRCASE, visited_rooms)
 
   def ShuffleItems(self) -> None:
     self.item_shuffler.ShuffleItems()
@@ -231,12 +243,13 @@ class ItemRandomizer():
         if item_num == Item.TRIFORCE:
           self.data_table.UpdateTriforceLocation(location)
       elif location.IsCavePosition():
-        self.data_table.SetCaveItem(location, item_num)
+        cave_num = location.GetCaveNum()
+        position_num = location.GetPositionNum()
+        cave_type = cave_num + 0x10  # Convert cave_num to CaveType
+        self.data_table.SetCaveItem(cave_type, position_num, item_num)
         # If this item is in a shop, set a randomized price based on item tier
         if location.IsShopPosition():
           randomized_price = self._GetRandomizedShopPrice(item_num)
-          cave_num = location.GetCaveNum()
-          position_num = location.GetPositionNum()
           self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randomized_price, position_num)
     # Individual progressive flags are temporarily disabled
     progressive_swords = False

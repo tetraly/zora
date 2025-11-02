@@ -229,15 +229,15 @@ class Z1Randomizer():
       # Check Wood Sword Cave (cave 0) - all 3 positions
       wood_sword_cave_items = []
       for position in [1, 2, 3]:
-        location = Location.CavePosition(0, position)
-        item = data_table.GetCaveItem(location)
+        cave_type = 0 + 0x10  # Cave 0 -> CaveType 0x10
+        item = data_table.GetCaveItem(cave_type, position)
         wood_sword_cave_items.append((position, item))
 
       # Check Take Any Cave (cave 0x11/17) - all 3 positions
       take_any_cave_items = []
       for position in [1, 2, 3]:
-        location = Location.CavePosition(0x11, position)
-        item = data_table.GetCaveItem(location)
+        cave_type = 0x11 + 0x10  # Cave 0x11 -> CaveType 0x21
+        item = data_table.GetCaveItem(cave_type, position)
         take_any_cave_items.append((position, item))
 
       # Check if any candles were found
