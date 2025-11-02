@@ -6,7 +6,7 @@ from typing import List, Tuple
 from .data_table import DataTable
 from .flags import Flags
 from .patch import Patch
-from .randomizer_constants import CaveType, Range
+from .randomizer_constants import CaveType, QuestMode, Range
 from .rom_data_specs import RomDataType
 
 # Screen location constants for constraint-based shuffling
@@ -115,155 +115,212 @@ class OverworldRandomizer:
             magical_sword_hearts = random.choice([10, 11, 12])
             self.data_table.SetRomData(RomDataType.MAGICAL_SWORD_HEART_REQUIREMENT, magical_sword_hearts)
 
-    def _CollectFirstQuestScreens(self) -> Tuple[List[int], List[CaveType]]:
-        """Collect screens and destinations for 1st quest shuffle.
+    def _CollectScreenNumbers(self, quest: QuestMode) -> List[int]:
+        """Collect screen numbers for a given quest mode.
+
+        Args:
+            quest: Which quest(s) to collect screens from
 
         Returns:
-            Tuple of (screen_numbers, cave_destinations) for screens that:
-            - Have a non-zero destination code
-            - Don't have the "2nd quest only" bit set (bit 7 = 0)
-            - Aren't Any Road screens
+            List of screen numbers that can receive destinations
+
+        Notes:
+            - FIRST_QUEST: Screens with 1Q destinations (not marked 2Q only)
+            - SECOND_QUEST: Screens with 2Q destinations (not marked 1Q only, excludes 0x0B/0x42)
+            - BOTH_QUESTS: All screens with destinations in either quest
         """
-        any_road_screens = self.data_table.GetRomData(RomDataType.ANY_ROAD_SCREENS)
-        screens = []
-        destinations = []
-
-        for screen_num in range(0x80):
-            first_quest_only, second_quest_only = self.data_table.GetQuestBits(screen_num)
-
-            # Skip 2nd quest only screens
-            if second_quest_only:
-                continue
-
-            destination = self.data_table.GetScreenDestination(screen_num)
-
-            # Only include screens with destinations, excluding Any Road
-            if destination != CaveType.NONE and screen_num not in any_road_screens:
-                screens.append(screen_num)
-                destinations.append(destination)
-
-        log.debug(f"Found {len(screens)} first quest screens with cave destinations")
-        return (screens, destinations)
-
-
-    # TODO: Refactor these down to a single method
-    def _CollectSecondQuestScreens(self) -> Tuple[List[int], List[CaveType]]:
-        """Collect screens and destinations for 2nd quest shuffle.
-
-        Applies the runtime 2nd quest patches that modify certain screen destinations
-        before collecting data.
-
-        Returns:
-            Tuple of (screen_numbers, cave_destinations) for screens that:
-            - Have a non-zero destination code
-            - Don't have the "1st quest only" bit set (bit 6 = 0)
-            - Aren't Any Road screens
-        """
-        # Adapted from Zelda Disassembly
-        # LevelBlockAttrsBQ2ReplacementOffsets: .BYTE $0E, $0F, $22, $34, $3C, $45, $74, $8B
-        # LevelBlockAttrsBQ2ReplacementValues: .BYTE $7B, $83, $84, $0F, $0B, $12, $7A, $2F
-        SECOND_QUEST_DESTINATION_OVERRIDES = {
-            0x0E: 0x7B, # Letter Cave -> SHOP_2
-            0x0F: 0x83, # Large secret -> SHOP_4
-            0x22: 0x84, # Level 6 -> Medium Secret
-            0x34: 0x0F, # SHOP_4 -> Level 2
-            0x3C: 0x0B, # Level 2 -> Level 3
-            0x45: 0x12, # Level 4 -> Level 5
-            0x74: 0x7A, # Level 3 -> SHOP_2
-            0x8B: 0x2F, # Not sure what this is doing.
-        }
         # Manual overrides for screens that should be treated as 1st quest only
-        # even though they're not marked that way in a vanilla ROM
         SECOND_QUEST_BIT_OVERRIDES = {
-            0x0B,  # First quest Level 5 -> Fairy Fountain
-            0x42,  # First quest Level 7 -> Lake with no secret
+            0x0B,  # First quest Level 5
+            0x42,  # First quest Level 7
         }
 
         any_road_screens = self.data_table.GetRomData(RomDataType.ANY_ROAD_SCREENS)
         screens = []
-        destinations = []
 
         for screen_num in range(0x80):
-            # Check if this screen has a 2nd quest patch for destination
-            if screen_num in SECOND_QUEST_DESTINATION_OVERRIDES:
-                patched_byte = SECOND_QUEST_DESTINATION_OVERRIDES[screen_num]
-                # Extract only the destination from patched byte (top 6 bits)
-                # Quest bits remain unchanged from the original data table
-                dest_code = patched_byte >> 2
-                destination = CaveType(dest_code) if dest_code != 0 else CaveType.NONE
-            else:
-                # Use data table for destination
-                destination = self.data_table.GetScreenDestinationRaw(screen_num)
-
-            # Get original quest bits (always from data table, not from patches)
             first_quest_only, second_quest_only = self.data_table.GetQuestBits(screen_num)
-            # Apply manual overrides for screens that should be 1st quest only
+
+            # Apply bit overrides for 2nd quest
             if screen_num in SECOND_QUEST_BIT_OVERRIDES:
                 first_quest_only = True
 
-            # Skip 1st quest only screens
-            if first_quest_only:
-                continue
+            # Get destination (raw, ignoring quest bits)
+            destination = self.data_table.GetScreenDestinationRaw(screen_num)
+
+            # Skip based on quest mode
+            if quest == QuestMode.FIRST_QUEST and second_quest_only:
+                    continue
+            elif quest == QuestMode.SECOND_QUEST and first_quest_only:
+                    continue
+            elif quest == QuestMode.BOTH_QUESTS:
+                pass
+            else:
+                raise ValueError(f"Unknown quest mode: {quest}")
 
             # Only include screens with destinations, excluding Any Road
             if destination != CaveType.NONE and screen_num not in any_road_screens:
                 screens.append(screen_num)
-                destinations.append(destination)
 
-        log.debug(f"Found {len(screens)} second quest screens with cave destinations")
-        return (screens, destinations)
+        log.debug(f"Collected {len(screens)} screens for {quest.value} quest")
+        return screens
 
-    def _CollectMixedQuestScreens(self) -> Tuple[List[int], List[CaveType], List[int]]:
-        """Collect screens and destinations for mixed quest shuffle.
-
-        Mixed quest mode collects destinations from 1st quest screens, but assigns
-        them to screens from both quests with priority:
-        1. Screens in both quests MUST get assignments
-        2. Remaining caves distributed among single-quest screens
+    def _CollectBothQuestScreenNumbers(self) -> List[int]:
+        """Collect screen numbers that appear in BOTH quests.
 
         Returns:
-            Tuple of (screen_numbers, cave_destinations, both_quest_screens) where:
-            - screen_numbers: All screens that can receive destinations
-            - cave_destinations: All destinations from 1st quest screens
-            - both_quest_screens: Screens that appear in both quests (must get assignments)
+            List of screens that have destinations in both 1Q and 2Q
+
+        Notes:
+            - 0x0B and 0x42 are NOT included (they're 1Q only due to override)
         """
+        # Manual overrides for screens that should be treated as 1st quest only
+        SECOND_QUEST_BIT_OVERRIDES = {
+            0x0B,  # First quest Level 5
+            0x42,  # First quest Level 7
+        }
+
         any_road_screens = self.data_table.GetRomData(RomDataType.ANY_ROAD_SCREENS)
-
-        # Collect destinations from 1st quest screens (same as _CollectFirstQuestScreens)
-        destinations = []
-        for screen_num in range(0x80):
-            first_quest_only, second_quest_only = self.data_table.GetQuestBits(screen_num)
-            if second_quest_only:
-                continue
-            destination = self.data_table.GetScreenDestination(screen_num)
-            if destination != CaveType.NONE and screen_num not in any_road_screens:
-                destinations.append(destination)
-
-        # Collect ALL screens that have destinations in either quest
         both_quest_screens = []
-        single_quest_screens = []
 
         for screen_num in range(0x80):
             first_quest_only, second_quest_only = self.data_table.GetQuestBits(screen_num)
-            # Use GetScreenDestinationRaw to get destination regardless of quest bits
+
+            # Apply bit overrides
+            if screen_num in SECOND_QUEST_BIT_OVERRIDES:
+                first_quest_only = True
+
+            # Get destination
             destination = self.data_table.GetScreenDestinationRaw(screen_num)
+
+            # Only include screens that appear in both quests
+            if not first_quest_only and not second_quest_only:
+                if destination != CaveType.NONE and screen_num not in any_road_screens:
+                    both_quest_screens.append(screen_num)
+
+        log.debug(f"Found {len(both_quest_screens)} screens in both quests")
+        return both_quest_screens
+
+    def _CollectDestinations(self, quest: QuestMode) -> List[CaveType]:
+        """Collect cave destinations for a given quest mode.
+
+        Args:
+            quest: Which quest to collect destinations from
+
+        Returns:
+            List of CaveType destinations
+
+        Notes:
+            - FIRST_QUEST: Read from 1Q screens (no patches)
+            - SECOND_QUEST: Read from 2Q screens with destination patches applied
+            - BOTH_QUESTS: Not supported (raises ValueError)
+        """
+        if quest == QuestMode.BOTH_QUESTS:
+            raise ValueError("Cannot collect destinations for BOTH_QUESTS mode")
+
+        # Destination patches for 2nd quest
+        SECOND_QUEST_DESTINATION_OVERRIDES = {
+            0x0E: 0x7B,  # Letter Cave -> SHOP_2
+            0x0F: 0x83,  # Large secret -> SHOP_4
+            0x22: 0x84,  # Level 6 -> Medium Secret
+            0x34: 0x0F,  # SHOP_4 -> Level 2
+            0x3C: 0x0B,  # Level 2 -> Level 3
+            0x45: 0x12,  # Level 4 -> Level 5
+            0x74: 0x7A,  # Level 3 -> SHOP_2
+            0x8B: 0x2F,  # Not sure what this is doing
+        }
+
+        # Manual overrides for screens that should be treated as 1st quest only
+        SECOND_QUEST_BIT_OVERRIDES = {
+            0x0B,  # First quest Level 5
+            0x42,  # First quest Level 7
+        }
+
+        any_road_screens = self.data_table.GetRomData(RomDataType.ANY_ROAD_SCREENS)
+        destinations = []
+
+        for screen_num in range(0x80):
+            first_quest_only, second_quest_only = self.data_table.GetQuestBits(screen_num)
+
+            # Apply bit overrides for 2nd quest
+            if screen_num in SECOND_QUEST_BIT_OVERRIDES:
+                first_quest_only = True
+
+            # Get destination (with patches for 2Q if applicable)
+            if quest == QuestMode.SECOND_QUEST and screen_num in SECOND_QUEST_DESTINATION_OVERRIDES:
+                # Use patched destination for 2nd quest
+                patched_byte = SECOND_QUEST_DESTINATION_OVERRIDES[screen_num]
+                dest_code = patched_byte >> 2
+                destination = CaveType(dest_code) if dest_code != 0 else CaveType.NONE
+            else:
+                # Use raw destination from data table
+                destination = self.data_table.GetScreenDestinationRaw(screen_num)
+
+            # Filter based on quest mode
+            if quest == QuestMode.FIRST_QUEST:
+                # Skip 2nd quest only screens
+                if second_quest_only:
+                    continue
+            elif quest == QuestMode.SECOND_QUEST:
+                # Skip 1st quest only screens (includes 0x0B and 0x42 via override)
+                if first_quest_only:
+                    continue
 
             # Only include screens with destinations, excluding Any Road
             if destination != CaveType.NONE and screen_num not in any_road_screens:
-                if not first_quest_only and not second_quest_only:
-                    # Appears in both quests
-                    both_quest_screens.append(screen_num)
-                else:
-                    # Appears in only one quest
-                    single_quest_screens.append(screen_num)
+                destinations.append(destination)
 
-        # Combine: both-quest screens first, then single-quest screens
-        all_screens = both_quest_screens + single_quest_screens
+        log.debug(f"Collected {len(destinations)} destinations for {quest.value} quest")
+        return destinations
 
-        log.debug(f"Found {len(destinations)} cave destinations from 1st quest screens")
-        log.debug(f"Found {len(both_quest_screens)} screens in both quests (must get assignments)")
-        log.debug(f"Found {len(single_quest_screens)} single-quest screens")
-        log.debug(f"Total {len(all_screens)} screens available for mixed quest shuffle")
+    def _CollectFirstQuestScreens(self) -> Tuple[List[int], List[CaveType]]:
+        """Collect screens and destinations for 1st quest shuffle (Mode 1).
+
+        Returns:
+            Tuple of (screen_numbers, cave_destinations) for 1st quest screens
+        """
+        screens = self._CollectScreenNumbers(QuestMode.FIRST_QUEST)
+        destinations = self._CollectDestinations(QuestMode.FIRST_QUEST)
+        return (screens, destinations)
+
+
+    def _CollectSecondQuestScreens(self) -> Tuple[List[int], List[CaveType]]:
+        """Collect screens and destinations for 2nd quest shuffle (Mode 2).
+
+        Returns:
+            Tuple of (screen_numbers, cave_destinations) for 2nd quest screens
+        """
+        screens = self._CollectScreenNumbers(QuestMode.SECOND_QUEST)
+        destinations = self._CollectDestinations(QuestMode.SECOND_QUEST)
+        return (screens, destinations)
+
+    def _CollectMixedQuestScreens(self) -> Tuple[List[int], List[CaveType], List[int]]:
+        """Collect screens and destinations for mixed quest shuffle with 1Q destinations (Mode 3).
+
+        Returns:
+            Tuple of (screen_numbers, cave_destinations, both_quest_screens) where:
+            - screen_numbers: All screens from both quests (excludes 0x0B, 0x42)
+            - cave_destinations: All destinations from 1st quest screens
+            - both_quest_screens: Screens that appear in both quests (must get assignments)
+        """
+        all_screens = self._CollectScreenNumbers(QuestMode.BOTH_QUESTS)
+        destinations = self._CollectDestinations(QuestMode.FIRST_QUEST)
+        both_quest_screens = self._CollectBothQuestScreenNumbers()
+
+        return (all_screens, destinations, both_quest_screens)
+
+    def _CollectMixedQuest2ndDestScreens(self) -> Tuple[List[int], List[CaveType], List[int]]:
+        """Collect screens and destinations for mixed quest shuffle with 2Q destinations (Mode 4).
+
+        Returns:
+            Tuple of (screen_numbers, cave_destinations, both_quest_screens) where:
+            - screen_numbers: All screens from both quests (excludes 0x0B, 0x42)
+            - cave_destinations: All destinations from 2nd quest screens
+            - both_quest_screens: Screens that appear in both quests (must get assignments)
+        """
+        all_screens = self._CollectScreenNumbers(QuestMode.BOTH_QUESTS)
+        destinations = self._CollectDestinations(QuestMode.SECOND_QUEST)
+        both_quest_screens = self._CollectBothQuestScreenNumbers()
 
         return (all_screens, destinations, both_quest_screens)
 

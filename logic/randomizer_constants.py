@@ -1,10 +1,17 @@
 from typing import NewType
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 LevelNum = int
 CaveNum = int
 RoomNum = NewType("RoomNum", int)
 PositionNum = NewType("PositionNum", int)
+
+
+class QuestMode(Enum):
+  """Enum for specifying which quest(s) to operate on."""
+  FIRST_QUEST = "1st"
+  SECOND_QUEST = "2nd"
+  BOTH_QUESTS = "both"
 
 
 class Range():
