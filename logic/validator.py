@@ -64,6 +64,8 @@ class Validator(object):
       return True
     elif block_type == "Bomb":
       return self.inventory.HasSwordOrWand()
+    elif block_type == "Ladder":
+      return self.inventory.Has(Item.LADDER)
     elif block_type == "Ladder+Bomb":
       return self.inventory.HasSwordOrWand() and self.inventory.Has(Item.LADDER)
     elif block_type == "Raft+Bomb":
@@ -82,6 +84,8 @@ class Validator(object):
       return self.inventory.Has(Item.LOST_HILLS_HINT_VIRTUAL_ITEM)
     elif block_type == "DeadWoodsHint":
       return self.inventory.Has(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM)
+    else:
+        raise Exception(f"Encountered unknown screen block type {block_type}")
 
     return False
 
