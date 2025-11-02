@@ -371,6 +371,7 @@ class Z1Randomizer():
     while not is_valid_seed:
       outer_counter += 1
       seed = random.randint(0, 9999999999)
+      log.debug(f"Attempting outer iteration #{outer_counter} with item shuffle seed {seed}")
       while True:
         inner_counter += 1
         data_table.ResetToVanilla()
@@ -404,6 +405,10 @@ class Z1Randomizer():
         self._ApplyRoomActionFlags(data_table)
 
       is_valid_seed = validator.IsSeedValid()
+      if is_valid_seed:
+          log.warning(f"✓ FOUND VALID SEED after {outer_counter} attempts!")
+      else:
+          log.warning(f"✗ Item shuffle seed {seed} was not valid, trying again...")
       if outer_counter >= 1000:
           raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
       

@@ -49,11 +49,16 @@ class Inventory(object):
     assert (item in range(0, 0x24) or
             item in [Item.BEAST_DEFEATED_VIRTUAL_ITEM, Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM,
                      Item.LOST_HILLS_HINT_VIRTUAL_ITEM, Item.DEAD_WOODS_HINT_VIRTUAL_ITEM])
-    if (item_location.GetUniqueIdentifier() in self.item_locations and
-        item != Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
+    # Special case for KIDNAPPED_RESCUED: Can visit the room multiple times, but only add once
+    if item == Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM:
+      if item in self.items:
+        return  # Already have it, don't add again or set progress bit
+      # First time getting it, proceed to add
+    elif item_location.GetUniqueIdentifier() in self.item_locations:
+      # For non-kidnapped items, use normal duplicate location check
       return
-    self.item_locations.add(item_location.GetUniqueIdentifier())
 
+    self.item_locations.add(item_location.GetUniqueIdentifier())
     self.SetStillMakingProgressBit()
 
     if item == Item.HEART_CONTAINER:

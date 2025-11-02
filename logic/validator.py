@@ -161,23 +161,30 @@ class Validator(object):
           level_num = destination
           if level_num == 9 and self.inventory.GetTriforceCount() < 8:
             continue
-          log.debug("Can access level %d" % level_num)
           self.ProcessLevel(level_num)
         else:
           cave_type = destination
-          log.debug("Can access cave type %x" % cave_type)
           if self.CanGetItemsFromCave(cave_type):
             for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
               # Location constructor still expects cave_num (array index 0x00-0x15)
               location = Location(cave_num=cave_type - 0x10, position_num=position_num)
-              self.inventory.AddItem(self.data_table.GetCaveItem(location), location)
-      if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
-        log.debug("Seed appears to be beatable. :)")
-        return True
-      elif num_iterations > 100:
+              item = self.data_table.GetCaveItem(location)
+              self.inventory.AddItem(item, location)
+
+      if num_iterations > 100:
+        log.warning("TIMEOUT: Exceeded 100 iterations without completing validation")
         return False
-    log.debug("Seed doesn't appear to be beatable. :(")
-    return False
+
+    if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
+      if self.HasAllImportantItems():
+        return True
+      else:
+        log.warning("FAILURE: Rescued kidnapped but missing important items")
+        return False
+    else:
+      log.warning("FAILURE: Never rescued the kidnapped")
+      log.debug("Seed doesn't appear to be beatable. :(")
+      return False
 
   def _IsMixedEnemyGroup(self, enemy: Enemy) -> bool:
     """Check if an enemy code represents a mixed enemy group (0x62-0x7F)."""
@@ -289,7 +296,7 @@ class Validator(object):
     return True
 
   def ProcessLevel(self, level_num: int) -> None:
-      rooms_to_visit = [(self.data_table.GetLevelStartRoomNumber(level_num), 
+      rooms_to_visit = [(self.data_table.GetLevelStartRoomNumber(level_num),
                          self.data_table.GetLevelEntranceDirection(level_num))]
       while True:
           room_num, direction = rooms_to_visit.pop()
@@ -298,7 +305,7 @@ class Validator(object):
               rooms_to_visit.extend(new_rooms)
           if not rooms_to_visit:
               break
-      
+
   def _VisitRoom(self,
                  level_num: int,
                  room_num: RoomNum,
@@ -380,13 +387,19 @@ class Validator(object):
       return False
 
     wall_type = room.GetWallType(exit_direction)
-    if wall_type == WallType.SHUTTER_DOOR and level_num == 9:
-      next_room = self.data_table.GetRoom(level_num, RoomNum(room_num + exit_direction))
-      if next_room.GetEnemy() == Enemy.THE_KIDNAPPED:
+
+    # Handle shutter doors
+    if wall_type == WallType.SHUTTER_DOOR:
+      # Special case: Rooms with RoomAction = 3 (TriforceOfPowerOpensShutters)
+      # require BEAST_DEFEATED to pass through shutter doors
+      if room.GetRoomAction() == 3:  # RoomAction.TriforceOfPowerOpensShutters
         return self.inventory.Has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
-     
-    if (wall_type == WallType.SOLID_WALL
-        or (wall_type == WallType.SHUTTER_DOOR and not self.CanDefeatEnemies(room))):
+
+      # Normal case: Must be able to defeat enemies to open shutters
+      if not self.CanDefeatEnemies(room):
+        return False
+
+    if wall_type == WallType.SOLID_WALL:
       return False
 
     # TODO: Add key checking logic for locked doors
@@ -422,3 +435,14 @@ class Validator(object):
             return True
 
     return False
+
+    
+  def HasAllImportantItems(self) -> bool:
+      for item in [Item.WHITE_SWORD, Item.RECORDER, Item.RED_CANDLE, Item.SILVER_ARROWS, Item.BOW,
+                   Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK, Item.RED_RING,
+                   Item.POWER_BRACELET, Item.LETTER, Item.MAGICAL_BOOMERANG]:
+          if not self.inventory.Has(item):
+              log.warning(self.inventory.ToString())
+              log.warning(f"Found a seed without {item.name}")
+              return False
+      return True
