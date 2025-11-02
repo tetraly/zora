@@ -279,7 +279,13 @@ class FlagsEnum(Enum):
     SHUFFLE_CAVES = (
         'shuffle_caves',
         'Shuffle Caves',
-        'Shuffles where caves, shops, levels, etc. are on the overworld. This flag does not currently shuffle the location of "any road" warp caves.',
+        'Shuffles where caves, shops, levels, etc. are on the overworld for 1st quest screens. This flag does not currently shuffle the location of "any road" warp caves. Can be combined with "Shuffle Caves (2nd Quest)" for mixed quest mode.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
+    )
+    SHUFFLE_CAVES_SECOND_QUEST = (
+        'shuffle_caves_second_quest',
+        'Shuffle Caves (2nd Quest)',
+        'Shuffles where caves, shops, levels, etc. are on the overworld for 2nd quest screens. If both 1st and 2nd quest shuffle flags are enabled, uses mixed quest mode (shuffles all screens from both quests). If only this flag is enabled, shuffles 2nd quest screens only and flips quest bits so they appear in the randomized game.',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
     PIN_WOOD_SWORD_CAVE = (

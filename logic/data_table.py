@@ -78,9 +78,38 @@ class DataTable():
     self.triforce_locations = {}
 
   def GetScreenDestination(self, screen_num: int) -> CaveType:
+    """Get the cave destination for a screen (1st quest only, for backwards compatibility).
+
+    This method only returns destinations for 1st quest screens (bit 7 = 0).
+    For 2nd quest screens, use GetScreenDestinationRaw() instead.
+
+    Args:
+        screen_num: The overworld screen number (0-127)
+
+    Returns:
+        The cave destination, or CaveType.NONE if no destination or 2nd quest only
+    """
     # Skip any screens that aren't "Secret in 1st Quest"
     if (self.overworld_raw_data[screen_num + 5*0x80] & 0x80) > 0:
       return CaveType.NONE
+    # Cave destination is upper 6 bits of table 1
+    destination = self.overworld_raw_data[screen_num + 1*0x80] >> 2
+    if destination == 0:
+      return CaveType.NONE
+    return CaveType(destination)
+
+  def GetScreenDestinationRaw(self, screen_num: int) -> CaveType:
+    """Get the cave destination for a screen regardless of quest.
+
+    This method returns the raw destination code without filtering by quest bits.
+    Use this when you need to read destinations for 2nd quest screens.
+
+    Args:
+        screen_num: The overworld screen number (0-127)
+
+    Returns:
+        The cave destination, or CaveType.NONE if destination code is 0
+    """
     # Cave destination is upper 6 bits of table 1
     destination = self.overworld_raw_data[screen_num + 1*0x80] >> 2
     if destination == 0:
@@ -98,6 +127,56 @@ class DataTable():
     lower_bits = self.overworld_raw_data[screen_num + 1*0x80] & 0x03
     # Set the upper 6 bits to the cave type value (shift left by 2)
     self.overworld_raw_data[screen_num + 1*0x80] = (int(cave_type) << 2) | lower_bits
+
+  def GetQuestBits(self, screen_num: int) -> tuple[bool, bool]:
+    """Get the quest availability bits for a screen.
+
+    Args:
+        screen_num: The overworld screen number (0-127)
+
+    Returns:
+        Tuple of (is_first_quest_only, is_second_quest_only)
+        - (True, False) = appears only in 1st quest
+        - (False, True) = appears only in 2nd quest
+        - (False, False) = appears in both quests
+        - (True, True) = invalid state (shouldn't occur)
+    """
+    table5_byte = self.overworld_raw_data[screen_num + 5*0x80]
+    first_quest_only = (table5_byte & 0x40) != 0  # Bit 6
+    second_quest_only = (table5_byte & 0x80) != 0  # Bit 7
+    return (first_quest_only, second_quest_only)
+
+  def SetQuestBits(self, screen_num: int, first_quest_only: bool, second_quest_only: bool) -> None:
+    """Set the quest availability bits for a screen.
+
+    Args:
+        screen_num: The overworld screen number (0-127)
+        first_quest_only: If True, sets bit 6 (appears only in 1st quest)
+        second_quest_only: If True, sets bit 7 (appears only in 2nd quest)
+    """
+    table5_byte = self.overworld_raw_data[screen_num + 5*0x80]
+    # Clear bits 6 and 7
+    table5_byte &= 0x3F
+    # Set new values
+    if first_quest_only:
+      table5_byte |= 0x40
+    if second_quest_only:
+      table5_byte |= 0x80
+    self.overworld_raw_data[screen_num + 5*0x80] = table5_byte
+
+  def FlipQuestBits(self, screen_num: int) -> None:
+    """Swap the 1st quest only and 2nd quest only bits for a screen.
+
+    This effectively swaps which quest the screen appears in:
+    - "1st quest only" becomes "2nd quest only"
+    - "2nd quest only" becomes "1st quest only"
+    - "both quests" remains "both quests"
+
+    Args:
+        screen_num: The overworld screen number (0-127)
+    """
+    first_quest_only, second_quest_only = self.GetQuestBits(screen_num)
+    self.SetQuestBits(screen_num, second_quest_only, first_quest_only)
 
   def GetArmosItemScreen(self) -> int:
     """Get the screen number where the armos item is located.
