@@ -1,7 +1,13 @@
 """Unit tests for validating hints in hints.py"""
 
+import sys
+import os
 import unittest
-from .hints import COMMUNITY_HINTS, NUMERICAL_HINTS
+
+# Add parent directory to path to import logic module
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from logic.hints import COMMUNITY_HINTS, NUMERICAL_HINTS
 
 
 class HintValidationTest(unittest.TestCase):

@@ -39,6 +39,7 @@ rom_regions:
     test_data: "coast_item.bin"
     writable: true
 
+
   # Mixed enemy group data
   mixed_enemy_data:
     file_offset: 0x14686

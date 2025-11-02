@@ -54,16 +54,18 @@ def test_hint_overflow_protection():
     print(f"Space used: {max_data_end - HintWriter.HINT_DATA_START} bytes")
 
     # Verify we didn't exceed the limit
-    if max_data_end >= HintWriter.MAX_HINT_DATA_END:
-        print(f"\n❌ FAILED: Hint data extends to 0x{max_data_end:04X}, exceeds limit!")
-        return False
-    else:
-        print(f"\n✓ PASSED: Safeguard worked! Data ends at 0x{max_data_end:04X}")
-
+    print(f"\n✓ PASSED: Safeguard worked! Data ends at 0x{max_data_end:04X}")
     print("=" * 80)
-    return True
+
+    # Use assert instead of return for pytest
+    assert max_data_end < HintWriter.MAX_HINT_DATA_END, \
+        f"Hint data extends to 0x{max_data_end:04X}, exceeds limit 0x{HintWriter.MAX_HINT_DATA_END:04X}!"
 
 
 if __name__ == "__main__":
-    success = test_hint_overflow_protection()
-    sys.exit(0 if success else 1)
+    try:
+        test_hint_overflow_protection()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"\n❌ FAILED: {e}")
+        sys.exit(1)

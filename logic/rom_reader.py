@@ -89,10 +89,28 @@ class RomReader:
     def GetRequirements(self) -> Dict[str, int]:
         return {
             "triforce": self._ReadMemory(TRIFORCE_REQUIREMENT_ADDRESS, 0x01)[0],
-            "white_sword": int(self._ReadMemory(WHITE_SWORD_REQUIREMENT_ADDRESS, 0x01)[0] / 0x10) + 1,
-            "magical_sword": int(self._ReadMemory(MAGICAL_SWORD_REQUIREMENT_ADDRESS, 0x01)[0] / 0x10) + 1,
+            "white_sword": self.GetWhiteSwordHeartRequirement(),
+            "magical_sword": self.GetMagicalSwordHeartRequirement(),
             "door_repair": self._ReadMemory(DOOR_REPAIR_CHARGE_ADDRESS, 0x01)[0],
         }
+
+    def GetWhiteSwordHeartRequirement(self) -> int:
+        """Read white sword cave heart requirement from ROM.
+
+        Returns:
+            Number of hearts required (e.g., 5 for vanilla)
+        """
+        raw_value = self._ReadMemory(WHITE_SWORD_REQUIREMENT_ADDRESS, 0x01)[0]
+        return int(raw_value / 0x10) + 1
+
+    def GetMagicalSwordHeartRequirement(self) -> int:
+        """Read magical sword cave heart requirement from ROM.
+
+        Returns:
+            Number of hearts required (e.g., 12 for vanilla)
+        """
+        raw_value = self._ReadMemory(MAGICAL_SWORD_REQUIREMENT_ADDRESS, 0x01)[0]
+        return int(raw_value / 0x10) + 1
           
         
     def GetQuote(self, num: int) -> str:

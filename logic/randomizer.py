@@ -11,7 +11,7 @@ from typing import List
 from .data_table import DataTable
 from .item_randomizer import ItemRandomizer
 from .patch import Patch
-from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET, ANY_ROAD_SCREENS_ADDRESS, RECORDER_WARP_DESTINATIONS_ADDRESS
+from .rom_reader import RomReader, NES_HEADER_OFFSET, ANY_ROAD_SCREENS_ADDRESS
 from .text_data_table import TextDataTable
 from .hint_writer import HintWriter
 from .validator import Validator
@@ -70,142 +70,6 @@ class Z1Randomizer():
             hex_bytes.append("24")
 
     return " ".join(hex_bytes)
-
-  def HasVanillaWoodSwordCaveStartScreen(self, data_table: DataTable) -> bool:
-    """Check if the wood sword cave is at its vanilla screen location.
-
-    The vanilla wood sword cave is at screen 0x77. If it's not there,
-    we assume the base ROM has cave destinations already shuffled.
-
-    Args:
-        data_table: The DataTable instance to read from
-
-    Returns:
-        Whether the wood sword cave is in it's vanilla screen (0x77)
-    """
-    # Vanilla wood sword cave screen
-    VANILLA_WOOD_SWORD_SCREEN = 0x77
-
-    # Check if screen 0x77 has the wood sword cave destination
-    destination = data_table.GetScreenDestination(VANILLA_WOOD_SWORD_SCREEN)
-    return destination == CaveType.WOOD_SWORD_CAVE
-
-  def _ShuffleOverworldCaveDestinations(self, data_table: DataTable) -> None:
-    """Shuffle cave destinations for all 1st quest overworld screens.
-
-    This finds all screens that have cave destinations in the 1st quest,
-    then randomly redistributes those destinations among those same screens.
-
-    Any Road screens are excluded from the shuffle to prevent game crashes.
-
-    Args:
-        data_table: The DataTable instance to modify
-    """
-    from .randomizer_constants import CaveType
-
-    # Read the four "take any road" screen IDs from ROM to exclude them from shuffle
-    any_road_screens = list(self.rom_reader._ReadMemory(ANY_ROAD_SCREENS_ADDRESS, 4))
-    log.debug(f"Any Road screen IDs: {[hex(x) for x in any_road_screens]}")
-
-    # Find all screens that have cave destinations and should appear in 1st quest
-    # Include screens that are NOT 2nd quest only (bit 7 not set)
-    first_quest_screens = []
-    cave_destinations = []
-
-    for screen_num in range(0x80):
-      table5_byte = data_table.overworld_raw_data[screen_num + 5*0x80]
-
-      # Skip if bit 7 is set (2nd quest only)
-      if (table5_byte & 0x80) != 0:
-        continue
-
-      destination = data_table.GetScreenDestination(screen_num)
-
-      # Only include screens that actually have a destination
-      if destination != CaveType.NONE:
-        # Exclude any road screens from the shuffle to prevent crashes
-        if screen_num not in any_road_screens:
-          first_quest_screens.append(screen_num)
-          cave_destinations.append(destination)
-        else:
-          log.debug(f"Excluding Any Road screen {hex(screen_num)} from shuffle")
-
-    log.debug(f"Found {len(first_quest_screens)} first quest screens with cave destinations (excluding Any Road screens)")
-    for screen_num, destination in zip(first_quest_screens, cave_destinations):
-      log.debug(f"BEFORE: Screen {hex(screen_num)}: {destination.name}")
-
-    # Shuffle the destinations
-    random.shuffle(cave_destinations)
-
-    # Redistribute shuffled destinations back to the screens
-    for screen_num, new_destination in zip(first_quest_screens, cave_destinations):
-      log.debug(f"AFTER: Setting screen {hex(screen_num)} to {new_destination.name}")
-      data_table.SetScreenDestination(screen_num, new_destination)
-
-  def _CalculateRecorderWarpDestinations(self, data_table: DataTable) -> List[int]:
-    """Calculate recorder warp destinations for levels 1-8 after cave shuffle.
-
-    The recorder warps Link to a screen one to the left of each level entrance.
-    This is because the whirlwind scrolls Link to the right automatically.
-
-    Args:
-        data_table: The DataTable instance to read level locations from
-
-    Returns:
-        A List of 8 bytes representing the warp screen for levels 1-8 and a List of y coordinates
-    """
-    from .randomizer_constants import CaveType
-
-    # Map of level number to CaveType enum
-    level_cave_types = [
-      CaveType.LEVEL_1,
-      CaveType.LEVEL_2,
-      CaveType.LEVEL_3,
-      CaveType.LEVEL_4,
-      CaveType.LEVEL_5,
-      CaveType.LEVEL_6,
-      CaveType.LEVEL_7,
-      CaveType.LEVEL_8
-    ]
-
-    warp_destinations = []
-    warp_y_coordinates = []
-
-    # For each level (1-8), find its screen and calculate warp destination
-    for level_num, cave_type in enumerate(level_cave_types, start=1):
-      level_screen = None
-
-      # Search all overworld screens to find this level
-      for screen_num in range(0x80):
-        destination = data_table.GetScreenDestination(screen_num)
-        if destination == cave_type:
-          level_screen = screen_num
-          break
-
-      if level_screen is None:
-        raise ValueError(f"Could not find screen for Level {level_num}")
-
-      # Calculate warp destination (one screen to the left)
-      # Special case: if level is at screen 0, don't subtract 1 and letter cave (warp goes one screen down)
-      if level_screen == 0:
-        warp_screen = 0
-      elif level_screen == 0x0E: 
-        warp_screen = 0x1D
-      else:
-        warp_screen = level_screen - 1
-
-      # Special cases for y coordinate of Link warping to a screen 
-      y_coordinate = 0x8D
-      if level_screen in [0x3B, 0x0A, 0x41, 0x05, 0x08, 0x09, 0x2B]:  # Vanilla 2, 5, 7, 9, Bogie's Arrow, Waterfall, Monocle Rock
-        y_coordinate = 0xAD
-      elif level_screen in [0x6C]:  # Vanilla 8
-        y_coordinate = 0x5D
-        
-      log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}")
-      warp_destinations.append(warp_screen)
-      warp_y_coordinates.append(y_coordinate)
-
-    return (warp_destinations, warp_y_coordinates)
 
   def _ValidateFlagCompatibility(self, data_table: DataTable) -> None:
     """Validate that the selected ZORA flags are compatible with the base ROM.
@@ -349,16 +213,18 @@ class Z1Randomizer():
     data_table = DataTable(self.rom_reader)
     item_randomizer = ItemRandomizer(data_table, self.flags)
 
-    # Detect if cave destinations are already randomized in the base ROM
-    # If wood sword cave is not at vanilla screen 0x77, caves are pre-shuffled
-    if not self.HasVanillaWoodSwordCaveStartScreen(data_table):
-      self.cave_destinations_randomized_in_base_seed = True
-      log.debug("Detected shuffled caves in base ROM - auto-enabling cave shuffle and recorder warp updates")
+    # Initialize overworld randomizer
+    from .overworld_randomizer import OverworldRandomizer
+    overworld_randomizer = OverworldRandomizer(data_table, self.flags)
 
-    # Determine heart requirements once for both validation and ROM patching
-    white_sword_hearts = random.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
-    magical_sword_hearts = random.choice([10, 11, 12]) if (self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements) else 12
-    validator = Validator(data_table, self.flags, white_sword_hearts, magical_sword_hearts)
+    # Detect if cave destinations are already randomized in the base ROM
+    if overworld_randomizer.DetectPreShuffledCaves():
+      self.cave_destinations_randomized_in_base_seed = True
+
+    # Randomize heart requirements
+    overworld_randomizer.RandomizeHeartRequirements()
+
+    validator = Validator(data_table, self.flags)
 
     # Validate flag compatibility with base ROM
     self._ValidateFlagCompatibility(data_table)
@@ -375,9 +241,8 @@ class Z1Randomizer():
         inner_counter += 1
         data_table.ResetToVanilla()
 
-        # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
-        if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-          self._ShuffleOverworldCaveDestinations(data_table)
+        # Perform overworld randomization (cave shuffle, Lost Hills, Dead Woods, etc.)
+        lost_hills_directions, dead_woods_directions = overworld_randomizer.Randomize()
 
         item_randomizer.ReplaceProgressiveItemsWithUpgrades()
         item_randomizer.ResetState()
@@ -409,29 +274,14 @@ class Z1Randomizer():
       
     patch = data_table.GetPatch()
 
-    # Update recorder warp destinations if cave shuffle is enabled or detected in base ROM
-    if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-      (recorder_warp_destinations, recorder_y_coordinates) = self._CalculateRecorderWarpDestinations(data_table)
-      patch.AddData(RECORDER_WARP_DESTINATIONS_ADDRESS + NES_HEADER_OFFSET, recorder_warp_destinations)
-      patch.AddData(0x6129, recorder_y_coordinates)
-      log.debug(f"Updated recorder warp destinations: {[hex(x) for x in recorder_warp_destinations]}")
-      log.debug(f"Updated recorder y coordinates: {[hex(x) for x in recorder_y_coordinates]}")
+    # Add overworld patches (Lost Hills, Dead Woods, extra blocks)
+    patch += overworld_randomizer.GetOverworldPatches()
 
     # Change White Sword cave to use the hint normally reserved for the letter cave
     # Vanilla value at 0x45B4 is 0x42, changing to 0x4C
     patch.AddData(0x45B4, [0x54])
 
-    # Randomize white sword heart requirement if the flag is enabled
-    if self.flags.randomize_heart_container_requirements:
-      # Heart requirement is stored as (hearts - 1) * 16 in the upper nibble
-      # For example: 5 hearts = 0x40, 4 hearts = 0x30, 6 hearts = 0x50
-      patch.AddData(WHITE_SWORD_REQUIREMENT_ADDRESS + NES_HEADER_OFFSET, [(white_sword_hearts - 1) * 16])
-
-    # Randomize magical sword heart requirement if the item is shuffled or the flag is enabled
-    if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
-      # Heart requirement is stored as (hearts - 1) * 16 in the upper nibble
-      # For example: 12 hearts = 0xB0, 11 hearts = 0xA0, 10 hearts = 0x90
-      patch.AddData(MAGICAL_SWORD_REQUIREMENT_ADDRESS + NES_HEADER_OFFSET, [(magical_sword_hearts - 1) * 16])
+    # Note: Heart requirements are now written to the patch by data_table.GetPatch()
 
     if self.flags.progressive_items:
       # New progressive item code
@@ -522,43 +372,6 @@ class Z1Randomizer():
 #       for addr in range(0x1FB5E, 0x1FB5E + 36):
 #         patch.AddData(addr, 0xFF)
 
-    if self.flags.extra_raft_blocks:
-      # Change 1: 0x154F8 (1 byte): 0x80 -> 0x0C
-      patch.AddDataFromHexString(0x154F8, "0C")
-
-      # Change 2: 0x155F7-0x155F8 (2 bytes): 0x51 0x51 -> 0x0C 0x0C
-      patch.AddDataFromHexString(0x155F7, "0C 0C")
-
-      # Change 3: 0x15613 (1 byte): 0xF2 -> 0xEB
-      patch.AddDataFromHexString(0x15613, "EB")
-
-      # Change 4: 0x15615 (1 byte): 0x02 -> 0xAF
-      patch.AddDataFromHexString(0x15615, "AF")
-
-      # Change 5: 0x15715 (1 byte): 0x00 -> 0xB6
-      patch.AddDataFromHexString(0x15715, "B6")
-
-      # Change 6: 0x15765-0x15766 (2 bytes): 0x47 0x91 -> 0x91 0x78
-      patch.AddDataFromHexString(0x15765, "91 78")
-
-      # Change 7: 0x1582F-0x15839 (11 bytes)
-      # Original: 07 18 45 13 13 13 13 13 13 13 00
-      # Modified: 02 08 0B 0B 0B 0B 0B 0B 0B 0B 01
-      patch.AddDataFromHexString(0x1582F, "02 08 0B 0B 0B 0B 0B 0B 0B 0B 01")
-
-      # Change 8: 0x1592F-0x15930 (2 bytes): 0x23 0x23 -> 0x17 0x17
-      patch.AddDataFromHexString(0x1592F, "17 17")
-
-      # This seems to break the caves in South Westlake and Vanilla 4.
-      # patch.AddData(0x184D4, self.rom_reader.GetSouthWestlakeMallCaveType() | 0x03)
-
-    if self.flags.extra_power_bracelet_blocks:
-      patch.AddDataFromHexString(0x1554E, "38")
-      patch.AddDataFromHexString(0x15554, "06E7000000")
-      patch.AddDataFromHexString(0x15649, "00A9")
-      patch.AddDataFromHexString(0x1564E, "B6")
-      patch.AddDataFromHexString(0x1574E, "02")
-      
     if self.flags.add_l4_sword:
       # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3) 
       # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067 
@@ -570,54 +383,20 @@ class Z1Randomizer():
     # Apply hints based on community_hints flag
     hint_writer = HintWriter()
 
-    # Lost Hills randomization
-    if self.flags.randomize_lost_hills:
-      # Generate 3 random directions from {Up, Right, Down} + Up at the end
-      # Up=0x08, Down=0x04, Right=0x01
-      direction_options = [0x08, 0x04, 0x01]  # Up, Down, Right
-      lost_hills_directions = random.choices(direction_options, k=3)
-      lost_hills_directions.append(0x08)  # Always Up at the end
-
-      # Patch the ROM at 0x6DAB-0x6DAE with the direction sequence
-      patch.AddData(0x6DAB, lost_hills_directions)
-      
-      # Patch the overworld to annex the two screens to the right of vanilla Level 5
-      patch.AddDataFromHexString(0x154D7, "01010101010101")
-      patch.AddDataFromHexString(0x154F1, "09")
-      patch.AddDataFromHexString(0x154F5, "06")
-      patch.AddDataFromHexString(0x155DD, "02")
-      patch.AddDataFromHexString(0x155F5, "51")
-
-      # Set Lost Hills hint
+    # Set Lost Hills and Dead Woods hints if they were randomized
+    if lost_hills_directions is not None:
       hint_writer.SetLostHillsHint(lost_hills_directions)
 
-    # Dead Woods randomization
-    if self.flags.randomize_dead_woods:
-      # Generate 3 random directions from {North, West, South} + South at the end
-      # North=0x08, South=0x04, West=0x02
-      direction_options = [0x08, 0x02, 0x04]  # North, West, South
-      dead_woods_directions = random.choices(direction_options, k=3)
-      dead_woods_directions.append(0x04)  # Always South at the end
-
-      # Patch the ROM at 0x6DA7-0x6DAA with the direction sequence
-      patch.AddData(0x6DA7, dead_woods_directions)
-
-      # Wall off three southwest caves
-      patch.AddDataFromHexString(0x15B08, "29")
-
-      # Add passage from screen above Dead Woods to the west for non-screen-scrollers
-      # This allows access to grave area if caves aren't shuffled
-      patch.AddDataFromHexString(0x158F8, "16")
-
-      # Set Dead Woods hint
+    if dead_woods_directions is not None:
       hint_writer.SetDeadWoodsHint(dead_woods_directions)
 
     # Set heart requirement hints
+    from .rom_data_specs import RomDataType
     if self.flags.randomize_heart_container_requirements:
-      hint_writer.SetWhiteSwordHeartHint(white_sword_hearts)
+      hint_writer.SetWhiteSwordHeartHint(data_table.GetRomData(RomDataType.WHITE_SWORD_HEART_REQUIREMENT))
 
     if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
-      hint_writer.SetMagicalSwordHeartHint(magical_sword_hearts)
+      hint_writer.SetMagicalSwordHeartHint(data_table.GetRomData(RomDataType.MAGICAL_SWORD_HEART_REQUIREMENT))
 
     if self.flags.community_hints:
       hint_writer.FillWithCommunityHints()

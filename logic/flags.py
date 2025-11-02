@@ -282,6 +282,24 @@ class FlagsEnum(Enum):
         'Shuffles where caves, shops, levels, etc. are on the overworld. This flag does not currently shuffle the location of "any road" warp caves.',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
+    PIN_WOOD_SWORD_CAVE = (
+        'pin_wood_sword_cave',
+        'Pin Wood Sword Cave to Vanilla Screen',
+        'Forces the Wood Sword Cave to remain at its vanilla screen location (0x77). Requires "Shuffle Caves" to be enabled.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
+    )
+    RESTRICT_LEVELS_TO_VANILLA_SCREENS = (
+        'restrict_levels_to_vanilla_screens',
+        'Restrict Levels to Vanilla Screens',
+        'Levels 1-9 can only shuffle among their 9 vanilla screen locations (they won\'t move to shop/cave locations). Requires "Shuffle Caves" to be enabled.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
+    )
+    RESTRICT_LEVELS_TO_EXPANDED_SCREENS = (
+        'restrict_levels_to_expanded_screens',
+        'Restrict Levels to Expanded Screen Pool',
+        'Levels 1-9 shuffle among 15 specific screens (the 9 vanilla locations plus 6 additional screens). Requires "Shuffle Caves" to be enabled. Mutually exclusive with "Restrict Levels to Vanilla Screens".',
+        FlagCategory.OVERWORLD_RANDOMIZATION
+    )
     DONT_GUARANTEE_STARTING_SWORD_OR_WAND = (
         'dont_guarantee_starting_sword_or_wand',
         'Don\'t Guarantee Starting Sword or Wand',

@@ -107,13 +107,18 @@ class HintWriter:
         self.patch = Patch()
         self.hints: Dict[HintType, str] = {}
 
-    def SetHint(self, hint_type: HintType, hint: str) -> None:
+    def SetHint(self, hint_type: HintType, hint: str | list[str]) -> None:
         """Set a hint for a specific hint type.
 
         Args:
             hint_type: The type of hint to set
-            hint: The hint text as a pipe-separated string (e.g., "LINE1|LINE2|LINE3")
+            hint: The hint text as either:
+                  - A pipe-separated string (e.g., "LINE1|LINE2|LINE3")
+                  - A list of strings (e.g., ["LINE1", "LINE2", "LINE3"])
         """
+        # Convert list to pipe-separated string if needed
+        if isinstance(hint, list):
+            hint = '|'.join(hint)
         self.hints[hint_type] = hint
 
     def FillWithCommunityHints(self) -> None:

@@ -57,16 +57,18 @@ def test_safeguard_triggers():
     print(f"Actual limit: 0x{original_limit:04X}")
 
     # Verify we didn't exceed the test limit
-    if max_data_end >= 0x4100:
-        print(f"\n❌ FAILED: Safeguard didn't trigger! Data extends to 0x{max_data_end:04X}")
-        return False
-    else:
-        print(f"\n✓ PASSED: Safeguard triggered correctly! Data ends at 0x{max_data_end:04X}")
-
+    print(f"\n✓ PASSED: Safeguard triggered correctly! Data ends at 0x{max_data_end:04X}")
     print("=" * 80)
-    return True
+
+    # Use assert instead of return for pytest
+    assert max_data_end < 0x4100, \
+        f"Safeguard didn't trigger! Data extends to 0x{max_data_end:04X}, exceeds test limit 0x4100!"
 
 
 if __name__ == "__main__":
-    success = test_safeguard_triggers()
-    sys.exit(0 if success else 1)
+    try:
+        test_safeguard_triggers()
+        sys.exit(0)
+    except AssertionError as e:
+        print(f"\n❌ FAILED: {e}")
+        sys.exit(1)

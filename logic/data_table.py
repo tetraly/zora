@@ -1,5 +1,5 @@
 import logging as log
-from typing import Dict, List
+from typing import Any, Dict, List
 from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
@@ -54,6 +54,22 @@ class DataTable():
 
     # Read mixed enemy group data from ROM
     self.mixed_enemy_groups = self.rom_reader.GetMixedEnemyGroups()
+
+    # Initialize ROM data state using ROM_DATA_SPECS
+    # For readable data, read from ROM; for write-only data, use default_value
+    from .rom_data_specs import ROM_DATA_SPECS, RomDataType
+    for data_type, spec in ROM_DATA_SPECS.items():
+      state_key = f"_{data_type.name.lower()}"
+      if spec.readable:
+        # Read from ROM
+        raw_data = list(self.rom_reader._ReadMemory(spec.cpu_address, spec.size))
+        if spec.decoder:
+          setattr(self, state_key, spec.decoder(raw_data))
+        else:
+          setattr(self, state_key, raw_data)
+      else:
+        # Write-only: use default value
+        setattr(self, state_key, spec.default_value)
 
   def ResetToVanilla(self) -> None:
     self.level_1_to_6_rooms = self._ReadDataForLevelGrid(self.level_1_to_6_raw_data)
@@ -254,6 +270,7 @@ class DataTable():
                                         self.level_7_to_9_rooms)
     patch += self._GetPatchForOverworldCaveData()
     patch += self._GetPatchForOverworldScreenDestinations()
+    patch += self._GetPatchForRomData()  # Generic ROM data patches (includes heart requirements)
     return patch
 
   def _GetPatchForLevelGrid(self, start_address: int, rooms: List[Room]) -> Patch:
@@ -306,6 +323,55 @@ class DataTable():
                    [self.overworld_raw_data[screen_num + 1*0x80]])
     return patch
 
+  def _GetPatchForRomData(self) -> Patch:
+    """Generate patch data for all modified ROM data.
+
+    This generates patches for any ROM data that has been modified via SetRomData().
+    Only data that differs from its initial state (or is write-only with a value set)
+    will be included in the patch.
+    """
+    from .rom_data_specs import ROM_DATA_SPECS, RomDataType
+
+    patch = Patch()
+
+    for data_type, spec in ROM_DATA_SPECS.items():
+      state_key = f"_{data_type.name.lower()}"
+      if not hasattr(self, state_key):
+        continue
+
+      value = getattr(self, state_key)
+
+      # Skip if value is None (not set for write-only data)
+      if value is None:
+        continue
+
+      # Skip readable data if it hasn't been modified
+      # (For readable data, we initialized it from ROM, so check if it changed)
+      if spec.readable:
+        # Re-read original value from ROM
+        raw_data = list(self.rom_reader._ReadMemory(spec.cpu_address, spec.size))
+        if spec.decoder:
+          original_value = spec.decoder(raw_data)
+        else:
+          original_value = raw_data
+
+        # Skip if unchanged
+        if value == original_value:
+          continue
+
+      # Encode the value for ROM
+      if spec.encoder:
+        encoded_data = spec.encoder(value)
+      elif isinstance(value, list):
+        encoded_data = value
+      else:
+        encoded_data = [value]
+
+      # Add to patch using file_offset
+      patch.AddData(spec.file_offset, encoded_data)
+
+    return patch
+
   def GetMixedEnemyGroup(self, enemy: Enemy) -> List[Enemy]:
     """Get the list of Enemy enums for a mixed enemy group.
 
@@ -316,6 +382,59 @@ class DataTable():
         List of Enemy enums in the group, or empty list if not a mixed group
     """
     return self.mixed_enemy_groups.get(int(enemy), [])
+
+  # Generic ROM data access methods
+
+  def GetRomData(self, data_type: 'RomDataType') -> Any:
+    """Generic getter for ROM data using RomDataType enum.
+
+    Args:
+        data_type: The type of ROM data to retrieve
+
+    Returns:
+        The data value (type depends on the specific data type)
+
+    Raises:
+        ValueError: If data_type is write-only
+    """
+    from .rom_data_specs import ROM_DATA_SPECS
+
+    spec = ROM_DATA_SPECS[data_type]
+    if not spec.readable:
+      raise ValueError(f"{data_type.name} is write-only")
+
+    # Check if we have modified state stored
+    state_key = f"_{data_type.name.lower()}"
+    if hasattr(self, state_key):
+      value = getattr(self, state_key)
+      if value is not None:
+        return value
+
+    # Otherwise read from ROM
+    raw_data = list(self.rom_reader._ReadMemory(spec.cpu_address, spec.size))
+    if spec.decoder:
+      return spec.decoder(raw_data)
+    return raw_data
+
+  def SetRomData(self, data_type: 'RomDataType', data: Any) -> None:
+    """Generic setter for ROM data using RomDataType enum.
+
+    Args:
+        data_type: The type of ROM data to set
+        data: The data value to set
+
+    Raises:
+        ValueError: If data_type is read-only
+    """
+    from .rom_data_specs import ROM_DATA_SPECS
+
+    spec = ROM_DATA_SPECS[data_type]
+    if not spec.writable:
+      raise ValueError(f"{data_type.name} is read-only")
+
+    # Store in instance variable
+    state_key = f"_{data_type.name.lower()}"
+    setattr(self, state_key, data)
 
   # New query methods for validator - Phase 1 refactoring
 

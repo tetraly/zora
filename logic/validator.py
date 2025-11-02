@@ -28,12 +28,10 @@ class Validator(object):
   }
   MOVEMENT_CONSTRAINED_ROOMS = MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS.keys()
 
-  def __init__(self, data_table: DataTable, flags: Flags, white_sword_hearts: int = 5, magical_sword_hearts: int = 12) -> None:
+  def __init__(self, data_table: DataTable, flags: Flags) -> None:
     self.data_table = data_table
     self.flags = flags
     self.inventory = Inventory()
-    self.white_sword_hearts = white_sword_hearts
-    self.magical_sword_hearts = magical_sword_hearts
     # Track visited rooms as (level_num, room_num) tuples
     self.visited_rooms: set[tuple[int, int]] = set()
 
@@ -333,11 +331,12 @@ class Validator(object):
     return self.inventory.HasReusableWeapon()
 
   def CaveRequirementsMet(self, cave_type: CaveType) -> bool:
+    from .rom_data_specs import RomDataType
     if (cave_type == CaveType.WHITE_SWORD_CAVE
-        and self.inventory.GetHeartCount() < self.white_sword_hearts):
+        and self.inventory.GetHeartCount() < self.data_table.GetRomData(RomDataType.WHITE_SWORD_HEART_REQUIREMENT)):
       return False
     if (cave_type == CaveType.MAGICAL_SWORD_CAVE
-        and self.inventory.GetHeartCount() < self.magical_sword_hearts):
+        and self.inventory.GetHeartCount() < self.data_table.GetRomData(RomDataType.MAGICAL_SWORD_HEART_REQUIREMENT)):
       return False
     if cave_type == CaveType.POTION_SHOP and not self.inventory.Has(Item.LETTER):
       return False
