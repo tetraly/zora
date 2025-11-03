@@ -8,7 +8,7 @@ from typing import Callable
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from version import __version_display__
-from logic.flags import FlagsEnum, FlagCategory
+from logic.flags import FlagsEnum, FlagCategory, FlagRegistry, BooleanFlag, EnumFlag, IntegerFlag
 from ui.dialogs import info_row
 from ui.state import RomInfo, FlagState
 
@@ -60,15 +60,31 @@ def build_zora_settings_card(flagstring: str, seed: str, flag_state) -> ft.Card:
         seed: The ZORA seed number
         flag_state: The FlagState object containing all flag values
     """
-    # Generate lists of enabled and disabled flags
+    # Generate lists of enabled/non-default flags and disabled/default flags
     enabled_flags = []
     disabled_flags = []
 
-    for flag in FlagsEnum:
-        if flag_state.flags.get(flag.value, False):
-            enabled_flags.append(flag.display_name)
-        else:
-            disabled_flags.append(flag.display_name)
+    all_flags = FlagRegistry.get_all_flags()
+    for flag_key, flag_def in all_flags.items():
+        flag_value = flag_state.flags.get(flag_key, flag_def.get_default())
+        default_value = flag_def.get_default()
+
+        # Check if flag is at non-default value
+        if isinstance(flag_def, BooleanFlag):
+            if flag_value:
+                enabled_flags.append(flag_def.display_name)
+            else:
+                disabled_flags.append(flag_def.display_name)
+        elif isinstance(flag_def, EnumFlag):
+            if flag_value != default_value:
+                enabled_flags.append(f"{flag_def.display_name}: {flag_def.get_option_display_name(flag_value)}")
+            else:
+                disabled_flags.append(f"{flag_def.display_name}: {flag_def.get_option_display_name(flag_value)}")
+        elif isinstance(flag_def, IntegerFlag):
+            if flag_value != default_value:
+                enabled_flags.append(f"{flag_def.display_name}: {flag_value}")
+            else:
+                disabled_flags.append(f"{flag_def.display_name}: {flag_value}")
 
     # Create flag list displays
     enabled_text = ", ".join(enabled_flags) if enabled_flags else "None"
@@ -80,10 +96,10 @@ def build_zora_settings_card(flagstring: str, seed: str, flag_state) -> ft.Card:
         info_row("ZORA Flag String", flagstring, label_width=140),
         info_row("ZORA Seed", seed, label_width=140),
         ft.Container(height=10),
-        ft.Text("Enabled Flags:", weight="w500", size=14),
+        ft.Text("Non-Default Flags:", weight="w500", size=14),
         ft.Text(enabled_text, selectable=True),
         ft.Container(height=10),
-        ft.Text("Disabled Flags:", weight="w500", size=14),
+        ft.Text("Default Flags:", weight="w500", size=14),
         ft.Text(disabled_text, selectable=True)],
                                                           spacing=5),
                                         padding=10,
@@ -355,50 +371,87 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
 
 
 def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[dict, dict]:
-    """Build flag checkboxes grouped by category from FlagsEnum.
+    """Build flag controls (checkboxes, dropdowns, number inputs) grouped by category.
 
     Args:
         flag_state: FlagState instance containing complex_flags list
-        on_change_callback: Callback function for checkbox changes (flag_key, value)
+        on_change_callback: Callback function for control changes (flag_key, value)
 
     Returns:
-        tuple: (flag_checkboxes dict, categorized_flag_rows dict)
-            - flag_checkboxes: flat dict of all checkboxes by flag key
+        tuple: (flag_controls dict, categorized_flag_rows dict)
+            - flag_controls: flat dict of all controls by flag key
             - categorized_flag_rows: dict mapping FlagCategory -> list of flag rows
     """
-    flag_checkboxes = {}
+    flag_controls = {}
     categorized_flag_rows = {}
 
     # Initialize categories
     for category in FlagCategory:
         categorized_flag_rows[category] = []
 
-    # Build checkboxes and organize by category
-    for flag in FlagsEnum:
-        # Skip hidden flags and complex flags
-        if flag.category == FlagCategory.HIDDEN:
-            continue
-        if flag.value not in flag_state.complex_flags:
-            checkbox = ft.Checkbox(
-                label=flag.display_name,
-                value=False,
-                on_change=lambda e, key=flag.value: on_change_callback(key, e.control.value))
-            flag_checkboxes[flag.value] = checkbox
+    # Build controls from FlagRegistry and organize by category
+    all_flags = FlagRegistry.get_all_flags()
 
-            # Create row with checkbox and help icon
+    for flag_key, flag_def in all_flags.items():
+        # Skip hidden flags and complex flags
+        if flag_def.category == FlagCategory.HIDDEN:
+            continue
+        if flag_key in flag_state.complex_flags:
+            continue
+
+        # Create appropriate control based on flag type
+        control = None
+
+        if isinstance(flag_def, BooleanFlag):
+            # Boolean flag -> Checkbox
+            checkbox = ft.Checkbox(
+                label=flag_def.display_name,
+                value=flag_def.get_default(),
+                on_change=lambda e, key=flag_key: on_change_callback(key, e.control.value))
+            control = checkbox
+            flag_controls[flag_key] = checkbox
+
+        elif isinstance(flag_def, EnumFlag):
+            # Enum flag -> Dropdown
+            dropdown = ft.Dropdown(
+                label=flag_def.display_name,
+                options=[ft.dropdown.Option(opt.value, opt.display_name) for opt in flag_def.options],
+                value=flag_def.get_default(),
+                on_change=lambda e, key=flag_key: on_change_callback(key, e.control.value),
+                width=300)
+            control = dropdown
+            flag_controls[flag_key] = dropdown
+
+        elif isinstance(flag_def, IntegerFlag):
+            # Integer flag -> TextField with number input
+            text_field = ft.TextField(
+                label=flag_def.display_name,
+                value=str(flag_def.get_default()),
+                keyboard_type=ft.KeyboardType.NUMBER,
+                on_change=lambda e, key=flag_key, defn=flag_def: on_change_callback(
+                    key,
+                    int(e.control.value) if e.control.value.isdigit() else defn.get_default()
+                ),
+                width=200,
+                hint_text=f"{flag_def.min_value}-{flag_def.max_value}" if flag_def.min_value is not None else None)
+            control = text_field
+            flag_controls[flag_key] = text_field
+
+        # Create row with control and help icon
+        if control:
             flag_row = ft.Row([
-                checkbox,
+                control,
                 ft.IconButton(icon=ft.Icons.HELP_OUTLINE,
                               icon_size=16,
-                              tooltip=flag.help_text,
+                              tooltip=flag_def.help_text,
                               style=ft.ButtonStyle(padding=2))],
                               spacing=0,
                               tight=True)
 
             # Add to appropriate category
-            categorized_flag_rows[flag.category].append(flag_row)
+            categorized_flag_rows[flag_def.category].append(flag_row)
 
-    return flag_checkboxes, categorized_flag_rows
+    return flag_controls, categorized_flag_rows
 
 
 def build_header(on_view_known_issues) -> ft.Container:

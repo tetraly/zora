@@ -31,7 +31,7 @@ def test_shuffle_performance_comparison():
 
         # Create flags with cave shuffling enabled
         flags = Flags()
-        flags.shuffle_caves = True
+        flags.cave_shuffle_mode = 'first_quest'
 
         # Generate ROM and capture timing from logs
         start_time = time.time()

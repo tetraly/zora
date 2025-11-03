@@ -24,9 +24,12 @@ class FlagState:
         self.flags = {}
         self.complex_flags = {'starting_items', 'skip_items'}
 
-        for flag in FlagsEnum:
-            if flag.value not in self.complex_flags:
-                self.flags[flag.value] = False
+        # Initialize all flags with their default values from FlagRegistry
+        from logic.flags import FlagRegistry
+        all_flags = FlagRegistry.get_all_flags()
+        for flag_key, flag_def in all_flags.items():
+            if flag_key not in self.complex_flags:
+                self.flags[flag_key] = flag_def.get_default()
 
         self.seed = ""
 
@@ -88,12 +91,12 @@ class FlagState:
         """Convert FlagState to a Flags object for the randomizer.
 
         Returns:
-            Flags: A Flags object with all enabled flags set
+            Flags: A Flags object with all flag values set
         """
         randomizer_flags = Flags()
         for flag_key, flag_value in self.flags.items():
-            if flag_value:  # Only set flags that are True
-                setattr(randomizer_flags, flag_key, True)
+            # Set all flag values (boolean, enum, integer)
+            setattr(randomizer_flags, flag_key, flag_value)
         return randomizer_flags
 
 
