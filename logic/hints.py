@@ -1,5 +1,5 @@
 from .randomizer_constants import HintType
-
+#22 character max including spaces
 
 COMMUNITY_HINTS = {
     HintType.WOOD_SWORD_CAVE: [
