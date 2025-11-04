@@ -1,6 +1,6 @@
 from typing import List
 import logging
-from .randomizer_constants import Direction, Enemy, Item, Range, RoomAction, RoomNum, RoomType, WallType
+from .randomizer_constants import Direction, Enemy, Item, ItemPosition, Range, RoomAction, RoomNum, RoomType, WallType
 
 log = logging.getLogger(__name__)
 

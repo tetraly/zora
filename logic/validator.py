@@ -299,8 +299,7 @@ class Validator(object):
     room_enemy = self.data_table.GetRoomEnemy(level_num, room_num)
 
     # Check if no enemies need to be killed
-    if room_enemy in [Enemy.BUBBLE, Enemy.THREE_PAIRS_OF_TRAPS, Enemy.CORNER_TRAPS,
-                      Enemy.OLD_MAN, Enemy.THE_KIDNAPPED, Enemy.NOTHING]:
+    if room_enemy.IsNPC() or room_enemy in [Enemy.BUBBLE, Enemy.THREE_PAIRS_OF_TRAPS, Enemy.CORNER_TRAPS, Enemy.THE_KIDNAPPED, Enemy.NOTHING]:
       return True
 
     actual_enemies = self._GetActualEnemies(room_enemy)
@@ -312,7 +311,7 @@ class Validator(object):
         or (self._ContainsEnemyType(room_enemy, [Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE]) and not self.inventory.HasSword())
         or (room_enemy.IsGleeokOrPatra() and not self.inventory.HasSwordOrWand())
         or (self._RoomHasOnlyZeroHPEnemies(actual_enemies) and not self.inventory.HasReusableWeaponOrBoomerang())
-        or (room_enemy == Enemy.HUNGRY_GORIYA and not self.inventory.Has(Item.BAIT))):
+        or (room_enemy == Enemy.HUNGRY_ENEMY and not self.inventory.Has(Item.BAIT))):
       return False
 
     # Check for Pols Voice using ROM data for mixed groups
@@ -344,7 +343,7 @@ class Validator(object):
       raise Exception("Got to a Coast item check that shouldn't be reached")
       return False
     # If the Westlake Mall area is raft blocked, it's possible for the armos item to be raft-blocked
-    if cave_type == CaveType.ARMOS_ITEM and not self.inventory.Has(Item.RAFT) and self.flags.EXTRA_RAFT_BLOCKS:
+    if cave_type == CaveType.ARMOS_ITEM and not self.inventory.Has(Item.RAFT) and self.flags.extra_raft_blocks:
       raise Exception("Got to an Armos check that shouldn't be reached")
       return False
     return True
@@ -465,7 +464,7 @@ class Validator(object):
     # Hungry goriya room doesn't have a closed shutter door.  So need a special check to similate how
     # it's not possible to move up in the room until the goriya has been properly fed.
     room_enemy = self.data_table.GetRoomEnemy(level_num, room_num)
-    if (exit_direction == Direction.NORTH and room_enemy == Enemy.HUNGRY_GORIYA
+    if (exit_direction == Direction.NORTH and room_enemy == Enemy.HUNGRY_ENEMY
         and not self.inventory.Has(Item.BAIT)):
       log.debug("Hungry goriya is still hungry :(")
       return False

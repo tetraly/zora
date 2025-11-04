@@ -2,6 +2,7 @@
 
 import pytest
 import io
+import random
 import sys
 import time
 from pathlib import Path
@@ -245,7 +246,6 @@ def test_restrict_levels_to_vanilla_screens(modifiable_data_table, default_flags
     flags.cave_shuffle = 'all_caves'
     # Note: restrict_levels_to_vanilla_screens flag not yet implemented
     # This test will be skipped until the flag is added
-    import pytest
     pytest.skip("restrict_levels_to_vanilla_screens flag not yet implemented")
 
     # Run shuffle with constraint
@@ -622,7 +622,7 @@ def test_levels_only_cave_shuffle(modifiable_data_table):
         assert actual_dest == expected_level, f"Vanilla ROM mismatch at 0x{screen:02X}"
 
     # Create OverworldRandomizer and shuffle
-    import random
+
     random.seed(42)  # For reproducibility
 
     overworld_randomizer = OverworldRandomizer(modifiable_data_table, flags)

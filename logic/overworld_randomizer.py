@@ -1,4 +1,36 @@
 
+
+# 1) Write unit tests for cave shuffle
+# -- repeat for flags that don't matter?
+# Helper: Get list of screens that'd show up to player (with dest + not in 2Q only bit selected)
+# Helper: Verify expected number and distribution for 1Q dests (and then 2Q dests)
+# Just go through them one scenario after another
+# 2) Write unit tests for start screen randomizer
+
+# 1) Split overworld_randomizer into smaller classes
+#    cave shuffle (incl. any road)
+#    start screen
+#    extra_blocks (partitioner?)
+#    misc (heart reqs, recorder warps)
+# 2) Move classes with tests into logic/overworld/ subdirectory 
+# 2.5) Figure out how to make 2,5,7 screens their 2Q versions and implement
+# 3) Refactor cave shuffle code to "un-vibe" and simplify it (prereq: unit tests)
+# 4) Implement StartScreen (prereq unit tests)
+
+# 1) Write code to make a test rom with: 
+#   1) Set all item position codes to the four standard ones for each 1Q and 2Q "extra data" block
+#   2) Change all room code to make every item standing
+#   3) Apply buffet patch -- Add that as a flag for debugging?
+#   4) See what breaks (potentially on stream)
+#   5) Note what breaks, Adjust codes as needed
+# 2) Have rando code normalize item positions, then intra dungeon, completely and naievely shuffle items
+#    see what breaks?
+# 3) Shuffle room action codes naievly, see what breaks
+
+
+# Question to ask self: What's the minimum amount of work I can do to get something that would be interesting
+# enough for someone else to test.
+
 import random
 import logging as log
 from typing import List, Tuple
@@ -330,7 +362,6 @@ class OverworldRandomizer:
         - shuffle_wood_sword_cave: Whether to include wood sword cave (ignored for levels_only)
         - shuffle_any_road_caves: Whether to include any road caves (ignored for levels_only)
         """
-        import time
 
         # Check if shuffle is enabled
         if self.flags.cave_shuffle == 'none':
@@ -345,50 +376,26 @@ class OverworldRandomizer:
         # Collect screens and destinations based on quest mode
         if quest == 'second_quest':
             screens, destinations = self._CollectSecondQuestScreens()
-            quest_mode = "2nd_quest"
         elif quest == 'mixed_1q_screens':
             screens, destinations, both_quest_screens = self._CollectMixedQuestScreens()
-            quest_mode = "mixed_1q"
         elif quest == 'mixed_2q_screens':
             screens, destinations, both_quest_screens = self._CollectMixedQuest2ndDestScreens()
-            quest_mode = "mixed_2q"
         else:  # first_quest
             screens, destinations = self._CollectFirstQuestScreens()
-            quest_mode = "1st_quest"
-
+ 
         # Filter screens and destinations based on cave_shuffle mode
         if self.flags.cave_shuffle == 'levels_only':
-            # Only shuffle levels (1-9), exclude everything else
-            level_types = [
-                CaveType.LEVEL_1, CaveType.LEVEL_2, CaveType.LEVEL_3,
-                CaveType.LEVEL_4, CaveType.LEVEL_5, CaveType.LEVEL_6,
-                CaveType.LEVEL_7, CaveType.LEVEL_8, CaveType.LEVEL_9
-            ]
-
             # Find screens that have levels
-            level_screens = [s for s in screens if self.data_table.GetScreenDestination(s) in level_types]
+            screens = [s for s in screens if self.data_table.GetScreenDestination(s).IsLevel()]
             # Keep only level destinations
-            level_destinations = [d for d in destinations if d in level_types]
-
-            screens = level_screens
-            destinations = level_destinations
+            destinations = [d for d in destinations if d.IsLevel()]
             log.debug(f"Levels only: {len(screens)} screens, {len(destinations)} level destinations")
 
         elif self.flags.cave_shuffle == 'non_levels_only':
-            # Shuffle everything except levels
-            level_types = [
-                CaveType.LEVEL_1, CaveType.LEVEL_2, CaveType.LEVEL_3,
-                CaveType.LEVEL_4, CaveType.LEVEL_5, CaveType.LEVEL_6,
-                CaveType.LEVEL_7, CaveType.LEVEL_8, CaveType.LEVEL_9
-            ]
-
             # Exclude screens with levels
-            non_level_screens = [s for s in screens if self.data_table.GetScreenDestination(s) not in level_types]
+            screens = [s for s in screens if not self.data_table.GetScreenDestination(s).IsLevel()]
             # Exclude level destinations
-            non_level_destinations = [d for d in destinations if d not in level_types]
-
-            screens = non_level_screens
-            destinations = non_level_destinations
+            destinations = [d for d in destinations if not d.IsLevel()]
             log.debug(f"Non-levels only: {len(screens)} screens, {len(destinations)} destinations")
 
         # else: all_caves - use all screens and destinations as collected
@@ -409,15 +416,12 @@ class OverworldRandomizer:
                 log.debug(f"Any Road Caves excluded: {[hex(s) for s in any_road_screens]}")
 
         # Perform the shuffle (simple mode for now - constraint-based shuffling will be added later)
-        start_time = time.time()
         self._ShuffleCaveDestinationsSimple(screens, destinations)
-        elapsed = time.time() - start_time
-        log.debug(f"Simple shuffle took {elapsed*1000:.2f}ms")
 
         # Apply quest bit modifications based on mode
-        if quest_mode == "2nd_quest":
+        if quest == 'second_quest':
             self._FlipAllQuestBits()
-        elif quest_mode in ["mixed_1q", "mixed_2q"]:
+        elif quest in ["mixed_1q_screens", "mixed_2q_screens"]:
             self._ApplyMixedQuestBits(screens, both_quest_screens)
 
     def _ShuffleCaveDestinationsSimple(

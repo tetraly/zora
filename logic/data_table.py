@@ -1,6 +1,6 @@
 import logging as log
 from typing import Any, Dict, List
-from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
+from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomNum, RoomType, WallType
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
@@ -9,6 +9,7 @@ from .patch import Patch
 from .rom_reader import RomReader
 
 NES_FILE_OFFSET = 0x10
+ITEM_POSITIONS_OFFSET = 0x29
 START_ROOM_OFFSET = 0x2F
 STAIRWAY_LIST_OFFSET = 0x34
 LEVEL_1_TO_6_DATA_START_ADDRESS = 0x18700 + NES_FILE_OFFSET
@@ -290,6 +291,33 @@ class DataTable():
     if room.IsItemStaircase():
       room_num = room.GetLeftExit()
     self.triforce_locations[location.GetLevelNum()] = room_num
+    
+  def NormalizeItemPositions(self):
+      normalized_drop_positions = [0x89, 0xD6, 0xC9, 0x2C]
+      for level_num in range(1, 10):  # Dungeons 1-9 only
+          for i in range(0, 4):
+              self.level_info[level_num][ITEM_POSITIONS_OFFSET + i] = normalized_drop_positions[i]
+
+  def NormalizeNoItemCode(self) -> None:
+      """Normalize NO_ITEM code from 0x03 (MAGICAL_SWORD) to 0x18 (RUPEE).
+
+      In vanilla Zelda, 0x03 means both MAGICAL_SWORD (overworld) and NO_ITEM (dungeons).
+      This creates ambiguity for the randomizer which may place MAGICAL_SWORD in dungeons.
+      This method changes all dungeon NO_ITEM codes from 0x03 to 0x18 (RUPEE), which is
+      never used as a room item.
+
+      This requires a corresponding game code patch to recognize 0x18 as NO_ITEM.
+      """
+      OLD_NO_ITEM_CODE = 0x03  # MAGICAL_SWORD value
+      NEW_NO_ITEM_CODE = Item.NO_ITEM  # 0x18 (repurposed RUPEE code)
+
+      # Go through both 8x16 level data grids (levels 1-6 and 7-9)
+      for level_num in range(1, 10):  # Dungeons 1-9 only
+          for room_num in range(0, 0x80):
+              item = self.GetItem(level_num, room_num)
+              if item.value == OLD_NO_ITEM_CODE:
+                  self.SetItem(level_num, room_num, NEW_NO_ITEM_CODE)
+                  log.debug(f"Normalized NO_ITEM in level {level_num} room {hex(room_num)}: 0x03 -> 0x18")
 
   # Gets the Room number of the start screen for a level.
   #def GetLevelStartRoomNumber(self, level_num: LevelNum) -> RoomNum:
@@ -575,3 +603,18 @@ class DataTable():
       return None
     room = self.GetRoom(level_num, staircase_room_num)
     return room.GetItem()
+    
+  def SetItemPosition(self, level_num: LevelNum, room_num: RoomNum, item_position: ItemPosition) -> None:
+      room = self.GetRoom(level_num, room_num)
+      room.SetItemPosition(item_position)
+
+  def GetItem(self, level_num: LevelNum, room_num: RoomNum) -> Item:
+      """Get the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      return room.GetItem()
+
+  def SetItem(self, level_num: LevelNum, room_num: RoomNum, item: Item) -> None:
+      """Set the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      room.SetItem(item)
+

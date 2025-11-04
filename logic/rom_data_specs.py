@@ -34,6 +34,9 @@ class RomDataType(Enum):
     LOST_HILLS_DIRECTIONS = auto()
     DEAD_WOODS_DIRECTIONS = auto()
 
+    # Dungeon item handling
+    DUNGEON_NO_ITEM_CODE = auto()
+
 
 class RomDataSpec(NamedTuple):
     """Specification for a ROM data region.
@@ -157,5 +160,15 @@ ROM_DATA_SPECS = {
         readable=False,  # Write-only (randomizer generates these)
         writable=True,
         default_value=[0x08, 0x02, 0x04, 0x02],  # Vanilla: Up, West, South, West
+    ),
+
+    RomDataType.DUNGEON_NO_ITEM_CODE: RomDataSpec(
+        cpu_address=0x1784F,
+        file_offset=0x1785F,
+        size=1,
+        description="Item code that represents 'no item' in dungeons (changed from 0x03 to 0x18 to allow MAGICAL_SWORD in dungeons)",
+        readable=False,  # Write-only (always patch this)
+        writable=True,
+        default_value=0x18,  # RUPEE code (never used as room item)
     ),
 }
