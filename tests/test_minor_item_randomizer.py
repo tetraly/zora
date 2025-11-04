@@ -1,4 +1,4 @@
-"""Tests for NewItemRandomizer."""
+"""Tests for MinorItemRandomizer."""
 
 import pytest
 import sys
@@ -7,7 +7,7 @@ from pathlib import Path
 # Add parent directory to path to import logic modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from logic.items import NewItemRandomizer
+from logic.items.minor_item_randomizer import MinorItemRandomizer
 from logic.rom_reader import RomReader
 from logic.data_table import DataTable
 from logic.flags import Flags
@@ -79,7 +79,7 @@ def test_normalize_no_item_code(modifiable_data_table):
 
 def test_visit_all_rooms(modifiable_data_table, default_flags):
     """Test that VisitAllRooms finds rooms in each level."""
-    item_randomizer = NewItemRandomizer(modifiable_data_table, default_flags)
+    item_randomizer = MinorItemRandomizer(modifiable_data_table, default_flags)
     item_randomizer.VisitAllRooms()
 
     # Check that we found rooms in each level
@@ -91,7 +91,7 @@ def test_visit_all_rooms(modifiable_data_table, default_flags):
 
 def test_filter_impossible_item_rooms(modifiable_data_table, default_flags):
     """Test that FilterOutImpossibleItemRooms removes entrance rooms and NPC rooms."""
-    item_randomizer = NewItemRandomizer(modifiable_data_table, default_flags)
+    item_randomizer = MinorItemRandomizer(modifiable_data_table, default_flags)
     item_randomizer.VisitAllRooms()
 
     # Count rooms before filtering
@@ -118,7 +118,7 @@ def test_filter_impossible_item_rooms(modifiable_data_table, default_flags):
 
 def test_full_randomization(modifiable_data_table, default_flags):
     """Test the full randomization pipeline."""
-    item_randomizer = NewItemRandomizer(modifiable_data_table, default_flags)
+    item_randomizer = MinorItemRandomizer(modifiable_data_table, default_flags)
 
     # Run full randomization
     item_randomizer.Randomize()
@@ -138,7 +138,7 @@ def test_full_randomization(modifiable_data_table, default_flags):
 
 def test_item_stairway_constraint(modifiable_data_table, default_flags):
     """Test that item stairways always have items after shuffling."""
-    item_randomizer = NewItemRandomizer(modifiable_data_table, default_flags)
+    item_randomizer = MinorItemRandomizer(modifiable_data_table, default_flags)
     item_randomizer.Randomize()
 
     # Check all item stairways have items (not NO_ITEM/RUPEE)

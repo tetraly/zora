@@ -488,6 +488,16 @@ class CaveType(IntEnum):
   def IsLevel(self):
     return self.value >= CaveType.LEVEL_1.value and self.value <= CaveType.LEVEL_9.value
 
+  def IsShop(self):
+    """Check if this cave type is a shop where items can be purchased."""
+    return self in [
+        CaveType.POTION_SHOP,
+        CaveType.SHOP_1,
+        CaveType.SHOP_2,
+        CaveType.SHOP_3,
+        CaveType.SHOP_4
+    ]
+
 
 
 class RoomAction(IntEnum):
