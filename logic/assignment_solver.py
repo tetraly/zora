@@ -193,6 +193,14 @@ class AssignmentSolver:
     def forbid(self, source: Any, target: Any) -> None:
         """Prevent a specific source from being assigned to a specific target.
 
+        In permutation mode:
+            source = key (e.g., room 0x53)
+            target = value (e.g., Item.NO_ITEM)
+            Constraint: "room 0x53 must NOT get NO_ITEM"
+
+        In assignment mode:
+            source and target are from the original add_assignment_problem() call
+
         Example:
             solver.forbid(Item.RAFT, Location.LEVEL_9_BOSS)
             # Raft can go anywhere except the Level 9 boss location
@@ -204,13 +212,35 @@ class AssignmentSolver:
         Raises:
             ValueError: If source not in problem or target not valid
         """
-        if source not in self.var_map:
-            raise ValueError(f"Source {source} not in assignment problem")
-        if target not in self.target_set:
-            raise ValueError(f"Target {target} not in valid targets")
+        if self.permutation_mode:
+            # Find the key index
+            try:
+                key_idx = self.permutation_keys.index(source)
+            except ValueError:
+                raise ValueError(
+                    f"In permutation mode: source {source} must be in keys"
+                )
 
-        self.model.Add(self.var_map[source] != target)
-        log.debug(f"Constraint: {source} must NOT map to {target}")
+            # Find ALL occurrences of the target value (there may be duplicates)
+            value_indices = [i for i, v in enumerate(self.permutation_values) if v == target]
+            if not value_indices:
+                raise ValueError(
+                    f"In permutation mode: target {target} must be in values"
+                )
+
+            # Forbid this key from mapping to ANY occurrence of the target value
+            for value_idx in value_indices:
+                self.model.Add(self.var_map[key_idx] != value_idx)
+            log.debug(f"Constraint: {source} must NOT map to {target} ({len(value_indices)} occurrences)")
+        else:
+            # Original assignment mode
+            if source not in self.var_map:
+                raise ValueError(f"Source {source} not in assignment problem")
+            if target not in self.target_set:
+                raise ValueError(f"Target {target} not in valid targets")
+
+            self.model.Add(self.var_map[source] != target)
+            log.debug(f"Constraint: {source} must NOT map to {target}")
 
     def allow_only(
         self,

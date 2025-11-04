@@ -23,12 +23,14 @@ class FlagDefinition:
         display_name: str,
         help_text: str,
         category: FlagCategory,
+        subcategory: Optional[str] = None,
         affects_file_string: bool = None
     ):
         self.key = key
         self.display_name = display_name
         self.help_text = help_text
         self.category = category
+        self.subcategory = subcategory
         # Allow override, otherwise use category default
         self._affects_file_string = affects_file_string
 
@@ -57,10 +59,11 @@ class BooleanFlag(FlagDefinition):
         display_name: str,
         help_text: str,
         category: FlagCategory,
+        subcategory: Optional[str] = None,
         default: bool = False,
         affects_file_string: bool = None
     ):
-        super().__init__(key, display_name, help_text, category, affects_file_string)
+        super().__init__(key, display_name, help_text, category, subcategory, affects_file_string)
         self.default = default
 
     def get_default(self) -> bool:
@@ -82,10 +85,11 @@ class EnumFlag(FlagDefinition):
         help_text: str,
         category: FlagCategory,
         options: List[FlagOption],
+        subcategory: Optional[str] = None,
         default: str = None,
         affects_file_string: bool = None
     ):
-        super().__init__(key, display_name, help_text, category, affects_file_string)
+        super().__init__(key, display_name, help_text, category, subcategory, affects_file_string)
         self.options = options
         self.option_dict = {opt.value: opt for opt in options}
         # Default to first option if not specified
@@ -124,11 +128,12 @@ class IntegerFlag(FlagDefinition):
         help_text: str,
         category: FlagCategory,
         default: int,
+        subcategory: Optional[str] = None,
         min_value: int = None,
         max_value: int = None,
         affects_file_string: bool = None
     ):
-        super().__init__(key, display_name, help_text, category, affects_file_string)
+        super().__init__(key, display_name, help_text, category, subcategory, affects_file_string)
         self.default = default
         self.min_value = min_value
         self.max_value = max_value

@@ -6,6 +6,9 @@ CaveNum = int
 RoomNum = NewType("RoomNum", int)
 PositionNum = NewType("PositionNum", int)
 
+# Module-level constants for common ranges and collections
+DUNGEON_LEVEL_NUMBERS = range(1, 10)  # Levels 1-9 (dungeons only, not overworld)
+
 
 class QuestMode(Enum):
   """Enum for specifying which quest(s) to operate on."""
@@ -41,6 +44,9 @@ class Direction(IntEnum):
       elif self == Direction.EAST:
           return Direction.WEST
       return Direction.STAIRCASE
+
+# Cardinal directions in a consistent order (excludes STAIRCASE)
+CARDINAL_DIRECTIONS = (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH)
 
 
 class Item(IntEnum):
@@ -89,16 +95,22 @@ class Item(IntEnum):
     return self in [Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.BLUE_CANDLE, Item.RED_CANDLE,
        Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BLUE_RING, Item.RED_RING]
 
+  def IsMinorItem(self):
+      return self in [Item.BOMBS, Item.KEY, Item.FIVE_RUPEES, Item.MAP, Item.COMPASS]
+
   def IsMinorDungeonItem(self):
-    return self in [Item.BOMBS, Item.FIVE_RUPEES, Item.KEY, Item.COMPASS, Item.MAP]
+    return self.IsMinorItem()
 
   def IsMajorItem(self):
       # Check if the current item is one of the sword items
       return self in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.RECORDER,
           Item.BLUE_CANDLE, Item.RED_CANDLE, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.BOW,
-          Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK, Item.BLUE_RING, 
-          Item.RED_RING, Item.POWER_BRACELET, Item.HEART_CONTAINER, Item.WOOD_BOOMERANG, 
+          Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK, Item.BLUE_RING,
+          Item.RED_RING, Item.POWER_BRACELET, Item.HEART_CONTAINER, Item.WOOD_BOOMERANG,
           Item.MAGICAL_BOOMERANG]
+
+  def IsMajorItemOrTriforce(self):
+      return self.IsMajorItem() or self == Item.TRIFORCE
 
 class RoomType(IntEnum):
   PLAIN_ROOM = 0x00
@@ -413,6 +425,19 @@ class Enemy(IntEnum):
 
   def IsNPC(self):
     return self.value == Enemy.HUNGRY_ENEMY or (self.value >= Enemy.NPC_1.value and self.value <= Enemy.NPC_6.value)
+
+  def IsBoss(self):
+    return self in [
+        Enemy.AQUAMENTUS,
+        Enemy.TRIPLE_DODONGO, Enemy.SINGLE_DODONGO,
+        Enemy.MANHANDALA,
+        Enemy.BLUE_GOHMA, Enemy.RED_GOHMA,
+        Enemy.TRIPLE_DIGDOGGER, Enemy.SINGLE_DIGDOGGER,
+        Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA,
+        Enemy.PATRA_1, Enemy.PATRA_2,
+        Enemy.GLEEOK_1, Enemy.GLEEOK_2, Enemy.GLEEOK_3, Enemy.GLEEOK_4,
+        Enemy.MOLDORM
+    ]
 
 
 class WallType(IntEnum):

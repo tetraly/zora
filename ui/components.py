@@ -237,17 +237,47 @@ def build_step2_container(categorized_flag_rows: dict,
         if category == FlagCategory.HIDDEN:
             continue
         if categorized_flag_rows[category]:  # Only show categories with flags
-            # Split flags in this category into two columns
-            flags_in_category = categorized_flag_rows[category]
-            mid = (len(flags_in_category) + 1) // 2
-            left_flags = flags_in_category[:mid]
-            right_flags = flags_in_category[mid:]
+            # Build content with subcategories
+            subcategory_sections = []
 
-            # Create flag rows
-            flag_content = ft.Row([
-                ft.Column(left_flags, spacing=3, expand=True),
-                ft.Column(right_flags, spacing=3, expand=True)],
-                                      spacing=10)
+            # Get all subcategories for this category
+            subcategories_dict = categorized_flag_rows[category]
+
+            # Process each subcategory
+            for subcategory, flags_in_subcategory in subcategories_dict.items():
+                if not flags_in_subcategory:
+                    continue
+
+                # Split flags in this subcategory into two columns
+                mid = (len(flags_in_subcategory) + 1) // 2
+                left_flags = flags_in_subcategory[:mid]
+                right_flags = flags_in_subcategory[mid:]
+
+                # Create flag rows
+                flag_content = ft.Row([
+                    ft.Column(left_flags, spacing=3, expand=True),
+                    ft.Column(right_flags, spacing=3, expand=True)],
+                                          spacing=10)
+
+                # If there's a subcategory name, add a header
+                if subcategory:
+                    subcategory_section = ft.Column([
+                        ft.Container(
+                            content=ft.Text(subcategory, size=14, weight="w600", color=ft.Colors.BLUE_800),
+                            padding=ft.padding.only(top=5, bottom=5, left=5)
+                        ),
+                        flag_content
+                    ], spacing=0)
+                else:
+                    subcategory_section = flag_content
+
+                subcategory_sections.append(subcategory_section)
+
+            # Combine all subcategory sections
+            if len(subcategory_sections) == 1:
+                category_content = subcategory_sections[0]
+            else:
+                category_content = ft.Column(subcategory_sections, spacing=10)
 
             # Add a note for LEGACY flags
             if category == FlagCategory.LEGACY:
@@ -259,13 +289,11 @@ def build_step2_container(categorized_flag_rows: dict,
                         weight="bold"),
                     padding=ft.padding.only(bottom=10),
                     visible=False)  # Hidden by default, shown when randomized ROM loaded
-                category_content = ft.Column([legacy_note, flag_content], spacing=5)
+                category_content = ft.Column([legacy_note, category_content], spacing=5)
 
                 # Store reference if provided
                 if legacy_note_ref is not None:
                     legacy_note_ref.append(legacy_note)
-            else:
-                category_content = flag_content
 
             # Create colored header with border
             header = ft.Container(
@@ -371,7 +399,7 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
 
 
 def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[dict, dict]:
-    """Build flag controls (checkboxes, dropdowns, number inputs) grouped by category.
+    """Build flag controls (checkboxes, dropdowns, number inputs) grouped by category and subcategory.
 
     Args:
         flag_state: FlagState instance containing complex_flags list
@@ -380,16 +408,16 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
     Returns:
         tuple: (flag_controls dict, categorized_flag_rows dict)
             - flag_controls: flat dict of all controls by flag key
-            - categorized_flag_rows: dict mapping FlagCategory -> list of flag rows
+            - categorized_flag_rows: dict mapping FlagCategory -> dict of subcategory -> list of flag rows
     """
     flag_controls = {}
     categorized_flag_rows = {}
 
-    # Initialize categories
+    # Initialize categories with empty dicts for subcategories
     for category in FlagCategory:
-        categorized_flag_rows[category] = []
+        categorized_flag_rows[category] = {}
 
-    # Build controls from FlagRegistry and organize by category
+    # Build controls from FlagRegistry and organize by category and subcategory
     all_flags = FlagRegistry.get_all_flags()
 
     for flag_key, flag_def in all_flags.items():
@@ -448,8 +476,11 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
                               spacing=0,
                               tight=True)
 
-            # Add to appropriate category
-            categorized_flag_rows[flag_def.category].append(flag_row)
+            # Add to appropriate category and subcategory
+            subcategory = flag_def.subcategory if flag_def.subcategory else None
+            if subcategory not in categorized_flag_rows[flag_def.category]:
+                categorized_flag_rows[flag_def.category][subcategory] = []
+            categorized_flag_rows[flag_def.category][subcategory].append(flag_row)
 
     return flag_controls, categorized_flag_rows
 

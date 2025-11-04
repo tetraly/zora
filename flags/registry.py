@@ -14,84 +14,96 @@ class FlagRegistry:
         'shuffle_wood_sword_cave_item',
         'Shuffle Wood Sword Cave item',
         'Adds the Wood Sword Cave Item to the item shuffle pool. May or may not make the seed unbeatable. Recommended for advanced players only.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_WHITE_SWORD_CAVE_ITEM = BooleanFlag(
         'shuffle_white_sword_cave_item',
         'Shuffle White Sword Cave item',
         'Adds the White Sword Cave item to the item shuffle pool',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_MAGICAL_SWORD_CAVE_ITEM = BooleanFlag(
         'shuffle_magical_sword_cave_item',
         'Shuffle Magical Sword Cave item',
         'Adds the Magical Sword to the item shuffle pool. Important Note: If the Magical Sword is shuffled into a room that normally has a standing floor item, it will become a drop item. You will need to defeat all enemies in the room for the Magical Sword to appear.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_LETTER_CAVE_ITEM = BooleanFlag(
         'shuffle_letter_cave_item',
         'Shuffle Letter Cave Item',
         'Adds the Letter Cave Item to the item shuffle.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_ARMOS_ITEM = BooleanFlag(
         'shuffle_armos_item',
         'Shuffle the Armos Item',
         'Adds the Armos item (the Power Bracelet in a vanilla seed) to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_COAST_ITEM = BooleanFlag(
         'shuffle_coast_item',
         'Shuffle the Coast Item',
         'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_SHOP_ARROWS = BooleanFlag(
         'shuffle_shop_arrows',
         'Shuffle Shop Arrows',
         'Adds the wood arrows from the shop to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_SHOP_CANDLE = BooleanFlag(
         'shuffle_shop_candle',
         'Shuffle Shop Candle',
         'Adds the blue candle from the shop to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_SHOP_RING = BooleanFlag(
         'shuffle_shop_ring',
         'Shuffle Shop Ring',
         'Adds the blue ring from the shop to the item shuffle pool. The shop location price will be changed to 150 ± 25 rupees.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_SHOP_BOOK = BooleanFlag(
         'shuffle_shop_book',
         'Shuffle Shop Book',
         'Adds the book from the shop (if one is present) to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_SHOP_BAIT = BooleanFlag(
         'shuffle_shop_bait',
         'Shuffle Shop Bait',
         'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a mystery item.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_POTION_SHOP_ITEMS = BooleanFlag(
         'shuffle_potion_shop_items',
         'Shuffle Potion Shop Items',
         'Adds the potions in the potion shop to the item shuffle pool. Known issue: Red potions in dungeons will be downgraded to blue potions.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Major Item Shuffle'
     )
 
     SHUFFLE_MINOR_DUNGEON_ITEMS = BooleanFlag(
@@ -99,6 +111,58 @@ class FlagRegistry:
         'Shuffle Minor Dungeon Items',
         'Adds minor items (five rupees, bombs, keys, maps, and compasses) to the item shuffle pool. Primarily designed for use with vanilla ROMs, not Zelda Randomizer ROMs.',
         FlagCategory.LEGACY
+    )
+
+    SHUFFLE_WITHIN_LEVEL = BooleanFlag(
+        'shuffle_within_level',
+        'Shuffle Items Within Levels',
+        'Shuffle items within each dungeon level. If unchecked, items will remain in their original positions within each level.',
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Shuffle Within Dungeons',
+        default=True
+    )
+
+    ITEM_STAIR_CAN_HAVE_TRIFORCE = BooleanFlag(
+        'item_stair_can_have_triforce',
+        'Item Staircase Can Have Triforce',
+        'Allow the triforce to be placed in item staircase rooms. If unchecked, the triforce cannot appear in item staircases.',
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Shuffle Within Dungeons',
+        default=True
+    )
+
+    ITEM_STAIR_CAN_HAVE_MINOR_ITEM = BooleanFlag(
+        'item_stair_can_have_minor_item',
+        'Item Staircase Can Have Minor Items',
+        'Allow minor items (bombs, keys, 5 rupees, maps, compasses) to be placed in item staircase rooms. If unchecked, minor items cannot appear in item staircases.',
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Shuffle Within Dungeons',
+        default=True
+    )
+
+    ITEM_STAIR_CAN_HAVE_HEART_CONTAINER = BooleanFlag(
+        'item_stair_can_have_heart_container',
+        'Item Staircase Can Have Heart Container',
+        'Allow heart containers to be placed in item staircase rooms. If unchecked, heart containers cannot appear in item staircases.',
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Shuffle Within Dungeons',
+        default=True
+    )
+
+    FORCE_MAJOR_ITEM_TO_BOSS = BooleanFlag(
+        'force_major_item_to_boss',
+        'Force Major Item to Boss Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss enemy.',
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Shuffle Within Dungeons'
+    )
+
+    FORCE_MAJOR_ITEM_TO_TRIFORCE_ROOM = BooleanFlag(
+        'force_major_item_to_triforce_room',
+        'Force Major Item to Triforce Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in the triforce room.',
+        FlagCategory.ITEM_SHUFFLE,
+        subcategory='Shuffle Within Dungeons'
     )
 
     # Overworld Randomization

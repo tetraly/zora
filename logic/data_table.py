@@ -591,11 +591,15 @@ class DataTable():
     return room.GetRightExit()
 
   def IsItemStaircase(self, level_num: LevelNum, staircase_room_num: RoomNum) -> bool:
-    """Check if a staircase is an item staircase (left == right exits)."""
+    """Check if a staircase is an item staircase (left == right exits and ITEM_STAIRCASE room type)."""
     room = self.GetRoom(level_num, staircase_room_num)
+    # Must satisfy both conditions:
+    # 1. left_exit == right_exit (points back to same room)
+    # 2. Room type is ITEM_STAIRCASE (not a regular room that happens to have matching exits)
     left = room.GetLeftExit()
     right = room.GetRightExit()
-    return left == right
+    room_type = room.GetType()
+    return left == right and room_type == RoomType.ITEM_STAIRCASE
 
   def GetStaircaseItem(self, level_num: LevelNum, staircase_room_num: RoomNum) -> Item | None:
     """Get the item in a staircase room, or None if not an item staircase."""
