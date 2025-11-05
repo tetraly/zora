@@ -27,15 +27,26 @@ class ItemRandomizer:
         self.data_table = data_table
         self.flags = flags
 
-    def Randomize(self) -> None:
-        """Main entry point for item randomization."""
+    def Randomize(self, seed: int | None = None) -> bool:
+        """Main entry point for item randomization.
+
+        Args:
+            seed: Optional seed to pass through to solver-based shufflers.
+
+        Returns:
+            True if both major and minor randomization succeeded, otherwise False.
+        """
         log.info("Starting item randomization...")
 
         # Step 1: Run major item randomizer (inter-dungeon shuffle)
-        self._RunMajorItemRandomizer()
+        if not self._RunMajorItemRandomizer(seed):
+            log.error("Major item randomization failed")
+            return False
 
         # Step 2: Run minor item randomizer (intra-dungeon shuffle)
-        self._RunMinorItemRandomizer()
+        if not self._RunMinorItemRandomizer(seed):
+            log.error("Minor item randomization failed")
+            return False
 
         # Step 3: Apply progressive item conversions
         self._ApplyProgressiveItems()
@@ -44,12 +55,13 @@ class ItemRandomizer:
         # self._RandomizeShopItems()
 
         log.info("Item randomization completed successfully")
+        return True
 
-    def _RunMajorItemRandomizer(self) -> None:
+    def _RunMajorItemRandomizer(self, seed: int | None = None) -> bool:
         """Run the major item randomizer for inter-dungeon shuffle."""
         log.info("Running major item randomizer...")
         major_randomizer = MajorItemRandomizer(self.data_table, self.flags)
-        major_randomizer.Randomize()
+        return major_randomizer.Randomize(seed=seed)
 
     def _ApplyProgressiveItems(self) -> None:
         """Apply progressive item conversions based on flags.
@@ -138,7 +150,7 @@ class ItemRandomizer:
             return Item.WOOD_BOOMERANG
         return item
 
-    def _RunMinorItemRandomizer(self) -> None:
+    def _RunMinorItemRandomizer(self, seed: int | None = None) -> bool:
         """Run the minor item randomizer for intra-dungeon shuffle.
 
         Shuffles items within each dungeon level (keys, maps, compasses, etc.)
@@ -146,7 +158,7 @@ class ItemRandomizer:
         """
         log.info("Running minor item randomizer...")
         minor_randomizer = MinorItemRandomizer(self.data_table, self.flags)
-        minor_randomizer.Randomize()
+        return minor_randomizer.Randomize(seed=seed)
 
     def _RandomizeShopItems(self) -> None:
         """Randomize shop items and prices.

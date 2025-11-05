@@ -14,7 +14,7 @@ These items are handled by the intra-dungeon shuffle (NewItemRandomizer).
 
 from .room_item_collector import RoomItemCollector
 from collections import namedtuple
-from typing import Union
+from typing import Optional, Union
 import logging as log
 
 from ..randomizer_constants import (
@@ -61,8 +61,15 @@ class MajorItemRandomizer:
         self.flags = flags
         self.location_item_pairs: list[LocationItemPair] = []
 
-    def Randomize(self) -> None:
-        """Main entry point for major item randomization."""
+    def Randomize(self, seed: int | None = None) -> bool:
+        """Main entry point for major item randomization.
+
+        Args:
+            seed: Optional seed forwarded to the assignment solver.
+
+        Returns:
+            True if a valid shuffle was produced, otherwise False.
+        """
         log.info("Starting major item randomization...")
 
         self.data_table.NormalizeNoItemCode()
@@ -72,7 +79,7 @@ class MajorItemRandomizer:
 
         if not self.location_item_pairs:
             log.warning("No major items found to shuffle")
-            return
+            return True
 
         log.info(f"Found {len(self.location_item_pairs)} item locations")
 
@@ -88,16 +95,18 @@ class MajorItemRandomizer:
         self._AddConstraints(solver, locations, items)
 
         # Solve
-        solution = solver.solve(seed=None, time_limit_seconds=10.0)
+        solver_seed = self._solver_seed(seed)
+        solution = solver.solve(seed=solver_seed, time_limit_seconds=10.0)
 
         if solution is None:
             log.error("No valid major item shuffle exists with current constraints")
-            return
+            return False
 
         # Write solution back to data table
         self._WriteSolutionToDataTable(solution)
 
         log.info("Major item randomization completed successfully")
+        return True
 
     def _CollectLocationsAndItems(self) -> list[LocationItemPair]:
         """Collect all major item locations and their current items.
@@ -165,7 +174,16 @@ class MajorItemRandomizer:
                     pairs.append(LocationItemPair(location, item))
 
         return pairs
-    
+
+    def _solver_seed(self, seed: int | None) -> Optional[int]:
+        """Normalize the provided seed into the range expected by OR-Tools."""
+        if seed is None:
+            return None
+        solver_seed = seed % 2147483647
+        if solver_seed == 0:
+            solver_seed = 1
+        return solver_seed
+
     def _AddConstraints(self, solver: AssignmentSolver,
                        locations: list[Union[DungeonLocation, CaveLocation]],
                        items: list[Item]) -> None:

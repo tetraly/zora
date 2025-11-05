@@ -209,20 +209,15 @@ class Z1Randomizer():
               log.debug(f"Level {level_num}: Changed room action 1 -> 7 (increased_drop_items_in_non_push_block_rooms)")
 
   def GetPatch(self) -> Patch:
-    random.seed(self.seed)
     data_table = DataTable(self.rom_reader)
     item_randomizer = ItemRandomizer(data_table, self.flags)
 
-    # Initialize overworld randomizer
     from .overworld_randomizer import OverworldRandomizer
-    overworld_randomizer = OverworldRandomizer(data_table, self.flags)
 
     # Detect if cave destinations are already randomized in the base ROM
-    if overworld_randomizer.DetectPreShuffledCaves():
+    detection_randomizer = OverworldRandomizer(data_table, self.flags)
+    if detection_randomizer.DetectPreShuffledCaves():
       self.cave_destinations_randomized_in_base_seed = True
-
-    # Randomize heart requirements
-    overworld_randomizer.RandomizeHeartRequirements()
 
     validator = Validator(data_table, self.flags)
 
@@ -231,37 +226,44 @@ class Z1Randomizer():
 
     # Main loop: Try a seed, if it isn't valid, try another one until it is valid.
     is_valid_seed = False
-
-    inner_counter = 0
     outer_counter = 0
+    max_attempts = 1000
+    candidate_rng = random.Random(self.seed)
+    first_attempt = True
+    last_overworld_randomizer = None
+    lost_hills_directions = None
+    dead_woods_directions = None
+
     while not is_valid_seed:
       outer_counter += 1
-      seed = random.randint(0, 9999999999)
-      while True:
-        inner_counter += 1
-        data_table.ResetToVanilla()
+      if outer_counter > max_attempts:
+        raise Exception(
+          f"Gave up after trying {max_attempts} possible item shuffles. Please try again with different seed and/or flag settings."
+        )
 
-        # Perform overworld randomization (cave shuffle, Lost Hills, Dead Woods, etc.)
-        lost_hills_directions, dead_woods_directions = overworld_randomizer.Randomize()
+      if first_attempt:
+        candidate_seed = self.seed
+        first_attempt = False
+      else:
+        candidate_seed = candidate_rng.randint(0, 9999999999)
 
-        # Run the new item randomizer (handles major item shuffle and progressive items)
-        item_randomizer.Randomize()
+      self.seed = candidate_seed
+      log.info(f"Attempt {outer_counter} with seed {candidate_seed}")
+      random.seed(candidate_seed)
 
-        # TODO: The old item randomizer had validation logic here
-        # For now, assume it's valid (the new randomizer uses constraint solver)
-        log.debug("Success after %d inner_counter iterations" % inner_counter)
-        break
+      data_table.ResetToVanilla()
 
-        # Old code (commented out):
-        # item_randomizer.ReplaceProgressiveItemsWithUpgrades()
-        # item_randomizer.ResetState()
-        # item_randomizer.ReadItemsAndLocationsFromTable()
-        # item_randomizer.ShuffleItems()
-        # if item_randomizer.HasValidItemConfiguration():
-        #   log.debug("Success after %d inner_counter iterations" % inner_counter)
-        #   break
-        # if inner_counter >= 2000:
-        #   log.debug("Gave up after %d inner_counter iterations" % inner_counter)
+      overworld_randomizer = OverworldRandomizer(data_table, self.flags)
+      overworld_randomizer.cave_destinations_randomized_in_base_seed = self.cave_destinations_randomized_in_base_seed
+
+      # Perform overworld randomization (cave shuffle, Lost Hills, Dead Woods, etc.)
+      overworld_randomizer.RandomizeHeartRequirements()
+      candidate_lost_hills, candidate_dead_woods = overworld_randomizer.Randomize()
+
+      # Run the new item randomizer (handles major item shuffle and progressive items)
+      if not item_randomizer.Randomize(seed=candidate_seed):
+        log.info("Randomization failed for seed %d; trying a different seed", candidate_seed)
+        continue
 
       # Apply bait blocker if flag is enabled
       if self.flags.increased_bait_blocks:
@@ -276,13 +278,21 @@ class Z1Randomizer():
         self._ApplyRoomActionFlags(data_table)
 
       is_valid_seed = validator.IsSeedValid()
-      if outer_counter >= 1000:
-          raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
-      
+      if is_valid_seed:
+        last_overworld_randomizer = overworld_randomizer
+        lost_hills_directions = candidate_lost_hills
+        dead_woods_directions = candidate_dead_woods
+        log.info("Seed %d passed validation", candidate_seed)
+      else:
+        log.info("Seed %d failed validation; trying a different seed", candidate_seed)
+
+    if last_overworld_randomizer is None:
+      raise RuntimeError("Failed to produce a valid overworld configuration")
+
     patch = data_table.GetPatch()
 
     # Add overworld patches (Lost Hills, Dead Woods, extra blocks)
-    patch += overworld_randomizer.GetOverworldPatches()
+    patch += last_overworld_randomizer.GetOverworldPatches()
 
     # Change White Sword cave to use the hint normally reserved for the letter cave
     # Vanilla value at 0x45B4 is 0x42, changing to 0x4C

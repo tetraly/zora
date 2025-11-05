@@ -140,15 +140,6 @@ class FlagRegistry:
         default=True
     )
 
-    ITEM_STAIR_CAN_HAVE_HEART_CONTAINER = BooleanFlag(
-        'item_stair_can_have_heart_container',
-        'Item Staircase Can Have Heart Container',
-        'Allow heart containers to be placed in item staircase rooms. If unchecked, heart containers cannot appear in item staircases.',
-        FlagCategory.ITEM_SHUFFLE,
-        subcategory='Shuffle Within Dungeons',
-        default=True
-    )
-
     FORCE_MAJOR_ITEM_TO_BOSS = BooleanFlag(
         'force_major_item_to_boss',
         'Force Major Item to Boss Room',
@@ -501,4 +492,3 @@ class FlagRegistry:
                 by_category[flag.category] = []
             by_category[flag.category].append(flag)
         return by_category
-
