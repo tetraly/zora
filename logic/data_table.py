@@ -257,7 +257,7 @@ class DataTable():
 
     Args:
         cave_type: CaveType value (0x10-0x25)
-        position_num: Position within the cave (0-2)
+        position_num: Position within the cave (1-indexed: 1-3)
 
     Returns:
         The item at the specified location
@@ -278,12 +278,24 @@ class DataTable():
 
     Args:
         cave_type: CaveType value (0x10-0x25)
-        position_num: Position within the cave (0-2)
+        position_num: Position within the cave (1-indexed: 1-3)
         item: The item to place
     """
     # Convert CaveType to cave_num (array index)
     cave_num = cave_type - 0x10
     self.overworld_caves[cave_num].SetItemAtPosition(item, position_num)
+
+  def SetCavePrice(self, cave_type: int, position_num: int, price: int) -> None:
+    """Set the price for an item in a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (1-indexed: 1-3)
+        price: The price in rupees
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+    self.overworld_caves[cave_num].SetPriceAtPosition(price, position_num)
 
   def UpdateTriforceLocation(self, location: Location) -> None:
     room_num = location.GetRoomNum()

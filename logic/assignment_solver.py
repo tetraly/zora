@@ -242,6 +242,58 @@ class AssignmentSolver:
             self.model.Add(self.var_map[source] != target)
             log.debug(f"Constraint: {source} must NOT map to {target}")
 
+    def forbid_all(
+        self,
+        sources: Union[Any, List[Any]] = None,
+        targets: Union[Any, List[Any]] = None
+    ) -> None:
+        """Prevent multiple sources from being assigned to multiple targets.
+
+        This is a convenience method that creates cross-product forbid constraints.
+        It's useful for forbidding entire categories of assignments at once.
+
+        Args:
+            sources: Single source or list of sources to forbid from targets.
+                    If None, applies to all sources in the problem.
+            targets: Single target or list of targets to forbid.
+                    If None, applies to all targets in the problem.
+
+        Examples:
+            # Forbid all dungeon locations from getting RED_POTION
+            solver.forbid_all(sources=dungeon_locations, targets=Item.RED_POTION)
+
+            # Forbid all shop locations from getting any heart containers
+            solver.forbid_all(sources=shop_locations, targets=[Item.HEART_CONTAINER])
+
+            # Forbid multiple items from multiple locations
+            solver.forbid_all(
+                sources=[loc1, loc2, loc3],
+                targets=[Item.A, Item.B, Item.C]
+            )
+
+        Raises:
+            ValueError: If any source or target is not in the problem
+        """
+        # Normalize inputs to lists
+        if sources is None:
+            sources = self.permutation_keys if self.permutation_mode else self.sources
+        elif not isinstance(sources, (list, tuple)):
+            sources = [sources]
+
+        if targets is None:
+            targets = self.permutation_values if self.permutation_mode else self.targets
+        elif not isinstance(targets, (list, tuple)):
+            targets = [targets]
+
+        # Apply forbid constraint for each source-target pair
+        constraint_count = 0
+        for source in sources:
+            for target in targets:
+                self.forbid(source, target)
+                constraint_count += 1
+
+        log.debug(f"Added {constraint_count} forbid constraints ({len(sources)} sources × {len(targets)} targets)")
+
     def allow_only(
         self,
         sources: Union[Any, List[Any]],

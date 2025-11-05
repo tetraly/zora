@@ -27,6 +27,19 @@ class Range():
   VALID_CAVE_POSITION_NUMBERS = range(1, 4)  # Three possible positions per cave (1-indexed)
 
 
+class CavePosition(IntEnum):
+  """Cave item positions (0-indexed for use in randomizer logic).
+
+  These map to the three possible item positions in caves:
+  - LEFT: position 0 (converts to 1 in 1-indexed cave system)
+  - MIDDLE: position 1 (converts to 2 in 1-indexed cave system)
+  - RIGHT: position 2 (converts to 3 in 1-indexed cave system)
+  """
+  LEFT = 0
+  MIDDLE = 1
+  RIGHT = 2
+
+
 class Direction(IntEnum):
     NORTH = -0x10
     WEST = -0x1

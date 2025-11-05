@@ -12,12 +12,13 @@ Items NOT included in major shuffle:
 These items are handled by the intra-dungeon shuffle (NewItemRandomizer).
 """
 
+from .room_item_collector import RoomItemCollector
 from collections import namedtuple
 from typing import Union
 import logging as log
 
 from ..randomizer_constants import (
-    CARDINAL_DIRECTIONS, CaveType, DUNGEON_LEVEL_NUMBERS, Item, LevelNum, RoomNum, Range, WallType
+    CARDINAL_DIRECTIONS, CavePosition, CaveType, DUNGEON_LEVEL_NUMBERS, Item, LevelNum, RoomNum, Range, WallType
 )
 from ..data_table import DataTable
 from ..flags import Flags
@@ -64,6 +65,8 @@ class MajorItemRandomizer:
         """Main entry point for major item randomization."""
         log.info("Starting major item randomization...")
 
+        self.data_table.NormalizeNoItemCode()
+        
         # Collect all major item locations and their current items
         self.location_item_pairs = self._CollectLocationsAndItems()
 
@@ -71,7 +74,7 @@ class MajorItemRandomizer:
             log.warning("No major items found to shuffle")
             return
 
-        log.info(f"Found {len(self.location_item_pairs)} major item locations")
+        log.info(f"Found {len(self.location_item_pairs)} item locations")
 
         # Extract locations and items for shuffling
         locations = [pair.location for pair in self.location_item_pairs]
@@ -102,7 +105,6 @@ class MajorItemRandomizer:
         Returns:
             List of LocationItemPair namedtuples containing location and item info.
         """
-        from .room_item_collector import RoomItemCollector
 
         location_item_pairs: list[LocationItemPair] = []
         collector = RoomItemCollector(self.data_table)
@@ -110,13 +112,10 @@ class MajorItemRandomizer:
         # Collect location items from dungeons (levels 1-9)
         room_item_pair_lists = collector.CollectAll()
 
-        # Keep only Major Items and Heart Containers (if they shouldn't be randomized outside their dungeons)
+        # Keep only Major Items and Heart Containers
         for level_num, pairs in room_item_pair_lists.items():
             for pair in pairs:
-                if not self.flags.force_heart_to_levels_1_through_8 and pair.item == Item.HEART_CONTAINER:
-                    location = DungeonLocation(level_num, pair.room_num)
-                    location_item_pairs.append(LocationItemPair(location, pair.item))
-                elif pair.item.IsMajorItem():
+                if pair.item.IsMajorItem() or pair.item == Item.HEART_CONTAINER:
                     location = DungeonLocation(level_num, pair.room_num)
                     location_item_pairs.append(LocationItemPair(location, pair.item))
 
@@ -140,27 +139,33 @@ class MajorItemRandomizer:
         """        
         pairs = []
 
-        cavetypes_to_maybe_add = [
-            (CaveType.WOOD_SWORD_CAVE, self.flags.shuffle_wood_sword_cave_item),
-            (CaveType.WHITE_SWORD_CAVE, self.flags.shuffle_white_sword_cave_item),
-            (CaveType.MAGICAL_SWORD_CAVE, self.flags.shuffle_magical_sword_cave_item),
-            (CaveType.LETTER_CAVE, self.flags.shuffle_letter_cave_item),
-            (CaveType.ARMOS_CAVE, self.flags.shuffle_armos_item),
-            (CaveType.COAST_CAVE, self.flags.shuffle_armos_item),
-            (CaveType.SHOP_1, 2, self.flags.shuffle_shop_arrows), 
-            (CaveType.SHOP_2, 2, self.flags.shuffle_shop_candle), 
-            (CaveType.SHOP_3, 1, self.flags.shuffle_shop_bait), 
-            (CaveType.SHOP_4, 1, self.flags.shuffle_shop_ring),
-            # TODO: Replace other bait in SHOP_4 position 2 with fairy
-            (CaveType.POTION_SHOP, 0, self.flags.shuffle_potions), 
-            (CaveType.POTION_SHOP, 2, self.flags.shuffle_potions), 
+        # Caves with items (using CavePosition enum for clarity)
+        locations = [
+            (CaveType.WOOD_SWORD_CAVE, CavePosition.MIDDLE, self.flags.shuffle_wood_sword_cave_item),
+            (CaveType.WHITE_SWORD_CAVE, CavePosition.MIDDLE, self.flags.shuffle_white_sword_cave_item),
+            (CaveType.MAGICAL_SWORD_CAVE, CavePosition.MIDDLE, self.flags.shuffle_magical_sword_cave_item),
+            (CaveType.LETTER_CAVE, CavePosition.MIDDLE, self.flags.shuffle_letter_cave_item),
+            (CaveType.ARMOS_ITEM, CavePosition.MIDDLE, self.flags.shuffle_armos_item),
+            (CaveType.COAST_ITEM, CavePosition.MIDDLE, self.flags.shuffle_coast_item),
+            (CaveType.SHOP_1, CavePosition.RIGHT, self.flags.shuffle_shop_arrows),
+            (CaveType.SHOP_2, CavePosition.RIGHT, self.flags.shuffle_shop_candle),
+            (CaveType.SHOP_3, CavePosition.MIDDLE, self.flags.shuffle_shop_bait),
+            (CaveType.SHOP_4, CavePosition.MIDDLE, self.flags.shuffle_shop_ring),
+            (CaveType.POTION_SHOP, CavePosition.LEFT, self.flags.shuffle_potion_shop_items),
+            (CaveType.POTION_SHOP, CavePosition.RIGHT, self.flags.shuffle_potion_shop_items),
         ]
-        for (shop_type, position, should_add) in shop_types_to_maybe_add:
+
+        for cave_type, position, should_add in locations:
             if should_add:
-                pairs.extend(self.data_table.GetCaveItem(cave_type, position))
+                # Convert CavePosition enum (0-indexed) to 1-indexed for DataTable
+                position_1indexed = int(position) + 1
+                item = self.data_table.GetCaveItem(cave_type, position_1indexed)
+                if item and item != Item.NO_ITEM and item != Item.OVERWORLD_NO_ITEM:
+                    location = CaveLocation(cave_type, position)
+                    pairs.append(LocationItemPair(location, item))
 
         return pairs
-
+    
     def _AddConstraints(self, solver: AssignmentSolver,
                        locations: list[Union[DungeonLocation, CaveLocation]],
                        items: list[Item]) -> None:
@@ -177,58 +182,55 @@ class MajorItemRandomizer:
         # ALWAYS-ON CONSTRAINTS (not flag-dependent)
 
         # 1. Heart containers cannot go in shops (always)
-        heart_containers = [item for item in items if item == Item.HEART_CONTAINER]
-        if heart_containers and shop_locations:
-            for shop_loc in shop_locations:
-                solver.forbid(source=shop_loc, target=Item.HEART_CONTAINER)
+        if Item.HEART_CONTAINER in items and shop_locations:
+            solver.forbid_all(sources=shop_locations, targets=Item.HEART_CONTAINER)
             log.debug(f"Constraint: Heart containers forbidden from {len(shop_locations)} shop locations")
 
         # 2. Progressive items cannot go in shops if progressive flag is enabled
         if self.flags.progressive_items and shop_locations:
-            for shop_loc in shop_locations:
-                for item in items:
-                    if item.IsProgressiveUpgradeItem():
-                        # Only forbid the BASE progressive items (wood sword, blue candle, etc.)
-                        # The higher tiers (white/magical sword, red candle, etc.) don't exist in progressive mode
-                        if item in [Item.WOOD_SWORD, Item.BLUE_CANDLE, Item.WOOD_ARROWS, Item.BLUE_RING]:
-                            solver.forbid(source=shop_loc, target=item)
-            log.debug("Constraint: Progressive base items forbidden from shops")
+            # Only forbid the BASE progressive items (wood sword, blue candle, etc.)
+            # The higher tiers (white/magical sword, red candle, etc.) don't exist in progressive mode
+            progressive_base_items = [item for item in items if item in [Item.WOOD_SWORD, Item.BLUE_CANDLE, Item.WOOD_ARROWS, Item.BLUE_RING]]
+            if progressive_base_items:
+                solver.forbid_all(sources=shop_locations, targets=progressive_base_items)
+                log.debug(f"Constraint: {len(progressive_base_items)} progressive base items forbidden from shops")
 
         # 3. Ladder cannot go in coast location (requires ladder to access)
         coast_locations = [loc for loc in locations if is_cave_location(loc) and loc.cave_type == CaveType.COAST_ITEM]
         if Item.LADDER in items and coast_locations:
-            for coast_loc in coast_locations:
-                solver.forbid(source=coast_loc, target=Item.LADDER)
+            solver.forbid_all(sources=coast_locations, targets=Item.LADDER)
             log.debug("Constraint: Ladder forbidden from coast location")
+
+        # 4. Red potion must be in a shop (cannot go in dungeons due to 5-bit item field overflow)
+        # Red potion is 0x20 which exceeds the 5-bit max of 0x1F for dungeon items
+        dungeon_locations = [loc for loc in locations if is_dungeon_location(loc)]
+        if Item.RED_POTION in items and dungeon_locations:
+            for dungeon_loc in dungeon_locations:
+                solver.forbid(source=dungeon_loc, target=Item.RED_POTION)
+            log.debug(f"Constraint: Red potion forbidden from {len(dungeon_locations)} dungeon locations (must be in shops)")
+
+        # 5. Letter cannot go in potion shop (letter is required to access potion shop)
+        potion_shop_locations = [loc for loc in locations if is_cave_location(loc) and loc.cave_type == CaveType.POTION_SHOP]
+        if Item.LETTER in items and potion_shop_locations:
+            for potion_loc in potion_shop_locations:
+                solver.forbid(source=potion_loc, target=Item.LETTER)
+            log.debug(f"Constraint: Letter forbidden from {len(potion_shop_locations)} potion shop locations")
 
         # FLAG-DEPENDENT CONSTRAINTS
 
         # Helper: Force specific items to level 9
         self._ForceItemsToLevel9(solver, locations, items, [
-            (self.flags.force_arrow_to_level_nine,
-             [Item.WOOD_ARROWS, Item.SILVER_ARROWS],
-             "arrow"),
-            (self.flags.force_ring_to_level_nine,
-             [Item.BLUE_RING, Item.RED_RING],
-             "ring"),
-            (self.flags.force_wand_to_level_nine,
-             [Item.WAND],
-             "wand"),
-            (self.flags.force_heart_container_to_level_nine,
-             [Item.HEART_CONTAINER],
-             "heart container"),
+            (self.flags.force_arrow_to_level_nine, [Item.WOOD_ARROWS, Item.SILVER_ARROWS], "arrow"),
+            (self.flags.force_ring_to_level_nine, [Item.BLUE_RING, Item.RED_RING], "ring"),
+            (self.flags.force_wand_to_level_nine, [Item.WAND], "wand"),
+            (self.flags.force_heart_container_to_level_nine, [Item.HEART_CONTAINER], "heart container"),
         ])
 
-        # Helper: Force heart containers to specific overworld locations
         self._ForceItemsToLocation(solver, locations, items, [
             (self.flags.force_heart_container_to_armos and self.flags.shuffle_armos_item,
-             CaveType.ARMOS_ITEM,
-             [Item.HEART_CONTAINER],
-             "Armos"),
+             CaveType.ARMOS_ITEM, [Item.HEART_CONTAINER], "Armos"),
             (self.flags.force_heart_container_to_coast and self.flags.shuffle_coast_item,
-             CaveType.COAST_ITEM,
-             [Item.HEART_CONTAINER],
-             "Coast"),
+             CaveType.COAST_ITEM, [Item.HEART_CONTAINER], "Coast"),
         ])
 
         # Note: force_major_item_to_boss and force_major_item_to_triforce_room are
@@ -292,13 +294,15 @@ class MajorItemRandomizer:
                 log.debug(f"Set Level {location.level_num} Room 0x{location.room_num:02X} to {item.name}")
 
             elif is_cave_location(location):
-                self.data_table.SetCaveItem(location.cave_type, location.position_num, item)
+                # Convert CavePosition enum (0-indexed) to 1-indexed for DataTable
+                position_1indexed = int(location.position_num) + 1
+                self.data_table.SetCaveItem(location.cave_type, position_1indexed, item)
                 log.debug(f"Set Cave {location.cave_type.name} Position {location.position_num} to {item.name}")
 
                 # Set randomized shop prices if applicable
                 if location.cave_type.IsShop():
                     price = self._GetRandomizedShopPrice(item)
-                    self.data_table.SetCavePrice(location.cave_type, location.position_num, price)
+                    self.data_table.SetCavePrice(location.cave_type, position_1indexed, price)
                     log.debug(f"Set price for {item.name} in shop to {price} rupees")
 
 
