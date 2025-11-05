@@ -90,40 +90,44 @@ class Validator(object):
     return False
 
   def GetAccessibleDestinations(self):
-    tbr = set()
+    """Return reachable overworld destinations in deterministic order.
+
+    We preserve insertion order so the validator processes caves/levels the same
+    way every run while still granting inventory side-effects for duplicate visits.
+    """
+    seen = set()
+    destinations_in_order = []
 
     for screen_num in range(0, 0x80):
-      # Check if we can access this screen
       if not self.CanAccessScreen(screen_num):
         continue
 
-      # Check for special cases first before calling GetScreenDestination
-      destination = None
-      
-      # Special case: Coast item screen (0x5F)
+      # Resolve the destination for this screen
       if screen_num == 0x5F:
         destination = CaveType.COAST_ITEM
-      # Special case: Armos item screen (read from ROM)
       elif screen_num == self.data_table.GetArmosItemScreen():
         destination = CaveType.ARMOS_ITEM
       else:
-        # Normal case: get destination from data table
         destination = self.data_table.GetScreenDestination(screen_num)
 
-      if destination != CaveType.NONE:
-        tbr.add(destination)
+      if destination == CaveType.NONE:
+        continue
 
-        # If we can access the Lost Hills Hint cave, add the virtual item to inventory
-        if destination == CaveType.LOST_HILLS_HINT:
-          self.inventory.AddItem(Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=CaveType.LOST_HILLS_HINT - 0x10, position_num=1))
+      # Apply Lost Hills / Dead Woods side effects regardless of dedupe status
+      if destination == CaveType.LOST_HILLS_HINT:
+        self.inventory.AddItem(
+            Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
+            Location(cave_num=CaveType.LOST_HILLS_HINT - 0x10, position_num=1))
+      if destination == CaveType.DEAD_WOODS_HINT:
+        self.inventory.AddItem(
+            Item.DEAD_WOODS_HINT_VIRTUAL_ITEM,
+            Location(cave_num=CaveType.DEAD_WOODS_HINT - 0x10, position_num=1))
 
-        # If we can access the Dead Woods Clue cave, add the virtual item to inventory
-        if destination == CaveType.DEAD_WOODS_HINT:
-          self.inventory.AddItem(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM,
-                                 Location(cave_num=CaveType.DEAD_WOODS_HINT - 0x10, position_num=1))
+      if destination not in seen:
+        seen.add(destination)
+        destinations_in_order.append(destination)
 
-    return list(tbr)
+    return destinations_in_order
 
 
   def IsSeedValid(self) -> bool:
