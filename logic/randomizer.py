@@ -198,7 +198,7 @@ class Z1Randomizer():
       y_coordinate = 0x8D
       if level_screen in [0x3B, 0x0A, 0x41, 0x05, 0x08, 0x09, 0x2B]:  # Vanilla 2, 5, 7, 9, Bogie's Arrow, Waterfall, Monocle Rock
         y_coordinate = 0xAD
-      elif level_screen in [0x6C]:  # Vanilla 8
+      elif level_screen in [0x6D]:  # Vanilla 8
         y_coordinate = 0x5D
         
       log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}")
