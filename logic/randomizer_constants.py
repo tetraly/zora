@@ -519,6 +519,15 @@ class CaveType(IntEnum):
   def AllShopsAndItemCaves(cls) -> tuple['CaveType', ...]:
     return tuple(member for member in cls if member.IsShopOrItemCave())
 
+  @classmethod
+  def FromCaveNum(cls, cave_num: int) -> 'CaveType':
+    """Map a 0-based cave index (0-21) to a CaveType enum value."""
+    base = cls.WOOD_SWORD_CAVE.value
+    max_index = cls.COAST_ITEM.value - base
+    if not 0 <= cave_num <= max_index:
+      raise ValueError(f"Invalid cave index {cave_num}")
+    return cls(base + cave_num)
+
   def IsItemCave(self):
     return self in [
         CaveType.WOOD_SWORD_CAVE,

@@ -1,6 +1,6 @@
 from typing import List, Set, Tuple
 
-from .randomizer_constants import Direction, Item, LevelNum, RoomNum
+from .randomizer_constants import Direction, Item, LevelNum, RoomNum, CaveType
 from .location import Location
 
 import logging as log
@@ -43,6 +43,8 @@ class Inventory(object):
         Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
     ]:
       return
+    log.debug(f"Found {item.name} in {item_location.ToString()}")
+    
     #if (item == Item.TRIFORCE_OF_POWER
     #    and not (item_location.GetLevelNum() == 9 and item_location.GetRoomNum() == 0x42)):
     #  return
@@ -67,11 +69,12 @@ class Inventory(object):
         return
       self.num_heart_containers += 1
       if item_location.IsLevelRoom():
-        log.debug("Found Heart Container in level %d. Now have %d HCs" % 
+        log.debug("Found Heart Container in Level %d. Now have %d Heart Containerss" % 
                   (int(item_location.GetLevelNum()), self.num_heart_containers))
       else:
-        log.debug("Found Heart Container in cave %d. Now have %d HCs" % 
-                  (int(item_location.GetCaveNum()), self.num_heart_containers))
+        log.debug("Found Heart Container in %s . Now have %d Heart Containers" %
+                  (CaveType.FromCaveNum(int(item_location.GetCaveNum())).name,
+                   self.num_heart_containers))
       assert self.num_heart_containers <= 16
       return
     elif item == Item.TRIFORCE:
@@ -85,7 +88,6 @@ class Inventory(object):
       self.num_keys += 1
       return
 
-    log.debug("Found %s" % item)
 
     if item == Item.WOOD_SWORD and Item.WOOD_SWORD in self.items:
       self.items.add(Item.WHITE_SWORD)
