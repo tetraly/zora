@@ -255,10 +255,12 @@ class DataTable():
     # Write Triforce room location to update where the compass displays it in levels 1-8.
     # The room the compass points to in level 9 doesn't change.
     for level_num in range(1, 9):
-      assert level_num in self.triforce_locations
-      patch.AddData(
-          COMPASS_ROOM_NUMBER_ADDRESS + (level_num - 1) * SPECIAL_DATA_LEVEL_OFFSET,
-          [self.triforce_locations[level_num]])
+      if level_num in self.triforce_locations:
+        patch.AddData(
+            COMPASS_ROOM_NUMBER_ADDRESS + (level_num - 1) * SPECIAL_DATA_LEVEL_OFFSET,
+            [self.triforce_locations[level_num]])
+      else:
+        log.debug("Skipping compass update for level %d (location unavailable)", level_num)
     return patch
 
   def _GetPatchForOverworldCaveData(self) -> Patch:
