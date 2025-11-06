@@ -7,7 +7,7 @@ from .room import Room
 from .location import Location
 from .cave import Cave
 from .patch import Patch
-from .rom_reader import RomReader
+from .rom_reader import RomReader, VARIOUS_DATA_LOCATION
 
 NES_FILE_OFFSET = 0x10
 ITEM_POSITIONS_OFFSET = 0x29
@@ -241,6 +241,7 @@ class DataTable():
                                         self.level_7_to_9_rooms)
     patch += self._GetPatchForOverworldCaveData()
     patch += self._GetPatchForOverworldScreenDestinations()
+    patch += self._GetPatchForLevelInfo()
     return patch
 
   def _GetPatchForLevelGrid(self, start_address: int, rooms: List[Room]) -> Patch:
@@ -291,6 +292,17 @@ class DataTable():
     for screen_num in range(0x80):
       patch.AddData(OVERWORLD_TABLE_1_ADDRESS + screen_num,
                    [self.overworld_raw_data[screen_num + 1*0x80]])
+    return patch
+
+  def _GetPatchForLevelInfo(self) -> Patch:
+    """Write level info tables (including item position coordinates) back to ROM."""
+    patch = Patch()
+    for level_num, info in enumerate(self.level_info):
+      start_address = VARIOUS_DATA_LOCATION + NES_FILE_OFFSET + level_num * 0xFC
+      patch.AddData(
+          start_address + ITEM_POSITIONS_OFFSET,
+          info[ITEM_POSITIONS_OFFSET:ITEM_POSITIONS_OFFSET + 4]
+      )
     return patch
 
   def GetMixedEnemyGroup(self, enemy: Enemy) -> List[Enemy]:
