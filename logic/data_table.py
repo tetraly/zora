@@ -269,8 +269,10 @@ class DataTable():
     for level_num in range(1, 9):
       if level_num in self.triforce_locations:
         patch.AddData(
-          COMPASS_ROOM_NUMBER_ADDRESS + (level_num - 1) * SPECIAL_DATA_LEVEL_OFFSET,
-          [self.triforce_locations[level_num]])
+            COMPASS_ROOM_NUMBER_ADDRESS + (level_num - 1) * SPECIAL_DATA_LEVEL_OFFSET,
+            [self.triforce_locations[level_num]])
+      else:
+        log.debug("Skipping compass update for level %d (location unavailable)", level_num)
     return patch
 
   def _GetPatchForOverworldCaveData(self) -> Patch:
