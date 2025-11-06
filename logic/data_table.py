@@ -1,6 +1,7 @@
 import logging as log
 from typing import Dict, List
-from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum
+from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
+from .constants import ENTRANCE_DIRECTION_MAP
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
@@ -156,6 +157,9 @@ class DataTable():
     else:
       self.level_1_to_6_rooms[location.GetRoomNum()].SetItemPosition(position_num)
 
+  def SetItemPositionNew(self, level_num: int, room_num: int, position_num: int) -> None:
+      self.SetItemPosition(Location(level_num=level_num, room_num=room_num), position_num)
+
   def GetCaveItem(self, location: Location) -> Item:
     assert location.IsCavePosition()
     if location.GetCaveNum() == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
@@ -254,8 +258,8 @@ class DataTable():
     # Write Triforce room location to update where the compass displays it in levels 1-8.
     # The room the compass points to in level 9 doesn't change.
     for level_num in range(1, 9):
-      assert level_num in self.triforce_locations
-      patch.AddData(
+      if level_num in self.triforce_locations:
+        patch.AddData(
           COMPASS_ROOM_NUMBER_ADDRESS + (level_num - 1) * SPECIAL_DATA_LEVEL_OFFSET,
           [self.triforce_locations[level_num]])
     return patch
@@ -302,3 +306,115 @@ class DataTable():
         List of Enemy enums in the group, or empty list if not a mixed group
     """
     return self.mixed_enemy_groups.get(int(enemy), [])
+
+  def GetItem(self, level_num: LevelNum, room_num: RoomNum) -> Item:
+      """Get the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      return room.GetItem()
+
+  def SetItem(self, level_num: LevelNum, room_num: RoomNum, item: Item) -> None:
+      """Set the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      room.SetItem(item)
+
+  def GetRoomWallType(self, level_num: LevelNum, room_num: RoomNum, direction: Direction) -> WallType:
+    """Get the wall type in a specific direction for a room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetWallType(direction)
+
+  def GetRoomType(self, level_num: LevelNum, room_num: RoomNum) -> RoomType:
+    """Get the room type (layout) for a specific room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetType()
+
+  def HasMovableBlockBit(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if a room has the movable block bit set."""
+    room = self.GetRoom(level_num, room_num)
+    return room.HasMovableBlockBitSet()
+
+  def GetStaircaseLeftExit(self, level_num: LevelNum, staircase_room_num: RoomNum) -> RoomNum:
+    """Get the left exit room number for a staircase room."""
+    room = self.GetRoom(level_num, staircase_room_num)
+    return room.GetLeftExit()
+
+  def GetStaircaseRightExit(self, level_num: LevelNum, staircase_room_num: RoomNum) -> RoomNum:
+    """Get the right exit room number for a staircase room."""
+    room = self.GetRoom(level_num, staircase_room_num)
+    return room.GetRightExit()
+
+  def GetRoomEnemy(self, level_num: LevelNum, room_num: RoomNum) -> Enemy:
+    """Get the enemy type in a specific room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetEnemy()
+
+  def NormalizeItemPositions(self):
+      normalized_drop_positions = [0x89, 0xD6, 0xC9, 0x2C]
+      for level_num in range(1, 10):  # Dungeons 1-9 only
+          for i in range(0, 4):
+              self.level_info[level_num][ITEM_POSITIONS_OFFSET + i] = normalized_drop_positions[i]
+
+  def NormalizeNoItemCode(self) -> None:
+      """Normalize NO_ITEM code from 0x03 (MAGICAL_SWORD) to 0x18 (RUPEE).
+
+      In vanilla Zelda, 0x03 means both MAGICAL_SWORD (overworld) and NO_ITEM (dungeons).
+      This creates ambiguity for the randomizer which may place MAGICAL_SWORD in dungeons.
+      This method changes all dungeon NO_ITEM codes from 0x03 to 0x18 (RUPEE), which is
+      never used as a room item.
+
+      This requires a corresponding game code patch to recognize 0x18 as NO_ITEM.
+      """
+      OLD_NO_ITEM_CODE = 0x03  # MAGICAL_SWORD value
+      NEW_NO_ITEM_CODE = 0x18  # 0x18 (repurposed RUPEE code)
+
+      # Go through both 8x16 level data grids (levels 1-6 and 7-9)
+      for level_num in [1, 7]:  # Dungeons 1-9 only
+          for room_num in range(0, 0x80):
+              item = self.GetItem(level_num, room_num)
+              if item.value == OLD_NO_ITEM_CODE:
+                  log.debug(f"Normalizing NO_ITEM in level {level_num} room {hex(room_num)}: 0x03 -> 0x18")
+                  self.SetItem(level_num, room_num, NEW_NO_ITEM_CODE)
+
+  def GetCaveItemNew(self, cave_type: int, position_num: int) -> Item:
+    """Get an item from a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (1-indexed: 1-3)
+
+    Returns:
+        The item at the specified location
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+
+    # Special case: Armos item (cave_num would be 0x14)
+    if cave_num == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
+      return Item(self.rom_reader.GetOverworldItemData()[0])
+    # Special case: Coast item (cave_num would be 0x15)
+    elif cave_num == CAVE_NUMBER_REPRESENTING_COAST_ITEM:
+      return Item(self.rom_reader.GetOverworldItemData()[1])
+    return self.overworld_caves[cave_num].GetItemAtPosition(position_num)
+
+  def SetCaveItemNew(self, cave_type: int, position_num: int, item: Item) -> None:
+    """Set an item in a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (1-indexed: 1-3)
+        item: The item to place
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+    self.overworld_caves[cave_num].SetItemAtPosition(item, position_num)
+ 
+  def SetCavePrice(self, cave_type: int, position_num: int, price: int) -> None:
+    """Set the price for an item in a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (1-indexed: 1-3)
+        price: The price in rupees
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+    self.overworld_caves[cave_num].SetPriceAtPosition(price, position_num)
