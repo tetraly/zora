@@ -98,9 +98,10 @@ class DataTable():
     self.is_z1r = True
     for level_num in range(0, 10):
         info = self.rom_reader.GetLevelInfo(level_num)
-        self.level_info_raw.append(info[:])
-        self.level_info.append(info[:])
-        vals = info[0x34:0x3E]
+        info_copy = info[:]
+        self.level_info_raw.append(info_copy)
+        self.level_info.append(info_copy[:])
+        vals = info_copy[0x34:0x3E]
         if vals[-1] in range(0, 5):
             continue
         self.is_z1r = False
@@ -252,7 +253,6 @@ class DataTable():
     patch += self._GetPatchForOverworldCaveData()
     patch += self._GetPatchForOverworldScreenDestinations()
     patch += self._GetPatchForLevelInfo()
-    patch += self._GetPatchForLevelInfo()
     return patch
 
   def _GetPatchForLevelGrid(self, start_address: int, rooms: List[Room]) -> Patch:
@@ -306,22 +306,11 @@ class DataTable():
     return patch
 
   def _GetPatchForLevelInfo(self) -> Patch:
-    """Generate patch data for per-level info blocks (0xFC bytes each)."""
+    """Generate patch data for per-level info tables (0xFC bytes each)."""
     patch = Patch()
     for level_num, info in enumerate(self.level_info):
-      start_address = VARIOUS_DATA_LOCATION + NES_HEADER_OFFSET + level_num * 0xFC
-      patch.AddData(start_address, info)
-    return patch
-
-  def _GetPatchForLevelInfo(self) -> Patch:
-    """Write level info tables (including item position coordinates) back to ROM."""
-    patch = Patch()
-    for level_num, info in enumerate(self.level_info):
-      start_address = VARIOUS_DATA_LOCATION + NES_FILE_OFFSET + level_num * 0xFC
-      patch.AddData(
-          start_address + ITEM_POSITIONS_OFFSET,
-          info[ITEM_POSITIONS_OFFSET:ITEM_POSITIONS_OFFSET + 4]
-      )
+      start = VARIOUS_DATA_LOCATION + level_num * 0xFC
+      patch.AddData(start, info)
     return patch
 
   def GetMixedEnemyGroup(self, enemy: Enemy) -> List[Enemy]:
