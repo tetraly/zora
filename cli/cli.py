@@ -4,7 +4,9 @@
 import argparse
 import io
 import sys
+import traceback
 from pathlib import Path
+import logging
 
 # Ensure project root is on the import path when executing from the CLI folder
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -44,6 +46,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--output-file",
         help="Optional filename or path for the randomized ROM. "
              "If relative, it is placed inside --output-dir.")
+    parser.add_argument( '-log',
+        '--loglevel',
+        default='warning',
+        help='Provide logging level. Example --loglevel debug, default=warning' )
+             
     return parser
 
 
@@ -147,6 +154,8 @@ def main(argv=None) -> int:
         output_dir = Path(args.output_dir)
         output_file = args.output_file
 
+        logging.basicConfig(level=args.loglevel.upper())
+
         output_path = run_randomizer(
             seed=seed,
             flagstring=flagstring,
@@ -157,6 +166,7 @@ def main(argv=None) -> int:
         parser.error(str(exc))
     except Exception as exc:  # pragma: no cover - defensive catch-all
         print(f"Error: {exc}", file=sys.stderr)
+        traceback.print_exc()
         return 1
     else:
         print(f"Randomized ROM written to {output_path}")

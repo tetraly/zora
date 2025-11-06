@@ -802,12 +802,14 @@ class EventHandlers:
             show_snackbar(self.page, "✅ Randomization complete! Download your ROM below.")
 
         except ValueError as ve:
+            log.exception("Invalid seed during randomization")
             # Close progress dialog
             progress_dialog.open = False
             self.page.update()
             show_error_dialog(self.page, "Invalid Input",
                               f"Please enter a valid seed number:\n\n{str(ve)}")
         except Exception as ex:
+            log.exception("Unhandled exception during randomization")
             # Close progress dialog
             progress_dialog.open = False
             self.page.update()
