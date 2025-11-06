@@ -10,6 +10,7 @@ from .patch import Patch
 from .rom_reader import RomReader
 
 NES_FILE_OFFSET = 0x10
+ITEM_POSITIONS_OFFSET = 0x29
 START_ROOM_OFFSET = 0x2F
 STAIRWAY_LIST_OFFSET = 0x34
 LEVEL_1_TO_6_DATA_START_ADDRESS = 0x18700 + NES_FILE_OFFSET
@@ -347,11 +348,11 @@ class DataTable():
     room = self.GetRoom(level_num, room_num)
     return room.GetEnemy()
 
-  def NormalizeItemPositions(self):
-      normalized_drop_positions = [0x89, 0xD6, 0xC9, 0x2C]
-      for level_num in range(1, 10):  # Dungeons 1-9 only
-          for i in range(0, 4):
-              self.level_info[level_num][ITEM_POSITIONS_OFFSET + i] = normalized_drop_positions[i]
+  def SetLevelItemPositionCoordinates(self, level_num: int, item_position_coordinates: List[int]) -> None:
+      assert len(item_position_coordinates) == 4
+      for i in range(0, 4):
+          self.level_info[level_num][ITEM_POSITIONS_OFFSET + i] = item_position_coordinates[i]
+
 
   def NormalizeNoItemCode(self) -> None:
       """Normalize NO_ITEM code from 0x03 (MAGICAL_SWORD) to 0x18 (RUPEE).

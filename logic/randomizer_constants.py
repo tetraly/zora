@@ -96,9 +96,24 @@ class Item(IntEnum):
   LOST_HILLS_HINT_VIRTUAL_ITEM = 0x9A
   DEAD_WOODS_HINT_VIRTUAL_ITEM = 0x9B
 
+  def IsProgressiveBaseItem(self):
+    return self in [Item.WOOD_ARROWS, Item.BLUE_CANDLE, Item.WOOD_SWORD, Item.BLUE_RING]
+
+  def IsProgressiveEnhancedItem(self):
+    return self in [Item.SILVER_ARROWS, Item.RED_CANDLE, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.RED_RING]
+    
   def IsProgressiveUpgradeItem(self):
-    return self in [Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.BLUE_CANDLE, Item.RED_CANDLE,
-       Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BLUE_RING, Item.RED_RING]
+    return self.IsProgressiveBaseItem or self.IsProgressiveEnhancedItem
+
+  def GetProgressiveBaseItem(self):
+      table = {
+          Item.SILVER_ARROWS: Item.WOOD_ARROWS,
+          Item.RED_CANDLE:    Item.BLUE_CANDLE,
+          Item.WHITE_SWORD:   Item.WOOD_SWORD,
+          Item.MAGICAL_SWORD: Item.WOOD_SWORD,
+          Item.RED_RING:      Item.BLUE_RING,
+      }
+      return table[self]
 
   def IsMinorDungeonItem(self):
     return self in [Item.BOMBS, Item.FIVE_RUPEES, Item.KEY, Item.COMPASS, Item.MAP]
@@ -487,14 +502,34 @@ class CaveType(IntEnum):
   LARGE_SECRET = 0x22
   SMALL_SECRET = 0x23
   # Virtual caves for overworld items (Armos and Coast)
-  ARMOS_ITEM = 0x24
-  COAST_ITEM = 0x25
+  ARMOS_ITEM = 0x24  # TODO: Rname to ARMOS_VIRTUAL_CAVE
+  COAST_ITEM = 0x25  # TODO: Rename to COAST_VIRTUAL_CAVE
 
   def IsLevel(self):
     return self.value >= CaveType.LEVEL_1.value and self.value <= CaveType.LEVEL_9.value
 
+  @classmethod
+  def AllLevels(cls) -> tuple['CaveType', ...]:
+    return tuple(member for member in cls if member.IsLevel())
+
+  def IsShopOrItemCave(self):
+    return self.IsShop() or self.IsItemCave()
+
+  @classmethod
+  def AllShopsAndItemCaves(cls) -> tuple['CaveType', ...]:
+    return tuple(member for member in cls if member.IsShopOrItemCave())
+
+  def IsItemCave(self):
+    return self in [
+        CaveType.WOOD_SWORD_CAVE,
+        CaveType.WHITE_SWORD_CAVE,
+        CaveType.MAGICAL_SWORD_CAVE,
+        CaveType.LETTER_CAVE,
+        CaveType.ARMOS_ITEM,
+        CaveType.COAST_ITEM,        
+    ]
+
   def IsShop(self):
-    """Check if this cave type is a shop where items can be purchased."""
     return self in [
         CaveType.POTION_SHOP,
         CaveType.SHOP_1,
