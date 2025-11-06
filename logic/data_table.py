@@ -47,6 +47,7 @@ class DataTable():
     self.overworld_raw_data = self.rom_reader.GetLevelBlock(0)
     self.overworld_cave_raw_data = self.rom_reader.GetLevelBlock(0)[0x80*4:0x80*5]
     self.level_info: List[List[int]] = []
+    self.level_info_raw: List[List[int]] = []
     self._ReadLevelInfo()
 
     self.level_1_to_6_rooms: List[Room] = []
@@ -61,6 +62,7 @@ class DataTable():
     self.level_1_to_6_rooms = self._ReadDataForLevelGrid(self.level_1_to_6_raw_data)
     self.level_7_to_9_rooms = self._ReadDataForLevelGrid(self.level_7_to_9_raw_data)
     self._ReadDataForOverworldCaves()
+    self.level_info = [info[:] for info in self.level_info_raw]
     self.triforce_locations = {}
 
   def GetScreenDestination(self, screen_num: int) -> CaveType:
@@ -96,9 +98,10 @@ class DataTable():
   def _ReadLevelInfo(self):
     self.is_z1r = True
     for level_num in range(0, 10):
-        level_info = self.rom_reader.GetLevelInfo(level_num)
-        self.level_info.append(level_info)
-        vals = level_info[0x34:0x3E]
+        info = self.rom_reader.GetLevelInfo(level_num)
+        self.level_info_raw.append(info[:])
+        self.level_info.append(info[:])
+        vals = info[0x34:0x3E]
         if vals[-1] in range(0, 5):
             continue
         self.is_z1r = False
@@ -242,6 +245,7 @@ class DataTable():
     patch += self._GetPatchForOverworldCaveData()
     patch += self._GetPatchForOverworldScreenDestinations()
     patch += self._GetPatchForLevelInfo()
+    patch += self._GetPatchForLevelInfo()
     return patch
 
   def _GetPatchForLevelGrid(self, start_address: int, rooms: List[Room]) -> Patch:
@@ -292,6 +296,14 @@ class DataTable():
     for screen_num in range(0x80):
       patch.AddData(OVERWORLD_TABLE_1_ADDRESS + screen_num,
                    [self.overworld_raw_data[screen_num + 1*0x80]])
+    return patch
+
+  def _GetPatchForLevelInfo(self) -> Patch:
+    """Generate patch data for per-level info blocks (0xFC bytes each)."""
+    patch = Patch()
+    for level_num, info in enumerate(self.level_info):
+      start_address = VARIOUS_DATA_LOCATION + NES_HEADER_OFFSET + level_num * 0xFC
+      patch.AddData(start_address, info)
     return patch
 
   def _GetPatchForLevelInfo(self) -> Patch:
