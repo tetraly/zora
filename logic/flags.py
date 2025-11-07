@@ -65,6 +65,12 @@ class FlagsEnum(Enum):
         'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.',
         FlagCategory.ITEM_SHUFFLE
     )
+    SHUFFLE_DUNGEON_HEARTS = (
+        'shuffle_dungeon_hearts',
+        'Shuffle Dungeon Hearts',
+        'Adds the heart containers found in dungeons (levels 1-8) to the item shuffle pool. When disabled, heart containers remain in their original dungeon locations. Note: The coast and armos heart containers can still be shuffled with their respective flags.',
+        FlagCategory.ITEM_SHUFFLE
+    )
     SHUFFLE_SHOP_ARROWS = (
         'shuffle_shop_arrows',
         'Shuffle Shop Arrows',
