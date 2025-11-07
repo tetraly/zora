@@ -386,6 +386,36 @@ class FlagsEnum(Enum):
         'Require that at least one major item (non-minor item or triforce) be placed in the triforce room.',
         FlagCategory.SHUFFLE_WITHIN_DUNGEONS
     )
+    DISABLE_2Q_CHEAT_CODE = (
+        'disable_2q_cheat_code',
+        'Disable 2Q Cheat Code',
+        'Disables the 2nd quest cheat code entry mechanism.',
+        FlagCategory.EXPERIMENTAL
+    )
+    DISABLE_2Q_FLAG_AFTER_WINNING = (
+        'disable_2q_flag_after_winning',
+        'Disable 2Q Flag After Winning',
+        'Prevents the 2nd quest flag from being set after winning the game.',
+        FlagCategory.EXPERIMENTAL
+    )
+    DONT_RESET_SAVE_DATA_AFTER_WINNING = (
+        'dont_reset_save_data_after_winning',
+        'Don\'t Reset Save Data After Winning',
+        'Prevents save data from being reset after completing the game.',
+        FlagCategory.EXPERIMENTAL
+    )
+    HARMLESS_CANDLE_FIRE = (
+        'harmless_candle_fire',
+        'Harmless Candle Fire',
+        'Makes candle fire harmless to Link.',
+        FlagCategory.EXPERIMENTAL
+    )
+    LIKE_LIKES_EAT_RUPEES = (
+        'like_likes_eat_rupees',
+        'Like Likes Eat Rupees',
+        'Changes Like-Likes to eat rupees instead of shields.',
+        FlagCategory.EXPERIMENTAL
+    )
     EXAMPLE_HIDDEN_FLAG = (
         'example_hidden_flag',
         'Example Hidden Flag',
