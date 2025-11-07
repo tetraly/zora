@@ -31,6 +31,12 @@ class FlagCategory(IntEnum):
 
 
 class FlagsEnum(Enum):
+    MAJOR_ITEM_SHUFFLE = (
+        'major_item_shuffle',
+        'Enable Major Item Shuffle',
+        'Master toggle to enable major item randomization. When disabled, all item shuffle functionality is turned off and shuffle flags below are disabled.',
+        FlagCategory.ITEM_SHUFFLE
+    )
     SHUFFLE_WOOD_SWORD_CAVE_ITEM = (
         'shuffle_wood_sword_cave_item',
         'Shuffle Wood Sword Cave item',

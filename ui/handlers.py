@@ -127,6 +127,32 @@ class EventHandlers:
     def on_checkbox_changed(self, flag_key: str, value: bool) -> None:
         """Handle checkbox state changes."""
         self.state.flag_state.flags[flag_key] = value
+
+        # Auto-disable all shuffle flags when Major Item Shuffle is disabled
+        if flag_key == 'major_item_shuffle' and not value:
+            shuffle_flags = [
+                'shuffle_wood_sword_cave_item',
+                'shuffle_white_sword_cave_item',
+                'shuffle_magical_sword_cave_item',
+                'shuffle_letter_cave_item',
+                'shuffle_armos_item',
+                'shuffle_coast_item',
+                'shuffle_dungeon_hearts',
+                'shuffle_shop_arrows',
+                'shuffle_shop_candle',
+                'shuffle_shop_ring',
+                'shuffle_shop_book',
+                'shuffle_shop_bait',
+                'shuffle_potion_shop_items'
+            ]
+
+            for shuffle_flag in shuffle_flags:
+                self.state.flag_state.flags[shuffle_flag] = False
+                # Update the checkbox UI if it exists
+                if shuffle_flag in self.flag_checkboxes:
+                    self.flag_checkboxes[shuffle_flag].value = False
+                    self.flag_checkboxes[shuffle_flag].update()
+
         self.update_flagstring()
 
     # Step visibility handlers
