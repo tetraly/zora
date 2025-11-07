@@ -1,0 +1,111 @@
+# ROM Memory Map Configuration
+#
+# This file defines all ROM memory regions used by the randomizer.
+#
+# Address Convention:
+#   - file_offset: Byte offset in the .nes file (includes 0x10 iNES header)
+#   - cpu_address: NES CPU memory address (what code references, no header)
+#   - Relationship: file_offset = cpu_address + 0x10
+#
+# When viewing a ROM in a hex editor, use file_offset addresses.
+# When reading NES technical documentation, use cpu_address.
+
+rom_regions:
+  # iNES ROM header
+  nes_header:
+    file_offset: 0x00000
+    cpu_address: null
+    size: 0x10
+    description: "iNES ROM header (magic bytes 'NES' + 0x1A + ROM info)"
+    test_data: "nes_header.bin"
+    writable: false
+    notes: |
+      Standard iNES header format. Required for ROM identification.
+
+  # Overworld item locations
+  armos_item:
+    file_offset: 0x10D05
+    cpu_address: 0x10CF5
+    size: 0x01
+    description: "Item dropped by Armos statues"
+    test_data: "armos_item.bin"
+    writable: true
+
+  coast_item:
+    file_offset: 0x1789A
+    cpu_address: 0x1788A
+    size: 0x01
+    description: "Item at the coast location (requires ladder)"
+    test_data: "coast_item.bin"
+    writable: true
+
+
+  # Mixed enemy group data
+  mixed_enemy_data:
+    file_offset: 0x14686
+    cpu_address: 0x14676
+    size: 0xD0
+    description: "Mixed enemy group definitions (8 bytes per group)"
+    test_data: "mixed_enemy_data.bin"
+    writable: false
+
+  mixed_enemy_pointers:
+    file_offset: 0x1474F
+    cpu_address: 0x1473F
+    size: 0x3C
+    description: "Pointer table for mixed enemy groups (30 pointers x 2 bytes)"
+    test_data: "mixed_enemy_pointers.bin"
+    writable: false
+
+  # Level data block pointers
+  level_pointers:
+    file_offset: 0x18010
+    cpu_address: 0x18000
+    size: 0x10
+    description: "Pointers to overworld and dungeon data blocks"
+    test_data: "level_pointers.bin"
+    writable: false
+    notes: |
+      Expected values for vanilla/randomized ROMs:
+        0x18000: 0x00 0x84 (overworld pointer = 0x8400)
+        0x18002: 0x00 0x87 (level 1-6 pointer = 0x8700)
+        0x1800E: 0x00 0x8A (level 7-9 pointer = 0x8A00)
+
+  # Overworld and dungeon data
+  overworld_data:
+    file_offset: 0x18410
+    cpu_address: 0x18400
+    size: 0x300
+    description: "Overworld screen data (128 screens x 6 tables)"
+    test_data: "overworld_data.bin"
+    writable: true
+
+  level_1_6_data:
+    file_offset: 0x18710
+    cpu_address: 0x18700
+    size: 0x300
+    description: "Dungeon room data for levels 1-6 (128 rooms x 6 tables)"
+    test_data: "level_1_6_data.bin"
+    writable: true
+
+  level_7_9_data:
+    file_offset: 0x18A10
+    cpu_address: 0x18A00
+    size: 0x300
+    description: "Dungeon room data for levels 7-9 (128 rooms x 6 tables)"
+    test_data: "level_7_9_data.bin"
+    writable: true
+
+  # Level metadata
+  level_info:
+    file_offset: 0x19310
+    cpu_address: 0x19300
+    size: 0x9D8
+    description: "Level metadata (10 levels x 0xFC bytes): start rooms, stairway lists, etc."
+    test_data: "level_info.bin"
+    writable: false
+    notes: |
+      Contains per-level data:
+        - Start room number
+        - Stairway room list
+        - Entrance direction (for randomized ROMs)
