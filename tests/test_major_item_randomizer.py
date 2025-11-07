@@ -761,5 +761,154 @@ def test_multiple_constraint_errors_reported_together():
     print(f"✓ Correctly reported multiple constraint conflicts:\n{error_message}")
 
 
+def test_shuffle_minor_dungeon_items_disabled_by_default(modifiable_data_table):
+    """Test that shuffle_minor_dungeon_items is disabled by default (bombs, keys, rupees stay in place)."""
+    from logic.items.room_item_collector import RoomItemCollector
+
+    # Default flags should have shuffle_minor_dungeon_items = False
+    flags = Flags()
+    assert flags.shuffle_minor_dungeon_items == False, "shuffle_minor_dungeon_items should default to False"
+
+    # Minor items that should NOT be shuffled by default
+    minor_items = [Item.BOMBS, Item.KEY, Item.FIVE_RUPEES]
+
+    # Capture vanilla minor item locations in dungeons
+    collector = RoomItemCollector(modifiable_data_table)
+    vanilla_room_pairs = collector.CollectAll()
+
+    vanilla_minor_locations = {}
+    for level_num, pairs in vanilla_room_pairs.items():
+        for pair in pairs:
+            if pair.item in minor_items:
+                vanilla_minor_locations[(level_num, pair.room_num)] = pair.item
+                print(f"Vanilla minor item: Level {level_num} Room 0x{pair.room_num:02X} has {pair.item.name}")
+
+    print(f"\nFound {len(vanilla_minor_locations)} minor items in vanilla dungeons")
+
+    # Run randomization with default flags (shuffle_minor_dungeon_items = False)
+    randomizer = MajorItemRandomizer(modifiable_data_table, flags)
+    randomizer.Randomize()
+
+    # Verify minor items are still in their original locations
+    collector2 = RoomItemCollector(modifiable_data_table)
+    shuffled_room_pairs = collector2.CollectAll()
+
+    for level_num, pairs in shuffled_room_pairs.items():
+        for pair in pairs:
+            if (level_num, pair.room_num) in vanilla_minor_locations:
+                expected_item = vanilla_minor_locations[(level_num, pair.room_num)]
+                assert pair.item == expected_item, \
+                    f"Minor item at Level {level_num} Room 0x{pair.room_num:02X} was changed from {expected_item.name} to {pair.item.name}"
+                print(f"✓ {expected_item.name} still at Level {level_num} Room 0x{pair.room_num:02X}")
+
+    print(f"✓ All {len(vanilla_minor_locations)} minor items remained in original locations")
+
+
+def test_shuffle_minor_dungeon_items_when_enabled():
+    """Test that bombs, keys, and five_rupees are included in shuffle when flag is enabled."""
+    from logic.items.room_item_collector import RoomItemCollector
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    # Minor items that should be shuffled when flag is enabled
+    minor_items = [Item.BOMBS, Item.KEY, Item.FIVE_RUPEES]
+
+    # Create flags with shuffle_minor_dungeon_items enabled
+    flags = Flags()
+    flags.shuffle_minor_dungeon_items = True
+
+    # Test multiple seeds to verify minor items can move
+    minor_items_moved = False
+
+    for seed in range(5):
+        rom_data = build_minimal_rom('data')
+        rom_reader = RomReader(rom_data)
+        data_table = DataTable(rom_reader)
+        data_table.ResetToVanilla()
+
+        # Capture vanilla minor item locations
+        collector = RoomItemCollector(data_table)
+        vanilla_room_pairs = collector.CollectAll()
+
+        vanilla_minor_locations = {}
+        for level_num, pairs in vanilla_room_pairs.items():
+            for pair in pairs:
+                if pair.item in minor_items:
+                    vanilla_minor_locations[(level_num, pair.room_num)] = pair.item
+
+        # Run randomization
+        randomizer = MajorItemRandomizer(data_table, flags)
+        randomizer.Randomize()
+
+        # Check if minor items moved
+        collector2 = RoomItemCollector(data_table)
+        shuffled_room_pairs = collector2.CollectAll()
+
+        # Count minor items that stayed in the same location
+        items_in_same_location = 0
+        for level_num, pairs in shuffled_room_pairs.items():
+            for pair in pairs:
+                if (level_num, pair.room_num) in vanilla_minor_locations:
+                    if vanilla_minor_locations[(level_num, pair.room_num)] == pair.item:
+                        items_in_same_location += 1
+
+        # If any minor item moved, we've confirmed they're being shuffled
+        if items_in_same_location < len(vanilla_minor_locations):
+            minor_items_moved = True
+            moved_count = len(vanilla_minor_locations) - items_in_same_location
+            print(f"Seed {seed}: ✓ Minor items were shuffled ({moved_count}/{len(vanilla_minor_locations)} moved)")
+            break
+
+    assert minor_items_moved, \
+        "Minor items should be shuffled when shuffle_minor_dungeon_items is enabled"
+
+
+def test_shuffle_minor_dungeon_items_excludes_maps_and_compasses():
+    """Test that maps and compasses are NOT shuffled even when shuffle_minor_dungeon_items is enabled."""
+    from logic.items.room_item_collector import RoomItemCollector
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    # Create flags with shuffle_minor_dungeon_items enabled
+    flags = Flags()
+    flags.shuffle_minor_dungeon_items = True
+
+    # Test multiple seeds to verify maps and compasses never move
+    for seed in range(5):
+        rom_data = build_minimal_rom('data')
+        rom_reader = RomReader(rom_data)
+        data_table = DataTable(rom_reader)
+        data_table.ResetToVanilla()
+
+        # Capture vanilla map and compass locations
+        collector = RoomItemCollector(data_table)
+        vanilla_room_pairs = collector.CollectAll()
+
+        vanilla_map_compass_locations = {}
+        for level_num, pairs in vanilla_room_pairs.items():
+            for pair in pairs:
+                if pair.item in [Item.MAP, Item.COMPASS]:
+                    vanilla_map_compass_locations[(level_num, pair.room_num)] = pair.item
+
+        # Run randomization
+        randomizer = MajorItemRandomizer(data_table, flags)
+        randomizer.Randomize()
+
+        # Verify maps and compasses stayed in place
+        collector2 = RoomItemCollector(data_table)
+        shuffled_room_pairs = collector2.CollectAll()
+
+        for level_num, pairs in shuffled_room_pairs.items():
+            for pair in pairs:
+                if (level_num, pair.room_num) in vanilla_map_compass_locations:
+                    expected_item = vanilla_map_compass_locations[(level_num, pair.room_num)]
+                    assert pair.item == expected_item, \
+                        f"{expected_item.name} at Level {level_num} Room 0x{pair.room_num:02X} was moved to different location (seed {seed})"
+
+        print(f"Seed {seed}: ✓ All maps and compasses remained in original locations")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
