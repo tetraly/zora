@@ -715,19 +715,19 @@ class Z1Randomizer():
     # Experimental feature patches
     if self.flags.disable_2q_cheat_code:
       # Disable 2nd quest cheat code entry mechanism
-      patch.AddData(0x9EEB, [0x00, 0x00, 0x00, 0x00, 0x00])
+      patch.AddData(0x9EEB+0x10, [0x00, 0x00, 0x00, 0x00, 0x00])
 
     if self.flags.disable_2q_flag_after_winning:
       # Prevent 2nd quest flag from being set after winning
-      patch.AddData(0xAF8B, [0x00])
+      patch.AddData(0xAF8B+0x10, [0x00])
 
     if self.flags.dont_reset_save_data_after_winning:
       # Prevent save data reset after completing the game
-      patch.AddData(0xABB5, [0xEA, 0xEA, 0xEA])
+      patch.AddData(0xABB5+0x10, [0xEA, 0xEA, 0xEA])
 
     if self.flags.harmless_candle_fire:
       # Make candle fire harmless to Link
-      patch.AddData(0x7553, [0x00])
+      patch.AddData(0x7553+0x10, [0x00])
 
     if self.flags.like_likes_eat_rupees:
       # Change Like-Likes to eat rupees instead of shields
