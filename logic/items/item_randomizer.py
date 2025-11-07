@@ -61,18 +61,22 @@ class ItemRandomizer:
         log.info("Starting item randomization...")
 
         # Step 1: Run major item randomizer (inter-dungeon shuffle)
-        log.info("Running major item randomizer...")
-        self.major_randomizer.set_forbidden_solution_maps(self.forbidden_major_solution_maps)
-        result = self.major_randomizer.Randomize(seed=seed)
+        # Skip major item randomization if flag is not enabled
+        if self.flags.major_item_shuffle:
+            log.info("Running major item randomizer...")
+            self.major_randomizer.set_forbidden_solution_maps(self.forbidden_major_solution_maps)
+            result = self.major_randomizer.Randomize(seed=seed)
 
-        if not result:
-            log.error("Major item randomization failed")
-            return False
-        self.last_major_solution_map = (
-            self.major_randomizer.last_solution_map.copy()
-            if self.major_randomizer.last_solution_map
-            else None
-        )
+            if not result:
+                log.error("Major item randomization failed")
+                return False
+            self.last_major_solution_map = (
+                self.major_randomizer.last_solution_map.copy()
+                if self.major_randomizer.last_solution_map
+                else None
+            )
+        else:
+            log.info("Major item shuffle disabled - skipping major item randomization")
 
         # Step 2: Run minor item randomizer (intra-dungeon shuffle)
         if not self._RunMinorItemRandomizer(seed):
