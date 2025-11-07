@@ -342,6 +342,66 @@ class FlagsEnum(Enum):
         'Other types of rooms with standing items (ones that would normally NOT have push blocks) will have drop items instead. The item will appear after killing all enemies. Incompatible with "Increased Standing Items".',
         FlagCategory.HIDDEN
     )
+    SHUFFLE_WITHIN_LEVEL = (
+        'shuffle_within_level',
+        'Shuffle Items Within Levels',
+        'Shuffle items within each dungeon level. If unchecked, items will remain in their original positions within each level.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    ITEM_STAIR_CAN_HAVE_TRIFORCE = (
+        'item_stair_can_have_triforce',
+        'Item Staircase Can Have Triforce',
+        'Allow the triforce to be placed in item staircase rooms. If unchecked, the triforce cannot appear in item staircases.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    ITEM_STAIR_CAN_HAVE_MINOR_ITEM = (
+        'item_stair_can_have_minor_item',
+        'Item Staircase Can Have Minor Items',
+        'Allow minor items (bombs, keys, 5 rupees, maps, compasses) to be placed in item staircase rooms. If unchecked, minor items cannot appear in item staircases.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    FORCE_MAJOR_ITEM_TO_BOSS = (
+        'force_major_item_to_boss',
+        'Force Major Item to Boss Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    FORCE_MAJOR_ITEM_TO_TRIFORCE_ROOM = (
+        'force_major_item_to_triforce_room',
+        'Force Major Item to Triforce Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in the triforce room.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    DISABLE_2Q_CHEAT_CODE = (
+        'disable_2q_cheat_code',
+        'Disable 2Q Cheat Code',
+        'Disables the 2nd quest cheat code entry mechanism.',
+        FlagCategory.EXPERIMENTAL
+    )
+    DISABLE_2Q_FLAG_AFTER_WINNING = (
+        'disable_2q_flag_after_winning',
+        'Disable 2Q Flag After Winning',
+        'Prevents the 2nd quest flag from being set after winning the game.',
+        FlagCategory.EXPERIMENTAL
+    )
+    DONT_RESET_SAVE_DATA_AFTER_WINNING = (
+        'dont_reset_save_data_after_winning',
+        'Don\'t Reset Save Data After Winning',
+        'Prevents save data from being reset after completing the game.',
+        FlagCategory.EXPERIMENTAL
+    )
+    HARMLESS_CANDLE_FIRE = (
+        'harmless_candle_fire',
+        'Harmless Candle Fire',
+        'Makes candle fire harmless to Link.',
+        FlagCategory.EXPERIMENTAL
+    )
+    LIKE_LIKES_EAT_RUPEES = (
+        'like_likes_eat_rupees',
+        'Like Likes Eat Rupees',
+        'Changes Like-Likes to eat rupees instead of shields.',
+        FlagCategory.EXPERIMENTAL
+    )
     EXAMPLE_HIDDEN_FLAG = (
         'example_hidden_flag',
         'Example Hidden Flag',
