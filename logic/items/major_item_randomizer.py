@@ -125,6 +125,9 @@ class MajorItemRandomizer:
         self.last_solution_map = solver.last_solution.copy() if solver.last_solution else None
         self._WriteSolutionToDataTable(solution)
 
+        # Replace shop 4 right position with fairy if shuffle_shop_bait is enabled
+        self._ReplaceBaitWithFairy()
+
         log.info("Major item randomization completed successfully")
         return True
 
@@ -197,6 +200,8 @@ class MajorItemRandomizer:
             (CaveType.SHOP_2, CavePosition.RIGHT, self.flags.shuffle_shop_candle),
             (CaveType.SHOP_3, CavePosition.MIDDLE, self.flags.shuffle_shop_bait),
             (CaveType.SHOP_4, CavePosition.MIDDLE, self.flags.shuffle_shop_ring),
+            # Note: When shuffle_shop_bait is enabled, SHOP_4 RIGHT position will be replaced
+            # with a fairy after the shuffle completes (see _ReplaceBaitWithFairy method)
             (CaveType.POTION_SHOP, CavePosition.LEFT, self.flags.shuffle_potion_shop_items),
             (CaveType.POTION_SHOP, CavePosition.RIGHT, self.flags.shuffle_potion_shop_items),
         ]
@@ -517,3 +522,24 @@ class MajorItemRandomizer:
         # Tier 4: Everything else - 60 ± 20
         else:
             return randint(40, 80)
+
+    def _ReplaceBaitWithFairy(self) -> None:
+        """Replace the right position of shop 4 with a fairy if shuffle_shop_bait is enabled.
+
+        When shuffle_shop_bait is enabled, one bait is shuffled into the major item pool,
+        and the right position of shop 4 is replaced with a fairy that costs 20-40 rupees.
+        """
+        if not self.flags.shuffle_shop_bait:
+            return
+
+        from random import randint
+
+        # Replace shop 4's right position (position 3 in 1-indexed) with a fairy
+        position_1indexed = 3
+        self.data_table.SetCaveItemNew(CaveType.SHOP_4, position_1indexed, Item.FAIRY)
+
+        # Set the fairy's price to a random amount between 20 and 40 rupees
+        fairy_price = randint(20, 40)
+        self.data_table.SetCavePrice(CaveType.SHOP_4, position_1indexed, fairy_price)
+
+        log.info(f"Replaced SHOP_4 right position with FAIRY at {fairy_price} rupees")
