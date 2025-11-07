@@ -141,11 +141,10 @@ class ItemRandomizer():
         pass
     if self.flags.shuffle_shop_bait:
       items.append(self._GetOverworldItemLocation(Item.BAIT))
-      second_bait_location = self._GetOverworldItemLocation(Item.BAIT, skip_first=True)
-      self.data_table.SetCaveItem(second_bait_location, Item.FAIRY)
-      cave_num = second_bait_location.GetCaveNum()
-      position_num = second_bait_location.GetPositionNum()
-      self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randint(20, 40), position_num)
+      # Replace the right position of shop 4 with a fairy (cave 0x20, position 3)
+      shop_4_right_location = Location.CavePosition(0x20, 3)
+      self.data_table.SetCaveItem(shop_4_right_location, Item.FAIRY)
+      self.data_table.overworld_caves[0x20].SetPriceAtPosition(randint(20, 40), 3)
     return items
 
   def ResetState(self):
