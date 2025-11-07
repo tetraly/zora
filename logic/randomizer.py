@@ -417,7 +417,9 @@ class Z1Randomizer():
           self.flags.increased_drop_items_in_push_block_rooms or
           self.flags.increased_drop_items_in_non_push_block_rooms):
         self._ApplyRoomActionFlags(data_table)
+      print("Starting Validator")
       is_valid_seed = validator.IsSeedValid()
+      print("Ending Validator")
       #is_valid_seed = True
       if is_valid_seed:
           log.warning(f"✓ FOUND VALID SEED after {outer_counter} attempts!")

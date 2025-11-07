@@ -22,9 +22,6 @@ class MinorItemRandomizer():
         if not self.flags.shuffle_within_level:
             return True
 
-        # TODO: Implement NormalizeItemPositions if needed
-        # self.data_table.NormalizeItemPositions()
-        self.data_table.NormalizeNoItemCode()
         collector = RoomItemCollector(self.data_table)
         room_item_pair_lists = collector.CollectAll()
 

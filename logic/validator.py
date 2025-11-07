@@ -186,7 +186,7 @@ class Validator(object):
         log.warning("FAILURE: Rescued kidnapped but missing important items")
         return False
     else:
-      log.warning("FAILURE: Never rescued the kidnapped")
+      log.info("FAILURE: Never rescued the kidnapped")
       log.debug("Seed doesn't appear to be beatable. :(")
       return False
 

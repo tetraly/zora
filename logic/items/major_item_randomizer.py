@@ -85,8 +85,6 @@ class MajorItemRandomizer:
             True if a valid shuffle was produced, otherwise False.
         """
         log.info("Starting major item randomization...")
-
-        self.data_table.NormalizeNoItemCode()
         
         # Collect all major item locations and their current items
         self.location_item_pairs = self._CollectLocationsAndItems()

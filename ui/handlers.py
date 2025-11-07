@@ -631,13 +631,6 @@ class EventHandlers:
 
         level_nine_count = sum(1 for flag in level_nine_flags if flags.get(flag, False))
 
-        # Safety check: verify force_two_heart_containers_to_level_nine is False
-        if flags.get('force_two_heart_containers_to_level_nine', False):
-            errors.append(
-                "Internal Error: The 'force_two_heart_containers_to_level_nine' flag should not be enabled.\n"
-                "This is a hidden flag. Please contact the developer."
-            )
-
         if level_nine_count > 2:
             enabled_items = []
             if flags.get('force_arrow_to_level_nine'):

@@ -84,7 +84,8 @@ class ItemRandomizer:
             return False
 
         # Step 3: Apply progressive item conversions
-        self.ConvertProgressiveItemsToUpgrades()
+        if self.flags.progressive_items:
+            self.ConvertProgressiveItemsToUpgrades()
         
         #Step 3.5: Randomize Item Positions
         self.RandomizeItemPositions()
@@ -157,7 +158,7 @@ class ItemRandomizer:
     def RandomizeItemPositions(self) -> None:
         for level_num in CaveType.AllLevels():
             self.data_table.SetLevelItemPositionCoordinates(level_num, [0x89, 0xD6, 0xC9, 0x2C])
-            log.warning(f"Set coords for level {level_num} ")
+            log.debug(f"Set coords for level {level_num} ")
 
         # Collect location items from dungeons (levels 1-9)
         collector = RoomItemCollector(self.data_table)
@@ -166,6 +167,22 @@ class ItemRandomizer:
                 room_type = self.data_table.GetRoomType(level_num, pair.room_num)
                 item_position = random.choice(ValidItemPositions[room_type])
                 self.data_table.SetItemPositionNew(level_num, pair.room_num, item_position)
+                
+                # Normalize No Item Values (0x03 -> 0x18)
+                """Normalize NO_ITEM code from 0x03 (MAGICAL_SWORD) to 0x18 (RUPEE).
+
+                In vanilla Zelda, 0x03 means both MAGICAL_SWORD (overworld) and NO_ITEM (dungeons).
+                This creates ambiguity for the randomizer which may place MAGICAL_SWORD in dungeons.
+                This method changes all dungeon NO_ITEM codes from 0x03 to 0x18 (RUPEE), which is
+                never used as a room item.
+
+                This requires a corresponding game code patch to recognize 0x18 as NO_ITEM.
+                """
+                item_code = self.data_table.GetItem(level_num, pair.room_num)
+                if item_code == 0x03:
+                    self.data_table.SetItem(level_num, pair.room_num, 0x18)
+                    log.debug(f"Normalizing NO_ITEM in level {level_num} room {pair.room_num:02x}: 0x03 -> 0x18")
+                    
             
             
             

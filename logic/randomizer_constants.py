@@ -130,6 +130,9 @@ class Item(IntEnum):
           Item.RED_RING, Item.POWER_BRACELET, Item.HEART_CONTAINER, Item.WOOD_BOOMERANG, 
           Item.MAGICAL_BOOMERANG]
 
+  def IsMajorItemOrTriforce(self):
+      return self.IsMajorItem() or self == Item.TRIFORCE
+
 class RoomType(IntEnum):
   PLAIN_ROOM = 0x00
   SPIKE_TRAP_ROOM = 0x01

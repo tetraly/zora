@@ -378,28 +378,6 @@ class DataTable():
       for i in range(0, 4):
           self.level_info[level_num][ITEM_POSITIONS_OFFSET + i] = item_position_coordinates[i]
 
-
-  def NormalizeNoItemCode(self) -> None:
-      """Normalize NO_ITEM code from 0x03 (MAGICAL_SWORD) to 0x18 (RUPEE).
-
-      In vanilla Zelda, 0x03 means both MAGICAL_SWORD (overworld) and NO_ITEM (dungeons).
-      This creates ambiguity for the randomizer which may place MAGICAL_SWORD in dungeons.
-      This method changes all dungeon NO_ITEM codes from 0x03 to 0x18 (RUPEE), which is
-      never used as a room item.
-
-      This requires a corresponding game code patch to recognize 0x18 as NO_ITEM.
-      """
-      OLD_NO_ITEM_CODE = 0x03  # MAGICAL_SWORD value
-      NEW_NO_ITEM_CODE = 0x18  # 0x18 (repurposed RUPEE code)
-
-      # Go through both 8x16 level data grids (levels 1-6 and 7-9)
-      for level_num in [1, 7]:  # Dungeons 1-9 only
-          for room_num in range(0, 0x80):
-              item = self.GetItem(level_num, room_num)
-              if item.value == OLD_NO_ITEM_CODE:
-                  log.debug(f"Normalizing NO_ITEM in level {level_num} room {hex(room_num)}: 0x03 -> 0x18")
-                  self.SetItem(level_num, room_num, NEW_NO_ITEM_CODE)
-
   def GetCaveItemNew(self, cave_type: int, position_num: int) -> Item:
     """Get an item from a cave at a specific position.
 
@@ -444,3 +422,13 @@ class DataTable():
     # Convert CaveType to cave_num (array index)
     cave_num = cave_type - 0x10
     self.overworld_caves[cave_num].SetPriceAtPosition(price, position_num)
+
+  def GetItem(self, level_num: LevelNum, room_num: RoomNum) -> Item:
+      """Get the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      return room.GetItem()
+
+  def SetItem(self, level_num: LevelNum, room_num: RoomNum, item: Item) -> None:
+      """Set the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      room.SetItem(item)
