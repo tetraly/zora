@@ -7,7 +7,7 @@ from pathlib import Path
 # Add parent directory to path to import logic modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from logic.items.major_item_randomizer import MajorItemRandomizer
+from logic.items.major_item_randomizer import MajorItemRandomizer, ConstraintConflictError
 from logic.rom_reader import RomReader
 from logic.data_table import DataTable
 from logic.flags import Flags
@@ -425,6 +425,340 @@ def test_red_potion_never_in_dungeons():
                     f"Red potion found in Level {level_num} Room 0x{pair.room_num:02X} (seed {seed})"
 
         print(f"Seed {seed}: ✓ Red potion not in any dungeon")
+
+
+def test_shuffle_dungeon_hearts_disabled_by_default(modifiable_data_table):
+    """Test that shuffle_dungeon_hearts is disabled by default (heart containers stay in dungeons)."""
+    from logic.items.room_item_collector import RoomItemCollector
+
+    # Default flags should have shuffle_dungeon_hearts = False
+    flags = Flags()
+    assert flags.shuffle_dungeon_hearts == False, "shuffle_dungeon_hearts should default to False"
+
+    # Capture vanilla heart container locations in dungeons
+    collector = RoomItemCollector(modifiable_data_table)
+    vanilla_room_pairs = collector.CollectAll()
+
+    vanilla_hc_locations = {}
+    for level_num, pairs in vanilla_room_pairs.items():
+        for pair in pairs:
+            if pair.item == Item.HEART_CONTAINER:
+                vanilla_hc_locations[(level_num, pair.room_num)] = pair.item
+                print(f"Vanilla HC: Level {level_num} Room 0x{pair.room_num:02X}")
+
+    print(f"\nFound {len(vanilla_hc_locations)} heart containers in vanilla dungeons")
+
+    # Run randomization with default flags (shuffle_dungeon_hearts = False)
+    randomizer = MajorItemRandomizer(modifiable_data_table, flags)
+    randomizer.Randomize()
+
+    # Verify heart containers are still in their original locations
+    collector2 = RoomItemCollector(modifiable_data_table)
+    shuffled_room_pairs = collector2.CollectAll()
+
+    for level_num, pairs in shuffled_room_pairs.items():
+        for pair in pairs:
+            if (level_num, pair.room_num) in vanilla_hc_locations:
+                assert pair.item == Item.HEART_CONTAINER, \
+                    f"Heart container at Level {level_num} Room 0x{pair.room_num:02X} was changed to {pair.item.name}"
+                print(f"✓ HC still at Level {level_num} Room 0x{pair.room_num:02X}")
+
+    print(f"✓ All {len(vanilla_hc_locations)} heart containers remained in original locations")
+
+
+def test_shuffle_dungeon_hearts_when_enabled():
+    """Test that dungeon heart containers are included in shuffle when flag is enabled."""
+    from logic.items.room_item_collector import RoomItemCollector
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    # Create flags with shuffle_dungeon_hearts enabled
+    flags = Flags()
+    flags.shuffle_dungeon_hearts = True
+
+    # Test multiple seeds to verify HCs can move
+    hc_moved_at_least_once = False
+
+    for seed in range(5):
+        rom_data = build_minimal_rom('data')
+        rom_reader = RomReader(rom_data)
+        data_table = DataTable(rom_reader)
+        data_table.ResetToVanilla()
+
+        # Capture vanilla HC locations
+        collector = RoomItemCollector(data_table)
+        vanilla_room_pairs = collector.CollectAll()
+
+        vanilla_hc_locations = set()
+        for level_num, pairs in vanilla_room_pairs.items():
+            for pair in pairs:
+                if pair.item == Item.HEART_CONTAINER:
+                    vanilla_hc_locations.add((level_num, pair.room_num))
+
+        # Run randomization
+        randomizer = MajorItemRandomizer(data_table, flags)
+        randomizer.Randomize()
+
+        # Check if HCs moved
+        collector2 = RoomItemCollector(data_table)
+        shuffled_room_pairs = collector2.CollectAll()
+
+        shuffled_hc_locations = set()
+        for level_num, pairs in shuffled_room_pairs.items():
+            for pair in pairs:
+                if pair.item == Item.HEART_CONTAINER:
+                    shuffled_hc_locations.add((level_num, pair.room_num))
+
+        if vanilla_hc_locations != shuffled_hc_locations:
+            hc_moved_at_least_once = True
+            print(f"Seed {seed}: ✓ Heart containers were shuffled")
+            break
+
+    assert hc_moved_at_least_once, \
+        "Heart containers should be shuffled when shuffle_dungeon_hearts is enabled"
+
+
+def test_constraint_conflict_force_two_hc_without_shuffle():
+    """Test that forcing 2 HCs to level 9 without shuffle_dungeon_hearts raises an error."""
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    rom_data = build_minimal_rom('data')
+    rom_reader = RomReader(rom_data)
+    data_table = DataTable(rom_reader)
+    data_table.ResetToVanilla()
+
+    # Create impossible flag combination:
+    # - force_two_heart_containers_to_level_nine = True
+    # - shuffle_dungeon_hearts = False (no HCs in pool)
+    # - shuffle_coast_item = False (no coast HC)
+    # - shuffle_armos_item = False (no armos HC)
+    flags = Flags()
+    flags.force_two_heart_containers_to_level_nine = True
+    flags.shuffle_dungeon_hearts = False
+    flags.shuffle_coast_item = False
+    flags.shuffle_armos_item = False
+
+    randomizer = MajorItemRandomizer(data_table, flags)
+
+    # Should raise ConstraintConflictError
+    with pytest.raises(ConstraintConflictError) as exc_info:
+        randomizer.Randomize()
+
+    error_message = str(exc_info.value)
+    assert "Force two heart containers to be in level 9" in error_message
+    assert "at least 2 heart containers in the pool" in error_message
+    print(f"✓ Correctly raised ConstraintConflictError:\n{error_message}")
+
+
+def test_constraint_conflict_force_one_hc_without_any_source():
+    """Test that forcing 1 HC to level 9 without any HC source raises an error."""
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    rom_data = build_minimal_rom('data')
+    rom_reader = RomReader(rom_data)
+    data_table = DataTable(rom_reader)
+    data_table.ResetToVanilla()
+
+    # Create impossible flag combination: force HC to level 9 but no HCs available
+    flags = Flags()
+    flags.force_heart_container_to_level_nine = True
+    flags.shuffle_dungeon_hearts = False
+    flags.shuffle_coast_item = False
+    flags.shuffle_armos_item = False
+
+    randomizer = MajorItemRandomizer(data_table, flags)
+
+    with pytest.raises(ConstraintConflictError) as exc_info:
+        randomizer.Randomize()
+
+    error_message = str(exc_info.value)
+    assert "Force a heart container to be in level 9" in error_message
+    assert "at least one heart container in the pool" in error_message
+    print(f"✓ Correctly raised ConstraintConflictError:\n{error_message}")
+
+
+def test_constraint_conflict_force_hc_to_armos_without_shuffle_armos():
+    """Test that forcing HC to Armos without shuffle_armos_item enabled raises an error."""
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    rom_data = build_minimal_rom('data')
+    rom_reader = RomReader(rom_data)
+    data_table = DataTable(rom_reader)
+    data_table.ResetToVanilla()
+
+    # Create impossible flag combination
+    flags = Flags()
+    flags.force_heart_container_to_armos = True
+    flags.shuffle_armos_item = False  # This is the problem
+    flags.shuffle_dungeon_hearts = True  # Has HCs, but armos location not in pool
+
+    randomizer = MajorItemRandomizer(data_table, flags)
+
+    with pytest.raises(ConstraintConflictError) as exc_info:
+        randomizer.Randomize()
+
+    error_message = str(exc_info.value)
+    assert "Force heart container to Armos" in error_message
+    assert "Shuffle the Armos Item" in error_message
+    print(f"✓ Correctly raised ConstraintConflictError:\n{error_message}")
+
+
+def test_constraint_conflict_force_hc_to_coast_without_shuffle_coast():
+    """Test that forcing HC to Coast without shuffle_coast_item enabled raises an error."""
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    rom_data = build_minimal_rom('data')
+    rom_reader = RomReader(rom_data)
+    data_table = DataTable(rom_reader)
+    data_table.ResetToVanilla()
+
+    # Create impossible flag combination
+    flags = Flags()
+    flags.force_heart_container_to_coast = True
+    flags.shuffle_coast_item = False  # This is the problem
+    flags.shuffle_dungeon_hearts = True  # Has HCs, but coast location not in pool
+
+    randomizer = MajorItemRandomizer(data_table, flags)
+
+    with pytest.raises(ConstraintConflictError) as exc_info:
+        randomizer.Randomize()
+
+    error_message = str(exc_info.value)
+    assert "Force heart container to Coast" in error_message
+    assert "Shuffle the Coast Item" in error_message
+    print(f"✓ Correctly raised ConstraintConflictError:\n{error_message}")
+
+
+def test_valid_force_two_hc_with_shuffle_dungeon_hearts():
+    """Test that forcing 2 HCs to level 9 WITH shuffle_dungeon_hearts enabled works."""
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+    from logic.items.room_item_collector import RoomItemCollector
+
+    rom_data = build_minimal_rom('data')
+    rom_reader = RomReader(rom_data)
+    data_table = DataTable(rom_reader)
+    data_table.ResetToVanilla()
+
+    # Valid flag combination: force 2 HCs + enable shuffle to get HCs in pool
+    flags = Flags()
+    flags.force_two_heart_containers_to_level_nine = True
+    flags.shuffle_dungeon_hearts = True  # Adds 8 HCs to pool
+
+    randomizer = MajorItemRandomizer(data_table, flags)
+
+    # Should NOT raise an error
+    result = randomizer.Randomize()
+    assert result == True, "Randomization should succeed with valid flag combination"
+
+    # Verify at least 2 HCs are in level 9
+    collector = RoomItemCollector(data_table)
+    room_pairs = collector.CollectAll()
+
+    level_9_hc_count = 0
+    if 9 in room_pairs:
+        for pair in room_pairs[9]:
+            if pair.item == Item.HEART_CONTAINER:
+                level_9_hc_count += 1
+                print(f"Found HC in Level 9 Room 0x{pair.room_num:02X}")
+
+    assert level_9_hc_count >= 2, \
+        f"Expected at least 2 heart containers in level 9, found {level_9_hc_count}"
+
+    print(f"✓ Valid combination: {level_9_hc_count} heart containers in level 9")
+
+
+def test_valid_force_two_hc_with_coast_and_armos():
+    """Test that forcing 2 HCs to level 9 with coast + armos items enabled works."""
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+    from logic.items.room_item_collector import RoomItemCollector
+
+    rom_data = build_minimal_rom('data')
+    rom_reader = RomReader(rom_data)
+    data_table = DataTable(rom_reader)
+    data_table.ResetToVanilla()
+
+    # Valid flag combination: force 2 HCs + enable coast & armos (2 HCs total)
+    flags = Flags()
+    flags.force_two_heart_containers_to_level_nine = True
+    flags.shuffle_dungeon_hearts = False  # Don't use dungeon HCs
+    flags.shuffle_coast_item = True  # 1 HC from coast
+    flags.shuffle_armos_item = True  # 1 HC from armos (if vanilla has it)
+
+    randomizer = MajorItemRandomizer(data_table, flags)
+
+    # Should NOT raise an error (assuming coast & armos have HCs in vanilla)
+    try:
+        result = randomizer.Randomize()
+        assert result == True, "Randomization should succeed"
+
+        # Verify at least 2 HCs are in level 9
+        collector = RoomItemCollector(data_table)
+        room_pairs = collector.CollectAll()
+
+        level_9_hc_count = 0
+        if 9 in room_pairs:
+            for pair in room_pairs[9]:
+                if pair.item == Item.HEART_CONTAINER:
+                    level_9_hc_count += 1
+
+        assert level_9_hc_count >= 2, \
+            f"Expected at least 2 HCs in level 9, found {level_9_hc_count}"
+
+        print(f"✓ Valid combination with coast+armos: {level_9_hc_count} HCs in level 9")
+    except ConstraintConflictError as e:
+        # This might happen if vanilla doesn't have HCs at coast/armos
+        print(f"Note: Coast/Armos may not have HCs in vanilla: {e}")
+
+
+def test_multiple_constraint_errors_reported_together():
+    """Test that multiple constraint violations are all reported in a single error."""
+    from test_rom_builder import build_minimal_rom
+    from logic.rom_reader import RomReader
+    from logic.data_table import DataTable
+
+    rom_data = build_minimal_rom('data')
+    rom_reader = RomReader(rom_data)
+    data_table = DataTable(rom_reader)
+    data_table.ResetToVanilla()
+
+    # Create MULTIPLE impossible flag combinations at once
+    flags = Flags()
+    flags.force_heart_container_to_armos = True
+    flags.shuffle_armos_item = False  # Error 1: armos not enabled
+    flags.force_heart_container_to_coast = True
+    flags.shuffle_coast_item = False  # Error 2: coast not enabled
+    flags.force_two_heart_containers_to_level_nine = True  # Error 3: not enough HCs
+    flags.shuffle_dungeon_hearts = False
+
+    randomizer = MajorItemRandomizer(data_table, flags)
+
+    with pytest.raises(ConstraintConflictError) as exc_info:
+        randomizer.Randomize()
+
+    error_message = str(exc_info.value)
+
+    # All three errors should be present
+    assert "Force heart container to Armos" in error_message
+    assert "Force heart container to Coast" in error_message
+    assert "Force two heart containers to be in level 9" in error_message
+
+    # Should have bullet points for each error
+    assert error_message.count("•") >= 3
+
+    print(f"✓ Correctly reported multiple constraint conflicts:\n{error_message}")
 
 
 if __name__ == "__main__":

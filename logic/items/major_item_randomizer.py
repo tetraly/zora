@@ -25,6 +25,11 @@ from ..flags import Flags
 from ..assignment_solver import AssignmentSolver
 
 
+class ConstraintConflictError(Exception):
+    """Raised when flag settings create impossible constraints for the assignment solver."""
+    pass
+
+
 # NamedTuple definitions for location representation
 DungeonLocation = namedtuple('DungeonLocation', ['level_num', 'room_num'])
 # level_num: int - the dungeon level (1-9)
@@ -100,6 +105,9 @@ class MajorItemRandomizer:
         for assignment in self.forbidden_solution_maps:
             solver.add_forbidden_solution_map(assignment)
 
+        # Validate constraints before solving
+        self._ValidateConstraints(locations, items)
+
         # Add constraints based on flags
         self._AddConstraints(solver, locations, items)
 
@@ -132,10 +140,20 @@ class MajorItemRandomizer:
         # Collect location items from dungeons (levels 1-9)
         room_item_pair_lists = collector.CollectAll()
 
-        # Keep only Major Items and Heart Containers
+        # Keep only Major Items and Heart Containers (conditionally)
         for level_num, pairs in room_item_pair_lists.items():
             for pair in pairs:
-                if pair.item.IsMajorItem() or pair.item == Item.HEART_CONTAINER:
+                include_item = False
+
+                # Always include major items
+                if pair.item.IsMajorItem():
+                    include_item = True
+
+                # Only include heart containers if shuffle_dungeon_hearts is enabled
+                elif pair.item == Item.HEART_CONTAINER:
+                    include_item = self.flags.shuffle_dungeon_hearts
+
+                if include_item:
                     location = DungeonLocation(level_num, pair.room_num)
                     location_item_pairs.append(LocationItemPair(location, pair.item))
 
@@ -194,6 +212,65 @@ class MajorItemRandomizer:
         if solver_seed == 0:
             solver_seed = 1
         return solver_seed
+
+    def _ValidateConstraints(self, locations: list[Union[DungeonLocation, CaveLocation]],
+                            items: list[Item]) -> None:
+        """Validate that flag settings don't create impossible constraints.
+
+        Raises:
+            ConstraintConflictError: If flag combinations are impossible to satisfy.
+        """
+        # Count available heart containers in the pool
+        heart_container_count = items.count(Item.HEART_CONTAINER)
+
+        # Check for impossible force-to-location constraints
+        errors = []
+
+        # Validate force_heart_container_to_armos
+        if self.flags.force_heart_container_to_armos:
+            if not self.flags.shuffle_armos_item:
+                errors.append(
+                    "Flag 'Force heart container to Armos' requires 'Shuffle the Armos Item' to be enabled."
+                )
+            elif heart_container_count == 0:
+                errors.append(
+                    "Flag 'Force heart container to Armos' requires at least one heart container in the pool. "
+                    "Enable 'Shuffle Dungeon Hearts' or 'Shuffle the Coast Item'."
+                )
+
+        # Validate force_heart_container_to_coast
+        if self.flags.force_heart_container_to_coast:
+            if not self.flags.shuffle_coast_item:
+                errors.append(
+                    "Flag 'Force heart container to Coast' requires 'Shuffle the Coast Item' to be enabled."
+                )
+            elif heart_container_count == 0:
+                errors.append(
+                    "Flag 'Force heart container to Coast' requires at least one heart container in the pool. "
+                    "Enable 'Shuffle Dungeon Hearts' or 'Shuffle the Armos Item'."
+                )
+
+        # Validate force_heart_container_to_level_nine
+        if self.flags.force_heart_container_to_level_nine:
+            if heart_container_count == 0:
+                errors.append(
+                    "Flag 'Force a heart container to be in level 9' requires at least one heart container in the pool. "
+                    "Enable 'Shuffle Dungeon Hearts', 'Shuffle the Coast Item', or 'Shuffle the Armos Item'."
+                )
+
+        # Validate force_two_heart_containers_to_level_nine
+        if self.flags.force_two_heart_containers_to_level_nine:
+            if heart_container_count < 2:
+                errors.append(
+                    f"Flag 'Force two heart containers to be in level 9' requires at least 2 heart containers in the pool, "
+                    f"but only {heart_container_count} available. Enable 'Shuffle Dungeon Hearts' to add 8 more heart containers, "
+                    f"or enable both 'Shuffle the Coast Item' and 'Shuffle the Armos Item' for 2 total."
+                )
+
+        # If there are any errors, raise an exception with all of them
+        if errors:
+            error_message = "Impossible flag combination detected:\n\n" + "\n\n".join(f"• {error}" for error in errors)
+            raise ConstraintConflictError(error_message)
 
     def _AddConstraints(self, solver: AssignmentSolver,
                        locations: list[Union[DungeonLocation, CaveLocation]],
@@ -255,6 +332,10 @@ class MajorItemRandomizer:
             (self.flags.force_heart_container_to_level_nine, [Item.HEART_CONTAINER], "heart container"),
         ])
 
+        # Force TWO heart containers to level 9 (requires special handling)
+        if self.flags.force_two_heart_containers_to_level_nine:
+            self._ForceTwoHeartContainersToLevel9(solver, locations, items)
+
         self._ForceItemsToLocation(solver, locations, items, [
             (self.flags.force_heart_container_to_armos and self.flags.shuffle_armos_item,
              CaveType.ARMOS_ITEM, [Item.HEART_CONTAINER], "Armos"),
@@ -310,6 +391,66 @@ class MajorItemRandomizer:
                 if matching_items and matching_locations:
                     solver.at_least_one_of(sources=matching_locations, targets=matching_items)
                     log.debug(f"Constraint: At least one {target_items[0].name.lower().replace('_', ' ')} must be at {location_name}")
+
+    def _ForceTwoHeartContainersToLevel9(self, solver: AssignmentSolver,
+                                         locations: list[Union[DungeonLocation, CaveLocation]],
+                                         items: list[Item]) -> None:
+        """Force at least two heart containers to be in level 9.
+
+        This uses a sum constraint to ensure at least 2 level 9 locations have heart containers.
+
+        Args:
+            solver: The constraint solver.
+            locations: List of all locations being shuffled.
+            items: List of all items being shuffled.
+        """
+        # Get all level 9 locations
+        level_9_locations = [loc for loc in locations if is_dungeon_location(loc) and loc.level_num == 9]
+
+        # Count heart containers in the pool
+        heart_container_count = items.count(Item.HEART_CONTAINER)
+
+        if heart_container_count < 2:
+            log.warning(f"Cannot force 2 heart containers to level 9: only {heart_container_count} in pool")
+            return
+
+        if not level_9_locations:
+            log.warning("Cannot force heart containers to level 9: no level 9 locations found")
+            return
+
+        # Create boolean variables for each (level 9 location, heart container) pair
+        # We need to work with the internal solver representation
+        bool_vars = []
+
+        # Get the key indices for level 9 locations in permutation mode
+        for location in level_9_locations:
+            try:
+                key_idx = solver.permutation_keys.index(location)
+            except ValueError:
+                log.warning(f"Location {location} not found in permutation keys")
+                continue
+
+            # Find all heart container indices in the values list
+            heart_container_indices = [i for i, item in enumerate(solver.permutation_values)
+                                      if item == Item.HEART_CONTAINER]
+
+            if not heart_container_indices:
+                continue
+
+            # For each heart container slot, create a boolean that's true if this location gets it
+            for hc_idx in heart_container_indices:
+                bool_var = solver.model.NewBoolVar(f"force2hc_{key_idx}_{hc_idx}")
+                solver.model.Add(solver.var_map[key_idx] == hc_idx).OnlyEnforceIf(bool_var)
+                bool_vars.append(bool_var)
+
+        if not bool_vars:
+            log.warning("Could not create constraints for forcing 2 heart containers to level 9")
+            return
+
+        # Require at least 2 of these boolean variables to be true
+        # This means at least 2 level 9 locations will have heart containers
+        solver.model.Add(sum(bool_vars) >= 2)
+        log.debug(f"Constraint: At least 2 heart containers must be in level 9")
 
     def _WriteSolutionToDataTable(self, solution: dict) -> None:
         """Write shuffled items back to data table.
