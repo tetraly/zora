@@ -731,6 +731,6 @@ class Z1Randomizer():
 
     if self.flags.like_likes_eat_rupees:
       # Change Like-Likes to eat rupees instead of shields
-      patch.AddData(0x11D47, [0x6D])
+      patch.AddData(0x11D46, [0xEE 0x7E])
 
     return patch
