@@ -65,6 +65,12 @@ class FlagsEnum(Enum):
         'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.',
         FlagCategory.ITEM_SHUFFLE
     )
+    SHUFFLE_DUNGEON_HEARTS = (
+        'shuffle_dungeon_hearts',
+        'Shuffle Dungeon Hearts',
+        'Adds the heart containers found in dungeons (levels 1-8) to the item shuffle pool. When disabled, heart containers remain in their original dungeon locations. Note: The coast and armos heart containers can still be shuffled with their respective flags.',
+        FlagCategory.ITEM_SHUFFLE
+    )
     SHUFFLE_SHOP_ARROWS = (
         'shuffle_shop_arrows',
         'Shuffle Shop Arrows',
@@ -164,8 +170,8 @@ class FlagsEnum(Enum):
     FORCE_TWO_HEART_CONTAINERS_TO_LEVEL_NINE = (
         'force_two_heart_containers_to_level_nine',
         'Force two heart containers to be in level 9',
-        'WARNING: THIS FLAG DOES NOT CURRENTLY WORK AND WILL BE FIXED IN A FUTURE UPDATE. DO NOT USE.',
-        FlagCategory.HIDDEN
+        'Require that at least two heart containers be in level 9. Warning: seeds with multiple items forced to level nine may take a long time to generate.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     FORCE_HEART_CONTAINER_TO_ARMOS = (
         'force_heart_container_to_armos',
