@@ -9,7 +9,12 @@ from version import __version_rom__
 
 from typing import List
 from .data_table import DataTable
-from .item_randomizer import ItemRandomizer
+# New 
+from .items.item_randomizer import ItemRandomizer
+
+#old
+#from .item_randomizer import ItemRandomizer
+
 from .patch import Patch
 from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET, ANY_ROAD_SCREENS_ADDRESS, RECORDER_WARP_DESTINATIONS_ADDRESS
 from .text_data_table import TextDataTable
@@ -36,6 +41,8 @@ class Z1Randomizer():
     self.seed = seed
     self.flags = flags
     self.cave_destinations_randomized_in_base_seed = False
+    # Cache of solver permutations that failed validation so we never retry them.
+    self._forbidden_major_solution_maps: list[dict] = []
 
   def _ConvertTextToRomHex(self, text: str) -> str:
     """Convert ASCII text to Zelda ROM character encoding hex string.
@@ -384,10 +391,13 @@ class Z1Randomizer():
         if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
           self._ShuffleOverworldCaveDestinations(data_table, shuffle_rng)
 
+        # Feed the last set of rejected permutations back into the solver so the
+        # next attempt explores a fresh layout while remaining deterministic.
+        item_randomizer.set_forbidden_major_solutions(self._forbidden_major_solution_maps)
         item_randomizer.ReplaceProgressiveItemsWithUpgrades()
         item_randomizer.ResetState()
         item_randomizer.ReadItemsAndLocationsFromTable()
-        item_randomizer.ShuffleItems()
+        item_randomizer.ShuffleItems(shuffle_rng.randint(1, 2147483647))
         if item_randomizer.HasValidItemConfiguration():
           log.debug("Success after %d inner_counter iterations" % inner_counter)
           break
@@ -407,12 +417,17 @@ class Z1Randomizer():
           self.flags.increased_drop_items_in_push_block_rooms or
           self.flags.increased_drop_items_in_non_push_block_rooms):
         self._ApplyRoomActionFlags(data_table)
-
       is_valid_seed = validator.IsSeedValid()
+      #is_valid_seed = True
       if is_valid_seed:
           log.warning(f"✓ FOUND VALID SEED after {outer_counter} attempts!")
       else:
-          log.warning(f"✗ Item shuffle seed {seed} was not valid, trying again...")
+          last_solution_map = item_randomizer.get_last_major_solution_map()
+          if last_solution_map:
+              if not any(existing == last_solution_map for existing in self._forbidden_major_solution_maps):
+                  # Record this losing permutation so the solver skips it next time.
+                  self._forbidden_major_solution_maps.append(last_solution_map.copy())
+          log.warning(f"✗ Attempt {outer_counter:03} (seed {seed:10}) failed validation, trying again...")
       if outer_counter >= 1000:
           raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
       
@@ -573,8 +588,8 @@ class Z1Randomizer():
       # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067 
       patch.AddDataFromHexString(0x7540, "B0")
 
-    # For Mags patch
-    patch.AddData(0x1785F, [0x0E])
+    # For Mags -> Rupee patch
+    patch.AddData(0x1785F, [0x18])
 
     # Apply hints based on community_hints flag
     hint_writer = HintWriter()

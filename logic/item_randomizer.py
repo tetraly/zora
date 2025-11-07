@@ -218,7 +218,7 @@ class ItemRandomizer():
     if room.HasStaircase():
       self._ReadItemsAndLocationsRecursively(level_num, room.GetStaircaseRoomNumber(), Direction.STAIRCASE)
 
-  def ShuffleItems(self) -> None:
+  def ShuffleItems(self, unsued_seed: int) -> None:
     self.item_shuffler.ShuffleItems()
 
   def HasValidItemConfiguration(self) -> bool:
