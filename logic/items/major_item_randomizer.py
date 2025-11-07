@@ -6,7 +6,8 @@ across all dungeons (1-9) and key overworld locations using the AssignmentSolver
 Items NOT included in major shuffle:
 - TRIFORCE (levels 1-8) - stays in assigned level, shuffled intra-dungeon
 - TRIFORCE_OF_POWER (level 9) - never shuffled, locked to original room
-- Minor items: KEY, MAP, COMPASS, BOMBS, FIVE_RUPEES
+- MAP, COMPASS - always stay in their original locations
+- KEY, BOMBS, FIVE_RUPEES - included in major shuffle if shuffle_minor_dungeon_items flag is enabled
 - Filler items: RUPEE, etc.
 
 These items are handled by the intra-dungeon shuffle (NewItemRandomizer).
@@ -152,6 +153,13 @@ class MajorItemRandomizer:
                 # Only include heart containers if shuffle_dungeon_hearts is enabled
                 elif pair.item == Item.HEART_CONTAINER:
                     include_item = self.flags.shuffle_dungeon_hearts
+
+                # Include bombs, keys, and five_rupees if shuffle_minor_dungeon_items is enabled
+                # TODO: When shuffle_minor_dungeon_items is enabled, we should also force
+                # shuffle_minor_items to be enabled to ensure consistency. This should be
+                # implemented in a separate PR.
+                elif pair.item in [Item.BOMBS, Item.KEY, Item.FIVE_RUPEES]:
+                    include_item = self.flags.shuffle_minor_dungeon_items
 
                 if include_item:
                     location = DungeonLocation(level_num, pair.room_num)
