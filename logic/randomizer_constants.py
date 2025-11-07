@@ -118,6 +118,10 @@ class Item(IntEnum):
   def IsMinorDungeonItem(self):
     return self in [Item.BOMBS, Item.FIVE_RUPEES, Item.KEY, Item.COMPASS, Item.MAP]
 
+  def IsMinorItem(self):
+    """Alias for IsMinorDungeonItem for compatibility."""
+    return self.IsMinorDungeonItem()
+
   def IsMajorItem(self):
       # Check if the current item is one of the sword items
       return self in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.RECORDER,
