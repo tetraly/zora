@@ -21,8 +21,9 @@ class MinorItemRandomizer():
         # Early return if shuffle is disabled
         if not self.flags.shuffle_within_level:
             return True
-        
-        self.data_table.NormalizeItemPositions()
+
+        # TODO: Implement NormalizeItemPositions if needed
+        # self.data_table.NormalizeItemPositions()
         self.data_table.NormalizeNoItemCode()
         collector = RoomItemCollector(self.data_table)
         room_item_pair_lists = collector.CollectAll()
@@ -33,7 +34,7 @@ class MinorItemRandomizer():
             for pair in room_item_pair_lists[level_num]:
                 room_type = self.data_table.GetRoomType(level_num, pair.room_num)
                 item_position = choice(ValidItemPositions[room_type])
-                self.data_table.SetItemPosition(level_num, pair.room_num, item_position)
+                self.data_table.SetItemPositionNew(level_num, pair.room_num, item_position)
 
             if not self.ShuffleItemsWithinLevel(level_num, room_item_pair_lists[level_num], seed):
                 return False

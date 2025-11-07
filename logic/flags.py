@@ -11,6 +11,7 @@ class FlagCategory(IntEnum):
     EXPERIMENTAL = 6
     LEGACY = 7
     HIDDEN = 8
+    SHUFFLE_WITHIN_DUNGEONS = 9
 
     @property
     def display_name(self) -> str:
@@ -24,6 +25,7 @@ class FlagCategory(IntEnum):
             FlagCategory.EXPERIMENTAL: "Experimental (WARNING: Not thoroughly tested, may cause unexpected behavior or crashes)",
             FlagCategory.LEGACY: "Legacy Flags from Tetra's Item Randomizer (intended for vanilla ROMs only)",
             FlagCategory.HIDDEN: "Hidden",
+            FlagCategory.SHUFFLE_WITHIN_DUNGEONS: "Shuffle Within Dungeons",
         }
         return names.get(self, "Unknown")
 
@@ -347,6 +349,36 @@ class FlagsEnum(Enum):
         'Increased Drop Items in Non-Push Block Rooms',
         'Other types of rooms with standing items (ones that would normally NOT have push blocks) will have drop items instead. The item will appear after killing all enemies. Incompatible with "Increased Standing Items".',
         FlagCategory.HIDDEN
+    )
+    SHUFFLE_WITHIN_LEVEL = (
+        'shuffle_within_level',
+        'Shuffle Items Within Levels',
+        'Shuffle items within each dungeon level. If unchecked, items will remain in their original positions within each level.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    ITEM_STAIR_CAN_HAVE_TRIFORCE = (
+        'item_stair_can_have_triforce',
+        'Item Staircase Can Have Triforce',
+        'Allow the triforce to be placed in item staircase rooms. If unchecked, the triforce cannot appear in item staircases.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    ITEM_STAIR_CAN_HAVE_MINOR_ITEM = (
+        'item_stair_can_have_minor_item',
+        'Item Staircase Can Have Minor Items',
+        'Allow minor items (bombs, keys, 5 rupees, maps, compasses) to be placed in item staircase rooms. If unchecked, minor items cannot appear in item staircases.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    FORCE_MAJOR_ITEM_TO_BOSS = (
+        'force_major_item_to_boss',
+        'Force Major Item to Boss Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    FORCE_MAJOR_ITEM_TO_TRIFORCE_ROOM = (
+        'force_major_item_to_triforce_room',
+        'Force Major Item to Triforce Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in the triforce room.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
     )
     EXAMPLE_HIDDEN_FLAG = (
         'example_hidden_flag',

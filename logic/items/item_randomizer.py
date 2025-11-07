@@ -75,9 +75,9 @@ class ItemRandomizer:
         )
 
         # Step 2: Run minor item randomizer (intra-dungeon shuffle)
-        #if not self._RunMinorItemRandomizer(seed):
-        #    log.error("Minor item randomization failed")
-        #    return False
+        if not self._RunMinorItemRandomizer(seed):
+            log.error("Minor item randomization failed")
+            return False
 
         # Step 3: Apply progressive item conversions
         self.ConvertProgressiveItemsToUpgrades()

@@ -368,6 +368,11 @@ class DataTable():
     room = self.GetRoom(level_num, room_num)
     return room.GetEnemy()
 
+  def IsItemStaircase(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if a room is an item staircase room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.IsItemStaircase()
+
   def SetLevelItemPositionCoordinates(self, level_num: int, item_position_coordinates: List[int]) -> None:
       assert len(item_position_coordinates) == 4
       for i in range(0, 4):
