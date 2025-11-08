@@ -276,6 +276,52 @@ def build_step2_container(categorized_flag_rows: dict,
                     master_toggle,
                     panels_container
                 ], spacing=0)
+
+            # Special layout for Item Changes tab
+            elif category == FlagCategory.ITEM_CHANGES:
+                # Separate shuffle_within_level as master toggle and the rest as dependent flags
+                master_toggle = None
+                dependent_flags = []
+                other_flags = []
+
+                for flag_row in flags_in_category:
+                    flag_key = flag_row.data if hasattr(flag_row, 'data') else None
+
+                    if flag_key == 'shuffle_within_level':
+                        master_toggle = flag_row
+                    elif flag_key in ['item_stair_can_have_triforce', 'item_stair_can_have_minor_item',
+                                     'force_major_item_to_boss', 'force_major_item_to_triforce_room']:
+                        dependent_flags.append(flag_row)
+                    else:
+                        other_flags.append(flag_row)
+
+                # Create container for dependent flags
+                dependent_container = ft.Container(
+                    content=ft.Column(dependent_flags, spacing=3),
+                    padding=10,
+                    border=ft.border.all(1, ft.Colors.PURPLE_300),
+                    border_radius=5,
+                    data="shuffle_within_level_container",  # Identifier for handlers
+                    disabled=True,  # Start disabled (shuffle_within_level is unchecked by default)
+                    opacity=0.4
+                )
+
+                # Split other flags into two columns
+                mid = (len(other_flags) + 1) // 2
+                other_left = other_flags[:mid]
+                other_right = other_flags[mid:]
+
+                # Build layout: master toggle, dependent container, then other flags in two columns
+                category_content = ft.Column([
+                    master_toggle if master_toggle else ft.Container(),
+                    dependent_container,
+                    ft.Container(height=10),
+                    ft.Row([
+                        ft.Column(other_left, spacing=3, expand=True),
+                        ft.Column(other_right, spacing=3, expand=True)
+                    ], spacing=10)
+                ], spacing=0)
+
             else:
                 # Default two-column layout for other categories
                 mid = (len(flags_in_category) + 1) // 2

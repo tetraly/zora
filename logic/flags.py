@@ -22,7 +22,7 @@ class FlagCategory(IntEnum):
             FlagCategory.OVERWORLD_RANDOMIZATION: "Overworld Randomization",
             FlagCategory.LOGIC_AND_DIFFICULTY: "Logic & Difficulty",
             FlagCategory.QUALITY_OF_LIFE: "Quality of Life / Other",
-            FlagCategory.EXPERIMENTAL: "Experimental (WARNING: Not thoroughly tested, may cause unexpected behavior or crashes)",
+            FlagCategory.EXPERIMENTAL: "Experimental",
             FlagCategory.LEGACY: "Legacy Flags from Tetra's Item Randomizer (intended for vanilla ROMs only)",
             FlagCategory.HIDDEN: "Hidden",
             FlagCategory.SHUFFLE_WITHIN_DUNGEONS: "Shuffle Within Dungeons",
@@ -383,33 +383,36 @@ class FlagsEnum(Enum):
         'shuffle_within_level',
         'Shuffle Items Within Levels',
         'Shuffle items within each dungeon level. If unchecked, items will remain in their original positions within each level.',
-        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+        FlagCategory.ITEM_CHANGES,
+        None  # No dependency
     )
     ITEM_STAIR_CAN_HAVE_TRIFORCE = (
         'item_stair_can_have_triforce',
         'Item Staircase Can Have Triforce',
         'Allow the triforce to be placed in item staircase rooms. If unchecked, the triforce cannot appear in item staircases.',
-        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+        FlagCategory.ITEM_CHANGES,
+        'shuffle_within_level'  # Depends on Shuffle Items Within Levels
     )
     ITEM_STAIR_CAN_HAVE_MINOR_ITEM = (
         'item_stair_can_have_minor_item',
         'Item Staircase Can Have Minor Items',
         'Allow minor items (bombs, keys, 5 rupees, maps, compasses) to be placed in item staircase rooms. If unchecked, minor items cannot appear in item staircases.',
-        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+        FlagCategory.ITEM_CHANGES,
+        'shuffle_within_level'  # Depends on Shuffle Items Within Levels
     )
     FORCE_MAJOR_ITEM_TO_BOSS = (
         'force_major_item_to_boss',
         'Force Major Item to Boss Room',
         'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss. Only applies to levels 1-8.',
-        FlagCategory.ITEM_SHUFFLE,
-        'major_item_shuffle'
+        FlagCategory.ITEM_CHANGES,
+        'shuffle_within_level'  # Depends on Shuffle Items Within Levels
     )
     FORCE_MAJOR_ITEM_TO_TRIFORCE_ROOM = (
         'force_major_item_to_triforce_room',
         'Force Major Item to Triforce Room',
         'Require that at least one major item (non-minor item or triforce) be placed in the triforce room. Only applies to levels 1-8.',
-        FlagCategory.ITEM_SHUFFLE,
-        'major_item_shuffle'
+        FlagCategory.ITEM_CHANGES,
+        'shuffle_within_level'  # Depends on Shuffle Items Within Levels
     )
     DISABLE_2Q_CHEAT_CODE = (
         'disable_2q_cheat_code',

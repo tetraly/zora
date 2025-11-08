@@ -124,6 +124,17 @@ class EventHandlers:
                     except AssertionError:
                         pass
 
+        # Disable all flags that depend on shuffle_within_level (since it starts unchecked)
+        for flag in FlagsEnum:
+            if hasattr(flag, 'depends_on') and flag.depends_on == 'shuffle_within_level':
+                if flag.value in self.flag_checkboxes:
+                    checkbox = self.flag_checkboxes[flag.value]
+                    checkbox.disabled = True
+                    try:
+                        checkbox.update()
+                    except AssertionError:
+                        pass
+
         # Initialize heart container and level 9 dependencies
         self._update_heart_container_dependencies()
         self._update_level_nine_dependencies()
@@ -143,9 +154,17 @@ class EventHandlers:
 
     def _find_item_shuffle_panels_container(self):
         """Find the item shuffle panels container in the UI tree."""
+        return self._find_container_by_data('item_shuffle_panels')
+
+    def _find_shuffle_within_level_container(self):
+        """Find the shuffle within level container in the UI tree."""
+        return self._find_container_by_data('shuffle_within_level_container')
+
+    def _find_container_by_data(self, data_value):
+        """Generic helper to find a container by its data attribute."""
         def search_for_container(control):
-            """Recursively search for container with data='item_shuffle_panels'."""
-            if hasattr(control, 'data') and control.data == 'item_shuffle_panels':
+            """Recursively search for container with matching data attribute."""
+            if hasattr(control, 'data') and control.data == data_value:
                 return control
             if hasattr(control, 'controls'):
                 for child in control.controls:
@@ -335,6 +354,44 @@ class EventHandlers:
             # Update heart container and level 9 dependencies when master toggle changes
             self._update_heart_container_dependencies()
             self._update_level_nine_dependencies()
+
+        # Handle shuffle_within_level dependency
+        if flag_key == 'shuffle_within_level':
+            # Find all flags that depend on shuffle_within_level
+            for flag in FlagsEnum:
+                if hasattr(flag, 'depends_on') and flag.depends_on == 'shuffle_within_level':
+                    if flag.value in self.flag_checkboxes:
+                        checkbox = self.flag_checkboxes[flag.value]
+
+                        if value:
+                            # Enable dependent flag
+                            checkbox.disabled = False
+                        else:
+                            # Disable and uncheck dependent flag
+                            checkbox.disabled = True
+                            checkbox.value = False
+                            self.state.flag_state.flags[flag.value] = False
+
+                        try:
+                            checkbox.update()
+                        except AssertionError:
+                            pass
+
+            # Find and enable/disable the shuffle within level container
+            container = self._find_shuffle_within_level_container()
+            if container:
+                if value:
+                    # Enable container
+                    container.disabled = False
+                    container.opacity = 1.0
+                else:
+                    # Disable container
+                    container.disabled = True
+                    container.opacity = 0.4
+                try:
+                    container.update()
+                except AssertionError:
+                    pass
 
         # Update heart container dependencies when relevant flags change
         if flag_key in ['shuffle_dungeon_hearts', 'shuffle_coast_item',
