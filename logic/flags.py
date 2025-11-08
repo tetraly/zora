@@ -196,8 +196,8 @@ class FlagsEnum(Enum):
     )
     FORCE_TWO_HEART_CONTAINERS_TO_LEVEL_NINE = (
         'force_two_heart_containers_to_level_nine',
-        'Force two heart containers to be in level 9',
-        'Require that at least two heart containers be in level 9. Warning: seeds with multiple items forced to level nine may take a long time to generate.',
+        'Force a second heart container to be in level 9',
+        'Require that a second heart container be in level 9 (in addition to any other heart container forced there). Warning: seeds with multiple items forced to level nine may take a long time to generate.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )

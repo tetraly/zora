@@ -141,6 +141,30 @@ class EventHandlers:
                 checkbox.value = self.state.flag_state.flags.get(flag_key, False)
                 checkbox.update()
 
+    def _find_item_shuffle_panels_container(self):
+        """Find the item shuffle panels container in the UI tree."""
+        def search_for_container(control):
+            """Recursively search for container with data='item_shuffle_panels'."""
+            if hasattr(control, 'data') and control.data == 'item_shuffle_panels':
+                return control
+            if hasattr(control, 'controls'):
+                for child in control.controls:
+                    result = search_for_container(child)
+                    if result:
+                        return result
+            if hasattr(control, 'content'):
+                return search_for_container(control.content)
+            if hasattr(control, 'tabs'):
+                for tab in control.tabs:
+                    result = search_for_container(tab)
+                    if result:
+                        return result
+            return None
+
+        if self.step2_container:
+            return search_for_container(self.step2_container)
+        return None
+
     def _get_available_heart_containers(self) -> int:
         """Calculate how many heart containers are available for shuffling."""
         flags = self.state.flag_state.flags
@@ -164,7 +188,7 @@ class EventHandlers:
         if flags.get('force_heart_container_to_level_nine', False):
             slots += 1
         if flags.get('force_two_heart_containers_to_level_nine', False):
-            slots += 2  # This one takes 2 slots!
+            slots += 1  # "Second" heart container also uses 1 slot
         return slots
 
     def _get_forced_heart_count(self) -> int:
@@ -178,7 +202,7 @@ class EventHandlers:
         if flags.get('force_heart_container_to_level_nine', False):
             forced += 1
         if flags.get('force_two_heart_containers_to_level_nine', False):
-            forced += 2
+            forced += 1  # "Second" heart container also forces 1 heart
         return forced
 
     def _update_heart_container_dependencies(self):
@@ -197,8 +221,8 @@ class EventHandlers:
             if flag_key in self.flag_checkboxes:
                 checkbox = self.flag_checkboxes[flag_key]
 
-                # Calculate how many hearts this flag needs
-                needs = 2 if flag_key == 'force_two_heart_containers_to_level_nine' else 1
+                # All flags force 1 heart each
+                needs = 1
 
                 # Can enable if: available hearts >= needs + (other forced hearts)
                 # But if this flag is already checked, don't count it in forced
@@ -240,8 +264,8 @@ class EventHandlers:
             if flag_key in self.flag_checkboxes:
                 checkbox = self.flag_checkboxes[flag_key]
 
-                # Calculate slots this flag needs
-                needs = 2 if flag_key == 'force_two_heart_containers_to_level_nine' else 1
+                # All flags use 1 slot each
+                needs = 1
 
                 # Calculate slots used by OTHER flags
                 other_slots = slots_used
@@ -291,6 +315,26 @@ class EventHandlers:
                             checkbox.update()
                         except AssertionError:
                             pass
+
+            # Find and enable/disable the item shuffle panels container
+            panels_container = self._find_item_shuffle_panels_container()
+            if panels_container:
+                if value:
+                    # Enable panels
+                    panels_container.disabled = False
+                    panels_container.opacity = 1.0
+                else:
+                    # Disable panels
+                    panels_container.disabled = True
+                    panels_container.opacity = 0.4
+                try:
+                    panels_container.update()
+                except AssertionError:
+                    pass
+
+            # Update heart container and level 9 dependencies when master toggle changes
+            self._update_heart_container_dependencies()
+            self._update_level_nine_dependencies()
 
         # Update heart container dependencies when relevant flags change
         if flag_key in ['shuffle_dungeon_hearts', 'shuffle_coast_item',

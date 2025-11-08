@@ -247,12 +247,9 @@ def build_step2_container(categorized_flag_rows: dict,
                     expand=True
                 )
 
-                # Right side: Constraints
+                # Right side: Constraints (no internal header)
                 right_container = ft.Container(
-                    content=ft.Column([
-                        ft.Text("Shuffle Constraints", weight="bold", size=14),
-                        ft.Column(constraint_flags, spacing=3)
-                    ], spacing=5),
+                    content=ft.Column(constraint_flags, spacing=3),
                     padding=10,
                     border=ft.border.all(1, ft.Colors.BLUE_300),
                     border_radius=5,
@@ -260,10 +257,24 @@ def build_step2_container(categorized_flag_rows: dict,
                 )
 
                 # Build layout: master toggle above, then two containers side by side
+                # Right side has header text above the container
+                # Wrap the panels in a container that can be disabled
+                panels_container = ft.Container(
+                    content=ft.Row([
+                        left_container,
+                        ft.Column([
+                            ft.Text("... with these constraints:", weight="bold", size=14),
+                            right_container
+                        ], spacing=5)
+                    ], spacing=15),
+                    data="item_shuffle_panels",  # Identifier for handlers
+                    disabled=True,  # Start disabled (master toggle is unchecked by default)
+                    opacity=0.4
+                )
+
                 category_content = ft.Column([
                     master_toggle,
-                    ft.Container(height=10),  # Spacing
-                    ft.Row([left_container, right_container], spacing=15)
+                    panels_container
                 ], spacing=0)
             else:
                 # Default two-column layout for other categories
