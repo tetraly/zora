@@ -78,7 +78,7 @@ class Item(IntEnum):
   LETTER = 0x15
   COMPASS = 0x16
   MAP = 0x17
-  RUPEE = 0x18
+  #RUPEE = 0x18
   NO_ITEM = 0x18
   KEY = 0x19
   HEART_CONTAINER = 0x1A
@@ -200,6 +200,12 @@ class RoomType(IntEnum):
         RoomType.FIVE_PAIR_ROOM,
         RoomType.SINGLE_BLOCK_ROOM,
     ]
+
+  def IsStaircaseRoom(self):
+      return self in [
+          RoomType.TRANSPORT_STAIRCASE,
+          RoomType.ITEM_STAIRCASE,
+      ]
     
 class ItemPosition(IntEnum):
     MIDDLE = 0
@@ -332,6 +338,7 @@ def getAccessibleItemLocations(room, entry_direction, has_ladder):
     return ValidDropLocations[room]
     
 class Enemy(IntEnum):
+  NO_ENEMY = 0x00
   NOTHING = 0x00
   BLUE_LYNEL = 0x01
   RED_LYNEL =  0x02

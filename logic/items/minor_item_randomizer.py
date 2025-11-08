@@ -88,15 +88,15 @@ class MinorItemRandomizer():
                 if item.IsMinorItem():
                     self._ForbidItemInStaircases(solver, level_num, room_nums, items, item)
 
-        # Force major item to boss room constraint
-        if self.flags.force_major_item_to_boss:
+        # Force major item to boss room constraint (levels 1-8 only)
+        if self.flags.force_major_item_to_boss and level_num != 9:
             def is_boss_room(room_num):
                 enemy = self.data_table.GetRoomEnemy(level_num, room_num)
                 return enemy.IsBoss()
             self._RequireMajorItemInRoomType(solver, level_num, room_nums, items, is_boss_room, "force_major_item_to_boss")
 
-        # Force major item to triforce room constraint
-        if self.flags.force_major_item_to_triforce_room:
+        # Force major item to triforce room constraint (levels 1-8 only)
+        if self.flags.force_major_item_to_triforce_room and level_num != 9:
             def is_triforce_room(room_num):
                 room_type = self.data_table.GetRoomType(level_num, room_num)
                 return room_type == RoomType.TRIFORCE_ROOM

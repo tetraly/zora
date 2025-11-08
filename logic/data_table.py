@@ -1,6 +1,6 @@
 import logging as log
 from typing import Dict, List
-from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
+from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomNum, RoomType, WallType
 from .constants import ENTRANCE_DIRECTION_MAP
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
@@ -153,6 +153,12 @@ class DataTable():
       self.level_7_to_9_rooms[location.GetRoomNum()].SetItem(item)
     else:
       self.level_1_to_6_rooms[location.GetRoomNum()].SetItem(item)
+
+  def GetItemPosition(self, level_num: int, room_num: int) -> ItemPosition:
+    if level_num in [7, 8, 9]:
+      return self.level_7_to_9_rooms[room_num].GetItemPosition()
+    else:
+      return self.level_1_to_6_rooms[room_num].GetItemPosition()
 
   def SetItemPosition(self, location: Location, position_num: int) -> None:
     assert location.IsLevelRoom()
@@ -365,6 +371,8 @@ class DataTable():
 
   def GetRoomEnemy(self, level_num: LevelNum, room_num: RoomNum) -> Enemy:
     """Get the enemy type in a specific room."""
+    if self.GetRoomType(level_num, room_num).IsStaircaseRoom():
+        return Enemy.NO_ENEMY
     room = self.GetRoom(level_num, room_num)
     return room.GetEnemy()
 

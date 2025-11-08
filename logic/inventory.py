@@ -39,8 +39,8 @@ class Inventory(object):
 
   def AddItem(self, item: Item, item_location: Location) -> None:
     if item in [
-        Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD, Item.BOMBS,
-        Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
+        Item.NO_ITEM, Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD,
+        Item.BOMBS, Item.FIVE_RUPEES, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
     ]:
       return
     log.debug(f"Found {item.name} in {item_location.ToString()}")

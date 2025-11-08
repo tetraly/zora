@@ -377,13 +377,13 @@ class FlagsEnum(Enum):
     FORCE_MAJOR_ITEM_TO_BOSS = (
         'force_major_item_to_boss',
         'Force Major Item to Boss Room',
-        'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss.',
+        'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss. Only applies to levels 1-8.',
         FlagCategory.SHUFFLE_WITHIN_DUNGEONS
     )
     FORCE_MAJOR_ITEM_TO_TRIFORCE_ROOM = (
         'force_major_item_to_triforce_room',
         'Force Major Item to Triforce Room',
-        'Require that at least one major item (non-minor item or triforce) be placed in the triforce room.',
+        'Require that at least one major item (non-minor item or triforce) be placed in the triforce room. Only applies to levels 1-8.',
         FlagCategory.SHUFFLE_WITHIN_DUNGEONS
     )
     DISABLE_2Q_CHEAT_CODE = (

@@ -48,8 +48,8 @@ class RandomizedBacktrackingSolver:
         self.last_solution_indices: Optional[Dict[Any, int]] = None
 
         # Backtracking configuration
-        self.max_iterations: int = 100  # Reduced from 1000
-        self.max_backtrack_depth: int = 10  # Reduced from 50 - fail fast
+        self.max_iterations: int = 1000  # Increased to allow more attempts to find solutions
+        self.max_backtrack_depth: int = 50  # Increased to allow deeper search
 
     def add_permutation_problem(
         self,
