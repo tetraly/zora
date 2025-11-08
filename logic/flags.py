@@ -11,6 +11,7 @@ class FlagCategory(IntEnum):
     EXPERIMENTAL = 6
     LEGACY = 7
     HIDDEN = 8
+    SHUFFLE_WITHIN_DUNGEONS = 9
 
     @property
     def display_name(self) -> str:
@@ -24,11 +25,18 @@ class FlagCategory(IntEnum):
             FlagCategory.EXPERIMENTAL: "Experimental (WARNING: Not thoroughly tested, may cause unexpected behavior or crashes)",
             FlagCategory.LEGACY: "Legacy Flags from Tetra's Item Randomizer (intended for vanilla ROMs only)",
             FlagCategory.HIDDEN: "Hidden",
+            FlagCategory.SHUFFLE_WITHIN_DUNGEONS: "Shuffle Within Dungeons",
         }
         return names.get(self, "Unknown")
 
 
 class FlagsEnum(Enum):
+    MAJOR_ITEM_SHUFFLE = (
+        'major_item_shuffle',
+        'Enable Major Item Shuffle',
+        'Master toggle to enable major item randomization. When disabled, all item shuffle functionality is turned off and shuffle flags below are disabled.',
+        FlagCategory.ITEM_SHUFFLE
+    )
     SHUFFLE_WOOD_SWORD_CAVE_ITEM = (
         'shuffle_wood_sword_cave_item',
         'Shuffle Wood Sword Cave item',
@@ -63,6 +71,12 @@ class FlagsEnum(Enum):
         'shuffle_coast_item',
         'Shuffle the Coast Item',
         'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.',
+        FlagCategory.ITEM_SHUFFLE
+    )
+    SHUFFLE_DUNGEON_HEARTS = (
+        'shuffle_dungeon_hearts',
+        'Shuffle Dungeon Hearts',
+        'Adds the heart containers found in dungeons (levels 1-8) to the item shuffle pool. When disabled, heart containers remain in their original dungeon locations. Note: The coast and armos heart containers can still be shuffled with their respective flags.',
         FlagCategory.ITEM_SHUFFLE
     )
     SHUFFLE_SHOP_ARROWS = (
@@ -164,8 +178,8 @@ class FlagsEnum(Enum):
     FORCE_TWO_HEART_CONTAINERS_TO_LEVEL_NINE = (
         'force_two_heart_containers_to_level_nine',
         'Force two heart containers to be in level 9',
-        'WARNING: THIS FLAG DOES NOT CURRENTLY WORK AND WILL BE FIXED IN A FUTURE UPDATE. DO NOT USE.',
-        FlagCategory.HIDDEN
+        'Require that at least two heart containers be in level 9. Warning: seeds with multiple items forced to level nine may take a long time to generate.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     FORCE_HEART_CONTAINER_TO_ARMOS = (
         'force_heart_container_to_armos',
@@ -341,6 +355,66 @@ class FlagsEnum(Enum):
         'Increased Drop Items in Non-Push Block Rooms',
         'Other types of rooms with standing items (ones that would normally NOT have push blocks) will have drop items instead. The item will appear after killing all enemies. Incompatible with "Increased Standing Items".',
         FlagCategory.HIDDEN
+    )
+    SHUFFLE_WITHIN_LEVEL = (
+        'shuffle_within_level',
+        'Shuffle Items Within Levels',
+        'Shuffle items within each dungeon level. If unchecked, items will remain in their original positions within each level.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    ITEM_STAIR_CAN_HAVE_TRIFORCE = (
+        'item_stair_can_have_triforce',
+        'Item Staircase Can Have Triforce',
+        'Allow the triforce to be placed in item staircase rooms. If unchecked, the triforce cannot appear in item staircases.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    ITEM_STAIR_CAN_HAVE_MINOR_ITEM = (
+        'item_stair_can_have_minor_item',
+        'Item Staircase Can Have Minor Items',
+        'Allow minor items (bombs, keys, 5 rupees, maps, compasses) to be placed in item staircase rooms. If unchecked, minor items cannot appear in item staircases.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    FORCE_MAJOR_ITEM_TO_BOSS = (
+        'force_major_item_to_boss',
+        'Force Major Item to Boss Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss. Only applies to levels 1-8.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    FORCE_MAJOR_ITEM_TO_TRIFORCE_ROOM = (
+        'force_major_item_to_triforce_room',
+        'Force Major Item to Triforce Room',
+        'Require that at least one major item (non-minor item or triforce) be placed in the triforce room. Only applies to levels 1-8.',
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS
+    )
+    DISABLE_2Q_CHEAT_CODE = (
+        'disable_2q_cheat_code',
+        'Disable 2Q Cheat Code',
+        'Disables the 2nd quest cheat code entry mechanism.',
+        FlagCategory.EXPERIMENTAL
+    )
+    DISABLE_2Q_FLAG_AFTER_WINNING = (
+        'disable_2q_flag_after_winning',
+        'Disable 2Q Flag After Winning',
+        'Prevents the 2nd quest flag from being set after winning the game.',
+        FlagCategory.EXPERIMENTAL
+    )
+    DONT_RESET_SAVE_DATA_AFTER_WINNING = (
+        'dont_reset_save_data_after_winning',
+        'Don\'t Reset Save Data After Winning',
+        'Prevents save data from being reset after completing the game.',
+        FlagCategory.EXPERIMENTAL
+    )
+    HARMLESS_CANDLE_FIRE = (
+        'harmless_candle_fire',
+        'Harmless Candle Fire',
+        'Makes candle fire harmless to Link.',
+        FlagCategory.EXPERIMENTAL
+    )
+    LIKE_LIKES_EAT_RUPEES = (
+        'like_likes_eat_rupees',
+        'Like Likes Eat Rupees',
+        'Changes Like-Likes to eat rupees instead of shields.',
+        FlagCategory.EXPERIMENTAL
     )
     EXAMPLE_HIDDEN_FLAG = (
         'example_hidden_flag',

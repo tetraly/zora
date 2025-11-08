@@ -186,7 +186,7 @@ class Validator(object):
         log.warning("FAILURE: Rescued kidnapped but missing important items")
         return False
     else:
-      log.warning("FAILURE: Never rescued the kidnapped")
+      log.info("FAILURE: Never rescued the kidnapped")
       log.debug("Seed doesn't appear to be beatable. :(")
       return False
 
@@ -319,12 +319,13 @@ class Validator(object):
       room = self.data_table.GetRoom(level_num, room_num)
       if room.IsMarkedAsVisited():
         return []
-      log.debug("Visiting level %d room %x" % (level_num, room_num))
       room.MarkAsVisited()
       tbr = []
 
       if self.CanGetRoomItem(entry_direction, room) and room.HasItem():
           self.inventory.AddItem(room.GetItem(), Location.LevelRoom(level_num, room_num))
+          if room.GetItem().IsMajorItem():
+              log.debug(f"Found {room.GetItem().name} in {Location.LevelRoom(level_num, room_num).ToString()}")
       if room.GetEnemy() == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, room):
           self.inventory.AddItem(Item.BEAST_DEFEATED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
       if room.GetEnemy() == Enemy.THE_KIDNAPPED:

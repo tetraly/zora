@@ -1,6 +1,6 @@
 from typing import Dict, List
 import logging
-from .randomizer_constants import Direction, Enemy, Item, Range, RoomAction, RoomNum, RoomType, WallType
+from .randomizer_constants import Direction, Enemy, Item, ItemPosition, Range, RoomAction, RoomNum, RoomType, WallType
 
 log = logging.getLogger(__name__)
 
@@ -42,9 +42,10 @@ class Room():
   MOVEMENT_CONSTRAINED_ROOMS = MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS.keys()
 
   def __init__(self, rom_data: List[int]) -> None:
+    # Change "NO_ITEM" code from 0x03 to 0x18
     if rom_data[4] & 0x1F == 0x03:
       stuff_not_to_change = rom_data[4] & 0xE0
-      new_value = stuff_not_to_change + 0x0E
+      new_value = stuff_not_to_change + 0x18
       rom_data[4] = new_value
     self.rom_data = rom_data
 
@@ -148,8 +149,11 @@ class Room():
     assert new_value & 0xE0 == part_that_shouldnt_be_modified
     assert new_value & 0x1F == item_num
     self.rom_data[4] = new_value
-    log.debug("Changed item %x to %x" % (old_item_num, item_num))
+    log.debug(f"Changed item {old_item_num:02x} to {new_value:02x}")
     
+  def GetItemPosition(self) -> ItemPosition:
+    return ItemPosition((self.rom_data[5] & 0x30) >> 4)
+
   def SetItemPosition(self, position_num: int):
     part_that_shouldnt_be_modified = self.rom_data[5] & 0xCF
     new_value = part_that_shouldnt_be_modified + position_num * 0x10
