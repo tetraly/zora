@@ -252,23 +252,60 @@ def build_step2_container(categorized_flag_rows: dict,
 
     print(f"DEBUG: Total tabs created: {len(tabs)}")
 
-    # Create tabs widget
-    if tabs:
-        tabs_widget = ft.Tabs(
-            selected_index=0,
-            animation_duration=300,
-            tabs=tabs,
+    # Create custom tab interface using buttons and containers
+    # Store tab contents in a list of containers
+    tab_containers = []
+    tab_buttons = []
+
+    for i, tab in enumerate(tabs):
+        # Create container for this tab's content (hidden by default except first)
+        container = ft.Container(
+            content=tab.content.content,  # Extract content from the tab's container
+            visible=(i == 0),  # Only first tab visible initially
+            padding=15,
+            border=tab.content.border,
+            border_radius=tab.content.border_radius
         )
-    else:
-        # Fallback if no tabs
-        tabs_widget = ft.Text("No flag categories available", color=ft.Colors.RED)
+        tab_containers.append(container)
+
+        # Create button handler for this tab
+        def make_handler(index):
+            def handler(e):
+                # Hide all tab containers, show only the clicked one
+                for j, tc in enumerate(tab_containers):
+                    tc.visible = (j == index)
+                    tc.update()
+                # Update button styles
+                for j, btn in enumerate(tab_buttons):
+                    if j == index:
+                        btn.style = ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_100)
+                    else:
+                        btn.style = None
+                    btn.update()
+            return handler
+
+        # Create button for this tab
+        button = ft.ElevatedButton(
+            text=tab.text,
+            on_click=make_handler(i),
+            style=ft.ButtonStyle(bgcolor=ft.Colors.PURPLE_100) if i == 0 else None
+        )
+        tab_buttons.append(button)
+
+    # Create row of tab buttons
+    tab_button_row = ft.Row(tab_buttons, spacing=5, wrap=True)
+
+    # Create column with all tab containers stacked (only one visible at a time)
+    tab_content_stack = ft.Column(tab_containers, spacing=0)
 
     content = ft.Column([
         ft.Text("Step 2: Configure ZORA Flags and Seed Number", size=20, weight="bold"),
         ft.Container(height=3), flag_seed_row,
         ft.Divider(height=1),
         ft.Container(height=5),
-        tabs_widget,
+        tab_button_row,
+        ft.Container(height=5),
+        tab_content_stack,
         ft.Container(randomize_button, alignment=ft.alignment.center, padding=5)],
                         spacing=5)
 
