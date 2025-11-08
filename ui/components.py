@@ -252,22 +252,13 @@ def build_step2_container(categorized_flag_rows: dict,
 
     print(f"DEBUG: Total tabs created: {len(tabs)}")
 
-    # Create tabs widget - TEST MODE
+    # Create tabs widget
     if tabs:
-        # TEMPORARY: Show first category's content directly instead of tabs
-        print("DEBUG: Creating tabs widget with first tab content")
-        test_content = ft.Column([
-            ft.Text(f"TEST: Showing first category - {tabs[0].text}", color=ft.Colors.GREEN),
-            tabs[0].content
-        ])
-        tabs_widget = test_content
-
-        # Original tabs code (disabled for testing):
-        # tabs_widget = ft.Tabs(
-        #     selected_index=0,
-        #     animation_duration=300,
-        #     tabs=tabs,
-        # )
+        tabs_widget = ft.Tabs(
+            selected_index=0,
+            animation_duration=300,
+            tabs=tabs,
+        )
     else:
         # Fallback if no tabs
         tabs_widget = ft.Text("No flag categories available", color=ft.Colors.RED)
