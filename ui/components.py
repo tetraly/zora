@@ -254,7 +254,6 @@ def build_step2_container(categorized_flag_rows: dict,
         selected_index=0,
         animation_duration=300,
         tabs=tabs,
-        expand=True
     )
 
     content = ft.Column([
