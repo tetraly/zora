@@ -1,7 +1,11 @@
-"""Major item randomizer using constraint solver approach.
+"""Major item randomizer using OR-Tools constraint solver approach.
 
 This module handles inter-dungeon shuffle of major items (including heart containers)
-across all dungeons (1-9) and key overworld locations using the AssignmentSolver.
+across all dungeons (1-9) and key overworld locations using AssignmentSolver (OR-Tools).
+
+Uses AssignmentSolver (instead of RandomizedBacktrackingSolver) because the
+_ForceTwoHeartContainersToLevel9 constraint requires direct access to OR-Tools CP-SAT
+internals (solver.model, solver.var_map) to create complex sum constraints.
 
 Items NOT included in major shuffle:
 - TRIFORCE (levels 1-8) - stays in assigned level, shuffled intra-dungeon
