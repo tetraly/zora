@@ -167,8 +167,12 @@ class EventHandlers:
 
     def enable_step2(self) -> None:
         """Enable Step 2 UI."""
+        print("DEBUG: enable_step2() called")
+        print(f"DEBUG: step2_container exists: {self.step2_container is not None}")
         self.step2_container.disabled = False
         self.step2_container.opacity = 1.0
+        self.step2_container.visible = True
+        print(f"DEBUG: step2_container disabled={self.step2_container.disabled}, opacity={self.step2_container.opacity}, visible={self.step2_container.visible}")
         self.step2_container.update()
 
     def disable_step2(self) -> None:
