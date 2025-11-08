@@ -182,13 +182,22 @@ class EventHandlers:
                         # Enabled: restore default color
                         checkbox.label_style = None
 
-                    checkbox.update()
+                    # Only update if the control is on the page
+                    try:
+                        checkbox.update()
+                    except AssertionError:
+                        # Control not yet added to page, skip update
+                        pass
 
         # Update the legacy note visibility if it exists
         if self.legacy_note_ref:
             for legacy_note in self.legacy_note_ref:
                 legacy_note.visible = not is_vanilla
-                legacy_note.update()
+                try:
+                    legacy_note.update()
+                except AssertionError:
+                    # Control not yet added to page, skip update
+                    pass
 
     # ROM loading handlers
     def load_rom_and_show_card(self, disable_seed: bool = False) -> None:
