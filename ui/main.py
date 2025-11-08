@@ -120,6 +120,9 @@ def main(page: ft.Page, platform: str = "web") -> None:
     # Store flag checkboxes reference in handlers
     handlers.flag_checkboxes = flag_checkboxes
 
+    # Initialize flag dependencies (disable dependent flags)
+    handlers.initialize_dependencies()
+
     # Step 2: Inputs
     flagstring_input = ft.TextField(label="ZORA Flag String",
                                     value="",

@@ -33,93 +33,108 @@ class FlagCategory(IntEnum):
 class FlagsEnum(Enum):
     MAJOR_ITEM_SHUFFLE = (
         'major_item_shuffle',
-        'Enable Major Item Shuffle',
+        'Dungeon Items',
         'Master toggle to enable major item randomization. When disabled, all item shuffle functionality is turned off and shuffle flags below are disabled.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        None  # No dependency
     )
     SHUFFLE_WOOD_SWORD_CAVE_ITEM = (
         'shuffle_wood_sword_cave_item',
-        'Shuffle Wood Sword Cave item',
+        'Wood Sword',
         'Adds the Wood Sword Cave Item to the item shuffle pool. May or may not make the seed unbeatable. Recommended for advanced players only.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'  # Depends on Dungeon Items
     )
     SHUFFLE_WHITE_SWORD_CAVE_ITEM = (
         'shuffle_white_sword_cave_item',
-        'Shuffle White Sword Cave item',
+        'White Sword',
         'Adds the White Sword Cave item to the item shuffle pool',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_MAGICAL_SWORD_CAVE_ITEM = (
         'shuffle_magical_sword_cave_item',
-        'Shuffle Magical Sword Cave item',
+        'Magical Sword',
         'Adds the Magical Sword to the item shuffle pool. Important Note: If the Magical Sword is shuffled into a room that normally has a standing floor item, it will become a drop item. You will need to defeat all enemies in the room for the Magical Sword to appear.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_LETTER_CAVE_ITEM = (
         'shuffle_letter_cave_item',
-        'Shuffle Letter Cave Item',
+        'Letter',
         'Adds the Letter Cave Item to the item shuffle.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_ARMOS_ITEM = (
         'shuffle_armos_item',
-        'Shuffle the Armos Item',
+        'Armos Item',
         'Adds the Armos item (the Power Bracelet in a vanilla seed) to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_COAST_ITEM = (
         'shuffle_coast_item',
-        'Shuffle the Coast Item',
+        'Coast Item',
         'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_DUNGEON_HEARTS = (
         'shuffle_dungeon_hearts',
-        'Shuffle Dungeon Hearts',
+        'Dungeon Heart Containers',
         'Adds the heart containers found in dungeons (levels 1-8) to the item shuffle pool. When disabled, heart containers remain in their original dungeon locations. Note: The coast and armos heart containers can still be shuffled with their respective flags.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_SHOP_ARROWS = (
         'shuffle_shop_arrows',
-        'Shuffle Shop Arrows',
+        'Shop Arrows',
         'Adds the wood arrows from the shop to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_SHOP_CANDLE = (
         'shuffle_shop_candle',
-        'Shuffle Shop Candle',
+        'Shop Candle',
         'Adds the blue candle from the shop to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_SHOP_RING = (
         'shuffle_shop_ring',
-        'Shuffle Shop Ring',
+        'Shop Ring',
         'Adds the blue ring from the shop to the item shuffle pool. The shop location price will be changed to 150 ± 25 rupees.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_SHOP_BOOK = (
         'shuffle_shop_book',
-        'Shuffle Shop Book',
+        'Shop Book',
         'Adds the book from the shop (if one is present) to the item shuffle pool.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_SHOP_BAIT = (
         'shuffle_shop_bait',
-        'Shuffle Shop Bait',
+        'Shop Bait',
         'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a mystery item.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_POTION_SHOP_ITEMS = (
         'shuffle_potion_shop_items',
-        'Shuffle Potion Shop Items',
+        'Potion Shop Items',
         'Adds the potions in the potion shop to the item shuffle pool. Known issue: Red potions in dungeons will be downgraded to blue potions.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     SHUFFLE_MINOR_DUNGEON_ITEMS = (
         'shuffle_minor_dungeon_items',
-        'Shuffle Minor Dungeon Items',
+        'Minor Dungeon Items',
         'Adds minor items (five rupees, bombs, keys, maps, and compasses) to the item shuffle pool. Primarily designed for use with vanilla ROMs, not Zelda Randomizer ROMs.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     AVOID_REQUIRED_HARD_COMBAT = (
         'avoid_required_hard_combat',
@@ -155,43 +170,50 @@ class FlagsEnum(Enum):
         'force_arrow_to_level_nine',
         'Force an arrow to be in level 9',
         'Require that an arrow be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     FORCE_RING_TO_LEVEL_NINE = (
         'force_ring_to_level_nine',
         'Force a ring to be in level 9',
         'Require that a ring be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     FORCE_WAND_TO_LEVEL_NINE = (
         'force_wand_to_level_nine',
         'Force a wand to be in level 9',
         'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     FORCE_HEART_CONTAINER_TO_LEVEL_NINE = (
         'force_heart_container_to_level_nine',
         'Force a heart container to be in level 9',
         'Require that at least one heart container be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     FORCE_TWO_HEART_CONTAINERS_TO_LEVEL_NINE = (
         'force_two_heart_containers_to_level_nine',
         'Force two heart containers to be in level 9',
         'Require that at least two heart containers be in level 9. Warning: seeds with multiple items forced to level nine may take a long time to generate.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     FORCE_HEART_CONTAINER_TO_ARMOS = (
         'force_heart_container_to_armos',
         'Force heart container to Armos',
         'Require that the Armos item be a heart container. Only works when "Shuffle the Armos Item" is enabled.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     FORCE_HEART_CONTAINER_TO_COAST = (
         'force_heart_container_to_coast',
         'Force heart container to Coast',
         'Require that the Coast item be a heart container. Only works when "Shuffle the Coast Item" is enabled.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     EXTRA_RAFT_BLOCKS = (
         'extra_raft_blocks',
@@ -209,7 +231,8 @@ class FlagsEnum(Enum):
         'allow_important_items_in_level_nine',
         'Allow Important Items in Level 9',
         'Allows "important" items (bow, ladder, power bracelet, raft, recorder) to be placed in level 9. By default, these items are restricted from level 9.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     PROGRESSIVE_ITEMS = (
         'progressive_items',
@@ -378,13 +401,15 @@ class FlagsEnum(Enum):
         'force_major_item_to_boss',
         'Force Major Item to Boss Room',
         'Require that at least one major item (non-minor item or triforce) be placed in a room with a boss. Only applies to levels 1-8.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     FORCE_MAJOR_ITEM_TO_TRIFORCE_ROOM = (
         'force_major_item_to_triforce_room',
         'Force Major Item to Triforce Room',
         'Require that at least one major item (non-minor item or triforce) be placed in the triforce room. Only applies to levels 1-8.',
-        FlagCategory.ITEM_SHUFFLE
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
     )
     DISABLE_2Q_CHEAT_CODE = (
         'disable_2q_cheat_code',
@@ -423,11 +448,12 @@ class FlagsEnum(Enum):
         FlagCategory.HIDDEN
     )
 
-    def __init__(self, value, display_name, help_text, category):
+    def __init__(self, value, display_name, help_text, category, depends_on=None):
         self._value_ = value
         self.display_name = display_name
         self.help_text = help_text
         self.category = category
+        self.depends_on = depends_on  # Flag key this flag depends on, or None
 
     @classmethod
     def get_flag_list(cls):

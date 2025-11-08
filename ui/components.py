@@ -222,10 +222,7 @@ def build_step2_container(categorized_flag_rows: dict,
                     # Constraint flags (force/allow)
                     if flag_key and (flag_key.startswith('force_') or flag_key.startswith('allow_important')):
                         constraint_flags.append(flag_row)
-                    # Major item shuffle master toggle
-                    elif flag_key == 'major_item_shuffle':
-                        constraint_flags.insert(0, flag_row)  # Put at top
-                    # Everything else goes in shuffle pool
+                    # Everything else (including major_item_shuffle) goes in shuffle pool
                     else:
                         shuffle_pool_flags.append(flag_row)
 
@@ -408,8 +405,15 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
                 label=flag.display_name,
                 value=False,
                 data=flag.value,  # Store flag key for identification
+                disabled=False,  # Will be updated based on dependencies
                 on_change=lambda e, key=flag.value: on_change_callback(key, e.control.value))
             flag_checkboxes[flag.value] = checkbox
+
+            # Store dependency info on checkbox for later reference
+            if hasattr(flag, 'depends_on'):
+                checkbox.data = (flag.value, flag.depends_on)
+            else:
+                checkbox.data = (flag.value, None)
 
             # Create row with checkbox and help icon
             flag_row = ft.Row([
