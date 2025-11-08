@@ -207,19 +207,72 @@ def build_step2_container(categorized_flag_rows: dict,
         if category == FlagCategory.HIDDEN:
             continue
         if categorized_flag_rows[category]:  # Only show categories with flags
-            # Split flags in this category into two columns
             flags_in_category = categorized_flag_rows[category]
-            mid = (len(flags_in_category) + 1) // 2
-            left_flags = flags_in_category[:mid]
-            right_flags = flags_in_category[mid:]
 
-            # Create flag rows
-            flag_content = ft.Row([
-                ft.Column(left_flags, spacing=3, expand=True),
-                ft.Column(right_flags, spacing=3, expand=True)],
-                                      spacing=10)
+            # Special layout for Item Shuffle tab
+            if category == FlagCategory.ITEM_SHUFFLE:
+                # Separate flags into "include in shuffle" and "constraints"
+                shuffle_pool_flags = []
+                constraint_flags = []
 
-            category_content = flag_content
+                for flag_row in flags_in_category:
+                    # Extract flag key from the row's data attribute
+                    flag_key = flag_row.data if hasattr(flag_row, 'data') else None
+
+                    # Constraint flags (force/allow)
+                    if flag_key and (flag_key.startswith('force_') or flag_key.startswith('allow_important')):
+                        constraint_flags.append(flag_row)
+                    # Major item shuffle master toggle
+                    elif flag_key == 'major_item_shuffle':
+                        constraint_flags.insert(0, flag_row)  # Put at top
+                    # Everything else goes in shuffle pool
+                    else:
+                        shuffle_pool_flags.append(flag_row)
+
+                # Split shuffle pool into two sub-columns
+                mid = (len(shuffle_pool_flags) + 1) // 2
+                shuffle_left = shuffle_pool_flags[:mid]
+                shuffle_right = shuffle_pool_flags[mid:]
+
+                # Left side: Include in major item shuffle
+                left_container = ft.Container(
+                    content=ft.Column([
+                        ft.Text("Include in Major Item Shuffle", weight="bold", size=14),
+                        ft.Row([
+                            ft.Column(shuffle_left, spacing=3, expand=True),
+                            ft.Column(shuffle_right, spacing=3, expand=True)
+                        ], spacing=10)
+                    ], spacing=5),
+                    padding=10,
+                    border=ft.border.all(1, ft.Colors.BLUE_300),
+                    border_radius=5,
+                    expand=True
+                )
+
+                # Right side: Constraints
+                right_container = ft.Container(
+                    content=ft.Column([
+                        ft.Text("Shuffle Constraints", weight="bold", size=14),
+                        ft.Column(constraint_flags, spacing=3)
+                    ], spacing=5),
+                    padding=10,
+                    border=ft.border.all(1, ft.Colors.BLUE_300),
+                    border_radius=5,
+                    expand=True
+                )
+
+                category_content = ft.Row([left_container, right_container], spacing=15)
+            else:
+                # Default two-column layout for other categories
+                mid = (len(flags_in_category) + 1) // 2
+                left_flags = flags_in_category[:mid]
+                right_flags = flags_in_category[mid:]
+
+                # Create flag rows
+                category_content = ft.Row([
+                    ft.Column(left_flags, spacing=3, expand=True),
+                    ft.Column(right_flags, spacing=3, expand=True)],
+                                          spacing=10)
 
             # Create tab with colored border around content
             tab = ft.Tab(
@@ -354,6 +407,7 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
             checkbox = ft.Checkbox(
                 label=flag.display_name,
                 value=False,
+                data=flag.value,  # Store flag key for identification
                 on_change=lambda e, key=flag.value: on_change_callback(key, e.control.value))
             flag_checkboxes[flag.value] = checkbox
 
@@ -365,7 +419,8 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
                               tooltip=flag.help_text,
                               style=ft.ButtonStyle(padding=2))],
                               spacing=0,
-                              tight=True)
+                              tight=True,
+                              data=flag.value)  # Store flag key on row too
 
             # Add to appropriate category
             categorized_flag_rows[flag.category].append(flag_row)
