@@ -197,6 +197,7 @@ class EventHandlers:
         Args:
             disable_seed: If True, disable seed input and random seed button
         """
+        print(f"DEBUG: load_rom_and_show_card() called with disable_seed={disable_seed}")
         # Hide Step 1, show ROM info card
         self.hide_step1()
 
@@ -219,7 +220,11 @@ class EventHandlers:
 
         self.update_flagstring()
         self.update_legacy_flags_state()
+        print("DEBUG: About to call enable_step2()")
         self.enable_step2()
+        print("DEBUG: Called enable_step2(), now updating page")
+        self.page.update()
+        print("DEBUG: Page updated")
 
     def clear_rom(self, e) -> None:
         """Remove ROM and reset UI to initial state."""
