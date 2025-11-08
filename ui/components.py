@@ -257,11 +257,14 @@ def build_step2_container(categorized_flag_rows: dict,
                 )
 
                 # Build layout: master toggle above, then two containers side by side
-                # Right side has header text above the container
+                # Both left and right sides have header text above the container
                 # Wrap the panels in a container that can be disabled
                 panels_container = ft.Container(
                     content=ft.Row([
-                        left_container,
+                        ft.Column([
+                            ft.Text("Add to shuffle", weight="bold", size=14),
+                            left_container
+                        ], spacing=5),
                         ft.Column([
                             ft.Text("... with these constraints:", weight="bold", size=14),
                             right_container

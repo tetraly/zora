@@ -33,7 +33,7 @@ class FlagCategory(IntEnum):
 class FlagsEnum(Enum):
     MAJOR_ITEM_SHUFFLE = (
         'major_item_shuffle',
-        'Shuffle Major Dungeon Items With ...',
+        'Shuffle Major Dungeon Items',
         'Master toggle to enable major item randomization. When disabled, all item shuffle functionality is turned off and shuffle flags below are disabled.',
         FlagCategory.ITEM_SHUFFLE,
         None  # No dependency
@@ -89,35 +89,35 @@ class FlagsEnum(Enum):
     )
     SHUFFLE_SHOP_ARROWS = (
         'shuffle_shop_arrows',
-        'Shop Arrows',
+        'Wood Arrows',
         'Adds the wood arrows from the shop to the item shuffle pool.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     SHUFFLE_SHOP_CANDLE = (
         'shuffle_shop_candle',
-        'Shop Candle',
+        'Blue Candle',
         'Adds the blue candle from the shop to the item shuffle pool.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     SHUFFLE_SHOP_RING = (
         'shuffle_shop_ring',
-        'Shop Ring',
+        'Blue Ring',
         'Adds the blue ring from the shop to the item shuffle pool. The shop location price will be changed to 150 ± 25 rupees.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     SHUFFLE_SHOP_BOOK = (
         'shuffle_shop_book',
-        'Shop Book',
+        'Shop Book (if present)',
         'Adds the book from the shop (if one is present) to the item shuffle pool.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     SHUFFLE_SHOP_BAIT = (
         'shuffle_shop_bait',
-        'Shop Bait (if present)',
+        'Shop Bait',
         'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a mystery item.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
@@ -168,50 +168,57 @@ class FlagsEnum(Enum):
     )
     FORCE_ARROW_TO_LEVEL_NINE = (
         'force_arrow_to_level_nine',
-        'Force an arrow to be in level 9',
+        'Force Arrow to Level 9',
         'Require that an arrow be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     FORCE_RING_TO_LEVEL_NINE = (
         'force_ring_to_level_nine',
-        'Force a ring to be in level 9',
+        'Force Ring to Level 9',
         'Require that a ring be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     FORCE_WAND_TO_LEVEL_NINE = (
         'force_wand_to_level_nine',
-        'Force a wand to be in level 9',
+        'Force Wand to Level 9',
         'Require that a wand be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     FORCE_HEART_CONTAINER_TO_LEVEL_NINE = (
         'force_heart_container_to_level_nine',
-        'Force a heart container to be in level 9',
+        'Force Heart Container to Level 9',
         'Require that at least one heart container be in level 9. Warning: seeds with two items forced to level nine may take a long time to generate. Seeds with three items forced to level nine will be impossible to generate.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     FORCE_TWO_HEART_CONTAINERS_TO_LEVEL_NINE = (
         'force_two_heart_containers_to_level_nine',
-        'Force a second heart container to be in level 9',
+        'Force Second Heart Container to Level 9',
         'Require that a second heart container be in level 9 (in addition to any other heart container forced there). Warning: seeds with multiple items forced to level nine may take a long time to generate.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     FORCE_HEART_CONTAINER_TO_ARMOS = (
         'force_heart_container_to_armos',
-        'Force heart container to Armos',
+        'Force Heart Container to Armos',
         'Require that the Armos item be a heart container. Only works when "Shuffle the Armos Item" is enabled.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     FORCE_HEART_CONTAINER_TO_COAST = (
         'force_heart_container_to_coast',
-        'Force heart container to Coast',
+        'Force Heart Container to Coast',
         'Require that the Coast item be a heart container. Only works when "Shuffle the Coast Item" is enabled.',
+        FlagCategory.ITEM_SHUFFLE,
+        'major_item_shuffle'
+    )
+    FORCE_SWORD_TO_OPEN_CAVE = (
+        'force_sword_to_open_cave',
+        'Force Sword to Open Cave',
+        'Require that a sword be placed in an open cave location. Not yet implemented.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
