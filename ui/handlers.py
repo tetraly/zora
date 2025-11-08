@@ -70,7 +70,6 @@ class EventHandlers:
         self.choose_generate_vanilla_button = None
         self.rom_file_picker = None
         self.generate_vanilla_file_picker = None
-        self.expansion_panels_ref = []
         self.legacy_note_ref = []
 
         # Upload state
@@ -881,17 +880,3 @@ class EventHandlers:
         random_seed = random.randint(10000000, 99999999)
         self.seed_input.value = str(random_seed)
         self.seed_input.update()
-
-
-    # Accordion expand/collapse handlers
-    def on_expand_all(self, e) -> None:
-        """Expand all flag category panels."""
-        for panel in self.expansion_panels_ref:
-            panel.expanded = True
-        self.page.update()
-
-    def on_collapse_all(self, e) -> None:
-        """Collapse all flag category panels."""
-        for panel in self.expansion_panels_ref:
-            panel.expanded = False
-        self.page.update()

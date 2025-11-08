@@ -174,11 +174,8 @@ def build_step2_container(categorized_flag_rows: dict,
                           seed_input: ft.TextField,
                           random_seed_button: ft.ElevatedButton,
                           on_randomize: Callable,
-                          on_expand_all: Callable,
-                          on_collapse_all: Callable,
-                          expansion_panels_ref: list = None,
                           legacy_note_ref: list = None) -> ft.Container:
-    """Build Step 2: Configure Flags & Seed section with categorized accordions.
+    """Build Step 2: Configure Flags & Seed section with categorized tabs.
 
     Args:
         categorized_flag_rows: Dict mapping FlagCategory -> list of flag rows
@@ -186,9 +183,6 @@ def build_step2_container(categorized_flag_rows: dict,
         seed_input: TextField for seed
         random_seed_button: Button for random seed
         on_randomize: Callback for randomize button
-        on_expand_all: Callback for expand all button
-        on_collapse_all: Callback for collapse all button
-        expansion_panels_ref: Optional list to populate with expansion panel references
         legacy_note_ref: Optional list to store reference to legacy note container
     """
     # Wrap seed input and button together
@@ -198,15 +192,7 @@ def build_step2_container(categorized_flag_rows: dict,
 
     randomize_button = ft.ElevatedButton("Randomize", on_click=on_randomize)
 
-    # Create expand/collapse buttons
-    expand_collapse_buttons = ft.Row([
-        ft.ElevatedButton(
-            "Expand All", icon=ft.Icons.UNFOLD_MORE, on_click=on_expand_all, height=35),
-        ft.ElevatedButton(
-            "Collapse All", icon=ft.Icons.UNFOLD_LESS, on_click=on_collapse_all, height=35)],
-                                     spacing=8)
-
-    # Define border colors for category headers
+    # Define border colors for category tabs
     category_border_colors = {
         FlagCategory.ITEM_SHUFFLE: ft.Colors.BLUE_600,
         FlagCategory.ITEM_CHANGES: ft.Colors.PURPLE_600,
@@ -214,8 +200,8 @@ def build_step2_container(categorized_flag_rows: dict,
         FlagCategory.LOGIC_AND_DIFFICULTY: ft.Colors.ORANGE_600,
         FlagCategory.QUALITY_OF_LIFE: ft.Colors.CYAN_600}
 
-    # Build expansion panels for each category
-    expansion_panels = []
+    # Build tabs for each category
+    tabs = []
     for category in FlagCategory:
         # Skip hidden category entirely
         if category == FlagCategory.HIDDEN:
@@ -251,39 +237,32 @@ def build_step2_container(categorized_flag_rows: dict,
             else:
                 category_content = flag_content
 
-            # Create colored header with border
-            header = ft.Container(
-                content=ft.ListTile(title=ft.Text(category.display_name, weight="bold"),
-                                    dense=True,
-                                    content_padding=ft.padding.symmetric(horizontal=10,
-                                                                         vertical=2)),
-                border=ft.border.all(2, category_border_colors.get(category, ft.Colors.GREY_600)),
-                border_radius=5,
-                padding=0)
-
-            panel = ft.ExpansionPanel(
-                header=header,
-                content=ft.Container(content=category_content,
-                                     padding=ft.padding.only(left=5, right=5, top=5, bottom=2)),
-                can_tap_header=True,
-                expanded=True  # Start expanded
+            # Create tab with colored border around content
+            tab = ft.Tab(
+                text=category.display_name,
+                content=ft.Container(
+                    content=category_content,
+                    padding=15,
+                    border=ft.border.all(2, category_border_colors.get(category, ft.Colors.GREY_600)),
+                    border_radius=5
+                )
             )
-            expansion_panels.append(panel)
+            tabs.append(tab)
 
-            # Populate reference list if provided
-            if expansion_panels_ref is not None:
-                expansion_panels_ref.append(panel)
-
-    expansion_panel_list = ft.ExpansionPanelList(controls=expansion_panels,
-                                                 elevation=2,
-                                                 divider_color=ft.Colors.PURPLE_100,
-                                                 expand_icon_color=ft.Colors.PURPLE_700)
+    # Create tabs widget
+    tabs_widget = ft.Tabs(
+        selected_index=0,
+        animation_duration=300,
+        tabs=tabs,
+        expand=True
+    )
 
     content = ft.Column([
         ft.Text("Step 2: Configure ZORA Flags and Seed Number", size=20, weight="bold"),
         ft.Container(height=3), flag_seed_row,
-        ft.Divider(height=1), expand_collapse_buttons,
-        ft.Container(height=3), expansion_panel_list,
+        ft.Divider(height=1),
+        ft.Container(height=5),
+        tabs_widget,
         ft.Container(randomize_button, alignment=ft.alignment.center, padding=5)],
                         spacing=5)
 
