@@ -211,18 +211,22 @@ def build_step2_container(categorized_flag_rows: dict,
 
             # Special layout for Item Shuffle tab
             if category == FlagCategory.ITEM_SHUFFLE:
-                # Separate flags into "include in shuffle" and "constraints"
+                # Separate flags into shuffle pool, constraints, and master toggle
                 shuffle_pool_flags = []
                 constraint_flags = []
+                master_toggle = None
 
                 for flag_row in flags_in_category:
                     # Extract flag key from the row's data attribute
                     flag_key = flag_row.data if hasattr(flag_row, 'data') else None
 
+                    # Master toggle (major_item_shuffle)
+                    if flag_key == 'major_item_shuffle':
+                        master_toggle = flag_row
                     # Constraint flags (force/allow)
-                    if flag_key and (flag_key.startswith('force_') or flag_key.startswith('allow_important')):
+                    elif flag_key and (flag_key.startswith('force_') or flag_key.startswith('allow_important')):
                         constraint_flags.append(flag_row)
-                    # Everything else (including major_item_shuffle) goes in shuffle pool
+                    # Everything else goes in shuffle pool
                     else:
                         shuffle_pool_flags.append(flag_row)
 
@@ -231,15 +235,12 @@ def build_step2_container(categorized_flag_rows: dict,
                 shuffle_left = shuffle_pool_flags[:mid]
                 shuffle_right = shuffle_pool_flags[mid:]
 
-                # Left side: Include in major item shuffle
+                # Left side: Shuffle pool (no header text)
                 left_container = ft.Container(
-                    content=ft.Column([
-                        ft.Text("Include in Major Item Shuffle", weight="bold", size=14),
-                        ft.Row([
-                            ft.Column(shuffle_left, spacing=3, expand=True),
-                            ft.Column(shuffle_right, spacing=3, expand=True)
-                        ], spacing=10)
-                    ], spacing=5),
+                    content=ft.Row([
+                        ft.Column(shuffle_left, spacing=3, expand=True),
+                        ft.Column(shuffle_right, spacing=3, expand=True)
+                    ], spacing=10),
                     padding=10,
                     border=ft.border.all(1, ft.Colors.BLUE_300),
                     border_radius=5,
@@ -258,7 +259,12 @@ def build_step2_container(categorized_flag_rows: dict,
                     expand=True
                 )
 
-                category_content = ft.Row([left_container, right_container], spacing=15)
+                # Build layout: master toggle above, then two containers side by side
+                category_content = ft.Column([
+                    master_toggle,
+                    ft.Container(height=10),  # Spacing
+                    ft.Row([left_container, right_container], spacing=15)
+                ], spacing=0)
             else:
                 # Default two-column layout for other categories
                 mid = (len(flags_in_category) + 1) // 2

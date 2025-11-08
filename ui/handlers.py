@@ -124,6 +124,10 @@ class EventHandlers:
                     except AssertionError:
                         pass
 
+        # Initialize heart container and level 9 dependencies
+        self._update_heart_container_dependencies()
+        self._update_level_nine_dependencies()
+
     def update_flagstring(self) -> None:
         """Update flagstring input based on checkbox states."""
         self.flagstring_input.value = self.state.flag_state.to_flagstring()
@@ -136,6 +140,129 @@ class EventHandlers:
             for flag_key, checkbox in self.flag_checkboxes.items():
                 checkbox.value = self.state.flag_state.flags.get(flag_key, False)
                 checkbox.update()
+
+    def _get_available_heart_containers(self) -> int:
+        """Calculate how many heart containers are available for shuffling."""
+        flags = self.state.flag_state.flags
+        available = 0
+        if flags.get('shuffle_dungeon_hearts', False):
+            available += 8  # Levels 1-8
+        if flags.get('shuffle_coast_item', False):
+            available += 1  # Coast
+        return available
+
+    def _get_level_nine_slot_usage(self) -> int:
+        """Calculate how many level 9 slots are being used."""
+        flags = self.state.flag_state.flags
+        slots = 0
+        if flags.get('force_arrow_to_level_nine', False):
+            slots += 1
+        if flags.get('force_ring_to_level_nine', False):
+            slots += 1
+        if flags.get('force_wand_to_level_nine', False):
+            slots += 1
+        if flags.get('force_heart_container_to_level_nine', False):
+            slots += 1
+        if flags.get('force_two_heart_containers_to_level_nine', False):
+            slots += 2  # This one takes 2 slots!
+        return slots
+
+    def _get_forced_heart_count(self) -> int:
+        """Calculate how many hearts are being forced to specific locations."""
+        flags = self.state.flag_state.flags
+        forced = 0
+        if flags.get('force_heart_container_to_armos', False):
+            forced += 1
+        if flags.get('force_heart_container_to_coast', False):
+            forced += 1
+        if flags.get('force_heart_container_to_level_nine', False):
+            forced += 1
+        if flags.get('force_two_heart_containers_to_level_nine', False):
+            forced += 2
+        return forced
+
+    def _update_heart_container_dependencies(self):
+        """Update heart container constraint flags based on availability."""
+        available = self._get_available_heart_containers()
+        forced = self._get_forced_heart_count()
+
+        heart_force_flags = [
+            'force_heart_container_to_armos',
+            'force_heart_container_to_coast',
+            'force_heart_container_to_level_nine',
+            'force_two_heart_containers_to_level_nine'
+        ]
+
+        for flag_key in heart_force_flags:
+            if flag_key in self.flag_checkboxes:
+                checkbox = self.flag_checkboxes[flag_key]
+
+                # Calculate how many hearts this flag needs
+                needs = 2 if flag_key == 'force_two_heart_containers_to_level_nine' else 1
+
+                # Can enable if: available hearts >= needs + (other forced hearts)
+                # But if this flag is already checked, don't count it in forced
+                other_forced = forced
+                if self.state.flag_state.flags.get(flag_key, False):
+                    other_forced -= needs
+
+                can_enable = (available >= needs) and (available >= other_forced + needs)
+
+                # Special case: force_two_heart_containers requires shuffle_dungeon_hearts
+                if flag_key == 'force_two_heart_containers_to_level_nine':
+                    can_enable = can_enable and self.state.flag_state.flags.get('shuffle_dungeon_hearts', False)
+
+                # Disable if not enough hearts
+                if not can_enable and checkbox.value:
+                    checkbox.value = False
+                    self.state.flag_state.flags[flag_key] = False
+
+                checkbox.disabled = not can_enable
+
+                try:
+                    checkbox.update()
+                except AssertionError:
+                    pass
+
+    def _update_level_nine_dependencies(self):
+        """Update level 9 constraint flags based on slot availability."""
+        slots_used = self._get_level_nine_slot_usage()
+
+        level_nine_flags = [
+            'force_arrow_to_level_nine',
+            'force_ring_to_level_nine',
+            'force_wand_to_level_nine',
+            'force_heart_container_to_level_nine',
+            'force_two_heart_containers_to_level_nine'
+        ]
+
+        for flag_key in level_nine_flags:
+            if flag_key in self.flag_checkboxes:
+                checkbox = self.flag_checkboxes[flag_key]
+
+                # Calculate slots this flag needs
+                needs = 2 if flag_key == 'force_two_heart_containers_to_level_nine' else 1
+
+                # Calculate slots used by OTHER flags
+                other_slots = slots_used
+                if self.state.flag_state.flags.get(flag_key, False):
+                    other_slots -= needs
+
+                # Can enable if total slots <= 2
+                can_enable = (other_slots + needs) <= 2
+
+                # If can't enable and is currently checked, uncheck it
+                if not can_enable and checkbox.value:
+                    checkbox.value = False
+                    self.state.flag_state.flags[flag_key] = False
+
+                # Disable if would exceed slot limit
+                checkbox.disabled = not can_enable and not checkbox.value
+
+                try:
+                    checkbox.update()
+                except AssertionError:
+                    pass
 
     def on_checkbox_changed(self, flag_key: str, value: bool) -> None:
         """Handle checkbox state changes."""
@@ -164,6 +291,18 @@ class EventHandlers:
                             checkbox.update()
                         except AssertionError:
                             pass
+
+        # Update heart container dependencies when relevant flags change
+        if flag_key in ['shuffle_dungeon_hearts', 'shuffle_coast_item',
+                       'force_heart_container_to_armos', 'force_heart_container_to_coast',
+                       'force_heart_container_to_level_nine', 'force_two_heart_containers_to_level_nine']:
+            self._update_heart_container_dependencies()
+
+        # Update level 9 dependencies when relevant flags change
+        if flag_key in ['force_arrow_to_level_nine', 'force_ring_to_level_nine',
+                       'force_wand_to_level_nine', 'force_heart_container_to_level_nine',
+                       'force_two_heart_containers_to_level_nine']:
+            self._update_level_nine_dependencies()
 
         self.update_flagstring()
 

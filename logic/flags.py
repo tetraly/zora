@@ -33,7 +33,7 @@ class FlagCategory(IntEnum):
 class FlagsEnum(Enum):
     MAJOR_ITEM_SHUFFLE = (
         'major_item_shuffle',
-        'Dungeon Items',
+        'Shuffle Major Dungeon Items With ...',
         'Master toggle to enable major item randomization. When disabled, all item shuffle functionality is turned off and shuffle flags below are disabled.',
         FlagCategory.ITEM_SHUFFLE,
         None  # No dependency
@@ -68,14 +68,14 @@ class FlagsEnum(Enum):
     )
     SHUFFLE_ARMOS_ITEM = (
         'shuffle_armos_item',
-        'Armos Item',
+        'Armos Power Bracelet',
         'Adds the Armos item (the Power Bracelet in a vanilla seed) to the item shuffle pool.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
     )
     SHUFFLE_COAST_ITEM = (
         'shuffle_coast_item',
-        'Coast Item',
+        'Coast Heart Container',
         'Adds the coast item (a Heart Container in vanilla) to the item shuffle pool.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
@@ -117,7 +117,7 @@ class FlagsEnum(Enum):
     )
     SHUFFLE_SHOP_BAIT = (
         'shuffle_shop_bait',
-        'Shop Bait',
+        'Shop Bait (if present)',
         'Adds one bait from the shops to the item shuffle pool. The other bait location will be replaced with a mystery item.',
         FlagCategory.ITEM_SHUFFLE,
         'major_item_shuffle'
