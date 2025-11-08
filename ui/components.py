@@ -173,8 +173,7 @@ def build_step2_container(categorized_flag_rows: dict,
                           flagstring_input: ft.TextField,
                           seed_input: ft.TextField,
                           random_seed_button: ft.ElevatedButton,
-                          on_randomize: Callable,
-                          legacy_note_ref: list = None) -> ft.Container:
+                          on_randomize: Callable) -> ft.Container:
     """Build Step 2: Configure Flags & Seed section with categorized tabs.
 
     Args:
@@ -183,7 +182,6 @@ def build_step2_container(categorized_flag_rows: dict,
         seed_input: TextField for seed
         random_seed_button: Button for random seed
         on_randomize: Callback for randomize button
-        legacy_note_ref: Optional list to store reference to legacy note container
     """
     # Wrap seed input and button together
     seed_with_button = ft.Row([seed_input, random_seed_button], spacing=10, tight=True)
@@ -219,23 +217,7 @@ def build_step2_container(categorized_flag_rows: dict,
                 ft.Column(right_flags, spacing=3, expand=True)],
                                       spacing=10)
 
-            # Add a note for LEGACY flags
-            if category == FlagCategory.LEGACY:
-                legacy_note = ft.Container(
-                    content=ft.Text(
-                        "⚠️ Legacy flags are only available for use with vanilla ROMs.",
-                        color=ft.Colors.ORANGE_700,
-                        size=12,
-                        weight="bold"),
-                    padding=ft.padding.only(bottom=10),
-                    visible=False)  # Hidden by default, shown when randomized ROM loaded
-                category_content = ft.Column([legacy_note, flag_content], spacing=5)
-
-                # Store reference if provided
-                if legacy_note_ref is not None:
-                    legacy_note_ref.append(legacy_note)
-            else:
-                category_content = flag_content
+            category_content = flag_content
 
             # Create tab with colored border around content
             tab = ft.Tab(
@@ -253,13 +235,17 @@ def build_step2_container(categorized_flag_rows: dict,
     print(f"DEBUG: Total tabs created: {len(tabs)}")
 
     # Create Tabs widget with explicit height constraint
+    # IMPORTANT: ft.Tabs widget REQUIRES explicit height when nested in containers,
+    # especially when the parent container has disabled=True initially. Without
+    # explicit height, the Tabs widget may collapse to 0 height and become invisible
+    # in Flet web. This is a critical layout constraint - do not remove the height!
     tabs_widget = ft.Container(
         content=ft.Tabs(
             selected_index=0,
             animation_duration=300,
             tabs=tabs,
         ),
-        height=500,  # Explicit height to ensure rendering
+        height=500,  # Explicit height - REQUIRED for Tabs to render properly
     )
 
     content = ft.Column([

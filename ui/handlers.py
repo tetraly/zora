@@ -70,7 +70,6 @@ class EventHandlers:
         self.choose_generate_vanilla_button = None
         self.rom_file_picker = None
         self.generate_vanilla_file_picker = None
-        self.legacy_note_ref = []
 
         # Upload state
         self.upload_state = {
@@ -188,16 +187,6 @@ class EventHandlers:
                     except AssertionError:
                         # Control not yet added to page, skip update
                         pass
-
-        # Update the legacy note visibility if it exists
-        if self.legacy_note_ref:
-            for legacy_note in self.legacy_note_ref:
-                legacy_note.visible = not is_vanilla
-                try:
-                    legacy_note.update()
-                except AssertionError:
-                    # Control not yet added to page, skip update
-                    pass
 
     # ROM loading handlers
     def load_rom_and_show_card(self, disable_seed: bool = False) -> None:
