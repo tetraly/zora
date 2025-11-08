@@ -34,17 +34,27 @@ def build_rom_info_card(rom_info: RomInfo, on_close) -> ft.Card:
     # Extract just the filename from the full path
     filename_display = os.path.basename(rom_info.filename)
 
+    # Left column: ROM Type, Filename, ROM Version
+    left_column = ft.Column([
+        info_row("ROM Type", rom_type_display),
+        info_row("Filename", filename_display),
+        info_row("ROM Version", rom_info.rom_version),
+    ], spacing=5)
+
+    # Right column: ZR Flag String, ZR Seed, ZR Code
+    right_column = ft.Column([
+        info_row("ZR Flag String", flagstring_display),
+        info_row("ZR Seed", seed_display),
+        info_row("ZR Code", code_display),
+    ], spacing=5)
+
     return ft.Card(content=ft.Container(content=ft.Column([
         ft.Row([
             ft.Text("Loaded Base ROM", size=18, weight="bold"),
             ft.IconButton(icon=ft.Icons.CLOSE, tooltip="Remove ROM", on_click=on_close)],
                alignment="spaceBetween"),
-        info_row("ROM Type", rom_type_display),
-        info_row("Filename", filename_display),
-        info_row("ZR Flag String", flagstring_display),
-        info_row("ZR Seed", seed_display),
-        info_row("ZR Code", code_display)],
-                                                          spacing=5),
+        ft.Row([left_column, right_column], spacing=20)
+    ], spacing=5),
                                         padding=10,
                                         margin=0,
                                         border=ft.border.all(2, ft.Colors.BLUE_200),

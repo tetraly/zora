@@ -625,7 +625,7 @@ class EventHandlers:
         with open(filepath, 'rb') as f:
             rom_data = f.read()
 
-        # Check if this is a Race ROM
+        # Check if this is a Race ROM and get ROM version
         try:
             rom_reader = RomReader(io.BytesIO(rom_data))
             if rom_reader.IsRaceRom():
@@ -636,6 +636,9 @@ class EventHandlers:
                     "from reading level data correctly.\n\n"
                     "Please try again using a ROM generated without the Race ROM feature.")
                 return
+
+            # Get ROM version (PRG0/PRG1)
+            rom_version = rom_reader.GetVersion()
         except Exception as ex:
             show_error_dialog(self.page, "Error Reading ROM",
                               f"Unable to read the ROM file:\n\n{str(ex)}")
@@ -650,6 +653,7 @@ class EventHandlers:
 
             self.state.rom_info.filename = filepath if filepath else filename
             self.state.rom_info.rom_type = "vanilla"
+            self.state.rom_info.rom_version = rom_version
             self.state.rom_info.flagstring = ""
             self.state.rom_info.seed = ""
 
@@ -668,6 +672,7 @@ class EventHandlers:
 
             self.state.rom_info.filename = filepath if filepath else filename
             self.state.rom_info.rom_type = "randomized"
+            self.state.rom_info.rom_version = rom_version
 
             # Parse filename for seed and flagstring
             try:
