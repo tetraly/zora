@@ -321,6 +321,18 @@ class EventHandlers:
                     if flag.value in self.flag_checkboxes:
                         checkbox = self.flag_checkboxes[flag.value]
 
+                        # Skip heart container force flags when ENABLING - they'll be handled by
+                        # _update_heart_container_dependencies() based on HC availability
+                        # But we still need to disable them when major_item_shuffle is turned off
+                        is_heart_container_flag = flag.value in ['force_heart_container_to_level_nine',
+                                                                  'force_two_heart_containers_to_level_nine',
+                                                                  'force_heart_container_to_armos',
+                                                                  'force_heart_container_to_coast']
+
+                        if value and is_heart_container_flag:
+                            # Skip enabling heart container flags - let dependency update handle it
+                            continue
+
                         if value:
                             # Enable dependent flag
                             checkbox.disabled = False
