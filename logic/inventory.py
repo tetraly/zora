@@ -65,7 +65,7 @@ class Inventory(object):
 
     if item == Item.HEART_CONTAINER:
       # Ignore Take Any Heart Containers
-      if item_location.IsCavePosition() and item_location.GetCaveNum() == 2:
+      if item_location.IsCavePosition() and item_location.GetCaveNum() == CaveType.WHITE_SWORD_CAVE:
         return
       self.num_heart_containers += 1
       if item_location.IsLevelRoom():

@@ -1,7 +1,6 @@
 import logging as log
 from typing import Dict, List
-from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomNum, RoomType, WallType
-from .constants import ENTRANCE_DIRECTION_MAP
+from .randomizer_constants import CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomNum, RoomType, WallType
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
@@ -172,11 +171,13 @@ class DataTable():
 
   def GetCaveItem(self, location: Location) -> Item:
     assert location.IsCavePosition()
-    return self.overworld_caves[location.GetCaveNum()].GetItemAtPosition(location.GetPositionNum())
+    cave_index = location.GetCaveNum() - 0x10
+    return self.overworld_caves[cave_index].GetItemAtPosition(location.GetPositionNum())
 
   def SetCaveItem(self, location: Location, item: Item) -> None:
     assert location.IsCavePosition()
-    self.overworld_caves[location.GetCaveNum()].SetItemAtPosition(item, location.GetPositionNum())
+    cave_index = location.GetCaveNum() - 0x10
+    self.overworld_caves[cave_index].SetItemAtPosition(item, location.GetPositionNum())
 
   def UpdateTriforceLocation(self, location: Location) -> None:
     room_num = location.GetRoomNum()
