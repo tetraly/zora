@@ -2,7 +2,6 @@ from typing import NewType
 from enum import IntEnum
 
 LevelNum = int
-CaveNum = int
 RoomNum = NewType("RoomNum", int)
 PositionNum = NewType("PositionNum", int)
 

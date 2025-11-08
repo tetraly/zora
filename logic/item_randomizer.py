@@ -3,7 +3,7 @@ from collections import defaultdict
 from random import randint, shuffle
 import logging as log
 
-from .randomizer_constants import Direction, Item, LevelNum, Range, RoomNum, RoomType, WallType
+from .randomizer_constants import CaveType, Direction, Item, LevelNum, Range, RoomNum, RoomType, WallType
 from .data_table import DataTable
 from .location import Location
 from .flags import Flags
@@ -131,7 +131,8 @@ class ItemRandomizer():
       new_price = random.randint(125, 175)
       cave_num = ring_location.GetCaveNum()
       position_num = ring_location.GetPositionNum()
-      self.data_table.overworld_caves[cave_num].SetPriceAtPosition(new_price, position_num)
+      cave_index = cave_num - 0x10
+      self.data_table.overworld_caves[cave_index].SetPriceAtPosition(new_price, position_num)
     if self.flags.shuffle_shop_book:
       try:
         book_location = self._GetOverworldItemLocation(Item.BOOK)
@@ -145,7 +146,8 @@ class ItemRandomizer():
       self.data_table.SetCaveItem(second_bait_location, Item.FAIRY)
       cave_num = second_bait_location.GetCaveNum()
       position_num = second_bait_location.GetPositionNum()
-      self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randint(20, 40), position_num)
+      cave_index = cave_num - 0x10
+      self.data_table.overworld_caves[cave_index].SetPriceAtPosition(randint(20, 40), position_num)
     return items
 
   def ResetState(self):
@@ -237,7 +239,8 @@ class ItemRandomizer():
           randomized_price = self._GetRandomizedShopPrice(item_num)
           cave_num = location.GetCaveNum()
           position_num = location.GetPositionNum()
-          self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randomized_price, position_num)
+          cave_index = cave_num - 0x10
+          self.data_table.overworld_caves[cave_index].SetPriceAtPosition(randomized_price, position_num)
     # Individual progressive flags are temporarily disabled
     progressive_swords = False
     if (self.flags.progressive_items or progressive_swords) and self.flags.add_l4_sword:
@@ -380,13 +383,13 @@ class ItemShuffler():
             return False
         if location.IsShopPosition() and item == Item.HEART_CONTAINER:
             return False
-        if location.IsCavePosition() and location.GetCaveNum() == 0x25 and item == Item.LADDER:
+        if location.IsCavePosition() and location.GetCaveNum() == CaveType.COAST_ITEM and item == Item.LADDER:
             return False
         # Track heart containers at armos and coast locations
-        if location.IsCavePosition() and location.GetCaveNum() == 20 and location.GetPositionNum() == 2:
+        if location.IsCavePosition() and location.GetCaveNum() == CaveType.ARMOS_ITEM and location.GetPositionNum() == 2:
             if item == Item.HEART_CONTAINER:
                 found_heart_container_at_armos = True
-        if location.IsCavePosition() and location.GetCaveNum() == 21 and location.GetPositionNum() == 2:
+        if location.IsCavePosition() and location.GetCaveNum() == CaveType.COAST_ITEM and location.GetPositionNum() == 2:
             if item == Item.HEART_CONTAINER:
                 found_heart_container_at_coast = True
         if location in [Location.CavePosition(10, 1),  Location.CavePosition(10, 2),  Location.CavePosition(10, 3)]:

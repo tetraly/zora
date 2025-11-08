@@ -1,6 +1,6 @@
 import logging
 
-from .randomizer_constants import CaveNum, LevelNum, PositionNum, Range, RoomNum
+from .randomizer_constants import CaveType, LevelNum, PositionNum, Range, RoomNum
 
 
 class Location(object):
@@ -54,9 +54,9 @@ class Location(object):
     assert self.IsLevelRoom()
     return self.sub_id
 
-  def GetCaveNum(self) -> CaveNum:
+  def GetCaveNum(self) -> CaveType:
     assert self.IsCavePosition()
-    return self.level_id - self.CAVE_LEVEL_NUMBER_OFFSET
+    return CaveType(self.level_id)
 
   def GetPositionNum(self) -> PositionNum:
     assert self.IsCavePosition()
