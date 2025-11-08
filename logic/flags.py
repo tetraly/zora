@@ -118,7 +118,7 @@ class FlagsEnum(Enum):
     SHUFFLE_MINOR_DUNGEON_ITEMS = (
         'shuffle_minor_dungeon_items',
         'Shuffle Minor Dungeon Items',
-        'Adds minor dungeon items (five rupees, bombs, and keys) to the major item shuffle pool. Maps and compasses remain in their original locations.',
+        'Adds minor items (five rupees, bombs, keys, maps, and compasses) to the item shuffle pool. Primarily designed for use with vanilla ROMs, not Zelda Randomizer ROMs.',
         FlagCategory.ITEM_SHUFFLE
     )
     AVOID_REQUIRED_HARD_COMBAT = (

@@ -138,8 +138,7 @@ def main(page: ft.Page, platform: str = "web") -> None:
 
     # Step 2: Container
     step2_container = build_step2_container(categorized_flag_rows, flagstring_input, seed_input,
-                                            random_seed_button, handlers.on_randomize,
-                                            handlers.legacy_note_ref)
+                                            random_seed_button, handlers.on_randomize)
 
     # Store step2 container reference in handlers
     handlers.step2_container = step2_container
