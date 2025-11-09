@@ -32,6 +32,7 @@ def _build_app() -> FastAPI:
         main,
         upload_dir=str(upload_dir),
         assets_dir=str(assets_dir),
+        secret_key=os.environ.get("FLET_SECRET_KEY", "default-secret-key-for-development"),
     )
 
     fastapi_app = FastAPI()

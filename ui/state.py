@@ -103,6 +103,7 @@ class RomInfo:
     def __init__(self):
         self.filename = ""
         self.rom_type = ""
+        self.rom_version = ""
         self.flagstring = ""
         self.seed = ""
         self.code = ""
@@ -111,6 +112,7 @@ class RomInfo:
         """Reset all ROM info."""
         self.filename = ""
         self.rom_type = ""
+        self.rom_version = ""
         self.flagstring = ""
         self.seed = ""
         self.code = ""

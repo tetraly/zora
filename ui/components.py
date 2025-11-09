@@ -34,17 +34,27 @@ def build_rom_info_card(rom_info: RomInfo, on_close) -> ft.Card:
     # Extract just the filename from the full path
     filename_display = os.path.basename(rom_info.filename)
 
+    # Left column: ROM Type, Filename, ROM Version
+    left_column = ft.Column([
+        info_row("ROM Type", rom_type_display),
+        info_row("Filename", filename_display),
+        info_row("ROM Version", rom_info.rom_version),
+    ], spacing=5)
+
+    # Right column: ZR Flag String, ZR Seed, ZR Code
+    right_column = ft.Column([
+        info_row("ZR Flag String", flagstring_display),
+        info_row("ZR Seed", seed_display),
+        info_row("ZR Code", code_display),
+    ], spacing=5)
+
     return ft.Card(content=ft.Container(content=ft.Column([
         ft.Row([
             ft.Text("Loaded Base ROM", size=18, weight="bold"),
             ft.IconButton(icon=ft.Icons.CLOSE, tooltip="Remove ROM", on_click=on_close)],
                alignment="spaceBetween"),
-        info_row("ROM Type", rom_type_display),
-        info_row("Filename", filename_display),
-        info_row("ZR Flag String", flagstring_display),
-        info_row("ZR Seed", seed_display),
-        info_row("ZR Code", code_display)],
-                                                          spacing=5),
+        ft.Row([left_column, right_column], spacing=20)
+    ], spacing=5),
                                         padding=10,
                                         margin=0,
                                         border=ft.border.all(2, ft.Colors.BLUE_200),
@@ -173,12 +183,8 @@ def build_step2_container(categorized_flag_rows: dict,
                           flagstring_input: ft.TextField,
                           seed_input: ft.TextField,
                           random_seed_button: ft.ElevatedButton,
-                          on_randomize: Callable,
-                          on_expand_all: Callable,
-                          on_collapse_all: Callable,
-                          expansion_panels_ref: list = None,
-                          legacy_note_ref: list = None) -> ft.Container:
-    """Build Step 2: Configure Flags & Seed section with categorized accordions.
+                          on_randomize: Callable) -> ft.Container:
+    """Build Step 2: Configure Flags & Seed section with categorized tabs.
 
     Args:
         categorized_flag_rows: Dict mapping FlagCategory -> list of flag rows
@@ -186,10 +192,6 @@ def build_step2_container(categorized_flag_rows: dict,
         seed_input: TextField for seed
         random_seed_button: Button for random seed
         on_randomize: Callback for randomize button
-        on_expand_all: Callback for expand all button
-        on_collapse_all: Callback for collapse all button
-        expansion_panels_ref: Optional list to populate with expansion panel references
-        legacy_note_ref: Optional list to store reference to legacy note container
     """
     # Wrap seed input and button together
     seed_with_button = ft.Row([seed_input, random_seed_button], spacing=10, tight=True)
@@ -198,92 +200,188 @@ def build_step2_container(categorized_flag_rows: dict,
 
     randomize_button = ft.ElevatedButton("Randomize", on_click=on_randomize)
 
-    # Create expand/collapse buttons
-    expand_collapse_buttons = ft.Row([
-        ft.ElevatedButton(
-            "Expand All", icon=ft.Icons.UNFOLD_MORE, on_click=on_expand_all, height=35),
-        ft.ElevatedButton(
-            "Collapse All", icon=ft.Icons.UNFOLD_LESS, on_click=on_collapse_all, height=35)],
-                                     spacing=8)
-
-    # Define border colors for category headers
+    # Define border colors for category tabs
     category_border_colors = {
         FlagCategory.ITEM_SHUFFLE: ft.Colors.BLUE_600,
         FlagCategory.ITEM_CHANGES: ft.Colors.PURPLE_600,
         FlagCategory.OVERWORLD_RANDOMIZATION: ft.Colors.GREEN_600,
         FlagCategory.LOGIC_AND_DIFFICULTY: ft.Colors.ORANGE_600,
-        FlagCategory.QUALITY_OF_LIFE: ft.Colors.CYAN_600}
+        FlagCategory.QUALITY_OF_LIFE: ft.Colors.CYAN_600,
+        FlagCategory.SHUFFLE_WITHIN_DUNGEONS: ft.Colors.TEAL_600,
+        FlagCategory.LEGACY: ft.Colors.GREY_600}
 
-    # Build expansion panels for each category
-    expansion_panels = []
+    # Build tabs for each category
+    tabs = []
     for category in FlagCategory:
         # Skip hidden category entirely
         if category == FlagCategory.HIDDEN:
             continue
         if categorized_flag_rows[category]:  # Only show categories with flags
-            # Split flags in this category into two columns
             flags_in_category = categorized_flag_rows[category]
-            mid = (len(flags_in_category) + 1) // 2
-            left_flags = flags_in_category[:mid]
-            right_flags = flags_in_category[mid:]
 
-            # Create flag rows
-            flag_content = ft.Row([
-                ft.Column(left_flags, spacing=3, expand=True),
-                ft.Column(right_flags, spacing=3, expand=True)],
-                                      spacing=10)
+            # Special layout for Item Shuffle tab
+            if category == FlagCategory.ITEM_SHUFFLE:
+                # Separate flags into shuffle pool, constraints, and master toggle
+                shuffle_pool_flags = []
+                constraint_flags = []
+                master_toggle = None
 
-            # Add a note for LEGACY flags
-            if category == FlagCategory.LEGACY:
-                legacy_note = ft.Container(
-                    content=ft.Text(
-                        "⚠️ Legacy flags are only available for use with vanilla ROMs.",
-                        color=ft.Colors.ORANGE_700,
-                        size=12,
-                        weight="bold"),
-                    padding=ft.padding.only(bottom=10),
-                    visible=False)  # Hidden by default, shown when randomized ROM loaded
-                category_content = ft.Column([legacy_note, flag_content], spacing=5)
+                for flag_row in flags_in_category:
+                    # Extract flag key from the row's data attribute
+                    flag_key = flag_row.data if hasattr(flag_row, 'data') else None
 
-                # Store reference if provided
-                if legacy_note_ref is not None:
-                    legacy_note_ref.append(legacy_note)
+                    # Master toggle (major_item_shuffle)
+                    if flag_key == 'major_item_shuffle':
+                        master_toggle = flag_row
+                    # Constraint flags (force/allow)
+                    elif flag_key and (flag_key.startswith('force_') or flag_key.startswith('allow_important')):
+                        constraint_flags.append(flag_row)
+                    # Everything else goes in shuffle pool
+                    else:
+                        shuffle_pool_flags.append(flag_row)
+
+                # Split shuffle pool into two sub-columns
+                mid = (len(shuffle_pool_flags) + 1) // 2
+                shuffle_left = shuffle_pool_flags[:mid]
+                shuffle_right = shuffle_pool_flags[mid:]
+
+                # Left side: Shuffle pool (no header text)
+                left_container = ft.Container(
+                    content=ft.Row([
+                        ft.Column(shuffle_left, spacing=3, expand=True),
+                        ft.Column(shuffle_right, spacing=3, expand=True)
+                    ], spacing=10),
+                    padding=10,
+                    border=ft.border.all(1, ft.Colors.BLUE_300),
+                    border_radius=5,
+                    expand=True
+                )
+
+                # Right side: Constraints (no internal header)
+                right_container = ft.Container(
+                    content=ft.Column(constraint_flags, spacing=3),
+                    padding=10,
+                    border=ft.border.all(1, ft.Colors.BLUE_300),
+                    border_radius=5,
+                    expand=True
+                )
+
+                # Build layout: master toggle above, then two containers side by side
+                # Both left and right sides have header text above the container
+                # Wrap the panels in a container that can be disabled
+                panels_container = ft.Container(
+                    content=ft.Row([
+                        ft.Column([
+                            ft.Text("Add to shuffle", weight="bold", size=14),
+                            left_container
+                        ], spacing=5),
+                        ft.Column([
+                            ft.Text("... with these constraints:", weight="bold", size=14),
+                            right_container
+                        ], spacing=5)
+                    ], spacing=15),
+                    data="item_shuffle_panels",  # Identifier for handlers
+                    disabled=True,  # Start disabled (master toggle is unchecked by default)
+                    opacity=0.4
+                )
+
+                category_content = ft.Column([
+                    master_toggle,
+                    panels_container
+                ], spacing=0)
+
+            # Special layout for Item Changes tab
+            elif category == FlagCategory.ITEM_CHANGES:
+                # Separate shuffle_within_level as master toggle and the rest as dependent flags
+                master_toggle = None
+                dependent_flags = []
+                other_flags = []
+
+                for flag_row in flags_in_category:
+                    flag_key = flag_row.data if hasattr(flag_row, 'data') else None
+
+                    if flag_key == 'shuffle_within_level':
+                        master_toggle = flag_row
+                    elif flag_key in ['item_stair_can_have_triforce', 'item_stair_can_have_minor_item',
+                                     'force_major_item_to_boss', 'force_major_item_to_triforce_room']:
+                        dependent_flags.append(flag_row)
+                    else:
+                        other_flags.append(flag_row)
+
+                # Create container for dependent flags
+                dependent_container = ft.Container(
+                    content=ft.Column(dependent_flags, spacing=3),
+                    padding=10,
+                    border=ft.border.all(1, ft.Colors.PURPLE_300),
+                    border_radius=5,
+                    data="shuffle_within_level_container",  # Identifier for handlers
+                    disabled=True,  # Start disabled (shuffle_within_level is unchecked by default)
+                    opacity=0.4
+                )
+
+                # Split other flags into two columns
+                mid = (len(other_flags) + 1) // 2
+                other_left = other_flags[:mid]
+                other_right = other_flags[mid:]
+
+                # Build layout: master toggle, dependent container, then other flags in two columns
+                category_content = ft.Column([
+                    master_toggle if master_toggle else ft.Container(),
+                    dependent_container,
+                    ft.Container(height=10),
+                    ft.Row([
+                        ft.Column(other_left, spacing=3, expand=True),
+                        ft.Column(other_right, spacing=3, expand=True)
+                    ], spacing=10)
+                ], spacing=0)
+
             else:
-                category_content = flag_content
+                # Default two-column layout for other categories
+                mid = (len(flags_in_category) + 1) // 2
+                left_flags = flags_in_category[:mid]
+                right_flags = flags_in_category[mid:]
 
-            # Create colored header with border
-            header = ft.Container(
-                content=ft.ListTile(title=ft.Text(category.display_name, weight="bold"),
-                                    dense=True,
-                                    content_padding=ft.padding.symmetric(horizontal=10,
-                                                                         vertical=2)),
-                border=ft.border.all(2, category_border_colors.get(category, ft.Colors.GREY_600)),
-                border_radius=5,
-                padding=0)
+                # Create flag rows
+                category_content = ft.Row([
+                    ft.Column(left_flags, spacing=3, expand=True),
+                    ft.Column(right_flags, spacing=3, expand=True)],
+                                          spacing=10)
 
-            panel = ft.ExpansionPanel(
-                header=header,
-                content=ft.Container(content=category_content,
-                                     padding=ft.padding.only(left=5, right=5, top=5, bottom=2)),
-                can_tap_header=True,
-                expanded=True  # Start expanded
+            # Create tab with colored border around content
+            tab = ft.Tab(
+                text=category.display_name,
+                content=ft.Container(
+                    content=category_content,
+                    padding=15,
+                    border=ft.border.all(2, category_border_colors.get(category, ft.Colors.GREY_600)),
+                    border_radius=5
+                )
             )
-            expansion_panels.append(panel)
+            tabs.append(tab)
+            print(f"DEBUG: Added tab for {category.display_name}")
 
-            # Populate reference list if provided
-            if expansion_panels_ref is not None:
-                expansion_panels_ref.append(panel)
+    print(f"DEBUG: Total tabs created: {len(tabs)}")
 
-    expansion_panel_list = ft.ExpansionPanelList(controls=expansion_panels,
-                                                 elevation=2,
-                                                 divider_color=ft.Colors.PURPLE_100,
-                                                 expand_icon_color=ft.Colors.PURPLE_700)
+    # Create Tabs widget with explicit height constraint
+    # IMPORTANT: ft.Tabs widget REQUIRES explicit height when nested in containers,
+    # especially when the parent container has disabled=True initially. Without
+    # explicit height, the Tabs widget may collapse to 0 height and become invisible
+    # in Flet web. This is a critical layout constraint - do not remove the height!
+    tabs_widget = ft.Container(
+        content=ft.Tabs(
+            selected_index=0,
+            animation_duration=300,
+            tabs=tabs,
+        ),
+        height=500,  # Explicit height - REQUIRED for Tabs to render properly
+    )
 
     content = ft.Column([
         ft.Text("Step 2: Configure ZORA Flags and Seed Number", size=20, weight="bold"),
         ft.Container(height=3), flag_seed_row,
-        ft.Divider(height=1), expand_collapse_buttons,
-        ft.Container(height=3), expansion_panel_list,
+        ft.Divider(height=1),
+        ft.Container(height=5),
+        tabs_widget,
         ft.Container(randomize_button, alignment=ft.alignment.center, padding=5)],
                         spacing=5)
 
@@ -382,8 +480,16 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
             checkbox = ft.Checkbox(
                 label=flag.display_name,
                 value=False,
+                data=flag.value,  # Store flag key for identification
+                disabled=False,  # Will be updated based on dependencies
                 on_change=lambda e, key=flag.value: on_change_callback(key, e.control.value))
             flag_checkboxes[flag.value] = checkbox
+
+            # Store dependency info on checkbox for later reference
+            if hasattr(flag, 'depends_on'):
+                checkbox.data = (flag.value, flag.depends_on)
+            else:
+                checkbox.data = (flag.value, None)
 
             # Create row with checkbox and help icon
             flag_row = ft.Row([
@@ -393,7 +499,8 @@ def build_flag_checkboxes(flag_state: FlagState, on_change_callback) -> tuple[di
                               tooltip=flag.help_text,
                               style=ft.ButtonStyle(padding=2))],
                               spacing=0,
-                              tight=True)
+                              tight=True,
+                              data=flag.value)  # Store flag key on row too
 
             # Add to appropriate category
             categorized_flag_rows[flag.category].append(flag_row)
