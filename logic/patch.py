@@ -2,6 +2,7 @@
 
 from typing import List, Dict
 import hashlib
+import logging
 
 
 class Patch:
@@ -145,6 +146,47 @@ class Patch:
       del self._expected_data[addr]
     if addr in self._descriptions:
       del self._descriptions[addr]
+
+  def Apply(self, rom_data: bytearray, logger=None) -> None:
+    """Apply this patch to ROM data with validation.
+
+    This method encapsulates the patch application logic, including validation
+    of expected data when provided. It ensures consistent behavior across all
+    parts of the application (CLI, UI, tests).
+
+    :param rom_data: The ROM data to patch (modified in-place)
+    :type rom_data: bytearray
+    :param logger: Optional logger for warnings (defaults to logging module)
+    :type logger: logging.Logger|None
+    """
+    log = logger or logging
+
+    for address in self.GetAddresses():
+      patch_data = self.GetData(address)
+      expected_data = self.GetExpectedData(address)
+      description = self.GetDescription(address)
+
+      # Validate expected data if provided
+      if expected_data is not None:
+        actual_data = []
+        for offset in range(len(expected_data)):
+          if address + offset < len(rom_data):
+            actual_data.append(rom_data[address + offset])
+          else:
+            actual_data.append(None)
+
+        if actual_data != expected_data:
+          desc_str = f" ({description})" if description else ""
+          log.warning(
+              f"Expected data mismatch at address 0x{address:04X}{desc_str}:\n"
+              f"  Expected: {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in expected_data)}\n"
+              f"  Actual:   {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in actual_data)}\n"
+              f"  Patching with: {' '.join(f'{b:02X}' for b in patch_data)}"
+          )
+
+      # Apply the patch
+      for offset, byte in enumerate(patch_data):
+        rom_data[address + offset] = byte
 
   def for_json(self):
     """Return patch as a JSON serializable object.

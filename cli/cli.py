@@ -124,32 +124,7 @@ def run_randomizer(
     # Apply patch to ROM
     rom_bytes.seek(0)
     rom_data = bytearray(rom_bytes.read())
-
-    for address in patch.GetAddresses():
-        patch_data = patch.GetData(address)
-        expected_data = patch.GetExpectedData(address)
-        description = patch.GetDescription(address)
-
-        # Validate expected data if provided
-        if expected_data is not None:
-            actual_data = []
-            for offset in range(len(expected_data)):
-                if address + offset < len(rom_data):
-                    actual_data.append(rom_data[address + offset])
-                else:
-                    actual_data.append(None)
-
-            if actual_data != expected_data:
-                desc_str = f" ({description})" if description else ""
-                logging.warning(
-                    f"Expected data mismatch at address 0x{address:04X}{desc_str}:\n"
-                    f"  Expected: {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in expected_data)}\n"
-                    f"  Actual:   {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in actual_data)}\n"
-                    f"  Patching with: {' '.join(f'{b:02X}' for b in patch_data)}"
-                )
-
-        for offset, byte in enumerate(patch_data):
-            rom_data[address + offset] = byte
+    patch.Apply(rom_data)
 
     output_path = resolve_output_path(
         input_path=input_path,

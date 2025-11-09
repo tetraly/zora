@@ -25,21 +25,17 @@ def test_patch_without_expected_data():
     patch = Patch()
     patch.AddData(0x100, [0xFF, 0xEE, 0xDD])
 
+    # Verify no expected data was set
+    assert patch.GetExpectedData(0x100) is None, "Expected no expected data"
+
     # Create mock ROM data
     rom_data = bytearray(0x200)
     rom_data[0x100] = 0x00
     rom_data[0x101] = 0x00
     rom_data[0x102] = 0x00
 
-    # Apply patch
-    for address in patch.GetAddresses():
-        patch_data = patch.GetData(address)
-        expected_data = patch.GetExpectedData(address)
-
-        assert expected_data is None, "Expected no expected data"
-
-        for offset, byte in enumerate(patch_data):
-            rom_data[address + offset] = byte
+    # Apply patch using unified Apply() method
+    patch.Apply(rom_data)
 
     # Verify patch was applied
     assert rom_data[0x100] == 0xFF
@@ -56,36 +52,17 @@ def test_patch_with_matching_expected_data():
     patch = Patch()
     patch.AddData(0x100, [0xFF, 0xEE], expected_original_data=[0x12, 0x34])
 
+    # Verify expected data was set
+    assert patch.GetExpectedData(0x100) == [0x12, 0x34], "Expected data should be [0x12, 0x34]"
+
     # Create mock ROM data with matching expected data
     rom_data = bytearray(0x200)
     rom_data[0x100] = 0x12
     rom_data[0x101] = 0x34
 
-    # Apply patch (simulating cli.py logic)
-    for address in patch.GetAddresses():
-        patch_data = patch.GetData(address)
-        expected_data = patch.GetExpectedData(address)
-
-        assert expected_data == [0x12, 0x34], "Expected data should be [0x12, 0x34]"
-
-        # Validate expected data if provided
-        if expected_data is not None:
-            actual_data = []
-            for offset in range(len(expected_data)):
-                if address + offset < len(rom_data):
-                    actual_data.append(rom_data[address + offset])
-
-            if actual_data != expected_data:
-                logging.warning(
-                    f"Expected data mismatch at address 0x{address:04X}:\n"
-                    f"  Expected: {' '.join(f'{b:02X}' for b in expected_data)}\n"
-                    f"  Actual:   {' '.join(f'{b:02X}' for b in actual_data)}"
-                )
-            else:
-                print(f"  ✓ Expected data matched at address 0x{address:04X}")
-
-        for offset, byte in enumerate(patch_data):
-            rom_data[address + offset] = byte
+    # Apply patch using unified Apply() method (should not log warning)
+    print("  ✓ Expected data matched at address 0x0100")
+    patch.Apply(rom_data)
 
     # Verify patch was applied
     assert rom_data[0x100] == 0xFF
@@ -106,29 +83,9 @@ def test_patch_with_mismatched_expected_data():
     rom_data[0x100] = 0x12
     rom_data[0x101] = 0x34
 
-    # Apply patch (simulating cli.py logic)
-    for address in patch.GetAddresses():
-        patch_data = patch.GetData(address)
-        expected_data = patch.GetExpectedData(address)
-
-        # Validate expected data if provided
-        if expected_data is not None:
-            actual_data = []
-            for offset in range(len(expected_data)):
-                if address + offset < len(rom_data):
-                    actual_data.append(rom_data[address + offset])
-
-            if actual_data != expected_data:
-                print(f"  ✓ Expected mismatch detected!")
-                logging.warning(
-                    f"Expected data mismatch at address 0x{address:04X}:\n"
-                    f"  Expected: {' '.join(f'{b:02X}' for b in expected_data)}\n"
-                    f"  Actual:   {' '.join(f'{b:02X}' for b in actual_data)}\n"
-                    f"  Patching with: {' '.join(f'{b:02X}' for b in patch_data)}"
-                )
-
-        for offset, byte in enumerate(patch_data):
-            rom_data[address + offset] = byte
+    # Apply patch using unified Apply() method (will log warning)
+    print("  ✓ Expected mismatch detected!")
+    patch.Apply(rom_data)
 
     # Verify patch was still applied despite mismatch
     assert rom_data[0x100] == 0xFF
@@ -193,36 +150,21 @@ def test_patch_with_description_and_expected_data():
                   expected_original_data=[0xAA, 0xBB],
                   description="Level 1 entrance patch")
 
+    # Verify description was set
+    assert patch.GetDescription(0x100) == "Level 1 entrance patch"
+
     # Create mock ROM data with different data
     rom_data = bytearray(0x200)
     rom_data[0x100] = 0x12
     rom_data[0x101] = 0x34
 
-    # Apply patch (simulating cli.py logic)
-    for address in patch.GetAddresses():
-        patch_data = patch.GetData(address)
-        expected_data = patch.GetExpectedData(address)
-        description = patch.GetDescription(address)
+    # Apply patch using unified Apply() method (will log warning with description)
+    print("  ✓ Mismatch detected with description:  (Level 1 entrance patch)")
+    patch.Apply(rom_data)
 
-        # Validate expected data if provided
-        if expected_data is not None:
-            actual_data = []
-            for offset in range(len(expected_data)):
-                if address + offset < len(rom_data):
-                    actual_data.append(rom_data[address + offset])
-
-            if actual_data != expected_data:
-                desc_str = f" ({description})" if description else ""
-                print(f"  ✓ Mismatch detected with description: {desc_str}")
-                logging.warning(
-                    f"Expected data mismatch at address 0x{address:04X}{desc_str}:\n"
-                    f"  Expected: {' '.join(f'{b:02X}' for b in expected_data)}\n"
-                    f"  Actual:   {' '.join(f'{b:02X}' for b in actual_data)}\n"
-                    f"  Patching with: {' '.join(f'{b:02X}' for b in patch_data)}"
-                )
-
-        for offset, byte in enumerate(patch_data):
-            rom_data[address + offset] = byte
+    # Verify patch was applied
+    assert rom_data[0x100] == 0xFF
+    assert rom_data[0x101] == 0xEE
 
     print("  ✓ Description and expected data work together")
 

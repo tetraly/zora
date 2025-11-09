@@ -994,11 +994,7 @@ class EventHandlers:
             # Apply patch to ROM
             rom_bytes.seek(0)
             rom_data = bytearray(rom_bytes.read())
-
-            for address in patch.GetAddresses():
-                patch_data = patch.GetData(address)
-                for i, byte in enumerate(patch_data):
-                    rom_data[address + i] = byte
+            patch.Apply(rom_data)
 
             # Store the randomized ROM data
             self.state.randomized_rom_data = bytes(rom_data)
