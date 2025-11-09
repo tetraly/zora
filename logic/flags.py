@@ -453,6 +453,18 @@ class FlagsEnum(Enum):
         'Changes Like-Likes to eat rupees instead of shields.',
         FlagCategory.EXPERIMENTAL
     )
+    INCREASE_MINIMUM_HEALTH = (
+        'increase_minimum_health',
+        'Increase Minimum Health',
+        'When Link dies, respawn with max(3 hearts, maxHearts/2) instead of 3 hearts.',
+        FlagCategory.QUALITY_OF_LIFE
+    )
+    KEEP_HEALTH_AFTER_DEATH_WARP = (
+        'keep_health_after_death_warp',
+        'Keep Health After Death Warp',
+        'When Link dies, keep current health if >= 3 hearts, otherwise respawn with 3 hearts.',
+        FlagCategory.QUALITY_OF_LIFE
+    )
     EXAMPLE_HIDDEN_FLAG = (
         'example_hidden_flag',
         'Example Hidden Flag',
