@@ -12,8 +12,9 @@ API is compatible with AssignmentSolver for drop-in replacement testing.
 
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import logging as log
-import random
 from collections import defaultdict
+
+from rng.random_number_generator import RandomNumberGenerator
 
 
 class RandomizedBacktrackingSolver:
@@ -25,9 +26,13 @@ class RandomizedBacktrackingSolver:
     - You need deterministic results with good randomness
     """
 
-    def __init__(self):
-        """Initialize the backtracking solver."""
-        self.rng = random.Random()
+    def __init__(self, rng: RandomNumberGenerator):
+        """Initialize the backtracking solver.
+
+        Args:
+            rng: RandomNumberGenerator instance for deterministic randomization
+        """
+        self.rng = rng
 
         # Permutation mode state
         self.permutation_mode: bool = False
@@ -79,7 +84,10 @@ class RandomizedBacktrackingSolver:
         keys_copy = list(keys)
         values_copy = list(values)
         if shuffle_seed is not None:
-            pre_shuffle_rng = random.Random(shuffle_seed)
+            # Save and restore RNG state for pre-shuffling
+            saved_state = self.rng.getstate()
+            temp_rng = RandomNumberGenerator(shuffle_seed)
+            pre_shuffle_rng = temp_rng
             pre_shuffle_rng.shuffle(keys_copy)
             pre_shuffle_rng.shuffle(values_copy)
 

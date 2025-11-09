@@ -1,7 +1,7 @@
 import logging as log
-import random
 from typing import List, Dict
 
+from rng.random_number_generator import RandomNumberGenerator
 from .patch import Patch
 from .randomizer_constants import HintType
 from .hints import COMMUNITY_HINTS, NUMERICAL_HINTS
@@ -79,7 +79,7 @@ class HintWriter:
         if heart_requirement not in NUMERICAL_HINTS:
             raise ValueError(f"Invalid white sword heart requirement: {heart_requirement}. Must be 4, 5, or 6.")
 
-        hint_text = random.choice(NUMERICAL_HINTS[heart_requirement])
+        hint_text = self.rng.choice(NUMERICAL_HINTS[heart_requirement])
         self.SetHint(HintType.WHITE_SWORD_CAVE, hint_text)
 
     def SetMagicalSwordHeartHint(self, heart_requirement: int) -> None:
@@ -95,15 +95,16 @@ class HintWriter:
         if heart_requirement not in NUMERICAL_HINTS:
             raise ValueError(f"Invalid magical sword heart requirement: {heart_requirement}. Must be 10, 11, or 12.")
 
-        hint_text = random.choice(NUMERICAL_HINTS[heart_requirement])
+        hint_text = self.rng.choice(NUMERICAL_HINTS[heart_requirement])
         self.SetHint(HintType.MAGICAL_SWORD_CAVE, hint_text)
 
-    def __init__(self):
+    def __init__(self, rng: RandomNumberGenerator):
         """Initialize the hint writer.
 
-        Note: Relies on the random number generator being seeded externally
-        by the main randomizer for deterministic hint selection.
+        Args:
+            rng: RandomNumberGenerator instance for deterministic hint selection
         """
+        self.rng = rng
         self.patch = Patch()
         self.hints: Dict[HintType, str] = {}
 
@@ -123,9 +124,9 @@ class HintWriter:
             hint_type = HintType(hint_num)
             if hint_type not in self.hints:
                 if hint_type in COMMUNITY_HINTS:
-                    self.hints[hint_type] = random.choice(COMMUNITY_HINTS[hint_type])
+                    self.hints[hint_type] = self.rng.choice(COMMUNITY_HINTS[hint_type])
                 else:
-                    self.hints[hint_type] = random.choice(COMMUNITY_HINTS[HintType.OTHER])
+                    self.hints[hint_type] = self.rng.choice(COMMUNITY_HINTS[HintType.OTHER])
 
     def FillWithBlankHints(self) -> None:
         """Fill all hint slots with blank hints."""

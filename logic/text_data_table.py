@@ -1,5 +1,4 @@
 import logging as log
-import random
 from typing import List
 
 from .patch import Patch

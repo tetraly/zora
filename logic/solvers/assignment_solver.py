@@ -22,7 +22,8 @@ Example usage for item shuffling:
 
 from typing import Any, Dict, List, Optional, Set, Union
 import logging as log
-import random
+
+from rng.random_number_generator import RandomNumberGenerator
 
 try:
     from ortools.sat.python import cp_model
@@ -40,13 +41,18 @@ class AssignmentSolver:
     go to this target" or "these sources can only go to these targets".
     """
 
-    def __init__(self):
-        """Initialize the assignment solver."""
+    def __init__(self, rng: RandomNumberGenerator):
+        """Initialize the assignment solver.
+
+        Args:
+            rng: RandomNumberGenerator instance for deterministic shuffling
+        """
         if not ORTOOLS_AVAILABLE:
             raise ImportError(
                 "OR-Tools is required for AssignmentSolver. "
                 "Install with: pip install ortools"
             )
+        self.rng = rng
 
         self.model = cp_model.CpModel()
         self.var_map: Dict[Any, cp_model.IntVar] = {}  # source -> IntVar
@@ -110,9 +116,9 @@ class AssignmentSolver:
         keys_copy = list(keys)
         values_copy = list(values)
         if shuffle_seed is not None:
-            rng = random.Random(shuffle_seed)
-            rng.shuffle(keys_copy)
-            rng.shuffle(values_copy)
+            temp_rng = RandomNumberGenerator(shuffle_seed)
+            temp_rng.shuffle(keys_copy)
+            temp_rng.shuffle(values_copy)
         self.permutation_keys = keys_copy
         self.permutation_values = values_copy
 

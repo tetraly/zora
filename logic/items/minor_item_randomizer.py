@@ -1,7 +1,7 @@
 from collections import Counter
-from random import choice
 import logging as log
 
+from rng.random_number_generator import RandomNumberGenerator
 from ..randomizer_constants import (
     DUNGEON_LEVEL_NUMBERS, Item, RoomType, ValidItemPositions
 )
@@ -22,9 +22,10 @@ class MinorItemRandomizer():
     - Constraints are straightforward (forbid, require, at_least_one_of)
     """
 
-    def __init__(self, data_table: DataTable, flags: Flags) -> None:
+    def __init__(self, data_table: DataTable, flags: Flags, rng: RandomNumberGenerator) -> None:
         self.data_table = data_table
         self.flags = flags
+        self.rng = rng
 
     def Randomize(self, seed: int) -> bool:
         # Early return if shuffle is disabled
@@ -39,7 +40,7 @@ class MinorItemRandomizer():
             self._log_level_inventory(level_num, room_item_pair_lists[level_num])
             for pair in room_item_pair_lists[level_num]:
                 room_type = self.data_table.GetRoomType(level_num, pair.room_num)
-                item_position = choice(ValidItemPositions[room_type])
+                item_position = self.rng.choice(ValidItemPositions[room_type])
                 self.data_table.SetItemPositionNew(level_num, pair.room_num, item_position)
 
             if not self.ShuffleItemsWithinLevel(level_num, room_item_pair_lists[level_num], seed):
@@ -63,7 +64,7 @@ class MinorItemRandomizer():
         # Create solver and define the permutation problem
         # Keys: room numbers, Values: items (shuffled assignment)
         # Use RandomizedBacktrackingSolver by default (fast and deterministic)
-        solver = RandomizedBacktrackingSolver()
+        solver = RandomizedBacktrackingSolver(self.rng)
         solver_seed = self._solver_seed(seed, level_num)
         solver.add_permutation_problem(keys=room_nums, values=items, shuffle_seed=solver_seed)
 

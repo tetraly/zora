@@ -1,6 +1,5 @@
 import io
 import os
-import random
 import logging as log
 import sys
 
@@ -8,8 +7,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from version import __version_rom__
 
 from typing import List
+from rng.random_number_generator import RandomNumberGenerator
 from .data_table import DataTable
-# New 
+# New
 from .items.item_randomizer import ItemRandomizer
 
 #old
@@ -97,7 +97,7 @@ class Z1Randomizer():
     destination = data_table.GetScreenDestination(VANILLA_WOOD_SWORD_SCREEN)
     return destination == CaveType.WOOD_SWORD_CAVE
 
-  def _ShuffleOverworldCaveDestinations(self, data_table: DataTable, rng: random.Random) -> None:
+  def _ShuffleOverworldCaveDestinations(self, data_table: DataTable, rng: RandomNumberGenerator) -> None:
     """Shuffle cave destinations for all 1st quest overworld screens.
 
     This finds all screens that have cave destinations in the 1st quest,
@@ -353,12 +353,10 @@ class Z1Randomizer():
               log.debug(f"Level {level_num}: Changed room action 1 -> 7 (increased_drop_items_in_non_push_block_rooms)")
 
   def GetPatch(self) -> Patch:
-    random.seed(self.seed)
-    # Create a separate RNG instance for internal shuffle seeds to ensure determinism
-    # This prevents the global random state from affecting reproducibility
-    shuffle_rng = random.Random(self.seed)
+    # Create deterministic RNG instance for all randomization
+    rng = RandomNumberGenerator(self.seed)
     data_table = DataTable(self.rom_reader)
-    item_randomizer = ItemRandomizer(data_table, self.flags)
+    item_randomizer = ItemRandomizer(data_table, self.flags, rng)
 
     # Detect if cave destinations are already randomized in the base ROM
     # If wood sword cave is not at vanilla screen 0x77, caves are pre-shuffled
@@ -367,8 +365,8 @@ class Z1Randomizer():
       log.debug("Detected shuffled caves in base ROM - auto-enabling cave shuffle and recorder warp updates")
 
     # Determine heart requirements once for both validation and ROM patching
-    white_sword_hearts = shuffle_rng.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
-    magical_sword_hearts = shuffle_rng.choice([10, 11, 12]) if (self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements) else 12
+    white_sword_hearts = rng.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
+    magical_sword_hearts = rng.choice([10, 11, 12]) if (self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements) else 12
     validator = Validator(data_table, self.flags, white_sword_hearts, magical_sword_hearts)
 
     # Validate flag compatibility with base ROM
@@ -381,7 +379,7 @@ class Z1Randomizer():
     outer_counter = 0
     while not is_valid_seed:
       outer_counter += 1
-      seed = shuffle_rng.randint(0, 9999999999)
+      seed = rng.randint(0, 9999999999)
       log.debug(f"Attempting outer iteration #{outer_counter} with item shuffle seed {seed}")
       while True:
         inner_counter += 1
@@ -389,7 +387,7 @@ class Z1Randomizer():
 
         # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
         if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-          self._ShuffleOverworldCaveDestinations(data_table, shuffle_rng)
+          self._ShuffleOverworldCaveDestinations(data_table, rng)
 
         # Feed the last set of rejected permutations back into the solver so the
         # next attempt explores a fresh layout while remaining deterministic.
@@ -397,7 +395,7 @@ class Z1Randomizer():
         item_randomizer.ReplaceProgressiveItemsWithUpgrades()
         item_randomizer.ResetState()
         item_randomizer.ReadItemsAndLocationsFromTable()
-        item_randomizer.ShuffleItems(shuffle_rng.randint(1, 2147483647))
+        item_randomizer.ShuffleItems(rng.randint(1, 2147483647))
         if item_randomizer.HasValidItemConfiguration():
           log.debug("Success after %d inner_counter iterations" % inner_counter)
           break
@@ -594,14 +592,14 @@ class Z1Randomizer():
     patch.AddData(0x1785F, [0x18])
 
     # Apply hints based on community_hints flag
-    hint_writer = HintWriter()
+    hint_writer = HintWriter(rng)
 
     # Lost Hills randomization
     if self.flags.randomize_lost_hills:
       # Generate 3 random directions from {Up, Right, Down} + Up at the end
       # Up=0x08, Down=0x04, Right=0x01
       direction_options = [0x08, 0x04, 0x01]  # Up, Down, Right
-      lost_hills_directions = shuffle_rng.choices(direction_options, k=3)
+      lost_hills_directions = rng.choices(direction_options, k=3)
       lost_hills_directions.append(0x08)  # Always Up at the end
 
       # Patch the ROM at 0x6DAB-0x6DAE with the direction sequence
@@ -622,7 +620,7 @@ class Z1Randomizer():
       # Generate 3 random directions from {North, West, South} + South at the end
       # North=0x08, South=0x04, West=0x02
       direction_options = [0x08, 0x02, 0x04]  # North, West, South
-      dead_woods_directions = shuffle_rng.choices(direction_options, k=3)
+      dead_woods_directions = rng.choices(direction_options, k=3)
       dead_woods_directions.append(0x04)  # Always South at the end
 
       # Patch the ROM at 0x6DA7-0x6DAA with the direction sequence
@@ -707,7 +705,7 @@ class Z1Randomizer():
       ])
 
     if self.flags.randomize_level_text or self.flags.speed_up_text:
-      random_level_text = shuffle_rng.choice(
+      random_level_text = rng.choice(
           ['palace', 'house-', 'block-', 'random', 'cage_-', 'home_-', 'castle'])
       text_data_table = TextDataTable(
           "very_fast" if self.flags.speed_up_text else "normal", random_level_text
