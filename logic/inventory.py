@@ -26,7 +26,7 @@ class Inventory(object):
     self.still_making_progress_bit = False
   
   def ToString(self) -> str:
-    return ", ".join(item.name for item in self.items)
+    return ", ".join(item.name for item in sorted(self.items))
 
   def SetStillMakingProgressBit(self) -> None:
     self.still_making_progress_bit = True
