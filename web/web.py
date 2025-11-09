@@ -41,7 +41,7 @@ if __name__ == "__main__":
         main,
         upload_dir=upload_dir,
         assets_dir=assets_dir,
-        secret_key=os.environ.get("FLET_SECRET_KEY", "default-secret-key-for-production")
+        secret_key=os.environ.get("FLET_SECRET_KEY", "default-secret-key-for-development")
     )
 
     # Create FastAPI app

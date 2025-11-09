@@ -9,9 +9,7 @@ class FlagCategory(IntEnum):
     LOGIC_AND_DIFFICULTY = 4
     QUALITY_OF_LIFE = 5
     EXPERIMENTAL = 6
-    LEGACY = 7
     HIDDEN = 8
-    SHUFFLE_WITHIN_DUNGEONS = 9
 
     @property
     def display_name(self) -> str:
@@ -23,9 +21,7 @@ class FlagCategory(IntEnum):
             FlagCategory.LOGIC_AND_DIFFICULTY: "Logic & Difficulty",
             FlagCategory.QUALITY_OF_LIFE: "Quality of Life / Other",
             FlagCategory.EXPERIMENTAL: "Experimental",
-            FlagCategory.LEGACY: "Legacy Flags from Tetra's Item Randomizer (intended for vanilla ROMs only)",
             FlagCategory.HIDDEN: "Hidden",
-            FlagCategory.SHUFFLE_WITHIN_DUNGEONS: "Shuffle Within Dungeons",
         }
         return names.get(self, "Unknown")
 

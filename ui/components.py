@@ -207,8 +207,7 @@ def build_step2_container(categorized_flag_rows: dict,
         FlagCategory.OVERWORLD_RANDOMIZATION: ft.Colors.GREEN_600,
         FlagCategory.LOGIC_AND_DIFFICULTY: ft.Colors.ORANGE_600,
         FlagCategory.QUALITY_OF_LIFE: ft.Colors.CYAN_600,
-        FlagCategory.SHUFFLE_WITHIN_DUNGEONS: ft.Colors.TEAL_600,
-        FlagCategory.LEGACY: ft.Colors.GREY_600}
+    }
 
     # Build tabs for each category
     tabs = []
