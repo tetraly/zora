@@ -624,7 +624,7 @@ class Z1Randomizer():
       # Extra fix for Ring/Tunic colors
       patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])
       patch.AddData(0x1FFF4, [0x8E, 0x02, 0x06, 0x8E, 0x72, 0x06, 0xEE, 0x4F, 0x03, 0x60])
-    # Note: There isn't a comparable switch here for progressive boomerangsx because the
+    # Note: There isn't a comparable switch here for progressive boomerangs because the
     # original devs added a separate magic boomerang memory value for some reason.
 
     if False: # self.flags.pacifist_mode:
