@@ -131,8 +131,9 @@ class BaitBlocker:
         Rooms already in one partition cannot be claimed by the other.
         Alternates between expanding A and B for fairness.
         """
-        queue_a = deque(partition_a)
-        queue_b = deque(partition_b)
+        # Sort sets to ensure deterministic iteration order
+        queue_a = deque(sorted(partition_a))
+        queue_b = deque(sorted(partition_b))
 
         # Alternate between expanding A and B for fairness
         while queue_a or queue_b:
@@ -184,7 +185,8 @@ class BaitBlocker:
 
         walls_modified = 0
 
-        for room_num in partition_a:
+        # Sort partition_a to ensure deterministic iteration order
+        for room_num in sorted(partition_a):
             room = self.data_table.GetRoom(level_num, room_num)
 
             # Skip staircase rooms - they don't have walls in the traditional sense
