@@ -9,8 +9,11 @@ from .patch import Patch
 from .rom_reader import RomReader, VARIOUS_DATA_LOCATION
 
 NES_FILE_OFFSET = 0x10
-START_ROOM_OFFSET = 0x2F
-STAIRWAY_LIST_OFFSET = 0x34
+# These offsets are adjusted to account for skipping the first 0x24 bytes of PPU palette data
+# Original ROM offsets: START_ROOM=0x2F, STAIRWAY_LIST=0x34
+# After skipping 0x24 bytes: START_ROOM=0x0B (0x2F-0x24), STAIRWAY_LIST=0x10 (0x34-0x24)
+START_ROOM_OFFSET = 0x0B  # Was 0x2F before PPU data skip
+STAIRWAY_LIST_OFFSET = 0x10  # Was 0x34 before PPU data skip
 LEVEL_1_TO_6_DATA_START_ADDRESS = 0x18700 + NES_FILE_OFFSET
 LEVEL_7_TO_9_DATA_START_ADDRESS = 0x18A00 + NES_FILE_OFFSET
 LEVEL_TABLE_SIZE = 0x80
@@ -24,6 +27,10 @@ ARMOS_SCREEN_ADDRESS = 0x10CB2  # ROM address (without header) - _ReadMemory add
 COAST_ITEM_ADDRESS = 0x1788A + NES_FILE_OFFSET
 COMPASS_ROOM_NUMBER_ADDRESS = 0x1942C + NES_FILE_OFFSET
 SPECIAL_DATA_LEVEL_OFFSET = 0xFC
+
+# Offset within each level info block where meaningful (non-cosmetic) data begins
+# The first 36 bytes (0x24) are PPU palette data which should not affect hash codes
+LEVEL_INFO_MEANINGFUL_DATA_OFFSET = 0x24
 
 
 class DataTable():
@@ -97,10 +104,14 @@ class DataTable():
     self.is_z1r = True
     for level_num in range(0, 10):
         info = self.rom_reader.GetLevelInfo(level_num)
-        info_copy = info[:]
+        # Skip the first 0x24 bytes (PPU palette data) to avoid cosmetic differences
+        # affecting hash codes. Only store the meaningful game data.
+        meaningful_data = info[LEVEL_INFO_MEANINGFUL_DATA_OFFSET:]
+        info_copy = meaningful_data[:]
         self.level_info_raw.append(info_copy)
         self.level_info.append(info_copy[:])
-        vals = info_copy[0x34:0x3E]
+        # Read from original full data for z1r detection (offset hasn't changed in ROM)
+        vals = info[0x34:0x3E]
         if vals[-1] in range(0, 5):
             continue
         self.is_z1r = False
@@ -296,10 +307,15 @@ class DataTable():
     return patch
 
   def _GetPatchForLevelInfo(self) -> Patch:
-    """Generate patch data for per-level info tables (0xFC bytes each)."""
+    """Generate patch data for per-level info tables (meaningful data only).
+
+    Skips the first 0x24 bytes (PPU palette data) to avoid cosmetic differences
+    affecting hash codes. Only patches the meaningful game data.
+    """
     patch = Patch()
     for level_num, info in enumerate(self.level_info):
-      start = VARIOUS_DATA_LOCATION + level_num * 0xFC
+      # Start writing at offset 0x24 to skip PPU palette data
+      start = VARIOUS_DATA_LOCATION + level_num * 0xFC + LEVEL_INFO_MEANINGFUL_DATA_OFFSET
       patch.AddData(start, info)
     return patch
 
