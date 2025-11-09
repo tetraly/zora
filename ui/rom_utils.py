@@ -105,7 +105,7 @@ def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
     """
     # Match pattern: _[digits]_[flagstring].nes
     # Flagstring can contain uppercase, lowercase, digits, and "!"
-    match = re.search(r'_(\d+)_([A-Za-z0-9!]{23,36})\.nes$', filename)
+    match = re.search(r'_(\d+)_([A-Za-z0-9!]{5,50})\.nes$', filename)
 
     if match:
         seed = match.group(1)
