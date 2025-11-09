@@ -372,12 +372,6 @@ class Z1Randomizer():
     if self.flags.fast_fill:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'fast_fill.ips'))
 
-    if self.flags.flute_kills_pols_voice:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
-
-    if self.flags.like_like_rupees:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
-
     if self.flags.low_hearts_sound:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
 
@@ -434,6 +428,37 @@ class Z1Randomizer():
           "very_fast" if self.flags.speed_up_text else "normal", random_level_text
           if self.flags.randomize_level_text else "level-")
       patch += text_data_table.GetPatch()
+
+  def _ApplyMiscellaneousPatches(self, patch: Patch) -> None:
+    """Apply miscellaneous patches for item changes and gameplay modifications.
+
+    This includes item behavior changes like magical boomerang damage, L4 sword,
+    flute functionality, and Like-Like behavior changes.
+
+    Args:
+        patch: The Patch instance to add modifications to
+    """
+    # Magical boomerang damage modifications
+    if self.flags.magical_boomerang_does_one_hp_damage:
+      patch.AddDataFromHexString(0x7478,
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A 0A 85 07 A9 10 95 3D EA")
+    elif self.flags.magical_boomerang_does_half_hp_damage:
+      patch.AddDataFromHexString(0x7478,
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A EA 85 07 A9 10 95 3D EA")
+
+    # L4 sword upgrade
+    if self.flags.add_l4_sword:
+      # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3)
+      # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067
+      patch.AddDataFromHexString(0x7540, "B0")
+
+    # Flute kills Pols Voice in dungeons
+    if self.flags.flute_kills_pols_voice:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
+
+    # Like-Likes eat rupees instead of shields
+    if self.flags.like_like_rupees:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
 
   def GetPatch(self) -> Patch:
     # Create deterministic RNG instance for all randomization
@@ -599,15 +624,8 @@ class Z1Randomizer():
       # Extra fix for Ring/Tunic colors
       patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])
       patch.AddData(0x1FFF4, [0x8E, 0x02, 0x06, 0x8E, 0x72, 0x06, 0xEE, 0x4F, 0x03, 0x60])
-    # Note: There isn't a comparable switch here for progressive boomerangsx because the 
+    # Note: There isn't a comparable switch here for progressive boomerangsx because the
     # original devs added a separate magic boomerang memory value for some reason.
-    
-    if self.flags.magical_boomerang_does_one_hp_damage:
-      patch.AddDataFromHexString(0x7478, 
-          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A 0A 85 07 A9 10 95 3D EA")  
-    elif self.flags.magical_boomerang_does_half_hp_damage:
-      patch.AddDataFromHexString(0x7478,
-          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A EA 85 07 A9 10 95 3D EA")
 
     if False: # self.flags.pacifist_mode:
       patch.AddData(0x7563, [0x00])
@@ -659,11 +677,6 @@ class Z1Randomizer():
       patch.AddDataFromHexString(0x15649, "00A9")
       patch.AddDataFromHexString(0x1564E, "B6")
       patch.AddDataFromHexString(0x1574E, "02")
-      
-    if self.flags.add_l4_sword:
-      # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3) 
-      # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067 
-      patch.AddDataFromHexString(0x7540, "B0")
 
     # For Mags -> Rupee patch
     patch.AddData(0x1785F, [0x18])
@@ -812,5 +825,8 @@ class Z1Randomizer():
 
     # Apply all Quality of Life patches (after hash calculation)
     self._ApplyQualityOfLifePatches(patch, rng)
+
+    # Apply miscellaneous patches (after hash calculation)
+    self._ApplyMiscellaneousPatches(patch)
 
     return patch
