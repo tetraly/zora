@@ -1,8 +1,8 @@
 from typing import DefaultDict, List, Tuple, Iterable
 from collections import defaultdict
-from random import randint, shuffle
 import logging as log
 
+from rng.random_number_generator import RandomNumberGenerator
 from .randomizer_constants import Direction, Item, LevelNum, Range, RoomNum, RoomType, WallType
 from .data_table import DataTable
 from .location import Location
@@ -10,10 +10,11 @@ from .flags import Flags
 
 
 class ItemRandomizer():
-  def __init__(self, data_table: DataTable, flags: Flags) -> None:
+  def __init__(self, data_table: DataTable, flags: Flags, rng: RandomNumberGenerator) -> None:
     self.data_table = data_table
     self.flags = flags
-    self.item_shuffler = ItemShuffler(flags)
+    self.rng = rng
+    self.item_shuffler = ItemShuffler(flags, rng)
 
   def _GetRandomizedShopPrice(self, item: Item) -> int:
     """Get a randomized price for an item placed in a shop.
@@ -33,19 +34,19 @@ class ItemRandomizer():
     # Tier 1: Sword, Ring, Any Key - 230 ± 25
     if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD,
                 Item.BLUE_RING, Item.RED_RING, Item.MAGICAL_KEY]:
-      return randint(205, 255)
+      return self.rng.randint(205, 255)
 
     # Tier 2: Bow, Wand, Ladder - 100 ± 20
     elif item in [Item.BOW, Item.WAND, Item.LADDER]:
-      return randint(80, 120)
+      return self.rng.randint(80, 120)
 
     # Tier 3: Recorder, Arrows, HC - 80 ± 20
     elif item in [Item.RECORDER, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.HEART_CONTAINER]:
-      return randint(60, 100)
+      return self.rng.randint(60, 100)
 
     # Tier 4: Everything else - 60 ± 20
     else:
-      return randint(40, 80)
+      return self.rng.randint(40, 80)
 
   def _GetProgressiveReplacementItemIfNeeded(self, item: Item):
     # Individual progressive flags are temporarily disabled
@@ -127,8 +128,7 @@ class ItemRandomizer():
       ring_location = self._GetOverworldItemLocation(Item.BLUE_RING)
       items.append(ring_location)
       # Lower the price of the ring shop slot to 150 ± 25 rupees
-      import random
-      new_price = random.randint(125, 175)
+      new_price = self.rng.randint(125, 175)
       cave_num = ring_location.GetCaveNum()
       position_num = ring_location.GetPositionNum()
       self.data_table.overworld_caves[cave_num].SetPriceAtPosition(new_price, position_num)
@@ -145,7 +145,7 @@ class ItemRandomizer():
       self.data_table.SetCaveItem(second_bait_location, Item.FAIRY)
       cave_num = second_bait_location.GetCaveNum()
       position_num = second_bait_location.GetPositionNum()
-      self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randint(20, 40), position_num)
+      self.data_table.overworld_caves[cave_num].SetPriceAtPosition(self.rng.randint(20, 40), position_num)
     return items
 
   def ResetState(self):
@@ -249,8 +249,9 @@ class ItemRandomizer():
 
 
 class ItemShuffler():
-  def __init__(self, flags) -> None:
+  def __init__(self, flags, rng: RandomNumberGenerator) -> None:
     self.flags = flags
+    self.rng = rng
     self.item_num_list: List[Item] = []
     self.per_level_item_location_lists: DefaultDict[LevelNum, List[Location]] = defaultdict(list)
     self.per_level_item_lists: DefaultDict[LevelNum, List[Item]] = defaultdict(list)
@@ -316,7 +317,7 @@ class ItemShuffler():
     assert (self.temp_location_count == self.temp_dung_item_count + len(self.item_num_list))
 
   def ShuffleItems(self) -> None:
-    shuffle(self.item_num_list)
+    self.rng.shuffle(self.item_num_list)
 
     for level_num in Range.VALID_LEVEL_AND_CAVE_NUMBERS:
       log.debug("We're in level %d" % level_num)
@@ -337,7 +338,7 @@ class ItemShuffler():
         num_locations_needing_an_item = num_locations_needing_an_item - 1
 
       if level_num in range(1, 10):  # Technically this could be for OW and caves too
-        shuffle(self.per_level_item_lists[level_num])
+        self.rng.shuffle(self.per_level_item_lists[level_num])
 
     if self.item_num_list:
       print(f"\n!!! WARNING: Items remaining after shuffle !!!")
