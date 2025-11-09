@@ -4,9 +4,16 @@
 import argparse
 import io
 import sys
+import os
 import traceback
 from pathlib import Path
 import logging
+
+# CRITICAL: Set PYTHONHASHSEED=0 for deterministic hash functions
+# This ensures the same seed/flags always produce the same ROM
+if os.environ.get('PYTHONHASHSEED') != '0':
+    os.environ['PYTHONHASHSEED'] = '0'
+    os.execv(sys.executable, [sys.executable] + sys.argv)
 
 # Ensure project root is on the import path when executing from the CLI folder
 ROOT_DIR = Path(__file__).resolve().parents[1]

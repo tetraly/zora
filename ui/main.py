@@ -8,6 +8,11 @@ import sys
 from pathlib import Path
 from typing import Callable
 
+# CRITICAL: Set PYTHONHASHSEED=0 for deterministic hash functions
+# This ensures the same seed/flags always produce the same ROM
+if os.environ.get('PYTHONHASHSEED') != '0':
+    os.environ['PYTHONHASHSEED'] = '0'
+    os.execv(sys.executable, [sys.executable] + sys.argv)
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from version import __version__
