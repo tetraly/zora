@@ -130,6 +130,182 @@ class Validator(object):
     return destinations_in_order
 
 
+  def _LogInventorySummary(self, iteration: int) -> None:
+    """Log categorized inventory summary at INFO level."""
+    log.info(f"\n{'='*60}")
+    log.info(f"ITERATION {iteration}")
+    log.info(f"{'='*60}")
+
+    # Weapons
+    weapons = []
+    if self.inventory.Has(Item.WOOD_SWORD): weapons.append("Wood Sword")
+    if self.inventory.Has(Item.WHITE_SWORD): weapons.append("White Sword")
+    if self.inventory.Has(Item.MAGICAL_SWORD): weapons.append("Magical Sword")
+    if self.inventory.Has(Item.WAND): weapons.append("Wand")
+    if self.inventory.Has(Item.BOW): weapons.append("Bow")
+    if self.inventory.Has(Item.WOOD_ARROWS): weapons.append("Wood Arrows")
+    if self.inventory.Has(Item.SILVER_ARROWS): weapons.append("Silver Arrows")
+    if self.inventory.Has(Item.BLUE_CANDLE): weapons.append("Blue Candle")
+    if self.inventory.Has(Item.RED_CANDLE): weapons.append("Red Candle")
+    if self.inventory.Has(Item.WOOD_BOOMERANG): weapons.append("Wood Boomerang")
+    if self.inventory.Has(Item.MAGICAL_BOOMERANG): weapons.append("Magical Boomerang")
+    log.info(f"  Weapons: {', '.join(weapons) if weapons else 'NONE'}")
+
+    # Traversal
+    traversal = []
+    if self.inventory.Has(Item.LADDER): traversal.append("Ladder")
+    if self.inventory.Has(Item.RAFT): traversal.append("Raft")
+    if self.inventory.Has(Item.RECORDER): traversal.append("Recorder")
+    if self.inventory.Has(Item.POWER_BRACELET): traversal.append("Power Bracelet")
+    if self.inventory.Has(Item.LOST_HILLS_HINT_VIRTUAL_ITEM): traversal.append("Lost Hills Hint")
+    if self.inventory.Has(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM): traversal.append("Dead Woods Hint")
+    log.info(f"  Traversal: {', '.join(traversal) if traversal else 'NONE'}")
+
+    # Key items
+    key_items = []
+    if self.inventory.Has(Item.MAGICAL_KEY): key_items.append("Magical Key")
+    if self.inventory.Has(Item.LETTER): key_items.append("Letter")
+    if self.inventory.Has(Item.BOOK): key_items.append("Book")
+    if self.inventory.Has(Item.BLUE_RING): key_items.append("Blue Ring")
+    if self.inventory.Has(Item.RED_RING): key_items.append("Red Ring")
+    if self.inventory.Has(Item.BAIT): key_items.append("Bait")
+    log.info(f"  Key Items: {', '.join(key_items) if key_items else 'NONE'}")
+
+    # Progress
+    log.info(f"  Progress: {self.inventory.GetHeartCount()} Hearts, {self.inventory.GetTriforceCount()} Triforces")
+    if self.inventory.Has(Item.BEAST_DEFEATED_VIRTUAL_ITEM):
+      log.info(f"  Status: Beast Defeated")
+    if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
+      log.info(f"  Status: Kidnapped Rescued!")
+
+    # Missing important items
+    missing = []
+    required_items = [
+      (Item.WHITE_SWORD, "White Sword"),
+      (Item.RECORDER, "Recorder"),
+      (Item.RED_CANDLE, "Red Candle"),
+      (Item.SILVER_ARROWS, "Silver Arrows"),
+      (Item.BOW, "Bow"),
+      (Item.MAGICAL_KEY, "Magical Key"),
+      (Item.RAFT, "Raft"),
+      (Item.LADDER, "Ladder"),
+      (Item.WAND, "Wand"),
+      (Item.BOOK, "Book"),
+      (Item.RED_RING, "Red Ring"),
+      (Item.POWER_BRACELET, "Power Bracelet"),
+      (Item.LETTER, "Letter"),
+      (Item.MAGICAL_BOOMERANG, "Magical Boomerang")
+    ]
+    for item, name in required_items:
+      if not self.inventory.Has(item):
+        missing.append(name)
+    if missing:
+      log.info(f"  MISSING Important Items: {', '.join(missing)}")
+
+  def _LogDestinationAccessibility(self, accessible_destinations: list) -> None:
+    """Log which destinations are accessible and which screens are blocked."""
+    log.info(f"\n--- Destination Accessibility ---")
+
+    # Log accessible destinations
+    accessible_levels = [d for d in accessible_destinations if d in Range.VALID_LEVEL_NUMBERS]
+    accessible_caves = [d for d in accessible_destinations if d not in Range.VALID_LEVEL_NUMBERS]
+
+    if accessible_levels:
+      log.info(f"  Accessible Levels: {', '.join(['L' + str(l) for l in sorted(accessible_levels)])}")
+    else:
+      log.info(f"  Accessible Levels: NONE")
+
+    if accessible_caves:
+      cave_names = []
+      for cave in accessible_caves:
+        cave_names.append(f"{cave.name} (0x{cave:02X})")
+      log.info(f"  Accessible Caves: {', '.join(cave_names)}")
+    else:
+      log.info(f"  Accessible Caves: NONE")
+
+    # Log blocked screens with details
+    blocked_screens = []
+    for screen_num in range(0, 0x80):
+      block_type = self.GetBlockType(screen_num)
+      if block_type is None or block_type == "Open":
+        continue
+
+      if not self.CanAccessScreen(screen_num):
+        # Get destination for context
+        if screen_num == 0x5F:
+          destination = CaveType.COAST_ITEM
+        elif screen_num == self.data_table.GetArmosItemScreen():
+          destination = CaveType.ARMOS_ITEM
+        else:
+          destination = self.data_table.GetScreenDestination(screen_num)
+
+        if destination != CaveType.NONE:
+          dest_str = f"L{destination}" if destination in Range.VALID_LEVEL_NUMBERS else destination.name
+          blocked_screens.append(f"0x{screen_num:02X} ({block_type}) -> {dest_str}")
+
+    if blocked_screens:
+      log.info(f"  BLOCKED Screens ({len(blocked_screens)}):")
+      for blocked in blocked_screens[:10]:  # Limit to first 10 to avoid spam
+        log.info(f"    {blocked}")
+      if len(blocked_screens) > 10:
+        log.info(f"    ... and {len(blocked_screens) - 10} more blocked screens")
+
+  def _LogFailureState(self, failure_type: str) -> None:
+    """Log detailed failure state information at INFO level."""
+    log.info(f"\n{'='*60}")
+    log.info(f"FAILURE ANALYSIS ({failure_type})")
+    log.info(f"{'='*60}")
+
+    # Get accessible destinations
+    accessible_destinations = self.GetAccessibleDestinations()
+    accessible_levels = [d for d in accessible_destinations if d in Range.VALID_LEVEL_NUMBERS]
+
+    log.info(f"Final Inventory: {self.inventory.ToString()}")
+    log.info(f"Hearts: {self.inventory.GetHeartCount()}, Triforces: {self.inventory.GetTriforceCount()}")
+
+    if accessible_levels:
+      log.info(f"Levels Ever Accessible: {', '.join(['L' + str(l) for l in sorted(accessible_levels)])}")
+    else:
+      log.info(f"Levels Ever Accessible: NONE")
+
+    # Check if Level 9 was accessible
+    level_9_accessible = 9 in accessible_levels
+    level_9_triforce_ok = self.inventory.GetTriforceCount() >= 8
+    log.info(f"Level 9 Status: Accessible={level_9_accessible}, Triforces OK={level_9_triforce_ok}")
+
+    if failure_type == "MISSING_ITEMS":
+      # List the missing important items
+      missing = []
+      required_items = [
+        (Item.WHITE_SWORD, "White Sword"),
+        (Item.RECORDER, "Recorder"),
+        (Item.RED_CANDLE, "Red Candle"),
+        (Item.SILVER_ARROWS, "Silver Arrows"),
+        (Item.BOW, "Bow"),
+        (Item.MAGICAL_KEY, "Magical Key"),
+        (Item.RAFT, "Raft"),
+        (Item.LADDER, "Ladder"),
+        (Item.WAND, "Wand"),
+        (Item.BOOK, "Book"),
+        (Item.RED_RING, "Red Ring"),
+        (Item.POWER_BRACELET, "Power Bracelet"),
+        (Item.LETTER, "Letter"),
+        (Item.MAGICAL_BOOMERANG, "Magical Boomerang")
+      ]
+      for item, name in required_items:
+        if not self.inventory.Has(item):
+          missing.append(name)
+      log.info(f"Missing Required Items: {', '.join(missing)}")
+
+    elif failure_type == "NO_RESCUE":
+      # Show why we couldn't rescue the kidnapped
+      if not level_9_accessible:
+        log.info("Problem: Could not access Level 9")
+      elif not level_9_triforce_ok:
+        log.info(f"Problem: Had access to Level 9 but only {self.inventory.GetTriforceCount()}/8 triforces")
+      else:
+        log.info("Problem: Had access to Level 9 with 8 triforces, but couldn't reach/defeat the kidnapped room")
+
   def IsSeedValid(self) -> bool:
     log.debug("Starting check of whether the seed is valid or not")
 
@@ -155,39 +331,60 @@ class Validator(object):
     num_iterations = 0
     while self.inventory.StillMakingProgress():
       num_iterations += 1
-      log.debug("Iteration %d of checking" % num_iterations)
+      self._LogInventorySummary(num_iterations)
       log.debug("Inventory contains: " + self.inventory.ToString())
       self.inventory.ClearMakingProgressBit()
       self.data_table.ClearAllVisitMarkers()
       log.debug("Checking caves")
-      for destination in self.GetAccessibleDestinations():
+      accessible_destinations = self.GetAccessibleDestinations()
+      self._LogDestinationAccessibility(accessible_destinations)
+
+      log.info(f"\n--- Processing Destinations ---")
+      for destination in accessible_destinations:
         if destination in Range.VALID_LEVEL_NUMBERS:
           level_num = destination
           if level_num == 9 and self.inventory.GetTriforceCount() < 8:
+            log.info(f"  Level 9: SKIPPED (need 8 triforces, have {self.inventory.GetTriforceCount()})")
             continue
+          log.info(f"  Processing Level {level_num}")
           self.ProcessLevel(level_num)
         else:
           cave_type = destination
           if self.CanGetItemsFromCave(cave_type):
+            log.info(f"  Processing Cave: {cave_type.name}")
+            items_found = []
             for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
               # Location constructor still expects cave_num (array index 0x00-0x15)
               location = Location(cave_num=cave_type - 0x10, position_num=position_num)
               item = self.data_table.GetCaveItem(location)
+              if item not in [Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD,
+                             Item.BOMBS, Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART,
+                             Item.TRIFORCE_OF_POWER]:
+                items_found.append(item.name)
               self.inventory.AddItem(item, location)
+            if items_found:
+              log.info(f"    -> Found: {', '.join(items_found)}")
+          else:
+            log.info(f"  Cave {cave_type.name}: BLOCKED (requirements not met)")
 
       if num_iterations > 100:
         log.warning("TIMEOUT: Exceeded 100 iterations without completing validation")
+        self._LogFailureState("TIMEOUT")
         return False
 
     if self.inventory.Has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM):
       if self.HasAllImportantItems():
+        log.info(f"\n{'='*60}")
+        log.info("SUCCESS: Seed is valid!")
+        log.info(f"{'='*60}")
         return True
       else:
         log.warning("FAILURE: Rescued kidnapped but missing important items")
+        self._LogFailureState("MISSING_ITEMS")
         return False
     else:
       log.warning("FAILURE: Never rescued the kidnapped")
-      log.debug("Seed doesn't appear to be beatable. :(")
+      self._LogFailureState("NO_RESCUE")
       return False
 
   def _IsMixedEnemyGroup(self, enemy: Enemy) -> bool:
@@ -300,10 +497,22 @@ class Validator(object):
     return True
 
   def ProcessLevel(self, level_num: int) -> None:
+      # Track (room_num, entry_direction) pairs to allow visiting rooms from different directions
+      # This is critical for chute rooms where entry direction affects available exits
+      visited_room_direction_pairs = set()
+
       rooms_to_visit = [(self.data_table.GetLevelStartRoomNumber(level_num),
                          self.data_table.GetLevelEntranceDirection(level_num))]
       while True:
           room_num, direction = rooms_to_visit.pop()
+
+          # Skip if we've already visited this room from this direction
+          if (room_num, direction) in visited_room_direction_pairs:
+              if not rooms_to_visit:
+                  break
+              continue
+
+          visited_room_direction_pairs.add((room_num, direction))
           new_rooms = self._VisitRoom(level_num, room_num, direction)
           if new_rooms:
               rooms_to_visit.extend(new_rooms)
@@ -317,21 +526,25 @@ class Validator(object):
       if room_num not in range(0, 0x80):
         return []
       room = self.data_table.GetRoom(level_num, room_num)
-      if room.IsMarkedAsVisited():
-        return []
+
       log.debug("Visiting level %d room %x" % (level_num, room_num))
-      room.MarkAsVisited()
+
       tbr = []
 
-      if self.CanGetRoomItem(entry_direction, room) and room.HasItem():
-          self.inventory.AddItem(room.GetItem(), Location.LevelRoom(level_num, room_num))
-      if room.GetEnemy() == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, room):
-          self.inventory.AddItem(Item.BEAST_DEFEATED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
-      if room.GetEnemy() == Enemy.THE_KIDNAPPED:
-          self.inventory.AddItem(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
+      # Only collect items once per room (not once per entry direction)
+      # Use the room's visited marker to track if we've collected items
+      if not room.IsMarkedAsVisited():
+        room.MarkAsVisited()
+        if self.CanGetRoomItem(entry_direction, room) and room.HasItem():
+            self.inventory.AddItem(room.GetItem(), Location.LevelRoom(level_num, room_num))
+        if room.GetEnemy() == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, room):
+            self.inventory.AddItem(Item.BEAST_DEFEATED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
+        if room.GetEnemy() == Enemy.THE_KIDNAPPED:
+            self.inventory.AddItem(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
 
       for direction in (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH):
-        if self.CanMove(entry_direction, direction, level_num, room_num, room):
+        can_move = self.CanMove(entry_direction, direction, level_num, room_num, room)
+        if can_move:
           tbr.append((RoomNum(room_num + direction), Direction(-1 * direction)))
 
       # Only check for stairways if this room is configured to have a stairway entrance
@@ -406,7 +619,18 @@ class Validator(object):
     if wall_type == WallType.SOLID_WALL:
       return False
 
-    # TODO: Add key checking logic for locked doors
+    # Check for locked doors
+    if wall_type in [WallType.LOCKED_DOOR_1, WallType.LOCKED_DOOR_2]:
+      if not self.inventory.HasKey():
+        return False
+      # Use a key when passing through (unless magical key)
+      self.inventory.UseKey(level_num, room_num, exit_direction)
+
+    # Check for bomb holes (bombable walls)
+    if wall_type == WallType.BOMB_HOLE:
+      if not self.inventory.HasSwordOrWand():
+        return False
+
     return True
 
   def HasAccessibleSwordOrWand(self) -> bool:
