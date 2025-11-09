@@ -8,6 +8,12 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
+# CRITICAL: Set PYTHONHASHSEED=0 for deterministic hash functions
+# This ensures the same seed/flags always produce the same ROM
+if os.environ.get('PYTHONHASHSEED') != '0':
+    os.environ['PYTHONHASHSEED'] = '0'
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 # Add parent directory to path to import ui.main
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from ui import main as ui_main

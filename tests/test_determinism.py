@@ -6,6 +6,12 @@ import io
 import sys
 import os
 
+# CRITICAL: Set PYTHONHASHSEED=0 for deterministic hash functions
+# This must be set BEFORE Python interpreter starts, so we check and re-exec if needed
+if os.environ.get('PYTHONHASHSEED') != '0':
+    os.environ['PYTHONHASHSEED'] = '0'
+    os.execv(sys.executable, [sys.executable] + sys.argv)
+
 # Add logic directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
