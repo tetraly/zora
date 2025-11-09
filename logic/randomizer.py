@@ -352,7 +352,7 @@ class Z1Randomizer():
               room.SetRoomAction(RoomAction.KillingEnemiesOpensShuttersAndDropsItem)
               log.debug(f"Level {level_num}: Changed room action 1 -> 7 (increased_drop_items_in_non_push_block_rooms)")
 
-  def _ApplyQualityOfLifePatches(self, patch: Patch) -> None:
+  def _ApplyQualityOfLifePatches(self, patch: Patch, rng: RandomNumberGenerator) -> None:
     """Apply Quality of Life patches that affect gameplay logic.
 
     These patches modify game behavior and should be included in the hash code.
@@ -360,6 +360,7 @@ class Z1Randomizer():
 
     Args:
         patch: The Patch instance to add modifications to
+        rng: Random number generator for randomized features
     """
     # Speed up dungeon transitions
     if self.flags.speed_up_dungeon_transitions:
@@ -410,19 +411,21 @@ class Z1Randomizer():
             description="Heart calculation routine: Keep max of: current hearts, 3 hearts, or maxHearts/2"
         )
 
-    # Select button swaps B-button items
-    if self.flags.select_swap:
-      patch.AddData(0x1EC4C, [0x4C, 0xC0, 0xFF])
-      patch.AddData(0x1FFD0, [
-          0xA9, 0x05, 0x20, 0xAC, 0xFF, 0xAD, 0x56, 0x06, 0xC9, 0x0F, 0xD0, 0x02, 0xA9, 0x07, 0xA8,
-          0xA9, 0x01, 0x20, 0xC8, 0xB7, 0x4C, 0x58, 0xEC
-      ])
+    # Text speed (QoL improvement that affects gameplay and should be in hash)
+    if self.flags.speed_up_text:
+      random_level_text = rng.choice(
+          ['palace', 'house-', 'block-', 'random', 'cage_-', 'home_-', 'castle'])
+      text_data_table = TextDataTable(
+          "very_fast",
+          random_level_text if self.flags.randomize_level_text else "level-"
+      )
+      patch += text_data_table.GetPatch()
 
   def _ApplyCosmeticPatches(self, patch: Patch, rng: RandomNumberGenerator) -> None:
     """Apply cosmetic-only patches that don't affect gameplay logic.
 
     These patches only modify visual/audio presentation and should NOT be included
-    in the hash code. This includes sounds, text speed, and text randomization.
+    in the hash code. This includes sounds, text randomization, and select button swap.
 
     Args:
         patch: The Patch instance to add modifications to
@@ -432,14 +435,21 @@ class Z1Randomizer():
     if self.flags.low_hearts_sound:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
 
-    # Text speed and randomization
-    if self.flags.randomize_level_text or self.flags.speed_up_text:
+    # Text randomization (only applied here if text speed is NOT enabled)
+    # If text speed IS enabled, this is already handled in QoL patches
+    if self.flags.randomize_level_text and not self.flags.speed_up_text:
       random_level_text = rng.choice(
           ['palace', 'house-', 'block-', 'random', 'cage_-', 'home_-', 'castle'])
-      text_data_table = TextDataTable(
-          "very_fast" if self.flags.speed_up_text else "normal", random_level_text
-          if self.flags.randomize_level_text else "level-")
+      text_data_table = TextDataTable("normal", random_level_text)
       patch += text_data_table.GetPatch()
+
+    # Select button swaps B-button items
+    if self.flags.select_swap:
+      patch.AddData(0x1EC4C, [0x4C, 0xC0, 0xFF])
+      patch.AddData(0x1FFD0, [
+          0xA9, 0x05, 0x20, 0xAC, 0xFF, 0xAD, 0x56, 0x06, 0xC9, 0x0F, 0xD0, 0x02, 0xA9, 0x07, 0xA8,
+          0xA9, 0x01, 0x20, 0xC8, 0xB7, 0x4C, 0x58, 0xEC
+      ])
 
   def _ApplyMiscellaneousPatches(self, patch: Patch) -> None:
     """Apply miscellaneous patches for item changes and gameplay modifications.
@@ -755,7 +765,7 @@ class Z1Randomizer():
 
     # Apply Quality of Life and Miscellaneous patches BEFORE hash code generation
     # These patches affect gameplay logic and should be included in the hash
-    self._ApplyQualityOfLifePatches(patch)
+    self._ApplyQualityOfLifePatches(patch, rng)
     self._ApplyMiscellaneousPatches(patch)
 
     # Include everything above in the hash code.
