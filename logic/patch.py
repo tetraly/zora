@@ -9,6 +9,7 @@ class Patch:
 
   def __init__(self) -> None:
     self._data: Dict[int, bytes] = {}
+    self._expected_data: Dict[int, bytes] = {}
 
   def __add__(self, other):
     """Add another patch to this patch and return a new Patch object."""
@@ -26,7 +27,11 @@ class Patch:
       raise TypeError("Other object is not Patch type")
 
     for addr in other.addresses:
-      self.AddData(addr, other.GetData(addr))
+      expected_data = other.GetExpectedData(addr)
+      if expected_data is not None:
+        self.AddData(addr, other.GetData(addr), expected_original_data=expected_data)
+      else:
+        self.AddData(addr, other.GetData(addr))
 
     return self
 
@@ -43,7 +48,7 @@ class Patch:
     return list(self._data.keys())
 
   def GetData(self, addr: int) -> List[int]:
-    """Get data in the patch for this address.  
+    """Get data in the patch for this address.
        If the address is not present in the patch, returns empty bytes.
         :param addr: Address for the start of the data.
         :type addr: int
@@ -54,30 +59,61 @@ class Patch:
       int_data.append(byte)
     return int_data
 
-  def AddData(self, addr: int, data: List[int]) -> None:
+  def GetExpectedData(self, addr: int) -> List[int] | None:
+    """Get expected original data for this address.
+       If the address has no expected data, returns None.
+        :param addr: Address for the start of the data.
+        :type addr: int
+        :rtype: list[int]|None
+        """
+    if addr not in self._expected_data:
+      return None
+    int_data: List[int] = []
+    for byte in self._expected_data[addr]:
+      int_data.append(byte)
+    return int_data
+
+  def AddData(self, addr: int, data: List[int], expected_original_data: List[int] | None = None) -> None:
     """Add data to the patch.
         :param addr: Address for the start of the data.
         :type addr: int
         :param data: Patch data as raw bytes.
         :type data: bytearray|bytes|list[int]|int|str
+        :param expected_original_data: Optional expected data at this address before patching.
+        :type expected_original_data: bytearray|bytes|list[int]|None
         """
     self._data[addr] = bytes(data)
+    if expected_original_data is not None:
+      self._expected_data[addr] = bytes(expected_original_data)
 
-  def AddDataFromHexString(self, addr: int, hex_string: str) -> None:
+  def AddDataFromHexString(self, addr: int, hex_string: str, expected_original_data: List[int] | str | None = None) -> None:
     """Add data to the patch from a hex string.
-    
+
     :param addr: Address for the start of the data.
     :type addr: int
     :param hex_string: Hex string (spaces optional), e.g. "FF95 ACCAD0FB" or "FF95ACCAD0FB"
     :type hex_string: str
+    :param expected_original_data: Optional expected data at this address before patching.
+                                     Can be a hex string or list of bytes.
+    :type expected_original_data: str|list[int]|None
     """
     # Remove spaces and any other whitespace
     hex_string = hex_string.replace(" ", "").replace("\n", "").replace("\t", "")
-    
+
     # Convert hex string to bytes
     data = bytes.fromhex(hex_string)
-    
-    self.AddData(addr, data)
+
+    # Process expected_original_data if provided
+    expected_bytes = None
+    if expected_original_data is not None:
+      if isinstance(expected_original_data, str):
+        # Remove spaces and convert hex string to bytes
+        expected_hex = expected_original_data.replace(" ", "").replace("\n", "").replace("\t", "")
+        expected_bytes = list(bytes.fromhex(expected_hex))
+      else:
+        expected_bytes = expected_original_data
+
+    self.AddData(addr, data, expected_original_data=expected_bytes)
 
   def RemoveData(self, addr: int) -> None:
     """Remove data from the patch.
@@ -86,6 +122,8 @@ class Patch:
         """
     if addr in self._data:
       del self._data[addr]
+    if addr in self._expected_data:
+      del self._expected_data[addr]
 
   def for_json(self):
     """Return patch as a JSON serializable object.
