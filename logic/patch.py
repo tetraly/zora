@@ -167,7 +167,8 @@ class Patch:
   def GetHashCode(self) -> bytes:
     to_be_returned = b''
     hash_string = hashlib.sha224()
-    for address in self._data.keys():
+    # Sort addresses to ensure deterministic hash generation
+    for address in sorted(self._data.keys()):
       hash_string.update(str(address).encode('utf-8'))
       hash_string.update(self._data[address])
     for int_of_hash in hash_string.digest()[0:4]:
