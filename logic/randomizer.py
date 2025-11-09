@@ -352,15 +352,14 @@ class Z1Randomizer():
               room.SetRoomAction(RoomAction.KillingEnemiesOpensShuttersAndDropsItem)
               log.debug(f"Level {level_num}: Changed room action 1 -> 7 (increased_drop_items_in_non_push_block_rooms)")
 
-  def _ApplyQualityOfLifePatches(self, patch: Patch, rng: RandomNumberGenerator) -> None:
-    """Apply all Quality of Life patches to the ROM.
+  def _ApplyQualityOfLifePatches(self, patch: Patch) -> None:
+    """Apply Quality of Life patches that affect gameplay logic.
 
-    This includes speed improvements, UI enhancements, and gameplay conveniences
-    such as faster transitions, text speed, item swapping, and heart health mechanics.
+    These patches modify game behavior and should be included in the hash code.
+    This includes speed improvements, inventory changes, and gameplay conveniences.
 
     Args:
         patch: The Patch instance to add modifications to
-        rng: Random number generator for any randomized QoL features
     """
     # Speed up dungeon transitions
     if self.flags.speed_up_dungeon_transitions:
@@ -368,16 +367,15 @@ class Z1Randomizer():
       for addr in [0x141F3, 0x1426B, 0x1446B, 0x14478, 0x144AD]:
         patch.AddData(addr, [0xEA, 0xEA])
 
-    # Apply IPS patch-based QoL features
+    # Fast fill hearts from fairies and potions
     if self.flags.fast_fill:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'fast_fill.ips'))
 
-    if self.flags.low_hearts_sound:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
-
+    # Increase potion inventory capacity
     if self.flags.four_potion_inventory:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'four_potion_inventory.ips'))
 
+    # Auto show letter to NPCs
     if self.flags.auto_show_letter:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'auto_show_letter.ips'))
 
@@ -419,6 +417,20 @@ class Z1Randomizer():
           0xA9, 0x05, 0x20, 0xAC, 0xFF, 0xAD, 0x56, 0x06, 0xC9, 0x0F, 0xD0, 0x02, 0xA9, 0x07, 0xA8,
           0xA9, 0x01, 0x20, 0xC8, 0xB7, 0x4C, 0x58, 0xEC
       ])
+
+  def _ApplyCosmeticPatches(self, patch: Patch, rng: RandomNumberGenerator) -> None:
+    """Apply cosmetic-only patches that don't affect gameplay logic.
+
+    These patches only modify visual/audio presentation and should NOT be included
+    in the hash code. This includes sounds, text speed, and text randomization.
+
+    Args:
+        patch: The Patch instance to add modifications to
+        rng: Random number generator for randomized cosmetic features
+    """
+    # Softer low hearts sound
+    if self.flags.low_hearts_sound:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
 
     # Text speed and randomization
     if self.flags.randomize_level_text or self.flags.speed_up_text:
@@ -741,6 +753,11 @@ class Z1Randomizer():
     hint_patch = hint_writer.GetPatch()
     patch += hint_patch
 
+    # Apply Quality of Life and Miscellaneous patches BEFORE hash code generation
+    # These patches affect gameplay logic and should be included in the hash
+    self._ApplyQualityOfLifePatches(patch)
+    self._ApplyMiscellaneousPatches(patch)
+
     # Include everything above in the hash code.
     hash_code = patch.GetHashCode()
     patch.AddData(0xAFD4, list(hash_code))
@@ -788,10 +805,8 @@ class Z1Randomizer():
       # Change Like-Likes to eat rupees instead of shields
       patch.AddData(0x11D46, [0xEE, 0x7E])
 
-    # Apply all Quality of Life patches (after hash calculation)
-    self._ApplyQualityOfLifePatches(patch, rng)
-
-    # Apply miscellaneous patches (after hash calculation)
-    self._ApplyMiscellaneousPatches(patch)
+    # Apply cosmetic patches AFTER hash code generation
+    # These patches only affect visuals/audio and should NOT affect the hash
+    self._ApplyCosmeticPatches(patch, rng)
 
     return patch
