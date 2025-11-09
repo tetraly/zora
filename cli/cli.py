@@ -124,11 +124,7 @@ def run_randomizer(
     # Apply patch to ROM
     rom_bytes.seek(0)
     rom_data = bytearray(rom_bytes.read())
-
-    for address in patch.GetAddresses():
-        patch_data = patch.GetData(address)
-        for offset, byte in enumerate(patch_data):
-            rom_data[address + offset] = byte
+    patch.Apply(rom_data)
 
     output_path = resolve_output_path(
         input_path=input_path,

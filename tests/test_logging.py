@@ -72,11 +72,7 @@ def main():
     # Apply patch
     rom_bytes.seek(0)
     rom_data = bytearray(rom_bytes.read())
-
-    for address in patch.GetAddresses():
-        patch_data = patch.GetData(address)
-        for i, byte in enumerate(patch_data):
-            rom_data[address + i] = byte
+    patch.Apply(rom_data)
 
     # Get output ROM code
     output_code = extract_code_from_rom_data(bytes(rom_data))
