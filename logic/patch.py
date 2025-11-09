@@ -10,6 +10,7 @@ class Patch:
   def __init__(self) -> None:
     self._data: Dict[int, bytes] = {}
     self._expected_data: Dict[int, bytes] = {}
+    self._descriptions: Dict[int, str] = {}
 
   def __add__(self, other):
     """Add another patch to this patch and return a new Patch object."""
@@ -28,8 +29,11 @@ class Patch:
 
     for addr in other.addresses:
       expected_data = other.GetExpectedData(addr)
-      if expected_data is not None:
-        self.AddData(addr, other.GetData(addr), expected_original_data=expected_data)
+      description = other.GetDescription(addr)
+      if expected_data is not None or description is not None:
+        self.AddData(addr, other.GetData(addr),
+                    expected_original_data=expected_data,
+                    description=description)
       else:
         self.AddData(addr, other.GetData(addr))
 
@@ -73,7 +77,16 @@ class Patch:
       int_data.append(byte)
     return int_data
 
-  def AddData(self, addr: int, data: List[int], expected_original_data: List[int] | None = None) -> None:
+  def GetDescription(self, addr: int) -> str | None:
+    """Get the description for this address.
+       If the address has no description, returns None.
+        :param addr: Address for the start of the data.
+        :type addr: int
+        :rtype: str|None
+        """
+    return self._descriptions.get(addr, None)
+
+  def AddData(self, addr: int, data: List[int], expected_original_data: List[int] | None = None, description: str | None = None) -> None:
     """Add data to the patch.
         :param addr: Address for the start of the data.
         :type addr: int
@@ -81,12 +94,16 @@ class Patch:
         :type data: bytearray|bytes|list[int]|int|str
         :param expected_original_data: Optional expected data at this address before patching.
         :type expected_original_data: bytearray|bytes|list[int]|None
+        :param description: Optional human-readable description of this patch.
+        :type description: str|None
         """
     self._data[addr] = bytes(data)
     if expected_original_data is not None:
       self._expected_data[addr] = bytes(expected_original_data)
+    if description is not None:
+      self._descriptions[addr] = description
 
-  def AddDataFromHexString(self, addr: int, hex_string: str, expected_original_data: List[int] | str | None = None) -> None:
+  def AddDataFromHexString(self, addr: int, hex_string: str, expected_original_data: List[int] | str | None = None, description: str | None = None) -> None:
     """Add data to the patch from a hex string.
 
     :param addr: Address for the start of the data.
@@ -96,6 +113,8 @@ class Patch:
     :param expected_original_data: Optional expected data at this address before patching.
                                      Can be a hex string or list of bytes.
     :type expected_original_data: str|list[int]|None
+    :param description: Optional human-readable description of this patch.
+    :type description: str|None
     """
     # Remove spaces and any other whitespace
     hex_string = hex_string.replace(" ", "").replace("\n", "").replace("\t", "")
@@ -113,7 +132,7 @@ class Patch:
       else:
         expected_bytes = expected_original_data
 
-    self.AddData(addr, data, expected_original_data=expected_bytes)
+    self.AddData(addr, data, expected_original_data=expected_bytes, description=description)
 
   def RemoveData(self, addr: int) -> None:
     """Remove data from the patch.
@@ -124,6 +143,8 @@ class Patch:
       del self._data[addr]
     if addr in self._expected_data:
       del self._expected_data[addr]
+    if addr in self._descriptions:
+      del self._descriptions[addr]
 
   def for_json(self):
     """Return patch as a JSON serializable object.

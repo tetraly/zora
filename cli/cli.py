@@ -128,6 +128,7 @@ def run_randomizer(
     for address in patch.GetAddresses():
         patch_data = patch.GetData(address)
         expected_data = patch.GetExpectedData(address)
+        description = patch.GetDescription(address)
 
         # Validate expected data if provided
         if expected_data is not None:
@@ -139,8 +140,9 @@ def run_randomizer(
                     actual_data.append(None)
 
             if actual_data != expected_data:
+                desc_str = f" ({description})" if description else ""
                 logging.warning(
-                    f"Expected data mismatch at address 0x{address:04X}:\n"
+                    f"Expected data mismatch at address 0x{address:04X}{desc_str}:\n"
                     f"  Expected: {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in expected_data)}\n"
                     f"  Actual:   {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in actual_data)}\n"
                     f"  Patching with: {' '.join(f'{b:02X}' for b in patch_data)}"
