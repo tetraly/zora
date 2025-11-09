@@ -352,6 +352,136 @@ class Z1Randomizer():
               room.SetRoomAction(RoomAction.KillingEnemiesOpensShuttersAndDropsItem)
               log.debug(f"Level {level_num}: Changed room action 1 -> 7 (increased_drop_items_in_non_push_block_rooms)")
 
+  def _ApplyQualityOfLifePatches(self, patch: Patch, rng: RandomNumberGenerator) -> None:
+    """Apply Quality of Life patches that affect gameplay logic.
+
+    These patches modify game behavior and should be included in the hash code.
+    This includes speed improvements, inventory changes, and gameplay conveniences.
+
+    Args:
+        patch: The Patch instance to add modifications to
+        rng: Random number generator for randomized features
+    """
+    # Speed up dungeon transitions
+    if self.flags.speed_up_dungeon_transitions:
+      # For fast scrolling. Puts NOPs instead of branching based on dungeon vs. Level 0 (OW)
+      for addr in [0x141F3, 0x1426B, 0x1446B, 0x14478, 0x144AD]:
+        patch.AddData(addr, [0xEA, 0xEA])
+
+    # Fast fill hearts from fairies and potions
+    if self.flags.fast_fill:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'fast_fill.ips'))
+
+    # Increase potion inventory capacity
+    if self.flags.four_potion_inventory:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'four_potion_inventory.ips'))
+
+    # Auto show letter to NPCs
+    if self.flags.auto_show_letter:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'auto_show_letter.ips'))
+
+    # Heart health patches
+    increase_minimum_health = self.flags.increase_minimum_health
+    keep_health_after_death_warp = self.flags.keep_health_after_death_warp
+    if increase_minimum_health or keep_health_after_death_warp:
+        patch.AddDataFromHexString(
+            0x14B80, "20 E0 85 EA",
+            expected_original_data="29 F0 09 02",
+            description="Replace AND/ORA with JSR to heart calculation routine"
+        )
+
+    if not increase_minimum_health and keep_health_after_death_warp:
+        patch.AddDataFromHexString(
+            0x145F0, "48 29 0F C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 60",
+            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            description="Heart calculation routine: Keep current hearts if >= 3, otherwise reset to 3"
+        )
+
+    elif increase_minimum_health and not keep_health_after_death_warp:
+        patch.AddDataFromHexString(
+            0x145F0, "48 4A 4A 4A 4A 4A C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 60",
+            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            description="Heart calculation routine: Reset to max(3 hearts, maxHearts/2)"
+        )
+
+    elif increase_minimum_health and keep_health_after_death_warp:
+        patch.AddDataFromHexString(
+            0x145F0, "48 4A 4A 4A 4A 4A C9 02 B0 02 A9 02 85 00 68 48 29 0F C5 00 B0 02 A5 00 85 00 68 29 F0 05 00 60",
+            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            description="Heart calculation routine: Keep max of: current hearts, 3 hearts, or maxHearts/2"
+        )
+
+    # Text speed (QoL improvement that affects gameplay and should be in hash)
+    if self.flags.speed_up_text:
+      random_level_text = rng.choice(
+          ['palace', 'house-', 'block-', 'random', 'cage_-', 'home_-', 'castle'])
+      text_data_table = TextDataTable(
+          "very_fast",
+          random_level_text if self.flags.randomize_level_text else "level-"
+      )
+      patch += text_data_table.GetPatch()
+
+  def _ApplyCosmeticPatches(self, patch: Patch, rng: RandomNumberGenerator) -> None:
+    """Apply cosmetic-only patches that don't affect gameplay logic.
+
+    These patches only modify visual/audio presentation and should NOT be included
+    in the hash code. This includes sounds, text randomization, and select button swap.
+
+    Args:
+        patch: The Patch instance to add modifications to
+        rng: Random number generator for randomized cosmetic features
+    """
+    # Softer low hearts sound
+    if self.flags.low_hearts_sound:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
+
+    # Text randomization (only applied here if text speed is NOT enabled)
+    # If text speed IS enabled, this is already handled in QoL patches
+    if self.flags.randomize_level_text and not self.flags.speed_up_text:
+      random_level_text = rng.choice(
+          ['palace', 'house-', 'block-', 'random', 'cage_-', 'home_-', 'castle'])
+      text_data_table = TextDataTable("normal", random_level_text)
+      patch += text_data_table.GetPatch()
+
+    # Select button swaps B-button items
+    if self.flags.select_swap:
+      patch.AddData(0x1EC4C, [0x4C, 0xC0, 0xFF])
+      patch.AddData(0x1FFD0, [
+          0xA9, 0x05, 0x20, 0xAC, 0xFF, 0xAD, 0x56, 0x06, 0xC9, 0x0F, 0xD0, 0x02, 0xA9, 0x07, 0xA8,
+          0xA9, 0x01, 0x20, 0xC8, 0xB7, 0x4C, 0x58, 0xEC
+      ])
+
+  def _ApplyMiscellaneousPatches(self, patch: Patch) -> None:
+    """Apply miscellaneous patches for item changes and gameplay modifications.
+
+    This includes item behavior changes like magical boomerang damage, L4 sword,
+    flute functionality, and Like-Like behavior changes.
+
+    Args:
+        patch: The Patch instance to add modifications to
+    """
+    # Magical boomerang damage modifications
+    if self.flags.magical_boomerang_does_one_hp_damage:
+      patch.AddDataFromHexString(0x7478,
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A 0A 85 07 A9 10 95 3D EA")
+    elif self.flags.magical_boomerang_does_half_hp_damage:
+      patch.AddDataFromHexString(0x7478,
+          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A EA 85 07 A9 10 95 3D EA")
+
+    # L4 sword upgrade
+    if self.flags.add_l4_sword:
+      # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3)
+      # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067
+      patch.AddDataFromHexString(0x7540, "B0")
+
+    # Flute kills Pols Voice in dungeons
+    if self.flags.flute_kills_pols_voice:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
+
+    # Like-Likes eat rupees instead of shields
+    if self.flags.like_like_rupees:
+      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
+
   def GetPatch(self) -> Patch:
     # Create deterministic RNG instance for all randomization
     rng = RandomNumberGenerator(self.seed)
@@ -516,21 +646,8 @@ class Z1Randomizer():
       # Extra fix for Ring/Tunic colors
       patch.AddData(0x6BFB, [0x20, 0xE4, 0xFF])
       patch.AddData(0x1FFF4, [0x8E, 0x02, 0x06, 0x8E, 0x72, 0x06, 0xEE, 0x4F, 0x03, 0x60])
-    # Note: There isn't a comparable switch here for progressive boomerangsx because the 
+    # Note: There isn't a comparable switch here for progressive boomerangs because the
     # original devs added a separate magic boomerang memory value for some reason.
-    
-    if self.flags.magical_boomerang_does_one_hp_damage:
-      patch.AddDataFromHexString(0x7478, 
-          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A 0A 85 07 A9 10 95 3D EA")  
-    elif self.flags.magical_boomerang_does_half_hp_damage:
-      patch.AddDataFromHexString(0x7478, 
-          "A9 50 99 AC 00 BD B2 04 25 09 F0 04 20 C5 7D 60 AD 75 06 0A 0A 0A EA 85 07 A9 10 95 3D EA")
-
-    if self.flags.speed_up_dungeon_transitions:
-      # For fast scrolling. Puts NOPs instead of branching based on dungeon vs. Level 0 (OW)
-      for addr in [0x141F3, 0x1426B, 0x1446B, 0x14478, 0x144AD]:
-        patch.AddData(addr, [0xEA, 0xEA])
-
 
     if False: # self.flags.pacifist_mode:
       patch.AddData(0x7563, [0x00])
@@ -582,11 +699,6 @@ class Z1Randomizer():
       patch.AddDataFromHexString(0x15649, "00A9")
       patch.AddDataFromHexString(0x1564E, "B6")
       patch.AddDataFromHexString(0x1574E, "02")
-      
-    if self.flags.add_l4_sword:
-      # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3) 
-      # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067 
-      patch.AddDataFromHexString(0x7540, "B0")
 
     # For Mags -> Rupee patch
     patch.AddData(0x1785F, [0x18])
@@ -650,62 +762,12 @@ class Z1Randomizer():
 
     hint_patch = hint_writer.GetPatch()
     patch += hint_patch
-    
-    # Apply experimental IPS patches
-    if self.flags.fast_fill:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'fast_fill.ips'))
 
-    if self.flags.flute_kills_pols_voice:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'flute_kills_pols.ips'))
+    # Apply Quality of Life and Miscellaneous patches BEFORE hash code generation
+    # These patches affect gameplay logic and should be included in the hash
+    self._ApplyQualityOfLifePatches(patch, rng)
+    self._ApplyMiscellaneousPatches(patch)
 
-    if self.flags.like_like_rupees:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'like_like_rupees.ips'))
-
-    if self.flags.low_hearts_sound:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'low_hearts_sound.ips'))
-
-    if self.flags.four_potion_inventory:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'four_potion_inventory.ips'))
-
-    if self.flags.auto_show_letter:
-      patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'auto_show_letter.ips'))
-    
-
-    # TODO: Wire these up to flags
-    increase_minimum_health = false
-    keep_health_after_death_warp = false
-    if increase_minimum_health or keep_health_after_death_warp:
-        patch.AddDataFromHexString(
-            0x14B80, "20 E0 85 EA",
-            expected_original_data="29 F0 09 02",
-            description="Replace AND/ORA with JSR to heart calculation routine"
-        )
-
-    if not increase_minimum_health and keep_health_after_death_warp:
-        patch.AddDataFromHexString(
-            0x145F0, "48 29 0F C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 60",
-            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
-            description="Heart calculation routine: Keep current hearts if >= 3, otherwise reset to 3"
-        )
-
-    elif increase_minimum_health and not keep_health_after_death_warp:
-        patch.AddDataFromHexString(
-            0x145F0, "48 4A 4A 4A 4A 4A C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 60",
-            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
-            description="Heart calculation routine: Reset to max(3 hearts, maxHearts/2)"
-        )
-
-    elif increase_minimum_health and keep_health_after_death_warp:
-        patch.AddDataFromHexString(
-            0x145F0, "48 4A 4A 4A 4A 4A C9 02 B0 02 A9 02 85 00 68 48 29 0F C5 00 B0 02 A5 00 85 00 68 29 F0 05 00 60",
-            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
-            description="Heart calculation routine: Keep max of: current hearts, 3 hearts, or maxHearts/2"
-        )
-
-
-    
-
-    
     # Include everything above in the hash code.
     hash_code = patch.GetHashCode()
     patch.AddData(0xAFD4, list(hash_code))
@@ -732,21 +794,6 @@ class Z1Randomizer():
     version_hex = self._ConvertTextToRomHex(version_text)
     patch.AddDataFromHexString(0x1AB40, version_hex)
 
-    if self.flags.select_swap:
-      patch.AddData(0x1EC4C, [0x4C, 0xC0, 0xFF])
-      patch.AddData(0x1FFD0, [
-          0xA9, 0x05, 0x20, 0xAC, 0xFF, 0xAD, 0x56, 0x06, 0xC9, 0x0F, 0xD0, 0x02, 0xA9, 0x07, 0xA8,
-          0xA9, 0x01, 0x20, 0xC8, 0xB7, 0x4C, 0x58, 0xEC
-      ])
-
-    if self.flags.randomize_level_text or self.flags.speed_up_text:
-      random_level_text = rng.choice(
-          ['palace', 'house-', 'block-', 'random', 'cage_-', 'home_-', 'castle'])
-      text_data_table = TextDataTable(
-          "very_fast" if self.flags.speed_up_text else "normal", random_level_text
-          if self.flags.randomize_level_text else "level-")
-      patch += text_data_table.GetPatch()
-
     # Experimental feature patches
     if self.flags.disable_2q_cheat_code:
       # Disable 2nd quest cheat code entry mechanism
@@ -767,5 +814,9 @@ class Z1Randomizer():
     if self.flags.like_likes_eat_rupees:
       # Change Like-Likes to eat rupees instead of shields
       patch.AddData(0x11D46, [0xEE, 0x7E])
+
+    # Apply cosmetic patches AFTER hash code generation
+    # These patches only affect visuals/audio and should NOT affect the hash
+    self._ApplyCosmeticPatches(patch, rng)
 
     return patch
