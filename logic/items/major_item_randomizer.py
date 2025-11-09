@@ -22,6 +22,7 @@ from collections import namedtuple
 from typing import Dict, Optional, Union
 import logging as log
 
+from rng.random_number_generator import RandomNumberGenerator
 from ..randomizer_constants import (
     CARDINAL_DIRECTIONS, CavePosition, CaveType, DUNGEON_LEVEL_NUMBERS, Item, LevelNum, RoomNum, Range, WallType
 )
@@ -66,9 +67,10 @@ class MajorItemRandomizer:
     Minor items (keys, maps, compasses, bombs, rupees) and triforces are NOT included.
     """
 
-    def __init__(self, data_table: DataTable, flags: Flags) -> None:
+    def __init__(self, data_table: DataTable, flags: Flags, rng: RandomNumberGenerator) -> None:
         self.data_table = data_table
         self.flags = flags
+        self.rng = rng
         self.location_item_pairs: list[LocationItemPair] = []
         self.forbidden_solution_maps: list[Dict[Union[DungeonLocation, CaveLocation], Item]] = []
         self.last_solution_map: Optional[dict[Union[DungeonLocation, CaveLocation], Item]] = None
@@ -103,7 +105,7 @@ class MajorItemRandomizer:
         locations = [pair.location for pair in self.location_item_pairs]
         items = [pair.item for pair in self.location_item_pairs]
 
-        solver = RandomizedBacktrackingSolver()
+        solver = RandomizedBacktrackingSolver(self.rng)
         solver.add_permutation_problem(keys=locations, values=items, shuffle_seed=seed)
         for assignment in self.forbidden_solution_maps:
             solver.add_forbidden_solution_map(assignment)
@@ -459,24 +461,22 @@ class MajorItemRandomizer:
         Returns:
             The randomized price in rupees.
         """
-        from random import randint
-
         # Tier 1: Sword, Ring, Any Key - 230 ± 25
         if item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD,
                     Item.BLUE_RING, Item.RED_RING, Item.MAGICAL_KEY]:
-            return randint(205, 255)
+            return self.rng.randint(205, 255)
 
         # Tier 2: Bow, Wand, Ladder - 100 ± 20
         elif item in [Item.BOW, Item.WAND, Item.LADDER]:
-            return randint(80, 120)
+            return self.rng.randint(80, 120)
 
         # Tier 3: Recorder, Arrows, HC - 80 ± 20
         elif item in [Item.RECORDER, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.HEART_CONTAINER]:
-            return randint(60, 100)
+            return self.rng.randint(60, 100)
 
         # Tier 4: Everything else - 60 ± 20
         else:
-            return randint(40, 80)
+            return self.rng.randint(40, 80)
 
     def _ReplaceBaitWithFairy(self) -> None:
         """Replace the right position of shop 4 with a fairy if shuffle_shop_bait is enabled.
@@ -487,14 +487,12 @@ class MajorItemRandomizer:
         if not self.flags.shuffle_shop_bait:
             return
 
-        from random import randint
-
         # Replace shop 4's right position (position 3 in 1-indexed) with a fairy
         position_1indexed = 3
         self.data_table.SetCaveItemNew(CaveType.SHOP_4, position_1indexed, Item.FAIRY)
 
         # Set the fairy's price to a random amount between 20 and 40 rupees
-        fairy_price = randint(20, 40)
+        fairy_price = self.rng.randint(20, 40)
         self.data_table.SetCavePrice(CaveType.SHOP_4, position_1indexed, fairy_price)
 
         log.info(f"Replaced SHOP_4 right position with FAIRY at {fairy_price} rupees")

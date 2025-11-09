@@ -10,8 +10,9 @@ Performance: ~1000x faster than OR-Tools for typical randomizer problems with
 """
 
 from typing import Any, Dict, List, Optional, Set, Callable
-import random
 import logging as log
+
+from rng.random_number_generator import RandomNumberGenerator
 
 
 class RejectionSamplingSolver:
@@ -32,8 +33,13 @@ class RejectionSamplingSolver:
        - Else: reject and retry
     """
 
-    def __init__(self):
-        """Initialize the rejection sampling solver."""
+    def __init__(self, rng: RandomNumberGenerator):
+        """Initialize the rejection sampling solver.
+
+        Args:
+            rng: RandomNumberGenerator instance for deterministic randomization
+        """
+        self.rng = rng
         self.permutation_keys: List[Any] = []
         self.permutation_values: List[Any] = []
         self.constraints: List[Callable[[Dict], bool]] = []
@@ -194,18 +200,18 @@ class RejectionSamplingSolver:
         if seed is None:
             seed = 0
 
-        rng = random.Random(seed)
+        temp_rng = RandomNumberGenerator(seed)
 
         # Pre-shuffle keys and values to add randomness while maintaining determinism
         shuffled_keys = self.permutation_keys.copy()
         shuffled_values = self.permutation_values.copy()
-        rng.shuffle(shuffled_keys)
-        rng.shuffle(shuffled_values)
+        temp_rng.shuffle(shuffled_keys)
+        temp_rng.shuffle(shuffled_values)
 
         # Try random shuffles until we find one that satisfies all constraints
         for attempt in range(max_attempts):
             # Shuffle values
-            rng.shuffle(shuffled_values)
+            temp_rng.shuffle(shuffled_values)
 
             # Create assignment
             assignment = dict(zip(shuffled_keys, shuffled_values))

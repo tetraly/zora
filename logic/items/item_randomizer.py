@@ -3,8 +3,8 @@
 from typing import Dict, Optional
 
 import logging as log
-import random
 
+from rng.random_number_generator import RandomNumberGenerator
 from .major_item_randomizer import MajorItemRandomizer
 from .minor_item_randomizer import MinorItemRandomizer
 from .room_item_collector import RoomItemCollector
@@ -15,10 +15,11 @@ from ..randomizer_constants import  CaveType, Item, ValidItemPositions
 class ItemRandomizer:
     """Orchestrates item randomization and progressive item conversions."""
 
-    def __init__(self, data_table: DataTable, flags: Flags) -> None:
+    def __init__(self, data_table: DataTable, flags: Flags, rng: RandomNumberGenerator) -> None:
         self.data_table = data_table
         self.flags = flags
-        self.major_randomizer = MajorItemRandomizer(self.data_table, self.flags)
+        self.rng = rng
+        self.major_randomizer = MajorItemRandomizer(self.data_table, self.flags, rng)
         self.seed: int
         # Track solver permutations to keep retries deterministic.
         self.forbidden_major_solution_maps: list[Dict] = []
@@ -141,7 +142,7 @@ class ItemRandomizer:
         and randomizes item positions based on room types.
         """
         log.info("Running minor item randomizer...")
-        minor_randomizer = MinorItemRandomizer(self.data_table, self.flags)
+        minor_randomizer = MinorItemRandomizer(self.data_table, self.flags, self.rng)
         return minor_randomizer.Randomize(seed=seed)
 
     def _RandomizeShopItems(self) -> None:
@@ -165,6 +166,6 @@ class ItemRandomizer:
         for level_num, pairs in collector.CollectAll().items():
             for pair in pairs:
                 room_type = self.data_table.GetRoomType(level_num, pair.room_num)
-                item_position = random.choice(ValidItemPositions[room_type])
+                item_position = self.rng.choice(ValidItemPositions[room_type])
                 self.data_table.SetItemPositionNew(level_num, pair.room_num, item_position)
             
