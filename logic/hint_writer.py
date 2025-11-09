@@ -118,15 +118,25 @@ class HintWriter:
         self.hints[hint_type] = hint
 
     def FillWithCommunityHints(self) -> None:
-        """Fill empty hint slots with community hints."""
+        """Fill empty hint slots with community hints.
+
+        Hints 10, 12, 13, and 14 are left blank (single 0xFF byte).
+        """
+        # Hint numbers that should be blank
+        blank_hint_nums = {10, 12, 13, 14}
 
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
             if hint_type not in self.hints:
-                if hint_type in COMMUNITY_HINTS:
-                    self.hints[hint_type] = self.rng.choice(COMMUNITY_HINTS[hint_type])
+                # Make hints 10, 12, 13, 14 blank
+                if hint_num in blank_hint_nums:
+                    self.hints[hint_type] = " "
+                elif hint_type in COMMUNITY_HINTS:
+                    chosen = self.rng.choice(COMMUNITY_HINTS[hint_type])
+                    self.hints[hint_type] = chosen
                 else:
-                    self.hints[hint_type] = self.rng.choice(COMMUNITY_HINTS[HintType.OTHER])
+                    chosen = self.rng.choice(COMMUNITY_HINTS[HintType.OTHER])
+                    self.hints[hint_type] = chosen
 
     def FillWithBlankHints(self) -> None:
         """Fill all hint slots with blank hints."""
@@ -205,8 +215,8 @@ class HintWriter:
         # Special case: blank hint (empty or all empty lines)
         has_content = any(line.strip() for line in lines)
         if not has_content:
-            # Return one space followed by a second space with EOF bits set
-            return [0x24, 0xE4]
+            # Return single 0xFF byte for blank hints
+            return [0xFF]
 
         for line_num, line in enumerate(lines):
             # Strip trailing spaces
