@@ -94,6 +94,50 @@ class DataTable():
     """
     return self.rom_reader._ReadMemory(ARMOS_SCREEN_ADDRESS, 1)[0]
 
+  def GetStartScreen(self) -> int:
+    """Get the overworld start screen from level info.
+
+    Returns:
+        The overworld screen number (0x00-0x7F) where Link starts
+    """
+    return self.level_info[0][START_ROOM_OFFSET]
+
+  def SetStartScreen(self, screen_num: int) -> None:
+    """Set the overworld start screen in level info.
+
+    Args:
+        screen_num: The overworld screen number to set as start (0x00-0x7F)
+    """
+    assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
+    self.level_info[0][START_ROOM_OFFSET] = screen_num
+
+  def GetOverworldEnemyData(self, screen_num: int) -> int:
+    """Get the enemy data byte for an overworld screen from Table 2.
+
+    The enemy data byte contains:
+    - Bits 0-5: Enemy type
+    - Bits 6-7: Enemy quantity code (0-3, indexes into quantity table at 0x19324)
+
+    Args:
+        screen_num: The overworld screen number (0x00-0x7F)
+
+    Returns:
+        The enemy data byte from Table 2
+    """
+    assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
+    return self.overworld_raw_data[screen_num + 2 * 0x80]
+
+  def SetOverworldEnemyData(self, screen_num: int, enemy_data: int) -> None:
+    """Set the enemy data byte for an overworld screen in Table 2.
+
+    Args:
+        screen_num: The overworld screen number (0x00-0x7F)
+        enemy_data: The enemy data byte to set (contains type and quantity code)
+    """
+    assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
+    assert 0 <= enemy_data <= 0xFF, f"Invalid enemy data: {hex(enemy_data)}"
+    self.overworld_raw_data[screen_num + 2 * 0x80] = enemy_data
+
   def _ReadLevelInfo(self):
     self.is_z1r = True
     for level_num in range(0, 10):

@@ -4,9 +4,6 @@ from rng.random_number_generator import RandomNumberGenerator
 from logic.data_table import DataTable
 from logic.flags import Flags
 
-# Offset in level_info for the start screen/room
-START_SCREEN_OFFSET = 0x2F
-
 # Vanilla start screen
 VANILLA_START_SCREEN = 0x77
 
@@ -25,52 +22,6 @@ class OverworldRandomizer:
         self.data_table = data_table
         self.flags = flags
         self.rng = rng
-
-    def _GetStartScreen(self) -> int:
-        """Get the current start screen from level info.
-
-        Returns:
-            The overworld start screen number (0x00-0x7F)
-        """
-        return self.data_table.level_info[0][START_SCREEN_OFFSET]
-
-    def _SetStartScreen(self, screen_num: int) -> None:
-        """Set the start screen in level info.
-
-        Args:
-            screen_num: The overworld screen number to set as start (0x00-0x7F)
-        """
-        assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
-        self.data_table.level_info[0][START_SCREEN_OFFSET] = screen_num
-        log.debug(f"Set start screen to {hex(screen_num)}")
-
-    def _GetEnemyData(self, screen_num: int) -> int:
-        """Get the enemy data byte for a screen from Table 2.
-
-        The enemy data byte contains:
-        - Bits 0-5: Enemy type
-        - Bits 6-7: Enemy quantity code (0-3, indexes into quantity table)
-
-        Args:
-            screen_num: The overworld screen number (0x00-0x7F)
-
-        Returns:
-            The enemy data byte from Table 2
-        """
-        assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
-        return self.data_table.overworld_raw_data[screen_num + 2 * 0x80]
-
-    def _SetEnemyData(self, screen_num: int, enemy_data: int) -> None:
-        """Set the enemy data byte for a screen in Table 2.
-
-        Args:
-            screen_num: The overworld screen number (0x00-0x7F)
-            enemy_data: The enemy data byte to set (contains type and quantity code)
-        """
-        assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
-        assert 0 <= enemy_data <= 0xFF, f"Invalid enemy data: {hex(enemy_data)}"
-        self.data_table.overworld_raw_data[screen_num + 2 * 0x80] = enemy_data
-        log.debug(f"Set enemy data for screen {hex(screen_num)} to {hex(enemy_data)}")
 
     def _GetEasyStartScreens(self) -> List[int]:
         """Get the list of valid screens for easy start screen shuffle.
@@ -115,7 +66,7 @@ class OverworldRandomizer:
             return
 
         # Get current start screen (should be 0x77 in vanilla)
-        old_start_screen = self._GetStartScreen()
+        old_start_screen = self.data_table.GetStartScreen()
         log.debug(f"Current start screen: {hex(old_start_screen)}")
 
         # Determine valid screens for shuffle
@@ -138,16 +89,17 @@ class OverworldRandomizer:
 
         # Exchange enemy data between old and new start screens
         # This ensures the new start screen has no enemies (like vanilla 0x77)
-        old_enemy_data = self._GetEnemyData(old_start_screen)
-        new_enemy_data = self._GetEnemyData(new_start_screen)
+        old_enemy_data = self.data_table.GetOverworldEnemyData(old_start_screen)
+        new_enemy_data = self.data_table.GetOverworldEnemyData(new_start_screen)
 
         log.debug(f"Swapping enemy data: screen {hex(old_start_screen)} ({hex(old_enemy_data)}) "
                   f"<-> screen {hex(new_start_screen)} ({hex(new_enemy_data)})")
 
-        self._SetEnemyData(old_start_screen, new_enemy_data)
-        self._SetEnemyData(new_start_screen, old_enemy_data)
+        self.data_table.SetOverworldEnemyData(old_start_screen, new_enemy_data)
+        self.data_table.SetOverworldEnemyData(new_start_screen, old_enemy_data)
 
         # Set the new start screen
-        self._SetStartScreen(new_start_screen)
+        self.data_table.SetStartScreen(new_start_screen)
+        log.debug(f"Set start screen to {hex(new_start_screen)}")
 
         log.info(f"Shuffled start screen from {hex(old_start_screen)} to {hex(new_start_screen)}")
