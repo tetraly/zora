@@ -331,27 +331,27 @@ class Validator(object):
     num_iterations = 0
     while self.inventory.StillMakingProgress():
       num_iterations += 1
-      self._LogInventorySummary(num_iterations)
+      # self._LogInventorySummary(num_iterations)
       log.debug("Inventory contains: " + self.inventory.ToString())
       self.inventory.ClearMakingProgressBit()
       self.data_table.ClearAllVisitMarkers()
       log.debug("Checking caves")
       accessible_destinations = self.GetAccessibleDestinations()
-      self._LogDestinationAccessibility(accessible_destinations)
+      # self._LogDestinationAccessibility(accessible_destinations)
 
-      log.info(f"\n--- Processing Destinations ---")
+      log.debug(f"\n--- Processing Destinations ---")
       for destination in accessible_destinations:
         if destination in Range.VALID_LEVEL_NUMBERS:
           level_num = destination
           if level_num == 9 and self.inventory.GetTriforceCount() < 8:
-            log.info(f"  Level 9: SKIPPED (need 8 triforces, have {self.inventory.GetTriforceCount()})")
+            log.debug(f"  Level 9: SKIPPED (need 8 triforces, have {self.inventory.GetTriforceCount()})")
             continue
-          log.info(f"  Processing Level {level_num}")
+          log.debug(f"  Processing Level {level_num}")
           self.ProcessLevel(level_num)
         else:
           cave_type = destination
           if self.CanGetItemsFromCave(cave_type):
-            log.info(f"  Processing Cave: {cave_type.name}")
+            log.debug(f"  Processing Cave: {cave_type.name}")
             items_found = []
             for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
               # Location constructor still expects cave_num (array index 0x00-0x15)
@@ -363,9 +363,9 @@ class Validator(object):
                 items_found.append(item.name)
               self.inventory.AddItem(item, location)
             if items_found:
-              log.info(f"    -> Found: {', '.join(items_found)}")
+              log.debug(f"    -> Found: {', '.join(items_found)}")
           else:
-            log.info(f"  Cave {cave_type.name}: BLOCKED (requirements not met)")
+            log.debug(f"  Cave {cave_type.name}: BLOCKED (requirements not met)")
 
       if num_iterations > 100:
         log.warning("TIMEOUT: Exceeded 100 iterations without completing validation")
