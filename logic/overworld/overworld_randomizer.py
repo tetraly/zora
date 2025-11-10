@@ -79,10 +79,6 @@ class OverworldRandomizer:
             valid_screens = self._GetEasyStartScreens()
             log.debug("Using easy start screen shuffle")
 
-        # Remove the current start screen from valid choices to ensure a change
-        if old_start_screen in valid_screens:
-            valid_screens.remove(old_start_screen)
-
         # Choose a new random start screen
         new_start_screen = self.rng.choice(valid_screens)
         log.debug(f"Selected new start screen: {hex(new_start_screen)}")
