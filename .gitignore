@@ -65,7 +65,9 @@ windows/dist/
 runtime.txt
 
 # ROM files
-# *.nes
+outputs/
+roms/
+*.nes
 
 # Environment variables
 .env
