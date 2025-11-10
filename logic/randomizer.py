@@ -22,6 +22,7 @@ from .hint_writer import HintWriter
 from .validator import Validator
 from .flags import Flags
 from .bait_blocker import BaitBlocker
+from .overworld import OverworldRandomizer
 from .randomizer_constants import Range, Item, CaveType, RoomAction
 from .location import Location
 
@@ -545,6 +546,12 @@ class Z1Randomizer():
           self.flags.increased_drop_items_in_push_block_rooms or
           self.flags.increased_drop_items_in_non_push_block_rooms):
         self._ApplyRoomActionFlags(data_table)
+
+      # Apply overworld randomization if enabled
+      if self.flags.shuffle_start_screen:
+        overworld_randomizer = OverworldRandomizer(data_table, self.flags, rng)
+        overworld_randomizer.ShuffleStartScreen()
+
       print("Starting Validator")
       is_valid_seed = validator.IsSeedValid()
       print("Ending Validator")
