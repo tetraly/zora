@@ -328,6 +328,18 @@ class FlagsEnum(Enum):
         'By default, either the wood sword cave or letter cave is guaranteed to be accessible from an open screen (no special items required) and contains a sword or wand. Enable this flag to remove that guarantee. You may need to find additional progression items and/or dive dungeons weaponless to get a weapon and complete the seed.',
         FlagCategory.OVERWORLD_RANDOMIZATION
     )
+    SHUFFLE_START_SCREEN = (
+        'shuffle_start_screen',
+        'Shuffle Start Screen',
+        'Randomizes which overworld screen Link starts on. Enemy data is swapped so the new start screen has no enemies (like the vanilla start screen).',
+        FlagCategory.OVERWORLD_RANDOMIZATION
+    )
+    FULL_START_SHUFFLE = (
+        'full_start_shuffle',
+        'Full Start Screen Shuffle',
+        'When enabled with Shuffle Start Screen, allows any of the 128 overworld screens as the start location. When disabled, only "easy" screens are used, excluding difficult or problematic areas.',
+        FlagCategory.OVERWORLD_RANDOMIZATION
+    )
     FAST_FILL = (
         'fast_fill',
         'Fast Fill',
