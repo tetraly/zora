@@ -315,7 +315,7 @@ class DataTable():
     patch = Patch()
     for level_num, info in enumerate(self.level_info):
       # Start writing at offset 0x24 to skip PPU palette data
-      start = VARIOUS_DATA_LOCATION + level_num * 0xFC + LEVEL_INFO_MEANINGFUL_DATA_OFFSET
+      start = VARIOUS_DATA_LOCATION + NES_FILE_OFFSET + level_num * 0xFC + LEVEL_INFO_MEANINGFUL_DATA_OFFSET
       patch.AddData(start, info)
     return patch
 
