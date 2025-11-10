@@ -183,8 +183,18 @@ class DataTable():
     room_num = location.GetRoomNum()
     room = self.GetRoom(location.GetLevelNum(), room_num)
     if room.IsItemStaircase():
+      # The triforce is in an item staircase room. The compass should point to the room
+      # that contains the stairs leading down to this staircase room, not the staircase room itself.
       room_num = room.GetLeftExit()
     self.triforce_locations[location.GetLevelNum()] = room_num
+
+    # Also update self.level_info with the new compass pointer
+    # Compass is at offset 0x30 within each level info block, and level_info starts at offset 0x24,
+    # so the compass is at index 0x30 - 0x24 = 0x0C within the level_info array
+    level_num = location.GetLevelNum()
+    if level_num in range(1, 9):  # Only levels 1-8 have updatable compass pointers
+      compass_index = 0x30 - LEVEL_INFO_MEANINGFUL_DATA_OFFSET
+      self.level_info[level_num][compass_index] = room_num
 
   def ClearAllVisitMarkers(self) -> None:
     log.debug("Clearing Visit markers")
@@ -263,15 +273,8 @@ class DataTable():
       for table_num in range(0, NUM_BYTES_OF_DATA_PER_ROOM):
         patch.AddData(start_address + table_num * LEVEL_TABLE_SIZE + room_num,
                       [room_data[table_num]])
-    # Write Triforce room location to update where the compass displays it in levels 1-8.
-    # The room the compass points to in level 9 doesn't change.
-    for level_num in range(1, 9):
-      if level_num in self.triforce_locations:
-        patch.AddData(
-            COMPASS_ROOM_NUMBER_ADDRESS + (level_num - 1) * SPECIAL_DATA_LEVEL_OFFSET,
-            [self.triforce_locations[level_num]])
-      else:
-        log.debug("Skipping compass update for level %d (location unavailable)", level_num)
+    # NOTE: Compass pointers are now written as part of level_info in _GetPatchForLevelInfo()
+    # The old code that wrote them separately has been removed to avoid conflicts.
     return patch
 
   def _GetPatchForOverworldCaveData(self) -> Patch:
