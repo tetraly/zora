@@ -263,6 +263,39 @@ class Validator(object):
     log.info(f"Final Inventory: {self.inventory.ToString()}")
     log.info(f"Hearts: {self.inventory.GetHeartCount()}, Triforces: {self.inventory.GetTriforceCount()}")
 
+    # Show missing required items
+    missing = []
+    required_items = [
+      (Item.WOOD_SWORD, "Wood Sword"),
+      (Item.WHITE_SWORD, "White Sword"),
+      (Item.MAGICAL_SWORD, "Magical Sword"),
+      (Item.BAIT, "Bait"),
+      (Item.RECORDER, "Recorder"),
+      (Item.BLUE_CANDLE, "Blue Candle"),
+      (Item.RED_CANDLE, "Red Candle"),
+      (Item.WOOD_ARROWS, "Wood Arrows"),
+      (Item.SILVER_ARROWS, "Silver Arrows"),
+      (Item.BOW, "Bow"),
+      (Item.MAGICAL_KEY, "Magical Key"),
+      (Item.RAFT, "Raft"),
+      (Item.LADDER, "Ladder"),
+      (Item.WAND, "Wand"),
+      (Item.BOOK, "Book"),
+      (Item.BLUE_RING, "Blue Ring"),
+      (Item.RED_RING, "Red Ring"),
+      (Item.POWER_BRACELET, "Power Bracelet"),
+      (Item.LETTER, "Letter"),
+      (Item.WOOD_BOOMERANG, "Wood Boomerang"),
+      (Item.MAGICAL_BOOMERANG, "Magical Boomerang"),
+      (Item.LOST_HILLS_HINT_VIRTUAL_ITEM, "Lost Hills Hint"),
+      (Item.DEAD_WOODS_HINT_VIRTUAL_ITEM, "Dead Woods Hint")
+    ]
+    for item, name in required_items:
+      if not self.inventory.Has(item):
+        missing.append(name)
+    if missing:
+      log.info(f"Missing Required Items: {', '.join(missing)}")
+
     if accessible_levels:
       log.info(f"Levels Ever Accessible: {', '.join(['L' + str(l) for l in sorted(accessible_levels)])}")
     else:
