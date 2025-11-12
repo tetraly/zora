@@ -159,7 +159,7 @@ class ItemRandomizer():
       self.item_shuffler.AddLocationAndItem(location, item_num)
     if self.flags.shuffle_potion_shop_items:
       self.item_shuffler.AddLocationAndItem(self.LEFT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
-      self.item_shuffler.AddLocationAndItem(self.RIGHT_POTION_SHOP_LOCATION, Item.BLUE_POTION)
+      self.item_shuffler.AddLocationAndItem(self.RIGHT_POTION_SHOP_LOCATION, Item.RED_POTION)
 
   def _ReadItemsAndLocationsForUndergroundLevel(self, level_num: LevelNum) -> None:
     log.debug("Reading staircase room data for level %d " % level_num)
@@ -393,6 +393,8 @@ class ItemShuffler():
         if location in [Location.CavePosition(10, 1),  Location.CavePosition(10, 2),  Location.CavePosition(10, 3)]:
             if item == Item.LETTER:
                 return False 
+        if item == Item.RED_POTION and not location.IsShopPosition():
+            return False
         if location.IsLevelRoom() and location.GetLevelNum() == 9:
           # By default, prevent important items in level 9 unless flag is enabled
           if not self.flags.allow_important_items_in_level_nine:
