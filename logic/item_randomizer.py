@@ -198,7 +198,7 @@ class ItemRandomizer():
     room.MarkAsVisited()
 
     item = room.GetItem()
-    if item not in [Item.NO_ITEM, Item.TRIFORCE_OF_POWER]:
+    if item not in [Item.TRIFORCE_OF_POWER]:
         if not item.IsMinorDungeonItem() or self.flags.shuffle_minor_dungeon_items:
           self.item_shuffler.AddLocationAndItem(Location.LevelRoom(level_num, room_num), item)
  
@@ -393,12 +393,6 @@ class ItemShuffler():
         if location in [Location.CavePosition(10, 1),  Location.CavePosition(10, 2),  Location.CavePosition(10, 3)]:
             if item == Item.LETTER:
                 return False 
-        # TODO: Remove this constraint once we fix the NO_ITEM vs MAGICAL_SWORD ambiguity
-        # The game uses code 0x03 for both MAGICAL_SWORD and NO_ITEM in dungeons, so we cannot
-        # safely place Magical Swords in dungeon rooms. This limitation is documented in
-        # ui/known_issues.py. The fix will be to change the NO_ITEM code to a different value.
-        if location.IsLevelRoom() and item == Item.MAGICAL_SWORD:
-            return False
         if location.IsLevelRoom() and location.GetLevelNum() == 9:
           # By default, prevent important items in level 9 unless flag is enabled
           if not self.flags.allow_important_items_in_level_nine:

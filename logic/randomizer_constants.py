@@ -41,7 +41,6 @@ class Item(IntEnum):
   WOOD_SWORD = 0x01
   WHITE_SWORD = 0x02
   MAGICAL_SWORD = 0x03
-  NO_ITEM = 0x03
   BAIT = 0x04
   RECORDER = 0x05
   BLUE_CANDLE = 0x06

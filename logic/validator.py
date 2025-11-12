@@ -666,9 +666,12 @@ class Validator(object):
 
     
   def HasAllImportantItems(self) -> bool:
-      for item in [Item.WHITE_SWORD, Item.RECORDER, Item.RED_CANDLE, Item.SILVER_ARROWS, Item.BOW,
-                   Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK, Item.RED_RING,
-                   Item.POWER_BRACELET, Item.LETTER, Item.MAGICAL_BOOMERANG]:
+      for item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BAIT, Item.RECORDER,
+                   Item.BLUE_CANDLE, Item.RED_CANDLE, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.BOW, 
+                   Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK,Item.BLUE_RING,
+                   Item.RED_RING, Item.POWER_BRACELET, Item.LETTER, Item.WOOD_BOOMERANG,
+                   Item.MAGICAL_BOOMERANG, Item.LOST_HILLS_HINT_VIRTUAL_ITEM, 
+                   Item.DEAD_WOODS_HINT_VIRTUAL_ITEM]:
           if not self.inventory.Has(item):
               log.warning(self.inventory.ToString())
               log.warning(f"Found a seed without {item.name}")

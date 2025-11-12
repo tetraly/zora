@@ -87,10 +87,10 @@ class Inventory(object):
 
     log.debug("Found %s" % item)
 
-    if item == Item.WOOD_SWORD and Item.WOOD_SWORD in self.items:
-      self.items.add(Item.WHITE_SWORD)
-    elif item == Item.WOOD_SWORD and Item.WHITE_SWORD in self.items:
+    if item == Item.WOOD_SWORD and Item.WHITE_SWORD in self.items:
       self.items.add(Item.MAGICAL_SWORD)
+    elif item == Item.WOOD_SWORD and Item.WOOD_SWORD in self.items:
+      self.items.add(Item.WHITE_SWORD)
     elif item == Item.BLUE_RING and Item.BLUE_RING in self.items:
       self.items.add(Item.RED_RING)
     elif item == Item.BLUE_CANDLE and Item.BLUE_CANDLE in self.items:
@@ -123,9 +123,8 @@ class Inventory(object):
   def Has(self, item: Item) -> bool:
     return item in self.items
 
-  # TODO: Make this work correctly with the Magical sword as well.
   def HasSword(self) -> bool:
-    return Item.WOOD_SWORD in self.items or Item.WHITE_SWORD in self.items
+    return Item.WOOD_SWORD in self.items or Item.WHITE_SWORD in self.items or Item.MAGICAL_SWORD in self.items
 
   def HasSwordOrWand(self) -> bool:
     return self.HasSword() or Item.WAND in self.items
