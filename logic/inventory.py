@@ -73,7 +73,7 @@ class Inventory(object):
                   (int(item_location.GetLevelNum()), self.num_heart_containers))
       else:
         log.debug("Found Heart Container in %s . Now have %d Heart Containers" %
-                  (CaveType.FromCaveNum(int(item_location.GetCaveNum())).name,
+                  (item_location.GetCaveNum().name,
                    self.num_heart_containers))
       assert self.num_heart_containers <= 16
       return
