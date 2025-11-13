@@ -446,40 +446,6 @@ class EventHandlers:
         self.step2_container.opacity = 0.4
         self.step2_container.update()
 
-    def update_legacy_flags_state(self) -> None:
-        """Enable/disable LEGACY flags based on ROM type.
-
-        LEGACY flags are only available for vanilla ROMs, not randomized ROMs.
-        """
-        from logic.flags import FlagsEnum, FlagCategory
-        import flet as ft
-
-        is_vanilla = self.state.rom_info.rom_type == "vanilla"
-
-        # Update each LEGACY flag checkbox
-        for flag in FlagsEnum:
-            if flag.category == FlagCategory.LEGACY:
-                if flag.value in self.flag_checkboxes:
-                    checkbox = self.flag_checkboxes[flag.value]
-                    checkbox.disabled = not is_vanilla
-
-                    # Update label color based on state
-                    if not is_vanilla:
-                        # Disabled: grey out text
-                        checkbox.label_style = ft.TextStyle(color=ft.Colors.GREY_500)
-                        checkbox.value = False
-                        self.state.flag_state.flags[flag.value] = False
-                    else:
-                        # Enabled: restore default color
-                        checkbox.label_style = None
-
-                    # Only update if the control is on the page
-                    try:
-                        checkbox.update()
-                    except AssertionError:
-                        # Control not yet added to page, skip update
-                        pass
-
     # ROM loading handlers
     def load_rom_and_show_card(self, disable_seed: bool = False) -> None:
         """Hide Step 1, show ROM info card, and initialize Step 2.
@@ -509,7 +475,6 @@ class EventHandlers:
             self.random_seed_button.update()
 
         self.update_flagstring()
-        self.update_legacy_flags_state()
         print("DEBUG: About to call enable_step2()")
         self.enable_step2()
         print("DEBUG: Called enable_step2(), now updating page")
