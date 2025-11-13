@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
+from file_cleanup import start_cleanup_service
 
 # CRITICAL: Set PYTHONHASHSEED=0 for deterministic hash functions
 # This ensures the same seed/flags always produce the same ROM
@@ -55,7 +56,11 @@ if __name__ == "__main__":
     # Add download endpoint BEFORE mounting Flet
     @app.get("/download/{filename}")
     async def download_file(filename: str):
-        """Serve file for download with proper headers."""
+        """Serve file for download with proper headers.
+
+        Note: File cleanup happens in the background via file_cleanup service.
+        Files are removed after 2 hours by default.
+        """
         file_path = Path(downloads_dir) / filename
         if file_path.exists():
             return FileResponse(
@@ -68,6 +73,13 @@ if __name__ == "__main__":
 
     # Mount Flet app (this handles everything else including favicon)
     app.mount("/", flet_app)
+
+    # Start background file cleanup service
+    # Cleans up files older than 2 hours, runs every hour
+    cleanup_interval = int(os.environ.get("CLEANUP_INTERVAL_SECONDS", 3600))  # 1 hour
+    max_file_age = int(os.environ.get("MAX_FILE_AGE_SECONDS", 7200))  # 2 hours
+    start_cleanup_service(cleanup_interval, max_file_age)
+    log.info(f"Started file cleanup service (interval: {cleanup_interval}s, max age: {max_file_age}s)")
 
     # Run the app
     import uvicorn

@@ -226,6 +226,10 @@ class EventHandlers:
             self.state.rom_info.clear()
             self.state.vanilla_rom_path = None
 
+            # Clear ROM data from memory to prevent memory leaks
+            self.state.randomized_rom_data = None
+            self.state.randomized_rom_filename = None
+
             # Remove ZORA settings card if it exists
             if self.state.zora_settings_card:
                 self.page.controls.remove(self.state.zora_settings_card)
