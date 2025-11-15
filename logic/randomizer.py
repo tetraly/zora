@@ -506,33 +506,31 @@ class Z1Randomizer():
     # Main loop: Try a seed, if it isn't valid, try another one until it is valid.
     is_valid_seed = False
 
-    inner_counter = 0
-    outer_counter = 0
+    attempt_counter = 0
     while not is_valid_seed:
-      outer_counter += 1
+      attempt_counter += 1
       seed = rng.randint(0, 9999999999)
-      log.debug(f"Attempting outer iteration #{outer_counter} with item shuffle seed {seed}")
-      while True:
-        inner_counter += 1
-        data_table.ResetToVanilla()
+      log.debug(f"Attempting iteration #{attempt_counter} with seed {seed}")
 
-        # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
-        if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-          self._ShuffleOverworldCaveDestinations(data_table, rng)
+      # Reset to vanilla state
+      data_table.ResetToVanilla()
 
-        # Feed the last set of rejected permutations back into the solver so the
-        # next attempt explores a fresh layout while remaining deterministic.
-        item_randomizer.set_forbidden_major_solutions(self._forbidden_major_solution_maps)
-        item_randomizer.ReplaceProgressiveItemsWithUpgrades()
-        item_randomizer.ResetState()
-        item_randomizer.ReadItemsAndLocationsFromTable()
-        item_randomizer.ShuffleItems(rng.randint(1, 2147483647))
-        if item_randomizer.HasValidItemConfiguration():
-          log.debug("Success after %d inner_counter iterations" % inner_counter)
-          break
-        if inner_counter >= 2000:
-          log.debug("Gave up after %d inner_counter iterations" % inner_counter)
-      
+      # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
+      if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
+        self._ShuffleOverworldCaveDestinations(data_table, rng)
+
+      # Feed the last set of rejected permutations back into the solver so the
+      # next attempt explores a fresh layout while remaining deterministic.
+      item_randomizer.set_forbidden_major_solutions(self._forbidden_major_solution_maps)
+
+      # Run the item randomizer (handles major shuffle, minor shuffle, progressive items, and item positions)
+      # This is deterministic - if it fails with this seed, retrying won't help
+      if not item_randomizer.Randomize(seed):
+        log.warning(f"Item randomization failed for seed {seed}, trying next seed...")
+        continue
+
+      # Note: Items are already written to DataTable during Randomize()
+      # This call is kept for API compatibility but is a no-op with the new ItemRandomizer
       item_randomizer.WriteItemsAndLocationsToTable()
 
       # Apply bait blocker if flag is enabled
@@ -557,16 +555,16 @@ class Z1Randomizer():
       print("Ending Validator")
       #is_valid_seed = True
       if is_valid_seed:
-          log.warning(f"✓ FOUND VALID SEED after {outer_counter} attempts!")
+          log.warning(f"✓ FOUND VALID SEED after {attempt_counter} attempts!")
       else:
           last_solution_map = item_randomizer.get_last_major_solution_map()
           if last_solution_map:
               if not any(existing == last_solution_map for existing in self._forbidden_major_solution_maps):
                   # Record this losing permutation so the solver skips it next time.
                   self._forbidden_major_solution_maps.append(last_solution_map.copy())
-          log.warning(f"✗ Attempt {outer_counter:03} (seed {seed:10}) failed validation, trying again...")
-      if outer_counter >= 1000:
-          raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
+          log.warning(f"✗ Attempt {attempt_counter:03} (seed {seed:10}) failed validation, trying next seed...")
+      if attempt_counter >= 1000:
+          raise Exception(f"Gave up after trying {attempt_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
       
     patch = data_table.GetPatch()
 

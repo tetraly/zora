@@ -245,13 +245,17 @@ class RandomizedBacktrackingSolver:
     def solve(
         self,
         seed: Optional[int] = None,
-        time_limit_seconds: float = 10.0
+        time_limit_seconds: float = 10.0,
+        max_iterations: Optional[int] = None,
+        max_backtrack_depth: Optional[int] = None
     ) -> Optional[Dict[Any, Any]]:
         """Solve the assignment problem using randomized backtracking with greedy placement.
 
         Args:
             seed: Random seed for deterministic solving
             time_limit_seconds: Maximum time to spend solving (best-effort)
+            max_iterations: Maximum solver attempts (default: self.max_iterations)
+            max_backtrack_depth: Maximum backtracking depth (default: 5 for small problems, scales up for larger ones)
 
         Returns:
             Dictionary mapping source -> target if solution found, None otherwise.
@@ -259,17 +263,31 @@ class RandomizedBacktrackingSolver:
         if not self.permutation_mode:
             raise NotImplementedError("Non-permutation mode not yet implemented")
 
-        # Seed the RNG
+        # Seed the RNG - create a new RNG instance for this solve
         if seed is not None:
-            self.rng.seed(seed)
+            self.rng = RandomNumberGenerator(seed)
             log.debug(f"Solving with seed: {seed}")
+
+        # Use provided iterations or default
+        iterations = max_iterations if max_iterations is not None else self.max_iterations
 
         # Try to find a valid solution using greedy randomized placement
         num_keys = len(self.permutation_keys)
 
-        for attempt in range(self.max_iterations):
+        # Scale backtrack depth based on problem size if not explicitly provided
+        if max_backtrack_depth is None:
+            if num_keys <= 40:
+                max_backtrack_depth = 5  # Small problems
+            elif num_keys <= 80:
+                max_backtrack_depth = 10  # Medium problems
+            else:
+                max_backtrack_depth = 20  # Large problems (100+ items)
+
+        log.debug(f"Solving {num_keys} items with max_iterations={iterations}, max_backtrack_depth={max_backtrack_depth}")
+
+        for attempt in range(iterations):
             # Use greedy + backtracking approach
-            assignment = self._greedy_solve_with_backtrack(num_keys, max_depth=5)
+            assignment = self._greedy_solve_with_backtrack(num_keys, max_depth=max_backtrack_depth)
 
             if assignment is not None:
                 # Found a valid solution
@@ -290,7 +308,7 @@ class RandomizedBacktrackingSolver:
                 log.info(f"Found valid solution on attempt {attempt + 1}")
                 return self.last_solution
 
-        log.error(f"No valid solution found after {self.max_iterations} attempts")
+        log.error(f"No valid solution found after {iterations} attempts")
         return None
 
     def _greedy_solve_with_backtrack(self, num_keys: int, max_depth: int = 5) -> Optional[List[int]]:

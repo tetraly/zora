@@ -116,9 +116,26 @@ class MajorItemRandomizer:
         # Add constraints based on flags
         self._AddConstraints(solver, locations, items)
 
-        # Solve
+        # Scale solver parameters based on problem size
+        # For problems with many items (e.g., when shuffle_minor_dungeon_items is enabled),
+        # we need more iterations to find a valid solution
+        num_items = len(locations)
+        if num_items > 80:
+            # Large problem (100+ items): need many more attempts
+            max_iterations = 5000
+            log.info(f"Large problem ({num_items} items) - using max_iterations={max_iterations}")
+        elif num_items > 40:
+            # Medium problem (40-80 items): moderate increase
+            max_iterations = 2000
+            log.debug(f"Medium problem ({num_items} items) - using max_iterations={max_iterations}")
+        else:
+            # Small problem (< 40 items): default is fine
+            max_iterations = 1000
+            log.debug(f"Small problem ({num_items} items) - using max_iterations={max_iterations}")
+
+        # Solve (max_backtrack_depth scales automatically in solver based on problem size)
         solver_seed = self._solver_seed(seed)
-        solution = solver.solve(seed=solver_seed, time_limit_seconds=10.0)
+        solution = solver.solve(seed=solver_seed, time_limit_seconds=10.0, max_iterations=max_iterations)
 
         if solution is None:
             log.error("No valid major item shuffle exists with current constraints")
