@@ -10,7 +10,7 @@ from .minor_item_randomizer import MinorItemRandomizer
 from .room_item_collector import RoomItemCollector
 from ..data_table import DataTable
 from ..flags import Flags
-from ..randomizer_constants import  CaveType, Item, ValidItemPositions
+from ..randomizer_constants import  CaveType, Item, StandardItemPositions
 
 class ItemRandomizer:
     """Orchestrates item randomization and progressive item conversions."""
@@ -166,6 +166,6 @@ class ItemRandomizer:
         for level_num, pairs in collector.CollectAll().items():
             for pair in pairs:
                 room_type = self.data_table.GetRoomType(level_num, pair.room_num)
-                item_position = self.rng.choice(ValidItemPositions[room_type])
+                item_position = self.rng.choice(StandardItemPositions[room_type])
                 self.data_table.SetItemPositionNew(level_num, pair.room_num, item_position)
             
