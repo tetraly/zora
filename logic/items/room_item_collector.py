@@ -3,7 +3,7 @@ import logging as log
 
 from ..randomizer_constants import (
     CARDINAL_DIRECTIONS, DUNGEON_LEVEL_NUMBERS, Direction, Enemy, Item,
-    LevelNum, RoomNum, RoomType, ValidItemPositions, WallType
+    LevelNum, RoomNum, RoomType, WallType
 )
 from ..data_table import DataTable
 
