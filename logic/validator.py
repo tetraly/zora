@@ -129,6 +129,7 @@ class Validator(object):
 
     return destinations_in_order
 
+
   def _LogInventorySummary(self, iteration: int) -> None:
     """Log categorized inventory summary at INFO level."""
     log.info(f"\n{'='*60}")
@@ -262,6 +263,39 @@ class Validator(object):
     log.info(f"Final Inventory: {self.inventory.ToString()}")
     log.info(f"Hearts: {self.inventory.GetHeartCount()}, Triforces: {self.inventory.GetTriforceCount()}")
 
+    # Show missing required items
+    missing = []
+    required_items = [
+      (Item.WOOD_SWORD, "Wood Sword"),
+      (Item.WHITE_SWORD, "White Sword"),
+      (Item.MAGICAL_SWORD, "Magical Sword"),
+      (Item.BAIT, "Bait"),
+      (Item.RECORDER, "Recorder"),
+      (Item.BLUE_CANDLE, "Blue Candle"),
+      (Item.RED_CANDLE, "Red Candle"),
+      (Item.WOOD_ARROWS, "Wood Arrows"),
+      (Item.SILVER_ARROWS, "Silver Arrows"),
+      (Item.BOW, "Bow"),
+      (Item.MAGICAL_KEY, "Magical Key"),
+      (Item.RAFT, "Raft"),
+      (Item.LADDER, "Ladder"),
+      (Item.WAND, "Wand"),
+      (Item.BOOK, "Book"),
+      (Item.BLUE_RING, "Blue Ring"),
+      (Item.RED_RING, "Red Ring"),
+      (Item.POWER_BRACELET, "Power Bracelet"),
+      (Item.LETTER, "Letter"),
+      (Item.WOOD_BOOMERANG, "Wood Boomerang"),
+      (Item.MAGICAL_BOOMERANG, "Magical Boomerang"),
+      (Item.LOST_HILLS_HINT_VIRTUAL_ITEM, "Lost Hills Hint"),
+      (Item.DEAD_WOODS_HINT_VIRTUAL_ITEM, "Dead Woods Hint")
+    ]
+    for item, name in required_items:
+      if not self.inventory.Has(item):
+        missing.append(name)
+    if missing:
+      log.info(f"Missing Required Items: {', '.join(missing)}")
+
     if accessible_levels:
       log.info(f"Levels Ever Accessible: {', '.join(['L' + str(l) for l in sorted(accessible_levels)])}")
     else:
@@ -330,41 +364,41 @@ class Validator(object):
     num_iterations = 0
     while self.inventory.StillMakingProgress():
       num_iterations += 1
-      self._LogInventorySummary(num_iterations)
+      # self._LogInventorySummary(num_iterations)
       log.debug("Inventory contains: " + self.inventory.ToString())
       self.inventory.ClearMakingProgressBit()
       self.data_table.ClearAllVisitMarkers()
       log.debug("Checking caves")
       accessible_destinations = self.GetAccessibleDestinations()
-      self._LogDestinationAccessibility(accessible_destinations)
+      # self._LogDestinationAccessibility(accessible_destinations)
 
-      log.info(f"\n--- Processing Destinations ---")
+      log.debug(f"\n--- Processing Destinations ---")
       for destination in accessible_destinations:
         if destination in Range.VALID_LEVEL_NUMBERS:
           level_num = destination
           if level_num == 9 and self.inventory.GetTriforceCount() < 8:
-            log.info(f"  Level 9: SKIPPED (need 8 triforces, have {self.inventory.GetTriforceCount()})")
+            log.debug(f"  Level 9: SKIPPED (need 8 triforces, have {self.inventory.GetTriforceCount()})")
             continue
-          log.info(f"  Processing Level {level_num}")
+          log.debug(f"  Processing Level {level_num}")
           self.ProcessLevel(level_num)
         else:
           cave_type = destination
           if self.CanGetItemsFromCave(cave_type):
-            log.info(f"  Processing Cave: {cave_type.name}")
+            log.debug(f"  Processing Cave: {cave_type.name}")
             items_found = []
             for position_num in Range.VALID_CAVE_POSITION_NUMBERS:
               # Location constructor still expects cave_num (array index 0x00-0x15)
               location = Location(cave_num=cave_type - 0x10, position_num=position_num)
               item = self.data_table.GetCaveItem(location)
               if item not in [Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD,
-                             Item.BOMBS, Item.FIVE_RUPEES, Item.NO_ITEM, Item.SINGLE_HEART,
+                             Item.BOMBS, Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART,
                              Item.TRIFORCE_OF_POWER]:
                 items_found.append(item.name)
               self.inventory.AddItem(item, location)
             if items_found:
-              log.info(f"    -> Found: {', '.join(items_found)}")
+              log.debug(f"    -> Found: {', '.join(items_found)}")
           else:
-            log.info(f"  Cave {cave_type.name}: BLOCKED (requirements not met)")
+            log.debug(f"  Cave {cave_type.name}: BLOCKED (requirements not met)")
 
       if num_iterations > 100:
         log.warning("TIMEOUT: Exceeded 100 iterations without completing validation")
@@ -382,7 +416,7 @@ class Validator(object):
         self._LogFailureState("MISSING_ITEMS")
         return False
     else:
-      log.info("FAILURE: Never rescued the kidnapped")
+      log.warning("FAILURE: Never rescued the kidnapped")
       self._LogFailureState("NO_RESCUE")
       return False
 
@@ -536,15 +570,14 @@ class Validator(object):
         room.MarkAsVisited()
         if self.CanGetRoomItem(entry_direction, room) and room.HasItem():
             self.inventory.AddItem(room.GetItem(), Location.LevelRoom(level_num, room_num))
-            if room.GetItem().IsMajorItem():
-                log.debug(f"Found {room.GetItem().name} in {Location.LevelRoom(level_num, room_num).ToString()}")
         if room.GetEnemy() == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, room):
             self.inventory.AddItem(Item.BEAST_DEFEATED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
         if room.GetEnemy() == Enemy.THE_KIDNAPPED:
             self.inventory.AddItem(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
 
       for direction in (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH):
-        if self.CanMove(entry_direction, direction, level_num, room_num, room):
+        can_move = self.CanMove(entry_direction, direction, level_num, room_num, room)
+        if can_move:
           tbr.append((RoomNum(room_num + direction), Direction(-1 * direction)))
 
       # Only check for stairways if this room is configured to have a stairway entrance
@@ -666,9 +699,12 @@ class Validator(object):
 
     
   def HasAllImportantItems(self) -> bool:
-      for item in [Item.WHITE_SWORD, Item.RECORDER, Item.RED_CANDLE, Item.SILVER_ARROWS, Item.BOW,
-                   Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK, Item.RED_RING,
-                   Item.POWER_BRACELET, Item.LETTER, Item.MAGICAL_BOOMERANG]:
+      for item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BAIT, Item.RECORDER,
+                   Item.BLUE_CANDLE, Item.RED_CANDLE, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.BOW, 
+                   Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK,Item.BLUE_RING,
+                   Item.RED_RING, Item.POWER_BRACELET, Item.LETTER, Item.WOOD_BOOMERANG,
+                   Item.MAGICAL_BOOMERANG, Item.LOST_HILLS_HINT_VIRTUAL_ITEM, 
+                   Item.DEAD_WOODS_HINT_VIRTUAL_ITEM]:
           if not self.inventory.Has(item):
               log.warning(self.inventory.ToString())
               log.warning(f"Found a seed without {item.name}")
