@@ -391,7 +391,7 @@ class Validator(object):
               location = Location(cave_num=cave_type - 0x10, position_num=position_num)
               item = self.data_table.GetCaveItem(location)
               if item not in [Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD,
-                             Item.BOMBS, Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART,
+                             Item.BOMBS, Item.FIVE_RUPEES, Item.NO_ITEM, Item.SINGLE_HEART,
                              Item.TRIFORCE_OF_POWER]:
                 items_found.append(item.name)
               self.inventory.AddItem(item, location)

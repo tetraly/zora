@@ -77,7 +77,6 @@ class Item(IntEnum):
   LETTER = 0x15
   COMPASS = 0x16
   MAP = 0x17
-  #RUPEE = 0x18
   NO_ITEM = 0x18
   KEY = 0x19
   HEART_CONTAINER = 0x1A
@@ -102,7 +101,7 @@ class Item(IntEnum):
     return self in [Item.SILVER_ARROWS, Item.RED_CANDLE, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.RED_RING]
     
   def IsProgressiveUpgradeItem(self):
-    return self.IsProgressiveBaseItem or self.IsProgressiveEnhancedItem
+    return self.IsProgressiveBaseItem() or self.IsProgressiveEnhancedItem()
 
   def GetProgressiveBaseItem(self):
       table = {
