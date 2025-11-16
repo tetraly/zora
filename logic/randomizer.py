@@ -386,30 +386,44 @@ class Z1Randomizer():
     keep_health_after_death_warp = self.flags.keep_health_after_death_warp
     if increase_minimum_health or keep_health_after_death_warp:
         patch.AddDataFromHexString(
-            0x14B80, "20 E0 85 EA",
+            address=0x14B80,
+            data="20 9D 85 EA",
             expected_original_data="29 F0 09 02",
             description="Replace AND/ORA with JSR to heart calculation routine"
         )
 
     if not increase_minimum_health and keep_health_after_death_warp:
         patch.AddDataFromHexString(
-            0x145F0, "48 29 0F C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 60",
-            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            address=0x145AD,
+            data="A5 00 48 48 29 0F C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 AA 68 85 00 8A 60",
+            expected_original_data=(
+                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
+            ),
             description="Heart calculation routine: Keep current hearts if >= 3, otherwise reset to 3"
         )
 
     elif increase_minimum_health and not keep_health_after_death_warp:
         patch.AddDataFromHexString(
-            0x145F0, "48 4A 4A 4A 4A 4A C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 60",
-            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            address=0x145AD,
+            data="A5 00 48 48 4A 4A 4A 4A 18 69 01 4A F0 02 38 E9 01 C9 02 B0 02 A9 02 85 00 68"
+                 "29 F0 05 00 AA 68 85 00 8A 60",
+            expected_original_data=(
+                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
+                "FF FF FF FF FF FF FF FF FF FF FF"
+            ),
             description="Heart calculation routine: Reset to max(3 hearts, maxHearts/2)"
         )
 
     elif increase_minimum_health and keep_health_after_death_warp:
         patch.AddDataFromHexString(
-            0x145F0, "48 4A 4A 4A 4A 4A C9 02 B0 02 A9 02 85 00 68 48 29 0F C5 00 B0 02 A5 00 85 00 68 29 F0 05 00 60",
-            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
-            description="Heart calculation routine: Keep max of: current hearts, 3 hearts, or maxHearts/2"
+            address=0x145AD,
+            data="A5 00 48 48 4A 4A 4A 4A 18 69 01 4A F0 02 38 E9 01 C9 02 B0 02 A9 02 85 00 68"
+                 "48 29 0F C5 00 B0 02 A5 00 85 00 68 29 F0 05 00 AA 68 85 00 8A 60",
+            expected_original_data=(
+                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
+                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
+            ),
+            description="Keep max of: current hearts, 3 hearts, or maxHearts/2"
         )
 
     # Text speed (QoL improvement that affects gameplay and should be in hash)
