@@ -259,6 +259,64 @@ ValidItemPositions = {
     RoomType.ITEM_STAIRCASE: [ItemPosition.MIDDLE]
 }
 
+StandardItemPositions = {
+    RoomType.PLAIN_ROOM: [ItemPosition.MIDDLE],
+    RoomType.SPIKE_TRAP_ROOM: [ItemPosition.MIDDLE],
+    RoomType.FOUR_SHORT_ROOM: [ItemPosition.MIDDLE],
+    RoomType.FOUR_TALL_ROOM: [ItemPosition.MIDDLE],
+    RoomType.GOHMA_ROOM: [ItemPosition.MIDDLE],
+    RoomType.REVERSE_C: [ItemPosition.MIDDLE],
+    RoomType.DOUBLE_BLOCK: [ItemPosition.MIDDLE],
+    RoomType.MAZE_ROOM: [ItemPosition.MIDDLE],
+    RoomType.NSU: [ItemPosition.MIDDLE],
+    RoomType.NARROW_STAIR_ROOM: [ItemPosition.MIDDLE],
+    RoomType.DOUBLE_SIX_BLOCK_ROOM: [ItemPosition.MIDDLE],
+    RoomType.ENTRANCE_ROOM: [ItemPosition.MIDDLE],
+    RoomType.TWO_FIREBALL_ROOM: [ItemPosition.MIDDLE],
+    RoomType.FOUR_FIREBALL_ROOM: [ItemPosition.MIDDLE],
+    RoomType.DESERT_ROOM: [ItemPosition.MIDDLE],
+    RoomType.BLACK_ROOM: [ItemPosition.MIDDLE],
+    RoomType.ZELDA_ROOM: [ItemPosition.MIDDLE],
+    RoomType.GANNON_ROOM: [ItemPosition.MIDDLE],
+    RoomType.TRIFORCE_ROOM: [ItemPosition.MIDDLE],
+    RoomType.ZIGZAG_ROOM: [ItemPosition.MIDDLE],
+
+    # These rooms traditionally have their items in a specific position
+    RoomType.GLEEOK_ROOM: [ItemPosition.BOTTOM_LEFT], 
+    RoomType.SPIRAL_STAIR_ROOM: [ItemPosition.TOP_RIGHT],
+    RoomType.AQUAMENTUS_ROOM: [ItemPosition.RIGHT], 
+
+    # These rooms have an obstruction in middle, move the item to the right
+    RoomType.SINGLE_BLOCK_ROOM: [ItemPosition.RIGHT], 
+    RoomType.FIVE_PAIR_ROOM: [ItemPosition.RIGHT],
+    RoomType.TURNSTILE_ROOM: [ItemPosition.RIGHT],
+    RoomType.SINGLE_SIX_BLOCK_ROOM: [ItemPosition.RIGHT],
+    RoomType.DIAMOND_STAIR_ROOM: [ItemPosition.RIGHT],
+
+    # Obstruction in the middle and right, put in a random corner instead
+    RoomType.CIRCLE_WALL: [ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+    RoomType.THREE_ROWS: [ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+    RoomType.GRID_ROOM: [ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+    RoomType.POINTLESS_MOAT_ROOM: [ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+    RoomType.VERTICAL_ROWS: [ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+
+    # Room partitioned into three regions. Have a drop position in each one.  
+    RoomType.LAVA_MOAT: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+    RoomType.DOUBLE_MOAT_ROOM: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+    RoomType.VERTICAL_CHUTE_ROOM: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+    RoomType.HORIZONTAL_CHUTE_ROOM: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT, ItemPosition.BOTTOM_LEFT],
+
+    # Room paritioned into two regions. Have a drop position in each one
+    RoomType.HORIZONTAL_MOAT_ROOM: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT], 
+    RoomType.VERTICAL_MOAT_ROOM: [ItemPosition.MIDDLE, ItemPosition.RIGHT], 
+    RoomType.T_ROOM: [ItemPosition.MIDDLE, ItemPosition.RIGHT],
+    RoomType.CIRCLE_MOAT_ROOM: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT],
+    RoomType.CHEVY_ROOM: [ItemPosition.MIDDLE, ItemPosition.BOTTOM_LEFT], # Exception: 5 regions but only 2 drop positions are valid.
+
+    RoomType.TRANSPORT_STAIRCASE: [],
+    RoomType.ITEM_STAIRCASE: [ItemPosition.MIDDLE]
+}
+
 def getAccessibleItemLocations(room, entry_direction, has_ladder):
     if ( room == RoomType.LAVA_MOAT ):
         if ( entry_direction == Direction.SOUTH ):
