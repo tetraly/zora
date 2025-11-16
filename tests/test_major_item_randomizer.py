@@ -224,7 +224,7 @@ def test_no_overworld_items_when_flags_disabled(modifiable_data_table, default_f
         for position_num in range(1, 4):
             try:
                 item = modifiable_data_table.GetCaveItem(cave_type, position_num)
-                if item != Item.NO_ITEM and item != Item.RUPEE:
+                if item != Item.NO_ITEM:
                     vanilla_overworld[(cave_type, position_num)] = item
                     print(f"Vanilla overworld: {cave_type.name} pos {position_num} = {item.name}")
             except:

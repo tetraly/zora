@@ -40,7 +40,7 @@ class Inventory(object):
   def AddItem(self, item: Item, item_location: Location) -> None:
     if item in [
         Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD, Item.BOMBS,
-        Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
+        Item.FIVE_RUPEES, Item.NO_ITEM, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
     ]:
       return
     #if (item == Item.TRIFORCE_OF_POWER
