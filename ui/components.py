@@ -252,8 +252,7 @@ def build_step2_container(categorized_flag_rows: dict,
                     ], spacing=10),
                     padding=10,
                     border=ft.border.all(1, ft.Colors.BLUE_300),
-                    border_radius=5,
-                    expand=True
+                    border_radius=5
                 )
 
                 # Right side: Constraints (no internal header)
@@ -261,8 +260,7 @@ def build_step2_container(categorized_flag_rows: dict,
                     content=ft.Column(constraint_flags, spacing=3),
                     padding=10,
                     border=ft.border.all(1, ft.Colors.BLUE_300),
-                    border_radius=5,
-                    expand=True
+                    border_radius=5
                 )
 
                 # Build layout: master toggle above, then two containers side by side
