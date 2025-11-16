@@ -373,7 +373,7 @@ def build_step2_container(categorized_flag_rows: dict,
             animation_duration=300,
             tabs=tabs,
         ),
-        height=500,  # Explicit height - REQUIRED for Tabs to render properly
+        height=550,  # Explicit height - REQUIRED for Tabs to render properly
     )
 
     content = ft.Column([
