@@ -1,6 +1,6 @@
 from typing import List, Set, Tuple
 
-from .randomizer_constants import Direction, Item, LevelNum, RoomNum, CaveType
+from .randomizer_constants import Direction, Item, LevelNum, RoomNum
 from .location import Location
 
 import logging as log
@@ -26,7 +26,7 @@ class Inventory(object):
     self.still_making_progress_bit = False
   
   def ToString(self) -> str:
-    return ", ".join(item.name for item in self.items)
+    return ", ".join(item.name for item in sorted(self.items))
 
   def SetStillMakingProgressBit(self) -> None:
     self.still_making_progress_bit = True
@@ -39,12 +39,10 @@ class Inventory(object):
 
   def AddItem(self, item: Item, item_location: Location) -> None:
     if item in [
-        Item.NO_ITEM, Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD,
-        Item.BOMBS, Item.FIVE_RUPEES, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
+        Item.OVERWORLD_NO_ITEM, Item.MAP, Item.COMPASS, Item.MAGICAL_SHIELD, Item.BOMBS,
+        Item.FIVE_RUPEES, Item.RUPEE, Item.SINGLE_HEART, Item.TRIFORCE_OF_POWER
     ]:
       return
-    log.debug(f"Found {item.name} in {item_location.ToString()}")
-    
     #if (item == Item.TRIFORCE_OF_POWER
     #    and not (item_location.GetLevelNum() == 9 and item_location.GetRoomNum() == 0x42)):
     #  return
@@ -65,16 +63,15 @@ class Inventory(object):
 
     if item == Item.HEART_CONTAINER:
       # Ignore Take Any Heart Containers
-      if item_location.IsCavePosition() and item_location.GetCaveNum() == CaveType.WHITE_SWORD_CAVE:
+      if item_location.IsCavePosition() and item_location.GetCaveNum() == 2:
         return
       self.num_heart_containers += 1
       if item_location.IsLevelRoom():
-        log.debug("Found Heart Container in Level %d. Now have %d Heart Containerss" % 
+        log.debug("Found Heart Container in level %d. Now have %d HCs" % 
                   (int(item_location.GetLevelNum()), self.num_heart_containers))
       else:
-        log.debug("Found Heart Container in %s . Now have %d Heart Containers" %
-                  (item_location.GetCaveNum().name,
-                   self.num_heart_containers))
+        log.debug("Found Heart Container in cave %d. Now have %d HCs" % 
+                  (int(item_location.GetCaveNum()), self.num_heart_containers))
       assert self.num_heart_containers <= 16
       return
     elif item == Item.TRIFORCE:
@@ -88,11 +85,12 @@ class Inventory(object):
       self.num_keys += 1
       return
 
+    log.debug("Found %s" % item)
 
-    if item == Item.WOOD_SWORD and Item.WOOD_SWORD in self.items:
-      self.items.add(Item.WHITE_SWORD)
-    elif item == Item.WOOD_SWORD and Item.WHITE_SWORD in self.items:
+    if item == Item.WOOD_SWORD and Item.WHITE_SWORD in self.items:
       self.items.add(Item.MAGICAL_SWORD)
+    elif item == Item.WOOD_SWORD and Item.WOOD_SWORD in self.items:
+      self.items.add(Item.WHITE_SWORD)
     elif item == Item.BLUE_RING and Item.BLUE_RING in self.items:
       self.items.add(Item.RED_RING)
     elif item == Item.BLUE_CANDLE and Item.BLUE_CANDLE in self.items:
@@ -125,9 +123,8 @@ class Inventory(object):
   def Has(self, item: Item) -> bool:
     return item in self.items
 
-  # TODO: Make this work correctly with the Magical sword as well.
   def HasSword(self) -> bool:
-    return Item.WOOD_SWORD in self.items or Item.WHITE_SWORD in self.items
+    return Item.WOOD_SWORD in self.items or Item.WHITE_SWORD in self.items or Item.MAGICAL_SWORD in self.items
 
   def HasSwordOrWand(self) -> bool:
     return self.HasSword() or Item.WAND in self.items

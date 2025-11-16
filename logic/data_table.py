@@ -9,9 +9,12 @@ from .patch import Patch
 from .rom_reader import RomReader, VARIOUS_DATA_LOCATION
 
 NES_FILE_OFFSET = 0x10
-ITEM_POSITIONS_OFFSET = 0x29
-START_ROOM_OFFSET = 0x2F
-STAIRWAY_LIST_OFFSET = 0x34
+# These offsets are adjusted to account for skipping the first 0x24 bytes of PPU palette data
+# Original ROM offsets: ITEM_POSITIONS=0x29, START_ROOM=0x2F, STAIRWAY_LIST=0x34
+# After skipping 0x24 bytes: ITEM_POSITIONS=0x05 (0x29-0x24), START_ROOM=0x0B (0x2F-0x24), STAIRWAY_LIST=0x10 (0x34-0x24)
+ITEM_POSITIONS_OFFSET = 0x05  # Was 0x29 before PPU data skip
+START_ROOM_OFFSET = 0x0B  # Was 0x2F before PPU data skip
+STAIRWAY_LIST_OFFSET = 0x10  # Was 0x34 before PPU data skip
 LEVEL_1_TO_6_DATA_START_ADDRESS = 0x18700 + NES_FILE_OFFSET
 LEVEL_7_TO_9_DATA_START_ADDRESS = 0x18A00 + NES_FILE_OFFSET
 LEVEL_TABLE_SIZE = 0x80
@@ -25,6 +28,10 @@ ARMOS_SCREEN_ADDRESS = 0x10CB2  # ROM address (without header) - _ReadMemory add
 COAST_ITEM_ADDRESS = 0x1788A + NES_FILE_OFFSET
 COMPASS_ROOM_NUMBER_ADDRESS = 0x1942C + NES_FILE_OFFSET
 SPECIAL_DATA_LEVEL_OFFSET = 0xFC
+
+# Offset within each level info block where meaningful (non-cosmetic) data begins
+# The first 36 bytes (0x24) are PPU palette data which should not affect hash codes
+LEVEL_INFO_MEANINGFUL_DATA_OFFSET = 0x24
 
 
 class DataTable():
@@ -98,8 +105,13 @@ class DataTable():
     self.is_z1r = True
     for level_num in range(0, 10):
         info = self.rom_reader.GetLevelInfo(level_num)
-        self.level_info_raw.append(info[:])
-        self.level_info.append(info[:])
+        # Skip the first 0x24 bytes (PPU palette data) to avoid cosmetic differences
+        # affecting hash codes. Only store the meaningful game data.
+        meaningful_data = info[LEVEL_INFO_MEANINGFUL_DATA_OFFSET:]
+        info_copy = meaningful_data[:]
+        self.level_info_raw.append(info_copy)
+        self.level_info.append(info_copy[:])
+        # Read from original full data for z1r detection (offset hasn't changed in ROM)
         vals = info[0x34:0x3E]
         if vals[-1] in range(0, 5):
             continue
@@ -183,8 +195,18 @@ class DataTable():
     room_num = location.GetRoomNum()
     room = self.GetRoom(location.GetLevelNum(), room_num)
     if room.IsItemStaircase():
+      # The triforce is in an item staircase room. The compass should point to the room
+      # that contains the stairs leading down to this staircase room, not the staircase room itself.
       room_num = room.GetLeftExit()
     self.triforce_locations[location.GetLevelNum()] = room_num
+
+    # Also update self.level_info with the new compass pointer
+    # Compass is at offset 0x30 within each level info block, and level_info starts at offset 0x24,
+    # so the compass is at index 0x30 - 0x24 = 0x0C within the level_info array
+    level_num = location.GetLevelNum()
+    if level_num in range(1, 9):  # Only levels 1-8 have updatable compass pointers
+      compass_index = 0x30 - LEVEL_INFO_MEANINGFUL_DATA_OFFSET
+      self.level_info[level_num][compass_index] = room_num
 
   def ClearAllVisitMarkers(self) -> None:
     log.debug("Clearing Visit markers")
@@ -252,7 +274,6 @@ class DataTable():
     patch += self._GetPatchForOverworldCaveData()
     patch += self._GetPatchForOverworldScreenDestinations()
     patch += self._GetPatchForLevelInfo()
-    patch += self._GetPatchForLevelInfo()
     return patch
 
   def _GetPatchForLevelGrid(self, start_address: int, rooms: List[Room]) -> Patch:
@@ -264,13 +285,8 @@ class DataTable():
       for table_num in range(0, NUM_BYTES_OF_DATA_PER_ROOM):
         patch.AddData(start_address + table_num * LEVEL_TABLE_SIZE + room_num,
                       [room_data[table_num]])
-    # Write Triforce room location to update where the compass displays it in levels 1-8.
-    # The room the compass points to in level 9 doesn't change.
-    for level_num in range(1, 9):
-      if level_num in self.triforce_locations:
-        patch.AddData(
-          COMPASS_ROOM_NUMBER_ADDRESS + (level_num - 1) * SPECIAL_DATA_LEVEL_OFFSET,
-          [self.triforce_locations[level_num]])
+    # NOTE: Compass pointers are now written as part of level_info in _GetPatchForLevelInfo()
+    # The old code that wrote them separately has been removed to avoid conflicts.
     return patch
 
   def _GetPatchForOverworldCaveData(self) -> Patch:
@@ -306,22 +322,16 @@ class DataTable():
     return patch
 
   def _GetPatchForLevelInfo(self) -> Patch:
-    """Generate patch data for per-level info blocks (0xFC bytes each)."""
-    patch = Patch()
-    for level_num, info in enumerate(self.level_info):
-      start_address = VARIOUS_DATA_LOCATION + NES_HEADER_OFFSET + level_num * 0xFC
-      patch.AddData(start_address, info)
-    return patch
+    """Generate patch data for per-level info tables (meaningful data only).
 
-  def _GetPatchForLevelInfo(self) -> Patch:
-    """Write level info tables (including item position coordinates) back to ROM."""
+    Skips the first 0x24 bytes (PPU palette data) to avoid cosmetic differences
+    affecting hash codes. Only patches the meaningful game data.
+    """
     patch = Patch()
     for level_num, info in enumerate(self.level_info):
-      start_address = VARIOUS_DATA_LOCATION + NES_FILE_OFFSET + level_num * 0xFC
-      patch.AddData(
-          start_address + ITEM_POSITIONS_OFFSET,
-          info[ITEM_POSITIONS_OFFSET:ITEM_POSITIONS_OFFSET + 4]
-      )
+      # Start writing at offset 0x24 to skip PPU palette data
+      start = VARIOUS_DATA_LOCATION + NES_FILE_OFFSET + level_num * 0xFC + LEVEL_INFO_MEANINGFUL_DATA_OFFSET
+      patch.AddData(start, info)
     return patch
 
   def GetMixedEnemyGroup(self, enemy: Enemy) -> List[Enemy]:
