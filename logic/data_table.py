@@ -409,13 +409,6 @@ class DataTable():
     """
     # Convert CaveType to cave_num (array index)
     cave_num = cave_type - 0x10
-
-    # Special case: Armos item (cave_num would be 0x14)
-    if cave_num == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
-      return Item(self.rom_reader.GetOverworldItemData()[0])
-    # Special case: Coast item (cave_num would be 0x15)
-    elif cave_num == CAVE_NUMBER_REPRESENTING_COAST_ITEM:
-      return Item(self.rom_reader.GetOverworldItemData()[1])
     return self.overworld_caves[cave_num].GetItemAtPosition(position_num)
 
   def SetCaveItemNew(self, cave_type: int, position_num: int, item: Item) -> None:
