@@ -3,7 +3,7 @@ import logging as log
 
 from rng.random_number_generator import RandomNumberGenerator
 from ..randomizer_constants import (
-    DUNGEON_LEVEL_NUMBERS, Item, RoomType, ValidItemPositions
+    DUNGEON_LEVEL_NUMBERS, Item, RoomType, StandardItemPositions
 )
 from ..data_table import DataTable
 from ..flags import Flags
@@ -40,7 +40,7 @@ class MinorItemRandomizer():
             self._log_level_inventory(level_num, room_item_pair_lists[level_num])
             for pair in room_item_pair_lists[level_num]:
                 room_type = self.data_table.GetRoomType(level_num, pair.room_num)
-                item_position = self.rng.choice(ValidItemPositions[room_type])
+                item_position = self.rng.choice(StandardItemPositions[room_type])
                 self.data_table.SetItemPositionNew(level_num, pair.room_num, item_position)
 
             if not self.ShuffleItemsWithinLevel(level_num, room_item_pair_lists[level_num], seed):
