@@ -2,6 +2,7 @@
 
 from typing import List, Dict
 import hashlib
+import logging
 
 
 class Patch:
@@ -9,6 +10,8 @@ class Patch:
 
   def __init__(self) -> None:
     self._data: Dict[int, bytes] = {}
+    self._expected_data: Dict[int, bytes] = {}
+    self._descriptions: Dict[int, str] = {}
 
   def __add__(self, other):
     """Add another patch to this patch and return a new Patch object."""
@@ -26,7 +29,14 @@ class Patch:
       raise TypeError("Other object is not Patch type")
 
     for addr in other.addresses:
-      self.AddData(addr, other.GetData(addr))
+      expected_data = other.GetExpectedData(addr)
+      description = other.GetDescription(addr)
+      if expected_data is not None or description is not None:
+        self.AddData(addr, other.GetData(addr),
+                    expected_original_data=expected_data,
+                    description=description)
+      else:
+        self.AddData(addr, other.GetData(addr))
 
     return self
 
@@ -43,7 +53,7 @@ class Patch:
     return list(self._data.keys())
 
   def GetData(self, addr: int) -> List[int]:
-    """Get data in the patch for this address.  
+    """Get data in the patch for this address.
        If the address is not present in the patch, returns empty bytes.
         :param addr: Address for the start of the data.
         :type addr: int
@@ -54,30 +64,76 @@ class Patch:
       int_data.append(byte)
     return int_data
 
-  def AddData(self, addr: int, data: List[int]) -> None:
+  def GetExpectedData(self, addr: int) -> List[int] | None:
+    """Get expected original data for this address.
+       If the address has no expected data, returns None.
+        :param addr: Address for the start of the data.
+        :type addr: int
+        :rtype: list[int]|None
+        """
+    if addr not in self._expected_data:
+      return None
+    int_data: List[int] = []
+    for byte in self._expected_data[addr]:
+      int_data.append(byte)
+    return int_data
+
+  def GetDescription(self, addr: int) -> str | None:
+    """Get the description for this address.
+       If the address has no description, returns None.
+        :param addr: Address for the start of the data.
+        :type addr: int
+        :rtype: str|None
+        """
+    return self._descriptions.get(addr, None)
+
+  def AddData(self, addr: int, data: List[int], expected_original_data: List[int] | None = None, description: str | None = None) -> None:
     """Add data to the patch.
         :param addr: Address for the start of the data.
         :type addr: int
         :param data: Patch data as raw bytes.
         :type data: bytearray|bytes|list[int]|int|str
+        :param expected_original_data: Optional expected data at this address before patching.
+        :type expected_original_data: bytearray|bytes|list[int]|None
+        :param description: Optional human-readable description of this patch.
+        :type description: str|None
         """
     self._data[addr] = bytes(data)
+    if expected_original_data is not None:
+      self._expected_data[addr] = bytes(expected_original_data)
+    if description is not None:
+      self._descriptions[addr] = description
 
-  def AddDataFromHexString(self, addr: int, hex_string: str) -> None:
+  def AddDataFromHexString(self, addr: int, hex_string: str, expected_original_data: List[int] | str | None = None, description: str | None = None) -> None:
     """Add data to the patch from a hex string.
-    
+
     :param addr: Address for the start of the data.
     :type addr: int
     :param hex_string: Hex string (spaces optional), e.g. "FF95 ACCAD0FB" or "FF95ACCAD0FB"
     :type hex_string: str
+    :param expected_original_data: Optional expected data at this address before patching.
+                                     Can be a hex string or list of bytes.
+    :type expected_original_data: str|list[int]|None
+    :param description: Optional human-readable description of this patch.
+    :type description: str|None
     """
     # Remove spaces and any other whitespace
     hex_string = hex_string.replace(" ", "").replace("\n", "").replace("\t", "")
-    
+
     # Convert hex string to bytes
     data = bytes.fromhex(hex_string)
-    
-    self.AddData(addr, data)
+
+    # Process expected_original_data if provided
+    expected_bytes = None
+    if expected_original_data is not None:
+      if isinstance(expected_original_data, str):
+        # Remove spaces and convert hex string to bytes
+        expected_hex = expected_original_data.replace(" ", "").replace("\n", "").replace("\t", "")
+        expected_bytes = list(bytes.fromhex(expected_hex))
+      else:
+        expected_bytes = expected_original_data
+
+    self.AddData(addr, data, expected_original_data=expected_bytes, description=description)
 
   def RemoveData(self, addr: int) -> None:
     """Remove data from the patch.
@@ -86,6 +142,51 @@ class Patch:
         """
     if addr in self._data:
       del self._data[addr]
+    if addr in self._expected_data:
+      del self._expected_data[addr]
+    if addr in self._descriptions:
+      del self._descriptions[addr]
+
+  def Apply(self, rom_data: bytearray, logger=None) -> None:
+    """Apply this patch to ROM data with validation.
+
+    This method encapsulates the patch application logic, including validation
+    of expected data when provided. It ensures consistent behavior across all
+    parts of the application (CLI, UI, tests).
+
+    :param rom_data: The ROM data to patch (modified in-place)
+    :type rom_data: bytearray
+    :param logger: Optional logger for warnings (defaults to logging module)
+    :type logger: logging.Logger|None
+    """
+    log = logger or logging
+
+    for address in self.GetAddresses():
+      patch_data = self.GetData(address)
+      expected_data = self.GetExpectedData(address)
+      description = self.GetDescription(address)
+
+      # Validate expected data if provided
+      if expected_data is not None:
+        actual_data = []
+        for offset in range(len(expected_data)):
+          if address + offset < len(rom_data):
+            actual_data.append(rom_data[address + offset])
+          else:
+            actual_data.append(None)
+
+        if actual_data != expected_data:
+          desc_str = f" ({description})" if description else ""
+          log.warning(
+              f"Expected data mismatch at address 0x{address:04X}{desc_str}:\n"
+              f"  Expected: {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in expected_data)}\n"
+              f"  Actual:   {' '.join(f'{b:02X}' if b is not None else 'OOB' for b in actual_data)}\n"
+              f"  Patching with: {' '.join(f'{b:02X}' for b in patch_data)}"
+          )
+
+      # Apply the patch
+      for offset, byte in enumerate(patch_data):
+        rom_data[address + offset] = byte
 
   def for_json(self):
     """Return patch as a JSON serializable object.

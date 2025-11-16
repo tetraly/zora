@@ -1,6 +1,6 @@
 import logging as log
 from typing import Dict, List
-from .randomizer_constants import CaveNum, CaveType, Direction, Enemy, Item, LevelNum, Range, RoomNum
+from .randomizer_constants import CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomNum, RoomType, WallType
 from .constants import ENTRANCE_DIRECTION_MAP
 from .room import Room
 from .location import Location
@@ -10,8 +10,9 @@ from .rom_reader import RomReader, VARIOUS_DATA_LOCATION
 
 NES_FILE_OFFSET = 0x10
 # These offsets are adjusted to account for skipping the first 0x24 bytes of PPU palette data
-# Original ROM offsets: START_ROOM=0x2F, STAIRWAY_LIST=0x34
-# After skipping 0x24 bytes: START_ROOM=0x0B (0x2F-0x24), STAIRWAY_LIST=0x10 (0x34-0x24)
+# Original ROM offsets: ITEM_POSITIONS=0x29, START_ROOM=0x2F, STAIRWAY_LIST=0x34
+# After skipping 0x24 bytes: ITEM_POSITIONS=0x05 (0x29-0x24), START_ROOM=0x0B (0x2F-0x24), STAIRWAY_LIST=0x10 (0x34-0x24)
+ITEM_POSITIONS_OFFSET = 0x05  # Was 0x29 before PPU data skip
 START_ROOM_OFFSET = 0x0B  # Was 0x2F before PPU data skip
 STAIRWAY_LIST_OFFSET = 0x10  # Was 0x34 before PPU data skip
 LEVEL_1_TO_6_DATA_START_ADDRESS = 0x18700 + NES_FILE_OFFSET
@@ -164,6 +165,12 @@ class DataTable():
     else:
       self.level_1_to_6_rooms[location.GetRoomNum()].SetItem(item)
 
+  def GetItemPosition(self, level_num: int, room_num: int) -> ItemPosition:
+    if level_num in [7, 8, 9]:
+      return self.level_7_to_9_rooms[room_num].GetItemPosition()
+    else:
+      return self.level_1_to_6_rooms[room_num].GetItemPosition()
+
   def SetItemPosition(self, location: Location, position_num: int) -> None:
     assert location.IsLevelRoom()
     if location.GetLevelNum() in [7, 8, 9]:
@@ -171,13 +178,18 @@ class DataTable():
     else:
       self.level_1_to_6_rooms[location.GetRoomNum()].SetItemPosition(position_num)
 
+  def SetItemPositionNew(self, level_num: int, room_num: int, position_num: int) -> None:
+      self.SetItemPosition(Location(level_num=level_num, room_num=room_num), position_num)
+
   def GetCaveItem(self, location: Location) -> Item:
     assert location.IsCavePosition()
-    return self.overworld_caves[location.GetCaveNum()].GetItemAtPosition(location.GetPositionNum())
+    cave_index = location.GetCaveNum() - 0x10
+    return self.overworld_caves[cave_index].GetItemAtPosition(location.GetPositionNum())
 
   def SetCaveItem(self, location: Location, item: Item) -> None:
     assert location.IsCavePosition()
-    self.overworld_caves[location.GetCaveNum()].SetItemAtPosition(item, location.GetPositionNum())
+    cave_index = location.GetCaveNum() - 0x10
+    self.overworld_caves[cave_index].SetItemAtPosition(item, location.GetPositionNum())
 
   def UpdateTriforceLocation(self, location: Location) -> None:
     room_num = location.GetRoomNum()
@@ -332,3 +344,153 @@ class DataTable():
         List of Enemy enums in the group, or empty list if not a mixed group
     """
     return self.mixed_enemy_groups.get(int(enemy), [])
+
+  def GetItem(self, level_num: LevelNum, room_num: RoomNum) -> Item:
+      """Get the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      return room.GetItem()
+
+  def SetItem(self, level_num: LevelNum, room_num: RoomNum, item: Item) -> None:
+      """Set the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      room.SetItem(item)
+
+  def GetRoomWallType(self, level_num: LevelNum, room_num: RoomNum, direction: Direction) -> WallType:
+    """Get the wall type in a specific direction for a room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetWallType(direction)
+
+  def GetRoomType(self, level_num: LevelNum, room_num: RoomNum) -> RoomType:
+    """Get the room type (layout) for a specific room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.GetType()
+
+  def HasMovableBlockBit(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if a room has the movable block bit set."""
+    room = self.GetRoom(level_num, room_num)
+    return room.HasMovableBlockBitSet()
+
+  def GetStaircaseLeftExit(self, level_num: LevelNum, staircase_room_num: RoomNum) -> RoomNum:
+    """Get the left exit room number for a staircase room."""
+    room = self.GetRoom(level_num, staircase_room_num)
+    return room.GetLeftExit()
+
+  def GetStaircaseRightExit(self, level_num: LevelNum, staircase_room_num: RoomNum) -> RoomNum:
+    """Get the right exit room number for a staircase room."""
+    room = self.GetRoom(level_num, staircase_room_num)
+    return room.GetRightExit()
+
+  def GetRoomEnemy(self, level_num: LevelNum, room_num: RoomNum) -> Enemy:
+    """Get the enemy type in a specific room."""
+    if self.GetRoomType(level_num, room_num).IsStaircaseRoom():
+        return Enemy.NO_ENEMY
+    room = self.GetRoom(level_num, room_num)
+    return room.GetEnemy()
+
+  def IsItemStaircase(self, level_num: LevelNum, room_num: RoomNum) -> bool:
+    """Check if a room is an item staircase room."""
+    room = self.GetRoom(level_num, room_num)
+    return room.IsItemStaircase()
+
+  def SetLevelItemPositionCoordinates(self, level_num: int, item_position_coordinates: List[int]) -> None:
+      assert len(item_position_coordinates) == 4
+      for i in range(0, 4):
+          self.level_info[level_num][ITEM_POSITIONS_OFFSET + i] = item_position_coordinates[i]
+
+  def GetCaveItemNew(self, cave_type: int, position_num: int) -> Item:
+    """Get an item from a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (1-indexed: 1-3)
+
+    Returns:
+        The item at the specified location
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+
+    # Special case: Armos item (cave_num would be 0x14)
+    if cave_num == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
+      return Item(self.rom_reader.GetOverworldItemData()[0])
+    # Special case: Coast item (cave_num would be 0x15)
+    elif cave_num == CAVE_NUMBER_REPRESENTING_COAST_ITEM:
+      return Item(self.rom_reader.GetOverworldItemData()[1])
+    return self.overworld_caves[cave_num].GetItemAtPosition(position_num)
+
+  def SetCaveItemNew(self, cave_type: int, position_num: int, item: Item) -> None:
+    """Set an item in a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (1-indexed: 1-3)
+        item: The item to place
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+    self.overworld_caves[cave_num].SetItemAtPosition(item, position_num)
+ 
+  def SetCavePrice(self, cave_type: int, position_num: int, price: int) -> None:
+    """Set the price for an item in a cave at a specific position.
+
+    Args:
+        cave_type: CaveType value (0x10-0x25)
+        position_num: Position within the cave (1-indexed: 1-3)
+        price: The price in rupees
+    """
+    # Convert CaveType to cave_num (array index)
+    cave_num = cave_type - 0x10
+    self.overworld_caves[cave_num].SetPriceAtPosition(price, position_num)
+
+  def GetItem(self, level_num: LevelNum, room_num: RoomNum) -> Item:
+      """Get the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      return room.GetItem()
+
+  def SetItem(self, level_num: LevelNum, room_num: RoomNum, item: Item) -> None:
+      """Set the item in a specific room."""
+      room = self.GetRoom(level_num, room_num)
+      room.SetItem(item)
+  def GetStartScreen(self) -> int:
+    """Get the overworld start screen from level info.
+
+    Returns:
+        The overworld screen number (0x00-0x7F) where Link starts
+    """
+    return self.level_info[0][START_ROOM_OFFSET]
+
+  def SetStartScreen(self, screen_num: int) -> None:
+    """Set the overworld start screen in level info.
+
+    Args:
+        screen_num: The overworld screen number to set as start (0x00-0x7F)
+    """
+    assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
+    self.level_info[0][START_ROOM_OFFSET] = screen_num
+
+  def GetOverworldEnemyData(self, screen_num: int) -> int:
+    """Get the enemy data byte for an overworld screen from Table 2.
+
+    The enemy data byte contains:
+    - Bits 0-5: Enemy type
+    - Bits 6-7: Enemy quantity code (0-3, indexes into quantity table at 0x19324)
+
+    Args:
+        screen_num: The overworld screen number (0x00-0x7F)
+
+    Returns:
+        The enemy data byte from Table 2
+    """
+    assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
+    return self.overworld_raw_data[screen_num + 2 * 0x80]
+
+  def SetOverworldEnemyData(self, screen_num: int, enemy_data: int) -> None:
+    """Set the enemy data byte for an overworld screen in Table 2.
+
+    Args:
+        screen_num: The overworld screen number (0x00-0x7F)
+        enemy_data: The enemy data byte to set (contains type and quantity code)
+    """
+    assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
+    assert 0 <= enemy_data <= 0xFF, f"Invalid enemy data: {hex(enemy_data)}"
+    self.overworld_raw_data[screen_num + 2 * 0x80] = enemy_data

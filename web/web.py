@@ -47,7 +47,8 @@ if __name__ == "__main__":
     flet_app = flet_fastapi.app(
         main,
         upload_dir=upload_dir,
-        assets_dir=assets_dir
+        assets_dir=assets_dir,
+        secret_key=os.environ.get("FLET_SECRET_KEY", "default-secret-key-for-development")
     )
 
     # Create FastAPI app

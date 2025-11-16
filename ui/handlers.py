@@ -70,8 +70,6 @@ class EventHandlers:
         self.choose_generate_vanilla_button = None
         self.rom_file_picker = None
         self.generate_vanilla_file_picker = None
-        self.expansion_panels_ref = []
-        self.legacy_note_ref = []
 
         # Upload state
         self.upload_state = {
@@ -111,6 +109,36 @@ class EventHandlers:
         self.page.update()
 
     # Flagstring and checkbox handlers
+    def initialize_dependencies(self) -> None:
+        """Initialize flag dependencies on page load."""
+        from logic.flags import FlagsEnum
+
+        # Disable all flags that depend on major_item_shuffle (since it starts unchecked)
+        for flag in FlagsEnum:
+            if hasattr(flag, 'depends_on') and flag.depends_on == 'major_item_shuffle':
+                if flag.value in self.flag_checkboxes:
+                    checkbox = self.flag_checkboxes[flag.value]
+                    checkbox.disabled = True
+                    try:
+                        checkbox.update()
+                    except AssertionError:
+                        pass
+
+        # Disable all flags that depend on shuffle_within_level (since it starts unchecked)
+        for flag in FlagsEnum:
+            if hasattr(flag, 'depends_on') and flag.depends_on == 'shuffle_within_level':
+                if flag.value in self.flag_checkboxes:
+                    checkbox = self.flag_checkboxes[flag.value]
+                    checkbox.disabled = True
+                    try:
+                        checkbox.update()
+                    except AssertionError:
+                        pass
+
+        # Initialize heart container and level 9 dependencies
+        self._update_heart_container_dependencies()
+        self._update_level_nine_dependencies()
+
     def update_flagstring(self) -> None:
         """Update flagstring input based on checkbox states."""
         self.flagstring_input.value = self.state.flag_state.to_flagstring()
@@ -124,9 +152,271 @@ class EventHandlers:
                 checkbox.value = self.state.flag_state.flags.get(flag_key, False)
                 checkbox.update()
 
+    def _find_item_shuffle_panels_container(self):
+        """Find the item shuffle panels container in the UI tree."""
+        return self._find_container_by_data('item_shuffle_panels')
+
+    def _find_shuffle_within_level_container(self):
+        """Find the shuffle within level container in the UI tree."""
+        return self._find_container_by_data('shuffle_within_level_container')
+
+    def _find_container_by_data(self, data_value):
+        """Generic helper to find a container by its data attribute."""
+        def search_for_container(control):
+            """Recursively search for container with matching data attribute."""
+            if hasattr(control, 'data') and control.data == data_value:
+                return control
+            if hasattr(control, 'controls'):
+                for child in control.controls:
+                    result = search_for_container(child)
+                    if result:
+                        return result
+            if hasattr(control, 'content'):
+                return search_for_container(control.content)
+            if hasattr(control, 'tabs'):
+                for tab in control.tabs:
+                    result = search_for_container(tab)
+                    if result:
+                        return result
+            return None
+
+        if self.step2_container:
+            return search_for_container(self.step2_container)
+        return None
+
+    def _get_available_heart_containers(self) -> int:
+        """Calculate how many heart containers are available for shuffling."""
+        flags = self.state.flag_state.flags
+        available = 0
+        if flags.get('shuffle_dungeon_hearts', False):
+            available += 8  # Levels 1-8
+        if flags.get('shuffle_coast_item', False):
+            available += 1  # Coast
+        return available
+
+    def _get_level_nine_slot_usage(self) -> int:
+        """Calculate how many level 9 slots are being used."""
+        flags = self.state.flag_state.flags
+        slots = 0
+        if flags.get('force_arrow_to_level_nine', False):
+            slots += 1
+        if flags.get('force_ring_to_level_nine', False):
+            slots += 1
+        if flags.get('force_wand_to_level_nine', False):
+            slots += 1
+        if flags.get('force_heart_container_to_level_nine', False):
+            slots += 1
+        if flags.get('force_two_heart_containers_to_level_nine', False):
+            slots += 1  # "Second" heart container also uses 1 slot
+        return slots
+
+    def _get_forced_heart_count(self) -> int:
+        """Calculate how many hearts are being forced to specific locations."""
+        flags = self.state.flag_state.flags
+        forced = 0
+        if flags.get('force_heart_container_to_armos', False):
+            forced += 1
+        if flags.get('force_heart_container_to_coast', False):
+            forced += 1
+        if flags.get('force_heart_container_to_level_nine', False):
+            forced += 1
+        if flags.get('force_two_heart_containers_to_level_nine', False):
+            forced += 1  # "Second" heart container also forces 1 heart
+        return forced
+
+    def _update_heart_container_dependencies(self):
+        """Update heart container constraint flags based on availability."""
+        available = self._get_available_heart_containers()
+        forced = self._get_forced_heart_count()
+
+        heart_force_flags = [
+            'force_heart_container_to_armos',
+            'force_heart_container_to_coast',
+            'force_heart_container_to_level_nine',
+            'force_two_heart_containers_to_level_nine'
+        ]
+
+        for flag_key in heart_force_flags:
+            if flag_key in self.flag_checkboxes:
+                checkbox = self.flag_checkboxes[flag_key]
+
+                # All flags force 1 heart each
+                needs = 1
+
+                # Can enable if: available hearts >= needs + (other forced hearts)
+                # But if this flag is already checked, don't count it in forced
+                other_forced = forced
+                if self.state.flag_state.flags.get(flag_key, False):
+                    other_forced -= needs
+
+                can_enable = (available >= needs) and (available >= other_forced + needs)
+
+                # Special case: force_two_heart_containers requires shuffle_dungeon_hearts
+                if flag_key == 'force_two_heart_containers_to_level_nine':
+                    can_enable = can_enable and self.state.flag_state.flags.get('shuffle_dungeon_hearts', False)
+
+                # Disable if not enough hearts
+                if not can_enable and checkbox.value:
+                    checkbox.value = False
+                    self.state.flag_state.flags[flag_key] = False
+
+                checkbox.disabled = not can_enable
+
+                try:
+                    checkbox.update()
+                except AssertionError:
+                    pass
+
+    def _update_level_nine_dependencies(self):
+        """Update level 9 constraint flags based on slot availability."""
+        slots_used = self._get_level_nine_slot_usage()
+
+        level_nine_flags = [
+            'force_arrow_to_level_nine',
+            'force_ring_to_level_nine',
+            'force_wand_to_level_nine',
+            'force_heart_container_to_level_nine',
+            'force_two_heart_containers_to_level_nine'
+        ]
+
+        for flag_key in level_nine_flags:
+            if flag_key in self.flag_checkboxes:
+                checkbox = self.flag_checkboxes[flag_key]
+
+                # All flags use 1 slot each
+                needs = 1
+
+                # Calculate slots used by OTHER flags
+                other_slots = slots_used
+                if self.state.flag_state.flags.get(flag_key, False):
+                    other_slots -= needs
+
+                # Can enable if total slots <= 2
+                can_enable = (other_slots + needs) <= 2
+
+                # If can't enable and is currently checked, uncheck it
+                if not can_enable and checkbox.value:
+                    checkbox.value = False
+                    self.state.flag_state.flags[flag_key] = False
+
+                # Disable if would exceed slot limit
+                checkbox.disabled = not can_enable and not checkbox.value
+
+                try:
+                    checkbox.update()
+                except AssertionError:
+                    pass
+
     def on_checkbox_changed(self, flag_key: str, value: bool) -> None:
         """Handle checkbox state changes."""
+        from logic.flags import FlagsEnum
+
         self.state.flag_state.flags[flag_key] = value
+
+        # Handle dependencies: when a flag is toggled, enable/disable dependent flags
+        if flag_key == 'major_item_shuffle':
+            # Find all flags that depend on major_item_shuffle
+            for flag in FlagsEnum:
+                if hasattr(flag, 'depends_on') and flag.depends_on == 'major_item_shuffle':
+                    if flag.value in self.flag_checkboxes:
+                        checkbox = self.flag_checkboxes[flag.value]
+
+                        # Skip heart container force flags when ENABLING - they'll be handled by
+                        # _update_heart_container_dependencies() based on HC availability
+                        # But we still need to disable them when major_item_shuffle is turned off
+                        is_heart_container_flag = flag.value in ['force_heart_container_to_level_nine',
+                                                                  'force_two_heart_containers_to_level_nine',
+                                                                  'force_heart_container_to_armos',
+                                                                  'force_heart_container_to_coast']
+
+                        if value and is_heart_container_flag:
+                            # Skip enabling heart container flags - let dependency update handle it
+                            continue
+
+                        if value:
+                            # Enable dependent flag
+                            checkbox.disabled = False
+                        else:
+                            # Disable and uncheck dependent flag
+                            checkbox.disabled = True
+                            checkbox.value = False
+                            self.state.flag_state.flags[flag.value] = False
+
+                        try:
+                            checkbox.update()
+                        except AssertionError:
+                            pass
+
+            # Find and enable/disable the item shuffle panels container
+            panels_container = self._find_item_shuffle_panels_container()
+            if panels_container:
+                if value:
+                    # Enable panels
+                    panels_container.disabled = False
+                    panels_container.opacity = 1.0
+                else:
+                    # Disable panels
+                    panels_container.disabled = True
+                    panels_container.opacity = 0.4
+                try:
+                    panels_container.update()
+                except AssertionError:
+                    pass
+
+            # Update heart container and level 9 dependencies when master toggle changes
+            self._update_heart_container_dependencies()
+            self._update_level_nine_dependencies()
+
+        # Handle shuffle_within_level dependency
+        if flag_key == 'shuffle_within_level':
+            # Find all flags that depend on shuffle_within_level
+            for flag in FlagsEnum:
+                if hasattr(flag, 'depends_on') and flag.depends_on == 'shuffle_within_level':
+                    if flag.value in self.flag_checkboxes:
+                        checkbox = self.flag_checkboxes[flag.value]
+
+                        if value:
+                            # Enable dependent flag
+                            checkbox.disabled = False
+                        else:
+                            # Disable and uncheck dependent flag
+                            checkbox.disabled = True
+                            checkbox.value = False
+                            self.state.flag_state.flags[flag.value] = False
+
+                        try:
+                            checkbox.update()
+                        except AssertionError:
+                            pass
+
+            # Find and enable/disable the shuffle within level container
+            container = self._find_shuffle_within_level_container()
+            if container:
+                if value:
+                    # Enable container
+                    container.disabled = False
+                    container.opacity = 1.0
+                else:
+                    # Disable container
+                    container.disabled = True
+                    container.opacity = 0.4
+                try:
+                    container.update()
+                except AssertionError:
+                    pass
+
+        # Update heart container dependencies when relevant flags change
+        if flag_key in ['shuffle_dungeon_hearts', 'shuffle_coast_item',
+                       'force_heart_container_to_armos', 'force_heart_container_to_coast',
+                       'force_heart_container_to_level_nine', 'force_two_heart_containers_to_level_nine']:
+            self._update_heart_container_dependencies()
+
+        # Update level 9 dependencies when relevant flags change
+        if flag_key in ['force_arrow_to_level_nine', 'force_ring_to_level_nine',
+                       'force_wand_to_level_nine', 'force_heart_container_to_level_nine',
+                       'force_two_heart_containers_to_level_nine']:
+            self._update_level_nine_dependencies()
+
         self.update_flagstring()
 
     # Step visibility handlers
@@ -142,8 +432,12 @@ class EventHandlers:
 
     def enable_step2(self) -> None:
         """Enable Step 2 UI."""
+        print("DEBUG: enable_step2() called")
+        print(f"DEBUG: step2_container exists: {self.step2_container is not None}")
         self.step2_container.disabled = False
         self.step2_container.opacity = 1.0
+        self.step2_container.visible = True
+        print(f"DEBUG: step2_container disabled={self.step2_container.disabled}, opacity={self.step2_container.opacity}, visible={self.step2_container.visible}")
         self.step2_container.update()
 
     def disable_step2(self) -> None:
@@ -152,41 +446,6 @@ class EventHandlers:
         self.step2_container.opacity = 0.4
         self.step2_container.update()
 
-    def update_legacy_flags_state(self) -> None:
-        """Enable/disable LEGACY flags based on ROM type.
-
-        LEGACY flags are only available for vanilla ROMs, not randomized ROMs.
-        """
-        from logic.flags import FlagsEnum, FlagCategory
-        import flet as ft
-
-        is_vanilla = self.state.rom_info.rom_type == "vanilla"
-
-        # Update each LEGACY flag checkbox
-        for flag in FlagsEnum:
-            if flag.category == FlagCategory.LEGACY:
-                if flag.value in self.flag_checkboxes:
-                    checkbox = self.flag_checkboxes[flag.value]
-                    checkbox.disabled = not is_vanilla
-
-                    # Update label color based on state
-                    if not is_vanilla:
-                        # Disabled: grey out text
-                        checkbox.label_style = ft.TextStyle(color=ft.Colors.GREY_500)
-                        checkbox.value = False
-                        self.state.flag_state.flags[flag.value] = False
-                    else:
-                        # Enabled: restore default color
-                        checkbox.label_style = None
-
-                    checkbox.update()
-
-        # Update the legacy note visibility if it exists
-        if self.legacy_note_ref:
-            for legacy_note in self.legacy_note_ref:
-                legacy_note.visible = not is_vanilla
-                legacy_note.update()
-
     # ROM loading handlers
     def load_rom_and_show_card(self, disable_seed: bool = False) -> None:
         """Hide Step 1, show ROM info card, and initialize Step 2.
@@ -194,6 +453,7 @@ class EventHandlers:
         Args:
             disable_seed: If True, disable seed input and random seed button
         """
+        print(f"DEBUG: load_rom_and_show_card() called with disable_seed={disable_seed}")
         # Hide Step 1, show ROM info card
         self.hide_step1()
 
@@ -215,8 +475,11 @@ class EventHandlers:
             self.random_seed_button.update()
 
         self.update_flagstring()
-        self.update_legacy_flags_state()
+        print("DEBUG: About to call enable_step2()")
         self.enable_step2()
+        print("DEBUG: Called enable_step2(), now updating page")
+        self.page.update()
+        print("DEBUG: Page updated")
 
     def clear_rom(self, e) -> None:
         """Remove ROM and reset UI to initial state."""
@@ -331,7 +594,7 @@ class EventHandlers:
         with open(filepath, 'rb') as f:
             rom_data = f.read()
 
-        # Check if this is a Race ROM
+        # Check if this is a Race ROM and get ROM version
         try:
             rom_reader = RomReader(io.BytesIO(rom_data))
             if rom_reader.IsRaceRom():
@@ -342,6 +605,9 @@ class EventHandlers:
                     "from reading level data correctly.\n\n"
                     "Please try again using a ROM generated without the Race ROM feature.")
                 return
+
+            # Get ROM version (PRG0/PRG1)
+            rom_version = rom_reader.GetVersion()
         except Exception as ex:
             show_error_dialog(self.page, "Error Reading ROM",
                               f"Unable to read the ROM file:\n\n{str(ex)}")
@@ -356,6 +622,7 @@ class EventHandlers:
 
             self.state.rom_info.filename = filepath if filepath else filename
             self.state.rom_info.rom_type = "vanilla"
+            self.state.rom_info.rom_version = rom_version
             self.state.rom_info.flagstring = ""
             self.state.rom_info.seed = ""
 
@@ -374,6 +641,7 @@ class EventHandlers:
 
             self.state.rom_info.filename = filepath if filepath else filename
             self.state.rom_info.rom_type = "randomized"
+            self.state.rom_info.rom_version = rom_version
 
             # Parse filename for seed and flagstring
             try:
@@ -609,13 +877,6 @@ class EventHandlers:
 
         level_nine_count = sum(1 for flag in level_nine_flags if flags.get(flag, False))
 
-        # Safety check: verify force_two_heart_containers_to_level_nine is False
-        if flags.get('force_two_heart_containers_to_level_nine', False):
-            errors.append(
-                "Internal Error: The 'force_two_heart_containers_to_level_nine' flag should not be enabled.\n"
-                "This is a hidden flag. Please contact the developer."
-            )
-
         if level_nine_count > 2:
             enabled_items = []
             if flags.get('force_arrow_to_level_nine'):
@@ -702,11 +963,7 @@ class EventHandlers:
             # Apply patch to ROM
             rom_bytes.seek(0)
             rom_data = bytearray(rom_bytes.read())
-
-            for address in patch.GetAddresses():
-                patch_data = patch.GetData(address)
-                for i, byte in enumerate(patch_data):
-                    rom_data[address + i] = byte
+            patch.Apply(rom_data)
 
             # Store the randomized ROM data
             self.state.randomized_rom_data = bytes(rom_data)
@@ -866,17 +1123,3 @@ class EventHandlers:
         random_seed = random.randint(10000000, 99999999)
         self.seed_input.value = str(random_seed)
         self.seed_input.update()
-
-
-    # Accordion expand/collapse handlers
-    def on_expand_all(self, e) -> None:
-        """Expand all flag category panels."""
-        for panel in self.expansion_panels_ref:
-            panel.expanded = True
-        self.page.update()
-
-    def on_collapse_all(self, e) -> None:
-        """Collapse all flag category panels."""
-        for panel in self.expansion_panels_ref:
-            panel.expanded = False
-        self.page.update()

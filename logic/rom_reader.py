@@ -1,5 +1,6 @@
 from enum import IntEnum
 import io
+import zlib
 from typing import IO, List, Dict
 from .constants import CHAR_MAP
 from .randomizer_constants import Enemy
@@ -157,6 +158,29 @@ class RomReader:
         is_race = not (valid_overworld and valid_level_1_to_6 and valid_level_7_to_9)
         log.info(f"IsRaceRom result: {is_race}")
         return is_race
+
+    def GetVersion(self) -> str:
+        """Determine the ROM version (PRG0 or PRG1) using CRC32 checksum.
+
+        Returns:
+            "PRG0", "PRG1", or "Unknown"
+        """
+        # Seek to start of ROM data (after 16-byte NES header)
+        self.rom.seek(NES_HEADER_OFFSET)
+        rom_data = self.rom.read()
+
+        # Calculate CRC32 checksum
+        crc32 = zlib.crc32(rom_data) & 0xFFFFFFFF
+
+        # Known CRC32 values for Legend of Zelda (without header)
+        # PRG0: 0x3FE272FB
+        # PRG1: 0xEAF7ED72
+        if crc32 == 0x3FE272FB:
+            return "PRG0"
+        elif crc32 == 0xEAF7ED72:
+            return "PRG1"
+        else:
+            return "Unknown"
 
     def _CpuAddressToRomOffset(self, cpu_address: int) -> int:
         """Convert a CPU address in bank 5 to a ROM offset.
