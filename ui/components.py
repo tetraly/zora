@@ -196,7 +196,7 @@ def build_step2_container(categorized_flag_rows: dict,
     # Wrap seed input and button together
     seed_with_button = ft.Row([seed_input, random_seed_button], spacing=10, tight=True)
 
-    flag_seed_row = ft.Row([flagstring_input, seed_with_button], spacing=20, wrap=True)
+    flag_seed_row = ft.Row([flagstring_input, seed_with_button], spacing=20, wrap=True, tight=True)
 
     randomize_button = ft.ElevatedButton("Randomize", on_click=on_randomize)
 
@@ -247,9 +247,9 @@ def build_step2_container(categorized_flag_rows: dict,
                 # Left side: Shuffle pool (no header text)
                 left_container = ft.Container(
                     content=ft.Row([
-                        ft.Column(shuffle_left, spacing=3, expand=True),
-                        ft.Column(shuffle_right, spacing=3, expand=True)
-                    ], spacing=10),
+                        ft.Column(shuffle_left, spacing=3),
+                        ft.Column(shuffle_right, spacing=3)
+                    ], spacing=10, tight=True),
                     padding=10,
                     border=ft.border.all(1, ft.Colors.BLUE_300),
                     border_radius=5
@@ -272,6 +272,7 @@ def build_step2_container(categorized_flag_rows: dict,
                             ft.Text("Add to shuffle", weight="bold", size=14),
                             left_container
                         ], spacing=5),
+                        ft.Container(expand=True),  # Spacer to push constraints to the right
                         ft.Column([
                             ft.Text("... with these constraints:", weight="bold", size=14),
                             right_container
@@ -282,10 +283,12 @@ def build_step2_container(categorized_flag_rows: dict,
                     opacity=0.4
                 )
 
-                category_content = ft.Column([
-                    master_toggle,
-                    panels_container
-                ], spacing=0)
+                category_content = ft.Row([
+                    ft.Column([
+                        master_toggle,
+                        panels_container
+                    ], spacing=0)
+                ], tight=True)  # Wrap in tight Row to prevent expansion
 
             # Special layout for Item Changes tab
             elif category == FlagCategory.ITEM_CHANGES:
@@ -322,15 +325,17 @@ def build_step2_container(categorized_flag_rows: dict,
                 other_right = other_flags[mid:]
 
                 # Build layout: master toggle, dependent container, then other flags in two columns
-                category_content = ft.Column([
-                    master_toggle if master_toggle else ft.Container(),
-                    dependent_container,
-                    ft.Container(height=10),
-                    ft.Row([
-                        ft.Column(other_left, spacing=3, expand=True),
-                        ft.Column(other_right, spacing=3, expand=True)
-                    ], spacing=10)
-                ], spacing=0)
+                category_content = ft.Row([
+                    ft.Column([
+                        master_toggle if master_toggle else ft.Container(),
+                        dependent_container,
+                        ft.Container(height=10),
+                        ft.Row([
+                            ft.Column(other_left, spacing=3),
+                            ft.Column(other_right, spacing=3)
+                        ], spacing=10, tight=True)
+                    ], spacing=0)
+                ], tight=True)
 
             else:
                 # Default two-column layout for other categories
@@ -340,9 +345,9 @@ def build_step2_container(categorized_flag_rows: dict,
 
                 # Create flag rows
                 category_content = ft.Row([
-                    ft.Column(left_flags, spacing=3, expand=True),
-                    ft.Column(right_flags, spacing=3, expand=True)],
-                                          spacing=10)
+                    ft.Column(left_flags, spacing=3),
+                    ft.Column(right_flags, spacing=3)],
+                                          spacing=10, tight=True)
 
             # Create tab with colored border around content
             tab = ft.Tab(
@@ -351,13 +356,11 @@ def build_step2_container(categorized_flag_rows: dict,
                     content=category_content,
                     padding=15,
                     border=ft.border.all(2, category_border_colors.get(category, ft.Colors.GREY_600)),
-                    border_radius=5
+                    border_radius=5,
+                    width=950  # Consistent width for all tabs
                 )
             )
             tabs.append(tab)
-            print(f"DEBUG: Added tab for {category.display_name}")
-
-    print(f"DEBUG: Total tabs created: {len(tabs)}")
 
     # Create Tabs widget with explicit height constraint
     # IMPORTANT: ft.Tabs widget REQUIRES explicit height when nested in containers,

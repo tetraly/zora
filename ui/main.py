@@ -149,12 +149,19 @@ def main(page: ft.Page, platform: str = "web") -> None:
     # Build header
     header = build_header(handlers.on_view_known_issues)
 
-    # Build main content container
-    main_content = ft.Column([header, step1_container, step2_container], spacing=0)
+    # Build main content column
+    main_content_column = ft.Column([header, step1_container, step2_container], spacing=0)
 
-    # Store main content reference in state
-    state.main_content = main_content
+    # Wrap in container with max width to prevent expansion
+    main_content_wrapper = ft.Container(
+        content=main_content_column,
+        width=1000,  # Maximum width
+        alignment=ft.alignment.top_center
+    )
 
-    # Add to page
-    page.add(main_content)
+    # Store column reference in state (handlers need access to .controls)
+    state.main_content = main_content_column
+
+    # Add wrapper to page
+    page.add(main_content_wrapper)
     page.update()

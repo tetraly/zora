@@ -432,12 +432,9 @@ class EventHandlers:
 
     def enable_step2(self) -> None:
         """Enable Step 2 UI."""
-        print("DEBUG: enable_step2() called")
-        print(f"DEBUG: step2_container exists: {self.step2_container is not None}")
         self.step2_container.disabled = False
         self.step2_container.opacity = 1.0
         self.step2_container.visible = True
-        print(f"DEBUG: step2_container disabled={self.step2_container.disabled}, opacity={self.step2_container.opacity}, visible={self.step2_container.visible}")
         self.step2_container.update()
 
     def disable_step2(self) -> None:
@@ -453,7 +450,6 @@ class EventHandlers:
         Args:
             disable_seed: If True, disable seed input and random seed button
         """
-        print(f"DEBUG: load_rom_and_show_card() called with disable_seed={disable_seed}")
         # Hide Step 1, show ROM info card
         self.hide_step1()
 
@@ -475,11 +471,8 @@ class EventHandlers:
             self.random_seed_button.update()
 
         self.update_flagstring()
-        print("DEBUG: About to call enable_step2()")
         self.enable_step2()
-        print("DEBUG: Called enable_step2(), now updating page")
         self.page.update()
-        print("DEBUG: Page updated")
 
     def clear_rom(self, e) -> None:
         """Remove ROM and reset UI to initial state."""
