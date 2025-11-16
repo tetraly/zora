@@ -16,7 +16,7 @@ class HintWriter:
     HINT_POINTER_TABLE_START = 0x4010  # File offset for pointer table
     HINT_DATA_START = 0x405C  # File offset where hint data starts (0x404C + 0x10)
     NUM_HINT_SLOTS = 0x26  # 38 hint slots
-    MAX_HINT_DATA_END = 0x4550  # Maximum file offset for hint data (with safety margin; hard limit is 0x4582)
+    MAX_HINT_DATA_END = 0x4570  # Maximum file offset for hint data (with safety margin; hard limit is 0x4582)
 
     # Text encoding table
     CHAR_TO_BYTE = {
@@ -118,15 +118,71 @@ class HintWriter:
         self.hints[hint_type] = hint
 
     def FillWithCommunityHints(self) -> None:
-        """Fill empty hint slots with community hints."""
+        """Fill empty hint slots with community hints.
+
+        Hints 10, 12, 13, and 14 are left blank (single 0xFF byte).
+        Uses shorter hints when approaching space limits.
+        """
+        # Hint numbers that should be blank
+        blank_hint_nums = {10, 12, 13, 14}
 
         for hint_num in range(1, self.NUM_HINT_SLOTS + 1):
             hint_type = HintType(hint_num)
             if hint_type not in self.hints:
-                if hint_type in COMMUNITY_HINTS:
-                    self.hints[hint_type] = self.rng.choice(COMMUNITY_HINTS[hint_type])
+                # Make hints 10, 12, 13, 14 blank
+                if hint_num in blank_hint_nums:
+                    self.hints[hint_type] = " "
+                elif hint_type in COMMUNITY_HINTS:
+                    chosen = self._choose_hint_by_space(COMMUNITY_HINTS[hint_type])
+                    self.hints[hint_type] = chosen
                 else:
-                    self.hints[hint_type] = self.rng.choice(COMMUNITY_HINTS[HintType.OTHER])
+                    chosen = self._choose_hint_by_space(COMMUNITY_HINTS[HintType.OTHER])
+                    self.hints[hint_type] = chosen
+
+    def _choose_hint_by_space(self, hint_list: List[str]) -> str:
+        """Choose a hint from the list, preferring shorter hints if space is tight.
+
+        Args:
+            hint_list: List of possible hint strings
+
+        Returns:
+            Selected hint string
+        """
+        # Calculate how much space we've used so far
+        current_size = 0
+        for hint_text in self.hints.values():
+            lines = hint_text.split('|')
+            encoded = self._encode_text(lines)
+            current_size += len(encoded)
+
+        # Calculate remaining space (conservative estimate)
+        remaining_hints = self.NUM_HINT_SLOTS - len(self.hints)
+        space_left = self.MAX_HINT_DATA_END - self.HINT_DATA_START - current_size
+        avg_space_per_hint = space_left / max(1, remaining_hints)
+
+        # If we have plenty of space (>40 bytes per hint), use any hint
+        if avg_space_per_hint > 40:
+            return self.rng.choice(hint_list)
+
+        # If space is tight, prefer shorter hints
+        # Sort hints by encoded size
+        hints_with_size = []
+        for hint in hint_list:
+            lines = hint.split('|')
+            encoded = self._encode_text(lines)
+            hints_with_size.append((len(encoded), hint))
+
+        hints_with_size.sort(key=lambda x: x[0])
+
+        # If critically low on space (<30 bytes per hint), use shortest hints
+        if avg_space_per_hint < 30:
+            # Take the shortest 1/3 of hints
+            short_hints = hints_with_size[:max(1, len(hints_with_size) // 3)]
+            return self.rng.choice([h for _, h in short_hints])
+        else:
+            # Take the shorter half
+            short_hints = hints_with_size[:max(1, len(hints_with_size) // 2)]
+            return self.rng.choice([h for _, h in short_hints])
 
     def FillWithBlankHints(self) -> None:
         """Fill all hint slots with blank hints."""
@@ -166,7 +222,10 @@ class HintWriter:
             # Check if writing this hint would exceed the limit
             if current_file_offset + len(encoded_hint) >= self.MAX_HINT_DATA_END:
                 # Would exceed limit - write a blank hint instead
-                log.warning(f"Hint #{hint_num} would exceed ROM limit (0x{self.MAX_HINT_DATA_END:04X}). Writing blank hint instead.")
+                space_used = current_file_offset - self.HINT_DATA_START
+                space_available = self.MAX_HINT_DATA_END - self.HINT_DATA_START
+                log.warning(f"Hint #{hint_num} ({len(encoded_hint)} bytes) would exceed ROM limit. "
+                           f"Used {space_used}/{space_available} bytes. Writing blank hint instead.")
                 encoded_hint = self._encode_text([" "])
 
                 # Still check if even the blank hint fits
@@ -187,6 +246,14 @@ class HintWriter:
             high_byte = ((pointer_offset >> 8) & 0xFF) | 0x80
             pointer_bytes = [low_byte, high_byte]
             self.patch.AddData(pointer_file_offset, pointer_bytes)
+
+        # Log space usage summary
+        total_hint_space_used = current_file_offset - self.HINT_DATA_START
+        total_available_space = self.MAX_HINT_DATA_END - self.HINT_DATA_START
+        space_remaining = self.MAX_HINT_DATA_END - current_file_offset
+        usage_percent = (total_hint_space_used / total_available_space) * 100
+        log.info(f"Hint space usage: {total_hint_space_used}/{total_available_space} bytes ({usage_percent:.1f}%), "
+                f"{space_remaining} bytes remaining")
 
         return self.patch
 
