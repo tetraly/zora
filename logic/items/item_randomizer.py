@@ -10,7 +10,7 @@ from .minor_item_randomizer import MinorItemRandomizer
 from .room_item_collector import RoomItemCollector
 from ..data_table import DataTable
 from ..flags import Flags
-from ..randomizer_constants import  CaveType, Item, StandardItemPositions
+from ..randomizer_constants import  CaveType, Item, ItemPosition, StandardItemPositions
 
 class ItemRandomizer:
     """Orchestrates item randomization and progressive item conversions."""
@@ -87,7 +87,10 @@ class ItemRandomizer:
         # Step 3: Apply progressive item conversions
         if self.flags.progressive_items:
             self.ConvertProgressiveItemsToUpgrades()
-        
+
+        # Step 3.25: Add L4 sword if enabled
+        self._AddL4SwordToLevel9()
+
         #Step 3.5: Randomize Item Positions
         self.RandomizeItemPositions()
 
@@ -155,6 +158,20 @@ class ItemRandomizer:
         """
         log.info("Shop item randomization not yet implemented")
         pass
+
+    def _AddL4SwordToLevel9(self) -> None:
+        """Add L4 sword upgrade to Level 9 triforce check room.
+
+        When add_l4_sword flag is enabled with progressive_items, this places
+        a wood sword in the room before the triforce room, which becomes the
+        L4 sword upgrade.
+        """
+        if self.flags.progressive_items and self.flags.add_l4_sword:
+            level_nine_start_room_num = self.data_table.GetLevelStartRoomNumber(9)
+            triforce_check_room_num = level_nine_start_room_num - 0x10
+            self.data_table.SetItem(9, triforce_check_room_num, Item.WOOD_SWORD)
+            self.data_table.SetItemPositionNew(9, triforce_check_room_num, ItemPosition.BOTTOM_LEFT)
+            log.info(f"Added L4 sword to Level 9 room {triforce_check_room_num:02X}")
 
     def RandomizeItemPositions(self) -> None:
         for level_num in CaveType.AllLevels():
