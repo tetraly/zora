@@ -7,6 +7,7 @@ from ..randomizer_constants import (
 )
 from ..data_table import DataTable
 from ..flags import Flags
+from ..location import Location
 from ..solvers import RandomizedBacktrackingSolver, SolverType
 from ..solvers.solver_factory import create_solver
 from .room_item_collector import RoomItemCollector
@@ -114,6 +115,10 @@ class MinorItemRandomizer():
         # Write solution back to data table
         for room_num, item in solution.items():
             self.data_table.SetItem(level_num, room_num, item)
+            # Update compass pointer when placing a triforce
+            if item == Item.TRIFORCE:
+                location = Location(level_num=level_num, room_num=room_num)
+                self.data_table.UpdateTriforceLocation(location)
 
         log.debug(f"Level {level_num}: Found valid item shuffle using constraint solver")
         return True
