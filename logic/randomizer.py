@@ -381,49 +381,54 @@ class Z1Randomizer():
     if self.flags.auto_show_letter:
       patch.AddFromIPS(os.path.join(os.path.dirname(__file__), '..', 'ips', 'auto_show_letter.ips'))
 
-    # Heart health patches
+    # Heart health patches - CORRECTED Multi-Version Support
     increase_minimum_health = self.flags.increase_minimum_health
     keep_health_after_death_warp = self.flags.keep_health_after_death_warp
+
     if increase_minimum_health or keep_health_after_death_warp:
+        # Detect version and find heart code location
+        lda_offset = self.data_table.FindHeartResetCodeOffset()
+        jsr_patch_addr = lda_offset + 3  # Patch at the AND instruction
+        is_prg0 = self.data_table.IsPrg0Rom()
+
+        # Determine version for logging
+        version = "PRG0" if is_prg0 else "PRG1"
+        log.info(f"Detected ROM version: {version}")
+        log.info(f"Patching heart reset at: 0x{jsr_patch_addr:05X}")
+
+        # Apply JSR hook (replaces AND/ORA/STA with JSR to our routine)
         patch.AddDataFromHexString(
-            addr=0x14B8A,
-            hex_string="20 9D 85 EA",
-            expected_original_data="29 F0 09 02",
-            description="Replace AND/ORA with JSR to heart calculation routine"
+            addr=jsr_patch_addr,
+            hex_string="20 9D 85 EA EA EA",  # JSR $859D, NOP, NOP, NOP (7 bytes)
+            expected_original_data="29 F0 09 02 8D 6F 06",
+            description=f"Heart patch JSR hook ({version})"
         )
 
     if not increase_minimum_health and keep_health_after_death_warp:
+        # Simple: Keep current hearts if >= 3, else reset to 3
         patch.AddDataFromHexString(
             addr=0x145AD,
-            hex_string="A5 00 48 48 29 0F C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 AA 68 85 00 8A 60",
-            expected_original_data=(
-                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
-            ),
-            description="Heart calculation routine: Keep current hearts if >= 3, otherwise reset to 3"
+            hex_string="AA A5 00 48 8A 48 29 0F C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 8D 6F 06 68 85 00 60",
+            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            description="Heart routine: Keep health if >= 3"
         )
 
     elif increase_minimum_health and not keep_health_after_death_warp:
+        # Medium: Reset to max(3, maxHearts/2)
         patch.AddDataFromHexString(
             addr=0x145AD,
-            hex_string="A5 00 48 48 4A 4A 4A 4A 18 69 01 4A F0 02 38 E9 01 C9 02 B0 02 A9 02 85 00 68"
-                 "29 F0 05 00 AA 68 85 00 8A 60",
-            expected_original_data=(
-                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
-                "FF FF FF FF FF FF FF FF FF FF FF"
-            ),
-            description="Heart calculation routine: Reset to max(3 hearts, maxHearts/2)"
+            hex_string="AA A5 00 48 8A 48 4A 4A 4A 4A 18 69 01 4A F0 03 38 E9 01 C9 02 B0 02 A9 02 85 00 68 29 F0 05 00 8D 6F 06 68 85 00 60",
+            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            description="Heart routine: Reset to max(3, maxHearts/2)"
         )
 
     elif increase_minimum_health and keep_health_after_death_warp:
+        # Complex: Keep max(current, 3, maxHearts/2)
         patch.AddDataFromHexString(
             addr=0x145AD,
-            hex_string="A5 00 48 48 4A 4A 4A 4A 18 69 01 4A F0 02 38 E9 01 C9 02 B0 02 A9 02 85 00 68"
-                 "48 29 0F C5 00 B0 02 A5 00 85 00 68 29 F0 05 00 AA 68 85 00 8A 60",
-            expected_original_data=(
-                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
-                "FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF"
-            ),
-            description="Keep max of: current hearts, 3 hearts, or maxHearts/2"
+            hex_string="AA A5 00 48 8A 48 4A 4A 4A 4A 18 69 01 4A F0 03 38 E9 01 C9 02 B0 02 A9 02 85 00 68 48 29 0F C5 00 B0 02 A5 00 85 00 68 29 F0 05 00 8D 6F 06 68 85 00 60",
+            expected_original_data="FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF",
+            description="Heart routine: Keep max(current, 3, maxHearts/2)"
         )
 
     # Text speed (QoL improvement that affects gameplay and should be in hash)

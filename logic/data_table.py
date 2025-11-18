@@ -491,3 +491,40 @@ class DataTable():
     assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
     assert 0 <= enemy_data <= 0xFF, f"Invalid enemy data: {hex(enemy_data)}"
     self.overworld_raw_data[screen_num + 2 * 0x80] = enemy_data
+
+  def FindHeartResetCodeOffset(self) -> int:
+    """
+    Find the heart reset code location in the ROM.
+
+    Returns the offset where "AD 6F 06 29 F0 09 02 8D 6F 06" appears,
+    or raises an exception if not found.
+
+    This pattern is:
+    - AD 6F 06: LDA $066F (load HeartValues)
+    - 29 F0:    AND #$F0 (keep max hearts)
+    - 09 02:    ORA #$02 (set current to 3 hearts)
+    - 8D 6F 06: STA $066F (store back)
+    """
+    # Get the entire ROM as bytes
+    self.rom_reader.rom.seek(0)
+    rom_data = self.rom_reader.rom.read()
+    pattern = bytes.fromhex("AD 6F 06 29 F0 09 02 8D 6F 06")
+
+    # Search ROM for the pattern
+    for addr in range(0x10, len(rom_data) - len(pattern)):
+      if rom_data[addr:addr+len(pattern)] == pattern:
+        return addr
+
+    raise Exception("Could not find heart reset code pattern in ROM!")
+
+  def IsPrg0Rom(self) -> bool:
+    """
+    Detect if this is a PRG0 ROM based on heart reset code location.
+
+    Returns True for PRG0, False for PRG1 or other versions.
+    """
+    try:
+      offset = self.FindHeartResetCodeOffset()
+      return offset == 0x14B7D  # PRG0 location
+    except:
+      return False  # Default to False if pattern not found
