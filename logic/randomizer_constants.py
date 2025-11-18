@@ -308,9 +308,9 @@ StandardItemPositions = {
     # Room paritioned into two regions. Have a drop position in each one
     RoomType.HORIZONTAL_MOAT_ROOM: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT], 
     RoomType.VERTICAL_MOAT_ROOM: [ItemPosition.MIDDLE, ItemPosition.RIGHT], 
-    RoomType.T_ROOM: [ItemPosition.MIDDLE, ItemPosition.RIGHT],
+    RoomType.T_ROOM: [ItemPosition.MIDDLE, ItemPosition.BOTTOM_LEFT],
     RoomType.CIRCLE_MOAT_ROOM: [ItemPosition.MIDDLE, ItemPosition.TOP_RIGHT],
-    RoomType.CHEVY_ROOM: [ItemPosition.MIDDLE, ItemPosition.BOTTOM_LEFT], # Exception: 5 regions but only 2 drop positions are valid.
+    RoomType.CHEVY_ROOM: [ItemPosition.MIDDLE, ItemPosition.RIGHT], # Exception: 5 regions but only 2 drop positions are valid.
 
     RoomType.TRANSPORT_STAIRCASE: [],
     RoomType.ITEM_STAIRCASE: [ItemPosition.MIDDLE]
