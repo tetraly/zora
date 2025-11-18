@@ -271,8 +271,7 @@ class DataTable():
                                         self.level_1_to_6_rooms)
     patch += self._GetPatchForLevelGrid(LEVEL_7_TO_9_DATA_START_ADDRESS,
                                         self.level_7_to_9_rooms)
-    patch += self._GetPatchForOverworldCaveData()
-    patch += self._GetPatchForOverworldScreenDestinations()
+    patch += self._GetPatchForOverworld()
     patch += self._GetPatchForLevelInfo()
     return patch
 
@@ -289,8 +288,11 @@ class DataTable():
     # The old code that wrote them separately has been removed to avoid conflicts.
     return patch
 
-  def _GetPatchForOverworldCaveData(self) -> Patch:
+  def _GetPatchForOverworld(self) -> Patch:
+    """Generate patch data for all overworld data (caves, screen data)."""
     patch = Patch()
+
+    # Write cave item and price data
     for cave_num in Range.VALID_CAVE_NUMBERS:
       if cave_num == CAVE_NUMBER_REPRESENTING_ARMOS_ITEM:
         patch.AddData(ARMOS_ITEM_ADDRESS,
@@ -306,19 +308,21 @@ class DataTable():
                     self.overworld_caves[cave_num].GetItemData())
       patch.AddData(CAVE_PRICE_DATA_START_ADDRESS + (3 * cave_num),
                     self.overworld_caves[cave_num].GetPriceData())
-    return patch
 
-  def _GetPatchForOverworldScreenDestinations(self) -> Patch:
-    """Generate patch data for overworld screen destinations (table 1)."""
-    patch = Patch()
-    # Overworld table 1 starts at OVERWORLD_DATA_LOCATION + 0x80 (table offset)
-    # Each table is 0x80 bytes (128 screens), and table 1 is the second table
-    OVERWORLD_TABLE_1_ADDRESS = 0x18400 + NES_FILE_OFFSET + 0x80  # 0x18490
+    # Write overworld screen data
+    # Overworld data starts at 0x18400 and has 5 tables of 0x80 bytes each
+    OVERWORLD_DATA_START_ADDRESS = 0x18400 + NES_FILE_OFFSET
 
-    # Write all 128 bytes of table 1 (screen destinations)
+    # Table 1 (offset 0x80): Screen destinations (cave/level entrances)
     for screen_num in range(0x80):
-      patch.AddData(OVERWORLD_TABLE_1_ADDRESS + screen_num,
+      patch.AddData(OVERWORLD_DATA_START_ADDRESS + 0x80 + screen_num,
                    [self.overworld_raw_data[screen_num + 1*0x80]])
+
+    # Table 2 (offset 0x100): Enemy data (type and quantity)
+    for screen_num in range(0x80):
+      patch.AddData(OVERWORLD_DATA_START_ADDRESS + 0x100 + screen_num,
+                   [self.overworld_raw_data[screen_num + 2*0x80]])
+
     return patch
 
   def _GetPatchForLevelInfo(self) -> Patch:
