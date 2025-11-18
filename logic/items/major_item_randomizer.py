@@ -348,13 +348,17 @@ class MajorItemRandomizer:
             solver.forbid_all(sources=coast_locations, targets=Item.LADDER)
             log.debug("Constraint: Ladder forbidden from coast location")
 
-        # 4. Red potion must be in a shop (cannot go in dungeons due to 5-bit item field overflow)
-        # Red potion is 0x20 which exceeds the 5-bit max of 0x1F for dungeon items
+        # 4. Shop-only items must stay in shops (cannot go in dungeons due to 5-bit item field overflow)
+        # Dungeon rooms can only hold items 0-31 (0x00-0x1F) due to 5-bit field
+        # Items > 31: RED_POTION (0x20), SINGLE_HEART (0x22), FAIRY (0x23), OVERWORLD_NO_ITEM (0x3F)
         dungeon_locations = [loc for loc in locations if is_dungeon_location(loc)]
-        if Item.RED_POTION in items and dungeon_locations:
-            for dungeon_loc in dungeon_locations:
-                solver.forbid(source=dungeon_loc, target=Item.RED_POTION)
-            log.debug(f"Constraint: Red potion forbidden from {len(dungeon_locations)} dungeon locations (must be in shops)")
+        if dungeon_locations:
+            shop_only_items = [item for item in items if int(item) > 31]
+            if shop_only_items:
+                for dungeon_loc in dungeon_locations:
+                    for shop_item in shop_only_items:
+                        solver.forbid(source=dungeon_loc, target=shop_item)
+                log.debug(f"Constraint: {len(shop_only_items)} shop-only items forbidden from {len(dungeon_locations)} dungeon locations (5-bit field limit)")
 
         # 5. Letter cannot go in potion shop (letter is required to access potion shop)
         potion_shop_locations = [loc for loc in locations if is_cave_location(loc) and loc.cave_type == CaveType.POTION_SHOP]
