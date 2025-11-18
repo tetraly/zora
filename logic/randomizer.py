@@ -44,6 +44,8 @@ class Z1Randomizer():
     self.cave_destinations_randomized_in_base_seed = False
     # Cache of solver permutations that failed validation so we never retry them.
     self._forbidden_major_solution_maps: list[dict] = []
+    # Initialize data table for this randomizer instance
+    self.data_table = DataTable(self.rom_reader)
 
   def _ConvertTextToRomHex(self, text: str) -> str:
     """Convert ASCII text to Zelda ROM character encoding hex string.
@@ -79,14 +81,11 @@ class Z1Randomizer():
 
     return " ".join(hex_bytes)
 
-  def HasVanillaWoodSwordCaveStartScreen(self, data_table: DataTable) -> bool:
+  def HasVanillaWoodSwordCaveStartScreen(self) -> bool:
     """Check if the wood sword cave is at its vanilla screen location.
 
     The vanilla wood sword cave is at screen 0x77. If it's not there,
     we assume the base ROM has cave destinations already shuffled.
-
-    Args:
-        data_table: The DataTable instance to read from
 
     Returns:
         Whether the wood sword cave is in it's vanilla screen (0x77)
@@ -95,10 +94,10 @@ class Z1Randomizer():
     VANILLA_WOOD_SWORD_SCREEN = 0x77
 
     # Check if screen 0x77 has the wood sword cave destination
-    destination = data_table.GetScreenDestination(VANILLA_WOOD_SWORD_SCREEN)
+    destination = self.data_table.GetScreenDestination(VANILLA_WOOD_SWORD_SCREEN)
     return destination == CaveType.WOOD_SWORD_CAVE
 
-  def _ShuffleOverworldCaveDestinations(self, data_table: DataTable, rng: RandomNumberGenerator) -> None:
+  def _ShuffleOverworldCaveDestinations(self, rng: RandomNumberGenerator) -> None:
     """Shuffle cave destinations for all 1st quest overworld screens.
 
     This finds all screens that have cave destinations in the 1st quest,
@@ -107,7 +106,6 @@ class Z1Randomizer():
     Any Road screens are excluded from the shuffle to prevent game crashes.
 
     Args:
-        data_table: The DataTable instance to modify
         rng: Random number generator instance to use for shuffling
     """
     from .randomizer_constants import CaveType
@@ -122,13 +120,13 @@ class Z1Randomizer():
     cave_destinations = []
 
     for screen_num in range(0x80):
-      table5_byte = data_table.overworld_raw_data[screen_num + 5*0x80]
+      table5_byte = self.data_table.overworld_raw_data[screen_num + 5*0x80]
 
       # Skip if bit 7 is set (2nd quest only)
       if (table5_byte & 0x80) != 0:
         continue
 
-      destination = data_table.GetScreenDestination(screen_num)
+      destination = self.data_table.GetScreenDestination(screen_num)
 
       # Only include screens that actually have a destination
       if destination != CaveType.NONE:
@@ -149,16 +147,13 @@ class Z1Randomizer():
     # Redistribute shuffled destinations back to the screens
     for screen_num, new_destination in zip(first_quest_screens, cave_destinations):
       log.debug(f"AFTER: Setting screen {hex(screen_num)} to {new_destination.name}")
-      data_table.SetScreenDestination(screen_num, new_destination)
+      self.data_table.SetScreenDestination(screen_num, new_destination)
 
-  def _CalculateRecorderWarpDestinations(self, data_table: DataTable) -> List[int]:
+  def _CalculateRecorderWarpDestinations(self) -> List[int]:
     """Calculate recorder warp destinations for levels 1-8 after cave shuffle.
 
     The recorder warps Link to a screen one to the left of each level entrance.
     This is because the whirlwind scrolls Link to the right automatically.
-
-    Args:
-        data_table: The DataTable instance to read level locations from
 
     Returns:
         A List of 8 bytes representing the warp screen for levels 1-8 and a List of y coordinates
@@ -186,7 +181,7 @@ class Z1Randomizer():
 
       # Search all overworld screens to find this level
       for screen_num in range(0x80):
-        destination = data_table.GetScreenDestination(screen_num)
+        destination = self.data_table.GetScreenDestination(screen_num)
         if destination == cave_type:
           level_screen = screen_num
           break
@@ -198,33 +193,30 @@ class Z1Randomizer():
       # Special case: if level is at screen 0, don't subtract 1 and letter cave (warp goes one screen down)
       if level_screen == 0:
         warp_screen = 0
-      elif level_screen == 0x0E: 
+      elif level_screen == 0x0E:
         warp_screen = 0x1D
       else:
         warp_screen = level_screen - 1
 
-      # Special cases for y coordinate of Link warping to a screen 
+      # Special cases for y coordinate of Link warping to a screen
       y_coordinate = 0x8D
       if level_screen in [0x3C, 0x0B, 0x42, 0x05, 0x09, 0x0A, 0x2C]:  # Vanilla 2, 5, 7, 9, Bogie's Arrow, Waterfall, Monocle Rock
         y_coordinate = 0xAD
       elif level_screen in [0x6D]:  # Vanilla 8
         y_coordinate = 0x5D
-        
+
       log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}")
       warp_destinations.append(warp_screen)
       warp_y_coordinates.append(y_coordinate)
 
     return (warp_destinations, warp_y_coordinates)
 
-  def _ValidateFlagCompatibility(self, data_table: DataTable) -> None:
+  def _ValidateFlagCompatibility(self) -> None:
     """Validate that the selected ZORA flags are compatible with the base ROM.
 
     Checks for incompatible flag combinations and raises ValueError if found:
     - Progressive Items + Extra Candles
     - Extra Power Bracelet Blocks + Randomize Any Roads
-
-    Args:
-      data_table: The DataTable instance for reading ROM data
 
     Raises:
       ValueError: If an incompatible flag combination is detected
@@ -233,20 +225,20 @@ class Z1Randomizer():
     if self.flags.progressive_items:
 
       # Need to call ResetToVanilla first to populate the caves list
-      data_table.ResetToVanilla()
+      self.data_table.ResetToVanilla()
 
       # Check Wood Sword Cave (cave 0) - all 3 positions
       wood_sword_cave_items = []
       for position in [1, 2, 3]:
         location = Location.CavePosition(0, position)
-        item = data_table.GetCaveItem(location)
+        item = self.data_table.GetCaveItem(location)
         wood_sword_cave_items.append((position, item))
 
       # Check Take Any Cave (cave 0x11/17) - all 3 positions
       take_any_cave_items = []
       for position in [1, 2, 3]:
         location = Location.CavePosition(0x11, position)
-        item = data_table.GetCaveItem(location)
+        item = self.data_table.GetCaveItem(location)
         take_any_cave_items.append((position, item))
 
       # Check if any candles were found
@@ -297,7 +289,7 @@ class Z1Randomizer():
           "or disable the 'Extra Power Bracelet Blocks' flag in ZORA."
         )
 
-  def _ApplyRoomActionFlags(self, data_table: DataTable) -> None:
+  def _ApplyRoomActionFlags(self) -> None:
     """Apply room action flag modifications to dungeon rooms.
 
     These flags modify the SecretTrigger codes (RoomAction) for rooms in levels 1-9:
@@ -310,7 +302,7 @@ class Z1Randomizer():
     The room containing TRIFORCE_OF_POWER in level 9 is excluded from all modifications.
     """
     for level_num in Range.VALID_LEVEL_NUMBERS:
-      rooms = data_table.level_7_to_9_rooms if level_num >= 7 else data_table.level_1_to_6_rooms
+      rooms = self.data_table.level_7_to_9_rooms if level_num >= 7 else self.data_table.level_1_to_6_rooms
 
       for room in rooms:
         # Skip the room with TRIFORCE_OF_POWER (0x0E) in level 9
@@ -505,22 +497,21 @@ class Z1Randomizer():
   def GetPatch(self) -> Patch:
     # Create deterministic RNG instance for all randomization
     rng = RandomNumberGenerator(self.seed)
-    data_table = DataTable(self.rom_reader)
-    item_randomizer = ItemRandomizer(data_table, self.flags, rng)
+    item_randomizer = ItemRandomizer(self.data_table, self.flags, rng)
 
     # Detect if cave destinations are already randomized in the base ROM
     # If wood sword cave is not at vanilla screen 0x77, caves are pre-shuffled
-    if not self.HasVanillaWoodSwordCaveStartScreen(data_table):
+    if not self.HasVanillaWoodSwordCaveStartScreen():
       self.cave_destinations_randomized_in_base_seed = True
       log.debug("Detected shuffled caves in base ROM - auto-enabling cave shuffle and recorder warp updates")
 
     # Determine heart requirements once for both validation and ROM patching
     white_sword_hearts = rng.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
     magical_sword_hearts = rng.choice([10, 11, 12]) if (self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements) else 12
-    validator = Validator(data_table, self.flags, white_sword_hearts, magical_sword_hearts)
+    validator = Validator(self.data_table, self.flags, white_sword_hearts, magical_sword_hearts)
 
     # Validate flag compatibility with base ROM
-    self._ValidateFlagCompatibility(data_table)
+    self._ValidateFlagCompatibility()
 
     # Main loop: Try a seed, if it isn't valid, try another one until it is valid.
     is_valid_seed = False
@@ -532,11 +523,11 @@ class Z1Randomizer():
       log.debug(f"Attempting iteration #{attempt_counter} with seed {seed}")
 
       # Reset to vanilla state
-      data_table.ResetToVanilla()
+      self.data_table.ResetToVanilla()
 
       # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
       if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-        self._ShuffleOverworldCaveDestinations(data_table, rng)
+        self._ShuffleOverworldCaveDestinations(rng)
 
       # Feed the last set of rejected permutations back into the solver so the
       # next attempt explores a fresh layout while remaining deterministic.
@@ -554,7 +545,7 @@ class Z1Randomizer():
 
       # Apply bait blocker if flag is enabled
       if self.flags.increased_bait_blocks:
-        bait_blocker = BaitBlocker(data_table)
+        bait_blocker = BaitBlocker(self.data_table)
         for level_num in Range.VALID_LEVEL_NUMBERS:
           bait_blocker.TryToMakeHungryGoriyaBlockProgress(level_num)
 
@@ -562,11 +553,11 @@ class Z1Randomizer():
       if (self.flags.increased_standing_items or self.flags.reduced_push_blocks or
           self.flags.increased_drop_items_in_push_block_rooms or
           self.flags.increased_drop_items_in_non_push_block_rooms):
-        self._ApplyRoomActionFlags(data_table)
+        self._ApplyRoomActionFlags()
 
       # Apply overworld randomization if enabled
       if self.flags.shuffle_start_screen:
-        overworld_randomizer = OverworldRandomizer(data_table, self.flags, rng)
+        overworld_randomizer = OverworldRandomizer(self.data_table, self.flags, rng)
         overworld_randomizer.ShuffleStartScreen()
 
       print("Starting Validator")
@@ -584,12 +575,12 @@ class Z1Randomizer():
           log.warning(f"✗ Attempt {attempt_counter:03} (seed {seed:10}) failed validation, trying next seed...")
       if attempt_counter >= 1000:
           raise Exception(f"Gave up after trying {attempt_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
-      
-    patch = data_table.GetPatch()
+
+    patch = self.data_table.GetPatch()
 
     # Update recorder warp destinations if cave shuffle is enabled or detected in base ROM
     if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-      (recorder_warp_destinations, recorder_y_coordinates) = self._CalculateRecorderWarpDestinations(data_table)
+      (recorder_warp_destinations, recorder_y_coordinates) = self._CalculateRecorderWarpDestinations()
       patch.AddData(RECORDER_WARP_DESTINATIONS_ADDRESS + NES_HEADER_OFFSET, recorder_warp_destinations)
       patch.AddData(0x6129, recorder_y_coordinates)
       log.debug(f"Updated recorder warp destinations: {[hex(x) for x in recorder_warp_destinations]}")
