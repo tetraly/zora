@@ -297,16 +297,26 @@ class DataTable():
     return patch
 
   def _GetPatchForOverworldScreenDestinations(self) -> Patch:
-    """Generate patch data for overworld screen destinations (table 1)."""
+    """Generate patch data for overworld screen data (tables 1 and 2).
+
+    Table 1: Cave/level destinations for each screen
+    Table 2: Enemy type and quantity for each screen
+    """
     patch = Patch()
     # Overworld table 1 starts at OVERWORLD_DATA_LOCATION + 0x80 (table offset)
     # Each table is 0x80 bytes (128 screens), and table 1 is the second table
     OVERWORLD_TABLE_1_ADDRESS = 0x18400 + NES_FILE_OFFSET + 0x80  # 0x18490
+    OVERWORLD_TABLE_2_ADDRESS = 0x18400 + NES_FILE_OFFSET + 0x100  # 0x18510
 
     # Write all 128 bytes of table 1 (screen destinations)
     for screen_num in range(0x80):
       patch.AddData(OVERWORLD_TABLE_1_ADDRESS + screen_num,
                    [self.overworld_raw_data[screen_num + 1*0x80]])
+
+    # Write all 128 bytes of table 2 (enemy data)
+    for screen_num in range(0x80):
+      patch.AddData(OVERWORLD_TABLE_2_ADDRESS + screen_num,
+                   [self.overworld_raw_data[screen_num + 2*0x80]])
     return patch
 
   def _GetPatchForLevelInfo(self) -> Patch:
