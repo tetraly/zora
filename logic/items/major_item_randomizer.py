@@ -335,12 +335,10 @@ class MajorItemRandomizer:
 
         # 2. Progressive items cannot go in shops if progressive flag is enabled
         if self.flags.progressive_items and shop_locations:
-            # Only forbid the BASE progressive items (wood sword, blue candle, etc.)
-            # The higher tiers (white/magical sword, red candle, etc.) don't exist in progressive mode
-            progressive_base_items = [item for item in items if item in [Item.WOOD_SWORD, Item.BLUE_CANDLE, Item.WOOD_ARROWS, Item.BLUE_RING]]
-            if progressive_base_items:
-                solver.forbid_all(sources=shop_locations, targets=progressive_base_items)
-                log.debug(f"Constraint: {len(progressive_base_items)} progressive base items forbidden from shops")
+            # Forbid ALL progressive items (both base and enhanced) from shops
+            progressive_items = [item for item in items if item.IsProgressiveUpgradeItem()]
+            solver.forbid_all(sources=shop_locations, targets=progressive_items)
+            log.debug(f"Constraint: {len(progressive_items)} progressive items forbidden from shops")
 
         # 3. Ladder cannot go in coast location (requires ladder to access)
         coast_locations = [loc for loc in locations if is_cave_location(loc) and loc.cave_type == CaveType.COAST_ITEM]
@@ -348,17 +346,16 @@ class MajorItemRandomizer:
             solver.forbid_all(sources=coast_locations, targets=Item.LADDER)
             log.debug("Constraint: Ladder forbidden from coast location")
 
-        # 4. Shop-only items must stay in shops (cannot go in dungeons due to 5-bit item field overflow)
+        # 4. Shop-only items cannot go in dungeons (due to 5-bit item field overflow)
         # Dungeon rooms can only hold items 0-31 (0x00-0x1F) due to 5-bit field
         # Items > 31: RED_POTION (0x20), SINGLE_HEART (0x22), FAIRY (0x23), OVERWORLD_NO_ITEM (0x3F)
         dungeon_locations = [loc for loc in locations if is_dungeon_location(loc)]
-        if dungeon_locations:
-            shop_only_items = [item for item in items if int(item) > 31]
-            if shop_only_items:
-                for dungeon_loc in dungeon_locations:
-                    for shop_item in shop_only_items:
-                        solver.forbid(source=dungeon_loc, target=shop_item)
-                log.debug(f"Constraint: {len(shop_only_items)} shop-only items forbidden from {len(dungeon_locations)} dungeon locations (5-bit field limit)")
+        shop_only_items = [item for item in items if int(item) > 31]
+        if dungeon_locations and shop_only_items:
+            for dungeon_loc in dungeon_locations:
+                for shop_item in shop_only_items:
+                    solver.forbid(source=dungeon_loc, target=shop_item)
+            log.debug(f"Constraint: {len(shop_only_items)} shop-only items forbidden from {len(dungeon_locations)} dungeon locations (5-bit field limit)")
 
         # 5. Letter cannot go in potion shop (letter is required to access potion shop)
         potion_shop_locations = [loc for loc in locations if is_cave_location(loc) and loc.cave_type == CaveType.POTION_SHOP]
