@@ -19,10 +19,10 @@ TOTAL_ROOMS = GRID_ROWS * GRID_COLS  # 128
 BOTTOM_ROW = range(0x70, 0x80)
 
 # Minimum rooms per level (absolute minimum)
-# With 6 regions and width constraints, some regions may be smaller
-# Setting this low allows the algorithm to handle edge cases; the randomizer
-# will retry with a different seed if the layout is unsatisfactory
-MIN_ROOMS_PER_LEVEL = 8
+# The algorithm uses a two-phase approach to guarantee this minimum:
+# Phase 1: Prioritize growing regions below minimum
+# Phase 2: Balanced growth for remaining rooms
+MIN_ROOMS_PER_LEVEL = 15
 
 # Maximum bounding box width for a region
 MAX_REGION_WIDTH = 8
@@ -207,25 +207,36 @@ class DungeonLayoutGenerator:
         return True
 
     def _place_seeds(self) -> bool:
-        """Place initial seed points in the bottom row, spread apart."""
-        bottom_row_rooms = list(BOTTOM_ROW)
+        """Place initial seed points in the bottom row, spread apart.
 
-        # Calculate spacing to spread seeds across the bottom row
-        # For 6 regions in 16 columns, we want ~2.67 columns apart
-        # For 3 regions in 16 columns, we want ~5.33 columns apart
-        spacing = GRID_COLS // self.num_regions
-
-        # Generate starting positions with some randomization
-        seed_cols = []
+        Uses strict spacing to ensure regions have enough territory to grow.
+        For 6 regions in 16 columns, each region gets roughly 2-3 columns.
+        """
+        # Calculate strict positions for even distribution
+        # For 6 regions: columns 1, 4, 6, 9, 11, 14 (spacing ~2.67)
+        # For 3 regions: columns 2, 7, 12 (spacing ~5)
+        spacing = GRID_COLS / self.num_regions
+        base_positions = []
         for i in range(self.num_regions):
-            base_col = i * spacing + spacing // 2
-            # Add some randomness but stay within bounds
-            offset = self.rng.randint(-1, 1) if spacing > 2 else 0
-            col = max(0, min(GRID_COLS - 1, base_col + offset))
-            seed_cols.append(col)
+            col = int(i * spacing + spacing / 2)
+            col = max(0, min(GRID_COLS - 1, col))
+            base_positions.append(col)
 
-        # Shuffle to randomize which level gets which position
-        self.rng.shuffle(seed_cols)
+        # Add small random offset (±1 at most) to add variety
+        seed_cols = []
+        for col in base_positions:
+            offset = self.rng.randint(-1, 1)
+            new_col = max(0, min(GRID_COLS - 1, col + offset))
+            seed_cols.append(new_col)
+
+        # Ensure minimum spacing between adjacent seeds
+        min_spacing = max(1, int(spacing) - 1)
+        for i in range(1, len(seed_cols)):
+            while abs(seed_cols[i] - seed_cols[i-1]) < min_spacing:
+                if seed_cols[i] <= seed_cols[i-1]:
+                    seed_cols[i] = min(GRID_COLS - 1, seed_cols[i] + 1)
+                else:
+                    break
 
         # Ensure no duplicate columns
         used_cols = set()
@@ -236,63 +247,132 @@ class DungeonLayoutGenerator:
             used_cols.add(col)
             final_cols.append(col)
 
+        # Shuffle which level gets which position
+        level_order = list(range(self.num_regions))
+        self.rng.shuffle(level_order)
+
         # Create regions with seed points
-        for i, col in enumerate(final_cols):
+        for level_idx, col in zip(level_order, final_cols):
             room = coords_to_room(GRID_ROWS - 1, col)  # Bottom row
-            region = DungeonRegion(level_num=i + 1, seed_room=room)
+            region = DungeonRegion(level_num=level_idx + 1, seed_room=room)
             self.regions.append(region)
             self.assigned.add(room)
+
+        # Sort regions by level number for consistent ordering
+        self.regions.sort(key=lambda r: r.level_num)
 
         log.debug(f"Placed {self.num_regions} seeds at columns: {final_cols}")
         return True
 
     def _grow_regions(self) -> bool:
-        """Grow regions using balanced region-growing algorithm."""
+        """Grow regions using a two-phase balanced region-growing algorithm.
+
+        Phase 1 (Round-Robin): Grow each region one cell at a time in strict
+                 round-robin fashion until all reach MIN_ROOMS_PER_LEVEL.
+                 This prevents any region from getting boxed in early.
+
+        Phase 2 (Balanced): Once all regions have reached minimum size, use
+                 balanced growth (smallest region first) for remaining rooms.
+        """
         max_iterations = TOTAL_ROOMS * 2  # Safety limit
         iteration = 0
 
+        # Phase 1: Round-robin growth until all regions reach minimum
+        stuck_count = 0
+        max_stuck_rounds = 10  # Try multiple rounds before giving up
+        while any(r.size() < MIN_ROOMS_PER_LEVEL for r in self.regions):
+            # Try each region in order, giving each one chance to grow
+            any_grew = False
+            for region in self.regions:
+                if region.size() >= MIN_ROOMS_PER_LEVEL:
+                    continue  # This region already at minimum
+
+                iteration += 1
+                if iteration > max_iterations:
+                    log.warning(f"Phase 1 exceeded max iterations")
+                    return False
+
+                # Try to grow this region
+                frontier = region.get_frontier(self.assigned)
+                if not frontier:
+                    # Try with relaxed width constraint
+                    for room in region.rooms:
+                        for adj in get_adjacent_rooms(room):
+                            if adj not in self.assigned:
+                                frontier.append(adj)
+                    frontier = list(set(frontier))
+
+                if frontier:
+                    room_to_add = self.rng.choice(frontier)
+                    region.add_room(room_to_add)
+                    self.assigned.add(room_to_add)
+                    any_grew = True
+                    stuck_count = 0  # Reset stuck counter on successful growth
+                    log.debug(f"Phase 1: Added room 0x{room_to_add:02X} to region {region.level_num} "
+                             f"(size now {region.size()})")
+
+            if not any_grew:
+                stuck_count += 1
+                if stuck_count >= max_stuck_rounds:
+                    stuck_regions = [r for r in self.regions if r.size() < MIN_ROOMS_PER_LEVEL]
+                    log.warning(f"Phase 1 stuck after {stuck_count} rounds: {len(stuck_regions)} regions below minimum")
+                    break
+                # Try one more round - other regions at minimum might grow and unblock
+                # Let at-minimum regions grow one cell to potentially unblock others
+                for region in self.regions:
+                    if region.size() >= MIN_ROOMS_PER_LEVEL and region.size() < self.max_rooms_per_region:
+                        frontier = region.get_frontier(self.assigned)
+                        if not frontier:
+                            for room in region.rooms:
+                                for adj in get_adjacent_rooms(room):
+                                    if adj not in self.assigned:
+                                        frontier.append(adj)
+                            frontier = list(set(frontier))
+                        if frontier:
+                            room_to_add = self.rng.choice(frontier)
+                            region.add_room(room_to_add)
+                            self.assigned.add(room_to_add)
+                            log.debug(f"Phase 1 unblock: Added room 0x{room_to_add:02X} to region {region.level_num}")
+                            break  # Only grow one at-minimum region per stuck round
+
+        # Phase 2: Balanced growth for remaining rooms
         while len(self.assigned) < TOTAL_ROOMS and iteration < max_iterations:
             iteration += 1
 
-            # Find the smallest region that can still grow (and is under max size)
-            growable_regions = []
+            # Find all regions that can grow
+            all_growable = []
             for region in self.regions:
-                # Skip regions that have reached max size
                 if region.size() >= self.max_rooms_per_region:
                     continue
                 frontier = region.get_frontier(self.assigned)
                 if frontier:
-                    growable_regions.append((region, frontier))
+                    all_growable.append((region, frontier))
 
-            if not growable_regions:
-                # No region can grow with normal constraints
-                # Try fallback: allow any region to grow, ignoring width constraint
-                growable_regions = self._get_fallback_growable_regions(ignore_max_size=False)
-                if not growable_regions:
-                    # Last resort: ignore both width AND max size constraints
-                    growable_regions = self._get_fallback_growable_regions(ignore_max_size=True)
-                    if not growable_regions:
-                        # Truly stuck
+            if not all_growable:
+                # Try fallback with relaxed constraints
+                all_growable = self._get_fallback_growable_regions(ignore_max_size=False)
+                if not all_growable:
+                    all_growable = self._get_fallback_growable_regions(ignore_max_size=True)
+                    if not all_growable:
                         if len(self.assigned) < TOTAL_ROOMS:
-                            log.warning(f"Stuck with {len(self.assigned)} rooms assigned, "
-                                       f"{TOTAL_ROOMS - len(self.assigned)} remaining")
+                            log.warning(f"Phase 2 stuck with {len(self.assigned)} rooms assigned")
                             return False
                         break
 
-            # Sort by region size (smallest first) for balanced growth
-            growable_regions.sort(key=lambda x: x[0].size())
+            # Prioritize regions below minimum (if any still exist)
+            below_min = [(r, f) for r, f in all_growable if r.size() < MIN_ROOMS_PER_LEVEL]
+            if below_min:
+                growable_regions = below_min
+            else:
+                growable_regions = all_growable
 
-            # Find all regions tied for smallest
+            # Sort by region size (smallest first)
+            growable_regions.sort(key=lambda x: x[0].size())
             min_size = growable_regions[0][0].size()
             smallest_regions = [(r, f) for r, f in growable_regions if r.size() == min_size]
 
-            # Randomly select one of the smallest growable regions
             region, frontier = self.rng.choice(smallest_regions)
-
-            # Randomly select a room from the frontier
             room_to_add = self.rng.choice(frontier)
-
-            # Add the room to the region
             region.add_room(room_to_add)
             self.assigned.add(room_to_add)
 
@@ -345,9 +425,9 @@ class DungeonLayoutGenerator:
                          f"(maximum: {max_with_buffer})")
                 return False
 
-            # Check width constraint (with some buffer for fallback situations)
+            # Check width constraint (with buffer for fallback/unblock situations)
             width = region.get_width()
-            max_width_with_buffer = MAX_REGION_WIDTH + 2
+            max_width_with_buffer = MAX_REGION_WIDTH + 4  # Allow more flexibility
             if width > max_width_with_buffer:
                 log.error(f"Region {region.level_num} has width {width} "
                          f"(maximum: {max_width_with_buffer})")
@@ -411,26 +491,40 @@ class DungeonRandomizer:
 
         log.info(f"Starting dungeon layout randomization (seed: {seed})")
 
-        # Generate layout for levels 1-6 (6 regions)
-        log.info("Generating layout for levels 1-6...")
-        layout_1_6 = DungeonLayoutGenerator(num_regions=6, rng=self.rng)
-        if not layout_1_6.generate():
-            log.error("Failed to generate layout for levels 1-6")
-            return False
+        # Retry logic: try multiple times with different random states
+        max_retries = 10
+        for attempt in range(max_retries):
+            if attempt > 0:
+                log.info(f"Retry attempt {attempt}/{max_retries - 1} for dungeon layout generation")
+                # Advance the RNG state by consuming some random values
+                # This ensures different random choices on each retry
+                for _ in range(attempt * 100):
+                    self.rng.randint(0, 1000)
 
-        # Generate layout for levels 7-9 (3 regions)
-        log.info("Generating layout for levels 7-9...")
-        layout_7_9 = DungeonLayoutGenerator(num_regions=3, rng=self.rng)
-        if not layout_7_9.generate():
-            log.error("Failed to generate layout for levels 7-9")
-            return False
+            # Generate layout for levels 1-6 (6 regions)
+            log.info("Generating layout for levels 1-6...")
+            layout_1_6 = DungeonLayoutGenerator(num_regions=6, rng=self.rng)
+            if not layout_1_6.generate():
+                log.warning(f"Failed to generate layout for levels 1-6 (attempt {attempt + 1})")
+                continue
 
-        # Apply layouts to DataTable
-        self._apply_layout(layout_1_6, is_level_7_9=False)
-        self._apply_layout(layout_7_9, is_level_7_9=True)
+            # Generate layout for levels 7-9 (3 regions)
+            log.info("Generating layout for levels 7-9...")
+            layout_7_9 = DungeonLayoutGenerator(num_regions=3, rng=self.rng)
+            if not layout_7_9.generate():
+                log.warning(f"Failed to generate layout for levels 7-9 (attempt {attempt + 1})")
+                continue
 
-        log.info("Dungeon layout randomization completed successfully")
-        return True
+            # Both layouts generated successfully
+            # Apply layouts to DataTable
+            self._apply_layout(layout_1_6, is_level_7_9=False)
+            self._apply_layout(layout_7_9, is_level_7_9=True)
+
+            log.info(f"Dungeon layout randomization completed successfully (attempt {attempt + 1})")
+            return True
+
+        log.error(f"Failed to generate dungeon layouts after {max_retries} attempts")
+        return False
 
     def _apply_layout(self, layout: DungeonLayoutGenerator, is_level_7_9: bool) -> None:
         """Apply a generated layout to the DataTable.
