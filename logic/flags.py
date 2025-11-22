@@ -477,6 +477,12 @@ class FlagsEnum(Enum):
         'When Link dies, keep current health if >= 3 hearts, otherwise respawn with 3 hearts.',
         FlagCategory.QUALITY_OF_LIFE
     )
+    RANDOMIZE_DUNGEON_LAYOUT = (
+        'randomize_dungeon_layout',
+        'Randomize Dungeon Layout',
+        'Generates new dungeon layouts by partitioning the dungeon grid into regions using a balanced region-growing algorithm. Each region becomes a separate level with contiguous rooms and varied, non-rectangular shapes.',
+        FlagCategory.EXPERIMENTAL
+    )
     EXAMPLE_HIDDEN_FLAG = (
         'example_hidden_flag',
         'Example Hidden Flag',
