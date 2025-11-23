@@ -2,6 +2,7 @@
 
 import logging as log
 from typing import Dict, List, Optional, Set, Tuple, Union
+from dataclasses import dataclass
 
 from rng.random_number_generator import RandomNumberGenerator
 from ..data_table import DataTable
@@ -9,6 +10,131 @@ from ..flags import Flags
 from ..randomizer_constants import (
     Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
 )
+
+# ============================================================================
+# Enemy and Boss Groups by Level (due to NES sprite limitations)
+# ============================================================================
+
+# Regular enemy groups (levels share sprite banks)
+ENEMY_GROUP_A = [  # L1, L2, L7
+    Enemy.BUBBLE, Enemy.BLUE_KEESE, Enemy.RED_KEESE, Enemy.STALFOS,
+    Enemy.GEL_1, Enemy.GEL_2, Enemy.ROPE, Enemy.WALLMASTER,
+    Enemy.BLUE_GORIYA, Enemy.RED_GORIYA
+]
+
+ENEMY_GROUP_B = [  # L3, L5, L8
+    Enemy.BUBBLE, Enemy.BLUE_KEESE, Enemy.RED_KEESE,
+    Enemy.RED_DARKNUT, Enemy.BLUE_DARKNUT, Enemy.POLS_VOICE,
+    Enemy.ZOL, Enemy.GIBDO
+]
+
+ENEMY_GROUP_C = [  # L4, L6, L9
+    Enemy.BUBBLE, Enemy.BLUE_KEESE, Enemy.RED_KEESE,
+    Enemy.VIRE, Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE,
+    Enemy.ZOL, Enemy.LIKE_LIKE
+]
+
+# Boss groups (levels share sprite banks for bosses)
+BOSS_GROUP_A = [  # L1, L2, L5, L7
+    Enemy.AQUAMENTUS, Enemy.SINGLE_DIGDOGGER, Enemy.TRIPLE_DIGDOGGER,
+    Enemy.SINGLE_DODONGO, Enemy.TRIPLE_DODONGO
+]
+
+BOSS_GROUP_B = [  # L3, L4, L6, L8
+    Enemy.GLEEOK_1, Enemy.GLEEOK_2, Enemy.MANHANDALA,
+    Enemy.RED_GOHMA, Enemy.BLUE_GOHMA
+]
+
+BOSS_GROUP_C = [  # L9 only
+    Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA, Enemy.PATRA_1, Enemy.PATRA_2
+]
+
+# Map level numbers to their enemy/boss groups
+LEVEL_TO_ENEMY_GROUP = {
+    1: ENEMY_GROUP_A, 2: ENEMY_GROUP_A, 7: ENEMY_GROUP_A,
+    3: ENEMY_GROUP_B, 5: ENEMY_GROUP_B, 8: ENEMY_GROUP_B,
+    4: ENEMY_GROUP_C, 6: ENEMY_GROUP_C, 9: ENEMY_GROUP_C,
+}
+
+LEVEL_TO_BOSS_GROUP = {
+    1: BOSS_GROUP_A, 2: BOSS_GROUP_A, 5: BOSS_GROUP_A, 7: BOSS_GROUP_A,
+    3: BOSS_GROUP_B, 4: BOSS_GROUP_B, 6: BOSS_GROUP_B, 8: BOSS_GROUP_B,
+    9: BOSS_GROUP_C,
+}
+
+# ============================================================================
+# Special Items per Dungeon (vanilla configuration)
+# ============================================================================
+
+DUNGEON_SPECIAL_ITEMS = {
+    1: [Item.BOW, Item.WOOD_BOOMERANG],
+    2: [Item.MAGICAL_BOOMERANG],
+    3: [Item.RAFT],
+    4: [Item.LADDER],
+    5: [Item.RECORDER],
+    6: [Item.WAND],
+    7: [Item.RED_CANDLE],
+    8: [Item.MAGICAL_KEY, Item.BOOK],
+    9: [Item.RED_RING, Item.SILVER_ARROWS],
+}
+
+# ============================================================================
+# Room types to use (exclude staircase types)
+# ============================================================================
+
+VALID_ROOM_TYPES = [
+    RoomType.PLAIN_ROOM,
+    RoomType.SPIKE_TRAP_ROOM,
+    RoomType.FOUR_SHORT_ROOM,
+    RoomType.FOUR_TALL_ROOM,
+    RoomType.AQUAMENTUS_ROOM,
+    RoomType.GLEEOK_ROOM,
+    RoomType.GOHMA_ROOM,
+    RoomType.THREE_ROWS,
+    RoomType.REVERSE_C,
+    RoomType.CIRCLE_WALL,
+    RoomType.DOUBLE_BLOCK,
+    RoomType.LAVA_MOAT,
+    RoomType.MAZE_ROOM,
+    RoomType.GRID_ROOM,
+    RoomType.VERTICAL_CHUTE_ROOM,
+    RoomType.HORIZONTAL_CHUTE_ROOM,
+    RoomType.VERTICAL_ROWS,
+    RoomType.ZIGZAG_ROOM,
+    RoomType.T_ROOM,
+    RoomType.VERTICAL_MOAT_ROOM,
+    RoomType.CIRCLE_MOAT_ROOM,
+    RoomType.POINTLESS_MOAT_ROOM,
+    RoomType.CHEVY_ROOM,
+    RoomType.NSU,
+    RoomType.HORIZONTAL_MOAT_ROOM,
+    RoomType.DOUBLE_MOAT_ROOM,
+    RoomType.DIAMOND_STAIR_ROOM,
+    RoomType.NARROW_STAIR_ROOM,
+    RoomType.SPIRAL_STAIR_ROOM,
+    RoomType.DOUBLE_SIX_BLOCK_ROOM,
+    RoomType.SINGLE_SIX_BLOCK_ROOM,
+    RoomType.FIVE_PAIR_ROOM,
+    RoomType.TURNSTILE_ROOM,
+    RoomType.SINGLE_BLOCK_ROOM,
+    RoomType.TWO_FIREBALL_ROOM,
+    RoomType.FOUR_FIREBALL_ROOM,
+    RoomType.DESERT_ROOM,
+    RoomType.BLACK_ROOM,
+    RoomType.ZELDA_ROOM,
+    RoomType.GANNON_ROOM,
+    RoomType.TRIFORCE_ROOM,
+]
+
+# ============================================================================
+# Default wall type percentages (configurable)
+# ============================================================================
+
+DEFAULT_WALL_TYPE_CONFIG = {
+    'open_door_percent': 70,      # Percentage of passages that are open doors
+    'key_door_percent': 15,       # Percentage of passages that are key doors
+    'bomb_hole_percent': 15,      # Percentage of passages that are bomb holes
+}
 
 # Grid constants
 GRID_ROWS = 8
@@ -946,9 +1072,13 @@ class DungeonRandomizer:
                 continue
 
             # Both layouts generated successfully
-            # Apply layouts to DataTable
+            # Apply layouts to DataTable (sets walls and entrance rooms)
             self._apply_layout(layout_1_6, is_level_7_9=False)
             self._apply_layout(layout_7_9, is_level_7_9=True)
+
+            # Initialize dungeons (room types, enemies, paired walls, items)
+            self._initialize_dungeons(layout_1_6, is_level_7_9=False)
+            self._initialize_dungeons(layout_7_9, is_level_7_9=True)
 
             log.info(f"Dungeon layout randomization completed successfully (attempt {attempt + 1})")
             return True
@@ -1049,3 +1179,278 @@ class DungeonRandomizer:
                 else:
                     # Different regions - solid wall
                     self.data_table.SetWall(level_num, RoomNum(room_num), direction, WallType.SOLID_WALL)
+
+    def _initialize_dungeons(self, layout: Union[DungeonLayoutGenerator, OrganicDungeonLayoutGenerator],
+                             is_level_7_9: bool,
+                             wall_config: Optional[Dict[str, int]] = None) -> None:
+        """Initialize all dungeons in the layout with rooms, enemies, walls, and items.
+
+        Args:
+            layout: The generated layout
+            is_level_7_9: True if this is for levels 7-9, False for levels 1-6
+            wall_config: Optional dict with wall type percentages
+        """
+        if wall_config is None:
+            wall_config = DEFAULT_WALL_TYPE_CONFIG
+
+        level_offset = 6 if is_level_7_9 else 0
+        reference_level = LevelNum(7 if is_level_7_9 else 1)
+
+        # Process each region (dungeon level)
+        for region in layout.regions:
+            actual_level = region.level_num + level_offset
+            rooms_list = list(region.rooms)
+
+            log.info(f"Initializing Level {actual_level} with {len(rooms_list)} rooms")
+
+            # Step 1: Set random room types for all rooms
+            self._set_room_types(reference_level, rooms_list, actual_level)
+
+            # Step 2: Set enemies for all non-entrance rooms
+            self._set_enemies(reference_level, rooms_list, actual_level, region.start_room)
+
+            # Step 3: Set paired wall types (key doors, bomb holes)
+            key_door_count = self._set_paired_walls(reference_level, rooms_list, wall_config)
+
+            # Step 4: Place items (includes key balancing)
+            self._place_items(reference_level, rooms_list, actual_level, key_door_count)
+
+            # Step 5: Special L9 handling
+            if actual_level == 9:
+                self._setup_level_9_special(reference_level, rooms_list)
+
+    def _set_room_types(self, reference_level: LevelNum, rooms: List[int], actual_level: int) -> None:
+        """Set random room types for all rooms in a level.
+
+        Args:
+            reference_level: Reference level for the grid (1 or 7)
+            rooms: List of room numbers in this level
+            actual_level: The actual level number (1-9)
+        """
+        for room_num in rooms:
+            # Skip entrance rooms (already set)
+            room_type = self.data_table.GetRoomType(reference_level, RoomNum(room_num))
+            if room_type == RoomType.ENTRANCE_ROOM:
+                continue
+
+            # Skip staircase rooms
+            if room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
+                continue
+
+            # Pick a random room type
+            new_room_type = self.rng.choice(VALID_ROOM_TYPES)
+            self.data_table.SetRoomType(reference_level, RoomNum(room_num), new_room_type)
+
+    def _set_enemies(self, reference_level: LevelNum, rooms: List[int],
+                     actual_level: int, entrance_room: int) -> None:
+        """Set enemies for all rooms in a level.
+
+        Args:
+            reference_level: Reference level for the grid (1 or 7)
+            rooms: List of room numbers in this level
+            actual_level: The actual level number (1-9)
+            entrance_room: Room number of the entrance (no enemies here)
+        """
+        enemy_group = LEVEL_TO_ENEMY_GROUP.get(actual_level, ENEMY_GROUP_A)
+        boss_group = LEVEL_TO_BOSS_GROUP.get(actual_level, BOSS_GROUP_A)
+
+        # Pick one room to be the boss room (not the entrance)
+        non_entrance_rooms = [r for r in rooms if r != entrance_room]
+        if non_entrance_rooms:
+            boss_room = self.rng.choice(non_entrance_rooms)
+        else:
+            boss_room = None
+
+        for room_num in rooms:
+            # Skip entrance room - no enemies
+            if room_num == entrance_room:
+                continue
+
+            # Skip staircase rooms
+            room_type = self.data_table.GetRoomType(reference_level, RoomNum(room_num))
+            if room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
+                continue
+
+            # Boss room gets a boss
+            if room_num == boss_room:
+                enemy = self.rng.choice(boss_group)
+            else:
+                # Regular room - pick random enemy from the group
+                enemy = self.rng.choice(enemy_group)
+
+            self.data_table.SetEnemy(reference_level, RoomNum(room_num), enemy)
+
+            # Set enemy quantity (0-3)
+            quantity = self.rng.randint(0, 3)
+            self.data_table.SetEnemyQuantity(reference_level, RoomNum(room_num), quantity)
+
+    def _set_paired_walls(self, reference_level: LevelNum, rooms: List[int],
+                          wall_config: Dict[str, int]) -> int:
+        """Set paired wall types (key doors, bomb holes) for passages within a level.
+
+        Returns the number of key doors placed (for key balancing).
+
+        Args:
+            reference_level: Reference level for the grid (1 or 7)
+            rooms: List of room numbers in this level
+            wall_config: Dict with wall type percentages
+
+        Returns:
+            Number of key door pairs placed
+        """
+        rooms_set = set(rooms)
+        processed_pairs: Set[Tuple[int, int]] = set()
+        key_door_count = 0
+
+        open_percent = wall_config.get('open_door_percent', 70)
+        key_percent = wall_config.get('key_door_percent', 15)
+        # bomb_percent is the remainder
+
+        for room_num in rooms:
+            # Skip staircase rooms
+            room_type = self.data_table.GetRoomType(reference_level, RoomNum(room_num))
+            if room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
+                continue
+
+            for adj_room_num in get_adjacent_rooms(room_num):
+                # Only process passages within this level
+                if adj_room_num not in rooms_set:
+                    continue
+
+                # Skip already processed pairs
+                pair = (min(room_num, adj_room_num), max(room_num, adj_room_num))
+                if pair in processed_pairs:
+                    continue
+                processed_pairs.add(pair)
+
+                # Get the direction from room to adjacent
+                direction = get_direction_between_rooms(room_num, adj_room_num)
+                if direction is None:
+                    continue
+
+                # Skip if either room is a staircase
+                adj_room_type = self.data_table.GetRoomType(reference_level, RoomNum(adj_room_num))
+                if adj_room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
+                    continue
+
+                # Randomly decide wall type
+                roll = self.rng.randint(0, 99)
+                if roll < open_percent:
+                    wall_type = WallType.OPEN_DOOR
+                elif roll < open_percent + key_percent:
+                    wall_type = WallType.LOCKED_DOOR_1
+                    key_door_count += 1
+                else:
+                    wall_type = WallType.BOMB_HOLE
+
+                # Set the wall type on both sides (paired)
+                self.data_table.SetWall(reference_level, RoomNum(room_num), direction, wall_type)
+                opposite_dir = direction.inverse()
+                self.data_table.SetWall(reference_level, RoomNum(adj_room_num), opposite_dir, wall_type)
+
+        return key_door_count
+
+    def _place_items(self, reference_level: LevelNum, rooms: List[int],
+                     actual_level: int, key_door_count: int) -> None:
+        """Place items in the dungeon.
+
+        Places: map, compass, triforce (L1-8), heart container, special items,
+        then fills with bombs, 5 rupees, and keys (matching key door count).
+
+        Args:
+            reference_level: Reference level for the grid (1 or 7)
+            rooms: List of room numbers in this level
+            actual_level: The actual level number (1-9)
+            key_door_count: Number of key doors (determines key count)
+        """
+        # Get list of rooms that can have items (exclude entrance and staircases)
+        item_rooms = []
+        entrance_room = None
+        for room_num in rooms:
+            room_type = self.data_table.GetRoomType(reference_level, RoomNum(room_num))
+            if room_type == RoomType.ENTRANCE_ROOM:
+                entrance_room = room_num
+                continue
+            if room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
+                continue
+            item_rooms.append(room_num)
+
+        if not item_rooms:
+            log.warning(f"No rooms available for items in level {actual_level}")
+            return
+
+        # Shuffle rooms for random placement
+        self.rng.shuffle(item_rooms)
+
+        # Build list of items to place
+        items_to_place: List[Item] = []
+
+        # Always place map and compass
+        items_to_place.append(Item.MAP)
+        items_to_place.append(Item.COMPASS)
+
+        # Triforce for levels 1-8 (not 9)
+        if actual_level != 9:
+            items_to_place.append(Item.TRIFORCE)
+
+        # Heart container for levels 1-8 (not 9)
+        if actual_level != 9:
+            items_to_place.append(Item.HEART_CONTAINER)
+
+        # Special items for this level
+        special_items = DUNGEON_SPECIAL_ITEMS.get(actual_level, [])
+        items_to_place.extend(special_items)
+
+        # Keys (match key door count)
+        for _ in range(key_door_count):
+            items_to_place.append(Item.KEY)
+
+        # Fill remaining rooms with bombs and 5 rupees
+        filler_items = [Item.BOMBS, Item.FIVE_RUPEES]
+        remaining_rooms = len(item_rooms) - len(items_to_place)
+        for _ in range(max(0, remaining_rooms)):
+            items_to_place.append(self.rng.choice(filler_items))
+
+        # Place items in rooms
+        for i, room_num in enumerate(item_rooms):
+            if i < len(items_to_place):
+                self.data_table.SetItem(reference_level, RoomNum(room_num), items_to_place[i])
+            else:
+                # No more items to place
+                self.data_table.SetItem(reference_level, RoomNum(room_num), Item.NO_ITEM)
+
+    def _setup_level_9_special(self, reference_level: LevelNum, rooms: List[int]) -> None:
+        """Set up Level 9 special elements: Ganon and Zelda.
+
+        Args:
+            reference_level: Reference level for the grid (1 or 7)
+            rooms: List of room numbers in this level
+        """
+        # Get list of rooms that can have special NPCs (exclude entrance and staircases)
+        available_rooms = []
+        for room_num in rooms:
+            room_type = self.data_table.GetRoomType(reference_level, RoomNum(room_num))
+            if room_type in [RoomType.ENTRANCE_ROOM, RoomType.ITEM_STAIRCASE,
+                             RoomType.TRANSPORT_STAIRCASE]:
+                continue
+            available_rooms.append(room_num)
+
+        if len(available_rooms) < 2:
+            log.warning("Not enough rooms for Ganon and Zelda in Level 9")
+            return
+
+        # Pick rooms for Ganon and Zelda
+        self.rng.shuffle(available_rooms)
+        ganon_room = available_rooms[0]
+        zelda_room = available_rooms[1]
+
+        # Set up Ganon's room
+        self.data_table.SetRoomType(reference_level, RoomNum(ganon_room), RoomType.GANNON_ROOM)
+        self.data_table.SetEnemy(reference_level, RoomNum(ganon_room), Enemy.THE_BEAST)
+        self.data_table.SetItem(reference_level, RoomNum(ganon_room), Item.TRIFORCE_OF_POWER)
+
+        # Set up Zelda's room
+        self.data_table.SetRoomType(reference_level, RoomNum(zelda_room), RoomType.ZELDA_ROOM)
+        self.data_table.SetEnemy(reference_level, RoomNum(zelda_room), Enemy.THE_KIDNAPPED)
+
+        log.info(f"Level 9: Ganon at 0x{ganon_room:02X}, Zelda at 0x{zelda_room:02X}")

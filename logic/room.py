@@ -231,6 +231,21 @@ class Room():
     else:
       self.rom_data[3] &= ~0x80
 
+  def GetEnemyQuantity(self) -> int:
+    """Get the enemy quantity code (0-3) from bits 6-7 of rom_data[2]."""
+    return (self.rom_data[2] >> 6) & 0x03
+
+  def SetEnemyQuantity(self, quantity: int) -> None:
+    """Set the enemy quantity code (0-3) in bits 6-7 of rom_data[2].
+
+    Args:
+        quantity: The quantity code (0-3)
+    """
+    # Ensure quantity is in valid range
+    quantity = max(0, min(3, quantity))
+    # Clear bits 6-7 and set new quantity
+    self.rom_data[2] = (self.rom_data[2] & 0x3F) | (quantity << 6)
+
   def HasTheBeast(self) -> bool:
     return self.GetEnemy() == Enemy.THE_BEAST
 
