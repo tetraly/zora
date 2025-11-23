@@ -492,9 +492,9 @@ class DungeonLayoutGenerator:
 
 
 class OrganicDungeonLayoutGenerator:
-    """Generates dungeon layouts using organic, cactus-like growth algorithm.
+    """Generates dungeon layouts using organic growth algorithm.
 
-    This creates irregular, branching regions that look like cacti or tendrils
+    This creates irregular, branching regions with tendril-like shapes
     rather than compact rectangular shapes. It allows for:
     - Empty rooms in the grid
     - Some disconnected level sections
@@ -655,7 +655,7 @@ class OrganicDungeonLayoutGenerator:
         return True
 
     def _organic_score(self, region: DungeonRegion, room_num: int) -> float:
-        """Score that encourages irregular, cactus-like growth.
+        """Score that encourages irregular, organic growth.
 
         Prefers cells with 1-2 neighbors (creates branches/tendrils).
         Penalizes cells with 3-4 neighbors (fills in gaps, makes blocky).
@@ -909,8 +909,8 @@ class DungeonRandomizer:
             return True
 
         # Determine which algorithm to use
-        use_organic = self.flags.cactus_dungeon_layout
-        algorithm_name = "organic/cactus" if use_organic else "balanced region-growing"
+        use_organic = self.flags.organic_dungeon_layout
+        algorithm_name = "organic" if use_organic else "balanced region-growing"
         log.info(f"Starting dungeon layout randomization (seed: {seed}, algorithm: {algorithm_name})")
 
         # Retry logic: try multiple times with different random states

@@ -522,8 +522,8 @@ def main():
     gen.generate()
     visualize_layout(gen)
 
-    # Show a sample visualization for organic/cactus layout
-    print("\n=== Sample Organic/Cactus Layout Visualization ===")
+    # Show a sample visualization for organic layout
+    print("\n=== Sample Organic Layout Visualization ===")
     rng2 = RandomNumberGenerator(42)
     gen_organic = OrganicDungeonLayoutGenerator(num_regions=6, rng=rng2)
     gen_organic.generate()
