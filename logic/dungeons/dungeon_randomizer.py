@@ -22,19 +22,23 @@ BOTTOM_ROW = range(0x70, 0x80)
 # The algorithm uses a two-phase approach to guarantee this minimum:
 # Phase 1: Prioritize growing regions below minimum
 # Phase 2: Balanced growth for remaining rooms
-MIN_ROOMS_PER_LEVEL = 15
+MIN_ROOMS_PER_LEVEL = 13
+
+# Number of rooms to leave empty (unassigned) in the grid
+ROOMS_TO_REMOVE = 8
 
 # Maximum bounding box width for a region
 MAX_REGION_WIDTH = 8
 
 
-def calculate_max_rooms(num_regions: int) -> int:
+def calculate_max_rooms(num_regions: int, rooms_to_remove: int = ROOMS_TO_REMOVE) -> int:
     """Calculate max rooms per region based on number of regions.
 
-    This ensures we can fill all 128 rooms while keeping regions balanced.
-    Formula: ceil(128 / num_regions) + 50% buffer for flexibility.
+    This ensures we can fill (128 - rooms_to_remove) rooms while keeping regions balanced.
+    Formula: ceil((128 - rooms_to_remove) / num_regions) + 50% buffer for flexibility.
     """
-    base = (TOTAL_ROOMS + num_regions - 1) // num_regions  # ceiling division
+    usable_rooms = TOTAL_ROOMS - rooms_to_remove
+    base = (usable_rooms + num_regions - 1) // num_regions  # ceiling division
     buffer = max(8, base // 2)  # 50% buffer, minimum 8
     return base + buffer
 
@@ -194,7 +198,7 @@ class DungeonLayoutGenerator:
             log.warning("Failed to place seed points")
             return False
 
-        # Step 2: Grow regions until all rooms are assigned
+        # Step 2: Grow regions until target rooms are assigned
         if not self._grow_regions():
             log.warning("Failed to grow all regions")
             return False
@@ -204,7 +208,29 @@ class DungeonLayoutGenerator:
             log.warning("Layout validation failed")
             return False
 
+        # Step 4: Sort regions by size (smallest = level 1, largest = level N)
+        self._sort_regions_by_size()
+
         return True
+
+    def _sort_regions_by_size(self) -> None:
+        """Sort regions so smaller regions get lower level numbers.
+
+        Level 1 = smallest, Level N = largest.
+        """
+        # Sort regions by size
+        sorted_regions = sorted(self.regions, key=lambda r: r.size())
+
+        # Reassign level numbers based on size order
+        for new_level, region in enumerate(sorted_regions, start=1):
+            region.level_num = new_level
+            # Update start_room to reflect the region's actual entry point
+            # (keep the original seed room as the start room)
+
+        # Replace the regions list with the sorted one
+        self.regions = sorted_regions
+
+        log.debug(f"Sorted regions by size: {[(r.level_num, r.size()) for r in self.regions]}")
 
     def _place_seeds(self) -> bool:
         """Place initial seed points in the bottom row, spread apart.
@@ -335,8 +361,9 @@ class DungeonLayoutGenerator:
                             log.debug(f"Phase 1 unblock: Added room 0x{room_to_add:02X} to region {region.level_num}")
                             break  # Only grow one at-minimum region per stuck round
 
-        # Phase 2: Balanced growth for remaining rooms
-        while len(self.assigned) < TOTAL_ROOMS and iteration < max_iterations:
+        # Phase 2: Balanced growth for remaining rooms (leave ROOMS_TO_REMOVE empty)
+        target_rooms = TOTAL_ROOMS - ROOMS_TO_REMOVE
+        while len(self.assigned) < target_rooms and iteration < max_iterations:
             iteration += 1
 
             # Find all regions that can grow
@@ -354,7 +381,7 @@ class DungeonLayoutGenerator:
                 if not all_growable:
                     all_growable = self._get_fallback_growable_regions(ignore_max_size=True)
                     if not all_growable:
-                        if len(self.assigned) < TOTAL_ROOMS:
+                        if len(self.assigned) < target_rooms:
                             log.warning(f"Phase 2 stuck with {len(self.assigned)} rooms assigned")
                             return False
                         break
@@ -379,8 +406,8 @@ class DungeonLayoutGenerator:
             log.debug(f"Added room 0x{room_to_add:02X} to region {region.level_num} "
                      f"(size now {region.size()})")
 
-        if len(self.assigned) < TOTAL_ROOMS:
-            log.error(f"Failed to assign all rooms. Assigned: {len(self.assigned)}/{TOTAL_ROOMS}")
+        if len(self.assigned) < target_rooms:
+            log.error(f"Failed to assign target rooms. Assigned: {len(self.assigned)}/{target_rooms}")
             return False
 
         return True
@@ -444,8 +471,11 @@ class DungeonLayoutGenerator:
                 log.error(f"Region {region.level_num} has no room in bottom row")
                 return False
 
+        # Check empty rooms count
+        total_assigned = sum(region.size() for region in self.regions)
+        empty_rooms = TOTAL_ROOMS - total_assigned
         log.info(f"Layout validation passed. Region sizes: "
-                f"{[r.size() for r in self.regions]}")
+                f"{[r.size() for r in self.regions]}, Empty rooms: {empty_rooms}")
         return True
 
     def get_room_assignments(self) -> Dict[int, int]:
@@ -461,10 +491,6 @@ class DungeonLayoutGenerator:
         return {region.level_num: region.start_room for region in self.regions}
 
 
-# Minimum rooms per level for organic/cactus layout (user requirement: 13)
-MIN_ROOMS_ORGANIC = 13
-
-
 class OrganicDungeonLayoutGenerator:
     """Generates dungeon layouts using organic, cactus-like growth algorithm.
 
@@ -476,14 +502,14 @@ class OrganicDungeonLayoutGenerator:
     """
 
     def __init__(self, num_regions: int, rng: RandomNumberGenerator,
-                 rooms_to_remove: int = 8, max_disconnected: int = 2):
+                 rooms_to_remove: int = ROOMS_TO_REMOVE, max_disconnected: int = 0):
         """Initialize the organic generator.
 
         Args:
             num_regions: Number of regions to create (6 for L1-6, 3 for L7-9)
             rng: Random number generator
-            rooms_to_remove: Number of rooms to leave empty (0-8)
-            max_disconnected: Number of levels allowed to be disconnected (0-2)
+            rooms_to_remove: Number of rooms to leave empty (default: ROOMS_TO_REMOVE)
+            max_disconnected: Number of levels allowed to be disconnected (default: 0)
         """
         self.num_regions = num_regions
         self.rng = rng
@@ -498,23 +524,50 @@ class OrganicDungeonLayoutGenerator:
     def generate(self) -> bool:
         """Generate an organic dungeon layout.
 
+        First tries to generate with fully contiguous levels (max_disconnected=0).
+        If that fails after many attempts, falls back to allowing some disconnected levels.
+
         Returns:
             True if successful, False if constraints couldn't be satisfied.
         """
-        max_attempts = 500
+        # Phase 1: Try with contiguous levels only (many attempts)
+        contiguous_attempts = 400
+        original_max_disconnected = self.max_disconnected
 
-        for attempt in range(max_attempts):
+        for attempt in range(contiguous_attempts):
+            self.max_disconnected = 0  # Enforce contiguous
             if self._try_generate():
-                log.info(f"Organic layout generated successfully on attempt {attempt + 1}")
+                log.info(f"Organic layout generated (contiguous) on attempt {attempt + 1}")
+                self._sort_regions_by_size()
                 return True
 
             # Reset state for next attempt
-            self.regions = []
-            self.grid = [[-1] * GRID_COLS for _ in range(GRID_ROWS)]
-            self.frontiers = []
+            self._reset_state()
 
-        log.error(f"Failed to generate organic layout after {max_attempts} attempts")
+        # Phase 2: Fall back to allowing some disconnected levels if original allowed it
+        if original_max_disconnected > 0:
+            log.warning(f"Failed to generate contiguous layout after {contiguous_attempts} attempts, "
+                       f"allowing up to {original_max_disconnected} disconnected levels")
+            fallback_attempts = 100
+            for attempt in range(fallback_attempts):
+                self.max_disconnected = original_max_disconnected
+                if self._try_generate():
+                    log.info(f"Organic layout generated (with disconnected) on attempt "
+                            f"{contiguous_attempts + attempt + 1}")
+                    self._sort_regions_by_size()
+                    return True
+
+                # Reset state for next attempt
+                self._reset_state()
+
+        log.error(f"Failed to generate organic layout after {contiguous_attempts} attempts")
         return False
+
+    def _reset_state(self) -> None:
+        """Reset generator state for a new attempt."""
+        self.regions = []
+        self.grid = [[-1] * GRID_COLS for _ in range(GRID_ROWS)]
+        self.frontiers = []
 
     def _try_generate(self) -> bool:
         """Single attempt at generating an organic layout."""
@@ -528,6 +581,23 @@ class OrganicDungeonLayoutGenerator:
 
         # Step 3: Validate the result
         return self._validate()
+
+    def _sort_regions_by_size(self) -> None:
+        """Sort regions so smaller regions get lower level numbers.
+
+        Level 1 = smallest, Level N = largest.
+        """
+        # Sort regions by size
+        sorted_regions = sorted(self.regions, key=lambda r: r.size())
+
+        # Reassign level numbers based on size order
+        for new_level, region in enumerate(sorted_regions, start=1):
+            region.level_num = new_level
+
+        # Replace the regions list with the sorted one
+        self.regions = sorted_regions
+
+        log.debug(f"Organic: Sorted regions by size: {[(r.level_num, r.size()) for r in self.regions]}")
 
     def _place_seeds(self) -> bool:
         """Place initial seed points in the bottom row with random jitter."""
@@ -750,9 +820,9 @@ class OrganicDungeonLayoutGenerator:
         # Check each region
         for region in self.regions:
             # Minimum size constraint (13 rooms per level)
-            if region.size() < MIN_ROOMS_ORGANIC:
+            if region.size() < MIN_ROOMS_PER_LEVEL:
                 log.debug(f"Organic: Region {region.level_num} has only {region.size()} rooms "
-                         f"(minimum: {MIN_ROOMS_ORGANIC})")
+                         f"(minimum: {MIN_ROOMS_PER_LEVEL})")
                 return False
 
             # Must have at least one room in bottom row (row 7)
