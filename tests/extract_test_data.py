@@ -11,28 +11,28 @@ Usage:
 """
 
 import sys
-import yaml
 from pathlib import Path
 
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-def load_rom_config(config_path: str = None) -> dict:
-    """Load ROM region definitions from config file.
+from rom.rom_config import RomLayout, NES_HEADER_SIZE
 
-    Args:
-        config_path: Path to the YAML config file (defaults to ../rom_config.yaml)
 
-    Returns:
-        Dictionary of ROM regions
-    """
-    if config_path is None:
-        # Default to rom_config.yaml in parent directory (project root)
-        config_path = Path(__file__).parent.parent / 'rom_config.yaml'
-    else:
-        config_path = Path(config_path)
-
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config['rom_regions']
+# Mapping of RomLayout regions to test data filenames
+# Only regions listed here will be extracted
+TEST_DATA_REGIONS = {
+    'NES_HEADER': ('nes_header.bin', 0, NES_HEADER_SIZE),  # Special case: offset 0, not from RomLayout
+    'ARMOS_ITEM': ('armos_item.bin', RomLayout.ARMOS_ITEM),
+    'COAST_ITEM': ('coast_item.bin', RomLayout.COAST_ITEM),
+    'MIXED_ENEMY_DATA': ('mixed_enemy_data.bin', 0x14686, 0xD0),  # Special: not in RomLayout yet
+    'MIXED_ENEMY_POINTERS': ('mixed_enemy_pointers.bin', RomLayout.MIXED_ENEMY_POINTER_TABLE),
+    'LEVEL_POINTERS': ('level_pointers.bin', 0x18010, 0x10),  # Combined pointer region
+    'OVERWORLD_DATA': ('overworld_data.bin', RomLayout.OVERWORLD_DATA),
+    'LEVEL_1_6_DATA': ('level_1_6_data.bin', RomLayout.LEVEL_1_TO_6_FIRST_QUEST_DATA),
+    'LEVEL_7_9_DATA': ('level_7_9_data.bin', RomLayout.LEVEL_7_TO_9_FIRST_QUEST_DATA),
+    'LEVEL_INFO': ('level_info.bin', RomLayout.LEVEL_INFO),
+}
 
 
 def extract_rom_data(rom_path: str, output_dir: str = 'data') -> None:
@@ -53,16 +53,6 @@ def extract_rom_data(rom_path: str, output_dir: str = 'data') -> None:
     # Create output directory if it doesn't exist
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load ROM region config
-    try:
-        rom_regions = load_rom_config()
-    except FileNotFoundError:
-        print("Error: rom_config.yaml not found")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        print(f"Error parsing rom_config.yaml: {e}")
-        sys.exit(1)
-
     # Read the ROM file
     with open(rom_path, 'rb') as f:
         rom_data = f.read()
@@ -74,14 +64,22 @@ def extract_rom_data(rom_path: str, output_dir: str = 'data') -> None:
 
     # Extract each data region
     extracted_count = 0
-    for region_name, region_info in rom_regions.items():
-        # Skip regions without test data
-        if region_info.get('test_data') is None:
-            continue
+    for region_name, region_info in TEST_DATA_REGIONS.items():
+        filename = region_info[0]
 
-        file_offset = region_info['file_offset']
-        size = region_info['size']
-        filename = region_info['test_data']
+        # Handle different tuple formats
+        if len(region_info) == 3:
+            # Tuple: (filename, file_offset, size)
+            file_offset = region_info[1]
+            size = region_info[2]
+            cpu_addr = None
+        else:
+            # Tuple: (filename, RomRegion)
+            rom_region = region_info[1]
+            file_offset = rom_region.file_offset
+            size = rom_region.size
+            cpu_addr = rom_region.cpu_address
+
         output_path = output_dir / filename
 
         # Extract data from ROM
@@ -95,7 +93,6 @@ def extract_rom_data(rom_path: str, output_dir: str = 'data') -> None:
         with open(output_path, 'wb') as f:
             f.write(data)
 
-        cpu_addr = region_info.get('cpu_address')
         if cpu_addr is not None:
             print(f"  ✓ {filename:30s} {size:4d} bytes  [file: 0x{file_offset:05X}, cpu: 0x{cpu_addr:05X}]")
         else:

@@ -3,10 +3,9 @@ import logging as log
 
 from .randomizer_constants import CaveType, Direction, Item, LevelNum, Enemy
 from .randomizer_constants import Range, RoomNum, RoomType, WallType
-from .data_table import DataTable
+from .data_table import DataTable, Room  # Room re-exported from rom module for backward compat
 from .inventory import Inventory
 from .location import Location
-from .room import Room
 from .flags import Flags
 from .constants import OVERWORLD_BLOCK_TYPES
 

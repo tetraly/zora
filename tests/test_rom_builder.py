@@ -2,36 +2,37 @@
 
 This module reconstructs a minimal ROM file from the extracted binary chunks
 in the tests/data/ directory. The ROM is padded with 0xFF bytes everywhere except
-the regions that are actually read by the DataTable and Validator.
+the regions that are actually read by the RomState and Validator.
 """
 
 import io
-import yaml
+import sys
 from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from rom.rom_config import RomLayout, NES_HEADER_SIZE
 
 
 # Standard NES ROM size (128 KB including 16-byte header)
 NES_ROM_SIZE = 0x20010  # 131088 bytes
 
 
-def load_rom_config(config_path: str = None) -> dict:
-    """Load ROM region definitions from config file.
-
-    Args:
-        config_path: Path to the YAML config file (defaults to ../rom_config.yaml)
-
-    Returns:
-        Dictionary of ROM regions
-    """
-    if config_path is None:
-        # Default to rom_config.yaml in parent directory (project root)
-        config_path = Path(__file__).parent.parent / 'rom_config.yaml'
-    else:
-        config_path = Path(config_path)
-
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    return config['rom_regions']
+# Mapping of test data files to their ROM regions
+# Format: filename -> RomRegion (or tuple of (file_offset, size) for special cases)
+TEST_DATA_REGIONS = {
+    'nes_header.bin': (0, NES_HEADER_SIZE),  # Special: NES header at offset 0
+    'armos_item.bin': RomLayout.ARMOS_ITEM,
+    'coast_item.bin': RomLayout.COAST_ITEM,
+    'mixed_enemy_data.bin': (0x14686, 0xD0),  # Special: not in RomLayout yet
+    'mixed_enemy_pointers.bin': RomLayout.MIXED_ENEMY_POINTER_TABLE,
+    'level_pointers.bin': (0x18010, 0x10),  # Combined pointer region
+    'overworld_data.bin': RomLayout.OVERWORLD_DATA,
+    'level_1_6_data.bin': RomLayout.LEVEL_1_TO_6_FIRST_QUEST_DATA,
+    'level_7_9_data.bin': RomLayout.LEVEL_7_TO_9_FIRST_QUEST_DATA,
+    'level_info.bin': RomLayout.LEVEL_INFO,
+}
 
 
 def build_minimal_rom(testdata_dir: str = 'data') -> io.BytesIO:
@@ -59,24 +60,11 @@ def build_minimal_rom(testdata_dir: str = 'data') -> io.BytesIO:
             f"Run 'python3 tests/extract_test_data.py roms/z1-prg1.nes' to generate it."
         )
 
-    # Load ROM region config
-    try:
-        rom_regions = load_rom_config()
-    except FileNotFoundError:
-        raise FileNotFoundError(
-            "rom_config.yaml not found. Ensure it's in the project root directory."
-        )
-
     # Create a ROM filled with 0xFF
     rom_data = bytearray([0xFF] * NES_ROM_SIZE)
 
-    # Overlay each data region
-    for region_name, region_info in rom_regions.items():
-        # Skip regions without test data
-        if region_info.get('test_data') is None:
-            continue
-
-        filename = region_info['test_data']
+    # Overlay each data region from extracted test files
+    for filename, region in TEST_DATA_REGIONS.items():
         filepath = testdata_path / filename
 
         if not filepath.exists():
@@ -88,8 +76,12 @@ def build_minimal_rom(testdata_dir: str = 'data') -> io.BytesIO:
         with open(filepath, 'rb') as f:
             data = f.read()
 
-        # Use file_offset directly (already includes 0x10 header offset)
-        file_offset = region_info['file_offset']
+        # Get file_offset from region (either RomRegion or tuple)
+        if isinstance(region, tuple):
+            file_offset = region[0]
+        else:
+            file_offset = region.file_offset
+
         rom_data[file_offset:file_offset + len(data)] = data
 
     return io.BytesIO(bytes(rom_data))
