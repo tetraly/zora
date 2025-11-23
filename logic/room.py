@@ -124,6 +124,15 @@ class Room():
   def GetType(self) -> RoomType:
     return RoomType(self.rom_data[3] & 0x3F)
 
+  def SetType(self, room_type: RoomType) -> None:
+    """Set the room type, preserving upper bits of rom_data[3].
+
+    Room type is stored in the lower 6 bits of rom_data[3].
+    Bits 6-7 contain other data (movable block flag, enemy high bit).
+    """
+    upper_bits = self.rom_data[3] & 0xC0
+    self.rom_data[3] = upper_bits | int(room_type)
+
   def HasPotentialLadderBlock(self) -> bool:
     return self.GetType() in self.POTENTIAL_LADDER_BLOCK_ROOMS
 
@@ -195,6 +204,32 @@ class Room():
     if self.rom_data[3] & 0x80 > 0:
       enemy_code += 0x40
     return Enemy(enemy_code)
+
+  def SetEnemy(self, enemy: Enemy) -> None:
+    """Set the enemy for this room.
+
+    Enemy code is split across two bytes:
+    - Bits 0-5 are stored in rom_data[2] bits 0-5
+    - Bit 6 is stored in rom_data[3] bit 7
+
+    Args:
+        enemy: The Enemy enum value to set
+    """
+    enemy_val = int(enemy)
+
+    # Enemy low bits (0-5) are in rom_data[2] bits 0-5
+    low_bits = enemy_val & 0x3F
+    # Enemy bit 6 is in rom_data[3] bit 7
+    high_bit = (enemy_val >> 6) & 0x01
+
+    # Preserve upper 2 bits of rom_data[2]
+    self.rom_data[2] = (self.rom_data[2] & 0xC0) | low_bits
+
+    # Set/clear bit 7 of rom_data[3] for enemy high bit
+    if high_bit:
+      self.rom_data[3] |= 0x80
+    else:
+      self.rom_data[3] &= ~0x80
 
   def HasTheBeast(self) -> bool:
     return self.GetEnemy() == Enemy.THE_BEAST
