@@ -1,13 +1,32 @@
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 import logging as log
 
 from .randomizer_constants import CaveType, Direction, Item, LevelNum, Enemy
-from .randomizer_constants import Range, RoomNum, RoomType, WallType
-from .data_table import DataTable, Room  # Room re-exported from rom module for backward compat
+from .randomizer_constants import Range, RoomAction, RoomNum, RoomType, WallType
+from .data_table import DataTable
 from .inventory import Inventory
 from .location import Location
 from .flags import Flags
 from .constants import OVERWORLD_BLOCK_TYPES
+
+
+# Room types where mobility may be restricted without a ladder.
+# Maps room type to valid travel directions when player has no ladder.
+_POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS: Dict[RoomType, List[Direction]] = {
+    RoomType.CIRCLE_MOAT_ROOM: [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST],
+    RoomType.DOUBLE_MOAT_ROOM: [Direction.EAST, Direction.WEST],
+    RoomType.HORIZONTAL_MOAT_ROOM: [Direction.EAST, Direction.SOUTH, Direction.WEST],
+    RoomType.VERTICAL_MOAT_ROOM: [Direction.SOUTH, Direction.WEST, Direction.NORTH],
+    RoomType.CHEVY_ROOM: []
+}
+
+# Room types with unconditionally constrained movement (chutes, T-room).
+# Maps room type to valid travel directions.
+_MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS: Dict[RoomType, List[Direction]] = {
+    RoomType.HORIZONTAL_CHUTE_ROOM: [Direction.EAST, Direction.WEST],
+    RoomType.VERTICAL_CHUTE_ROOM: [Direction.NORTH, Direction.SOUTH],
+    RoomType.T_ROOM: [Direction.WEST, Direction.NORTH, Direction.EAST]
+}
 
 
 class Validator(object):
@@ -463,38 +482,85 @@ class Validator(object):
     zero_hp_enemies = [Enemy.GEL_1, Enemy.GEL_2, Enemy.BLUE_KEESE, Enemy.RED_KEESE, Enemy.DARK_KEESE]
     return len(actual_enemies) > 0 and all(e in zero_hp_enemies for e in actual_enemies)
 
-  def CanGetRoomItem(self, entry_direction: Direction, room: Room) -> bool:
+  # =========================================================================
+  # Room Traversal Helper Methods
+  # =========================================================================
+
+  def _room_type_has_potential_ladder_block(self, room_type: RoomType) -> bool:
+    """Check if this room type may block movement/items without a ladder."""
+    return room_type in _POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS
+
+  def _is_path_unconditionally_obstructed(self, room_type: RoomType,
+                                          from_direction: Direction,
+                                          to_direction: Direction) -> bool:
+    """Check if movement is blocked due to room geometry (chutes, T-room)."""
+    if room_type in _MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS:
+      valid_dirs = _MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS[room_type]
+      if from_direction not in valid_dirs or to_direction not in valid_dirs:
+        return True
+    return False
+
+  def _is_path_obstructed_by_water(self, room_type: RoomType,
+                                   from_direction: Direction,
+                                   to_direction: Direction,
+                                   has_ladder: bool) -> bool:
+    """Check if movement is blocked by water/moat without a ladder."""
+    if not has_ladder and room_type in _POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS:
+      valid_dirs = _POTENTIAL_LADDER_BLOCK_ROOMS_VALID_TRAVEL_DIRECTIONS[room_type]
+      if from_direction not in valid_dirs or to_direction not in valid_dirs:
+        return True
+    return False
+
+  def _room_has_collectible_item(self, level_num: int, room_num: int) -> bool:
+    """Check if a room has an item that can be collected.
+
+    Special case: MAGICAL_SWORD in a room with a staircase or without drop bit
+    is not collectible (it's the room's triforce prize, not a pickup).
+    """
+    item = self.data_table.get_room_item(level_num, room_num)
+    if item == Item.MAGICAL_SWORD:
+      has_staircase = self.data_table.is_item_staircase(level_num, room_num)
+      has_drop_bit = self.data_table.has_drop_bit(level_num, room_num)
+      if has_staircase or not has_drop_bit:
+        return False
+    return True
+
+  def CanGetRoomItem(self, entry_direction: Direction, level_num: int, room_num: int) -> bool:
+    """Check if the player can collect the item in this room."""
+    room_type = self.data_table.get_room_type(level_num, room_num)
+
     # Can't pick up a room item in any rooms with water/moats without a ladder.
     # TODO: Make a better determination here based on the drop location and the entry direction.
-    if room.HasPotentialLadderBlock() and not self.inventory.Has(Item.LADDER):
+    if self._room_type_has_potential_ladder_block(room_type) and not self.inventory.Has(Item.LADDER):
       return False
-    if room.HasDropBitSet() and not self.CanDefeatEnemies(room):
+    if self.data_table.has_drop_bit(level_num, room_num) and not self.CanDefeatEnemies(level_num, room_num):
       return False
-    if (room.GetType() == RoomType.HORIZONTAL_CHUTE_ROOM
+    if (room_type == RoomType.HORIZONTAL_CHUTE_ROOM
         and entry_direction in [Direction.NORTH, Direction.SOUTH]):
       return False
-    if (room.GetType() == RoomType.VERTICAL_CHUTE_ROOM
+    if (room_type == RoomType.VERTICAL_CHUTE_ROOM
         and entry_direction in [Direction.EAST, Direction.WEST]):
       return False
-    if room.GetType() == RoomType.T_ROOM:
+    if room_type == RoomType.T_ROOM:
       return False
     return True
 
-  def CanDefeatEnemies(self, room: Room) -> bool:
-    if room.HasNoEnemiesToKill():
+  def CanDefeatEnemies(self, level_num: int, room_num: int) -> bool:
+    room_enemy = self.data_table.get_room_enemy(level_num, room_num)
+
+    if room_enemy.IsUnkillable():
       return True
 
-    room_enemy = room.GetEnemy()
     actual_enemies = self._GetActualEnemies(room_enemy)
 
     # Check for specific boss/enemy requirements using ROM data for mixed groups
-    if ((room.HasTheBeast() and not self.inventory.HasBowSilverArrowsAndSword())
-        or (room.HasDigdogger() and not self.inventory.HasRecorderAndReusableWeapon())
-        or (room.HasGohma() and not self.inventory.HasBowAndArrows())
+    if ((room_enemy == Enemy.THE_BEAST and not self.inventory.HasBowSilverArrowsAndSword())
+        or (room_enemy.IsDigdogger() and not self.inventory.HasRecorderAndReusableWeapon())
+        or (room_enemy.IsGohma() and not self.inventory.HasBowAndArrows())
         or (self._ContainsEnemyType(room_enemy, [Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE]) and not self.inventory.HasSword())
         or (room_enemy.IsGleeokOrPatra() and not self.inventory.HasSwordOrWand())
         or (self._RoomHasOnlyZeroHPEnemies(actual_enemies) and not self.inventory.HasReusableWeaponOrBoomerang())
-        or (room.HasHungryGoriya() and not self.inventory.Has(Item.BAIT))):
+        or (room_enemy == Enemy.HUNGRY_GORIYA and not self.inventory.Has(Item.BAIT))):
       return False
 
     # Check for Pols Voice using ROM data for mixed groups
@@ -557,7 +623,6 @@ class Validator(object):
                  entry_direction: Direction) -> List[Tuple[RoomNum, Direction]]:
       if room_num not in range(0, 0x80):
         return []
-      room = self.data_table.GetRoom(level_num, room_num)
 
       log.debug("Visiting level %d room %x" % (level_num, room_num))
 
@@ -565,33 +630,33 @@ class Validator(object):
 
       # Only collect items once per room (not once per entry direction)
       # Use the room's visited marker to track if we've collected items
-      if not room.IsMarkedAsVisited():
-        room.MarkAsVisited()
-        if self.CanGetRoomItem(entry_direction, room) and room.HasItem():
-            self.inventory.AddItem(room.GetItem(), Location.LevelRoom(level_num, room_num))
-        if room.GetEnemy() == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, room):
+      if not self.data_table.is_room_visited(level_num, room_num):
+        self.data_table.mark_room_visited(level_num, room_num)
+        if self.CanGetRoomItem(entry_direction, level_num, room_num) and self._room_has_collectible_item(level_num, room_num):
+            self.inventory.AddItem(self.data_table.get_room_item(level_num, room_num), Location.LevelRoom(level_num, room_num))
+        room_enemy = self.data_table.get_room_enemy(level_num, room_num)
+        if room_enemy == Enemy.THE_BEAST and self.CanGetRoomItem(entry_direction, level_num, room_num):
             self.inventory.AddItem(Item.BEAST_DEFEATED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
-        if room.GetEnemy() == Enemy.THE_KIDNAPPED:
+        if room_enemy == Enemy.THE_KIDNAPPED:
             self.inventory.AddItem(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM, Location.LevelRoom(level_num, room_num))
 
       for direction in (Direction.WEST, Direction.NORTH, Direction.EAST, Direction.SOUTH):
-        can_move = self.CanMove(entry_direction, direction, level_num, room_num, room)
+        can_move = self.CanMove(entry_direction, direction, level_num, room_num)
         if can_move:
           tbr.append((RoomNum(room_num + direction), Direction(-1 * direction)))
 
       # Only check for stairways if this room is configured to have a stairway entrance
-      if not self._HasStairway(room):
-          return tbr      
-      
+      if not self._HasStairway(level_num, room_num):
+          return tbr
+
       for stairway_room_num in self.data_table.GetLevelStaircaseRoomNumberList(level_num):
-          stairway_room = self.data_table.GetRoom(level_num, stairway_room_num)
-          left_exit = stairway_room.GetLeftExit()
-          right_exit = stairway_room.GetRightExit()
+          left_exit = self.data_table.get_staircase_left_exit(level_num, stairway_room_num)
+          right_exit = self.data_table.get_staircase_right_exit(level_num, stairway_room_num)
 
           # Item staircase. Add the item to our inventory.
           if left_exit == room_num and right_exit == room_num:
               self.inventory.AddItem(
-                  stairway_room.GetItem(), Location.LevelRoom(level_num, stairway_room_num))
+                  self.data_table.get_room_item(level_num, stairway_room_num), Location.LevelRoom(level_num, stairway_room_num))
           # Transport stairway cases. Add the connecting room to be checked.
           elif left_exit == room_num and right_exit != room_num:
                 tbr.append((right_exit, Direction.STAIRCASE))
@@ -603,8 +668,8 @@ class Validator(object):
                 break
       return tbr
 
-  def _HasStairway(self, room: Room) -> bool:
-        room_type = room.GetType()
+  def _HasStairway(self, level_num: int, room_num: int) -> bool:
+        room_type = self.data_table.get_room_type(level_num, room_num)
 
         # Spiral Stair, Narrow Stair, and Diamond Stair rooms always have a staircase
         if room_type.HasOpenStaircase():
@@ -613,39 +678,42 @@ class Validator(object):
         # Check if there are any shutter doors in this room. If so, they'll open when a middle
         # row pushblock is pushed instead of a stairway appearing
         for direction in [Direction.NORTH, Direction.EAST, Direction.SOUTH, Direction.WEST]:
-            if room.GetWallType(direction) == WallType.SHUTTER_DOOR:
+            if self.data_table.get_wall_type(level_num, room_num, direction) == WallType.SHUTTER_DOOR:
                 return False
 
         # Check if "Movable block" bit is set in a room_type that has a middle row pushblock
-        if room_type.CanHavePushBlock() and room.HasMovableBlockBitSet():
+        if room_type.CanHavePushBlock() and self.data_table.has_movable_block_bit(level_num, room_num):
             return True
         return False
 
 
   def CanMove(self, entry_direction: Direction, exit_direction: Direction, level_num: LevelNum,
-              room_num: RoomNum, room: Room) -> bool:
-    if (room.PathUnconditionallyObstructed(entry_direction, exit_direction)
-        or room.PathObstructedByWater(entry_direction, exit_direction,
-                                      self.inventory.Has(Item.LADDER))):
+              room_num: RoomNum) -> bool:
+    room_type = self.data_table.get_room_type(level_num, room_num)
+    has_ladder = self.inventory.Has(Item.LADDER)
+
+    if (self._is_path_unconditionally_obstructed(room_type, entry_direction, exit_direction)
+        or self._is_path_obstructed_by_water(room_type, entry_direction, exit_direction, has_ladder)):
       return False
 
     # Hungry goriya room doesn't have a closed shutter door.  So need a special check to similate how
     # it's not possible to move up in the room until the goriya has been properly fed.
-    if (exit_direction == Direction.NORTH and room.HasHungryGoriya() and not self.inventory.Has(Item.BAIT)):
+    room_enemy = self.data_table.get_room_enemy(level_num, room_num)
+    if (exit_direction == Direction.NORTH and room_enemy == Enemy.HUNGRY_GORIYA and not self.inventory.Has(Item.BAIT)):
       log.debug("Hungry goriya is still hungry :(")
       return False
 
-    wall_type = room.GetWallType(exit_direction)
+    wall_type = self.data_table.get_wall_type(level_num, room_num, exit_direction)
 
     # Handle shutter doors
     if wall_type == WallType.SHUTTER_DOOR:
       # Special case: Rooms with RoomAction = 3 (TriforceOfPowerOpensShutters)
       # require BEAST_DEFEATED to pass through shutter doors
-      if room.GetRoomAction() == 3:  # RoomAction.TriforceOfPowerOpensShutters
+      if self.data_table.get_room_action(level_num, room_num) == RoomAction.TriforceOfPowerOpensShutters:
         return self.inventory.Has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
 
       # Normal case: Must be able to defeat enemies to open shutters
-      if not self.CanDefeatEnemies(room):
+      if not self.CanDefeatEnemies(level_num, room_num):
         return False
 
     if wall_type == WallType.SOLID_WALL:

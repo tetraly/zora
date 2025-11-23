@@ -530,6 +530,19 @@ class Enemy(IntEnum):
         Enemy.MOLDORM
     ]
 
+  def IsDigdogger(self):
+    return self in [Enemy.SINGLE_DIGDOGGER, Enemy.TRIPLE_DIGDOGGER]
+
+  def IsGohma(self):
+    return self in [Enemy.BLUE_GOHMA, Enemy.RED_GOHMA]
+
+  def IsUnkillable(self):
+    """Returns True for enemies that don't need to be killed (traps, NPCs, etc.)"""
+    return self in [
+        Enemy.BUBBLE, Enemy.THREE_PAIRS_OF_TRAPS, Enemy.CORNER_TRAPS,
+        Enemy.OLD_MAN, Enemy.THE_KIDNAPPED, Enemy.NOTHING
+    ]
+
 class WallType(IntEnum):
   OPEN_DOOR = 0
   SOLID_WALL = 1

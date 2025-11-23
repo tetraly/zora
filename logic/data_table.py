@@ -28,32 +28,8 @@ from .randomizer_constants import (
 # Re-export RomState as DataTable for backward compatibility
 from rom.rom_state import RomState
 from rom.rom_data import RomData, load_from_bytes
-from rom.room import Room
-from rom.cave import Cave
 
-# Re-export constants for backward compatibility
-from rom.rom_config import (
-    NES_HEADER_SIZE as NES_FILE_OFFSET,
-    LEVEL_INFO_ITEM_POSITIONS_OFFSET as ITEM_POSITIONS_OFFSET,
-    LEVEL_INFO_START_ROOM_OFFSET as START_ROOM_OFFSET,
-    LEVEL_INFO_STAIRWAY_LIST_OFFSET as STAIRWAY_LIST_OFFSET,
-    LEVEL_TABLE_SIZE,
-    NUM_BYTES_OF_DATA_PER_ROOM,
-    LEVEL_INFO_PPU_PALETTE_SIZE as LEVEL_INFO_MEANINGFUL_DATA_OFFSET,
-    CAVE_NUMBER_ARMOS_ITEM as CAVE_NUMBER_REPRESENTING_ARMOS_ITEM,
-    CAVE_NUMBER_COAST_ITEM as CAVE_NUMBER_REPRESENTING_COAST_ITEM,
-    RomLayout,
-)
-
-# Legacy address constants (file offsets including NES header)
-LEVEL_1_TO_6_DATA_START_ADDRESS = RomLayout.LEVEL_1_TO_6_FIRST_QUEST_DATA.file_offset
-LEVEL_7_TO_9_DATA_START_ADDRESS = RomLayout.LEVEL_7_TO_9_FIRST_QUEST_DATA.file_offset
-CAVE_ITEM_DATA_START_ADDRESS = RomLayout.CAVE_ITEM_DATA.file_offset
-CAVE_PRICE_DATA_START_ADDRESS = RomLayout.CAVE_PRICE_DATA.file_offset
-ARMOS_ITEM_ADDRESS = RomLayout.ARMOS_ITEM.file_offset
-ARMOS_SCREEN_ADDRESS = RomLayout.ARMOS_SCREEN.cpu_address  # This one used cpu_address in old code
-COAST_ITEM_ADDRESS = RomLayout.COAST_ITEM.file_offset
-SPECIAL_DATA_LEVEL_OFFSET = 0xFC
+from rom.rom_config import RomLayout
 
 
 class DataTable(RomState):
@@ -90,7 +66,7 @@ class DataTable(RomState):
         Returns:
             The overworld screen number (0-127) where the armos item statue is located
         """
-        return self.rom_reader._ReadMemory(ARMOS_SCREEN_ADDRESS, 1)[0]
+        return self.rom_reader._ReadMemory(RomLayout.ARMOS_SCREEN.cpu_address, 1)[0]
 
     def FindHeartResetCodeOffset(self) -> int:
         """Find the heart reset code location in the ROM.

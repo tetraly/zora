@@ -9,7 +9,7 @@ import logging as log
 from typing import Dict, List, Optional
 
 from logic.randomizer_constants import (
-    CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomNum, RoomType, WallType
+    CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomAction, RoomNum, RoomType, WallType
 )
 from logic.constants import ENTRANCE_DIRECTION_MAP
 from logic.location import Location
@@ -395,6 +395,51 @@ class RomState:
             The room number for the right exit
         """
         return self._get_room(level_num, staircase_room_num).GetRightExit()
+
+    def get_room_action(self, level_num: int, room_num: int) -> RoomAction:
+        """Get the room action (secret trigger) code for a room.
+
+        Args:
+            level_num: The level number (1-9)
+            room_num: The room number within the level (0x00-0x7F)
+
+        Returns:
+            The RoomAction enum value
+        """
+        return self._get_room(level_num, room_num).GetRoomAction()
+
+    def has_drop_bit(self, level_num: int, room_num: int) -> bool:
+        """Check if a room has the drop bit set (item drops from enemies).
+
+        Args:
+            level_num: The level number (1-9)
+            room_num: The room number within the level (0x00-0x7F)
+
+        Returns:
+            True if the drop bit is set
+        """
+        return self._get_room(level_num, room_num).HasDropBitSet()
+
+    def is_room_visited(self, level_num: int, room_num: int) -> bool:
+        """Check if a room has been marked as visited.
+
+        Args:
+            level_num: The level number (1-9)
+            room_num: The room number within the level (0x00-0x7F)
+
+        Returns:
+            True if the room has been visited
+        """
+        return self._get_room(level_num, room_num).IsMarkedAsVisited()
+
+    def mark_room_visited(self, level_num: int, room_num: int) -> None:
+        """Mark a room as visited.
+
+        Args:
+            level_num: The level number (1-9)
+            room_num: The room number within the level (0x00-0x7F)
+        """
+        self._get_room(level_num, room_num).MarkAsVisited()
 
     # =========================================================================
     # Cave Methods (Public API - uses CaveType)
