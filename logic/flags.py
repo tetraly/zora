@@ -483,6 +483,13 @@ class FlagsEnum(Enum):
         'Generates new dungeon layouts by partitioning the dungeon grid into regions using a balanced region-growing algorithm. Each region becomes a separate level with contiguous rooms and varied, non-rectangular shapes.',
         FlagCategory.EXPERIMENTAL
     )
+    ORGANIC_DUNGEON_LAYOUT = (
+        'organic_dungeon_layout',
+        'Organic Dungeon Layout',
+        'When enabled with Randomize Dungeon Layout, uses an organic growth algorithm that creates branching dungeon regions with irregular tendrils instead of compact shapes. Allows some rooms to remain empty and levels may have disconnected sections.',
+        FlagCategory.EXPERIMENTAL,
+        'randomize_dungeon_layout'  # Depends on Randomize Dungeon Layout
+    )
     EXAMPLE_HIDDEN_FLAG = (
         'example_hidden_flag',
         'Example Hidden Flag',
