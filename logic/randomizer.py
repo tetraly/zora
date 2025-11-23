@@ -25,6 +25,7 @@ from .bait_blocker import BaitBlocker
 from .overworld import OverworldRandomizer
 from .randomizer_constants import Range, Item, CaveType, RoomAction
 from .location import Location
+from .dungeons import DungeonRandomizer
 
 class Z1Randomizer():
 #  def __init__(self) -> None:
@@ -528,6 +529,14 @@ class Z1Randomizer():
       # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
       if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
         self._ShuffleOverworldCaveDestinations(rng)
+
+      # Randomize dungeon layouts if flag is enabled
+      if self.flags.randomize_dungeon_layout:
+        from .dungeons import DungeonRandomizer
+        dungeon_randomizer = DungeonRandomizer(self.data_table, self.flags, rng)
+        if not dungeon_randomizer.Randomize(seed):
+          log.warning(f"Dungeon layout randomization failed for seed {seed}, trying next seed...")
+          continue
 
       # Feed the last set of rejected permutations back into the solver so the
       # next attempt explores a fresh layout while remaining deterministic.
