@@ -1,241 +1,48 @@
-from enum import IntEnum
+"""Legacy ROM reader for backward compatibility.
+
+This module is deprecated. New code should use:
+    from rom import RomState
+    state = RomState.from_rom_file("game.nes")
+
+This module is kept for backward compatibility with code that uses
+DataTable(RomReader(rom)).
+"""
+
 import io
-import zlib
-from typing import IO, List, Dict
-from .constants import CHAR_MAP
-from .randomizer_constants import Enemy
+from typing import List
 
-OVERWORLD_DATA_LOCATION = 0x18400
-LEVEL_1_TO_6_FIRST_QUEST_DATA_LOCATION = 0x18700
-LEVEL_7_TO_9_FIRST_QUEST_DATA_LOCATION = 0x18A00
-LEVEL_1_TO_6_SECOND_QUEST_DATA_LOCATION = 0x18D00
-LEVEL_7_TO_9_SECOND_QUEST_DATA_LOCATION = 0x19000
-OVERWORLD_POINTER_LOCATION = 0x18000
-LEVEL_1_TO_6_POINTER_LOCATION = 0x18002
-LEVEL_7_TO_9_POINTER_LOCATION = 0x1800E
-
-VARIOUS_DATA_LOCATION = 0x19300
+# Constants still used by randomizer.py
 NES_HEADER_OFFSET = 0x10
-ARMOS_ITEM_ADDRESS = 0x10CF5
-COAST_ITEM_ADDRESS = 0x1788A
-SOUTH_WESTLAKE_MALL_CAVE_TYPE_ADDRESS = 0x184D4
-WS_ITEM_ADDRESS = 0x18607
-TRIFORCE_REQUIREMENT_ADDRESS = 0x5F17
 WHITE_SWORD_REQUIREMENT_ADDRESS = 0x48FD
 MAGICAL_SWORD_REQUIREMENT_ADDRESS = 0x4906
-DOOR_REPAIR_CHARGE_ADDRESS = 0x4890
 ANY_ROAD_SCREENS_ADDRESS = 0x19334
 RECORDER_WARP_DESTINATIONS_ADDRESS = 0x6010
 
-# Mixed enemy group data locations
-MIXED_ENEMY_POINTER_TABLE_ADDRESS = 0x1473F  # Pointer table location
-FIRST_MIXED_GROUP_CODE = 0x62  # Enemy codes >= 0x62 are mixed groups
-POINTER_COUNT = 0x1E  # 30 pointers total (0x62-0x7F)
-BANK_5_ROM_START = 0x14000
-BANK_5_CPU_START = 0x8000
-
 
 class RomReader:
-  
+    """Legacy ROM reader class.
+
+    This class provides low-level ROM reading functionality needed by
+    the backward-compatible DataTable class. New code should use RomState
+    instead.
+    """
+
     def __init__(self, rom: io.BytesIO) -> None:
         self.rom = rom
 
     def _ReadMemory(self, address: int, num_bytes: int = 1) -> List[int]:
+        """Read bytes from ROM at a CPU address.
+
+        Args:
+            address: CPU address (NES_HEADER_OFFSET will be added)
+            num_bytes: Number of bytes to read
+
+        Returns:
+            List of byte values
+        """
         assert num_bytes > 0, "num_bytes shouldn't be negative"
         self.rom.seek(NES_HEADER_OFFSET + address)
-        data = []  # type: List[int]
+        data: List[int] = []
         for raw_byte in self.rom.read(num_bytes):
             data.append(int(raw_byte))
         return data
-
-    def _GetLevelBlockPointer(self, addr: int) -> int:
-       val = self._ReadMemory(addr, 0x02)
-       return val[1]*0x100 + val[0]
-
-    def GetArmosItem(self) -> int:
-        return self._ReadMemory(ARMOS_ITEM_ADDRESS, 1)[0]
-
-    def GetCoastItem(self) -> int:
-        return self._ReadMemory(COAST_ITEM_ADDRESS, 1)[0]
-
-    def GetSouthWestlakeMallCaveType(self) -> int:
-        return self._ReadMemory(SOUTH_WESTLAKE_MALL_CAVE_TYPE_ADDRESS, 1)[0]
-        
-    def GetLevelBlock(self, level_num: int) -> List[int]:
-        if level_num == 0:
-            if self._GetLevelBlockPointer(OVERWORLD_POINTER_LOCATION) == 0x8400:
-                return self._ReadMemory(OVERWORLD_DATA_LOCATION, 0x300)
-        if level_num in range(1, 7):
-            if self._GetLevelBlockPointer(LEVEL_1_TO_6_POINTER_LOCATION) == 0x8700:
-              return self._ReadMemory(LEVEL_1_TO_6_FIRST_QUEST_DATA_LOCATION, 0x300)
-            elif self._GetLevelBlockPointer(LEVEL_1_TO_6_POINTER_LOCATION) == 0x8D00:
-              return self._ReadMemory(LEVEL_1_TO_6_SECOND_QUEST_DATA_LOCATION, 0x300)
-        if level_num in range(7, 10):
-            if self._GetLevelBlockPointer(LEVEL_7_TO_9_POINTER_LOCATION) == 0x8A00:
-              return self._ReadMemory(LEVEL_7_TO_9_FIRST_QUEST_DATA_LOCATION, 0x300)
-            elif self._GetLevelBlockPointer(LEVEL_7_TO_9_POINTER_LOCATION) == 0x9000:
-              return self._ReadMemory(LEVEL_7_TO_9_SECOND_QUEST_DATA_LOCATION, 0x300)
-        return []
-
-    def GetLevelInfo(self, level_num: int) -> List[int]:
-        start = VARIOUS_DATA_LOCATION + level_num * 0xFC
-        return self._ReadMemory(start, 0xFC)
-        
-    def GetOverworldItemData(self) -> List[int]:
-        return [
-            self._ReadMemory(ARMOS_ITEM_ADDRESS, 0x01)[0],
-            self._ReadMemory(COAST_ITEM_ADDRESS, 0x01)[0],
-        ]
-
-    def GetRequirements(self) -> Dict[str, int]:
-        return {
-            "triforce": self._ReadMemory(TRIFORCE_REQUIREMENT_ADDRESS, 0x01)[0],
-            "white_sword": int(self._ReadMemory(WHITE_SWORD_REQUIREMENT_ADDRESS, 0x01)[0] / 0x10) + 1,
-            "magical_sword": int(self._ReadMemory(MAGICAL_SWORD_REQUIREMENT_ADDRESS, 0x01)[0] / 0x10) + 1,
-            "door_repair": self._ReadMemory(DOOR_REPAIR_CHARGE_ADDRESS, 0x01)[0],
-        }
-          
-        
-    def GetQuote(self, num: int) -> str:
-      assert num in range(0, 38)
-      low_byte = self._ReadMemory(0x4000 + 2*num, 0x01)[0]
-      high_byte =  self._ReadMemory(0x4000 + 2*num + 1, 0x01)[0] - 0x40
-      addr = high_byte * 0x100 + low_byte
-      raw_quote = self._ReadMemory(addr, 0x40)
-      out_quote = ""
-      for val in raw_quote:
-          char = val & 0x3F
-          out_quote += CHAR_MAP[char]
-          high_bits = (val >> 6) & 0x03
-          if high_bits in [1, 2]:
-              out_quote += " "
-          if high_bits == 3:
-              break
-      return out_quote
-
-    def hex_to_text(self, hex):
-      tbr = ""
-      for val in hex:
-        tbr += CHAR_MAP[val]
-      return tbr
-
-    def GetRecorderText(self) -> str:
-       raw_quote = self._ReadMemory(0xB000, 0x40)
-       if raw_quote[0] != 8:
-         return ""
-       recorder_len = raw_quote[0]
-       name_len = raw_quote[3+recorder_len]
-       name_text = raw_quote[4+recorder_len:2+recorder_len + name_len]
-       from_len = raw_quote[5 +recorder_len + name_len]
-       from_text = raw_quote[4+recorder_len + name_len : 4+recorder_len + name_len + from_len]
-       return ' '.join([self.hex_to_text(name_text), self.hex_to_text(from_text)])
-
-    def IsRaceRom(self) -> bool:
-        """Check if this ROM is a Race ROM by verifying level block pointers.
-
-        Race ROMs have modified memory layouts with different pointer values,
-        which prevents the randomizer from reading level data correctly.
-
-        Returns:
-            True if this appears to be a Race ROM (unsupported), False otherwise
-        """
-        import logging as log
-
-        overworld_pointer = self._GetLevelBlockPointer(OVERWORLD_POINTER_LOCATION)
-        level_1_to_6_pointer = self._GetLevelBlockPointer(LEVEL_1_TO_6_POINTER_LOCATION)
-        level_7_to_9_pointer = self._GetLevelBlockPointer(LEVEL_7_TO_9_POINTER_LOCATION)
-
-        log.info(f"ROM Pointers - Overworld: {hex(overworld_pointer)}, L1-6: {hex(level_1_to_6_pointer)}, L7-9: {hex(level_7_to_9_pointer)}")
-
-        # Check if pointers match expected values for vanilla/randomized ROMs
-        valid_overworld = (overworld_pointer == 0x8400)
-        valid_level_1_to_6 = (level_1_to_6_pointer in [0x8700, 0x8D00])
-        valid_level_7_to_9 = (level_7_to_9_pointer in [0x8A00, 0x9000])
-
-        log.info(f"Pointer validation - Overworld: {valid_overworld}, L1-6: {valid_level_1_to_6}, L7-9: {valid_level_7_to_9}")
-
-        # If any pointer is invalid, this is likely a Race ROM
-        is_race = not (valid_overworld and valid_level_1_to_6 and valid_level_7_to_9)
-        log.info(f"IsRaceRom result: {is_race}")
-        return is_race
-
-    def GetVersion(self) -> str:
-        """Determine the ROM version (PRG0 or PRG1) using CRC32 checksum.
-
-        Returns:
-            "PRG0", "PRG1", or "Unknown"
-        """
-        # Seek to start of ROM data (after 16-byte NES header)
-        self.rom.seek(NES_HEADER_OFFSET)
-        rom_data = self.rom.read()
-
-        # Calculate CRC32 checksum
-        crc32 = zlib.crc32(rom_data) & 0xFFFFFFFF
-
-        # Known CRC32 values for Legend of Zelda (without header)
-        # PRG0: 0x3FE272FB
-        # PRG1: 0xEAF7ED72
-        if crc32 == 0x3FE272FB:
-            return "PRG0"
-        elif crc32 == 0xEAF7ED72:
-            return "PRG1"
-        else:
-            return "Unknown"
-
-    def _CpuAddressToRomOffset(self, cpu_address: int) -> int:
-        """Convert a CPU address in bank 5 to a ROM offset.
-
-        Bank 5 occupies CPU addresses $8000-$BFFF, which corresponds to
-        ROM addresses $14000-$17FFF.
-        """
-        if cpu_address < BANK_5_CPU_START:
-            raise ValueError(f"CPU address 0x{cpu_address:04X} is below bank 5 range")
-
-        offset_in_bank = cpu_address - BANK_5_CPU_START
-        rom_offset = BANK_5_ROM_START + offset_in_bank
-        return rom_offset
-
-    def _ReadWordLittleEndian(self, address: int) -> int:
-        """Read a 16-bit word in little-endian format."""
-        data = self._ReadMemory(address, 2)
-        return (data[1] << 8) | data[0]
-
-    def GetMixedEnemyGroups(self) -> Dict[int, List[Enemy]]:
-        """Read all mixed enemy group data from ROM.
-
-        Mixed enemy groups are referenced by enemy codes 0x62-0x7F (98-127).
-        These codes index into a pointer table that points to lists of enemy types.
-
-        Returns:
-            Dictionary mapping enemy codes to lists of Enemy enums
-        """
-        mixed_groups = {}
-
-        for i in range(POINTER_COUNT):
-            enemy_code = FIRST_MIXED_GROUP_CODE + i
-
-            # Read the pointer from the pointer table
-            pointer_address = MIXED_ENEMY_POINTER_TABLE_ADDRESS + (i * 2)
-            cpu_address = self._ReadWordLittleEndian(pointer_address)
-
-            # Convert CPU address to ROM offset
-            rom_offset = self._CpuAddressToRomOffset(cpu_address)
-
-            # Read the enemy list (8 enemies max per group)
-            enemy_ids = self._ReadMemory(rom_offset, 8)
-
-            # Convert enemy IDs to Enemy enums
-            enemy_list = []
-            for enemy_id in enemy_ids:
-                try:
-                    enemy_list.append(Enemy(enemy_id))
-                except ValueError:
-                    # If enemy ID is not in Enemy enum, raise an error
-                    raise ValueError(
-                        f"Unknown enemy ID 0x{enemy_id:02X} found in mixed enemy group 0x{enemy_code:02X}. "
-                        f"This enemy type may need to be added to the Enemy enum in randomizer_constants.py"
-                    )
-
-            mixed_groups[enemy_code] = enemy_list
-
-        return mixed_groups
