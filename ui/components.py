@@ -433,9 +433,8 @@ def build_header(on_view_known_issues) -> ft.Container:
                     ft.Text(spans=[
                         ft.TextSpan("WARNING: ", style=ft.TextStyle(weight=ft.FontWeight.BOLD)),
                         ft.TextSpan(
-                            "As of November 2025, ZORA is becoming increasingly stable and nearing "
-                            "a full release. However, like with any beta software, please be aware that "
-                            "any seeds you generate may contain bugs, unexpected glitches, softlocks, "
+                            "ZORA is now considered mostly stable but please be aware that any seeds "
+                            "you generate may still contain bugs, unexpected glitches, softlocks, "
                             "and may be completely unbeatable. Please proceed at your own risk! ")],
                             size=13,
                             color=ft.Colors.RED_800,
