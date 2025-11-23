@@ -4,10 +4,10 @@ import logging as log
 from typing import Dict, List, Optional, Set, Tuple
 
 from rng.random_number_generator import RandomNumberGenerator
-from ..data_table import DataTable, START_ROOM_OFFSET
+from ..data_table import DataTable
 from ..flags import Flags
 from ..randomizer_constants import (
-    Direction, Enemy, Item, Range, RoomNum, RoomType, WallType
+    Direction, Enemy, Item, LevelNum, Range, RoomNum, RoomType, WallType
 )
 
 # Grid constants
@@ -533,66 +533,75 @@ class DungeonRandomizer:
             layout: The generated layout
             is_level_7_9: True if this is for levels 7-9, False for levels 1-6
         """
-        rooms = self.data_table.level_7_to_9_rooms if is_level_7_9 else self.data_table.level_1_to_6_rooms
         assignments = layout.get_room_assignments()
         start_rooms = layout.get_start_rooms()
 
         # Adjust level numbers for 7-9 grid
+        # For levels 1-6, we use level 1 as the reference (they share room data)
+        # For levels 7-9, we use level 7 as the reference (they share room data)
         level_offset = 6 if is_level_7_9 else 0
+        reference_level = LevelNum(7 if is_level_7_9 else 1)
 
         # Step 1: Reset all rooms to blank state
-        self._reset_rooms(rooms)
+        self._reset_rooms(reference_level)
 
         # Step 2: Set walls between different regions to SOLID_WALL,
         #         and walls within regions to OPEN_DOOR
-        self._set_walls(rooms, assignments)
+        self._set_walls(reference_level, assignments)
 
         # Step 3: Set up entrance rooms
         for local_level, room_num in start_rooms.items():
             actual_level = local_level + level_offset
-            room = rooms[room_num]
 
             # Set room type to ENTRANCE_ROOM
-            self._set_room_type(room, RoomType.ENTRANCE_ROOM)
+            self.data_table.SetRoomType(reference_level, RoomNum(room_num), RoomType.ENTRANCE_ROOM)
 
-            # Set start room in level_info
-            self.data_table.level_info[actual_level][START_ROOM_OFFSET] = room_num
+            # Set start room in level_info using the new API
+            self.data_table.SetLevelStartRoom(actual_level, room_num)
 
             log.info(f"Level {actual_level} entrance at room 0x{room_num:02X}")
 
-    def _reset_rooms(self, rooms: List) -> None:
-        """Reset all rooms to a blank state."""
-        for room_num in Range.VALID_ROOM_NUMBERS:
-            room = rooms[room_num]
+    def _reset_rooms(self, level_num: LevelNum) -> None:
+        """Reset all rooms to a blank state.
 
-            # Reset room type to PLAIN_ROOM (preserving upper bits)
-            self._set_room_type(room, RoomType.PLAIN_ROOM)
+        Args:
+            level_num: Reference level number (1 for L1-6 grid, 7 for L7-9 grid)
+        """
+        for room_num in Range.VALID_ROOM_NUMBERS:
+            room_type = self.data_table.GetRoomType(level_num, RoomNum(room_num))
+
+            # Skip staircase rooms - they have special data format
+            if room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
+                continue
+
+            # Reset room type to PLAIN_ROOM
+            self.data_table.SetRoomType(level_num, RoomNum(room_num), RoomType.PLAIN_ROOM)
 
             # Reset item to NO_ITEM (Item.RUPEE = 0x18 is used as NO_ITEM in this codebase)
-            room.SetItem(Item.RUPEE)
+            self.data_table.SetItem(level_num, RoomNum(room_num), Item.RUPEE)
 
             # Reset enemy to NOTHING
-            self._set_enemy(room, Enemy.NOTHING)
+            self.data_table.SetEnemy(level_num, RoomNum(room_num), Enemy.NOTHING)
 
             # Reset walls to SOLID_WALL (will be opened as needed)
             for direction in [Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST]:
-                # Only set wall type for non-staircase rooms
-                room_type = room.GetType()
-                if room_type not in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
-                    room.SetWallType(direction, WallType.SOLID_WALL)
+                self.data_table.SetWall(level_num, RoomNum(room_num), direction, WallType.SOLID_WALL)
 
-    def _set_walls(self, rooms: List, assignments: Dict[int, int]) -> None:
+    def _set_walls(self, level_num: LevelNum, assignments: Dict[int, int]) -> None:
         """Set wall types based on region assignments.
 
         Walls between rooms in the same region -> OPEN_DOOR
         Walls between rooms in different regions -> SOLID_WALL
+
+        Args:
+            level_num: Reference level number (1 for L1-6 grid, 7 for L7-9 grid)
+            assignments: Mapping of room_num -> region level_num
         """
         for room_num in Range.VALID_ROOM_NUMBERS:
-            room = rooms[room_num]
             room_level = assignments.get(room_num, 0)
 
             # Skip staircase rooms
-            room_type = room.GetType()
+            room_type = self.data_table.GetRoomType(level_num, RoomNum(room_num))
             if room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
                 continue
 
@@ -605,32 +614,7 @@ class DungeonRandomizer:
 
                 if room_level == adj_level and room_level > 0:
                     # Same region - open door
-                    room.SetWallType(direction, WallType.OPEN_DOOR)
+                    self.data_table.SetWall(level_num, RoomNum(room_num), direction, WallType.OPEN_DOOR)
                 else:
                     # Different regions - solid wall
-                    room.SetWallType(direction, WallType.SOLID_WALL)
-
-    def _set_room_type(self, room, room_type: RoomType) -> None:
-        """Set the room type, preserving upper bits of rom_data[3]."""
-        # Room type is in lower 6 bits of rom_data[3]
-        # Bits 6-7 contain other data (movable block flag, enemy high bit)
-        upper_bits = room.rom_data[3] & 0xC0
-        room.rom_data[3] = upper_bits | int(room_type)
-
-    def _set_enemy(self, room, enemy: Enemy) -> None:
-        """Set the enemy for a room."""
-        enemy_val = int(enemy)
-
-        # Enemy low bits (0-5) are in rom_data[2] bits 0-5
-        # Enemy bit 6 is in rom_data[3] bit 7
-        low_bits = enemy_val & 0x3F
-        high_bit = (enemy_val >> 6) & 0x01
-
-        # Preserve upper 2 bits of rom_data[2]
-        room.rom_data[2] = (room.rom_data[2] & 0xC0) | low_bits
-
-        # Set/clear bit 7 of rom_data[3] for enemy high bit
-        if high_bit:
-            room.rom_data[3] |= 0x80
-        else:
-            room.rom_data[3] &= ~0x80
+                    self.data_table.SetWall(level_num, RoomNum(room_num), direction, WallType.SOLID_WALL)

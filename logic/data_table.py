@@ -369,6 +369,49 @@ class DataTable():
     room = self.GetRoom(level_num, room_num)
     return room.GetType()
 
+  def SetRoomType(self, level_num: LevelNum, room_num: RoomNum, room_type: RoomType) -> None:
+    """Set the room type (layout) for a specific room.
+
+    Args:
+        level_num: The level number (1-9)
+        room_num: The room number within the level (0x00-0x7F)
+        room_type: The RoomType enum value to set
+    """
+    room = self.GetRoom(level_num, room_num)
+    room.SetType(room_type)
+
+  def SetWall(self, level_num: LevelNum, room_num: RoomNum, direction: Direction, wall_type: WallType) -> None:
+    """Set the wall type for a specific direction in a room.
+
+    Args:
+        level_num: The level number (1-9)
+        room_num: The room number within the level (0x00-0x7F)
+        direction: The Direction (NORTH, SOUTH, EAST, WEST)
+        wall_type: The WallType enum value to set
+    """
+    room = self.GetRoom(level_num, room_num)
+    room.SetWallType(direction, wall_type)
+
+  def SetEnemy(self, level_num: LevelNum, room_num: RoomNum, enemy: Enemy) -> None:
+    """Set the enemy type for a specific room.
+
+    Args:
+        level_num: The level number (1-9)
+        room_num: The room number within the level (0x00-0x7F)
+        enemy: The Enemy enum value to set
+    """
+    room = self.GetRoom(level_num, room_num)
+    room.SetEnemy(enemy)
+
+  def SetLevelStartRoom(self, level_num: int, room_num: int) -> None:
+    """Set the starting room for a level.
+
+    Args:
+        level_num: The level number (1-9)
+        room_num: The room number to set as the start room (0x00-0x7F)
+    """
+    self.level_info[level_num][START_ROOM_OFFSET] = room_num
+
   def HasMovableBlockBit(self, level_num: LevelNum, room_num: RoomNum) -> bool:
     """Check if a room has the movable block bit set."""
     room = self.GetRoom(level_num, room_num)
