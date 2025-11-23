@@ -16,11 +16,11 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from logic.randomizer import Z1Randomizer
-from logic.rom_reader import RomReader
 from windows import zrinterface
 from ui.dialogs import show_error_dialog, show_snackbar
 from ui.rom_utils import (extract_base_rom_code, extract_code_from_rom_data, is_vanilla_rom,
-                          is_vanilla_rom_data, parse_filename_for_flag_and_seed)
+                          is_vanilla_rom_data, parse_filename_for_flag_and_seed,
+                          is_race_rom, get_rom_version)
 from ui.components import (build_rom_info_card, build_zora_settings_card, build_step3_container)
 from ui.known_issues import build_known_issues_page
 
@@ -585,8 +585,7 @@ class EventHandlers:
 
         # Check if this is a Race ROM and get ROM version
         try:
-            rom_reader = RomReader(io.BytesIO(rom_data))
-            if rom_reader.IsRaceRom():
+            if is_race_rom(rom_data):
                 show_error_dialog(
                     self.page, "Race ROM Not Supported",
                     "This appears to be a Race ROM, which is not supported.\n\n"
@@ -596,7 +595,7 @@ class EventHandlers:
                 return
 
             # Get ROM version (PRG0/PRG1)
-            rom_version = rom_reader.GetVersion()
+            rom_version = get_rom_version(rom_data)
         except Exception as ex:
             show_error_dialog(self.page, "Error Reading ROM",
                               f"Unable to read the ROM file:\n\n{str(ex)}")
@@ -730,8 +729,7 @@ class EventHandlers:
             with open(self.state.vanilla_rom_path, 'rb') as f:
                 rom_data = f.read()
 
-            rom_reader = RomReader(io.BytesIO(rom_data))
-            if rom_reader.IsRaceRom():
+            if is_race_rom(rom_data):
                 show_error_dialog(
                     self.page, "Race ROM Not Supported",
                     "This appears to be a Race ROM, which is not supported.\n\n"

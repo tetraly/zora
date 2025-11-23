@@ -3,10 +3,12 @@
 import os
 import re
 import sys
+import zlib
 
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from common.constants import CODE_ITEMS
+from rom.rom_config import RomLayout, NES_HEADER_SIZE
 
 # ============================================================================
 # ROM UTILITIES
@@ -116,3 +118,103 @@ def parse_filename_for_flag_and_seed(filename: str) -> tuple[str, str]:
     raise ValueError(f"Invalid ROM filename format.\n\n"
                      f"Expected pattern: [basename]_[seed]_[flagstring].nes\n\n"
                      f"Your filename: {os.path.basename(filename)}")
+
+
+# ============================================================================
+# ROM VALIDATION (moved from logic/rom_reader.py)
+# ============================================================================
+
+def _read_word_little_endian(rom_bytes: bytes, offset: int) -> int:
+    """Read a 16-bit word in little-endian format."""
+    return rom_bytes[offset] | (rom_bytes[offset + 1] << 8)
+
+
+def is_race_rom(rom_bytes: bytes) -> bool:
+    """Check if this ROM is a Race ROM by verifying level block pointers.
+
+    Race ROMs have modified memory layouts with different pointer values,
+    which prevents the randomizer from reading level data correctly.
+
+    Args:
+        rom_bytes: Complete ROM file contents (including NES header)
+
+    Returns:
+        True if this appears to be a Race ROM (unsupported), False otherwise
+    """
+    try:
+        # Read level block pointers
+        overworld_pointer = _read_word_little_endian(
+            rom_bytes, RomLayout.OVERWORLD_POINTER.file_offset
+        )
+        level_1_to_6_pointer = _read_word_little_endian(
+            rom_bytes, RomLayout.LEVEL_1_TO_6_POINTER.file_offset
+        )
+        level_7_to_9_pointer = _read_word_little_endian(
+            rom_bytes, RomLayout.LEVEL_7_TO_9_POINTER.file_offset
+        )
+
+        # Check if pointers match expected values for vanilla/randomized ROMs
+        valid_overworld = (overworld_pointer == 0x8400)
+        valid_level_1_to_6 = (level_1_to_6_pointer in [0x8700, 0x8D00])
+        valid_level_7_to_9 = (level_7_to_9_pointer in [0x8A00, 0x9000])
+
+        # If any pointer is invalid, this is likely a Race ROM
+        return not (valid_overworld and valid_level_1_to_6 and valid_level_7_to_9)
+    except Exception:
+        # If we can't read the pointers, assume it's not a valid ROM
+        return True
+
+
+def get_rom_version(rom_bytes: bytes) -> str:
+    """Determine the ROM version (PRG0 or PRG1) using CRC32 checksum.
+
+    Args:
+        rom_bytes: Complete ROM file contents (including NES header)
+
+    Returns:
+        "PRG0", "PRG1", or "Unknown"
+    """
+    try:
+        # Calculate CRC32 checksum of ROM data (after header)
+        rom_data = rom_bytes[NES_HEADER_SIZE:]
+        crc32 = zlib.crc32(rom_data) & 0xFFFFFFFF
+
+        # Known CRC32 values for Legend of Zelda (without header)
+        # PRG0: 0x3FE272FB
+        # PRG1: 0xEAF7ED72
+        if crc32 == 0x3FE272FB:
+            return "PRG0"
+        elif crc32 == 0xEAF7ED72:
+            return "PRG1"
+        else:
+            return "Unknown"
+    except Exception:
+        return "Unknown"
+
+
+def is_race_rom_file(filename: str) -> bool:
+    """Check if a ROM file is a Race ROM.
+
+    Args:
+        filename: Path to the ROM file
+
+    Returns:
+        True if this appears to be a Race ROM (unsupported), False otherwise
+    """
+    with open(filename, 'rb') as f:
+        rom_bytes = f.read()
+    return is_race_rom(rom_bytes)
+
+
+def get_rom_version_from_file(filename: str) -> str:
+    """Get the ROM version from a file.
+
+    Args:
+        filename: Path to the ROM file
+
+    Returns:
+        "PRG0", "PRG1", or "Unknown"
+    """
+    with open(filename, 'rb') as f:
+        rom_bytes = f.read()
+    return get_rom_version(rom_bytes)
