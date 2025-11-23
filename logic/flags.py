@@ -378,4 +378,28 @@ class Flags:
         else:
             raise KeyError(f"Flag '{flag_value}' not found.")
 
+    @staticmethod
+    def get_progressive_item_dependencies() -> list:
+        """Return flags that must be enabled when progressive_items is on."""
+        return ['shuffle_shop_arrows', 'shuffle_shop_candle', 'shuffle_shop_ring']
+
+    def validate(self) -> tuple:
+        """Validate flag combinations.
+
+        Returns:
+            tuple: (is_valid, list of error messages)
+        """
+        errors = []
+
+        if self.get('progressive_items'):
+            required = Flags.get_progressive_item_dependencies()
+            missing = [f for f in required if not self.get(f)]
+            if missing:
+                errors.append(
+                    f"progressive_items requires: {', '.join(missing)}. "
+                    f"This prevents game-breaking bugs with progressive upgrades."
+                )
+
+        return (len(errors) == 0, errors)
+
         

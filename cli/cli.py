@@ -81,6 +81,11 @@ def parse_flagstring(flagstring: str) -> tuple[Flags, str]:
         if binary_str[index] == '1':
             flags.set(flag.value, True)
 
+    # Validate flag combinations
+    is_valid, errors = flags.validate()
+    if not is_valid:
+        raise ValueError("\n".join(errors))
+
     return flags, normalized
 
 

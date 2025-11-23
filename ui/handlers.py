@@ -123,11 +123,44 @@ class EventHandlers:
             for flag_key, checkbox in self.flag_checkboxes.items():
                 checkbox.value = self.state.flag_state.flags.get(flag_key, False)
                 checkbox.update()
+            # Apply progressive items dependencies if needed
+            progressive_enabled = self.state.flag_state.flags.get('progressive_items', False)
+            self._update_progressive_items_dependencies(progressive_enabled)
 
     def on_checkbox_changed(self, flag_key: str, value: bool) -> None:
         """Handle checkbox state changes."""
         self.state.flag_state.flags[flag_key] = value
+
+        # When progressive_items is enabled, force-enable shop shuffle flags
+        # These items must be shuffled to avoid game-breaking bugs with progressive upgrades
+        if flag_key == 'progressive_items':
+            self._update_progressive_items_dependencies(value)
+
         self.update_flagstring()
+
+    def _update_progressive_items_dependencies(self, progressive_enabled: bool) -> None:
+        """Enable/disable shop shuffle flags based on progressive_items state.
+
+        When progressive_items is enabled, shop arrows, candles, and rings must be
+        shuffled to prevent game-breaking bugs (e.g., buying infinite arrow upgrades).
+        """
+        from logic.flags import Flags
+        dependent_flags = Flags.get_progressive_item_dependencies()
+
+        for flag_key in dependent_flags:
+            if flag_key in self.flag_checkboxes:
+                checkbox = self.flag_checkboxes[flag_key]
+                if progressive_enabled:
+                    # Force enable and disable the checkbox
+                    checkbox.value = True
+                    checkbox.disabled = True
+                    checkbox.label_style = ft.TextStyle(color=ft.Colors.GREY_500)
+                    self.state.flag_state.flags[flag_key] = True
+                else:
+                    # Re-enable the checkbox for user control
+                    checkbox.disabled = False
+                    checkbox.label_style = None
+                checkbox.update()
 
     # Step visibility handlers
     def show_step1(self) -> None:
@@ -399,6 +432,9 @@ class EventHandlers:
                 for flag_key, checkbox in self.flag_checkboxes.items():
                     checkbox.value = self.state.flag_state.flags.get(flag_key, False)
                     checkbox.update()
+                # Apply progressive items dependencies if needed
+                progressive_enabled = self.state.flag_state.flags.get('progressive_items', False)
+                self._update_progressive_items_dependencies(progressive_enabled)
 
             self.state.flag_state.seed = self.state.rom_info.seed
             self.load_rom_and_show_card(disable_seed=True)
@@ -632,6 +668,13 @@ class EventHandlers:
                 f"Currently forcing {level_nine_count} items: {', '.join(enabled_items)}\n"
                 f"Please disable at least {level_nine_count - 2} of these flags."
             )
+
+        # Check 3: Validate using centralized Flags.validate() as a safety net
+        # (The UI should prevent these issues, but this is a redundant check)
+        randomizer_flags = self.state.flag_state.to_randomizer_flags()
+        is_valid, flag_errors = randomizer_flags.validate()
+        if not is_valid:
+            errors.extend(flag_errors)
 
         if errors:
             return False, "\n\n".join(errors)
