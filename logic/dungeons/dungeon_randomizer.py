@@ -1,7 +1,7 @@
 """Dungeon layout randomizer using balanced region-growing algorithm."""
 
 import logging as log
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 from rng.random_number_generator import RandomNumberGenerator
 from ..data_table import DataTable
@@ -461,6 +461,355 @@ class DungeonLayoutGenerator:
         return {region.level_num: region.start_room for region in self.regions}
 
 
+# Minimum rooms per level for organic/cactus layout (user requirement: 13)
+MIN_ROOMS_ORGANIC = 13
+
+
+class OrganicDungeonLayoutGenerator:
+    """Generates dungeon layouts using organic, cactus-like growth algorithm.
+
+    This creates irregular, branching regions that look like cacti or tendrils
+    rather than compact rectangular shapes. It allows for:
+    - Empty rooms in the grid
+    - Some disconnected level sections
+    - Branching, tendril-like growth patterns
+    """
+
+    def __init__(self, num_regions: int, rng: RandomNumberGenerator,
+                 rooms_to_remove: int = 8, max_disconnected: int = 2):
+        """Initialize the organic generator.
+
+        Args:
+            num_regions: Number of regions to create (6 for L1-6, 3 for L7-9)
+            rng: Random number generator
+            rooms_to_remove: Number of rooms to leave empty (0-8)
+            max_disconnected: Number of levels allowed to be disconnected (0-2)
+        """
+        self.num_regions = num_regions
+        self.rng = rng
+        self.rooms_to_remove = rooms_to_remove
+        self.max_disconnected = max_disconnected
+        self.regions: List[DungeonRegion] = []
+        # Grid tracks which level each room belongs to (-1 = unassigned)
+        self.grid: List[List[int]] = [[-1] * GRID_COLS for _ in range(GRID_ROWS)]
+        # Frontiers track unassigned rooms adjacent to each region
+        self.frontiers: List[Set[int]] = []
+
+    def generate(self) -> bool:
+        """Generate an organic dungeon layout.
+
+        Returns:
+            True if successful, False if constraints couldn't be satisfied.
+        """
+        max_attempts = 500
+
+        for attempt in range(max_attempts):
+            if self._try_generate():
+                log.info(f"Organic layout generated successfully on attempt {attempt + 1}")
+                return True
+
+            # Reset state for next attempt
+            self.regions = []
+            self.grid = [[-1] * GRID_COLS for _ in range(GRID_ROWS)]
+            self.frontiers = []
+
+        log.error(f"Failed to generate organic layout after {max_attempts} attempts")
+        return False
+
+    def _try_generate(self) -> bool:
+        """Single attempt at generating an organic layout."""
+        # Step 1: Place seed points in the bottom row with jitter
+        if not self._place_seeds():
+            return False
+
+        # Step 2: Grow regions organically
+        if not self._grow_regions_organic():
+            return False
+
+        # Step 3: Validate the result
+        return self._validate()
+
+    def _place_seeds(self) -> bool:
+        """Place initial seed points in the bottom row with random jitter."""
+        spacing = GRID_COLS / self.num_regions
+        seed_cols = []
+
+        for i in range(self.num_regions):
+            base_col = int(i * spacing + spacing / 2)
+            # Larger jitter for more randomness
+            if spacing > 3:
+                jitter = self.rng.randint(-2, 2)
+            else:
+                jitter = self.rng.randint(-1, 1)
+            col = max(0, min(GRID_COLS - 1, base_col + jitter))
+            seed_cols.append(col)
+
+        # Ensure no duplicate columns
+        used_cols: Set[int] = set()
+        final_cols = []
+        for col in seed_cols:
+            while col in used_cols:
+                col = (col + 1) % GRID_COLS
+            used_cols.add(col)
+            final_cols.append(col)
+
+        # Shuffle which level gets which position
+        level_order = list(range(self.num_regions))
+        self.rng.shuffle(level_order)
+
+        # Create regions with seed points (always on bottom row)
+        for level_idx, col in zip(level_order, final_cols):
+            room = coords_to_room(GRID_ROWS - 1, col)  # Bottom row
+            region = DungeonRegion(level_num=level_idx + 1, seed_room=room)
+            self.regions.append(region)
+
+            row, col_coord = room_to_coords(room)
+            self.grid[row][col_coord] = level_idx
+
+            # Initialize frontier for this region
+            frontier: Set[int] = set()
+            for adj in get_adjacent_rooms(room):
+                adj_row, adj_col = room_to_coords(adj)
+                if self.grid[adj_row][adj_col] == -1:
+                    frontier.add(adj)
+            self.frontiers.append(frontier)
+
+        # Sort regions by level number for consistent ordering
+        # Also reorder frontiers to match
+        combined = list(zip(self.regions, self.frontiers))
+        combined.sort(key=lambda x: x[0].level_num)
+        self.regions = [r for r, f in combined]
+        self.frontiers = [f for r, f in combined]
+
+        log.debug(f"Organic: Placed {self.num_regions} seeds at columns: {final_cols}")
+        return True
+
+    def _organic_score(self, region: DungeonRegion, room_num: int) -> float:
+        """Score that encourages irregular, cactus-like growth.
+
+        Prefers cells with 1-2 neighbors (creates branches/tendrils).
+        Penalizes cells with 3-4 neighbors (fills in gaps, makes blocky).
+        """
+        row, col = room_to_coords(room_num)
+
+        # Count adjacent cells that are already in this region
+        adjacent_count = 0
+        for adj in get_adjacent_rooms(room_num):
+            if adj in region.rooms:
+                adjacent_count += 1
+
+        # Score based on adjacency
+        if adjacent_count == 1:
+            adjacency_score = 3.0  # Best - creates tendrils
+        elif adjacent_count == 2:
+            adjacency_score = 2.0  # Good - continues branches
+        elif adjacent_count == 3:
+            adjacency_score = -1.0  # Bad - starts filling in
+        else:  # adjacent_count == 4
+            adjacency_score = -3.0  # Worst - completely fills
+
+        # Add randomness to prevent predictable patterns
+        random_factor = self.rng.randint(-100, 100) / 100.0  # -1.0 to 1.0
+
+        return adjacency_score + random_factor
+
+    def _check_width_constraint(self, region: DungeonRegion, room_num: int) -> bool:
+        """Check if adding room would violate max width constraint."""
+        _, col = room_to_coords(room_num)
+        _, _, min_col, max_col = region.get_bounding_box()
+
+        new_min_col = min(min_col, col)
+        new_max_col = max(max_col, col)
+        new_width = new_max_col - new_min_col + 1
+
+        return new_width <= MAX_REGION_WIDTH
+
+    def _grow_regions_organic(self) -> bool:
+        """Grow regions using organic scoring algorithm."""
+        target_size = (TOTAL_ROOMS - self.rooms_to_remove) // self.num_regions
+        total_assigned = sum(len(r.rooms) for r in self.regions)
+        target_total = TOTAL_ROOMS - self.rooms_to_remove
+
+        max_iterations = TOTAL_ROOMS * 3
+        iteration = 0
+
+        while total_assigned < target_total and iteration < max_iterations:
+            iteration += 1
+
+            # Calculate region sizes
+            region_sizes = [len(region.rooms) for region in self.regions]
+
+            # Find best (level, cell) pair using organic scoring
+            best_level_idx: Optional[int] = None
+            best_cell: Optional[int] = None
+            best_score = float('-inf')
+
+            # Sort levels by size (smallest first) but with some randomness
+            levels_by_size = sorted(range(self.num_regions), key=lambda x: region_sizes[x])
+            # Add shuffling to smaller half to prevent too much ordering
+            half = len(levels_by_size) // 2
+            if half > 0 and self.rng.randint(0, 100) > 30:
+                smaller_half = levels_by_size[:half]
+                self.rng.shuffle(smaller_half)
+                levels_by_size = smaller_half + levels_by_size[half:]
+
+            for level_idx in levels_by_size:
+                frontier = self.frontiers[level_idx]
+                if not frontier:
+                    continue
+
+                # Sample from frontier (don't check every cell)
+                sample_size = min(len(frontier), 10)
+                frontier_list = list(frontier)
+                cells_to_check = []
+                for _ in range(sample_size):
+                    idx = self.rng.randint(0, len(frontier_list) - 1)
+                    cells_to_check.append(frontier_list[idx])
+
+                for cell in cells_to_check:
+                    cell_row, cell_col = room_to_coords(cell)
+
+                    # Skip if already assigned
+                    if self.grid[cell_row][cell_col] != -1:
+                        continue
+
+                    # Check width constraint
+                    if not self._check_width_constraint(self.regions[level_idx], cell):
+                        continue
+
+                    # Calculate organic score
+                    organic = self._organic_score(self.regions[level_idx], cell)
+
+                    # Size penalty (less aggressive than standard algorithm)
+                    size_penalty = (region_sizes[level_idx] / target_size) * 0.5
+
+                    # Final score
+                    score = organic - size_penalty
+
+                    if score > best_score:
+                        best_score = score
+                        best_level_idx = level_idx
+                        best_cell = cell
+
+            if best_cell is None:
+                break
+
+            # Assign the best cell
+            r, c = room_to_coords(best_cell)
+            self.regions[best_level_idx].add_room(best_cell)
+            self.grid[r][c] = best_level_idx
+            total_assigned += 1
+
+            # Update frontiers
+            self.frontiers[best_level_idx].discard(best_cell)
+
+            # Add new frontier cells
+            for adj in get_adjacent_rooms(best_cell):
+                adj_r, adj_c = room_to_coords(adj)
+                if self.grid[adj_r][adj_c] == -1:
+                    self.frontiers[best_level_idx].add(adj)
+
+            # Occasionally "prune" frontiers to create gaps (5% chance)
+            if self.rng.randint(0, 100) < 5:
+                for frontier in self.frontiers:
+                    if len(frontier) > 5:
+                        # Remove a random frontier cell to create gaps
+                        frontier_list = list(frontier)
+                        idx = self.rng.randint(0, len(frontier_list) - 1)
+                        frontier.discard(frontier_list[idx])
+
+        return True
+
+    def _count_connected_components(self, region: DungeonRegion) -> int:
+        """Count number of connected components in a region."""
+        if not region.rooms:
+            return 0
+
+        remaining = set(region.rooms)
+        components = 0
+
+        while remaining:
+            components += 1
+            start = next(iter(remaining))
+            visited = {start}
+            stack = [start]
+
+            while stack:
+                current = stack.pop()
+                for adj in get_adjacent_rooms(current):
+                    if adj in remaining and adj not in visited:
+                        visited.add(adj)
+                        stack.append(adj)
+
+            remaining -= visited
+
+        return components
+
+    def _validate(self) -> bool:
+        """Validate the generated layout meets all constraints."""
+        # Check each region
+        for region in self.regions:
+            # Minimum size constraint (13 rooms per level)
+            if region.size() < MIN_ROOMS_ORGANIC:
+                log.debug(f"Organic: Region {region.level_num} has only {region.size()} rooms "
+                         f"(minimum: {MIN_ROOMS_ORGANIC})")
+                return False
+
+            # Must have at least one room in bottom row (row 7)
+            has_bottom_room = any(room in BOTTOM_ROW for room in region.rooms)
+            if not has_bottom_room:
+                log.debug(f"Organic: Region {region.level_num} has no room in bottom row")
+                return False
+
+            # Width constraint (with small buffer for organic growth)
+            width = region.get_width()
+            if width > MAX_REGION_WIDTH + 2:
+                log.debug(f"Organic: Region {region.level_num} has width {width} "
+                         f"(maximum: {MAX_REGION_WIDTH + 2})")
+                return False
+
+        # Count disconnected regions
+        disconnected_count = sum(1 for region in self.regions
+                                if self._count_connected_components(region) > 1)
+        if disconnected_count > self.max_disconnected:
+            log.debug(f"Organic: Too many disconnected regions: {disconnected_count} "
+                     f"(max: {self.max_disconnected})")
+            return False
+
+        # Check balance (more lenient for organic shapes)
+        sizes = [region.size() for region in self.regions]
+        min_size = min(sizes)
+        max_size = max(sizes)
+        if max_size > min_size * 3.5:
+            log.debug(f"Organic: Regions too unbalanced: {max_size}/{min_size} = "
+                     f"{max_size/min_size:.2f}")
+            return False
+
+        # Count empty cells
+        total_cells_assigned = sum(region.size() for region in self.regions)
+        empty_cells = TOTAL_ROOMS - total_cells_assigned
+        if empty_cells > self.rooms_to_remove + 2:
+            log.debug(f"Organic: Too many empty cells: {empty_cells} "
+                     f"(target: {self.rooms_to_remove})")
+            return False
+
+        log.info(f"Organic layout validation passed. Region sizes: {sizes}, "
+                f"Empty rooms: {empty_cells}, Disconnected: {disconnected_count}")
+        return True
+
+    def get_room_assignments(self) -> Dict[int, int]:
+        """Return mapping of room_num -> level_num."""
+        assignments = {}
+        for region in self.regions:
+            for room in region.rooms:
+                assignments[room] = region.level_num
+        return assignments
+
+    def get_start_rooms(self) -> Dict[int, int]:
+        """Return mapping of level_num -> start_room_num."""
+        return {region.level_num: region.start_room for region in self.regions}
+
+
 class DungeonRandomizer:
     """Randomizer for dungeon layouts."""
 
@@ -489,7 +838,10 @@ class DungeonRandomizer:
             log.debug("Dungeon layout randomization is disabled")
             return True
 
-        log.info(f"Starting dungeon layout randomization (seed: {seed})")
+        # Determine which algorithm to use
+        use_organic = self.flags.cactus_dungeon_layout
+        algorithm_name = "organic/cactus" if use_organic else "balanced region-growing"
+        log.info(f"Starting dungeon layout randomization (seed: {seed}, algorithm: {algorithm_name})")
 
         # Retry logic: try multiple times with different random states
         max_retries = 10
@@ -503,14 +855,22 @@ class DungeonRandomizer:
 
             # Generate layout for levels 1-6 (6 regions)
             log.info("Generating layout for levels 1-6...")
-            layout_1_6 = DungeonLayoutGenerator(num_regions=6, rng=self.rng)
+            if use_organic:
+                layout_1_6: Union[DungeonLayoutGenerator, OrganicDungeonLayoutGenerator] = \
+                    OrganicDungeonLayoutGenerator(num_regions=6, rng=self.rng)
+            else:
+                layout_1_6 = DungeonLayoutGenerator(num_regions=6, rng=self.rng)
             if not layout_1_6.generate():
                 log.warning(f"Failed to generate layout for levels 1-6 (attempt {attempt + 1})")
                 continue
 
             # Generate layout for levels 7-9 (3 regions)
             log.info("Generating layout for levels 7-9...")
-            layout_7_9 = DungeonLayoutGenerator(num_regions=3, rng=self.rng)
+            if use_organic:
+                layout_7_9: Union[DungeonLayoutGenerator, OrganicDungeonLayoutGenerator] = \
+                    OrganicDungeonLayoutGenerator(num_regions=3, rng=self.rng)
+            else:
+                layout_7_9 = DungeonLayoutGenerator(num_regions=3, rng=self.rng)
             if not layout_7_9.generate():
                 log.warning(f"Failed to generate layout for levels 7-9 (attempt {attempt + 1})")
                 continue
@@ -526,11 +886,12 @@ class DungeonRandomizer:
         log.error(f"Failed to generate dungeon layouts after {max_retries} attempts")
         return False
 
-    def _apply_layout(self, layout: DungeonLayoutGenerator, is_level_7_9: bool) -> None:
+    def _apply_layout(self, layout: Union[DungeonLayoutGenerator, OrganicDungeonLayoutGenerator],
+                      is_level_7_9: bool) -> None:
         """Apply a generated layout to the DataTable.
 
         Args:
-            layout: The generated layout
+            layout: The generated layout (either standard or organic)
             is_level_7_9: True if this is for levels 7-9, False for levels 1-6
         """
         assignments = layout.get_room_assignments()
