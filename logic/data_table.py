@@ -403,6 +403,17 @@ class DataTable():
     room = self.GetRoom(level_num, room_num)
     room.SetEnemy(enemy)
 
+  def SetEnemyQuantity(self, level_num: LevelNum, room_num: RoomNum, quantity: int) -> None:
+    """Set the enemy quantity code for a specific room.
+
+    Args:
+        level_num: The level number (1-9)
+        room_num: The room number within the level (0x00-0x7F)
+        quantity: The quantity code (0-3)
+    """
+    room = self.GetRoom(level_num, room_num)
+    room.SetEnemyQuantity(quantity)
+
   def SetLevelStartRoom(self, level_num: int, room_num: int) -> None:
     """Set the starting room for a level.
 
