@@ -16,7 +16,7 @@ from .items.item_randomizer import ItemRandomizer
 #from .item_randomizer import ItemRandomizer
 
 from .patch import Patch
-from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET
+from .rom_reader import RomReader
 from .text_data_table import TextDataTable
 from .hint_writer import HintWriter
 from .validator import Validator
@@ -392,11 +392,6 @@ class Z1Randomizer():
       self.cave_destinations_randomized_in_base_seed = True
       log.debug("Detected shuffled caves in base ROM - auto-enabling cave shuffle and recorder warp updates")
 
-    # Determine heart requirements once for both validation and ROM patching
-    white_sword_hearts = rng.choice([4, 5, 6]) if self.flags.randomize_heart_container_requirements else 5
-    magical_sword_hearts = rng.choice([10, 11, 12]) if (self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements) else 12
-    validator = Validator(self.data_table, self.flags, white_sword_hearts, magical_sword_hearts)
-
     # Validate flag compatibility with base ROM
     self._ValidateFlagCompatibility()
 
@@ -419,6 +414,12 @@ class Z1Randomizer():
       if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
         overworld_randomizer.ShuffleCaveDestinations()
         overworld_randomizer.CalculateAndSetRecorderWarpDestinations()
+
+      # Randomize heart container requirements
+      overworld_randomizer.RandomizeHeartRequirements()
+
+      # Create validator after heart requirements are set (it queries data_table)
+      validator = Validator(self.data_table, self.flags)
 
       # Randomize dungeon layouts if flag is enabled
       if self.flags.randomize_dungeon_layout:
@@ -480,17 +481,8 @@ class Z1Randomizer():
     # Vanilla value at 0x45B4 is 0x42, changing to 0x4C
     patch.AddData(0x45B4, [0x54])
 
-    # Randomize white sword heart requirement if the flag is enabled
-    if self.flags.randomize_heart_container_requirements:
-      # Heart requirement is stored as (hearts - 1) * 16 in the upper nibble
-      # For example: 5 hearts = 0x40, 4 hearts = 0x30, 6 hearts = 0x50
-      patch.AddData(WHITE_SWORD_REQUIREMENT_ADDRESS + NES_HEADER_OFFSET, [(white_sword_hearts - 1) * 16])
-
-    # Randomize magical sword heart requirement if the item is shuffled or the flag is enabled
-    if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
-      # Heart requirement is stored as (hearts - 1) * 16 in the upper nibble
-      # For example: 12 hearts = 0xB0, 11 hearts = 0xA0, 10 hearts = 0x90
-      patch.AddData(MAGICAL_SWORD_REQUIREMENT_ADDRESS + NES_HEADER_OFFSET, [(magical_sword_hearts - 1) * 16])
+    # Note: Heart requirement randomization is now handled by OverworldRandomizer.RandomizeHeartRequirements()
+    # and written to ROM via RomState.get_patch() -> _get_patch_for_heart_requirements()
 
     if self.flags.progressive_items:
       # New progressive item code
@@ -608,8 +600,8 @@ class Z1Randomizer():
     # For Mags -> Rupee patch
     patch.AddData(0x1785F, [0x18])
 
-    # Apply hints based on community_hints flag
-    hint_writer = HintWriter(rng)
+    # Create hint writer (auto-fills hints based on flags in GetPatch)
+    hint_writer = HintWriter(rng, self.data_table, self.flags)
 
     # Lost Hills randomization
     if self.flags.randomize_lost_hills:
@@ -621,7 +613,7 @@ class Z1Randomizer():
 
       # Patch the ROM at 0x6DAB-0x6DAE with the direction sequence
       patch.AddData(0x6DAB, lost_hills_directions)
-      
+
       # Patch the overworld to annex the two screens to the right of vanilla Level 5
       patch.AddDataFromHexString(0x154D7, "01010101010101")
       patch.AddDataFromHexString(0x154F1, "09")
@@ -653,18 +645,7 @@ class Z1Randomizer():
       # Set Dead Woods hint
       hint_writer.SetDeadWoodsHint(dead_woods_directions)
 
-    # Set heart requirement hints
-    if self.flags.randomize_heart_container_requirements:
-      hint_writer.SetWhiteSwordHeartHint(white_sword_hearts)
-
-    if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
-      hint_writer.SetMagicalSwordHeartHint(magical_sword_hearts)
-
-    if self.flags.community_hints:
-      hint_writer.FillWithCommunityHints()
-    else:
-      hint_writer.FillWithBlankHints()
-
+    # GetPatch auto-fills heart requirement hints and community/blank hints based on flags
     hint_patch = hint_writer.GetPatch()
     patch += hint_patch
 

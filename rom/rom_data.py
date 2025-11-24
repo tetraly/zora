@@ -66,6 +66,12 @@ class RomData:
     # Any Road screens (4 bytes)
     any_road_screens: List[int] = field(default_factory=lambda: [0] * 4)
 
+    # Heart container requirements (raw ROM bytes)
+    # Encoding: raw_value = (hearts - 1) * 16
+    # Vanilla: WS = 0x40 (5 hearts), MS = 0xB0 (12 hearts)
+    white_sword_hearts_raw: int = 0x40
+    magical_sword_hearts_raw: int = 0xB0
+
 
 def _read_word_little_endian(data: bytes, offset: int) -> int:
     """Read a 16-bit word in little-endian format."""
@@ -236,6 +242,10 @@ def load_from_bytes(rom_bytes: bytes) -> RomData:
         RomLayout.ANY_ROAD_SCREENS.end_offset
     ])
 
+    # Read heart container requirements (raw bytes)
+    white_sword_hearts_raw = rom_bytes[RomLayout.WHITE_SWORD_REQUIREMENT.file_offset]
+    magical_sword_hearts_raw = rom_bytes[RomLayout.MAGICAL_SWORD_REQUIREMENT.file_offset]
+
     return RomData(
         level_1_to_6_block=level_1_to_6_block,
         level_7_to_9_block=level_7_to_9_block,
@@ -252,6 +262,8 @@ def load_from_bytes(rom_bytes: bytes) -> RomData:
         recorder_warp_destinations=recorder_warp_destinations,
         recorder_warp_y_coordinates=recorder_warp_y_coordinates,
         any_road_screens=any_road_screens,
+        white_sword_hearts_raw=white_sword_hearts_raw,
+        magical_sword_hearts_raw=magical_sword_hearts_raw,
     )
 
 
@@ -353,11 +365,13 @@ def load_from_test_data(data_dir: Optional[str] = None) -> RomData:
                     pass
             mixed_enemy_groups[enemy_code] = enemy_list
 
-    # For test data, use vanilla defaults for recorder warp and any road data
+    # For test data, use vanilla defaults for recorder warp, any road, and heart requirements
     # These aren't extracted by the test data extractor
     vanilla_recorder_destinations = [0x76, 0x3B, 0x74, 0x41, 0x04, 0x2B, 0x22, 0x6C]
     vanilla_recorder_y_coords = [0x8D, 0xAD, 0x8D, 0x8D, 0xAD, 0x8D, 0x8D, 0x5D]
     vanilla_any_road_screens = [0x22, 0x0A, 0x68, 0x3F]
+    vanilla_white_sword_hearts_raw = 0x40  # 5 hearts
+    vanilla_magical_sword_hearts_raw = 0xB0  # 12 hearts
 
     return RomData(
         level_1_to_6_block=level_1_6_data,
@@ -375,4 +389,6 @@ def load_from_test_data(data_dir: Optional[str] = None) -> RomData:
         recorder_warp_destinations=vanilla_recorder_destinations,
         recorder_warp_y_coordinates=vanilla_recorder_y_coords,
         any_road_screens=vanilla_any_road_screens,
+        white_sword_hearts_raw=vanilla_white_sword_hearts_raw,
+        magical_sword_hearts_raw=vanilla_magical_sword_hearts_raw,
     )

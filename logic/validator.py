@@ -31,12 +31,10 @@ _MOVEMENT_CONSTRAINED_ROOMS_VALID_TRAVEL_DIRECTIONS: Dict[RoomType, List[Directi
 
 class Validator(object):
 
-  def __init__(self, data_table: DataTable, flags: Flags, white_sword_hearts: int = 5, magical_sword_hearts: int = 12) -> None:
+  def __init__(self, data_table: DataTable, flags: Flags) -> None:
     self.data_table = data_table
     self.flags = flags
     self.inventory = Inventory()
-    self.white_sword_hearts = white_sword_hearts
-    self.magical_sword_hearts = magical_sword_hearts
 
   def GetBlockType(self, screen_num: int) -> str:
     """Get the block type for a given screen, accounting for flags."""
@@ -580,10 +578,10 @@ class Validator(object):
 
   def CanGetItemsFromCave(self, cave_type: CaveType) -> bool:
     if (cave_type == CaveType.WHITE_SWORD_CAVE
-        and self.inventory.GetHeartCount() < self.white_sword_hearts):
+        and self.inventory.GetHeartCount() < self.data_table.get_heart_container_requirement(for_magical_sword=False)):
       return False
     if (cave_type == CaveType.MAGICAL_SWORD_CAVE
-        and self.inventory.GetHeartCount() < self.magical_sword_hearts):
+        and self.inventory.GetHeartCount() < self.data_table.get_heart_container_requirement(for_magical_sword=True)):
       return False
     if cave_type == CaveType.POTION_SHOP and not self.inventory.Has(Item.LETTER):
       return False

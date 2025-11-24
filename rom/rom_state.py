@@ -94,6 +94,10 @@ class RomState:
         # Any road screens (4 entries)
         self._any_road_screens = rom_data.any_road_screens[:]
 
+        # Heart container requirements (raw ROM bytes)
+        self._white_sword_hearts_raw = rom_data.white_sword_hearts_raw
+        self._magical_sword_hearts_raw = rom_data.magical_sword_hearts_raw
+
         # Detection flags
         self._is_z1r = rom_data.is_z1r
 
@@ -637,6 +641,37 @@ class RomState:
         return (self._overworld_raw_data[screen_num + 5 * 0x80] & 0x80) == 0
 
     # =========================================================================
+    # Heart Container Requirements
+    # =========================================================================
+
+    def get_heart_container_requirement(self, for_magical_sword: bool = False) -> int:
+        """Get the heart container requirement for a sword cave.
+
+        Args:
+            for_magical_sword: If True, returns magical sword requirement;
+                              if False, returns white sword requirement.
+
+        Returns:
+            The number of hearts required (e.g., 4-6 for WS, 10-12 for MS)
+        """
+        raw = self._magical_sword_hearts_raw if for_magical_sword else self._white_sword_hearts_raw
+        return (raw // 16) + 1
+
+    def set_heart_container_requirement(self, requirement: int, for_magical_sword: bool = False) -> None:
+        """Set the heart container requirement for a sword cave.
+
+        Args:
+            requirement: The number of hearts required (e.g., 4-6 for WS, 10-12 for MS)
+            for_magical_sword: If True, sets magical sword requirement;
+                              if False, sets white sword requirement.
+        """
+        raw_value = (requirement - 1) * 16
+        if for_magical_sword:
+            self._magical_sword_hearts_raw = raw_value
+        else:
+            self._white_sword_hearts_raw = raw_value
+
+    # =========================================================================
     # Mixed Enemy Groups
     # =========================================================================
 
@@ -685,6 +720,7 @@ class RomState:
         patch += self._get_patch_for_overworld()
         patch += self._get_patch_for_level_info()
         patch += self._get_patch_for_recorder_warps()
+        patch += self._get_patch_for_heart_requirements()
         return patch
 
     # =========================================================================
@@ -1001,5 +1037,18 @@ class RomState:
         patch.AddData(
             RomLayout.RECORDER_WARP_Y_COORDINATES.file_offset,
             self._recorder_warp_y_coordinates
+        )
+        return patch
+
+    def _get_patch_for_heart_requirements(self) -> Patch:
+        """Internal: Generate patch data for heart container requirements."""
+        patch = Patch()
+        patch.AddData(
+            RomLayout.WHITE_SWORD_REQUIREMENT.file_offset,
+            [self._white_sword_hearts_raw]
+        )
+        patch.AddData(
+            RomLayout.MAGICAL_SWORD_REQUIREMENT.file_offset,
+            [self._magical_sword_hearts_raw]
         )
         return patch

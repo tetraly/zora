@@ -13,8 +13,6 @@ from typing import List
 
 # Constants still used by randomizer.py
 NES_HEADER_OFFSET = 0x10
-WHITE_SWORD_REQUIREMENT_ADDRESS = 0x48FD
-MAGICAL_SWORD_REQUIREMENT_ADDRESS = 0x4906
 
 
 class RomReader:

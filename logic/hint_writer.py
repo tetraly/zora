@@ -1,10 +1,14 @@
 import logging as log
-from typing import List, Dict
+from typing import List, Dict, TYPE_CHECKING
 
 from rng.random_number_generator import RandomNumberGenerator
 from .patch import Patch
 from .randomizer_constants import HintType
 from .hints import COMMUNITY_HINTS, NUMERICAL_HINTS
+
+if TYPE_CHECKING:
+    from .data_table import DataTable
+    from .flags import Flags
 
 
 class HintWriter:
@@ -98,13 +102,17 @@ class HintWriter:
         hint_text = self.rng.choice(NUMERICAL_HINTS[heart_requirement])
         self.SetHint(HintType.MAGICAL_SWORD_CAVE, hint_text)
 
-    def __init__(self, rng: RandomNumberGenerator):
+    def __init__(self, rng: RandomNumberGenerator, data_table: 'DataTable', flags: 'Flags'):
         """Initialize the hint writer.
 
         Args:
             rng: RandomNumberGenerator instance for deterministic hint selection
+            data_table: DataTable instance for querying game state
+            flags: Flags instance containing user settings
         """
         self.rng = rng
+        self.data_table = data_table
+        self.flags = flags
         self.patch = Patch()
         self.hints: Dict[HintType, str] = {}
 
@@ -194,9 +202,28 @@ class HintWriter:
     def GetPatch(self) -> Patch:
         """Generate a patch with hint data.
 
+        This method automatically:
+        - Writes heart requirement hints based on flags
+        - Fills remaining slots with community or blank hints based on flags
+
         Returns:
             Patch object with hint pointers and data
         """
+        # Auto-write heart requirement hints based on flags
+        if self.flags.randomize_heart_container_requirements:
+            ws_hearts = self.data_table.get_heart_container_requirement(for_magical_sword=False)
+            self.SetWhiteSwordHeartHint(ws_hearts)
+
+        if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
+            ms_hearts = self.data_table.get_heart_container_requirement(for_magical_sword=True)
+            self.SetMagicalSwordHeartHint(ms_hearts)
+
+        # Auto-fill remaining hints based on community_hints flag
+        if self.flags.community_hints:
+            self.FillWithCommunityHints()
+        else:
+            self.FillWithBlankHints()
+
         log.debug("Writing hints to ROM.")
 
         # Track current write position in ROM

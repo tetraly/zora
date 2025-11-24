@@ -212,3 +212,20 @@ class OverworldRandomizer:
 
         log.debug(f"Updated recorder warp destinations: {[hex(x) for x in warp_destinations]}")
         log.debug(f"Updated recorder y coordinates: {[hex(x) for x in warp_y_coordinates]}")
+
+    def RandomizeHeartRequirements(self) -> None:
+        """Randomize heart container requirements for sword caves based on flags.
+
+        White Sword: Randomized to 4, 5, or 6 hearts if randomize_heart_container_requirements is set.
+        Magical Sword: Randomized to 10, 11, or 12 hearts if randomize_heart_container_requirements
+                       or shuffle_magical_sword_cave_item is set.
+        """
+        if self.flags.randomize_heart_container_requirements:
+            ws_hearts = self.rng.choice([4, 5, 6])
+            self.data_table.set_heart_container_requirement(ws_hearts, for_magical_sword=False)
+            log.debug(f"Set white sword heart requirement to {ws_hearts}")
+
+        if self.flags.shuffle_magical_sword_cave_item or self.flags.randomize_heart_container_requirements:
+            ms_hearts = self.rng.choice([10, 11, 12])
+            self.data_table.set_heart_container_requirement(ms_hearts, for_magical_sword=True)
+            log.debug(f"Set magical sword heart requirement to {ms_hearts}")
