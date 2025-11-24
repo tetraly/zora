@@ -18,8 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 log = logging.getLogger(__name__)
 
-from logic.assignment_solver import AssignmentSolver
-from logic.randomized_backtracking_solver import RandomizedBacktrackingSolver
+from logic.solvers import AssignmentSolver, RandomizedBacktrackingSolver
 from logic.randomizer_constants import Item, CaveType, CavePosition
 from logic.items.major_item_randomizer import DungeonLocation, CaveLocation
 from logic.data_table import DataTable

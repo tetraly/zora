@@ -183,15 +183,10 @@ for solver_type in [SolverType.ASSIGNMENT_SOLVER,
 
 ## Backwards Compatibility
 
-Existing code continues to work without changes:
+Import solvers from the `logic.solvers` module:
 
 ```python
-# Old imports still work
-from logic.assignment_solver import AssignmentSolver
-from logic.randomized_backtracking_solver import RandomizedBacktrackingSolver
-
-# But new imports are preferred:
-from logic.solvers import AssignmentSolver, RandomizedBacktrackingSolver
+from logic.solvers import AssignmentSolver, RandomizedBacktrackingSolver, RejectionSamplingSolver
 ```
 
 ## Choosing a Solver

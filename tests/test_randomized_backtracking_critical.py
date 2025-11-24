@@ -16,8 +16,7 @@ from collections import defaultdict
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from logic.randomized_backtracking_solver import RandomizedBacktrackingSolver
-from logic.assignment_solver import AssignmentSolver
+from logic.solvers import AssignmentSolver, RandomizedBacktrackingSolver
 
 
 class CriticalRequirementTest:
