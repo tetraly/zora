@@ -59,6 +59,13 @@ class RomData:
     level_1_to_6_pointer: int = 0
     level_7_to_9_pointer: int = 0
 
+    # Recorder warp data (8 bytes each, one per level 1-8)
+    recorder_warp_destinations: List[int] = field(default_factory=lambda: [0] * 8)
+    recorder_warp_y_coordinates: List[int] = field(default_factory=lambda: [0] * 8)
+
+    # Any Road screens (4 bytes)
+    any_road_screens: List[int] = field(default_factory=lambda: [0] * 4)
+
 
 def _read_word_little_endian(data: bytes, offset: int) -> int:
     """Read a 16-bit word in little-endian format."""
@@ -213,6 +220,22 @@ def load_from_bytes(rom_bytes: bytes) -> RomData:
     # Read mixed enemy groups
     mixed_enemy_groups = _read_mixed_enemy_groups(rom_bytes)
 
+    # Read recorder warp data
+    recorder_warp_destinations = list(rom_bytes[
+        RomLayout.RECORDER_WARP_DESTINATIONS.file_offset:
+        RomLayout.RECORDER_WARP_DESTINATIONS.end_offset
+    ])
+    recorder_warp_y_coordinates = list(rom_bytes[
+        RomLayout.RECORDER_WARP_Y_COORDINATES.file_offset:
+        RomLayout.RECORDER_WARP_Y_COORDINATES.end_offset
+    ])
+
+    # Read any road screens
+    any_road_screens = list(rom_bytes[
+        RomLayout.ANY_ROAD_SCREENS.file_offset:
+        RomLayout.ANY_ROAD_SCREENS.end_offset
+    ])
+
     return RomData(
         level_1_to_6_block=level_1_to_6_block,
         level_7_to_9_block=level_7_to_9_block,
@@ -226,6 +249,9 @@ def load_from_bytes(rom_bytes: bytes) -> RomData:
         overworld_pointer=overworld_pointer,
         level_1_to_6_pointer=level_1_to_6_pointer,
         level_7_to_9_pointer=level_7_to_9_pointer,
+        recorder_warp_destinations=recorder_warp_destinations,
+        recorder_warp_y_coordinates=recorder_warp_y_coordinates,
+        any_road_screens=any_road_screens,
     )
 
 
@@ -327,6 +353,12 @@ def load_from_test_data(data_dir: Optional[str] = None) -> RomData:
                     pass
             mixed_enemy_groups[enemy_code] = enemy_list
 
+    # For test data, use vanilla defaults for recorder warp and any road data
+    # These aren't extracted by the test data extractor
+    vanilla_recorder_destinations = [0x76, 0x3B, 0x74, 0x41, 0x04, 0x2B, 0x22, 0x6C]
+    vanilla_recorder_y_coords = [0x8D, 0xAD, 0x8D, 0x8D, 0xAD, 0x8D, 0x8D, 0x5D]
+    vanilla_any_road_screens = [0x22, 0x0A, 0x68, 0x3F]
+
     return RomData(
         level_1_to_6_block=level_1_6_data,
         level_7_to_9_block=level_7_9_data,
@@ -340,4 +372,7 @@ def load_from_test_data(data_dir: Optional[str] = None) -> RomData:
         overworld_pointer=overworld_pointer,
         level_1_to_6_pointer=level_1_to_6_pointer,
         level_7_to_9_pointer=level_7_to_9_pointer,
+        recorder_warp_destinations=vanilla_recorder_destinations,
+        recorder_warp_y_coordinates=vanilla_recorder_y_coords,
+        any_road_screens=vanilla_any_road_screens,
     )

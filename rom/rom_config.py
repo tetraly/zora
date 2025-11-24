@@ -166,7 +166,11 @@ class RomLayout:
     )
     RECORDER_WARP_DESTINATIONS = RomRegion(
         file_offset=0x6020, cpu_address=0x6010, size=8,
-        description="Recorder warp destination screens"
+        description="Recorder warp destination screens for levels 1-8"
+    )
+    RECORDER_WARP_Y_COORDINATES = RomRegion(
+        file_offset=0x6129, cpu_address=0x6119, size=8,
+        description="Recorder warp Y coordinates for levels 1-8"
     )
 
     # ==========================================================================

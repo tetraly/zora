@@ -1,8 +1,9 @@
 import logging as log
-from typing import List
+from typing import List, Tuple
 from rng.random_number_generator import RandomNumberGenerator
 from logic.data_table import DataTable
 from logic.flags import Flags
+from logic.randomizer_constants import CaveType
 
 # Vanilla start screen
 VANILLA_START_SCREEN = 0x77
@@ -99,3 +100,115 @@ class OverworldRandomizer:
         log.debug(f"Set start screen to {hex(new_start_screen)}")
 
         log.info(f"Shuffled start screen from {hex(old_start_screen)} to {hex(new_start_screen)}")
+
+    def ShuffleCaveDestinations(self) -> None:
+        """Shuffle cave destinations for all 1st quest overworld screens.
+
+        This finds all screens that have cave destinations in the 1st quest,
+        then randomly redistributes those destinations among those same screens.
+
+        Any Road screens are excluded from the shuffle to prevent game crashes.
+        """
+        # Read the four "take any road" screen IDs from the data_table
+        any_road_screens = self.data_table.get_any_road_screens()
+        log.debug(f"Any Road screen IDs: {[hex(x) for x in any_road_screens]}")
+
+        # Find all screens that have cave destinations and should appear in 1st quest
+        first_quest_screens = []
+        cave_destinations = []
+
+        for screen_num in range(0x80):
+            # Skip if this is a 2nd quest only screen
+            if not self.data_table.is_screen_first_quest(screen_num):
+                continue
+
+            destination = self.data_table.GetScreenDestination(screen_num)
+
+            # Only include screens that actually have a destination
+            if destination != CaveType.NONE:
+                # Exclude any road screens from the shuffle to prevent crashes
+                if screen_num not in any_road_screens:
+                    first_quest_screens.append(screen_num)
+                    cave_destinations.append(destination)
+                else:
+                    log.debug(f"Excluding Any Road screen {hex(screen_num)} from shuffle")
+
+        log.debug(f"Found {len(first_quest_screens)} first quest screens with cave destinations (excluding Any Road screens)")
+        for screen_num, destination in zip(first_quest_screens, cave_destinations):
+            log.debug(f"BEFORE: Screen {hex(screen_num)}: {destination.name}")
+
+        # Shuffle the destinations
+        self.rng.shuffle(cave_destinations)
+
+        # Redistribute shuffled destinations back to the screens
+        for screen_num, new_destination in zip(first_quest_screens, cave_destinations):
+            log.debug(f"AFTER: Setting screen {hex(screen_num)} to {new_destination.name}")
+            self.data_table.SetScreenDestination(screen_num, new_destination)
+
+    def CalculateAndSetRecorderWarpDestinations(self) -> None:
+        """Calculate and set recorder warp destinations for levels 1-8 after cave shuffle.
+
+        The recorder warps Link to a screen one to the left of each level entrance.
+        This is because the whirlwind scrolls Link to the right automatically.
+
+        This method calculates the new warp destinations based on current cave
+        destinations and writes them directly to the data_table.
+        """
+        # Map of level number to CaveType enum (levels 1-8)
+        level_cave_types = [
+            CaveType.LEVEL_1,
+            CaveType.LEVEL_2,
+            CaveType.LEVEL_3,
+            CaveType.LEVEL_4,
+            CaveType.LEVEL_5,
+            CaveType.LEVEL_6,
+            CaveType.LEVEL_7,
+            CaveType.LEVEL_8
+        ]
+
+        warp_destinations = []
+        warp_y_coordinates = []
+
+        # For each level (1-8), find its screen and calculate warp destination
+        for level_num, cave_type in enumerate(level_cave_types, start=1):
+            level_screen = None
+
+            # Search all overworld screens to find this level
+            for screen_num in range(0x80):
+                destination = self.data_table.GetScreenDestination(screen_num)
+                if destination == cave_type:
+                    level_screen = screen_num
+                    break
+
+            if level_screen is None:
+                raise ValueError(f"Could not find screen for Level {level_num}")
+
+            # Calculate warp destination (one screen to the left)
+            # Special case: if level is at screen 0, don't subtract 1
+            # Special case: if level is at screen 0x0E, warp to 0x1D (below)
+            if level_screen == 0:
+                warp_screen = 0
+            elif level_screen == 0x0E:
+                warp_screen = 0x1D
+            else:
+                warp_screen = level_screen - 1
+
+            # Special cases for y coordinate of Link warping to a screen
+            y_coordinate = 0x8D
+            # Vanilla locations with lower Y coordinate (screens: L2, L5, L7, L9, Bogie's Arrow, Waterfall, Monocle Rock)
+            if level_screen in [0x3C, 0x0B, 0x42, 0x05, 0x09, 0x0A, 0x2C]:
+                y_coordinate = 0xAD
+            # Vanilla L8 location
+            elif level_screen in [0x6D]:
+                y_coordinate = 0x5D
+
+            log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}, Y={hex(y_coordinate)}")
+            warp_destinations.append(warp_screen)
+            warp_y_coordinates.append(y_coordinate)
+
+        # Write the calculated warp data to data_table
+        self.data_table.set_recorder_warp_destinations(warp_destinations)
+        self.data_table.set_recorder_warp_y_coordinates(warp_y_coordinates)
+
+        log.debug(f"Updated recorder warp destinations: {[hex(x) for x in warp_destinations]}")
+        log.debug(f"Updated recorder y coordinates: {[hex(x) for x in warp_y_coordinates]}")

@@ -87,6 +87,13 @@ class RomState:
         # Copy mixed enemy groups
         self._mixed_enemy_groups = dict(rom_data.mixed_enemy_groups)
 
+        # Recorder warp data (8 entries for levels 1-8)
+        self._recorder_warp_destinations = rom_data.recorder_warp_destinations[:]
+        self._recorder_warp_y_coordinates = rom_data.recorder_warp_y_coordinates[:]
+
+        # Any road screens (4 entries)
+        self._any_road_screens = rom_data.any_road_screens[:]
+
         # Detection flags
         self._is_z1r = rom_data.is_z1r
 
@@ -565,6 +572,71 @@ class RomState:
             self._level_info[level_num][LEVEL_INFO_COMPASS_OFFSET] = room_num
 
     # =========================================================================
+    # Recorder Warp Methods (Bulk API)
+    # =========================================================================
+
+    def get_recorder_warp_destinations(self) -> List[int]:
+        """Get all recorder warp destination screens for levels 1-8.
+
+        Returns:
+            List of 8 screen numbers, one per level (1-8)
+        """
+        return self._recorder_warp_destinations[:]
+
+    def set_recorder_warp_destinations(self, destinations: List[int]) -> None:
+        """Set all recorder warp destination screens for levels 1-8.
+
+        Args:
+            destinations: List of exactly 8 screen numbers, one per level (1-8)
+        """
+        assert len(destinations) == 8, f"Expected 8 destinations, got {len(destinations)}"
+        self._recorder_warp_destinations = destinations[:]
+
+    def get_recorder_warp_y_coordinates(self) -> List[int]:
+        """Get all recorder warp Y coordinates for levels 1-8.
+
+        Returns:
+            List of 8 Y coordinate values, one per level (1-8)
+        """
+        return self._recorder_warp_y_coordinates[:]
+
+    def set_recorder_warp_y_coordinates(self, y_coords: List[int]) -> None:
+        """Set all recorder warp Y coordinates for levels 1-8.
+
+        Args:
+            y_coords: List of exactly 8 Y coordinate values, one per level (1-8)
+        """
+        assert len(y_coords) == 8, f"Expected 8 Y coordinates, got {len(y_coords)}"
+        self._recorder_warp_y_coordinates = y_coords[:]
+
+    # =========================================================================
+    # Any Road & Quest Methods
+    # =========================================================================
+
+    def get_any_road_screens(self) -> List[int]:
+        """Get the four Any Road destination screens.
+
+        Returns:
+            List of 4 screen numbers for Any Road destinations
+        """
+        return self._any_road_screens[:]
+
+    def is_screen_first_quest(self, screen_num: int) -> bool:
+        """Check if an overworld screen is a first quest secret.
+
+        First quest screens have bit 7 (0x80) clear in table 5 data.
+        Second quest screens have bit 7 set.
+
+        Args:
+            screen_num: The overworld screen number (0x00-0x7F)
+
+        Returns:
+            True if the screen is a first quest secret, False if second quest
+        """
+        assert 0 <= screen_num < 0x80, f"Invalid screen number: {hex(screen_num)}"
+        return (self._overworld_raw_data[screen_num + 5 * 0x80] & 0x80) == 0
+
+    # =========================================================================
     # Mixed Enemy Groups
     # =========================================================================
 
@@ -612,6 +684,7 @@ class RomState:
         )
         patch += self._get_patch_for_overworld()
         patch += self._get_patch_for_level_info()
+        patch += self._get_patch_for_recorder_warps()
         return patch
 
     # =========================================================================
@@ -916,4 +989,17 @@ class RomState:
                      level_num * LEVEL_INFO_BLOCK_SIZE +
                      LEVEL_INFO_PPU_PALETTE_SIZE)
             patch.AddData(start, info)
+        return patch
+
+    def _get_patch_for_recorder_warps(self) -> Patch:
+        """Internal: Generate patch data for recorder warp destinations and Y coords."""
+        patch = Patch()
+        patch.AddData(
+            RomLayout.RECORDER_WARP_DESTINATIONS.file_offset,
+            self._recorder_warp_destinations
+        )
+        patch.AddData(
+            RomLayout.RECORDER_WARP_Y_COORDINATES.file_offset,
+            self._recorder_warp_y_coordinates
+        )
         return patch

@@ -16,7 +16,7 @@ from .items.item_randomizer import ItemRandomizer
 #from .item_randomizer import ItemRandomizer
 
 from .patch import Patch
-from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET, ANY_ROAD_SCREENS_ADDRESS, RECORDER_WARP_DESTINATIONS_ADDRESS
+from .rom_reader import RomReader, MAGICAL_SWORD_REQUIREMENT_ADDRESS, WHITE_SWORD_REQUIREMENT_ADDRESS, NES_HEADER_OFFSET
 from .text_data_table import TextDataTable
 from .hint_writer import HintWriter
 from .validator import Validator
@@ -98,120 +98,6 @@ class Z1Randomizer():
     destination = self.data_table.GetScreenDestination(VANILLA_WOOD_SWORD_SCREEN)
     return destination == CaveType.WOOD_SWORD_CAVE
 
-  def _ShuffleOverworldCaveDestinations(self, rng: RandomNumberGenerator) -> None:
-    """Shuffle cave destinations for all 1st quest overworld screens.
-
-    This finds all screens that have cave destinations in the 1st quest,
-    then randomly redistributes those destinations among those same screens.
-
-    Any Road screens are excluded from the shuffle to prevent game crashes.
-
-    Args:
-        rng: Random number generator instance to use for shuffling
-    """
-    from .randomizer_constants import CaveType
-
-    # Read the four "take any road" screen IDs from ROM to exclude them from shuffle
-    any_road_screens = list(self.rom_reader._ReadMemory(ANY_ROAD_SCREENS_ADDRESS, 4))
-    log.debug(f"Any Road screen IDs: {[hex(x) for x in any_road_screens]}")
-
-    # Find all screens that have cave destinations and should appear in 1st quest
-    # Include screens that are NOT 2nd quest only (bit 7 not set)
-    first_quest_screens = []
-    cave_destinations = []
-
-    for screen_num in range(0x80):
-      table5_byte = self.data_table.overworld_raw_data[screen_num + 5*0x80]
-
-      # Skip if bit 7 is set (2nd quest only)
-      if (table5_byte & 0x80) != 0:
-        continue
-
-      destination = self.data_table.GetScreenDestination(screen_num)
-
-      # Only include screens that actually have a destination
-      if destination != CaveType.NONE:
-        # Exclude any road screens from the shuffle to prevent crashes
-        if screen_num not in any_road_screens:
-          first_quest_screens.append(screen_num)
-          cave_destinations.append(destination)
-        else:
-          log.debug(f"Excluding Any Road screen {hex(screen_num)} from shuffle")
-
-    log.debug(f"Found {len(first_quest_screens)} first quest screens with cave destinations (excluding Any Road screens)")
-    for screen_num, destination in zip(first_quest_screens, cave_destinations):
-      log.debug(f"BEFORE: Screen {hex(screen_num)}: {destination.name}")
-
-    # Shuffle the destinations
-    rng.shuffle(cave_destinations)
-
-    # Redistribute shuffled destinations back to the screens
-    for screen_num, new_destination in zip(first_quest_screens, cave_destinations):
-      log.debug(f"AFTER: Setting screen {hex(screen_num)} to {new_destination.name}")
-      self.data_table.SetScreenDestination(screen_num, new_destination)
-
-  def _CalculateRecorderWarpDestinations(self) -> List[int]:
-    """Calculate recorder warp destinations for levels 1-8 after cave shuffle.
-
-    The recorder warps Link to a screen one to the left of each level entrance.
-    This is because the whirlwind scrolls Link to the right automatically.
-
-    Returns:
-        A List of 8 bytes representing the warp screen for levels 1-8 and a List of y coordinates
-    """
-    from .randomizer_constants import CaveType
-
-    # Map of level number to CaveType enum
-    level_cave_types = [
-      CaveType.LEVEL_1,
-      CaveType.LEVEL_2,
-      CaveType.LEVEL_3,
-      CaveType.LEVEL_4,
-      CaveType.LEVEL_5,
-      CaveType.LEVEL_6,
-      CaveType.LEVEL_7,
-      CaveType.LEVEL_8
-    ]
-
-    warp_destinations = []
-    warp_y_coordinates = []
-
-    # For each level (1-8), find its screen and calculate warp destination
-    for level_num, cave_type in enumerate(level_cave_types, start=1):
-      level_screen = None
-
-      # Search all overworld screens to find this level
-      for screen_num in range(0x80):
-        destination = self.data_table.GetScreenDestination(screen_num)
-        if destination == cave_type:
-          level_screen = screen_num
-          break
-
-      if level_screen is None:
-        raise ValueError(f"Could not find screen for Level {level_num}")
-
-      # Calculate warp destination (one screen to the left)
-      # Special case: if level is at screen 0, don't subtract 1 and letter cave (warp goes one screen down)
-      if level_screen == 0:
-        warp_screen = 0
-      elif level_screen == 0x0E:
-        warp_screen = 0x1D
-      else:
-        warp_screen = level_screen - 1
-
-      # Special cases for y coordinate of Link warping to a screen
-      y_coordinate = 0x8D
-      if level_screen in [0x3C, 0x0B, 0x42, 0x05, 0x09, 0x0A, 0x2C]:  # Vanilla 2, 5, 7, 9, Bogie's Arrow, Waterfall, Monocle Rock
-        y_coordinate = 0xAD
-      elif level_screen in [0x6D]:  # Vanilla 8
-        y_coordinate = 0x5D
-
-      log.debug(f"Level {level_num} at screen {hex(level_screen)}, recorder warp to {hex(warp_screen)}")
-      warp_destinations.append(warp_screen)
-      warp_y_coordinates.append(y_coordinate)
-
-    return (warp_destinations, warp_y_coordinates)
-
   def _ValidateFlagCompatibility(self) -> None:
     """Validate that the selected ZORA flags are compatible with the base ROM.
 
@@ -277,7 +163,7 @@ class Z1Randomizer():
       # Default values: 0x1D, 0x23, 0x49, 0x79
       DEFAULT_ANY_ROAD_SCREENS = [0x1D, 0x23, 0x49, 0x79]
 
-      any_road_screens = self.rom_reader._ReadMemory(ANY_ROAD_SCREENS_ADDRESS, 4)
+      any_road_screens = self.data_table.get_any_road_screens()
 
       log.debug(f"Any Road screen IDs in ROM: {[hex(x) for x in any_road_screens]}")
       log.debug(f"Default values:              {[hex(x) for x in DEFAULT_ANY_ROAD_SCREENS]}")
@@ -526,9 +412,13 @@ class Z1Randomizer():
       # Reset to vanilla state
       self.data_table.ResetToVanilla()
 
+      # Create overworld randomizer for cave shuffle and start screen shuffle
+      overworld_randomizer = OverworldRandomizer(self.data_table, self.flags, rng)
+
       # Shuffle overworld cave destinations if flag is enabled or detected in base ROM
       if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-        self._ShuffleOverworldCaveDestinations(rng)
+        overworld_randomizer.ShuffleCaveDestinations()
+        overworld_randomizer.CalculateAndSetRecorderWarpDestinations()
 
       # Randomize dungeon layouts if flag is enabled
       if self.flags.randomize_dungeon_layout:
@@ -566,7 +456,6 @@ class Z1Randomizer():
 
       # Apply overworld randomization if enabled
       if self.flags.shuffle_start_screen:
-        overworld_randomizer = OverworldRandomizer(self.data_table, self.flags, rng)
         overworld_randomizer.ShuffleStartScreen()
 
       print("Starting Validator")
@@ -586,14 +475,6 @@ class Z1Randomizer():
           raise Exception(f"Gave up after trying {attempt_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
 
     patch = self.data_table.GetPatch()
-
-    # Update recorder warp destinations if cave shuffle is enabled or detected in base ROM
-    if self.flags.shuffle_caves or self.cave_destinations_randomized_in_base_seed:
-      (recorder_warp_destinations, recorder_y_coordinates) = self._CalculateRecorderWarpDestinations()
-      patch.AddData(RECORDER_WARP_DESTINATIONS_ADDRESS + NES_HEADER_OFFSET, recorder_warp_destinations)
-      patch.AddData(0x6129, recorder_y_coordinates)
-      log.debug(f"Updated recorder warp destinations: {[hex(x) for x in recorder_warp_destinations]}")
-      log.debug(f"Updated recorder y coordinates: {[hex(x) for x in recorder_y_coordinates]}")
 
     # Change White Sword cave to use the hint normally reserved for the letter cave
     # Vanilla value at 0x45B4 is 0x42, changing to 0x4C
