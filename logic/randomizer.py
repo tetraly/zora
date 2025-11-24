@@ -408,9 +408,9 @@ class Z1Randomizer():
 
       is_valid_seed = validator.IsSeedValid()
       if is_valid_seed:
-          log.warning(f"✓ FOUND VALID SEED after {outer_counter} attempts!")
+          log.info(f"✓ FOUND VALID SEED after {outer_counter} attempts!")
       else:
-          log.warning(f"✗ Item shuffle seed {seed} was not valid, trying again...")
+          log.debug(f"✗ Item shuffle seed {seed} was not valid, trying again...")
       if outer_counter >= 1000:
           raise Exception(f"Gave up after trying {outer_counter} possible item shuffles. Please try again with different seed and/or flag settings.")
       

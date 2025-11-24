@@ -251,17 +251,17 @@ class Validator(object):
         log.info(f"    ... and {len(blocked_screens) - 10} more blocked screens")
 
   def _LogFailureState(self, failure_type: str) -> None:
-    """Log detailed failure state information at INFO level."""
-    log.info(f"\n{'='*60}")
-    log.info(f"FAILURE ANALYSIS ({failure_type})")
-    log.info(f"{'='*60}")
+    """Log detailed failure state information at DEBUG level."""
+    log.debug(f"\n{'='*60}")
+    log.debug(f"FAILURE ANALYSIS ({failure_type})")
+    log.debug(f"{'='*60}")
 
     # Get accessible destinations
     accessible_destinations = self.GetAccessibleDestinations()
     accessible_levels = [d for d in accessible_destinations if d in Range.VALID_LEVEL_NUMBERS]
 
-    log.info(f"Final Inventory: {self.inventory.ToString()}")
-    log.info(f"Hearts: {self.inventory.GetHeartCount()}, Triforces: {self.inventory.GetTriforceCount()}")
+    log.debug(f"Final Inventory: {self.inventory.ToString()}")
+    log.debug(f"Hearts: {self.inventory.GetHeartCount()}, Triforces: {self.inventory.GetTriforceCount()}")
 
     # Show missing required items
     missing = []
@@ -294,17 +294,17 @@ class Validator(object):
       if not self.inventory.Has(item):
         missing.append(name)
     if missing:
-      log.info(f"Missing Required Items: {', '.join(missing)}")
+      log.debug(f"Missing Required Items: {', '.join(missing)}")
 
     if accessible_levels:
-      log.info(f"Levels Ever Accessible: {', '.join(['L' + str(l) for l in sorted(accessible_levels)])}")
+      log.debug(f"Levels Ever Accessible: {', '.join(['L' + str(l) for l in sorted(accessible_levels)])}")
     else:
-      log.info(f"Levels Ever Accessible: NONE")
+      log.debug(f"Levels Ever Accessible: NONE")
 
     # Check if Level 9 was accessible
     level_9_accessible = 9 in accessible_levels
     level_9_triforce_ok = self.inventory.GetTriforceCount() >= 8
-    log.info(f"Level 9 Status: Accessible={level_9_accessible}, Triforces OK={level_9_triforce_ok}")
+    log.debug(f"Level 9 Status: Accessible={level_9_accessible}, Triforces OK={level_9_triforce_ok}")
 
     if failure_type == "MISSING_ITEMS":
       # List the missing important items
@@ -328,16 +328,16 @@ class Validator(object):
       for item, name in required_items:
         if not self.inventory.Has(item):
           missing.append(name)
-      log.info(f"Missing Required Items: {', '.join(missing)}")
+      log.debug(f"Missing Required Items: {', '.join(missing)}")
 
     elif failure_type == "NO_RESCUE":
       # Show why we couldn't rescue the kidnapped
       if not level_9_accessible:
-        log.info("Problem: Could not access Level 9")
+        log.debug("Problem: Could not access Level 9")
       elif not level_9_triforce_ok:
-        log.info(f"Problem: Had access to Level 9 but only {self.inventory.GetTriforceCount()}/8 triforces")
+        log.debug(f"Problem: Had access to Level 9 but only {self.inventory.GetTriforceCount()}/8 triforces")
       else:
-        log.info("Problem: Had access to Level 9 with 8 triforces, but couldn't reach/defeat the kidnapped room")
+        log.debug("Problem: Had access to Level 9 with 8 triforces, but couldn't reach/defeat the kidnapped room")
 
   def IsSeedValid(self) -> bool:
     log.debug("Starting check of whether the seed is valid or not")

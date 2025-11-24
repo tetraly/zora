@@ -187,6 +187,13 @@ class Room():
 
   ### Enemy-related methods ###
   def GetEnemy(self) -> Enemy:
+    room_type = self.GetType()
+    if room_type in [RoomType.ITEM_STAIRCASE, RoomType.TRANSPORT_STAIRCASE]:
+      raise ValueError(
+        f"GetEnemy() called on staircase room (type={room_type.name}, 0x{room_type:02X}). "
+        f"This indicates a bug where a staircase room was incorrectly added to the validation queue. "
+        f"Please report this issue with your seed and flags."
+      )
     enemy_code = self.rom_data[2] & 0x3F
     if self.rom_data[3] & 0x80 > 0:
       enemy_code += 0x40

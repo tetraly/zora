@@ -67,12 +67,21 @@ class Inventory(object):
         return
       self.num_heart_containers += 1
       if item_location.IsLevelRoom():
-        log.debug("Found Heart Container in level %d. Now have %d HCs" % 
+        log.debug("Found Heart Container in level %d. Now have %d HCs" %
                   (int(item_location.GetLevelNum()), self.num_heart_containers))
       else:
-        log.debug("Found Heart Container in cave %d. Now have %d HCs" % 
+        log.debug("Found Heart Container in cave %d. Now have %d HCs" %
                   (int(item_location.GetCaveNum()), self.num_heart_containers))
-      assert self.num_heart_containers <= 16
+      if self.num_heart_containers > 16:
+        location_str = (f"level {item_location.GetLevelNum()}, room 0x{item_location.GetRoomNum():02X}"
+                       if item_location.IsLevelRoom()
+                       else f"cave {item_location.GetCaveNum()}")
+        raise ValueError(
+          f"Found {self.num_heart_containers} heart containers (maximum is 16). "
+          f"Last heart container found at {location_str}. "
+          f"This indicates the base ROM has too many heart containers or there's a bug in the item shuffle logic. "
+          f"Please report this issue with your seed and flags."
+        )
       return
     elif item == Item.TRIFORCE:
       level_num = int(item_location.GetLevelNum())
