@@ -12,7 +12,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 from logic.data_table import DataTable
-from logic.rom_reader import RomReader
 from logic.flags import Flags
 from logic.items.major_item_randomizer import (
     MajorItemRandomizer, is_dungeon_location, is_cave_location
@@ -28,8 +27,7 @@ def test_basic_collection():
     try:
         # Build minimal ROM from test data
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Create default flags

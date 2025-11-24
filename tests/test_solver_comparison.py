@@ -23,7 +23,6 @@ from logic.randomized_backtracking_solver import RandomizedBacktrackingSolver
 from logic.randomizer_constants import Item, CaveType, CavePosition
 from logic.items.major_item_randomizer import DungeonLocation, CaveLocation
 from logic.data_table import DataTable
-from logic.rom_reader import RomReader
 from logic.flags import Flags
 from logic.items.major_item_randomizer import MajorItemRandomizer
 from tests.test_rom_builder import build_minimal_rom
@@ -34,8 +33,7 @@ class SolverComparisonTest:
 
     def __init__(self):
         self.rom_data = build_minimal_rom('data')
-        self.rom_reader = RomReader(self.rom_data)
-        self.data_table = DataTable(self.rom_reader)
+        self.data_table = DataTable(self.rom_data)
         self.data_table.ResetToVanilla()
 
     def setup_solver_problem(self, solver_class, flags: Flags) -> Tuple:

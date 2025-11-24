@@ -1,7 +1,7 @@
 """Cave data representation (internal implementation detail).
 
 This module is internal to the rom package. External code should use
-RomState methods instead of accessing Cave directly.
+RomInterface methods instead of accessing Cave directly.
 """
 
 from typing import List
@@ -15,7 +15,7 @@ class Cave(object):
     This class encapsulates the 6 bytes of ROM data that define a cave's
     items and prices (3 items + 3 prices).
 
-    Internal use only - external code should use RomState methods.
+    Internal use only - external code should use RomInterface methods.
     """
 
     def __init__(self, raw_data: List[int]) -> None:

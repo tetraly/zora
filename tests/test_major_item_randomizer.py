@@ -8,7 +8,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from logic.items.major_item_randomizer import MajorItemRandomizer, ConstraintConflictError
-from logic.rom_reader import RomReader
 from logic.data_table import DataTable
 from logic.flags import Flags
 from logic.randomizer_constants import Item
@@ -18,8 +17,7 @@ from test_rom_builder import build_minimal_rom
 @pytest.fixture(scope="session")
 def vanilla_rom():
     """Create a minimal ROM from extracted test data."""
-    rom_data = build_minimal_rom('data')
-    return RomReader(rom_data)
+    return build_minimal_rom('data')
 
 
 @pytest.fixture(scope="session")
@@ -182,12 +180,10 @@ def test_heart_containers_never_in_shops_with_shops_enabled(modifiable_data_tabl
     for seed in range(5):
         # Need fresh data table for each seed
         from test_rom_builder import build_minimal_rom
-        from logic.rom_reader import RomReader
         from logic.data_table import DataTable
 
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Run randomization
@@ -251,7 +247,6 @@ def test_ladder_never_at_coast_location():
     """
     from logic.randomizer_constants import CaveType, CavePosition
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     # Create flags with coast item shuffle enabled (required to test this constraint)
@@ -261,8 +256,7 @@ def test_ladder_never_at_coast_location():
     # Test multiple seeds to ensure constraint holds consistently
     for seed in range(5):
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Run randomization
@@ -287,7 +281,6 @@ def test_progressive_items_not_in_shops_when_enabled():
     """
     from logic.randomizer_constants import CaveType
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     # Create flags with progressive items AND shop shuffling enabled
@@ -317,8 +310,7 @@ def test_progressive_items_not_in_shops_when_enabled():
     # Test multiple seeds to ensure constraint holds consistently
     for seed in range(5):
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Run randomization
@@ -341,7 +333,6 @@ def test_progressive_items_can_be_in_shops_when_disabled():
     """
     from logic.randomizer_constants import CaveType
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     # Create flags with progressive items DISABLED but shop shuffling enabled
@@ -365,8 +356,7 @@ def test_progressive_items_can_be_in_shops_when_disabled():
 
     for seed in range(10):
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         randomizer = MajorItemRandomizer(data_table, flags)
@@ -397,7 +387,6 @@ def test_red_potion_never_in_dungeons():
     from logic.randomizer_constants import CaveType, CavePosition
     from logic.items.room_item_collector import RoomItemCollector
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     # Create flags with potion shop shuffle enabled
@@ -407,8 +396,7 @@ def test_red_potion_never_in_dungeons():
     # Test multiple seeds to ensure constraint holds consistently
     for seed in range(5):
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Run randomization
@@ -470,7 +458,6 @@ def test_shuffle_dungeon_hearts_when_enabled():
     """Test that dungeon heart containers are included in shuffle when flag is enabled."""
     from logic.items.room_item_collector import RoomItemCollector
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     # Create flags with shuffle_dungeon_hearts enabled
@@ -482,8 +469,7 @@ def test_shuffle_dungeon_hearts_when_enabled():
 
     for seed in range(5):
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Capture vanilla HC locations
@@ -522,12 +508,10 @@ def test_shuffle_dungeon_hearts_when_enabled():
 def test_constraint_conflict_force_two_hc_without_shuffle():
     """Test that forcing 2 HCs to level 9 without shuffle_dungeon_hearts raises an error."""
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     rom_data = build_minimal_rom('data')
-    rom_reader = RomReader(rom_data)
-    data_table = DataTable(rom_reader)
+    data_table = DataTable(rom_data)
     data_table.ResetToVanilla()
 
     # Create impossible flag combination:
@@ -556,12 +540,10 @@ def test_constraint_conflict_force_two_hc_without_shuffle():
 def test_constraint_conflict_force_one_hc_without_any_source():
     """Test that forcing 1 HC to level 9 without any HC source raises an error."""
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     rom_data = build_minimal_rom('data')
-    rom_reader = RomReader(rom_data)
-    data_table = DataTable(rom_reader)
+    data_table = DataTable(rom_data)
     data_table.ResetToVanilla()
 
     # Create impossible flag combination: force HC to level 9 but no HCs available
@@ -585,12 +567,10 @@ def test_constraint_conflict_force_one_hc_without_any_source():
 def test_constraint_conflict_force_hc_to_armos_without_shuffle_armos():
     """Test that forcing HC to Armos without shuffle_armos_item enabled raises an error."""
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     rom_data = build_minimal_rom('data')
-    rom_reader = RomReader(rom_data)
-    data_table = DataTable(rom_reader)
+    data_table = DataTable(rom_data)
     data_table.ResetToVanilla()
 
     # Create impossible flag combination
@@ -613,12 +593,10 @@ def test_constraint_conflict_force_hc_to_armos_without_shuffle_armos():
 def test_constraint_conflict_force_hc_to_coast_without_shuffle_coast():
     """Test that forcing HC to Coast without shuffle_coast_item enabled raises an error."""
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     rom_data = build_minimal_rom('data')
-    rom_reader = RomReader(rom_data)
-    data_table = DataTable(rom_reader)
+    data_table = DataTable(rom_data)
     data_table.ResetToVanilla()
 
     # Create impossible flag combination
@@ -641,13 +619,11 @@ def test_constraint_conflict_force_hc_to_coast_without_shuffle_coast():
 def test_valid_force_two_hc_with_shuffle_dungeon_hearts():
     """Test that forcing 2 HCs to level 9 WITH shuffle_dungeon_hearts enabled works."""
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
     from logic.items.room_item_collector import RoomItemCollector
 
     rom_data = build_minimal_rom('data')
-    rom_reader = RomReader(rom_data)
-    data_table = DataTable(rom_reader)
+    data_table = DataTable(rom_data)
     data_table.ResetToVanilla()
 
     # Valid flag combination: force 2 HCs + enable shuffle to get HCs in pool
@@ -681,13 +657,11 @@ def test_valid_force_two_hc_with_shuffle_dungeon_hearts():
 def test_valid_force_two_hc_with_coast_and_armos():
     """Test that forcing 2 HCs to level 9 with coast + armos items enabled works."""
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
     from logic.items.room_item_collector import RoomItemCollector
 
     rom_data = build_minimal_rom('data')
-    rom_reader = RomReader(rom_data)
-    data_table = DataTable(rom_reader)
+    data_table = DataTable(rom_data)
     data_table.ResetToVanilla()
 
     # Valid flag combination: force 2 HCs + enable coast & armos (2 HCs total)
@@ -726,12 +700,10 @@ def test_valid_force_two_hc_with_coast_and_armos():
 def test_multiple_constraint_errors_reported_together():
     """Test that multiple constraint violations are all reported in a single error."""
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     rom_data = build_minimal_rom('data')
-    rom_reader = RomReader(rom_data)
-    data_table = DataTable(rom_reader)
+    data_table = DataTable(rom_data)
     data_table.ResetToVanilla()
 
     # Create MULTIPLE impossible flag combinations at once
@@ -808,7 +780,6 @@ def test_shuffle_minor_dungeon_items_when_enabled():
     """Test that bombs, keys, and five_rupees are included in shuffle when flag is enabled."""
     from logic.items.room_item_collector import RoomItemCollector
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     # Minor items that should be shuffled when flag is enabled
@@ -823,8 +794,7 @@ def test_shuffle_minor_dungeon_items_when_enabled():
 
     for seed in range(5):
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Capture vanilla minor item locations
@@ -868,7 +838,6 @@ def test_shuffle_minor_dungeon_items_excludes_maps_and_compasses():
     """Test that maps and compasses are NOT shuffled even when shuffle_minor_dungeon_items is enabled."""
     from logic.items.room_item_collector import RoomItemCollector
     from test_rom_builder import build_minimal_rom
-    from logic.rom_reader import RomReader
     from logic.data_table import DataTable
 
     # Create flags with shuffle_minor_dungeon_items enabled
@@ -878,8 +847,7 @@ def test_shuffle_minor_dungeon_items_excludes_maps_and_compasses():
     # Test multiple seeds to verify maps and compasses never move
     for seed in range(5):
         rom_data = build_minimal_rom('data')
-        rom_reader = RomReader(rom_data)
-        data_table = DataTable(rom_reader)
+        data_table = DataTable(rom_data)
         data_table.ResetToVanilla()
 
         # Capture vanilla map and compass locations

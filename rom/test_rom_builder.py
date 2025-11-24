@@ -1,7 +1,7 @@
 """Test ROM builder for creating custom test scenarios.
 
 This module provides TestRomBuilder, a fluent builder pattern for creating
-RomData and RomState instances with specific configurations for testing.
+RomData and RomInterface instances with specific configurations for testing.
 
 Usage:
     # Start from test data and customize
@@ -32,7 +32,7 @@ from .rom_config import (
 
 
 class TestRomBuilder:
-    """Builder for creating custom RomData/RomState instances for testing.
+    """Builder for creating custom RomData/RomInterface instances for testing.
 
     This class provides a fluent API for constructing ROM data with specific
     configurations, making it easy to set up test scenarios without needing
@@ -289,15 +289,15 @@ class TestRomBuilder:
         """
         return self._data
 
-    def build_state(self) -> 'RomState':
-        """Build a RomState instance from the constructed data.
+    def build_state(self) -> 'RomInterface':
+        """Build a RomInterface instance from the constructed data.
 
         Returns:
-            A RomState initialized with the constructed data
+            A RomInterface initialized with the constructed data
         """
         # Import here to avoid circular imports
-        from .rom_state import RomState
-        state = RomState(self._data)
+        from .rom_interface import RomInterface
+        state = RomInterface(self._data)
         state.reset_to_vanilla()  # Initialize internal structures
         return state
 

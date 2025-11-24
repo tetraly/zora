@@ -1,6 +1,6 @@
-"""ROM state management - the main public API for ROM data access.
+"""ROM interface - the main public API for ROM data access.
 
-This module provides RomState, the primary interface for reading and
+This module provides RomInterface, the primary interface for reading and
 modifying ROM game data. External code should use this class instead
 of accessing Room, Cave, or other internal classes directly.
 """
@@ -34,7 +34,7 @@ from .room import Room
 from .cave import Cave
 
 
-class RomState:
+class RomInterface:
     """High-level API for querying and modifying ROM game data.
 
     This class provides game-oriented methods for working with dungeon rooms,
@@ -43,14 +43,14 @@ class RomState:
 
     Usage:
         # From a ROM file
-        state = RomState.from_rom_file("game.nes")
+        state = RomInterface.from_rom_file("game.nes")
 
         # From test data
-        state = RomState.from_test_data()
+        state = RomInterface.from_test_data()
 
         # From raw bytes
         rom_data = load_from_bytes(rom_bytes)
-        state = RomState(rom_data)
+        state = RomInterface(rom_data)
 
         # Query and modify
         item = state.get_room_item(level_num=3, room_num=0x0F)
@@ -61,7 +61,7 @@ class RomState:
     """
 
     def __init__(self, rom_data: RomData) -> None:
-        """Initialize RomState from a RomData container.
+        """Initialize RomInterface from a RomData container.
 
         Args:
             rom_data: The ROM data to operate on
@@ -106,38 +106,38 @@ class RomState:
     # =========================================================================
 
     @classmethod
-    def from_rom_file(cls, rom_path: str) -> 'RomState':
-        """Create RomState from a ROM file.
+    def from_rom_file(cls, rom_path: str) -> 'RomInterface':
+        """Create RomInterface from a ROM file.
 
         Args:
             rom_path: Path to the .nes ROM file
 
         Returns:
-            RomState instance
+            RomInterface instance
         """
         return cls(load_from_file(rom_path))
 
     @classmethod
-    def from_rom_bytes(cls, rom_bytes: bytes) -> 'RomState':
-        """Create RomState from raw ROM bytes.
+    def from_rom_bytes(cls, rom_bytes: bytes) -> 'RomInterface':
+        """Create RomInterface from raw ROM bytes.
 
         Args:
             rom_bytes: Complete ROM file contents (including NES header)
 
         Returns:
-            RomState instance
+            RomInterface instance
         """
         return cls(load_from_bytes(rom_bytes))
 
     @classmethod
-    def from_test_data(cls, data_dir: Optional[str] = None) -> 'RomState':
-        """Create RomState from test data files.
+    def from_test_data(cls, data_dir: Optional[str] = None) -> 'RomInterface':
+        """Create RomInterface from test data files.
 
         Args:
             data_dir: Path to test data directory (defaults to tests/data/)
 
         Returns:
-            RomState instance
+            RomInterface instance
         """
         return cls(load_from_test_data(data_dir))
 

@@ -1,7 +1,7 @@
 """Room data representation (internal implementation detail).
 
 This module is internal to the rom package. External code should use
-RomState methods instead of accessing Room directly.
+RomInterface methods instead of accessing Room directly.
 """
 
 from typing import Dict, List
@@ -20,7 +20,7 @@ class Room():
     This class encapsulates the 6 bytes of ROM data that define a room's
     properties including walls, enemies, items, and room type.
 
-    Internal use only - external code should use RomState methods.
+    Internal use only - external code should use RomInterface methods.
     """
 
     # According to http://www.bwass.org/romhack/zelda1/zelda1bank6.txt:

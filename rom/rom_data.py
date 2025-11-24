@@ -27,7 +27,7 @@ class RomData:
     """Pure data container for all ROM state needed by the randomizer.
 
     This class holds the raw data extracted from a ROM file. It does not
-    contain any business logic - that lives in RomState.
+    contain any business logic - that lives in RomInterface.
 
     All fields use List[int] for byte data to match existing code conventions.
     """

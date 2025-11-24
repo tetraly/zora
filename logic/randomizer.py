@@ -16,7 +16,6 @@ from .items.item_randomizer import ItemRandomizer
 #from .item_randomizer import ItemRandomizer
 
 from .patch import Patch
-from .rom_reader import RomReader
 from .text_data_table import TextDataTable
 from .hint_writer import HintWriter
 from .validator import Validator
@@ -39,14 +38,14 @@ class Z1Randomizer():
 #    self.settings = settings
 
   def __init__(self, rom_bytes: io.BytesIO, seed: int, flags: Flags) -> None:
-    self.rom_reader = RomReader(rom_bytes)
+    self._rom_bytes = rom_bytes
     self.seed = seed
     self.flags = flags
     self.cave_destinations_randomized_in_base_seed = False
     # Cache of solver permutations that failed validation so we never retry them.
     self._forbidden_major_solution_maps: list[dict] = []
     # Initialize data table for this randomizer instance
-    self.data_table = DataTable(self.rom_reader)
+    self.data_table = DataTable(rom_bytes)
 
   def _ConvertTextToRomHex(self, text: str) -> str:
     """Convert ASCII text to Zelda ROM character encoding hex string.
