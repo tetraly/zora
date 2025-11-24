@@ -3,11 +3,11 @@ import logging as log
 
 from .randomizer_constants import CaveType, Direction, Item, LevelNum, Enemy
 from .randomizer_constants import Range, RoomAction, RoomNum, RoomType, WallType
+from .randomizer_constants import OVERWORLD_BLOCK_TYPES
 from .data_table import DataTable
 from .inventory import Inventory
 from .location import Location
 from .flags import Flags
-from .constants import OVERWORLD_BLOCK_TYPES
 
 
 # Room types where mobility may be restricted without a ladder.

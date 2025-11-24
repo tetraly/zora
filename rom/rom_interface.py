@@ -11,8 +11,15 @@ from typing import Dict, List, Optional
 from logic.randomizer_constants import (
     CaveType, Direction, Enemy, Item, ItemPosition, LevelNum, Range, RoomAction, RoomNum, RoomType, WallType
 )
-from logic.constants import ENTRANCE_DIRECTION_MAP
 from logic.location import Location
+
+# Maps entrance direction code (1-4) to Direction enum for level entrance parsing
+_ENTRANCE_DIRECTION_MAP: Dict[int, Direction] = {
+    1: Direction.NORTH,
+    2: Direction.SOUTH,
+    3: Direction.WEST,
+    4: Direction.EAST
+}
 from logic.patch import Patch
 
 from .rom_data import RomData, load_from_file, load_from_bytes, load_from_test_data
@@ -528,7 +535,7 @@ class RomInterface:
         """
         if not self._is_z1r:
             return Direction.SOUTH
-        return Direction(ENTRANCE_DIRECTION_MAP[self._get_raw_level_stairway_room_number_list(level_num)[-1]])
+        return Direction(_ENTRANCE_DIRECTION_MAP[self._get_raw_level_stairway_room_number_list(level_num)[-1]])
 
     def get_level_staircase_room_list(self, level_num: int) -> List[int]:
         """Get the list of staircase room numbers for a level.
