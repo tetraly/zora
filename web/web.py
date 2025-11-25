@@ -43,11 +43,14 @@ if __name__ == "__main__":
     downloads_dir = os.path.join(assets_dir, "downloads")
     os.makedirs(downloads_dir, exist_ok=True)
 
-    # Create Flet app first
+    # Create Flet app first with session cleanup configuration
+    # session_timeout_seconds: Remove sessions after this many seconds of inactivity
+    # This prevents memory leaks from accumulating disconnected sessions
     flet_app = flet_fastapi.app(
         main,
         upload_dir=upload_dir,
-        assets_dir=assets_dir
+        assets_dir=assets_dir,
+        session_timeout_seconds=900  # 15 minutes
     )
 
     # Create FastAPI app
