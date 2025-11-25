@@ -804,11 +804,20 @@ class EventHandlers:
             self.page.add(self.state.zora_settings_card)
 
             # Build and show Step 3
-            download_handler = self.create_download_handler(self.state.randomized_rom_data,
-                                                            self.state.randomized_rom_filename)
+            # Store ROM data temporarily for download handler and display
+            rom_data_for_download = self.state.randomized_rom_data
+            rom_filename_for_download = self.state.randomized_rom_filename
+
+            download_handler = self.create_download_handler(rom_data_for_download,
+                                                            rom_filename_for_download)
 
             # Extract ROM code for display
-            rom_code = extract_code_from_rom_data(self.state.randomized_rom_data)
+            rom_code = extract_code_from_rom_data(rom_data_for_download)
+
+            # Clear large ROM data from state immediately after creating download handler
+            # This prevents memory buildup when multiple seeds are generated
+            self.state.randomized_rom_data = None
+            self.state.randomized_rom_filename = None
 
             # Calculate elapsed time
             elapsed_time = time.time() - start_time
