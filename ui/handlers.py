@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from logic.randomizer import Z1Randomizer
 from logic.rom_reader import RomReader
 from windows import zrinterface
-from ui.dialogs import show_error_dialog, show_snackbar
+from ui.dialogs import show_error_dialog, show_snackbar, show_bug_report_dialog
 from ui.rom_utils import (extract_base_rom_code, extract_code_from_rom_data, is_vanilla_rom,
                           is_vanilla_rom_data, parse_filename_for_flag_and_seed)
 from ui.components import (build_rom_info_card, build_zora_settings_card, build_step3_container)
@@ -847,7 +847,7 @@ class EventHandlers:
             log.info("=" * 70)
 
             self.state.step3_container = build_step3_container(
-                self.state.randomized_rom_data, self.state.randomized_rom_filename, zora_flagstring,
+                rom_data_for_download, rom_filename_for_download, zora_flagstring,
                 self.seed_input.value, rom_code, self.platform, download_handler, self.clear_rom, elapsed_time)
             self.page.add(self.state.step3_container)
 
@@ -869,8 +869,13 @@ class EventHandlers:
             # Close progress dialog
             progress_dialog.open = False
             self.page.update()
-            show_error_dialog(self.page, "Error",
-                              f"An error occurred during randomization:\n\n{str(ex)}")
+            # Show bug report dialog with seed and flags for easy copy-paste
+            show_bug_report_dialog(
+                self.page, ex,
+                seed=self.seed_input.value if self.seed_input.value else None,
+                flagstring=zora_flagstring if 'zora_flagstring' in locals() else None,
+                zr_flagstring=self.state.rom_info.flagstring if self.state.rom_info and self.state.rom_info.flagstring else None
+            )
 
     # Upload progress handlers
     def on_rom_upload_progress(self, e: ft.FilePickerUploadEvent) -> None:
