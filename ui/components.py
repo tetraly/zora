@@ -298,7 +298,8 @@ def build_step2_container(categorized_flag_rows: dict,
 
 def build_step3_container(randomized_rom_data: bytes, output_filename: str, flagstring: str,
                           seed: str, code: str, platform: str, on_download: Callable,
-                          on_randomize_another: Callable, generation_time: float = None) -> ft.Container:
+                          on_randomize_another: Callable, generation_time: float = None,
+                          page: ft.Page = None, rom_info: RomInfo = None) -> ft.Container:
     """Build Step 3: Download Randomized ROM section.
 
     Args:
@@ -311,6 +312,8 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
         on_download: Download button click handler
         on_randomize_another: Handler for randomizing another game
         generation_time: Time taken to generate the ROM in seconds (optional)
+        page: The Flet page object for clipboard operations (optional)
+        rom_info: Base ROM information for bug reports (optional)
     """
     download_button = ft.ElevatedButton("Download Randomized ROM",
                                         icon=ft.Icons.DOWNLOAD,
@@ -320,6 +323,52 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
                                                  icon=ft.Icons.RESTART_ALT,
                                                  on_click=on_randomize_another)
 
+    # Copy to clipboard handler
+    def copy_info_for_bug_report(e):
+        """Copy all ROM info to clipboard for bug reporting."""
+        if not page:
+            return
+
+        # Build the info text
+        info_lines = [
+            f"Output File: {output_filename}",
+            f"ZORA Flags: {flagstring}",
+            f"ZORA Seed: {seed}",
+            f"ZORA Code: {code}",
+        ]
+
+        # Add base ROM info if available
+        if rom_info:
+            info_lines.extend([
+                f"ZR Flags: {rom_info.flagstring if rom_info.flagstring else 'n/a'}",
+                f"ZR Seed: {rom_info.seed if rom_info.seed else 'n/a'}",
+                f"ZR Code: {rom_info.code if rom_info.code else 'n/a'}",
+            ])
+        else:
+            info_lines.extend([
+                "ZR Flags: n/a",
+                "ZR Seed: n/a",
+                "ZR Code: n/a",
+            ])
+
+        info_lines.append(f"ROM Size: {len(randomized_rom_data) / 1024:.1f} KB")
+
+        if generation_time is not None:
+            info_lines.append(f"Generation Time: {generation_time:.2f} seconds")
+
+        info_text = "\n".join(info_lines)
+        page.set_clipboard(info_text)
+
+        from ui.dialogs import show_snackbar
+        show_snackbar(page, "Info copied to clipboard!")
+
+    # Create copy button
+    copy_button = ft.ElevatedButton(
+        "Copy Info for Bug Report",
+        icon=ft.Icons.CONTENT_COPY,
+        on_click=copy_info_for_bug_report
+    )
+
     # Build info rows list
     info_rows = [
         ft.Text("Step 3: Download Randomized ROM", size=20, weight="bold"),
@@ -328,6 +377,15 @@ def build_step3_container(randomized_rom_data: bytes, output_filename: str, flag
             ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN, size=40),
             ft.Text("Randomization Complete!", size=16, weight="bold", color=ft.Colors.GREEN)],
                spacing=10),
+        ft.Container(height=10),
+        ft.Text(
+            "Note: If you need to file a bug report, please use this button to copy and paste "
+            "this info as text. Please do not take a screenshot as it makes replicating the issue harder.",
+            size=12,
+            italic=True
+        ),
+        ft.Container(height=5),
+        copy_button,
         ft.Container(height=10),
         info_row("Output File", output_filename, label_width=150),
         info_row("ZORA Flag String", flagstring, label_width=150),

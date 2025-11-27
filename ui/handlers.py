@@ -848,7 +848,8 @@ class EventHandlers:
 
             self.state.step3_container = build_step3_container(
                 rom_data_for_download, rom_filename_for_download, zora_flagstring,
-                self.seed_input.value, rom_code, self.platform, download_handler, self.clear_rom, elapsed_time)
+                self.seed_input.value, rom_code, self.platform, download_handler, self.clear_rom, elapsed_time,
+                page=self.page, rom_info=self.state.rom_info)
             self.page.add(self.state.step3_container)
 
             # Close progress dialog
