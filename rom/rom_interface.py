@@ -75,10 +75,11 @@ class RomInterface:
         """
         self._rom_data = rom_data
 
-        # Copy data for modification
+        # Copy data for modification (keep original for reset)
         self._level_1_to_6_raw_data = rom_data.level_1_to_6_block[:]
         self._level_7_to_9_raw_data = rom_data.level_7_to_9_block[:]
-        self._overworld_raw_data = rom_data.overworld_block[:]
+        self._overworld_raw_data_original = rom_data.overworld_block[:]  # Original for reset
+        self._overworld_raw_data = rom_data.overworld_block[:]  # Working copy
         self._overworld_cave_raw_data = rom_data.overworld_block[0x80*4:0x80*5]
 
         # Level info (already has PPU palette stripped)
@@ -156,6 +157,7 @@ class RomInterface:
         """Reset all modified data back to the original ROM state."""
         self._level_1_to_6_rooms = self._read_data_for_level_grid(self._level_1_to_6_raw_data)
         self._level_7_to_9_rooms = self._read_data_for_level_grid(self._level_7_to_9_raw_data)
+        self._overworld_raw_data = self._overworld_raw_data_original[:]  # Reset overworld data
         self._read_data_for_overworld_caves()
         self._level_info = [info[:] for info in self._level_info_raw]
         self._triforce_locations = {}
@@ -1007,19 +1009,14 @@ class RomInterface:
         # Write overworld screen data
         overworld_start = RomLayout.OVERWORLD_DATA.file_offset
 
-        # Table 1 (offset 0x80): Screen destinations
-        for screen_num in range(0x80):
-            patch.AddData(
-                overworld_start + 0x80 + screen_num,
-                [self._overworld_raw_data[screen_num + 1*0x80]]
-            )
-
-        # Table 2 (offset 0x100): Enemy data
-        for screen_num in range(0x80):
-            patch.AddData(
-                overworld_start + 0x100 + screen_num,
-                [self._overworld_raw_data[screen_num + 2*0x80]]
-            )
+        # Write tables 0, 1, 2, 3, and 5 from _overworld_raw_data
+        # Table 4 (cave data) is handled separately via _overworld_caves above
+        for table_num in [0, 1, 2, 3, 5]:
+            for screen_num in range(0x80):
+                patch.AddData(
+                    overworld_start + (table_num * 0x80) + screen_num,
+                    [self._overworld_raw_data[screen_num + table_num * 0x80]]
+                )
 
         return patch
 
