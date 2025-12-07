@@ -1138,8 +1138,8 @@ class DungeonRandomizer:
             # Reset room type to PLAIN_ROOM
             self.data_table.SetRoomType(level_num, RoomNum(room_num), RoomType.PLAIN_ROOM)
 
-            # Reset item to NO_ITEM (Item.RUPEE = 0x18 is used as NO_ITEM in this codebase)
-            self.data_table.SetItem(level_num, RoomNum(room_num), Item.RUPEE)
+            # Reset item to NO_ITEM
+            self.data_table.SetItem(level_num, RoomNum(room_num), Item.NO_ITEM)
 
             # Reset enemy to NOTHING
             self.data_table.SetEnemy(level_num, RoomNum(room_num), Enemy.NOTHING)
