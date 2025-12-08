@@ -226,8 +226,14 @@ class FlagsEnum(Enum):
     ADD_L4_SWORD = (
         'add_l4_sword',
         'Add L4 Sword',
-        'Adds an additional sword upgrade guarded by the level 9 triforce checker. Note that with a L4 sword, melee attacks will do L4 damage but beams do L3 damage.',
+        'Adds an additional sword upgrade by replacing the wood boomerang with a sword upgrade when Progressive Items is enabled. Note that with a L4 sword, melee attacks will do L4 damage but beams do L3 damage.',
         FlagCategory.ITEM_CHANGES
+    )
+    REQUIRE_L4_SWORD_FOR_LEVEL_NINE = (
+        'require_l4_sword_for_level_nine',
+        'Require L4 Sword for Level 9',
+        'Changes the Level 9 entrance requirement from collecting all 8 triforce pieces to obtaining the L4 Sword. Only works when "Add L4 Sword" flag is enabled.',
+        FlagCategory.LOGIC_AND_DIFFICULTY
     )
     # PROGRESSIVE_BOOMERANGS = (
     #     'progressive_boomerangs',

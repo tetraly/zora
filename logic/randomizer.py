@@ -567,9 +567,15 @@ class Z1Randomizer():
       patch.AddDataFromHexString(0x1574E, "02")
       
     if self.flags.add_l4_sword:
-      # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3) 
-      # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067 
+      # Change a BEQ (F0) (sword_level==3) to BCS (B0) (sword_level >= 3)
+      # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067
       patch.AddDataFromHexString(0x7540, "B0")
+
+    if self.flags.require_l4_sword_for_level_nine:
+      # Change Level 9 entrance requirement from triforce to L4 sword
+      # Original: LDA $671 (InvTriforce), CMP #$FF (all 8 pieces)
+      # New:      LDA $657 (Items/Sword), CMP #$04 (Magical Sword)
+      patch.AddDataFromHexString(0x004AB1, "AD 57 06 C9 04")
 
     # For Mags patch
     patch.AddData(0x1785F, [0x0E])

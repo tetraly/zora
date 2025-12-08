@@ -200,6 +200,9 @@ class ItemRandomizer():
     item = room.GetItem()
     if item not in [Item.TRIFORCE_OF_POWER]:
         if not item.IsMinorDungeonItem() or self.flags.shuffle_minor_dungeon_items:
+          # Replace wood boomerang with wood sword for L4 sword upgrade when flag enabled
+          if self.flags.progressive_items and self.flags.add_l4_sword and item == Item.WOOD_BOOMERANG:
+            item = Item.WOOD_SWORD
           self.item_shuffler.AddLocationAndItem(Location.LevelRoom(level_num, room_num), item)
  
     # Staircase cases (bad pun intended)
@@ -238,14 +241,6 @@ class ItemRandomizer():
           cave_num = location.GetCaveNum()
           position_num = location.GetPositionNum()
           self.data_table.overworld_caves[cave_num].SetPriceAtPosition(randomized_price, position_num)
-    # Individual progressive flags are temporarily disabled
-    progressive_swords = False
-    if (self.flags.progressive_items or progressive_swords) and self.flags.add_l4_sword:
-      level_nine_start_room_num = self.data_table.GetLevelStartRoomNumber(9)
-      triforce_check_room_num = level_nine_start_room_num - 0x10
-      self.data_table.SetRoomItem(Location.LevelRoom(9, triforce_check_room_num), Item.WOOD_SWORD)
-      self.data_table.SetItemPosition(Location.LevelRoom(9, triforce_check_room_num), 2) 
-      
 
 
 class ItemShuffler():
