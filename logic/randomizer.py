@@ -17,7 +17,7 @@ from .hint_writer import HintWriter
 from .validator import Validator
 from .flags import Flags
 from .bait_blocker import BaitBlocker
-from .randomizer_constants import Range, Item, CaveType, RoomAction
+from .randomizer_constants import Range, Item, CaveType, RoomAction, HintType
 from .location import Location
 
 class Z1Randomizer():
@@ -571,17 +571,20 @@ class Z1Randomizer():
       # See https://github.com/aldonunez/zelda1-disassembly/blob/master/src/Z_01.asm#L6067
       patch.AddDataFromHexString(0x7540, "B0")
 
+    # For Mags patch
+    patch.AddData(0x1785F, [0x0E])
+
+    # Apply hints based on community_hints flag
+    hint_writer = HintWriter(rng)
+
     if self.flags.require_l4_sword_for_level_nine:
       # Change Level 9 entrance requirement from triforce to L4 sword
       # Original: LDA $671 (InvTriforce), CMP #$FF (all 8 pieces)
       # New:      LDA $657 (Items/Sword), CMP #$04 (Magical Sword)
       patch.AddDataFromHexString(0x004AB1, "AD 57 06 C9 04")
 
-    # For Mags patch
-    patch.AddData(0x1785F, [0x0E])
-
-    # Apply hints based on community_hints flag
-    hint_writer = HintWriter(rng)
+      # Set custom hint for L4 sword requirement
+      hint_writer.SetHint(HintType.TRIFORCE_CHECK, "LEVEL FOUR SWORD:|SOME ASSEMBLY|REQUIRED")
 
     # Lost Hills randomization
     if self.flags.randomize_lost_hills:

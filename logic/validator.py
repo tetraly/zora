@@ -699,12 +699,18 @@ class Validator(object):
 
     
   def HasAllImportantItems(self) -> bool:
-      for item in [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BAIT, Item.RECORDER,
-                   Item.BLUE_CANDLE, Item.RED_CANDLE, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.BOW, 
-                   Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK,Item.BLUE_RING,
-                   Item.RED_RING, Item.POWER_BRACELET, Item.LETTER, Item.WOOD_BOOMERANG,
-                   Item.MAGICAL_BOOMERANG, Item.LOST_HILLS_HINT_VIRTUAL_ITEM, 
-                   Item.DEAD_WOODS_HINT_VIRTUAL_ITEM]:
+      required_items = [Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BAIT, Item.RECORDER,
+                        Item.BLUE_CANDLE, Item.RED_CANDLE, Item.WOOD_ARROWS, Item.SILVER_ARROWS, Item.BOW,
+                        Item.MAGICAL_KEY, Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK,Item.BLUE_RING,
+                        Item.RED_RING, Item.POWER_BRACELET, Item.LETTER, Item.WOOD_BOOMERANG,
+                        Item.MAGICAL_BOOMERANG, Item.LOST_HILLS_HINT_VIRTUAL_ITEM,
+                        Item.DEAD_WOODS_HINT_VIRTUAL_ITEM]
+
+      # When L4 sword flag is enabled with progressive items, wood boomerang is replaced with sword upgrade
+      if self.flags.progressive_items and self.flags.add_l4_sword:
+          required_items.remove(Item.WOOD_BOOMERANG)
+
+      for item in required_items:
           if not self.inventory.Has(item):
               log.warning(self.inventory.ToString())
               log.warning(f"Found a seed without {item.name}")
