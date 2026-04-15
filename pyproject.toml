@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "zora"
+version = "0.1.0"
+description = "Zelda 1 Randomizer"
+requires-python = ">=3.11"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["zora*", "flags*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+files = ["zora", "flags", "tests"]
+ignore_missing_imports = true
+strict = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+strict = false
+check_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = true
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+
+# Style guide: Archipelago's style guide (https://github.com/ArchipelagoMW/Archipelago/blob/main/docs/style.md)
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py311"
+exclude = ["flags/flags_generated.py"]
+
+[tool.ruff.lint]
+select = [
+    "B",     # flake8-bugbear
+    "C",     # flake8-comprehensions + mccabe
+    "E",     # pycodestyle errors
+    "F",     # pyflakes
+    "W",     # pycodestyle warnings
+    "I",     # isort
+    "N",     # pep8-naming
+    "Q",     # flake8-quotes
+    "UP",    # pyupgrade
+    "RET",   # flake8-return
+    "RSE",   # flake8-raise
+    "RUF",   # ruff-specific rules
+    "ISC",   # flake8-implicit-str-concat
+    "PLC",   # pylint convention
+    "PLE",   # pylint error
+    "PLW",   # pylint warning
+    "T20",   # flake8-print
+    "PERF",  # perflint
+]
+ignore = [
+    "B011",     # assert False is used intentionally
+    "C901",     # branch complexity limit disagreement
+    "N818",     # exception naming — too disruptive to change
+    "PERF401",  # loop-append is often clearer than list.extend
+    "PLC0415",  # local imports are fine & necessary
+    "RUF005",   # list concatenation is clearer than unpacking
+    "PLC1802",  # changes functionality, unsafe to apply
+    "PLC1901",  # not actually equivalent
+    "PLE1141",  # false positives with tuple dict keys
+    "UP015",    # prefer explicit "r" in open() calls
+]
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+multiline-quotes = "double"
+docstring-quotes = "double"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

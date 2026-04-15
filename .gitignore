@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Environment
+.env
+
+# ROM files (never commit)
+*.nes
+*.sfc
+*.gb
+*.gbc
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+
+# OS
+.DS_Store
+
+# Local/scratch directory
+old/
+
+# ROM data (binary files extracted from ROM)
+rom_data/*.nes
+rom_data/*.sfc

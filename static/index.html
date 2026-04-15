@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ZORA — Zelda One Randomizer App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;1,9..40,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <div class="app-layout">
+
+      <header class="app-header">
+        <div class="header-left">
+          <span class="header-logo" aria-label="ZORA">
+            <span style="color:var(--color-accent)">Z</span><span style="color:var(--color-accent)">O</span><span style="color:var(--color-accent)">R</span><span style="color:var(--color-accent)">A</span>
+          </span>
+          <span class="header-subtitle" id="header-subtitle">Zelda One Randomizer App</span>
+        </div>
+        <div class="header-right">
+          <button id="dark-mode-btn" class="dark-mode-btn" aria-label="Toggle dark mode" type="button"></button>
+          <span class="header-version">v0.1.0</span>
+        </div>
+      </header>
+
+      <main class="app-main">
+
+        <!-- ROM section -->
+        <section class="section-card" aria-labelledby="rom-label">
+          <div class="section-label" id="rom-label">ROM</div>
+
+          <div
+            id="rom-dropzone"
+            class="rom-dropzone"
+            role="button"
+            tabindex="0"
+            aria-label="Select ROM file"
+          >
+            <div id="rom-dropzone-hint" class="rom-dropzone-hint">
+              <span id="rom-dropzone-text" class="rom-dropzone-text">Drop ROM here</span>
+              <span class="rom-dropzone-or">or</span>
+              <span class="rom-dropzone-btn btn btn-secondary">Choose file</span>
+            </div>
+            <span id="rom-file-label" class="rom-filename" style="display:none"></span>
+            <input id="rom-input" type="file" accept=".nes" hidden aria-hidden="true" />
+          </div>
+
+          <div id="rom-version-row" class="rom-version-row" style="display:none">
+            <span id="rom-version-badge" class="rom-version-badge" style="display:none"></span>
+            <span id="rom-version-error" class="inline-error" style="display:none"></span>
+          </div>
+        </section>
+
+        <!-- Flags section -->
+        <section class="section-card" aria-labelledby="flags-label">
+          <div class="section-label" id="flags-label">Flags</div>
+          <div id="flags-container"></div>
+        </section>
+
+        <!-- Generate section -->
+        <section class="section-card" aria-labelledby="generate-label">
+          <div class="section-label" id="generate-label">Generate</div>
+
+          <div class="generate-fields">
+            <div class="generate-field">
+              <label class="field-label" for="seed-input">Seed</label>
+              <div class="seed-row">
+                <input
+                  id="seed-input"
+                  class="seed-input mono"
+                  type="number"
+                  aria-label="Random seed"
+                />
+                <button
+                  id="new-seed-btn"
+                  class="btn btn-secondary"
+                  type="button"
+                  aria-label="Generate new random seed"
+                >
+                  New
+                </button>
+              </div>
+            </div>
+
+            <div class="generate-field">
+              <label class="field-label" for="flag-string-input">Flag string</label>
+              <input
+                id="flag-string-input"
+                class="flag-string-input mono"
+                type="text"
+                aria-label="Flag string"
+                spellcheck="false"
+              />
+              <div id="flag-string-error" class="inline-error"></div>
+            </div>
+
+            <div class="generate-field">
+              <label class="field-label" for="cosmetic-flag-string-input">Cosmetic flag string</label>
+              <input
+                id="cosmetic-flag-string-input"
+                class="flag-string-input mono"
+                type="text"
+                aria-label="Cosmetic flag string"
+                spellcheck="false"
+              />
+            </div>
+          </div>
+
+          <div class="generate-actions">
+            <button
+              id="generate-btn"
+              class="btn btn-primary btn-generate"
+              type="button"
+              disabled
+            >
+              Generate Random Game
+            </button>
+            <span id="status-dot" class="status-dot" aria-hidden="true"></span>
+          </div>
+
+          <div id="generate-result" class="generate-result" hidden>
+            <span id="gen-time" class="gen-time"></span>
+            <div id="hash-code" class="hash-code" hidden>
+              <span class="hash-code-label">Code:</span>
+              <span id="hash-code-items"></span>
+            </div>
+            <div class="download-actions">
+              <button id="rom-download-btn" class="btn btn-primary" type="button" disabled>Download ROM</button>
+              <button id="spoiler-download-btn" class="btn btn-secondary" type="button" disabled>Download Text Spoiler Log</button>
+              <button id="visualizer-btn" class="btn btn-secondary" type="button" disabled>View in Visualizer</button>
+            </div>
+          </div>
+
+          <div id="generate-error" class="inline-error" hidden></div>
+        </section>
+
+      </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

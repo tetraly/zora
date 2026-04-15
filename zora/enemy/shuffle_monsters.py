@@ -1,0 +1,387 @@
+"""Shuffle dungeon enemies within each level.
+
+Randomly redistributes enemy assignments across rooms within each dungeon
+level, subject to room-type safety constraints. Enemies stay within their
+level — this shuffles WHERE they appear, not WHICH enemies exist.
+
+Optionally includes Gannon (THE_BEAST) and Zelda (THE_KIDNAPPED) in the
+shuffle pool. When Gannon moves, the Gannon room is reconfigured (dark,
+Triforce item, boss cry adjacency flags) and adjacent room flags are updated.
+
+Ported from remapDungeonMonsters (Module.cs:90180) and the post-processing
+pass from generateGame (Module.cs:124838-124959).
+"""
+
+from zora.data_model import (
+    Direction,
+    Enemy,
+    GameWorld,
+    Item,
+    Level,
+    Room,
+    RoomAction,
+    RoomType,
+    WallType,
+)
+from zora.enemy.safety_checks import is_safe_for_room
+from zora.rng import Rng
+
+# Maximum Fisher-Yates iterations before giving up on a level.
+# The original retries indefinitely; we cap to prevent hangs.
+_MAX_SHUFFLE_ATTEMPTS = 10_000
+
+
+# Enemies that are always excluded from the shuffle pool.
+# HUNGRY_GORIYA (0x36) is always excluded in the original.
+_ALWAYS_EXCLUDED: frozenset[Enemy] = frozenset({
+    Enemy.HUNGRY_GORIYA,
+})
+
+# Enemies that are only included when shuffle_gannon is True.
+# THE_BEAST (Gannon), THE_KIDNAPPED (Zelda), and MIXED_FLAME (0xC0 in packed
+# ROM = 0x80|0x40) are gated behind the shuffleGannon flag in the original.
+_GANNON_GATED: frozenset[Enemy] = frozenset({
+    Enemy.THE_BEAST,
+    Enemy.THE_KIDNAPPED,
+    Enemy.MIXED_FLAME,
+})
+
+# Non-combat entities that must be excluded from the shuffle pool.
+# In the C# ROM, NPC rooms have DungeonConfigData == 0 and are excluded by
+# the ``<= 0`` check. Our data model assigns NPCs distinct non-zero enum
+# values (OLD_MAN = 0x4B, etc.), so they must be excluded explicitly.
+# Bosses (MOLDORM, GLEEOK, PATRA) and traps (CORNER_TRAPS, THREE_PAIRS_OF_TRAPS)
+# ARE legitimate shuffle participants and are NOT in this set.
+_NON_COMBAT_ENEMIES: frozenset[Enemy] = frozenset({
+    Enemy.FLYING_GLEEOK_HEAD,   # 0x46 — sub-entity of Gleeok
+    Enemy.OLD_MAN,              # 0x4B
+    Enemy.OLD_MAN_2,            # 0x4C
+    Enemy.OLD_MAN_3,            # 0x4D
+    Enemy.OLD_MAN_4,            # 0x4E
+    Enemy.BOMB_UPGRADER,        # 0x4F
+    Enemy.OLD_MAN_5,            # 0x50
+    Enemy.MUGGER,               # 0x51
+    Enemy.OLD_MAN_6,            # 0x52
+})
+
+
+def _is_eligible(enemy: Enemy, shuffle_gannon: bool) -> bool:
+    """Return True if this enemy should participate in the within-level shuffle."""
+    if enemy == Enemy.NOTHING:
+        return False
+    if enemy in _ALWAYS_EXCLUDED:
+        return False
+    if not shuffle_gannon and enemy in _GANNON_GATED:
+        return False
+    if enemy in _NON_COMBAT_ENEMIES:
+        return False
+    return True
+
+
+def _is_swap_safe(
+    enemy_a: Enemy,
+    enemy_b: Enemy,
+    room_type_a: RoomType,
+    room_type_b: RoomType,
+    must_beat_gannon: bool,
+) -> bool:
+    """Check whether swapping two enemies between their rooms is safe.
+
+    After the swap, enemy_a lands in room_type_b and enemy_b lands in
+    room_type_a. Both placements must pass safety checks.
+    """
+    if not is_safe_for_room(enemy_a, room_type_b, must_beat_gannon=must_beat_gannon):
+        return False
+    if not is_safe_for_room(enemy_b, room_type_a, must_beat_gannon=must_beat_gannon):
+        return False
+    return True
+
+
+def _is_zelda_room_enemy_pair_conflict(
+    room_positions: list[int],
+    enemy_ids: list[int],
+    i: int,
+    j: int,
+    room_enemy_pairs: list[int],
+) -> bool:
+    """Check if swapping Zelda into position i or j conflicts with room_enemy_pairs.
+
+    The original (cs:317-338) prevents Zelda from landing in rooms that appear
+    in the dungeon's room-enemy-pair index table. This table is built from the
+    ROM's two enemy count tables (0x18710 and 0x18790) — rooms in this list
+    have enemy encounters that would conflict with Zelda's NPC presence.
+    """
+    zelda_id = Enemy.THE_KIDNAPPED.value
+    for pair_val in room_enemy_pairs:
+        if (room_positions[i] == pair_val
+                and enemy_ids[j] == zelda_id):
+            return True
+        if (room_positions[j] == pair_val
+                and enemy_ids[i] == zelda_id):
+            return True
+    return False
+
+
+def _build_room_enemy_pairs(level: Level) -> list[int]:
+    """Build the roomEnemyPairs list for Zelda placement validation.
+
+    The C# reads Table 0 and Table 1 bytes for each room in the dungeon's
+    ROM index list. Table 0 encodes north/south walls + palette_0;
+    Table 1 encodes west/east walls + palette_1. The resulting list is
+    used only for the Zelda mustBeatGannon conflict check.
+    """
+    pairs: list[int] = []
+    for room in level.rooms:
+        t0 = (room.walls.north.value << 5) | (room.walls.south.value << 2) | room.palette_0
+        t1 = (room.walls.west.value << 5) | (room.walls.east.value << 2) | room.palette_1
+        pairs.append(t0)
+        pairs.append(t1)
+    return pairs
+
+
+def _fix_gannon_room_walls(room: Room) -> None:
+    """Fix enemy count bits in wall/palette bytes for a Gannon room.
+
+    Port of MonsterShuffler.cs:452-482. The C# examines the Table 0/1
+    bytes (walls + palette) and sets bits to max enemy count for certain
+    group values. Groups 1 and 4 are left alone; all others get maxed.
+    """
+    # Table 0: north/south walls + palette_0
+    t0 = (room.walls.north.value << 5) | (room.walls.south.value << 2) | room.palette_0
+    group1 = (t0 >> 2) & 7
+    group2 = (t0 >> 2) >> 3
+    if group1 != 1 and group1 != 4:
+        t0 |= 0x1C
+    if group2 != 1 and group2 != 4:
+        t0 |= 0xE0
+    room.walls.north = WallType((t0 >> 5) & 0x07)
+    room.walls.south = WallType((t0 >> 2) & 0x07)
+    room.palette_0 = t0 & 0x03
+
+    # Table 1: west/east walls + palette_1
+    t1 = (room.walls.west.value << 5) | (room.walls.east.value << 2) | room.palette_1
+    group1 = (t1 >> 2) & 7
+    group2 = (t1 >> 2) >> 3
+    if group1 != 1 and group1 != 4:
+        t1 |= 0x1C
+    if group2 != 1 and group2 != 4:
+        t1 |= 0xE0
+    room.walls.west = WallType((t1 >> 5) & 0x07)
+    room.walls.east = WallType((t1 >> 2) & 0x07)
+    room.palette_1 = t1 & 0x03
+
+
+def _configure_gannon_room(room: Room) -> None:
+    """Set the Gannon room's special properties.
+
+    The C# writes 0x8E to RoomEnemyData (is_dark + item = TRIFORCE_OF_POWER)
+    and 0x03 to RoomExtraData (room_action = TRIFORCE_OF_POWER_OPENS_SHUTTERS).
+    It also fixes the wall/palette enemy count bits.
+    """
+    room.is_dark = True
+    room.boss_cry_1 = True
+    room.boss_cry_2 = False
+    room.item = Item.TRIFORCE_OF_POWER
+    room.room_action = RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS
+    _fix_gannon_room_walls(room)
+
+
+def _find_gannon_room(level: Level) -> Room | None:
+    """Find the room containing THE_BEAST (Gannon) in this level, if any."""
+    for room in level.rooms:
+        if room.enemy_spec.enemy == Enemy.THE_BEAST:
+            return room
+    return None
+
+
+def _set_boss_cry_on_neighbors(
+    room: Room,
+    room_by_num: dict[int, Room],
+) -> None:
+    """Set boss_cry_1 on rooms cardinally adjacent to the given room."""
+    for direction in (Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST):
+        neighbor_num = room.room_num + direction.value
+        neighbor = room_by_num.get(neighbor_num)
+        if neighbor is not None:
+            neighbor.boss_cry_1 = True
+
+
+def _shuffle_level(
+    level: Level,
+    rng: Rng,
+    shuffle_gannon: bool,
+    must_beat_gannon: bool,
+) -> bool:
+    """Shuffle enemy assignments within a single level.
+
+    Uses a constrained Fisher-Yates shuffle: walks through the room list,
+    picks a random swap partner, and performs the swap only if both enemies
+    are compatible with their new room types. On constraint failure, retries
+    the same position with a new random partner.
+
+    Returns True on success, False if the retry budget was exhausted.
+    """
+    eligible_rooms = [
+        room for room in level.rooms
+        if _is_eligible(room.enemy_spec.enemy, shuffle_gannon)
+    ]
+
+    if len(eligible_rooms) < 2:
+        return True
+
+    room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
+
+    # Build room_enemy_pairs for the Zelda mustBeatGannon conflict check.
+    room_enemy_pairs = _build_room_enemy_pairs(level)
+
+    # Build parallel arrays for the Fisher-Yates shuffle.
+    # room_positions stays fixed; enemy specs move between rooms.
+    # We shuffle whole EnemySpec objects to preserve is_group/group_members.
+    room_positions = [room.room_num for room in eligible_rooms]
+    specs = [room.enemy_spec for room in eligible_rooms]
+    enemy_ids = [s.enemy.value for s in specs]
+
+    attempt_count = 0
+    i = 0
+    pool_size = len(eligible_rooms)
+
+    while i < pool_size:
+        attempt_count += 1
+        if attempt_count > _MAX_SHUFFLE_ATTEMPTS:
+            return False
+
+        remaining = pool_size - i
+        j = i + int(rng.random() * remaining)
+        if j >= pool_size:
+            j = pool_size - 1
+
+        if not _is_swap_safe(
+            specs[i].enemy, specs[j].enemy,
+            eligible_rooms[i].room_type, eligible_rooms[j].room_type,
+            must_beat_gannon,
+        ):
+            continue
+
+        # Zelda mustBeatGannon constraint: prevent Zelda from landing in
+        # rooms that appear in the room_enemy_pairs table.
+        if must_beat_gannon:
+            zelda_id = Enemy.THE_KIDNAPPED.value
+            if enemy_ids[i] == zelda_id or enemy_ids[j] == zelda_id:
+                if _is_zelda_room_enemy_pair_conflict(
+                    room_positions, enemy_ids, i, j, room_enemy_pairs,
+                ):
+                    continue
+
+        specs[i], specs[j] = specs[j], specs[i]
+        enemy_ids[i], enemy_ids[j] = enemy_ids[j], enemy_ids[i]
+        i += 1
+
+    # Write shuffled enemy specs back to rooms.
+    for room, spec in zip(eligible_rooms, specs):
+        room.enemy_spec = spec
+
+    # Gannon room post-processing: if Gannon moved, configure the new room.
+    if shuffle_gannon:
+        gannon_room = _find_gannon_room(level)
+        if gannon_room is not None:
+            _configure_gannon_room(gannon_room)
+            level.boss_room = gannon_room.room_num
+            _set_boss_cry_on_neighbors(gannon_room, room_by_num)
+
+    return True
+
+
+def _post_process_gannon_flags(world: GameWorld) -> None:
+    """Post-processing pass: clear boss_cry bits and re-tag Gannon adjacents.
+
+    Port of PostProcessGannonRoomFlags (MonsterShuffler.cs:534-557) and
+    ProcessGannonBlock (MonsterShuffler.cs:566-619).
+
+    1. Clears boss_cry_1 and boss_cry_2 on ALL dungeon rooms across ALL levels.
+    2. For levels 7-9: finds Gannon rooms, configures them (dark, Triforce,
+       room action), and sets boss_cry_1 on adjacent rooms that belong to
+       level 9.
+    """
+    # Phase 1: Clear boss_cry bits on all rooms in all levels.
+    for level in world.levels:
+        for room in level.rooms:
+            room.boss_cry_1 = False
+            room.boss_cry_2 = False
+
+    # Phase 2: Process levels 7-9 — find Gannon, tag adjacents.
+    # The C# checks that adjacent rooms belong to level 9 before tagging.
+    level_9 = world.levels[8] if len(world.levels) >= 9 else None
+    level_9_room_nums = {r.room_num for r in level_9.rooms} if level_9 else set()
+
+    for level in world.levels:
+        if level.level_num < 7:
+            continue
+
+        room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
+
+        for room in level.rooms:
+            if room.enemy_spec.enemy != Enemy.THE_BEAST:
+                continue
+
+            _configure_gannon_room(room)
+
+            # Tag adjacent rooms belonging to level 9 with boss_cry_1.
+            for direction in (Direction.NORTH, Direction.SOUTH,
+                              Direction.EAST, Direction.WEST):
+                adj_num = room.room_num + direction.value
+                if adj_num < 0 or adj_num >= 128:
+                    continue
+                if adj_num in level_9_room_nums:
+                    adj_room = room_by_num.get(adj_num)
+                    if adj_room is not None:
+                        adj_room.boss_cry_1 = True
+
+
+def shuffle_monsters(
+    world: GameWorld,
+    rng: Rng,
+    shuffle: bool = True,
+    shuffle_gannon: bool = False,
+    must_beat_gannon: bool = True,
+) -> bool:
+    """Shuffle dungeon enemy assignments within each level.
+
+    For each dungeon level (1-9), collects rooms with eligible enemies and
+    randomly swaps enemy assignments between rooms, subject to room-type
+    safety constraints that prevent softlocks and visual glitches.
+
+    Args:
+        world: The game world to modify.
+        rng: Seeded RNG for deterministic output.
+        shuffle: If False, skip the shuffle (enemies stay in place).
+        shuffle_gannon: If True, Gannon (THE_BEAST), Zelda (THE_KIDNAPPED),
+            and MIXED_FLAME participate in the shuffle pool.
+        must_beat_gannon: If True, enforce placement constraints that ensure
+            the player must fight Gannon to reach Zelda.
+
+    Returns:
+        True on success, False if any level's shuffle exhausted its retry
+        budget (caller should retry the entire seed generation).
+    """
+    # If !mustBeatGannon and level 9 exists, patch Gannon room action.
+    # The C# does (rom[addr] & 0xF8) | 0x01 = clear low 3 bits, set to 1.
+    if not must_beat_gannon:
+        for level in world.levels:
+            if level.level_num == 9:
+                gannon_room = _find_gannon_room(level)
+                if gannon_room is not None:
+                    gannon_room.room_action = RoomAction(
+                        (gannon_room.room_action.value & 0xF8) | 0x01
+                    )
+
+    for level in world.levels:
+        if shuffle:
+            if not _shuffle_level(level, rng, shuffle_gannon, must_beat_gannon):
+                return False
+
+    # Post-processing: clear all boss_cry bits, then re-tag Gannon adjacents
+    # in levels 7-9. This runs regardless of shuffle_gannon — it's a separate
+    # pass from generateGame (Module.cs:124838-124959).
+    _post_process_gannon_flags(world)
+
+    return True

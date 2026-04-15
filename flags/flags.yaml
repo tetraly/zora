@@ -1,0 +1,1786 @@
+# =============================================================================
+# ZORA — Zelda 1 Randomizer
+# flags/flags.yaml — Canonical flag definitions
+# =============================================================================
+#
+# This file is the single source of truth for all randomizer flags.
+# It drives both the Python backend (flags_generated.py) and the React UI.
+#
+# ENCODING RULES:
+#   - Flag strings are base64url-style encoded (chars: 0-9, A-Z, a-z, -, _)
+#   - Bits are packed LSB-first (bit 0 = LSB of first character)
+#   - Each flag declares its own permanent bit_offset and bits width
+#   - New flags always append at the next unused offset — never reorder
+#   - Old flag strings are valid prefixes; unset bits default to 0
+#   - 0 must always be the safe default for every flag type:
+#       tristate: 0 = off
+#       item:     0 = random
+#       bool:     0 = false
+#
+# BREAKING CHANGES:
+#   Any change to bit_offset or bits of an existing flag, or reordering of
+#   item_enum indices, requires incrementing format_version and is a major release.
+#
+# =============================================================================
+
+version: 1
+
+meta:
+  format_version: 3
+  encoding: base64url      # chars: A-Z0-9!@a-z, value 0='A' through 63='z'
+  bit_order: lsb_first     # bit 0 = LSB of first base64 character
+  total_bits: 150          # 25 base64 characters
+  string_length: 25
+
+# Cosmetic flags are encoded separately and do not affect the seed hash.
+# Players can change cosmetics without changing the logical game.
+cosmetic_meta:
+  encoding: base64url
+  bit_order: lsb_first
+  total_bits: 42           # 7 base64 characters (39 bits used, padded to 42)
+  string_length: 7
+
+# =============================================================================
+# ITEM ENUM
+# Canonical ordered list for item-type flag fields.
+# Indices are PERMANENT. Never reorder. New items append only.
+# 5 bits per field → values 0-31. 24 defined, 8 reserved slots.
+# =============================================================================
+
+item_enum:
+  - id: random
+    index: 0
+    label: "Random"
+  - id: wood_sword
+    index: 1
+    label: "Wood Sword"
+  - id: white_sword
+    index: 2
+    label: "White Sword"
+  - id: magical_sword
+    index: 3
+    label: "Magical Sword"
+  - id: wood_arrows
+    index: 4
+    label: "Wood Arrows"
+  - id: silver_arrows
+    index: 5
+    label: "Silver Arrows"
+  - id: bow
+    index: 6
+    label: "Bow"
+  - id: blue_candle
+    index: 7
+    label: "Blue Candle"
+  - id: red_candle
+    index: 8
+    label: "Red Candle"
+  - id: blue_ring
+    index: 9
+    label: "Blue Ring"
+  - id: red_ring
+    index: 10
+    label: "Red Ring"
+  - id: power_bracelet
+    index: 11
+    label: "Power Bracelet"
+  - id: ladder
+    index: 12
+    label: "Ladder"
+  - id: raft
+    index: 13
+    label: "Raft"
+  - id: recorder
+    index: 14
+    label: "Recorder"
+  - id: magical_key
+    index: 15
+    label: "Magical Key"
+  - id: boomerang
+    index: 16
+    label: "Boomerang"
+  - id: magical_boomerang
+    index: 17
+    label: "Magical Boomerang"
+  - id: wand
+    index: 18
+    label: "Wand"
+  - id: letter
+    index: 19
+    label: "Letter"
+  - id: bait
+    index: 20
+    label: "Bait"
+  - id: blue_potion
+    index: 21
+    label: "Blue Potion"
+  - id: heart_container
+    index: 22
+    label: "Heart Container"
+  # indices 23-30: reserved for future expansion
+  - id: not_shuffled
+    index: 31
+    label: "Not Shuffled"
+
+# =============================================================================
+# NES COLOR PALETTE
+# Standard 2C02 palette RGB hex values for the color picker UI.
+# 64 entries (0x00-0x3F) arranged in a 4x16 grid.
+# Excluded entries are not selectable but shown as disabled cells.
+#
+# Color type flag encoding (6 bits, 0-63):
+#   Value 0 = vanilla (default)
+#   Values 1-13  = NES palette 0x00-0x0C
+#   Value 14     = random
+#   Values 15-63 = NES palette 0x0F-0x3F
+# NES 0x0D (causes TV problems) and 0x0E (redundant black) are excluded.
+# =============================================================================
+
+nes_color_palette:
+  - { index: 0x00, hex: "#626262", label: "Dark Gray" }
+  - { index: 0x01, hex: "#012090", label: "Dark Blue" }
+  - { index: 0x02, hex: "#240BA0", label: "Dark Indigo" }
+  - { index: 0x03, hex: "#470090", label: "Dark Violet" }
+  - { index: 0x04, hex: "#600062", label: "Dark Magenta" }
+  - { index: 0x05, hex: "#6A0024", label: "Dark Crimson" }
+  - { index: 0x06, hex: "#601100", label: "Dark Red" }
+  - { index: 0x07, hex: "#472300", label: "Dark Brown" }
+  - { index: 0x08, hex: "#243400", label: "Dark Olive" }
+  - { index: 0x09, hex: "#014000", label: "Dark Green" }
+  - { index: 0x0A, hex: "#004300", label: "Dark Teal" }
+  - { index: 0x0B, hex: "#003A1E", label: "Dark Cyan" }
+  - { index: 0x0C, hex: "#002C52", label: "Dark Cerulean" }
+  - { index: 0x0D, hex: "#000000", label: "Black (Unsafe)", excluded: true }
+  - { index: 0x0E, hex: "#000000", label: "Black (Dup)", excluded: true }
+  - { index: 0x0F, hex: "#000000", label: "Black" }
+  - { index: 0x10, hex: "#ABABAB", label: "Light Gray" }
+  - { index: 0x11, hex: "#1F56E1", label: "Blue" }
+  - { index: 0x12, hex: "#4B38F6", label: "Indigo" }
+  - { index: 0x13, hex: "#7524DA", label: "Violet" }
+  - { index: 0x14, hex: "#9518A7", label: "Magenta" }
+  - { index: 0x15, hex: "#9E1C5C", label: "Crimson" }
+  - { index: 0x16, hex: "#932F12", label: "Red" }
+  - { index: 0x17, hex: "#784600", label: "Brown" }
+  - { index: 0x18, hex: "#505900", label: "Olive" }
+  - { index: 0x19, hex: "#2B6800", label: "Green" }
+  - { index: 0x1A, hex: "#116C00", label: "Teal Green" }
+  - { index: 0x1B, hex: "#066341", label: "Teal" }
+  - { index: 0x1C, hex: "#0E5282", label: "Cerulean" }
+  - { index: 0x1D, hex: "#000000", label: "Black 2" }
+  - { index: 0x1E, hex: "#000000", label: "Black 3" }
+  - { index: 0x1F, hex: "#000000", label: "Black 4" }
+  - { index: 0x20, hex: "#FFFFFF", label: "White" }
+  - { index: 0x21, hex: "#65AAFE", label: "Sky Blue" }
+  - { index: 0x22, hex: "#8C8FFE", label: "Periwinkle" }
+  - { index: 0x23, hex: "#B478FE", label: "Lavender" }
+  - { index: 0x24, hex: "#D26DFE", label: "Pink Violet" }
+  - { index: 0x25, hex: "#DA6FAF", label: "Rose" }
+  - { index: 0x26, hex: "#D18064", label: "Salmon" }
+  - { index: 0x27, hex: "#BA932A", label: "Gold" }
+  - { index: 0x28, hex: "#97A400", label: "Yellow Green" }
+  - { index: 0x29, hex: "#74B10A", label: "Lime" }
+  - { index: 0x2A, hex: "#5AB533", label: "Spring Green" }
+  - { index: 0x2B, hex: "#4DAD70", label: "Seafoam" }
+  - { index: 0x2C, hex: "#53A0AB", label: "Aqua" }
+  - { index: 0x2D, hex: "#3C3C3C", label: "Charcoal" }
+  - { index: 0x2E, hex: "#000000", label: "Black 5" }
+  - { index: 0x2F, hex: "#000000", label: "Black 6" }
+  - { index: 0x30, hex: "#FFFFFF", label: "White 2" }
+  - { index: 0x31, hex: "#BEDAFE", label: "Pale Blue" }
+  - { index: 0x32, hex: "#CCCEFE", label: "Pale Indigo" }
+  - { index: 0x33, hex: "#DDC4FE", label: "Pale Violet" }
+  - { index: 0x34, hex: "#EABEFE", label: "Pale Pink" }
+  - { index: 0x35, hex: "#EEBFDD", label: "Pale Rose" }
+  - { index: 0x36, hex: "#E9C6BA", label: "Pale Salmon" }
+  - { index: 0x37, hex: "#DFCE9F", label: "Pale Gold" }
+  - { index: 0x38, hex: "#D0D68E", label: "Pale Yellow" }
+  - { index: 0x39, hex: "#C2DA8E", label: "Pale Lime" }
+  - { index: 0x3A, hex: "#B7DBA0", label: "Pale Green" }
+  - { index: 0x3B, hex: "#B1D8BA", label: "Pale Seafoam" }
+  - { index: 0x3C, hex: "#B4D2D8", label: "Pale Aqua" }
+  - { index: 0x3D, hex: "#A0A0A0", label: "Gray" }
+  - { index: 0x3E, hex: "#000000", label: "Black 7" }
+  - { index: 0x3F, hex: "#000000", label: "Black 8" }
+
+# =============================================================================
+# FLAGS
+#
+# Required fields for every flag:
+#   id             — stable Python identifier; never rename
+#   type           — bool | tristate | item
+#   bits           — bit width (1=bool, 2=tristate, 5=item)
+#   bit_offset     — PERMANENT position in the bitfield; never change
+#   label          — display name in UI
+#   description    — tooltip / help text
+#   group          — UI section grouping
+#   display_order  — sort order within group (unique per group; hidden flags exempt)
+#   default        — default value
+#   enabled        — false = defined but inactive (not shown in UI, not used by backend)
+#
+# Optional fields:
+#   depends_on     — id of prerequisite flag (informational; enforcement via constraints)
+#   phase          — roadmap phase that implements this flag (informational)
+# =============================================================================
+
+flags:
+
+  # ---------------------------------------------------------------------------
+  # GROUP: Item Shuffle
+  # Controls what enters the item pool and which locations are valid destinations
+  # ---------------------------------------------------------------------------
+
+  - id: shuffle_dungeon_items
+    type: tristate
+    bits: 2
+    bit_offset: 0
+    label: "Shuffle Dungeon Items"
+    description: >
+      Adds the 12 major dungeon items to the item pool and makes their vanilla
+      locations valid placement destinations. The 12 items are: bow, boomerang,
+      magical boomerang, raft, ladder, recorder, wand, red candle, book of magic,
+      magical key, silver arrows, and red ring.
+      When off, dungeon item locations retain their vanilla contents.
+    group: "Item Shuffle"
+    display_order: 10
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: shuffle_dungeon_hearts
+    type: tristate
+    bits: 2
+    bit_offset: 2
+    label: "Shuffle Dungeon Hearts"
+    description: >
+      Adds the 8 boss heart containers (levels 1-8) to the item pool.
+      Requires Shuffle Dungeon Items to be enabled.
+    group: "Item Shuffle"
+    display_order: 20
+    default: "off"
+    depends_on: shuffle_dungeon_items
+    enabled: true
+    phase: 1
+
+
+  - id: shuffle_within_dungeons
+    type: tristate
+    bits: 2
+    bit_offset: 8
+    label: "Shuffle Within Dungeons"
+    description: >
+      Shuffles major and minor items within each dungeon
+      in addition to the normal dungeon item shuffle.
+    group: "Item Shuffle"
+    display_order: 50
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: allow_triforces_in_stairways
+    type: tristate
+    bits: 2
+    bit_offset: 12
+    label: "Allow Triforces in Stairways"
+    description: >
+      Extends Shuffle Within Dungeons to also allow triforce pieces to be
+      placed in item stairway locations within dungeons.
+      Requires Shuffle Within Dungeons to be enabled.
+    group: "Item Shuffle"
+    display_order: 60
+    default: "off"
+    depends_on: shuffle_within_dungeons
+    enabled: true
+    phase: 1
+
+  - id: shuffle_wood_sword
+    type: tristate
+    bits: 2
+    bit_offset: 20
+    label: "Shuffle Wood Sword"
+    description: >
+      Adds the wood sword to the item pool and makes the wood sword cave
+      a valid item placement destination.
+    group: "Item Shuffle"
+    display_order: 110
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: shuffle_magical_sword
+    type: tristate
+    bits: 2
+    bit_offset: 22
+    label: "Shuffle Magical Sword"
+    description: >
+      Adds the magical sword to the item pool and makes the magical sword
+      cave a valid item placement destination.
+    group: "Item Shuffle"
+    display_order: 120
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: shuffle_letter
+    type: tristate
+    bits: 2
+    bit_offset: 18
+    label: "Shuffle Letter"
+    description: >
+      Adds the letter to the item pool and makes the letter cave a valid
+      item placement destination.
+    group: "Item Shuffle"
+    display_order: 130
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: shuffle_major_shop_items
+    type: tristate
+    bits: 2
+    bit_offset: 24
+    label: "Shuffle Major Shop Items"
+    description: >
+      Adds the wood arrows, blue candle, blue ring, and bait from shops A-D
+      to the item pool. The second bait slot is replaced with a fairy for
+      purchase and is not shuffled.
+    group: "Item Shuffle"
+    display_order: 140
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: shuffle_blue_potion
+    type: tristate
+    bits: 2
+    bit_offset: 26
+    label: "Shuffle Blue Potion"
+    description: >
+      Adds the blue potion from the potion shop to the item pool and makes
+      the potion shop a valid item placement destination.
+    group: "Item Shuffle"
+    display_order: 150
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: progressive_items
+    type: tristate
+    bits: 2
+    bit_offset: 28
+    label: "Progressive Items"
+    description: >
+      Makes swords, candles, arrows, and rings progressive. All items of each
+      class become level-1 upgrades regardless of which shuffle flags are active.
+      Picking up a level-1 item when you already own one increments your level
+      in that class. If this flag is on but Shuffle Magical Sword is off, the
+      magical sword cave still contains a sword upgrade.
+      Random means the choice is made randomly at generation time.
+    group: "Item Shuffle"
+    display_order: 160
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: allow_important_in_l9
+    type: tristate
+    bits: 2
+    bit_offset: 10
+    label: "Allow Important Items in Level 9"
+    description: >
+      By default the five logically critical items (ladder, raft, power bracelet,
+      recorder, and bow) may not be placed in level 9. Enabling this removes
+      that restriction.
+    group: "Item Shuffle"
+    display_order: 210
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: force_rr_to_l9
+    type: tristate
+    bits: 2
+    bit_offset: 14
+    label: "Force Red Ring to Level 9"
+    description: >
+      Guarantees the red ring will only be found in level 9.
+      Requires Shuffle Dungeon Items to be explicitly on (not random).
+    group: "Item Shuffle"
+    display_order: 220
+    default: "off"
+    depends_on: shuffle_dungeon_items
+    enabled: true
+    phase: 1
+
+  - id: force_sa_to_l9
+    type: tristate
+    bits: 2
+    bit_offset: 16
+    label: "Force Silver Arrows to Level 9"
+    description: >
+      Guarantees silver arrows will only be found in level 9.
+      Requires Shuffle Dungeon Items to be explicitly on (not random).
+    group: "Item Shuffle"
+    display_order: 230
+    default: "off"
+    depends_on: shuffle_dungeon_items
+    enabled: true
+    phase: 1
+
+  - id: white_sword_item
+    type: item
+    bits: 5
+    bit_offset: 30
+    label: "White Sword Cave Item"
+    description: >
+      Controls the white sword cave location. Not Shuffled leaves it vanilla.
+      Random adds it to the shuffle pool with no placement constraint.
+      Selecting a specific item adds it to the pool and forces that item here.
+      The selected item must be present in the active item pool.
+    group: "Item Shuffle"
+    display_order: 240
+    default: "not_shuffled"
+    enabled: true
+    phase: 1
+
+  - id: armos_item
+    type: item
+    bits: 5
+    bit_offset: 35
+    label: "Armos Item"
+    description: >
+      Controls the armos knights secret location (vanilla: power bracelet).
+      Not Shuffled leaves it vanilla. Random adds it to the shuffle pool
+      with no placement constraint. Selecting a specific item adds it to
+      the pool and forces that item here. The selected item must be present
+      in the active item pool.
+    group: "Item Shuffle"
+    display_order: 250
+    default: "not_shuffled"
+    enabled: true
+    phase: 1
+
+  - id: coast_item
+    type: item
+    bits: 5
+    bit_offset: 40
+    label: "Coast Item"
+    description: >
+      Controls the coast location (vanilla: heart container). Not Shuffled
+      leaves it vanilla. Random adds it to the shuffle pool with no placement
+      constraint. Selecting a specific item adds it to the pool and forces
+      that item here. Ladder cannot be selected — it is logically required
+      to reach this location.
+    group: "Item Shuffle"
+    display_order: 260
+    default: "not_shuffled"
+    enabled: true
+    phase: 1
+
+  # ---------------------------------------------------------------------------
+  # GROUP: Misc
+  # Difficulty, cosmetic, and gameplay settings
+  # ---------------------------------------------------------------------------
+
+  - id: avoid_required_hard_combat
+    type: tristate
+    bits: 2
+    bit_offset: 47
+    label: "Avoid Required Hard Combat"
+    description: >
+      When enabled, the logic engine requires the player to have at least one
+      sword upgrade (white sword or better) AND one defense upgrade (blue or
+      red ring) before considering hard enemies (blue wizzrobes, blue darknuts,
+      gleeoks, patras) as defeatable. This makes seeds more accessible to
+      casual players by ensuring difficult combat encounters are never logically
+      required without adequate equipment.
+    group: "Misc"
+    display_order: 210
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: randomize_dungeon_palettes
+    type: tristate
+    bits: 2
+    bit_offset: 49
+    label: "Randomize Dungeon Palettes"
+    description: >
+      Randomly assigns color palettes across all 9 dungeons. Each dungeon gets
+      a randomized color theme drawn from 14 curated accent color schemes,
+      while preserving structural fade and stairway palette sequences.
+    group: "Misc"
+    display_order: 20
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: hint_mode
+    type: enum
+    bits: 3
+    bit_offset: 51
+    label: "Hint Mode"
+    description: >
+      Controls the style of hint text shown in caves and hint shops.
+      Vanilla: no changes to hint text.
+      Blank: all hint slots are set to blank.
+      Community: random community quotes per slot.
+      Helpful: gameplay-aware item location hints with community filler.
+      Random: resolves to one of the above at generation time.
+    group: "Misc"
+    display_order: 10
+    default: "vanilla"
+    enabled: true
+    phase: 1
+    values:
+      - id: vanilla
+        label: "Vanilla"
+      - id: blank
+        label: "Blank"
+      - id: community
+        label: "Community"
+      - id: helpful
+        label: "Helpful"
+      - id: random
+        label: "Random"
+
+  - id: randomize_bomb_upgrade
+    type: tristate
+    bits: 2
+    bit_offset: 55
+    label: "Randomize Bomb Upgrades"
+    description: >
+      Randomizes the bomb upgrade's cost (75-125 rupees) and the number of
+      bombs added to your maximum (2-6). The on-screen price display is updated
+      to match the randomized cost.
+    group: "Caves and Shops"
+    display_order: 50
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: speed_up_dungeon_transitions
+    type: tristate
+    bits: 2
+    bit_offset: 71
+    label: "Speed Up Dungeon Transitions"
+    description: >
+      Removes the scroll-delay loops during dungeon screen transitions,
+      making room-to-room movement noticeably faster.
+    group: "Quality of Life"
+    display_order: 30
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: speed_up_text
+    type: tristate
+    bits: 2
+    bit_offset: 73
+    label: "Speed Up Text"
+    description: >
+      Reduces the text rendering delay so hint and shop text draws faster.
+    group: "Quality of Life"
+    display_order: 20
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: extra_raft_blocks
+    type: tristate
+    bits: 2
+    bit_offset: 75
+    label: "Extra Raft Blocks"
+    description: >
+      Converts the Westlake Mall and Casino Corner regions into raft-blocked
+      areas, requiring the raft to access additional overworld screens.
+    group: "Overworld"
+    display_order: 310
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: extra_power_bracelet_blocks
+    type: tristate
+    bits: 2
+    bit_offset: 77
+    label: "Extra Power Bracelet Blocks"
+    description: >
+      Adds new power bracelet blocks in West Death Mountain. Intended for use
+      with vanilla any road locations.
+    group: "Overworld"
+    display_order: 320
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: randomize_lost_hills
+    type: tristate
+    bits: 2
+    bit_offset: 79
+    label: "Randomize Lost Hills"
+    description: >
+      Randomizes the Lost Hills direction sequence and adds a hint NPC in the
+      game. Requires Randomize Hints and Extended Hint Bank to be enabled.
+    group: "Overworld"
+    display_order: 330
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: randomize_dead_woods
+    type: tristate
+    bits: 2
+    bit_offset: 81
+    label: "Randomize Dead Woods"
+    description: >
+      Randomizes the Dead Woods direction sequence and adds a hint NPC in the
+      game. Requires Randomize Hints and Extended Hint Bank to be enabled.
+    group: "Overworld"
+    display_order: 340
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: update_recorder_warp_screens
+    type: tristate
+    bits: 2
+    bit_offset: 120
+    label: "Update Recorder Warp Screens"
+    description: >
+      When enabled, recalculates the recorder warp destinations for levels 1-8
+      based on their shuffled overworld screen positions. The recorder warps Link
+      to the screen one to the left of each dungeon entrance (the whirlwind
+      scrolls him right automatically). Without this flag, the recorder always
+      warps to vanilla screens regardless of entrance shuffle.
+    group: "Overworld"
+    display_order: 110
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: add_extra_candles
+    type: tristate
+    bits: 2
+    bit_offset: 83
+    label: "Add Extra Candles"
+    description: >
+      Adds a blue candle to the wood sword cave and a candle to the middle slot
+      of the take-any cave. Incompatible with Progressive Items.
+    group: "Item Shuffle"
+    display_order: 155
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: fast_fill
+    type: tristate
+    bits: 2
+    bit_offset: 85
+    label: "Speed Up Heart Fill"
+    description: >
+      Fill hearts faster from fairies and potions.
+      (Patch courtesy of snarfblam.)
+    group: "Quality of Life"
+    display_order: 10
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: flute_kills_pols
+    type: tristate
+    bits: 2
+    bit_offset: 87
+    label: "Recorder Kills Dungeon Pols Voice"
+    description: >
+      Play the recorder to kill all Pols Voice in dungeons.
+      Does not work on the overworld.
+      (Patch courtesy of Stratoform.)
+    group: "Quality of Life"
+    display_order: 200
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: four_potion_inventory
+    type: tristate
+    bits: 2
+    bit_offset: 91
+    label: "Four Potion Inventory"
+    description: >
+      Increases the potion inventory from 2 to 4 blue potions.
+    group: "Quality of Life"
+    display_order: 110
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: auto_show_letter
+    type: tristate
+    bits: 2
+    bit_offset: 93
+    label: "Auto Show Letter"
+    description: >
+      Automatically shows the letter to NPCs without equipping and using it.
+    group: "Quality of Life"
+    display_order: 100
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: like_like_rupees
+    type: tristate
+    bits: 2
+    bit_offset: 95
+    label: "Like-Like Eats Rupees"
+    description: >
+      Makes Like-Likes eat rupees instead of a magical shield.
+    group: "Quality of Life"
+    display_order: 210
+    default: "off"
+    enabled: true
+    phase: 1
+
+  # ---------------------------------------------------------------------------
+  # GROUP: Caves and Shops
+  # Cave-specific randomization settings
+  # ---------------------------------------------------------------------------
+
+  - id: shuffle_shop_items
+    type: tristate
+    bits: 2
+    bit_offset: 114
+    label: "Shuffle Shop Items"
+    description: >
+      Shuffles the 12 items across shops A-D, guaranteeing at least one major
+      item per shop. Also jitters shop prices by ±20, and randomizes prices
+      for the potion shop, secret caves, and door repair cave.
+    group: "Caves and Shops"
+    display_order: 5
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: randomize_white_sword_hearts
+    type: bool
+    bits: 1
+    bit_offset: 97
+    label: "Randomize White Sword Hearts"
+    description: >
+      Randomizes the white sword cave heart requirement to between 4 and 6.
+    group: "Caves and Shops"
+    display_order: 10
+    default: false
+    enabled: true
+    phase: 1
+
+  - id: randomize_magical_sword_hearts
+    type: bool
+    bits: 1
+    bit_offset: 98
+    label: "Randomize Magical Sword Hearts"
+    description: >
+      Randomizes the magical sword cave heart requirement to between 10 and 12.
+    group: "Caves and Shops"
+    display_order: 20
+    default: false
+    enabled: true
+    phase: 1
+
+  - id: permanent_sword_beam
+    type: tristate
+    bits: 2
+    bit_offset: 99
+    label: "Permanent Sword Beam"
+    description: >
+      Makes the sword beam fire at any health level, not just when hearts are full.
+    group: "Misc"
+    display_order: 80
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: book_is_an_atlas
+    type: tristate
+    bits: 2
+    bit_offset: 101
+    label: "Book Is An Atlas"
+    description: >
+      Makes the Book of Magic function as an overworld atlas, displaying the map
+      when used.
+    group: "Misc"
+    display_order: 100
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: book_is_a_translator
+    type: tristate
+    bits: 2
+    bit_offset: 105
+    label: "Book Is A Translator"
+    description: >
+      Makes the Book of Magic function as a translator — old men's hint text
+      is only shown when the player has the book.
+    group: "Misc"
+    display_order: 110
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: visual_roar_sound
+    type: enum
+    bits: 3
+    bit_offset: 107
+    label: "Visual Roar Sound"
+    description: >
+      Patches dungeon entry to display a beast sound above the level number
+      instead of the vanilla "LIFE" label. OFF disables the patch entirely.
+      RANDOM picks one of the six sounds at random each seed.
+    group: "Misc"
+    display_order: 90
+    default: "disabled"
+    enabled: true
+    phase: 1
+    values:
+      - id: disabled
+        label: "Off"
+      - id: roar
+        label: "ROAR"
+      - id: rawr
+        label: "RAWR"
+      - id: meow
+        label: "MEOW"
+      - id: woof
+        label: "WOOF"
+      - id: hiss
+        label: "HISS"
+      - id: honk
+        label: "HONK"
+      - id: random
+        label: "Random"
+
+  - id: replace_book_fire_with_explosion
+    type: tristate
+    bits: 2
+    bit_offset: 110
+    label: "Replace Book Fire with Explosion"
+    description: >
+      Replaces the Book of Magic's fire projectile with a bomb explosion
+      effect.
+    group: "Misc"
+    display_order: 120
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: fix_known_bugs
+    type: tristate
+    bits: 2
+    bit_offset: 112
+    label: "Fix Known Bugs"
+    description: >
+      Applies a collection of vanilla ROM bug fixes: scrolling glitch,
+      continue screen, enemy kill counter, enemy sprite rendering, quest
+      mode check, enemy flash/pause routine, and sound engine fixes.
+    group: "Quality of Life"
+    display_order: 80
+    default: "off"
+    enabled: true
+    phase: 1
+
+  # ---------------------------------------------------------------------------
+  # GROUP: Overworld
+  # Overworld layout, entrance shuffle, and start location settings
+  # ---------------------------------------------------------------------------
+
+  - id: cave_shuffle_mode
+    type: enum
+    bits: 3
+    bit_offset: 62
+    label: "Cave Shuffle"
+    description: >
+      Controls which cave entrances are shuffled on the overworld.
+      Vanilla: no shuffling.
+      Dungeons Only: only dungeon (Level 1-9) entrances are shuffled.
+      Non-Dungeons Only: only non-dungeon caves are shuffled.
+      All Caves: both dungeon and non-dungeon entrances are shuffled.
+    group: "Overworld"
+    display_order: 10
+    default: "vanilla"
+    enabled: true
+    phase: 2
+    values:
+      - id: vanilla
+        label: "Vanilla"
+      - id: dungeons_only
+        label: "Dungeons Only"
+      - id: non_dungeons_only
+        label: "Non-Dungeons Only"
+      - id: all_caves
+        label: "All Caves"
+
+  - id: include_wood_sword_cave
+    type: tristate
+    bits: 2
+    bit_offset: 67
+    label: "Include Wood Sword Cave"
+    description: >
+      When enabled, the wood sword cave entrance is included in the non-dungeon
+      cave shuffle pool. Requires Cave Shuffle to include non-dungeon caves.
+    group: "Overworld"
+    display_order: 20
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: include_any_road_caves
+    type: tristate
+    bits: 2
+    bit_offset: 69
+    label: "Include Any Road Caves"
+    description: >
+      When enabled, the Take Any Road cave entrances (normally power-bracelet
+      gated) are included in the non-dungeon cave shuffle pool. Requires Cave
+      Shuffle to include non-dungeon caves.
+    group: "Overworld"
+    display_order: 30
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_armos_location
+    type: tristate
+    bits: 2
+    bit_offset: 65
+    label: "Shuffle Armos Screen"
+    description: >
+      When enabled, randomizes which overworld screen the armos item appears on.
+    group: "Overworld"
+    display_order: 130
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: randomize_mmg
+    type: tristate
+    bits: 2
+    bit_offset: 57
+    label: "Randomize MMG"
+    description: >
+      Randomizes the prizes for the money making game. The two losing amounts
+      are drawn from 1-20 rupees, the big-number trap from 30-50, and the two
+      winning amounts from 10-30 and 25-75 respectively.
+    group: "Caves and Shops"
+    display_order: 100
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_screen
+    type: enum
+    bits: 2
+    bit_offset: 60
+    label: "Start Screen"
+    description: >
+      Controls which overworld screen Link starts on.
+      Vanilla leaves the start screen unmodified.
+      Easy Shuffle picks a random open screen, excluding all 44 special screens.
+      Full Shuffle picks a random open screen, excluding only the base set.
+      Wood Sword Screen places Link one row below the wood sword cave entrance.
+    group: "Overworld"
+    display_order: 100
+    default: "vanilla"
+    enabled: true
+    phase: 2
+    values:
+      - id: vanilla
+        label: "Vanilla"
+      - id: easy_shuffle
+        label: "Easy Shuffle"
+      - id: full_shuffle
+        label: "Full Shuffle"
+      - id: wood_sword_screen
+        label: "Wood Sword Screen"
+
+  - id: add_l4_sword
+    type: bool
+    bits: 1
+    bit_offset: 123
+    label: "Add L4 Sword"
+    description: >
+      Adds an additional sword upgrade guarded by the level 9 triforce checker.
+      Note that with a L4 sword, melee attacks will do L4 damage but beams do
+      L3 damage. Only meaningful when Progressive Items is enabled.
+    group: "Item Shuffle"
+    display_order: 80
+    default: false
+    enabled: true
+    phase: 1
+
+  - id: magical_boomerang_does_one_hp_damage
+    type: bool
+    bits: 1
+    bit_offset: 122
+    label: "Magical Boomerang Does 1 HP Damage"
+    description: >
+      Changes the magical boomerang to deal 1 HP of damage (equivalent to the
+      wood sword) to enemies. Note that a boomerang may damage an enemy multiple
+      times in one shot.
+    group: "Misc"
+    display_order: 500
+    default: false
+    enabled: true
+    phase: 1
+
+  # ---------------------------------------------------------------------------
+  # GROUP: Enemies
+  # Controls enemy shuffling, HP changes, and related settings
+  # ---------------------------------------------------------------------------
+
+  - id: shuffle_overworld_monsters
+    type: tristate
+    bits: 2
+    bit_offset: 124
+    label: "Shuffle Overworld Monsters"
+    description: >
+      Shuffles which enemies appear on the overworld, redistributing enemy
+      types across overworld screens.
+    group: "Enemies"
+    display_order: 10
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_dungeon_monsters
+    type: tristate
+    bits: 2
+    bit_offset: 126
+    label: "Shuffle Dungeon Monsters"
+    description: >
+      Shuffles dungeon monster assignments within each level using a
+      constrained Fisher-Yates shuffle. Safety constraints prevent enemies
+      from being placed in incompatible room types.
+    group: "Enemies"
+    display_order: 20
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_ganon_zelda
+    type: tristate
+    bits: 2
+    bit_offset: 128
+    label: "Shuffle Gannon and Zelda"
+    description: >
+      Includes the Gannon and Zelda rooms in the dungeon monster shuffle pool.
+      Requires Shuffle Dungeon Monsters to be enabled.
+    group: "Enemies"
+    display_order: 30
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_level_9_monsters
+    type: tristate
+    bits: 2
+    bit_offset: 130
+    label: "Shuffle Level 9 Monsters"
+    description: >
+      Includes level 9 in the monster shuffle pools. Affects both within-level
+      shuffling and between-levels shuffling.
+    group: "Enemies"
+    display_order: 40
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_monsters_between_levels
+    type: tristate
+    bits: 2
+    bit_offset: 132
+    label: "Shuffle Monsters Between Levels"
+    description: >
+      Moves monster groups between dungeon levels. Enemies are categorized
+      into tier-based pools and redistributed across levels.
+    group: "Enemies"
+    display_order: 50
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: add_2nd_quest_monsters
+    type: tristate
+    bits: 2
+    bit_offset: 134
+    label: "Add 2nd Quest Monsters"
+    description: >
+      Merges 2nd quest enemy variants into the 1st quest enemy pools,
+      adding more variety to the enemies encountered.
+    group: "Enemies"
+    display_order: 60
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: enemy_hp
+    type: enum
+    bits: 3
+    bit_offset: 136
+    label: "Enemy HP"
+    description: >
+      Controls enemy hit points. Normal leaves HP unchanged. +/-2 and +/-4
+      randomize each enemy's HP within that range. 0 HP sets all enemies to
+      die in one hit. Random picks one of the other options at generation time.
+    group: "Enemies"
+    display_order: 100
+    default: "normal"
+    enabled: true
+    phase: 2
+    values:
+      - id: normal
+        label: "Normal"
+      - id: plus_minus_2
+        label: "+/-2 HP"
+      - id: plus_minus_4
+        label: "+/-4 HP"
+      - id: zero
+        label: "0 HP"
+      - id: random
+        label: "Random"
+
+  - id: boss_hp
+    type: enum
+    bits: 3
+    bit_offset: 139
+    label: "Boss HP"
+    description: >
+      Controls boss hit points. Normal leaves HP unchanged. +/-2 and +/-4
+      randomize each boss's HP within that range. 0 HP sets all bosses to
+      die in one hit. Random picks one of the other options at generation time.
+    group: "Enemies"
+    display_order: 110
+    default: "normal"
+    enabled: true
+    phase: 2
+    values:
+      - id: normal
+        label: "Normal"
+      - id: plus_minus_2
+        label: "+/-2 HP"
+      - id: plus_minus_4
+        label: "+/-4 HP"
+      - id: zero
+        label: "0 HP"
+      - id: random
+        label: "Random"
+
+  - id: ganon_hp_to_zero
+    type: tristate
+    bits: 2
+    bit_offset: 142
+    label: "Set Gannon HP to 0"
+    description: >
+      Sets Gannon's HP to 0, making the final boss die in one hit
+      regardless of the Boss HP setting.
+    group: "Enemies"
+    display_order: 120
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_enemy_groups
+    type: tristate
+    bits: 2
+    bit_offset: 144
+    label: "Shuffle Enemy Groups"
+    description: >
+      Shuffles which enemies appear in each dungeon's sprite group,
+      changing the enemy roster for each dungeon level.
+    group: "Enemies"
+    display_order: 70
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_bosses
+    type: tristate
+    bits: 2
+    bit_offset: 146
+    label: "Shuffle Bosses"
+    description: >
+      Assigns a random boss difficulty tier to each dungeon level,
+      then replaces boss enemies with random picks from the assigned
+      tier's pool. Earlier dungeons are biased toward easier bosses.
+    group: "Enemies"
+    display_order: 80
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: change_dungeon_boss_groups
+    type: tristate
+    bits: 2
+    bit_offset: 148
+    label: "Change Dungeon Boss Groups"
+    description: >
+      Redistributes which bosses belong to which sprite-set group
+      (A/B/C), then replaces every existing boss room with a random
+      pick from its group's new pool.
+    group: "Enemies"
+    display_order: 90
+    default: "off"
+    enabled: true
+    phase: 2
+
+  # ---------------------------------------------------------------------------
+  # GROUP: Cosmetic
+  # Visual and control feel settings that do not affect logic or item placement
+  # ---------------------------------------------------------------------------
+
+  - id: select_swap_mode
+    type: enum
+    bits: 2
+    cosmetic_bit_offset: 0
+    cosmetic: true
+    label: "SELECT Button Item Swap"
+    description: >
+      Controls whether the SELECT button can switch the equipped B-button item
+      while paused.
+      Pause: vanilla behavior, SELECT opens the pause menu as normal.
+      Swap: pressing SELECT while paused jumps directly to item slot 7.
+      Toggle: pressing SELECT while paused cycles between two item pages, with
+      SWAP/PAUSE labels rendered on the pause menu.
+    group: "Cosmetic"
+    display_order: 10
+    default: "pause"
+    enabled: true
+    phase: 1
+    values:
+      - id: pause
+        label: "Pause (Vanilla)"
+      - id: swap
+        label: "Swap"
+      - id: toggle
+        label: "Toggle"
+
+  - id: deathwarp_button
+    type: enum
+    bits: 2
+    cosmetic_bit_offset: 2
+    cosmetic: true
+    label: "Deathwarp Buttons"
+    description: >
+      Controls which controller and button combination triggers a deathwarp.
+      Vanilla: Up + A on the second controller.
+      P1 Up+A: Up + A on the first controller.
+      P1 Up+Select: Up + SELECT on the first controller.
+    group: "Cosmetic"
+    display_order: 20
+    default: "p2_up_a"
+    enabled: true
+    phase: 1
+    values:
+      - id: p2_up_a
+        label: "P2 Up+A (Vanilla)"
+      - id: p1_up_a
+        label: "P1 Up+A"
+      - id: p1_up_sel
+        label: "P1 Up+Select"
+
+  - id: low_hearts_sound
+    type: enum
+    bits: 2
+    cosmetic_bit_offset: 4
+    cosmetic: true
+    label: "Low Health Beep"
+    description: >
+      Controls the low hearts sound.
+      Regular: vanilla beep sound.
+      Softer: a softer heartbeat sound. (Patch courtesy of gzip.)
+      Disabled: removes the low hearts sound entirely.
+    group: "Cosmetic"
+    display_order: 100
+    default: "regular"
+    enabled: true
+    phase: 1
+    values:
+      - id: regular
+        label: "Regular (Vanilla)"
+      - id: softer
+        label: "Softer"
+      - id: disabled
+        label: "Disabled"
+
+  - id: disable_music
+    type: tristate
+    bits: 2
+    cosmetic_bit_offset: 6
+    cosmetic: true
+    label: "Disable Music"
+    description: >
+      Silences all game music by zeroing out the music track table.
+      Sound effects are unaffected.
+    group: "Cosmetic"
+    display_order: 101
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: reduce_flashing
+    type: tristate
+    bits: 2
+    cosmetic_bit_offset: 13
+    cosmetic: true
+    label: "Reduce Flashing"
+    description: >
+      Removes the triforce collection flash effect, reducing potentially
+      seizure-inducing flashing.
+    group: "Cosmetic"
+    display_order: 103
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: level_name
+    type: enum
+    bits: 5
+    cosmetic_bit_offset: 8
+    cosmetic: true
+    label: "Level Name"
+    description: >
+      Changes the dungeon HUD label from "LEVEL-1" to an alternative name.
+      Random Choice picks one of the options at random each seed.
+    group: "Cosmetic"
+    display_order: 102
+    default: "level"
+    enabled: true
+    phase: 1
+    values:
+      - id: level
+        label: "LEVEL (Vanilla)"
+      - id: random_choice
+        label: "Random Choice"
+      - id: abode
+        label: "ABODE"
+      - id: act
+        label: "ACT"
+      - id: area
+        label: "AREA"
+      - id: asylum
+        label: "ASYLUM"
+      - id: board
+        label: "BOARD"
+      - id: cage
+        label: "CAGE"
+      - id: camp
+        label: "CAMP"
+      - id: cave
+        label: "CAVE"
+      - id: corral
+        label: "CORRAL"
+      - id: lair
+        label: "LAIR"
+      - id: palace
+        label: "PALACE"
+      - id: place
+        label: "PLACE"
+      - id: random_name
+        label: "RANDOM"
+      - id: realm
+        label: "REALM"
+      - id: region
+        label: "REGION"
+      - id: sector
+        label: "SECTOR"
+      - id: sphere
+        label: "SPHERE"
+      - id: stage
+        label: "STAGE"
+      - id: temple
+        label: "TEMPLE"
+      - id: world
+        label: "WORLD"
+      - id: zone
+        label: "ZONE"
+
+  - id: green_tunic_color
+    type: color
+    bits: 6
+    cosmetic_bit_offset: 15
+    cosmetic: true
+    label: "Green Tunic Color"
+    description: >
+      Changes the starting (green) tunic color. Vanilla is the original green.
+      Random picks from a curated set of colors each seed.
+    group: "Cosmetic"
+    display_order: 200
+    default: 0
+    enabled: true
+    phase: 1
+
+  - id: blue_ring_color
+    type: color
+    bits: 6
+    cosmetic_bit_offset: 21
+    cosmetic: true
+    label: "Blue Ring Color"
+    description: >
+      Changes the blue ring tunic color. Vanilla is the original blue.
+      Random picks from a curated set of colors (different from the start tunic).
+    group: "Cosmetic"
+    display_order: 210
+    default: 0
+    enabled: true
+    phase: 1
+
+  - id: red_ring_color
+    type: color
+    bits: 6
+    cosmetic_bit_offset: 27
+    cosmetic: true
+    label: "Red Ring Color"
+    description: >
+      Changes the red ring tunic color. Vanilla is the original red.
+      Random picks from a curated set (different from start tunic and blue ring).
+    group: "Cosmetic"
+    display_order: 220
+    default: 0
+    enabled: true
+    phase: 1
+
+  - id: heart_color
+    type: color
+    bits: 6
+    cosmetic_bit_offset: 33
+    cosmetic: true
+    label: "Heart HUD Color"
+    description: >
+      Changes the heart color in the dungeon HUD. Vanilla is the original red.
+      Random picks from a curated set of colors each seed.
+    group: "Cosmetic"
+    display_order: 230
+    default: 0
+    enabled: true
+    phase: 1
+
+
+# =============================================================================
+# CONSTRAINTS
+# =============================================================================
+
+constraints:
+
+  # shuffle_dungeon_hearts requires shuffle_dungeon_items != off
+  - id: dungeon_hearts_requires_dungeon_items
+    description: >
+      Shuffle Dungeon Hearts requires Shuffle Dungeon Items to be enabled.
+    when:
+      - flag: shuffle_dungeon_hearts
+        not_equals: "off"
+    then:
+      - flag: shuffle_dungeon_items
+        must_not_be: "off"
+        error: "Shuffle Dungeon Hearts requires Shuffle Dungeon Items to be enabled."
+
+  # allow_triforces_in_stairways requires shuffle_within_dungeons != off
+  - id: triforces_in_stairways_requires_shuffle_within
+    description: >
+      Allow Triforces in Stairways requires Shuffle Within Dungeons to be enabled.
+    when:
+      - flag: allow_triforces_in_stairways
+        not_equals: "off"
+    then:
+      - flag: shuffle_within_dungeons
+        must_not_be: "off"
+        error: "Allow Triforces in Stairways requires Shuffle Within Dungeons to be enabled."
+
+  # force_rr_to_l9 requires shuffle_dungeon_items == on
+  - id: force_rr_requires_dungeon_items_on
+    description: >
+      Force Red Ring to Level 9 requires Shuffle Dungeon Items to be explicitly
+      on (not random), because random might resolve to off at generation time.
+    when:
+      - flag: force_rr_to_l9
+        not_equals: "off"
+    then:
+      - flag: shuffle_dungeon_items
+        must_be: "on"
+        error: >
+          Force Red Ring to Level 9 requires Shuffle Dungeon Items to be set
+          to on (not random), to guarantee red ring is in the item pool.
+
+  # force_sa_to_l9 requires shuffle_dungeon_items == on
+  - id: force_sa_requires_dungeon_items_on
+    description: >
+      Force Silver Arrows to Level 9 requires Shuffle Dungeon Items to be
+      explicitly on (not random).
+    when:
+      - flag: force_sa_to_l9
+        not_equals: "off"
+    then:
+      - flag: shuffle_dungeon_items
+        must_be: "on"
+        error: >
+          Force Silver Arrows to Level 9 requires Shuffle Dungeon Items to be
+          set to on (not random), to guarantee silver arrows are in the item pool.
+
+  # coast_item cannot be ladder
+  - id: coast_item_not_ladder
+    description: >
+      Ladder cannot be placed at the coast location — the ladder is logically
+      required to reach this location and would make the seed unbeatable.
+    when:
+      - flag: coast_item
+        equals: "ladder"
+    then:
+      - error: >
+          Ladder cannot be placed at the coast location — it is logically
+          required to reach this location.
+
+  # item fields: selected item must be in the active pool
+  - id: white_sword_item_in_pool
+    description: The white sword cave forced item must be in the active item pool.
+    when:
+      - flag: white_sword_item
+        not_equals: "not_shuffled"
+    then:
+      - flag: white_sword_item
+        rule: item_in_pool
+        error: >
+          The selected white sword cave item is not in the active item pool.
+          Enable the appropriate shuffle flag or choose a different item.
+
+  - id: armos_item_in_pool
+    description: The armos cave forced item must be in the active item pool.
+    when:
+      - flag: armos_item
+        not_equals: "not_shuffled"
+    then:
+      - flag: armos_item
+        rule: item_in_pool
+        error: >
+          The selected armos cave item is not in the active item pool.
+          Enable the appropriate shuffle flag or choose a different item.
+
+  - id: coast_item_in_pool
+    description: The coast forced item must be in the active item pool.
+    when:
+      - flag: coast_item
+        not_equals: "not_shuffled"
+    then:
+      - flag: coast_item
+        rule: item_in_pool
+        error: >
+          The selected coast item is not in the active item pool.
+          Enable the appropriate shuffle flag or choose a different item.
+
+  # No duplicate forced placements across the three item fields
+  - id: no_duplicate_forced_items
+    description: >
+      The same item cannot be forced to multiple locations simultaneously.
+    when:
+      - flag: white_sword_item
+        not_equals: "not_shuffled"
+    then:
+      - flag: white_sword_item
+        rule: no_duplicate
+        among: [armos_item, coast_item]
+        error: >
+          The same item cannot be forced to multiple locations simultaneously.
+
+  # Heart container pool availability
+  - id: heart_container_pool_check_white_sword
+    description: >
+      Heart container can only be forced to the white sword cave if there is
+      at least one heart container in the active item pool.
+    when:
+      - flag: white_sword_item
+        equals: "heart_container"
+    then:
+      - rule: heart_container_pool_check
+        error: >
+          Heart container is not available in the pool. Enable Shuffle Dungeon
+          Hearts, or ensure exactly one forced location uses heart container
+          while another shuffled location provides it.
+
+  - id: heart_container_pool_check_armos
+    description: Heart container pool check for armos item field.
+    when:
+      - flag: armos_item
+        equals: "heart_container"
+    then:
+      - rule: heart_container_pool_check
+        error: >
+          Heart container is not available in the pool. Enable Shuffle Dungeon
+          Hearts, or ensure exactly one forced location uses heart container
+          while another shuffled location provides it.
+
+  - id: heart_container_pool_check_coast
+    description: Heart container pool check for coast item field.
+    when:
+      - flag: coast_item
+        equals: "heart_container"
+    then:
+      - rule: heart_container_pool_check
+        error: >
+          Heart container is not available in the pool. Enable Shuffle Dungeon
+          Hearts, or ensure exactly one forced location uses heart container
+          while another shuffled location provides it.
+
+  # include_wood_sword_cave requires non-dungeon cave shuffling active
+  - id: wood_sword_cave_requires_non_dungeon_shuffle
+    description: >
+      Include Wood Sword Cave requires Cave Shuffle to include non-dungeon caves
+      (Non-Dungeons Only or All Caves).
+    when:
+      - flag: include_wood_sword_cave
+        not_equals: "off"
+    then:
+      - flag: cave_shuffle_mode
+        must_be_one_of: ["non_dungeons_only", "all_caves"]
+        error: >
+          Include Wood Sword Cave requires Cave Shuffle to be set to
+          Non-Dungeons Only or All Caves.
+
+  # include_any_road_caves requires non-dungeon cave shuffling active
+  - id: any_road_caves_requires_non_dungeon_shuffle
+    description: >
+      Include Any Road Caves requires Cave Shuffle to include non-dungeon caves
+      (Non-Dungeons Only or All Caves).
+    when:
+      - flag: include_any_road_caves
+        not_equals: "off"
+    then:
+      - flag: cave_shuffle_mode
+        must_be_one_of: ["non_dungeons_only", "all_caves"]
+        error: >
+          Include Any Road Caves requires Cave Shuffle to be set to
+          Non-Dungeons Only or All Caves.
+
+  # extra_power_bracelet_blocks is incompatible with include_any_road_caves
+  - id: extra_pb_blocks_incompatible_with_any_road
+    description: >
+      Extra Power Bracelet Blocks and Include Any Road Caves are mutually
+      incompatible. Extra PB Blocks adds bracelet gates to the any-road
+      screens, making them unreachable if those caves are shuffled into
+      the bracelet-gated pool.
+    when:
+      - flag: extra_power_bracelet_blocks
+        not_equals: "off"
+    then:
+      - flag: include_any_road_caves
+        must_be: "off"
+        error: >
+          Extra Power Bracelet Blocks is incompatible with Include Any Road
+          Caves. The any-road screens would become bracelet-gated, making
+          the cave shuffle logic inconsistent.
+
+  # randomize_lost_hills requires hint_mode in {community, helpful}
+  - id: randomize_lost_hills_requires_hint_mode
+    description: >
+      Randomize Lost Hills requires Hint Mode to be Community or Helpful, because
+      the direction sequence is communicated to the player via a hint NPC and
+      requires the extended hint bank.
+    when:
+      - flag: randomize_lost_hills
+        not_equals: "off"
+    then:
+      - flag: hint_mode
+        must_be_one_of: ["community", "helpful"]
+        error: >
+          Randomize Lost Hills requires Hint Mode to be set to Community or Helpful.
+
+  # randomize_dead_woods requires hint_mode in {community, helpful}
+  - id: randomize_dead_woods_requires_hint_mode
+    description: >
+      Randomize Dead Woods requires Hint Mode to be Community or Helpful, because
+      the direction sequence is communicated to the player via a hint NPC and
+      requires the extended hint bank.
+    when:
+      - flag: randomize_dead_woods
+        not_equals: "off"
+    then:
+      - flag: hint_mode
+        must_be_one_of: ["community", "helpful"]
+        error: >
+          Randomize Dead Woods requires Hint Mode to be set to Community or Helpful.
+
+  # add_extra_candles is incompatible with progressive_items
+  - id: add_extra_candles_incompatible_with_progressive_items
+    description: >
+      Add Extra Candles is incompatible with Progressive Items. When progressive
+      items is on, candles are handled as upgrades and the extra candle slots
+      would conflict with the progressive chain logic.
+    when:
+      - flag: add_extra_candles
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_not_be: "on"
+        error: >
+          Add Extra Candles is incompatible with Progressive Items.
+
+  - id: progressive_items_incompatible_with_add_extra_candles
+    description: >
+      Progressive Items is incompatible with Add Extra Candles.
+    when:
+      - flag: progressive_items
+        not_equals: "off"
+    then:
+      - flag: add_extra_candles
+        must_not_be: "on"
+        error: >
+          Progressive Items is incompatible with Add Extra Candles.
+
+  # add_l4_sword requires progressive_items
+  - id: add_l4_sword_requires_progressive_items
+    description: >
+      Add L4 Sword requires Progressive Items to be enabled. Without progressive
+      items, the L4 sword upgrade cannot be obtained in the game.
+    when:
+      - flag: add_l4_sword
+        equals: true
+    then:
+      - flag: progressive_items
+        must_not_be: "off"
+        error: >
+          Add L4 Sword requires Progressive Items to be enabled.
+
+  # shuffle_ganon_zelda requires shuffle_dungeon_monsters
+  - id: shuffle_ganon_zelda_requires_shuffle_dungeon_monsters
+    description: >
+      Shuffle Gannon and Zelda requires Shuffle Dungeon Monsters to be enabled.
+    when:
+      - flag: shuffle_ganon_zelda
+        not_equals: "off"
+    then:
+      - flag: shuffle_dungeon_monsters
+        must_not_be: "off"
+        error: >
+          Shuffle Gannon and Zelda requires Shuffle Dungeon Monsters to be enabled.
+
+  # add_2nd_quest_monsters requires shuffle_monsters_between_levels
+  - id: add_2nd_quest_requires_between_levels
+    description: >
+      Add 2nd Quest Monsters requires Shuffle Monsters Between Levels to be enabled.
+    when:
+      - flag: add_2nd_quest_monsters
+        not_equals: "off"
+    then:
+      - flag: shuffle_monsters_between_levels
+        must_not_be: "off"
+        error: >
+          Add 2nd Quest Monsters requires Shuffle Monsters Between Levels to be enabled.
+
+  # shuffle_overworld_monsters requires shuffle_enemy_groups
+  - id: shuffle_overworld_requires_enemy_groups
+    description: >
+      Shuffle Overworld Monsters requires Shuffle Enemy Groups to be enabled.
+    when:
+      - flag: shuffle_overworld_monsters
+        not_equals: "off"
+    then:
+      - flag: shuffle_enemy_groups
+        must_not_be: "off"
+        error: >
+          Shuffle Overworld Monsters requires Shuffle Enemy Groups to be enabled.

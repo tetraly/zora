@@ -1,0 +1,887 @@
+/* ============================================================
+   CSS Variables (design tokens)
+   ============================================================ */
+:root {
+  --color-accent: #1D9E75;
+  --color-accent-amber: #BA7517;
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f7f6f3;
+  --color-bg-tertiary: #f0efe9;
+  --color-text-primary: #1a1a18;
+  --color-text-secondary: #5a5a56;
+  --color-text-tertiary: #9a9a94;
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-strong: rgba(0, 0, 0, 0.22);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --color-bg-primary: #1a1a18;
+    --color-bg-secondary: #222220;
+    --color-bg-tertiary: #2a2a28;
+    --color-text-primary: #f0efe9;
+    --color-text-secondary: #a0a09a;
+    --color-text-tertiary: #606060;
+    --color-border: rgba(255, 255, 255, 0.10);
+    --color-border-strong: rgba(255, 255, 255, 0.20);
+  }
+}
+
+[data-theme="dark"] {
+  --color-bg-primary: #1a1a18;
+  --color-bg-secondary: #222220;
+  --color-bg-tertiary: #2a2a28;
+  --color-text-primary: #f0efe9;
+  --color-text-secondary: #a0a09a;
+  --color-text-tertiary: #606060;
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.20);
+}
+
+[data-theme="light"] {
+  --color-bg-primary: #ffffff;
+  --color-bg-secondary: #f7f6f3;
+  --color-bg-tertiary: #f0efe9;
+  --color-text-primary: #1a1a18;
+  --color-text-secondary: #5a5a56;
+  --color-text-tertiary: #9a9a94;
+  --color-border: rgba(0, 0, 0, 0.12);
+  --color-border-strong: rgba(0, 0, 0, 0.22);
+}
+
+/* ============================================================
+   Reset & base
+   ============================================================ */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.15s, color 0.15s;
+}
+
+/* ============================================================
+   Layout
+   ============================================================ */
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-main {
+  max-width: 1060px;
+  width: 100%;
+  margin: 1.5rem auto;
+  padding: 0 1rem;
+}
+
+/* ============================================================
+   Header
+   ============================================================ */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  height: 48px;
+  background: var(--color-bg-primary);
+  border-bottom: 0.5px solid var(--color-border);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.header-logo {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.header-subtitle {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-tertiary);
+  line-height: 1;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dark-mode-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--color-text-secondary);
+  padding: 4px 6px;
+  border-radius: 6px;
+  line-height: 1;
+  transition: background 0.1s;
+}
+
+.dark-mode-btn:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.dark-mode-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.header-version {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  font-family: 'DM Mono', monospace;
+}
+
+/* ============================================================
+   Section cards
+   ============================================================ */
+.section-card {
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border);
+  border-radius: 12px;
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+  margin-bottom: 0.75rem;
+}
+
+/* ============================================================
+   ROM Section
+   ============================================================ */
+.rom-dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--color-border-strong);
+  border-radius: 10px;
+  padding: 1.25rem 1rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--color-bg-secondary);
+  min-height: 72px;
+}
+
+.rom-dropzone:hover,
+.rom-dropzone:focus-visible {
+  border-color: var(--color-accent);
+  background: var(--color-bg-tertiary);
+  outline: none;
+}
+
+.rom-dropzone--active {
+  border-color: var(--color-accent);
+  background: var(--color-bg-tertiary);
+}
+
+.rom-dropzone--filled {
+  border-style: solid;
+  border-color: var(--color-border);
+  justify-content: flex-start;
+  padding: 0.75rem 1rem;
+  min-height: unset;
+}
+
+.rom-dropzone-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.rom-dropzone-icon {
+  font-size: 16px;
+  color: var(--color-text-tertiary);
+  line-height: 1;
+}
+
+.rom-dropzone-text {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.rom-dropzone-or {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.rom-dropzone-btn {
+  pointer-events: none;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+
+.rom-version-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.rom-version-badge {
+  display: inline-block;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--color-bg-tertiary);
+  border: 0.5px solid var(--color-border-strong);
+  color: var(--color-accent);
+}
+
+.rom-version-badge--custom {
+  color: var(--color-accent-amber);
+}
+
+.rom-filename {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  font-family: 'DM Mono', monospace;
+  word-break: break-all;
+}
+
+.rom-placeholder {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  border: none;
+  transition: background 0.1s, opacity 0.1s;
+  white-space: nowrap;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-secondary);
+  border: 0.5px solid var(--color-border-strong);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--color-border);
+}
+
+.btn-primary {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.btn-generate {
+  width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+/* ============================================================
+   Flags Section — Tabs
+   ============================================================ */
+.flags-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 0.5px solid var(--color-border);
+  margin-bottom: 0.75rem;
+  overflow-x: auto;
+}
+
+.flags-tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 14px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  margin-bottom: -0.5px;
+  transition: color 0.1s, border-color 0.1s;
+}
+
+.flags-tab-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.flags-tab-btn--active {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-accent);
+  font-weight: 500;
+}
+
+.flags-tab-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+/* ============================================================
+   Flags Section — Two-column layout
+   ============================================================ */
+.flag-tab {
+  display: flex;
+  gap: 0;
+}
+
+.flag-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.flag-col-divider {
+  width: 0.5px;
+  background: var(--color-border);
+  margin: 0 1rem;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Flag Row
+   ============================================================ */
+.flag-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 5px 4px;
+  border-radius: 6px;
+}
+
+.flag-row:hover {
+  background: var(--color-bg-secondary);
+}
+
+.flag-row--coerced {
+  opacity: 0.75;
+}
+
+.flag-label {
+  font-size: 13px;
+  color: var(--color-text-primary);
+  flex: 1;
+  user-select: none;
+}
+
+.flag-lock {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* ============================================================
+   Flag Checkbox
+   ============================================================ */
+.flag-checkbox {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--color-border-strong);
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  color: transparent;
+  transition: border-color 0.1s, background 0.1s;
+}
+
+.flag-checkbox:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.flag-checkbox--on {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+
+.flag-checkbox--random {
+  background: none;
+  border-color: var(--color-accent-amber);
+  color: var(--color-accent-amber);
+}
+
+/* ============================================================
+   Enum select
+   ============================================================ */
+.flag-enum-select {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 6px;
+  padding: 2px 6px;
+  cursor: pointer;
+  max-width: 160px;
+}
+
+.flag-enum-select:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ============================================================
+   Color Picker (NES palette)
+   ============================================================ */
+.flag-color-picker {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.color-picker-toggle {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 8px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: var(--color-text-primary);
+  background: var(--color-bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.color-picker-toggle--vanilla {
+  font-size: 7px;
+  letter-spacing: -0.3px;
+}
+
+.color-picker-toggle--random {
+  font-size: 7px;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg,
+    #e66 0%, #e96 17%, #ee6 33%, #6e6 50%,
+    #6ee 67%, #66e 83%, #e6e 100%);
+  color: #000;
+}
+
+.color-picker-toggle--color {
+  border-width: 2px;
+}
+
+.color-picker-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.color-picker-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  margin-top: 4px;
+  width: max-content;
+}
+
+.color-picker-specials {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.color-picker-special-btn {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-primary);
+}
+
+.color-picker-special-btn--selected {
+  background: var(--color-accent);
+  color: #fff;
+  border-color: var(--color-accent);
+}
+
+.color-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(16, 18px);
+  grid-template-rows: repeat(4, 18px);
+  gap: 1px;
+}
+
+.color-swatch {
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 2px;
+  cursor: pointer;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.color-swatch:hover:not(:disabled) {
+  border-color: #fff;
+  transform: scale(1.2);
+  z-index: 1;
+  position: relative;
+}
+
+.color-swatch--selected {
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #000, 0 0 4px rgba(255, 255, 255, 0.5);
+}
+
+.color-swatch--excluded {
+  cursor: not-allowed;
+  opacity: 0.2;
+}
+
+/* ============================================================
+   Tooltip
+   ============================================================ */
+.tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tooltip-trigger {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border-strong);
+  background: none;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  line-height: 1;
+  user-select: none;
+}
+
+.tooltip-trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.tooltip-popup {
+  display: none;
+  position: absolute;
+  right: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--color-bg-primary);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  max-width: 280px;
+  white-space: normal;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+  line-height: 1.4;
+  pointer-events: none;
+  width: max-content;
+}
+
+.tooltip-wrapper:hover .tooltip-popup,
+.tooltip-trigger:focus-visible ~ .tooltip-popup {
+  display: block;
+}
+
+/* ============================================================
+   Generate Section
+   ============================================================ */
+.generate-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.generate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field-label {
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-tertiary);
+}
+
+.seed-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.seed-input {
+  font-family: 'DM Mono', monospace;
+  font-size: 13px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 6px 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.seed-input:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.seed-input::-webkit-inner-spin-button,
+.seed-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+.seed-input[type=number] {
+  -moz-appearance: textfield;
+}
+
+.flag-string-input {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  color: var(--color-text-primary);
+  background: var(--color-bg-secondary);
+  border: 0.5px solid var(--color-border-strong);
+  border-radius: 8px;
+  padding: 6px 10px;
+  width: 100%;
+}
+
+.flag-string-input:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.flag-string-input--error {
+  border-color: #cc3333;
+}
+
+.mono {
+  font-family: 'DM Mono', monospace;
+}
+
+.generate-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.generate-result {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.download-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-basis: 100%;
+  margin-top: 0.25rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-muted, #888);
+}
+
+.status-dot--ready {
+  background: var(--color-accent);
+  box-shadow: 0 0 6px var(--color-accent);
+}
+
+.status-dot--error {
+  background: #e05555;
+  box-shadow: 0 0 6px #e05555;
+}
+
+.status-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-accent);
+}
+
+.gen-time {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+  font-family: 'DM Mono', monospace;
+}
+
+.hash-code {
+  width: 100%;
+  margin-top: 0.25rem;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  font-family: 'DM Mono', monospace;
+}
+
+.hash-code-label {
+  color: var(--color-text-tertiary);
+  margin-right: 0.4rem;
+}
+
+/* ============================================================
+   Spinner
+   ============================================================ */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   Inline error
+   ============================================================ */
+.inline-error {
+  font-size: 12px;
+  color: #cc3333;
+  margin-top: 0.35rem;
+}
+
+.error-details {
+  margin: 0.35rem 0 0 0;
+  padding-left: 1.25rem;
+}
+
+.error-details li {
+  margin-bottom: 0.2rem;
+}
+
+/* ============================================================
+   Flags loading state
+   ============================================================ */
+.flags-loading {
+  font-size: 13px;
+  color: var(--color-text-tertiary);
+  padding: 0.5rem 0;
+}
+
+/* (Visualizer styles are inlined in the new-tab HTML — see app.js buildVisualizerHTML) */
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 768px) {
+  .app-main {
+    margin: 1rem auto;
+    padding: 0 0.75rem;
+  }
+
+  .flag-tab {
+    flex-direction: column;
+  }
+
+  .flag-col-divider {
+    width: 100%;
+    height: 0.5px;
+    margin: 0.5rem 0;
+  }
+
+  .generate-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .app-header {
+    padding: 0 1rem;
+  }
+
+  .header-subtitle {
+    display: none;
+  }
+}
+
+.hint-type {
+  color: var(--text-secondary, #888);
+  font-size: 0.85em;
+}
