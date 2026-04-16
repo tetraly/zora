@@ -930,7 +930,19 @@ def change_dungeon_enemy_groups(
     world.enemies.cave_groups = dict(group_enemies)
 
     # --- Replace enemies in dungeon rooms ---
+    # Build a set of all enemies that belong to any vanilla group, for
+    # filtering out non-group enemies (bubbles, traps, etc.).
+    _all_vanilla_group_enemies: frozenset[Enemy] = frozenset().union(
+        *_VANILLA_ENEMY_GROUPS.values()
+    )
+
     for level in world.levels:
+        # Draw replacements from the pool matching the level's sprite set.
+        # After shuffle_monsters_between_levels, a level may use a different
+        # sprite set than vanilla, so we must use the level's actual set —
+        # not the enemy's vanilla group — to avoid sprite/bank mismatches.
+        level_pool = group_enemies.get(level.enemy_sprite_set)
+
         for room in level.rooms:
             # Skip staircase rooms — the C# skips rooms where
             # (flag_byte & 0x3F) is 62 or 63, which are
@@ -949,23 +961,17 @@ def change_dungeon_enemy_groups(
                 room.enemy_spec.enemy = start_enemy
                 continue
 
-            # Determine which vanilla group this enemy belongs to.
-            original_group: EnemySpriteSet | None = None
-            for sprite_set, members in _VANILLA_ENEMY_GROUPS.items():
-                if enemy in members:
-                    original_group = sprite_set
-                    break
-
-            if original_group is None:
+            # Only replace enemies that belong to a vanilla group (A/B/C).
+            # Non-group enemies (bubbles, traps, etc.) are left unchanged.
+            if enemy not in _all_vanilla_group_enemies:
                 continue
 
-            pool = group_enemies.get(original_group)
-            if not pool:
+            if not level_pool:
                 continue
 
             # Pick a random replacement, retrying on safety failures.
             for _attempt in range(_MAX_ROOM_RETRIES):
-                new_enemy = rng.choice(pool)
+                new_enemy = rng.choice(level_pool)
 
                 if not is_safe_for_room(new_enemy, room.room_type, has_push_block=room.movable_block):
                     continue
