@@ -48,17 +48,17 @@ _RANDOMIZERS = [
     normalize_data,
     randomize_entrances,
     recalculate_recorder_warp_screens,
-    shuffle_dungeon_items,
     place_l4_sword,
-    randomize_items,
+    randomize_enemies,   # before randomize_items: boss placement affects reachability
     randomize_shops,
     remap_game_start,
     randomize_dungeon_palettes,
     randomize_maze_directions,
+    randomize_caves,     # must run before randomize_hints so heart requirements are set
+    shuffle_dungeon_items,
+    randomize_items,
     expand_quote_slots,  # adds quote slots 39-43; must run before randomize_hints
     randomize_hints,
-    randomize_caves,
-    randomize_enemies,
 ]
 
 

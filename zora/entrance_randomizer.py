@@ -41,18 +41,37 @@ def _need_bracelet(loc: int, bracelet_locations: list[int]) -> bool:
     return loc in bracelet_locations
 
 
+def _need_lost_hills_hint(loc: int, lost_hills_screens: frozenset[int]) -> bool:
+    return loc in lost_hills_screens
+
+
+def _need_dead_woods_hint(loc: int, dead_woods_screens: frozenset[int]) -> bool:
+    return loc in dead_woods_screens
+
+
+def _screens_with_destination(game_world: GameWorld, dest: Destination) -> frozenset[int]:
+    """Return the set of overworld screen numbers that have the given destination."""
+    return frozenset(
+        s.screen_num for s in game_world.overworld.screens if s.destination == dest
+    )
+
+
 def _need_no_item_to_enter(
     loc: int,
     raft_locations: list[int],
     recorder_locations: list[int],
     bracelet_locations: list[int],
+    lost_hills_screens: frozenset[int] = frozenset(),
+    dead_woods_screens: frozenset[int] = frozenset(),
 ) -> bool:
-    """Returns True if the screen can be reached without any special item."""
+    """Returns True if the screen can be reached without any special item or virtual item."""
     return not (
         _need_raft(loc, raft_locations)
         or _need_recorder(loc, recorder_locations)
         or _need_ladder(loc)
         or _need_bracelet(loc, bracelet_locations)
+        or _need_lost_hills_hint(loc, lost_hills_screens)
+        or _need_dead_woods_hint(loc, dead_woods_screens)
     )
 
 
@@ -171,6 +190,8 @@ def shuffle_caves(
     raft_locations: list[int] | None = None,
     recorder_locations: list[int] | None = None,
     bracelet_locations: list[int] | None = None,
+    lost_hills_screens: frozenset[int] = frozenset(),
+    dead_woods_screens: frozenset[int] = frozenset(),
 ) -> CaveShuffleResult | None:
     """
     Shuffles cave entrance assignments on the overworld, mutating world in place.
@@ -189,6 +210,8 @@ def shuffle_caves(
     raft_locations        : screens requiring the raft (default: [0x2F, 0x45])
     recorder_locations    : screens requiring the recorder (default: vanilla list)
     bracelet_locations    : screens requiring the power bracelet (default: [])
+    lost_hills_screens    : screens in the lost hills maze area (excluded from wood sword placement)
+    dead_woods_screens    : screens in the dead woods maze area (excluded from wood sword placement)
     """
     if raft_locations is None:
         raft_locations = [0x2F, 0x45]
@@ -317,12 +340,13 @@ def shuffle_caves(
             do_swap = False
 
             if cave_types[i] == _CAVE_TYPE_WOOD_SWORD:
-                # Wood sword: must land on a screen reachable without any item.
+                # Wood sword: must land on a screen reachable without any item or virtual item.
                 accessible = [
                     k for k in range(len(cave_screens))
                     if _need_no_item_to_enter(
                         cave_screens[k],
                         raft_locations, recorder_locations, bracelet_locations,
+                        lost_hills_screens, dead_woods_screens,
                     )
                 ]
                 k = rng.choice(accessible)
@@ -482,6 +506,13 @@ def randomize_entrances(game_world: GameWorld, config: GameConfig, rng: Rng) -> 
     if config.extra_power_bracelet_blocks:
         bracelet_locations = list(_EXTRA_PB_AND_BOMB_SCREENS)
 
+    lost_hills_screens: frozenset[int] = frozenset()
+    dead_woods_screens: frozenset[int] = frozenset()
+    if config.randomize_lost_hills:
+        lost_hills_screens = _screens_with_destination(game_world, Destination.LOST_HILLS_HINT)
+    if config.randomize_dead_woods:
+        dead_woods_screens = _screens_with_destination(game_world, Destination.DEAD_WOODS_HINT)
+
     result = shuffle_caves(
         game_world,
         rng,
@@ -496,6 +527,8 @@ def randomize_entrances(game_world: GameWorld, config: GameConfig, rng: Rng) -> 
         overworld_block_needed=config.shuffle_non_dungeon_caves,
         raft_locations=raft_locations,
         bracelet_locations=bracelet_locations,
+        lost_hills_screens=lost_hills_screens,
+        dead_woods_screens=dead_woods_screens,
     )
     if result is None:
         raise RuntimeError("Cave shuffle failed — overworld block check not satisfied")
