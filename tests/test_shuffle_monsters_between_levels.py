@@ -22,12 +22,15 @@ from zora.rng import SeededRng
 from zora.data_model import (
     Enemy,
     EnemySpec,
+    EnemySpriteSet,
     GameWorld,
 )
 from zora.enemy.safety_checks import is_safe_for_room, UNSAFE_ROOM_TYPES
 from zora.enemy.shuffle_monsters_between_levels import (
     shuffle_monsters_between_levels,
     _is_excluded_from_enemy_shuffling,
+    _build_enemy_pools,
+    _BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS,
     LEVEL_SPRITE_SET,
     _EXCLUDED_FROM_ENEMY_SHUFFLING,
 )
@@ -76,6 +79,19 @@ class TestIsExcluded(unittest.TestCase):
             Enemy.MANHANDLA,
         ]:
             self.assertTrue(_is_excluded_from_enemy_shuffling(boss), f"{boss.name} should be excluded")
+
+    def test_lanmola_not_excluded(self):
+        """Lanmola sprites live in enemy sprite sets (not boss sprite sets),
+        so Lanmola must participate in between-level shuffling to stay
+        matched to the level's enemy_sprite_set."""
+        self.assertFalse(
+            _is_excluded_from_enemy_shuffling(Enemy.RED_LANMOLA),
+            "RED_LANMOLA should NOT be excluded — its sprites are in enemy sets",
+        )
+        self.assertFalse(
+            _is_excluded_from_enemy_shuffling(Enemy.BLUE_LANMOLA),
+            "BLUE_LANMOLA should NOT be excluded — its sprites are in enemy sets",
+        )
 
     def test_npcs_excluded(self):
         for npc in [
@@ -430,6 +446,96 @@ class TestExcludedEnemies(unittest.TestCase):
     def test_npcs_in_set(self):
         for npc in [Enemy.OLD_MAN, Enemy.BOMB_UPGRADER, Enemy.MUGGER]:
             self.assertIn(npc, _EXCLUDED_FROM_ENEMY_SHUFFLING)
+
+
+class TestSpriteSetConsistency(unittest.TestCase):
+    """Regression tests: enemies must stay matched to their level's sprite set.
+
+    When shuffle_monsters_between_levels reassigns a level's enemy_sprite_set,
+    every enemy whose sprites live in the enemy sprite banks (not the boss
+    sprite banks) must be replaced with one from the matching pool. Otherwise
+    the NES loads the wrong sprite tiles and the enemy renders as garbage.
+    """
+
+    def setUp(self) -> None:
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(TIMEOUT)
+
+    def tearDown(self) -> None:
+        signal.alarm(0)
+
+    def test_lanmola_in_vanilla_pool_c(self):
+        """Lanmola must appear in pool C (its vanilla sprite set)."""
+        gw = _load_game_world()
+        pools = _build_enemy_pools(gw)
+        self.assertIn(Enemy.RED_LANMOLA, pools[EnemySpriteSet.C])
+
+    def test_lanmola_only_in_levels_with_sprite_set_c(self):
+        """After shuffling, Lanmola must only appear in levels assigned
+        sprite set C — otherwise its tiles would be missing from the
+        loaded sprite bank, causing glitch graphics."""
+        lanmola_ids = {Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA}
+        for seed in [1, 42, 100, 999, 12345, 54321, 99999]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                _call_shuffle(gw, SeededRng(seed))
+
+                for level in gw.levels:
+                    for room in level.rooms:
+                        if room.enemy_spec.enemy in lanmola_ids:
+                            self.assertEqual(
+                                level.enemy_sprite_set, EnemySpriteSet.C,
+                                f"Seed {seed}, L{level.level_num} room "
+                                f"{room.room_num}: {room.enemy_spec.enemy.name} "
+                                f"in level with sprite set "
+                                f"{level.enemy_sprite_set.name} (needs C)",
+                            )
+
+    def test_all_enemies_match_level_sprite_set(self):
+        """After shuffling, every replaced enemy must come from the pool
+        matching its level's assigned sprite set.
+
+        This is the general form of the Lanmola test — it catches any
+        enemy whose sprites are in the wrong bank after a sprite set
+        reassignment."""
+        for seed in [1, 42, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                # Build pools before shuffling (from vanilla data).
+                pools = _build_enemy_pools(gw)
+                _call_shuffle(gw, SeededRng(seed))
+
+                for level in gw.levels:
+                    assigned_set = level.enemy_sprite_set
+                    pool = set(pools[assigned_set])
+
+                    for room in level.rooms:
+                        enemy = room.enemy_spec.enemy
+                        if _is_excluded_from_enemy_shuffling(enemy):
+                            continue
+                        self.assertIn(
+                            enemy, pool,
+                            f"Seed {seed}, L{level.level_num} room "
+                            f"{room.room_num}: {enemy.name} not in pool "
+                            f"for sprite set {assigned_set.name}",
+                        )
+
+    def test_boss_enemies_in_sprite_sets_constant_matches_vanilla_groups(self):
+        """Every enemy in _BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS must actually
+        appear in a _VANILLA_ENEMY_GROUPS set (i.e. its sprites really do
+        live in the enemy sprite banks)."""
+        from zora.enemy.change_dungeon_enemy_groups import _VANILLA_ENEMY_GROUPS
+        all_enemy_group_members = set()
+        for members in _VANILLA_ENEMY_GROUPS.values():
+            all_enemy_group_members.update(members)
+
+        for enemy in _BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS:
+            self.assertIn(
+                enemy, all_enemy_group_members,
+                f"{enemy.name} is in _BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS but "
+                f"not in any _VANILLA_ENEMY_GROUPS — its sprites may not "
+                f"actually live in the enemy sprite banks",
+            )
 
 
 if __name__ == '__main__':

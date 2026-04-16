@@ -46,9 +46,23 @@ _EXCLUDED_FROM_ENEMY_SHUFFLING: frozenset[Enemy] = frozenset({
 })
 
 
+# Bosses whose sprites live in the enemy sprite sets (not boss sprite sets).
+# These must participate in between-level shuffling so they stay matched to the
+# level's enemy_sprite_set; the blanket is_boss exclusion would otherwise strand
+# them in a level whose sprite bank no longer contains their tile data.
+_BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS: frozenset[Enemy] = frozenset({
+    Enemy.RED_LANMOLA,
+    Enemy.BLUE_LANMOLA,
+})
+
+
 def _is_excluded_from_enemy_shuffling(enemy: Enemy) -> bool:
     """Return True if this enemy should not participate in inter-level shuffling."""
-    return enemy in _EXCLUDED_FROM_ENEMY_SHUFFLING or enemy.is_boss
+    if enemy in _EXCLUDED_FROM_ENEMY_SHUFFLING:
+        return True
+    if enemy.is_boss and enemy not in _BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS:
+        return True
+    return False
 
 def _build_enemy_pools(world: GameWorld) -> dict[EnemySpriteSet, list[Enemy]]:
     """Collect unique enemies from each dungeon level into sprite-set-based pools.
