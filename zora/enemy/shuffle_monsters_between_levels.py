@@ -205,7 +205,7 @@ def _redistribute_enemies(
                 for room_attempt in range(_MAX_ROOM_RETRIES):
                     replacement = rng.choice(pool)
 
-                    if not is_safe_for_room(replacement, room.room_type):
+                    if not is_safe_for_room(replacement, room.room_type, has_push_block=room.movable_block):
                         continue
 
                     # Track bubble types for level-wide balance check

@@ -475,7 +475,7 @@ def change_dungeon_boss_groups(world: GameWorld, rng: Rng) -> None:
             for _attempt in range(_MAX_ROOM_RETRIES):
                 new_boss = rng.choice(pool)
 
-                if not is_safe_for_room(new_boss, room.room_type):
+                if not is_safe_for_room(new_boss, room.room_type, has_push_block=room.movable_block):
                     continue
 
                 room.enemy_spec.enemy = new_boss

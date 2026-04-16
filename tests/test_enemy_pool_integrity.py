@@ -317,5 +317,135 @@ class TestOrchestratorGating(unittest.TestCase):
         randomize_enemies(gw, config, SeededRng(42))
 
 
+class TestGleeok1NeverPlaced(unittest.TestCase):
+    """GLEEOK_1 is visually glitchy and must never appear in the game world."""
+
+    def setUp(self) -> None:
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(TIMEOUT)
+
+    def tearDown(self) -> None:
+        signal.alarm(0)
+
+    def test_gleeok_1_not_in_boss_tiers(self) -> None:
+        """GLEEOK_1 must not appear in any boss tier pool."""
+        from zora.enemy.shuffle_bosses import BOSS_TIERS
+
+        for tier, pool in BOSS_TIERS.items():
+            self.assertNotIn(
+                Enemy.GLEEOK_1, pool,
+                f"GLEEOK_1 found in BOSS_TIERS[{tier.name}] — "
+                f"it is glitchy and must not be placed",
+            )
+
+    def test_no_gleeok_1_after_randomize_enemies(self) -> None:
+        """No room should contain GLEEOK_1 after full enemy randomization."""
+        from zora.enemy.randomize import randomize_enemies
+
+        for seed in [1, 42, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                config = GameConfig(
+                    shuffle_dungeon_monsters=True,
+                    shuffle_monsters_between_levels=True,
+                    shuffle_ganon_zelda=True,
+                    shuffle_enemy_groups=True,
+                    shuffle_bosses=True,
+                    change_dungeon_boss_groups=True,
+                )
+                randomize_enemies(gw, config, SeededRng(seed))
+
+                for level in gw.levels:
+                    for room in level.rooms:
+                        self.assertNotEqual(
+                            room.enemy_spec.enemy, Enemy.GLEEOK_1,
+                            f"Seed {seed}, L{level.level_num} room {room.room_num}: "
+                            f"GLEEOK_1 placed — it is glitchy and must never appear",
+                        )
+
+    def test_no_gleeok_1_after_shuffle_bosses_only(self) -> None:
+        """GLEEOK_1 must not appear even when only boss shuffling is active."""
+        from zora.enemy.randomize import randomize_enemies
+
+        for seed in [1, 42, 999]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                config = GameConfig(
+                    shuffle_bosses=True,
+                )
+                randomize_enemies(gw, config, SeededRng(seed))
+
+                for level in gw.levels:
+                    for room in level.rooms:
+                        self.assertNotEqual(
+                            room.enemy_spec.enemy, Enemy.GLEEOK_1,
+                            f"Seed {seed}, L{level.level_num} room {room.room_num}: "
+                            f"GLEEOK_1 placed by shuffle_bosses",
+                        )
+
+
+class TestGleeok4PushBlockSafety(unittest.TestCase):
+    """GLEEOK_4 must never be placed in rooms with push blocks."""
+
+    def setUp(self) -> None:
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(TIMEOUT)
+
+    def tearDown(self) -> None:
+        signal.alarm(0)
+
+    def test_is_safe_for_room_rejects_gleeok_4_with_push_block(self) -> None:
+        """is_safe_for_room must return False for GLEEOK_4 when has_push_block is True."""
+        from zora.enemy.safety_checks import is_safe_for_room
+        from zora.data_model import RoomType
+
+        # PLAIN_ROOM is otherwise safe for GLEEOK_4
+        self.assertTrue(
+            is_safe_for_room(Enemy.GLEEOK_4, RoomType.PLAIN_ROOM, has_push_block=False),
+            "GLEEOK_4 should be safe in PLAIN_ROOM without push block",
+        )
+        self.assertFalse(
+            is_safe_for_room(Enemy.GLEEOK_4, RoomType.PLAIN_ROOM, has_push_block=True),
+            "GLEEOK_4 must not be safe in PLAIN_ROOM with push block",
+        )
+
+    def test_other_gleeoks_unaffected_by_push_block(self) -> None:
+        """GLEEOK_2 and GLEEOK_3 should still be allowed in push block rooms."""
+        from zora.enemy.safety_checks import is_safe_for_room
+        from zora.data_model import RoomType
+
+        for gleeok in [Enemy.GLEEOK_2, Enemy.GLEEOK_3]:
+            with self.subTest(enemy=gleeok.name):
+                self.assertTrue(
+                    is_safe_for_room(gleeok, RoomType.PLAIN_ROOM, has_push_block=True),
+                    f"{gleeok.name} should be allowed in push block rooms",
+                )
+
+    def test_no_gleeok_4_in_push_block_rooms_after_randomize(self) -> None:
+        """After full randomization, no GLEEOK_4 should appear in rooms with movable blocks."""
+        from zora.enemy.randomize import randomize_enemies
+
+        for seed in [1, 42, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                config = GameConfig(
+                    shuffle_dungeon_monsters=True,
+                    shuffle_monsters_between_levels=True,
+                    shuffle_ganon_zelda=True,
+                    shuffle_enemy_groups=True,
+                    shuffle_bosses=True,
+                    change_dungeon_boss_groups=True,
+                )
+                randomize_enemies(gw, config, SeededRng(seed))
+
+                for level in gw.levels:
+                    for room in level.rooms:
+                        if room.enemy_spec.enemy == Enemy.GLEEOK_4 and room.movable_block:
+                            self.fail(
+                                f"Seed {seed}, L{level.level_num} room {room.room_num}: "
+                                f"GLEEOK_4 placed in room with push block",
+                            )
+
+
 if __name__ == "__main__":
     unittest.main()

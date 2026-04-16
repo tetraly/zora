@@ -198,6 +198,7 @@ def is_safe_for_room(
     enemy: Enemy,
     room_type: RoomType,
     must_beat_gannon: bool = False,
+    has_push_block: bool = False,
 ) -> bool:
     """Check whether an enemy can be placed in the given room type.
 
@@ -207,6 +208,8 @@ def is_safe_for_room(
         must_beat_gannon: When True, THE_KIDNAPPED also cannot be placed
             in NARROW_STAIR_ROOM or SPIRAL_STAIR_ROOM (rooms adjacent to
             Gannon that would let the player skip the fight).
+        has_push_block: When True, the room has a movable push block.
+            GLEEOK_4 cannot be placed in rooms with push blocks.
 
     Returns:
         True if the placement is safe, False if the room type is incompatible.
@@ -218,6 +221,9 @@ def is_safe_for_room(
     if must_beat_gannon and enemy == Enemy.THE_KIDNAPPED:
         if room_type in _UNSAFE_ROOMS_THE_KIDNAPPED_MUST_BEAT_GANNON:
             return False
+
+    if has_push_block and enemy == Enemy.GLEEOK_4:
+        return False
 
     return True
 
@@ -260,9 +266,9 @@ def safe_for_dodongo(room_type: int) -> bool:
     return is_safe_for_room(Enemy.TRIPLE_DODONGO, RoomType(room_type))
 
 
-def safe_for_gleeok(room_type: int, enemy_id: int) -> bool:
+def safe_for_gleeok(room_type: int, enemy_id: int, has_push_block: bool = False) -> bool:
     enemy = Enemy.GLEEOK_4 if enemy_id == _GLEEOK_4_RAW_ID else Enemy.GLEEOK_1
-    return is_safe_for_room(enemy, RoomType(room_type))
+    return is_safe_for_room(enemy, RoomType(room_type), has_push_block=has_push_block)
 
 
 def safe_for_gannon(room_type: int) -> bool:

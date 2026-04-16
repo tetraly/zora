@@ -81,18 +81,18 @@ def _is_eligible(enemy: Enemy, shuffle_gannon: bool) -> bool:
 def _is_swap_safe(
     enemy_a: Enemy,
     enemy_b: Enemy,
-    room_type_a: RoomType,
-    room_type_b: RoomType,
+    room_a: Room,
+    room_b: Room,
     must_beat_gannon: bool,
 ) -> bool:
     """Check whether swapping two enemies between their rooms is safe.
 
-    After the swap, enemy_a lands in room_type_b and enemy_b lands in
-    room_type_a. Both placements must pass safety checks.
+    After the swap, enemy_a lands in room_b and enemy_b lands in
+    room_a. Both placements must pass safety checks.
     """
-    if not is_safe_for_room(enemy_a, room_type_b, must_beat_gannon=must_beat_gannon):
+    if not is_safe_for_room(enemy_a, room_b.room_type, must_beat_gannon=must_beat_gannon, has_push_block=room_b.movable_block):
         return False
-    if not is_safe_for_room(enemy_b, room_type_a, must_beat_gannon=must_beat_gannon):
+    if not is_safe_for_room(enemy_b, room_a.room_type, must_beat_gannon=must_beat_gannon, has_push_block=room_a.movable_block):
         return False
     return True
 
@@ -257,7 +257,7 @@ def _shuffle_level(
 
         if not _is_swap_safe(
             specs[i].enemy, specs[j].enemy,
-            eligible_rooms[i].room_type, eligible_rooms[j].room_type,
+            eligible_rooms[i], eligible_rooms[j],
             must_beat_gannon,
         ):
             continue

@@ -950,7 +950,7 @@ def change_dungeon_enemy_groups(
             for _attempt in range(_MAX_ROOM_RETRIES):
                 new_enemy = rng.choice(pool)
 
-                if not is_safe_for_room(new_enemy, room.room_type):
+                if not is_safe_for_room(new_enemy, room.room_type, has_push_block=room.movable_block):
                     continue
 
                 room.enemy_spec.enemy = new_enemy

@@ -15,7 +15,7 @@ Call order:
 
 from __future__ import annotations
 
-from zora.data_model import GameWorld
+from zora.data_model import Enemy, GameWorld
 from zora.enemy.change_dungeon_boss_groups import change_dungeon_boss_groups
 from zora.enemy.change_dungeon_enemy_groups import change_dungeon_enemy_groups
 from zora.enemy.hp import randomize_hp
@@ -44,6 +44,9 @@ def randomize_enemies(
         rng: Shared RNG instance (state flows between steps).
     """
 
+    # GLEEOK_1 is glitchy — replace any vanilla instances with GLEEOK_2.
+    _replace_gleeok_1(game_world)
+
     if config.shuffle_monsters_between_levels:
         shuffle_monsters_between_levels(game_world, rng, config.include_level_9)
 
@@ -69,3 +72,14 @@ def randomize_enemies(
 
     if config.change_dungeon_boss_groups:
         change_dungeon_boss_groups(game_world, rng)
+
+
+def _replace_gleeok_1(game_world: GameWorld) -> None:
+    """Replace all GLEEOK_1 enemy placements with GLEEOK_2.
+
+    GLEEOK_1 is visually glitchy and should never appear in the game.
+    """
+    for level in game_world.levels:
+        for room in level.rooms:
+            if room.enemy_spec.enemy == Enemy.GLEEOK_1:
+                room.enemy_spec.enemy = Enemy.GLEEOK_2

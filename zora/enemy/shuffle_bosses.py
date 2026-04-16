@@ -39,7 +39,6 @@ BOSS_TIERS: dict[BossSpriteSet, list[Enemy]] = {
         Enemy.BLUE_GOHMA,
         Enemy.RED_GOHMA,
         Enemy.MANHANDLA,
-        Enemy.GLEEOK_1,
         Enemy.GLEEOK_2,
         Enemy.GLEEOK_3,
         Enemy.GLEEOK_4,
@@ -181,7 +180,7 @@ def shuffle_bosses(
             for _attempt in range(_MAX_ROOM_RETRIES):
                 new_boss = rng.choice(boss_pool)
 
-                if not is_safe_for_room(new_boss, room.room_type):
+                if not is_safe_for_room(new_boss, room.room_type, has_push_block=room.movable_block):
                     continue
 
                 room.enemy_spec.enemy = new_boss
