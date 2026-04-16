@@ -847,7 +847,7 @@ def change_dungeon_enemy_groups(
     6. Duplicate tile frames from primaries to companion variants.
     7. Expand companion variants into each group.
     8. Replace enemies in dungeon rooms (and optionally overworld screens).
-    9. Store the final group assignments in world.enemies.sprite_sets.
+    9. Store the final group assignments in world.enemies.cave_groups.
 
     Only Q1 levels (1-9) are processed for dungeons.
 
@@ -927,7 +927,7 @@ def change_dungeon_enemy_groups(
         group.extend(additions)
 
     # --- Store the final group assignments ---
-    world.enemies.sprite_sets = dict(group_enemies)
+    world.enemies.cave_groups = dict(group_enemies)
 
     # --- Replace enemies in dungeon rooms ---
     for level in world.levels:
