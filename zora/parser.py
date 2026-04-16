@@ -109,8 +109,8 @@ from zora.rom_layout import (
     ANY_ROAD_SCREENS_ADDRESS,
     ARMOS_ITEM_ADDRESS,
     ARMOS_TABLES_ADDRESS,
-    BOMB_VANILLA_COST,
-    BOMB_VANILLA_COUNT,
+    BOMB_COST_OFFSET,
+    BOMB_COUNT_OFFSET,
     BOSS_SET_A_SPRITES_ADDRESS,
     BOSS_SET_A_SPRITES_SIZE,
     BOSS_SET_B_SPRITES_ADDRESS,
@@ -214,6 +214,8 @@ class RawBinFiles:
     cave_price_data:              bytes   # 20 caves x 3 bytes = 60 bytes
     cave_quotes_data:             bytes   # 20 bytes at CAVE_QUOTES_DATA_ADDRESS; low 6 bits = quote_id
     hint_shop_quotes:             bytes   # 6 bytes at HINT_SHOP_QUOTES_ADDRESS; low 6 bits = quote_id
+    bomb_cost:                    bytes   # 1 byte at BOMB_COST_OFFSET
+    bomb_count:                   bytes   # 1 byte at BOMB_COUNT_OFFSET
     door_repair_charge:           bytes   # 1 byte
     mmg_lose_small:               bytes   # 1 byte
     mmg_lose_small_2:             bytes   # 1 byte
@@ -281,6 +283,8 @@ def load_bin_files(test_data_dir: Path) -> RawBinFiles:
         cave_price_data           = read("cave_price_data.bin"),
         cave_quotes_data          = read("cave_quotes_data.bin"),
         hint_shop_quotes          = read("hint_shop_quotes.bin"),
+        bomb_cost                 = read("bomb_cost.bin"),
+        bomb_count                = read("bomb_count.bin"),
         door_repair_charge        = read("door_repair_charge.bin"),
         mmg_lose_small            = read("mmg_lose_small.bin"),
         mmg_lose_small_2          = read("mmg_lose_small_2.bin"),
@@ -389,6 +393,8 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         cave_price_data             = s(CAVE_PRICE_DATA_ADDRESS,             60),
         cave_quotes_data            = s(CAVE_QUOTES_DATA_ADDRESS,            20),
         hint_shop_quotes            = s(HINT_SHOP_QUOTES_ADDRESS,            6),
+        bomb_cost                   = s(BOMB_COST_OFFSET,                    1),
+        bomb_count                  = s(BOMB_COUNT_OFFSET,                   1),
         door_repair_charge          = s(DOOR_REPAIR_CHARGE_ADDRESS,          1),
         mmg_lose_small              = s(MMG_LOSE_SMALL_OFFSET,               1),
         mmg_lose_small_2            = s(MMG_LOSE_SMALL_2_OFFSET,             1),
@@ -1036,7 +1042,7 @@ def _parse_overworld(bins: RawBinFiles, mixed_groups: dict[int, EnemySpec]) -> O
         lost_hills_directions=[OverworldDirection(b) for b in bins.maze_directions[4:8]],
         armos_screen_ids=list(bins.armos_tables[0:7]),
         armos_positions=list(bins.armos_tables[7:14]),
-        bomb_upgrade=BombUpgrade(cost=BOMB_VANILLA_COST, count=BOMB_VANILLA_COUNT),
+        bomb_upgrade=BombUpgrade(cost=bins.bomb_cost[0], count=bins.bomb_count[0]),
         any_road_screens=list(bins.any_road_screens),
         recorder_warp_destinations=list(bins.recorder_warp_destinations),
         recorder_warp_y_coordinates=list(bins.recorder_warp_y_coordinates),
