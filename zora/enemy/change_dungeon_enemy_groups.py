@@ -224,6 +224,16 @@ def _compute_sprite_size(enemy: Enemy) -> int:
 _SPRITE_OFFSET: dict[Enemy, int] = {e: _compute_sprite_offset(e) for e in _VANILLA_SPRITE_SET}
 _SPRITE_SIZE: dict[Enemy, int] = {e: _compute_sprite_size(e) for e in _VANILLA_SPRITE_SET}
 
+# Pre-computed vanilla engine column range for each enemy.
+# Column = _COL_START + (byte_offset_in_bank / 16).
+_VANILLA_COLUMNS: dict[Enemy, list[int]] = {
+    e: list(range(
+        _COL_START + _SPRITE_OFFSET[e] // 16,
+        _COL_START + _SPRITE_OFFSET[e] // 16 + _ENEMY_TILE_COLUMNS[e],
+    ))
+    for e in _VANILLA_SPRITE_SET
+}
+
 # Number of tile frame entries per enemy (enemyMinDims in C#).
 # This is the count of entries in tile_frames for each safe enemy.
 _TILE_FRAME_COUNT: dict[Enemy, int] = {
@@ -526,15 +536,13 @@ def _update_tile_frames(
     """Update tile_frames for each enemy to reflect its new sprite set position.
 
     After repacking, each enemy's tile frame entries must be remapped from
-    their old column positions to the new ones.  The algorithm:
-    1. Normalize frames (subtract minimum → 0-based sub-sprite indices).
-    2. For each normalized index, look up the actual engine column number
-       from the column assignment list.
-
-    This handles non-contiguous column allocations correctly.  The C#
-    (lines 502-563) does the same thing inline during packing: for each
-    column slot ``s`` written, it scans ``statWork`` for entries equal to
-    ``s`` and replaces them with ``slotBase``.
+    their old column positions to the new ones.  We build an explicit
+    old_column → new_column mapping from the enemy's vanilla column range
+    and its new assigned columns, then substitute each frame value through
+    that mapping.  Frame values that reference columns outside the enemy's
+    own sprite data (e.g. Wallmaster's shared block, Lanmola's OW-region
+    tiles) are left unchanged — they reference fixed engine tile positions
+    that aren't repacked.
     """
     for enemy, assigned_cols in column_assignments.items():
         if enemy not in enemies.tile_frames:
@@ -544,19 +552,20 @@ def _update_tile_frames(
         if not frames:
             continue
 
-        # Normalize: subtract minimum to get 0-based sub-sprite indices.
-        min_val = min(frames)
-        normalized = [f - min_val for f in frames]
+        vanilla_cols = _VANILLA_COLUMNS.get(enemy)
+        if vanilla_cols is None:
+            continue
 
-        # Remap: each normalized index maps to the corresponding assigned
-        # column.  Indices beyond the assigned columns are left as-is
-        # (shouldn't happen with well-formed data).
-        remapped = [
-            assigned_cols[n] if n < len(assigned_cols) else n
-            for n in normalized
+        # Build old → new mapping from parallel vanilla/assigned column lists.
+        col_map: dict[int, int] = {}
+        for old_col, new_col in zip(vanilla_cols, assigned_cols):
+            col_map[old_col] = new_col
+
+        # Remap each frame value; leave unchanged if not in the enemy's
+        # vanilla column range (references fixed engine tile positions).
+        enemies.tile_frames[enemy] = [
+            col_map.get(f, f) for f in frames
         ]
-
-        enemies.tile_frames[enemy] = remapped
 
 
 def _duplicate_companion_tile_frames(enemies: EnemyData) -> None:
