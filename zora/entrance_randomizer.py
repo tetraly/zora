@@ -513,9 +513,7 @@ def randomize_entrances(game_world: GameWorld, config: GameConfig, rng: Rng) -> 
     if config.randomize_dead_woods:
         dead_woods_screens = _screens_with_destination(game_world, Destination.DEAD_WOODS_HINT)
 
-    result = shuffle_caves(
-        game_world,
-        rng,
+    shuffle_kwargs = dict(
         shuffle=config.shuffle_non_dungeon_caves,
         include_bracelet_caves=config.include_any_road_caves,
         include_wood_sword_cave=config.include_wood_sword_cave,
@@ -530,5 +528,18 @@ def randomize_entrances(game_world: GameWorld, config: GameConfig, rng: Rng) -> 
         lost_hills_screens=lost_hills_screens,
         dead_woods_screens=dead_woods_screens,
     )
+
+    # The shuffle is randomized and may produce an arrangement that fails the
+    # overworld block check. Retry up to 50 times with fresh RNG draws before
+    # giving up. Each failed attempt already wrote back to game_world, but the
+    # next attempt rebuilds working lists from the (now-shuffled) state and
+    # re-shuffles, so stale state doesn't accumulate.
+    max_attempts = 50
+    result = None
+    for _ in range(max_attempts):
+        result = shuffle_caves(game_world, rng, **shuffle_kwargs)
+        if result is not None:
+            break
     if result is None:
-        raise RuntimeError("Cave shuffle failed — overworld block check not satisfied")
+        raise RuntimeError("Cave shuffle failed — overworld block check not satisfied after "
+                           f"{max_attempts} attempts")

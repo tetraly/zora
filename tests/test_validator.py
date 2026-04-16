@@ -212,7 +212,10 @@ def test_non_progressive_inventory_no_upgrades():
 # Progressive placement invariant tests
 # ---------------------------------------------------------------------------
 
+from zora.game_config import GameConfig  # noqa: E402
 from zora.item_randomizer import _check_progressive_placement_invariants  # noqa: E402
+
+_DEFAULT_CONFIG = GameConfig()
 
 
 def test_progressive_placement_rejects_higher_tier_items():
@@ -222,7 +225,7 @@ def test_progressive_placement_rejects_higher_tier_items():
     room = gw.levels[0].rooms[0]
     room.item = Item.WHITE_SWORD
     loc = DungeonLocation(level_num=1, room_num=room.room_num)
-    assert not _check_progressive_placement_invariants(gw, [loc]), \
+    assert not _check_progressive_placement_invariants(gw, [loc], _DEFAULT_CONFIG), \
         "WHITE_SWORD in shuffled location should fail invariant"
 
     bins2 = load_bin_files(TEST_DATA)
@@ -230,7 +233,7 @@ def test_progressive_placement_rejects_higher_tier_items():
     room2 = gw2.levels[0].rooms[0]
     room2.item = Item.RED_RING
     loc2 = DungeonLocation(level_num=1, room_num=room2.room_num)
-    assert not _check_progressive_placement_invariants(gw2, [loc2]), \
+    assert not _check_progressive_placement_invariants(gw2, [loc2], _DEFAULT_CONFIG), \
         "RED_RING in shuffled location should fail invariant"
 
 
@@ -244,7 +247,7 @@ def test_progressive_placement_rejects_too_many_base_items():
         room = gw.levels[0].rooms[i]
         room.item = Item.WOOD_SWORD
         locs.append(DungeonLocation(level_num=1, room_num=room.room_num))
-    assert not _check_progressive_placement_invariants(gw, cast(list[Location], locs)), \
+    assert not _check_progressive_placement_invariants(gw, cast(list[Location], locs), _DEFAULT_CONFIG), \
         "4x WOOD_SWORD in shuffled locations should exceed max-count invariant"
 
 
@@ -259,7 +262,7 @@ def test_progressive_placement_passes_for_valid_pool():
     rooms[3].item = Item.BLUE_RING
     rooms[4].item = Item.BLUE_RING
     locs = [DungeonLocation(level_num=1, room_num=rooms[i].room_num) for i in range(5)]
-    assert _check_progressive_placement_invariants(gw, cast(list[Location], locs)), \
+    assert _check_progressive_placement_invariants(gw, cast(list[Location], locs), _DEFAULT_CONFIG), \
         "3x WOOD_SWORD + 2x BLUE_RING should pass invariant"
 
 
@@ -273,5 +276,5 @@ def test_progressive_placement_only_checks_shuffled_locations():
     room1 = gw.levels[0].rooms[1]
     room1.item = Item.WOOD_SWORD
     loc = DungeonLocation(level_num=1, room_num=room1.room_num)
-    assert _check_progressive_placement_invariants(gw, [loc]), \
+    assert _check_progressive_placement_invariants(gw, [loc], _DEFAULT_CONFIG), \
         "WHITE_SWORD outside the shuffled pool should not trigger the invariant"

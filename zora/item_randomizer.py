@@ -411,6 +411,7 @@ _PROGRESSIVE_MAX_COUNTS: dict[Item, int] = {
 def _check_progressive_placement_invariants(
     game_world: GameWorld,
     location_pool: list[Location],
+    config: GameConfig,
 ) -> bool:
     """Return False if any shuffled location contains a forbidden or over-counted item.
 
@@ -441,8 +442,12 @@ def _check_progressive_placement_invariants(
         if item in _PROGRESSIVE_FORBIDDEN:
             return False
 
+    max_counts = dict(_PROGRESSIVE_MAX_COUNTS)
+    if config.add_l4_sword:
+        max_counts[Item.WOOD_SWORD] = 4  # wood + white + magical + L4
+
     counts = Counter(placed)
-    for item, max_count in _PROGRESSIVE_MAX_COUNTS.items():
+    for item, max_count in max_counts.items():
         if counts[item] > max_count:
             return False
 
@@ -784,7 +789,7 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
     # Progressive placement invariant: no higher-tier items in shuffled locations,
     # no base item appearing more times than its chain length.
     if config.progressive_items:
-        if not _check_progressive_placement_invariants(game_world, all_shuffled_locations):
+        if not _check_progressive_placement_invariants(game_world, all_shuffled_locations, config):
             return False
 
     # Final sanity check

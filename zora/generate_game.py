@@ -85,7 +85,6 @@ def generate_game(
         RuntimeError: if assumed fill cannot place all items.
     """
     bins = load_bin_files(ROM_DATA)
-    game_world = parse_game_world(bins)
 
     rng = SeededRng(seed)
     config = resolve_game_config(flags, rng, cosmetic_flags)
@@ -101,8 +100,19 @@ def generate_game(
         "magical_sword_requirement.bin": bins.magical_sword_requirement,
     }
 
-    for step in _RANDOMIZERS:
-        step(game_world, config, rng)
+    # Some cave shuffle arrangements make item placement impossible.
+    # Retry with a fresh game world (the RNG has advanced, producing a
+    # different cave layout) when the pipeline fails.
+    max_pipeline_attempts = 10
+    for attempt in range(max_pipeline_attempts):
+        game_world = parse_game_world(bins)
+        try:
+            for step in _RANDOMIZERS:
+                step(game_world, config, rng)
+            break
+        except RuntimeError:
+            if attempt == max_pipeline_attempts - 1:
+                raise
 
     data_patch = serialize_game_world(
         game_world,
@@ -157,7 +167,6 @@ def generate_game_from_rom(
         raise ValueError("Uploaded file is not a recognised ZORA-randomized Zelda 1 ROM")
 
     bins = load_bin_files_from_rom(rom_bytes)
-    game_world = parse_game_world(bins)
 
     rng = SeededRng(seed)
     config = resolve_game_config(flags, rng, cosmetic_flags)
@@ -177,8 +186,16 @@ def generate_game_from_rom(
         ],
     }
 
-    for step in _RANDOMIZERS:
-        step(game_world, config, rng)
+    max_pipeline_attempts = 10
+    for attempt in range(max_pipeline_attempts):
+        game_world = parse_game_world(bins)
+        try:
+            for step in _RANDOMIZERS:
+                step(game_world, config, rng)
+            break
+        except RuntimeError:
+            if attempt == max_pipeline_attempts - 1:
+                raise
 
     data_patch = serialize_game_world(
         game_world,

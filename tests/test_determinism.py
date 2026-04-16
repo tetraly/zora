@@ -4,43 +4,154 @@ of what random state exists outside of it before each call.
 """
 import random
 
-from flags.flags_generated import Flags
+import pytest
+
+from flags.flags_generated import (
+    CaveShuffleMode,
+    CosmeticFlags,
+    Flags,
+    HintMode,
+    Item,
+    StartScreen,
+    Tristate,
+)
 from zora.generate_game import generate_game
 
-_SEED = 42
 _FLAGS = Flags()
 
+# Full item shuffle + shops + hints — the largest flag combo that reliably
+# succeeds across many seeds without hitting placement failures.
+_FULL_ITEM_SHUFFLE_FLAGS = Flags(
+    shuffle_dungeon_items=Tristate.ON,
+    shuffle_dungeon_hearts=Tristate.ON,
+    shuffle_within_dungeons=Tristate.ON,
+    allow_triforces_in_stairways=Tristate.ON,
+    shuffle_wood_sword=Tristate.ON,
+    shuffle_magical_sword=Tristate.ON,
+    shuffle_letter=Tristate.ON,
+    shuffle_major_shop_items=Tristate.ON,
+    shuffle_blue_potion=Tristate.ON,
+    add_extra_candles=Tristate.ON,
+    allow_important_in_l9=Tristate.ON,
+    white_sword_item=Item.RANDOM,
+    armos_item=Item.RANDOM,
+    coast_item=Item.RANDOM,
+    avoid_required_hard_combat=Tristate.ON,
+    magical_boomerang_does_one_hp_damage=True,
+    shuffle_shop_items=Tristate.ON,
+    randomize_white_sword_hearts=True,
+    randomize_magical_sword_hearts=True,
+    randomize_bomb_upgrade=Tristate.ON,
+    randomize_mmg=Tristate.ON,
+    hint_mode=HintMode.HELPFUL,
+    randomize_dungeon_palettes=Tristate.ON,
+    permanent_sword_beam=Tristate.ON,
+    book_is_an_atlas=Tristate.ON,
+    book_is_a_translator=Tristate.ON,
+    replace_book_fire_with_explosion=Tristate.ON,
+    fix_known_bugs=Tristate.ON,
+    fast_fill=Tristate.ON,
+    speed_up_text=Tristate.ON,
+    speed_up_dungeon_transitions=Tristate.ON,
+    auto_show_letter=Tristate.ON,
+    four_potion_inventory=Tristate.ON,
+    flute_kills_pols=Tristate.ON,
+    like_like_rupees=Tristate.ON,
+)
 
-def test_generate_game_is_deterministic() -> None:
-    """Five generate_game calls with the same seed must produce the same hash,
-    even when interleaved with arbitrary random operations that pollute the
-    global random state between calls."""
+_COSMETIC_FLAGS = CosmeticFlags(
+    disable_music=Tristate.ON,
+    reduce_flashing=Tristate.ON,
+    green_tunic_color=14,  # random
+    blue_ring_color=14,
+    red_ring_color=14,
+    heart_color=14,
+)
 
-    ips1, hash1, *_ = generate_game(_FLAGS, seed=_SEED)
 
-    # Pollute global random state
+def _assert_deterministic(flags: Flags, seed: int, label: str,
+                          cosmetic_flags: CosmeticFlags | None = None) -> None:
+    """Generate three times with random-state pollution between calls.
+    All three must produce identical IPS bytes and hash codes."""
+    ips1, hash1, *_ = generate_game(flags, seed=seed,
+                                    cosmetic_flags=cosmetic_flags)
+
     random.seed(99999)
     for _ in range(500):
         random.random()
 
-    ips2, hash2, *_ = generate_game(_FLAGS, seed=_SEED)
+    ips2, hash2, *_ = generate_game(flags, seed=seed,
+                                    cosmetic_flags=cosmetic_flags)
 
-    # More random pollution
     random.seed(0)
     random.shuffle(list(range(1000)))
 
-    ips3, hash3, *_ = generate_game(_FLAGS, seed=_SEED)
+    ips3, hash3, *_ = generate_game(flags, seed=seed,
+                                    cosmetic_flags=cosmetic_flags)
 
-    # Generate a fourth and fifth time back-to-back with no pollution
-    ips4, hash4, *_ = generate_game(_FLAGS, seed=_SEED)
-    ips5, hash5, *_ = generate_game(_FLAGS, seed=_SEED)
-
-    hashes = [hash1, hash2, hash3, hash4, hash5]
-    assert all(h == hash1 for h in hashes), (
-        f"Hash mismatch across generations: {hashes}"
+    assert hash1 == hash2 == hash3, (
+        f"[{label}] Hash mismatch: {[hash1, hash2, hash3]}"
+    )
+    assert ips1 == ips2 == ips3, (
+        f"[{label}] IPS patch bytes differ across generations"
     )
 
-    patches = [ips1, ips2, ips3, ips4, ips5]
-    assert all(p == ips1 for p in patches), (
-        "IPS patch bytes differ across generations with the same seed"
+
+@pytest.mark.parametrize("seed", [123, 456, 789])
+def test_default_flags_deterministic(seed: int) -> None:
+    """Default (all-off) flags must be deterministic with global random state
+    pollution between calls."""
+    _assert_deterministic(_FLAGS, seed, f"default seed={seed}")
+
+
+@pytest.mark.parametrize("seed", [123, 456, 789])
+def test_full_item_shuffle_deterministic(seed: int) -> None:
+    """Full item shuffle with shops, hints, QoL, and cosmetics must be
+    deterministic across multiple seeds."""
+    _assert_deterministic(
+        _FULL_ITEM_SHUFFLE_FLAGS, seed,
+        f"full-item-shuffle seed={seed}",
+        cosmetic_flags=_COSMETIC_FLAGS,
+    )
+
+
+# Full item shuffle + cave shuffle + overworld flags.
+_FULL_ITEM_AND_CAVE_SHUFFLE_FLAGS = Flags(
+    # Item shuffle
+    shuffle_dungeon_items=Tristate.ON,
+    shuffle_dungeon_hearts=Tristate.ON,
+    shuffle_within_dungeons=Tristate.ON,
+    allow_triforces_in_stairways=Tristate.ON,
+    shuffle_wood_sword=Tristate.ON,
+    shuffle_magical_sword=Tristate.ON,
+    shuffle_letter=Tristate.ON,
+    shuffle_major_shop_items=Tristate.ON,
+    shuffle_blue_potion=Tristate.ON,
+    add_extra_candles=Tristate.ON,
+    allow_important_in_l9=Tristate.ON,
+    white_sword_item=Item.RANDOM,
+    armos_item=Item.RANDOM,
+    coast_item=Item.RANDOM,
+    avoid_required_hard_combat=Tristate.ON,
+    shuffle_shop_items=Tristate.ON,
+    hint_mode=HintMode.HELPFUL,
+    # Overworld
+    cave_shuffle_mode=CaveShuffleMode.ALL_CAVES,
+    include_wood_sword_cave=Tristate.ON,
+    include_any_road_caves=Tristate.ON,
+    shuffle_armos_location=Tristate.ON,
+    start_screen=StartScreen.FULL_SHUFFLE,
+    update_recorder_warp_screens=Tristate.ON,
+    extra_raft_blocks=Tristate.ON,
+    randomize_lost_hills=Tristate.ON,
+    randomize_dead_woods=Tristate.ON,
+)
+
+
+@pytest.mark.parametrize("seed", [123, 456, 789])
+def test_full_item_and_cave_shuffle_deterministic(seed: int) -> None:
+    """Full item shuffle + all-caves entrance shuffle must be deterministic."""
+    _assert_deterministic(
+        _FULL_ITEM_AND_CAVE_SHUFFLE_FLAGS, seed,
+        f"item+cave-shuffle seed={seed}",
     )
