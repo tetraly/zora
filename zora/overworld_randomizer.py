@@ -1,6 +1,6 @@
 import logging
 
-from zora.data_model import Destination, EntranceType, GameWorld, Overworld, OverworldDirection
+from zora.data_model import Destination, EntranceType, GameWorld, Overworld, OverworldDirection, QuestVisibility
 from zora.game_config import GameConfig
 from zora.rng import Rng
 
@@ -227,6 +227,7 @@ def recalculate_recorder_warp_screens(game_world: GameWorld, config: GameConfig,
         s.destination: s.screen_num
         for s in overworld.screens
         if isinstance(s.destination, Destination)
+        and s.quest_visibility != QuestVisibility.SECOND_QUEST
     }
 
     warp_destinations: list[int] = []
