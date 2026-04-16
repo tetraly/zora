@@ -118,6 +118,18 @@ from zora.rom_layout import (
     TILE_MAPPING_POINTERS_ADDRESS,
     VANILLA_HINT_TEXT_MAX_BYTES,
     WHITE_SWORD_REQUIREMENT_ADDRESS,
+    AQUAMENTUS_HP_ADDRESS,
+    AQUAMENTUS_SP_ADDRESS,
+    BOSS_HP_FIRST_ENEMY_VALUE,
+    BOSS_HP_NIBBLE_COUNT,
+    BOSS_HP_TABLE_ADDRESS,
+    BOSS_HP_TABLE_SIZE,
+    ENEMY_HP_NIBBLE_COUNT,
+    ENEMY_HP_TABLE_ADDRESS,
+    ENEMY_HP_TABLE_SIZE,
+    GANON_HP_ADDRESS,
+    GLEEOK_HP_ADDRESS,
+    PATRA_HP_ADDRESS,
 )
 
 log = logging.getLogger(__name__)
@@ -813,6 +825,53 @@ def _serialize_enemy_tile_data(game_world: GameWorld) -> tuple[bytes, bytes]:
     return bytes(ptr_buf), bytes(frame_buf)
 
 
+def _write_hp_nibble(buf: bytearray, nibble_index: int, value: int) -> None:
+    """Write a single HP nibble into a packed byte table.
+
+    Even indices are stored in the high nibble, odd indices in the low nibble.
+    """
+    byte_idx = nibble_index >> 1
+    if nibble_index & 1 == 0:
+        buf[byte_idx] = (buf[byte_idx] & 0x0F) | ((value & 0x0F) << 4)
+    else:
+        buf[byte_idx] = (buf[byte_idx] & 0xF0) | (value & 0x0F)
+
+
+def _serialize_enemy_hp(game_world: GameWorld, patch: Patch) -> None:
+    """Serialize EnemyData.hp and secondary boss HP fields into ROM patches."""
+    ed = game_world.enemies
+
+    # Enemy HP table: 52 nibbles, Enemy 0x00-0x33
+    enemy_buf = bytearray(ENEMY_HP_TABLE_SIZE)
+    for i in range(ENEMY_HP_NIBBLE_COUNT):
+        try:
+            enemy = Enemy(i)
+        except ValueError:
+            continue
+        if enemy in ed.hp:
+            _write_hp_nibble(enemy_buf, i, ed.hp[enemy])
+    patch.add(ENEMY_HP_TABLE_ADDRESS, bytes(enemy_buf))
+
+    # Boss HP table: 24 nibbles, Enemy 0x34-0x4B
+    boss_buf = bytearray(BOSS_HP_TABLE_SIZE)
+    for j in range(BOSS_HP_NIBBLE_COUNT):
+        enemy_val = BOSS_HP_FIRST_ENEMY_VALUE + j
+        try:
+            enemy = Enemy(enemy_val)
+        except ValueError:
+            continue
+        if enemy in ed.hp:
+            _write_hp_nibble(boss_buf, j, ed.hp[enemy])
+    patch.add(BOSS_HP_TABLE_ADDRESS, bytes(boss_buf))
+
+    # Secondary boss HP bytes (HP stored in high nibble)
+    patch.add(AQUAMENTUS_HP_ADDRESS, bytes([(ed.aquamentus_hp & 0x0F) << 4]))
+    patch.add(AQUAMENTUS_SP_ADDRESS, bytes([(ed.aquamentus_sp & 0x0F) << 4]))
+    patch.add(GANON_HP_ADDRESS,      bytes([(ed.ganon_hp & 0x0F) << 4]))
+    patch.add(GLEEOK_HP_ADDRESS,     bytes([(ed.gleeok_hp & 0x0F) << 4]))
+    patch.add(PATRA_HP_ADDRESS,      bytes([(ed.patra_hp & 0x0F) << 4]))
+
+
 # ---------------------------------------------------------------------------
 # Top-level serialize
 # ---------------------------------------------------------------------------
@@ -906,6 +965,9 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
     ptr_bytes, frame_bytes = _serialize_enemy_tile_data(game_world)
     patch.add(TILE_MAPPING_POINTERS_ADDRESS, ptr_bytes)
     patch.add(TILE_MAPPING_DATA_ADDRESS,     frame_bytes)
+
+    # --- Enemy / boss HP ---
+    _serialize_enemy_hp(game_world, patch)
 
     # --- Quotes ---
     _serialize_hints(game_world, patch, hint_mode)

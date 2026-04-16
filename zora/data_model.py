@@ -790,11 +790,11 @@ class EnemyData:
     overworld_npc_frames:   list[list[int]]    # 43 frame tile lists
 
     # HP for all enemies and bosses, keyed by Enemy enum.
-    # Values are raw nibbles (0-15); actual HP in-game = value << 4.
+    # Values are raw nibbles (0-15); actual HP in-game = value × 0x10 (value << 4).
     # Stored in ROM as nibble pairs:
-    #   Enemy HP table:  ROM[129886..129910] (25 bytes, 50 nibbles)
-    #   Boss HP table:   ROM[129911..129922] (12 bytes, 24 nibbles)
-    # Entry i occupies: byte = base + (i >> 1), nibble = high if (i & 1) else low.
+    #   Enemy HP table:  0x1FB5E (26 bytes, 52 nibbles, Enemy 0x00-0x33)
+    #   Boss HP table:   0x1FB78 (12 bytes, 24 nibbles, Enemy 0x34-0x4B)
+    # Entry i occupies: byte = base + (i >> 1), nibble = high if (i & 1 == 0) else low.
     hp: dict["Enemy", int] = field(default_factory=dict)
 
     # Secondary HP bytes for multi-part bosses. These are separate ROM locations
@@ -804,16 +804,16 @@ class EnemyData:
     # To read from ROM:  value = rom[offset] >> 4
     # To write to ROM:   rom[offset] = value << 4
     #
-    # Aquamentus body HP mirrors the main table entry (ROM 73926 = offset 129919 even nibble).
-    # Aquamentus head HP is independent — randomized separately around a baseline of 6 (ROM 75573).
-    # Ganon mirrors the main table entry at offset 129917 odd nibble (ROM 77607).
-    # Gleeok mirrors the main table entry at offset 129918 even nibble (ROM 70869).
-    # Patra mirrors the main table entry at offset 129915 odd nibble (ROM 76357).
-    aquamentus_hp: int = 0   # ROM 73926 — body; mirrors hp[Enemy.AQUAMENTUS]
-    aquamentus_sp: int = 0   # ROM 75573 — head; independently randomized
-    ganon_hp: int      = 0   # ROM 77607 — mirrors hp[Enemy.THE_BEAST]
-    gleeok_hp: int     = 0   # ROM 70869 — mirrors hp[Enemy.GLEEOK_1] (all Gleeok variants share it)
-    patra_hp: int      = 0   # ROM 76357 — mirrors hp[Enemy.PATRA_1] (both Patra variants share it)
+    # Aquamentus body HP mirrors the main table entry (0x120C6).
+    # Aquamentus head HP is independent — randomized separately around a baseline of 6 (0x12735).
+    # Ganon mirrors the main table entry (0x12F37).
+    # Gleeok mirrors the main table entry (0x114D5).
+    # Patra mirrors the main table entry (0x12A45).
+    aquamentus_hp: int = 0   # 0x120C6 — body; mirrors hp[Enemy.AQUAMENTUS]
+    aquamentus_sp: int = 0   # 0x12735 — head; independently randomized
+    ganon_hp: int      = 0   # 0x12F37 — mirrors hp[Enemy.THE_BEAST]
+    gleeok_hp: int     = 0   # 0x114D5 — mirrors hp[Enemy.GLEEOK_1] (all Gleeok variants share it)
+    patra_hp: int      = 0   # 0x12A45 — mirrors hp[Enemy.PATRA_1] (both Patra variants share it)
 
     # Set by change_dungeon_enemy_groups after enemy group randomization.
     # Maps each sprite set to the list of Enemy values assigned to that group.

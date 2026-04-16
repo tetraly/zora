@@ -516,6 +516,54 @@ def test_heart_requirements_roundtrip():
         f"magical_sword_requirement mismatch: got {got_ms[0]:#04x}, expected {exp_ms[0]:#04x}"
 
 
+def test_enemy_hp_roundtrip():
+    """Enemy/boss HP tables and secondary boss HP bytes must survive parse → serialize unchanged."""
+    from zora.rom_layout import (
+        AQUAMENTUS_HP_ADDRESS,
+        AQUAMENTUS_SP_ADDRESS,
+        BOSS_HP_TABLE_ADDRESS,
+        ENEMY_HP_TABLE_ADDRESS,
+        GANON_HP_ADDRESS,
+        GLEEOK_HP_ADDRESS,
+        PATRA_HP_ADDRESS,
+    )
+
+    originals = _load_originals()
+    bins = load_bin_files(TEST_DATA)
+    gw = parse_game_world(bins)
+    patch = serialize_game_world(gw, originals)
+
+    # Main HP tables
+    for key, addr, name in [
+        ("enemy_hp_table.bin", ENEMY_HP_TABLE_ADDRESS, "enemy_hp_table"),
+        ("boss_hp_table.bin",  BOSS_HP_TABLE_ADDRESS,  "boss_hp_table"),
+    ]:
+        exp = (TEST_DATA / key).read_bytes()
+        got = patch.data[addr]
+        if got != exp:
+            for i, (g, e) in enumerate(zip(got, exp, strict=True)):
+                if g != e:
+                    pytest.fail(
+                        f"{name} mismatch at byte {i:#x}: "
+                        f"got {g:#04x}, expected {e:#04x}"
+                    )
+            pytest.fail(f"{name} length mismatch: {len(got)} vs {len(exp)}")
+
+    # Secondary boss HP bytes
+    for key, addr, name in [
+        ("aquamentus_hp.bin", AQUAMENTUS_HP_ADDRESS, "aquamentus_hp"),
+        ("aquamentus_sp.bin", AQUAMENTUS_SP_ADDRESS, "aquamentus_sp"),
+        ("ganon_hp.bin",      GANON_HP_ADDRESS,      "ganon_hp"),
+        ("gleeok_hp.bin",     GLEEOK_HP_ADDRESS,     "gleeok_hp"),
+        ("patra_hp.bin",      PATRA_HP_ADDRESS,      "patra_hp"),
+    ]:
+        exp = (TEST_DATA / key).read_bytes()
+        got = patch.data[addr]
+        assert got == exp, (
+            f"{name} mismatch: got {got[0]:#04x}, expected {exp[0]:#04x}"
+        )
+
+
 def test_compass_points_to_stairway_room_when_triforce_in_staircase():
     """When a triforce is placed in an item staircase, the compass room byte
     should point to the room with the stairway down (return_dest), not the

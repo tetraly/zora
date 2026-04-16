@@ -137,6 +137,18 @@ from zora.rom_layout import (
     ENEMY_SET_C_SPRITES_SIZE,
     FIRST_MIXED_GROUP_CODE,
     HINT_SHOP_QUOTES_ADDRESS,
+    AQUAMENTUS_HP_ADDRESS,
+    AQUAMENTUS_SP_ADDRESS,
+    BOSS_HP_FIRST_ENEMY_VALUE,
+    BOSS_HP_NIBBLE_COUNT,
+    BOSS_HP_TABLE_ADDRESS,
+    BOSS_HP_TABLE_SIZE,
+    ENEMY_HP_NIBBLE_COUNT,
+    ENEMY_HP_TABLE_ADDRESS,
+    ENEMY_HP_TABLE_SIZE,
+    GANON_HP_ADDRESS,
+    GLEEOK_HP_ADDRESS,
+    PATRA_HP_ADDRESS,
     LEVEL_1_6_DATA_ADDRESS,
     LEVEL_7_9_DATA_ADDRESS,
     LEVEL_INFO_ADDRESS,
@@ -228,6 +240,15 @@ class RawBinFiles:
     boss_set_expansion_sprites:   bytes   # 0x200 bytes at 0x8A8F: boss sprite expansion
     tile_mapping_pointers:        bytes   # 0x7F bytes at 0x6E14: tile codes for enemies + cave chars
     tile_mapping_data:            bytes   # 0xCC bytes at 0x6E93: tile codes for enemy animation frames
+    # Enemy / boss HP tables (nibble-packed)
+    enemy_hp_table:               bytes   # 25 bytes (50 nibbles) at file offset 129886
+    boss_hp_table:                bytes   # 12 bytes (24 nibbles) at file offset 129911
+    # Secondary boss HP bytes (single bytes, HP in high nibble)
+    aquamentus_hp:                bytes   # 1 byte at 73926
+    aquamentus_sp:                bytes   # 1 byte at 75573
+    ganon_hp:                     bytes   # 1 byte at 77607
+    gleeok_hp:                    bytes   # 1 byte at 70869
+    patra_hp:                     bytes   # 1 byte at 76357
     # Player (Link) sprite banks
     player_main_sprites:              bytes  # 0x1C0 bytes at 0x808F
     player_cheer_sprites:             bytes  # 0x20 bytes at 0x4E44
@@ -286,6 +307,13 @@ def load_bin_files(test_data_dir: Path) -> RawBinFiles:
         boss_set_expansion_sprites      = read_optional("boss_set_expansion_sprites.bin"),
         tile_mapping_pointers           = read("tile_mapping_pointers.bin"),
         tile_mapping_data               = read("tile_mapping_data.bin"),
+        enemy_hp_table                  = read("enemy_hp_table.bin"),
+        boss_hp_table                   = read("boss_hp_table.bin"),
+        aquamentus_hp                   = read("aquamentus_hp.bin"),
+        aquamentus_sp                   = read("aquamentus_sp.bin"),
+        ganon_hp                        = read("ganon_hp.bin"),
+        gleeok_hp                       = read("gleeok_hp.bin"),
+        patra_hp                        = read("patra_hp.bin"),
         player_main_sprites              = read("player_main_sprites.bin"),
         player_cheer_sprites             = read("player_cheer_sprites.bin"),
         player_big_shield_profile_sprites = read("player_big_shield_profile_sprites.bin"),
@@ -387,6 +415,13 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         boss_set_expansion_sprites  = s(BOSS_SET_EXPANSION_SPRITES_ADDRESS, BOSS_SET_EXPANSION_SPRITES_SIZE),
         tile_mapping_pointers       = s(TILE_MAPPING_POINTERS_ADDRESS, TILE_MAPPING_POINTERS_SIZE),
         tile_mapping_data           = s(TILE_MAPPING_DATA_ADDRESS,     TILE_MAPPING_DATA_SIZE),
+        enemy_hp_table              = s(ENEMY_HP_TABLE_ADDRESS,        ENEMY_HP_TABLE_SIZE),
+        boss_hp_table               = s(BOSS_HP_TABLE_ADDRESS,         BOSS_HP_TABLE_SIZE),
+        aquamentus_hp               = s(AQUAMENTUS_HP_ADDRESS,         1),
+        aquamentus_sp               = s(AQUAMENTUS_SP_ADDRESS,         1),
+        ganon_hp                    = s(GANON_HP_ADDRESS,              1),
+        gleeok_hp                   = s(GLEEOK_HP_ADDRESS,             1),
+        patra_hp                    = s(PATRA_HP_ADDRESS,              1),
         player_main_sprites              = s(PLAYER_MAIN_SPRITES_ADDRESS,              PLAYER_MAIN_SPRITES_SIZE),
         player_cheer_sprites             = s(PLAYER_CHEER_SPRITES_ADDRESS,             PLAYER_CHEER_SPRITES_SIZE),
         player_big_shield_profile_sprites = s(PLAYER_BIG_SHIELD_PROFILE_SPRITES_ADDRESS, PLAYER_BIG_SHIELD_PROFILE_SPRITES_SIZE),
@@ -1122,6 +1157,45 @@ def _parse_enemy_tile_data(ptr_bytes: bytes, frame_bytes: bytes) -> "EnemyData":
     )
 
 
+def _read_hp_nibble(table: bytes, nibble_index: int) -> int:
+    """Read a single HP nibble from a packed byte table.
+
+    Even indices are stored in the high nibble, odd indices in the low nibble.
+    """
+    byte_val = table[nibble_index >> 1]
+    if nibble_index & 1 == 0:
+        return (byte_val >> 4) & 0x0F
+    return byte_val & 0x0F
+
+
+def _parse_enemy_hp(bins: RawBinFiles, enemies: EnemyData) -> None:
+    """Populate EnemyData.hp and secondary boss HP fields from raw bin data."""
+    # Enemy HP table: 52 nibbles, Enemy 0x00-0x33
+    for i in range(ENEMY_HP_NIBBLE_COUNT):
+        enemy_val = i
+        try:
+            enemy = Enemy(enemy_val)
+        except ValueError:
+            continue
+        enemies.hp[enemy] = _read_hp_nibble(bins.enemy_hp_table, i)
+
+    # Boss HP table: 24 nibbles, Enemy 0x34-0x4B
+    for j in range(BOSS_HP_NIBBLE_COUNT):
+        enemy_val = BOSS_HP_FIRST_ENEMY_VALUE + j
+        try:
+            enemy = Enemy(enemy_val)
+        except ValueError:
+            continue
+        enemies.hp[enemy] = _read_hp_nibble(bins.boss_hp_table, j)
+
+    # Secondary boss HP bytes (HP stored in high nibble)
+    enemies.aquamentus_hp = (bins.aquamentus_hp[0] >> 4) & 0x0F
+    enemies.aquamentus_sp = (bins.aquamentus_sp[0] >> 4) & 0x0F
+    enemies.ganon_hp      = (bins.ganon_hp[0] >> 4) & 0x0F
+    enemies.gleeok_hp     = (bins.gleeok_hp[0] >> 4) & 0x0F
+    enemies.patra_hp      = (bins.patra_hp[0] >> 4) & 0x0F
+
+
 # ---------------------------------------------------------------------------
 # Top-level parse
 # ---------------------------------------------------------------------------
@@ -1165,6 +1239,7 @@ def parse_game_world(bins: RawBinFiles) -> GameWorld:
     )
 
     enemies = _parse_enemy_tile_data(bins.tile_mapping_pointers, bins.tile_mapping_data)
+    _parse_enemy_hp(bins, enemies)
 
     return GameWorld(
         overworld=overworld,

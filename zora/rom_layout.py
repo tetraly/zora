@@ -158,6 +158,43 @@ BOMB_VANILLA_COUNT = 4
 BOMB_DISPLAY_SPACE_TILE = 0x24   # leading-zero suppression tile (blank)
 
 # ---------------------------------------------------------------------------
+# Enemy / Boss HP table addresses (file offsets, iNES header included)
+#
+# Enemy HP:  25 bytes (50 nibbles) at file offset 129886 (0x1FB5E).
+#            Nibble i → Enemy(i) for i in 0..48; nibble 49 is unused.
+# Boss HP:   12 bytes (24 nibbles) at file offset 129911 (0x1FB77).
+#            Nibble j → Enemy(0x31 + j) for j in 0..23.
+#
+# Nibble layout within each byte:
+#   even index (i & 1 == 0) → low nibble
+#   odd  index (i & 1 == 1) → high nibble
+#
+# Secondary boss HP locations (single bytes, HP stored in high nibble):
+#   Aquamentus body: 73926 (0x120C6) — mirrors hp[AQUAMENTUS]
+#   Aquamentus head: 75573 (0x12735) — independently randomized
+#   Ganon:           77607 (0x12F37) — mirrors hp[THE_BEAST]
+#   Gleeok:          70869 (0x114D5) — mirrors hp[GLEEOK_1]
+#   Patra:           76357 (0x12A45) — mirrors hp[PATRA_1]
+# ---------------------------------------------------------------------------
+
+ENEMY_HP_TABLE_ADDRESS = 0x1FB5E      # 26 bytes, 52 nibbles (Enemy 0x00-0x33)
+ENEMY_HP_TABLE_SIZE    = 26
+ENEMY_HP_NIBBLE_COUNT  = 52
+
+BOSS_HP_TABLE_ADDRESS  = 0x1FB78      # 12 bytes, 24 nibbles (Enemy 0x34-0x4B)
+BOSS_HP_TABLE_SIZE     = 12
+BOSS_HP_NIBBLE_COUNT   = 24
+
+BOSS_HP_FIRST_ENEMY_VALUE = 0x34      # Enemy.RED_GOHMA — first entry in boss HP table
+
+# Secondary boss HP byte offsets (file offsets)
+AQUAMENTUS_HP_ADDRESS  = 0x120C6
+AQUAMENTUS_SP_ADDRESS  = 0x12735
+GANON_HP_ADDRESS       = 0x12F37
+GLEEOK_HP_ADDRESS      = 0x114D5
+PATRA_HP_ADDRESS       = 0x12A45
+
+# ---------------------------------------------------------------------------
 # Enemy tile mapping addresses (bank 1, file offsets = raw ROM addr + 0x10)
 # ---------------------------------------------------------------------------
 
