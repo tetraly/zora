@@ -125,18 +125,26 @@ _WIZZROBE_COMPAT_BASE: list[Enemy] = [
 # Sprite tile layout: vanilla locations for reading tile data.
 #
 # Each safe enemy occupies a contiguous run of 16-byte columns within its
-# vanilla enemy sprite set.  The offset and size are derived from
-# statOffsets[i] + 16400 minus the set's base ROM address:
-#   ENEMY_SET_A = 0xD84B (55371)   ... actually spriteBanks[1] = 55435
-#   ENEMY_SET_B = 0xD9EB (55787)   ... actually spriteBanks[2] = 55979
-#   ENEMY_SET_C = 0xD24B (53835)   ... actually spriteBanks[3] = 53867
+# vanilla enemy sprite set bytearray.  The offsets are derived from the C#
+# statOffsets[i] + 16400 formula, which gives each enemy's absolute ROM
+# file address.  We then subtract the ROM file address of the bytearray
+# that physically contains that data to get the byte offset within it.
 #
-# NOTE: spriteBanks[0] = 56779 is the "shared" bank region used for
-# Wallmaster's extra sprite data.  The main enemy set banks are indices 1-3.
+# C# spriteBanks mapping to ROM file addresses:
+#   spriteBanks[0] = 56779 = 0xDDCB = ENEMY_SET_A_SPRITES_ADDRESS
+#   spriteBanks[1] = 55435 = 0xD88B = ENEMY_SET_B_SPRITES_ADDRESS
+#   spriteBanks[2] = 55979 = 0xDAAB = ENEMY_SET_C_SPRITES_ADDRESS
+#   spriteBanks[3] = 53867 = 0xD24B + 0x20 (within OW_SPRITES region)
+#
+# The physical location of each enemy's sprite data in ROM:
+#   Set A enemies: ROPE, STALFOS, WALLMASTER, RED_GORIYA → enemy_set_a
+#   Set A enemy:   ZOL → enemy_set_b (physically in the B bank region)
+#   Set B enemies: POLS_VOICE, GIBDO, RED_DARKNUT → enemy_set_b
+#   Set C enemies: RED_LANMOLA, LIKE_LIKE, VIRE, RED_WIZZROBE → enemy_set_c
 # ---------------------------------------------------------------------------
 
 _VANILLA_SPRITE_SET: dict[Enemy, EnemySpriteSet] = {
-    Enemy.ZOL:            EnemySpriteSet.A,
+    Enemy.ZOL:            EnemySpriteSet.B,   # physically in enemy_set_b despite being a group A enemy
     Enemy.RED_GORIYA:     EnemySpriteSet.A,
     Enemy.ROPE:           EnemySpriteSet.A,
     Enemy.STALFOS:        EnemySpriteSet.A,
@@ -169,15 +177,18 @@ _GROUP_CAPACITY = 34
 # NES engine column base for enemy sprite sets.
 _COL_START = 158
 
-# Sprite ROM bank addresses per group index (from spriteBanks in C#).
-# Index 0 = shared bank, 1-3 = enemy_set_a/b/c.
-# These are used to derive tile offsets within each set.
-# spriteBanks = { 56779, 55435, 55979, 53867 }
-# The shared bank (56779) is where Wallmaster's extra 32-byte prefix lives.
+# ROM file addresses of each sprite set bytearray (used as bank bases for
+# offset calculation).  These must match the addresses used to parse each
+# bytearray in parser.py / rom_layout.py.
+_SPRITE_BANK_BASES: dict[EnemySpriteSet, int] = {
+    EnemySpriteSet.A: 0xDDCB,  # 56779 — ENEMY_SET_A_SPRITES_ADDRESS
+    EnemySpriteSet.B: 0xD88B,  # 55435 — ENEMY_SET_B_SPRITES_ADDRESS
+    EnemySpriteSet.C: 0xDAAB,  # 55979 — ENEMY_SET_C_SPRITES_ADDRESS
+}
 
 # Per-enemy stat offsets → sprite data ROM address = statOffsets[i] + 16400.
 # We derive the byte offset within each vanilla set from these.
-# For each enemy, offset_in_set = (statOffsets[i] + 16400) - spriteBanks[group].
+# For each enemy, offset_in_set = (statOffsets[i] + 16400) - _SPRITE_BANK_BASES[set].
 _STAT_OFFSETS: dict[Enemy, int] = {
     Enemy.ZOL:           39195,
     Enemy.RED_GORIYA:    40667,
@@ -192,16 +203,6 @@ _STAT_OFFSETS: dict[Enemy, int] = {
     Enemy.GIBDO:         39131,
     Enemy.RED_LANMOLA:   39579,
 }
-
-# ROM bank base addresses per group (for deriving byte offsets within sets).
-_SPRITE_BANK_BASES: dict[EnemySpriteSet, int] = {
-    EnemySpriteSet.A: 55435,
-    EnemySpriteSet.B: 55979,
-    EnemySpriteSet.C: 53867,
-}
-
-# Shared bank base (for Wallmaster's extra data).
-_SHARED_BANK_BASE = 56779
 
 
 def _compute_sprite_offset(enemy: Enemy) -> int:
@@ -624,12 +625,27 @@ def _pick_start_enemy(
     """
     candidates = [
         e for e in sorted_enemies
-        if _ENEMY_TILE_COLUMNS[e] == 4 and e != Enemy.RED_LANMOLA
+        if _ENEMY_TILE_COLUMNS[e] == 4
+        and e != Enemy.RED_LANMOLA
+        and e != Enemy.WALLMASTER  # adjusted cost is 6 (shared block), not 4
     ]
 
     # The C# uses a while loop with RNG: pick random index, check if it
     # matches.  We just pick from the filtered candidates.
     return rng.choice(candidates)
+
+
+def _effective_column_cost(enemy: Enemy) -> int:
+    """Return the true column cost for capacity tracking.
+
+    Wallmaster requires 2 extra columns for its shared sprite block
+    (written at the start of each bank), beyond the 4 columns of its
+    own tile data.
+    """
+    cost = _ENEMY_TILE_COLUMNS[enemy]
+    if enemy == Enemy.WALLMASTER:
+        cost += _WALLMASTER_SHARED_BLOCK_SIZE // 16  # +2
+    return cost
 
 
 def _assign_enemies_to_groups(
@@ -676,15 +692,16 @@ def _assign_enemies_to_groups(
         capacities[EnemySpriteSet.OW] = -2
 
     # Pre-seed start enemy into groups B and C.
+    start_cost = _effective_column_cost(start_enemy)
     group_lists[EnemySpriteSet.B].append(start_enemy)
     group_lists[EnemySpriteSet.C].append(start_enemy)
-    capacities[EnemySpriteSet.B] += _ENEMY_TILE_COLUMNS[start_enemy]
-    capacities[EnemySpriteSet.C] += _ENEMY_TILE_COLUMNS[start_enemy]
+    capacities[EnemySpriteSet.B] += start_cost
+    capacities[EnemySpriteSet.C] += start_cost
 
     # Pre-seed RED_WIZZROBE into group C if forced.
     if force_wizzrobes_to_9:
         group_lists[EnemySpriteSet.C].append(Enemy.RED_WIZZROBE)
-        capacities[EnemySpriteSet.C] += _ENEMY_TILE_COLUMNS[Enemy.RED_WIZZROBE]
+        capacities[EnemySpriteSet.C] += _effective_column_cost(Enemy.RED_WIZZROBE)
 
     # Assign remaining enemies.
     for enemy in sorted_enemies:
@@ -693,7 +710,7 @@ def _assign_enemies_to_groups(
         if enemy == Enemy.RED_WIZZROBE and force_wizzrobes_to_9:
             continue
 
-        columns = _ENEMY_TILE_COLUMNS[enemy]
+        columns = _effective_column_cost(enemy)
 
         for _retry in range(_MAX_ASSIGNMENT_RETRIES):
             group_idx = int(rng.random() * num_groups)
