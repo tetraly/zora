@@ -273,6 +273,21 @@ def _repack_boss_sprites(
     return column_assignments
 
 
+def _vanilla_col_range(boss: Enemy) -> tuple[int, int]:
+    """Return the (start_col, end_col_exclusive) of a boss's vanilla tile columns.
+
+    Frames within this range belong to the boss sprite set and must be
+    remapped after repacking.  Frames outside this range (e.g. Aquamentus's
+    fireball tiles at columns 114-116) are shared/fixed tiles that must
+    not be touched.
+    """
+    offset = _SPRITE_OFFSET[boss]
+    size = _SPRITE_SIZE[boss]
+    col_start = _COL_START_MAIN + offset // 16
+    col_end = col_start + size // 16
+    return col_start, col_end
+
+
 def _update_tile_frames(
     enemies: EnemyData,
     column_assignments: dict[Enemy, int],
@@ -284,10 +299,10 @@ def _update_tile_frames(
     tiles.  After repacking, each boss's frames must be remapped from their
     old column positions to the new ones.
 
-    The original C# (UpdateBossInfo) normalizes the frame values (subtract
-    minimum), then remaps each unique sub-boss index to the column where its
-    16-byte tile block was written.  Aquamentus gets an additional +2 offset,
-    and bosses in the shared group (group 3) get +1 on every entry.
+    Some bosses (notably Aquamentus) have tile_frame entries that reference
+    shared/fixed sprite tiles outside the boss sprite set.  Only frames
+    within the boss's vanilla column range are remapped; others are left
+    unchanged.
     """
     is_in_shared_group = set(group_bosses[3]) if len(group_bosses) > 3 else set()
 
@@ -299,20 +314,27 @@ def _update_tile_frames(
         if not frames:
             continue
 
-        # Normalize: subtract the minimum to get 0-based sub-boss indices.
-        min_val = min(frames)
-        normalized = [f - min_val for f in frames]
+        vanilla_start, vanilla_end = _vanilla_col_range(boss)
 
-        # Remap: each sub-boss index maps to start_col + index.
-        remapped = [start_col + n for n in normalized]
+        # Collect only the frames that fall within the boss's vanilla sprite
+        # set range.  These are the values that need remapping.
+        boss_frames = [f for f in frames if vanilla_start <= f < vanilla_end]
+        if not boss_frames:
+            continue
 
-        # Aquamentus gets +2 on each entry (C# lines 98416-98419).
-        if boss == Enemy.AQUAMENTUS:
-            remapped = [v + 2 for v in remapped]
-
-        # Bosses in the shared group get +1 on each entry (C# line 98224-98228).
-        if boss in is_in_shared_group:
-            remapped = [v + 1 for v in remapped]
+        # Normalize: subtract the vanilla start to get 0-based sub-boss indices.
+        remapped = []
+        for f in frames:
+            if vanilla_start <= f < vanilla_end:
+                n = f - vanilla_start
+                v = start_col + n
+                if boss == Enemy.AQUAMENTUS:
+                    v += 2
+                if boss in is_in_shared_group:
+                    v += 1
+                remapped.append(v)
+            else:
+                remapped.append(f)
 
         enemies.tile_frames[boss] = remapped
 
