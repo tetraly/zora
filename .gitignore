@@ -23,6 +23,9 @@ build/
 # Local/scratch directory
 old/
 
+# Claude Code
+CLAUDE.md
+
 # ROM data (binary files extracted from ROM)
 rom_data/*.nes
 rom_data/*.sfc

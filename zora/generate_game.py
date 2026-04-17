@@ -12,6 +12,7 @@ from flags.flags_generated import CosmeticFlags, Flags
 from zora.cave_randomizer import randomize_caves
 from zora.dungeon_item_shuffler import shuffle_dungeon_items
 from zora.dungeon_randomizer import randomize_dungeon_palettes
+from zora.dungeon.dungeon import randomize_dungeons
 from zora.enemy.randomize import randomize_enemies
 from zora.entrance_randomizer import randomize_entrances
 from zora.game_config import resolve_game_config
@@ -49,6 +50,7 @@ _RANDOMIZERS = [
     randomize_entrances,
     recalculate_recorder_warp_screens,
     place_l4_sword,
+    randomize_dungeons,  # before randomize_enemies: room positions must be settled first
     randomize_enemies,   # before randomize_items: boss placement affects reachability
     randomize_shops,
     remap_game_start,

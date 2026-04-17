@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum, auto
-from typing import TypeVar
+from typing import ClassVar, TypeVar
 
 T = TypeVar("T")
 
@@ -485,20 +485,18 @@ class WallSet:
     south: WallType
     west:  WallType
 
-    def __post_init__(self) -> None:
-        self._by_dir = {
-            Direction.NORTH: self.north,
-            Direction.EAST:  self.east,
-            Direction.SOUTH: self.south,
-            Direction.WEST:  self.west,
-        }
+    _DIR_TO_ATTR: ClassVar[dict[Direction, str]] = {
+        Direction.NORTH: 'north',
+        Direction.EAST:  'east',
+        Direction.SOUTH: 'south',
+        Direction.WEST:  'west',
+    }
 
     def __getitem__(self, direction: Direction) -> WallType:
-        return self._by_dir[direction]
+        return getattr(self, self._DIR_TO_ATTR[direction])
 
     def __setitem__(self, direction: Direction, value: WallType) -> None:
-        setattr(self, direction.name.lower(), value)
-        self._by_dir[direction] = value
+        setattr(self, self._DIR_TO_ATTR[direction], value)
 
 
 @dataclass
