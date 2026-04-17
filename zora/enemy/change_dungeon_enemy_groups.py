@@ -177,6 +177,12 @@ _GROUP_CAPACITY = 34
 # NES engine column base for enemy sprite sets.
 _COL_START = 158
 
+# The ow_sprites bytearray starts at OW_SPRITES_ADDRESS (0xD24B), but the C#
+# sprite bank base for the OW group is spriteBanks[3] = 0xD26B (0xD24B + 0x20).
+# Byte offsets into ow_sprites must be shifted by +0x20 to skip the "additional
+# sprites" prefix that precedes the enemy sprite region.
+_OW_BANK_PREFIX = 0x20
+
 # ROM file addresses of each sprite set bytearray (used as bank bases for
 # offset calculation).  These must match the addresses used to parse each
 # bytearray in parser.py / rom_layout.py.
@@ -483,6 +489,8 @@ def _repack_enemy_sprites(
 
                 # Write 16 bytes of sprite data
                 rom_offset = (slot_base - _COL_START) * 16
+                if sprite_set == EnemySpriteSet.OW:
+                    rom_offset += _OW_BANK_PREFIX
                 src_offset = col_idx * 16
                 for t in range(16):
                     if src_offset + t < len(data):
