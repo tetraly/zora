@@ -304,16 +304,19 @@ class Flags:
     shuffle_level_9_monsters: Tristate = Tristate.OFF
     shuffle_monsters_between_levels: Tristate = Tristate.OFF
     add_2nd_quest_monsters: Tristate = Tristate.OFF
-    shuffle_enemy_groups: Tristate = Tristate.OFF
     shuffle_bosses: Tristate = Tristate.OFF
-    change_dungeon_boss_groups: Tristate = Tristate.OFF
     enemy_hp: EnemyHp = EnemyHp.NORMAL
     boss_hp: BossHp = BossHp.NORMAL
     ganon_hp_to_zero: Tristate = Tristate.OFF
 
+    # Still in Testing
+    shuffle_dungeon_rooms: Tristate = Tristate.OFF
+    shuffle_enemy_groups: Tristate = Tristate.OFF
+    change_dungeon_boss_groups: Tristate = Tristate.OFF
+
     # Schema metadata — used for sync checking, not a flag
     _schema_version: int = field(default=1, init=False, repr=False, compare=False)
-    _schema_hash: str = field(default="7fa68d322faa7d9d", init=False, repr=False, compare=False)
+    _schema_hash: str = field(default="80087ffb21c93f02", init=False, repr=False, compare=False)
 
 
 # ===========================================================================
@@ -349,8 +352,8 @@ class CosmeticFlags:
 # ===========================================================================
 
 BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@abcdefghijklmnopqrstuvwxyz"
-FLAG_STRING_LENGTH = 25
-TOTAL_BITS = 150
+FLAG_STRING_LENGTH = 26
+TOTAL_BITS = 156
 COSMETIC_FLAG_STRING_LENGTH = 7
 COSMETIC_TOTAL_BITS = 42
 
@@ -418,6 +421,7 @@ _FLAG_LAYOUT: list[tuple[str, int, int]] = [
     ("shuffle_enemy_groups", 144, 2),
     ("shuffle_bosses", 146, 2),
     ("change_dungeon_boss_groups", 148, 2),
+    ("shuffle_dungeon_rooms", 150, 2),
 ]
 
 # (flag_id, cosmetic_bit_offset, bit_width) — used by cosmetic encoder/decoder
@@ -1536,7 +1540,7 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
             "Shuffles which enemies appear in each dungeon's sprite group, changing the enemy roster for each dungeon"
             "level.\n"
         ),
-        "group": "Enemies",
+        "group": "Still in Testing",
         "display_order": 70,
         "default": "off",
         "enabled": True,
@@ -1568,8 +1572,25 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
             "Redistributes which bosses belong to which sprite-set group (A/B/C), then replaces every existing boss"
             "room with a random pick from its group's new pool.\n"
         ),
-        "group": "Enemies",
+        "group": "Still in Testing",
         "display_order": 90,
+        "default": "off",
+        "enabled": True,
+        "phase": 2,
+    },
+    "shuffle_dungeon_rooms": {
+        "id": "shuffle_dungeon_rooms",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 150,
+        "label": "Shuffle Dungeon Rooms",
+        "description": (
+            "Shuffles room contents within each dungeon level. The physical wall layout is preserved — only the room"
+            "contents (enemies, items, room types, darkness, palettes) move between grid positions. Door pairs between"
+            "adjacent rooms are also shuffled.\n"
+        ),
+        "group": "Still in Testing",
+        "display_order": 10,
         "default": "off",
         "enabled": True,
         "phase": 2,
@@ -1918,4 +1939,4 @@ def resolve_random_flags(flags: Flags, rng: Rng) -> Flags:
 # ===========================================================================
 
 SCHEMA_VERSION = 1
-SCHEMA_HASH = "7fa68d322faa7d9d"
+SCHEMA_HASH = "80087ffb21c93f02"

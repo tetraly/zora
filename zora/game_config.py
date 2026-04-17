@@ -156,6 +156,9 @@ class GameConfig:
     red_ring_color: int | None = None
     heart_color: int | None = None
 
+    # Dungeon room randomization
+    shuffle_dungeon_rooms: bool = False
+
     # Enemy randomization
     shuffle_dungeon_monsters: bool = False
     shuffle_ganon_zelda: bool = False
@@ -368,6 +371,9 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
     )
     heart_color = _resolve_color(cosmetic_flags.heart_color, rng, _HEART_RANDOM_POOL)
 
+    # Dungeon room randomization
+    shuffle_dungeon_rooms = resolve(flags.shuffle_dungeon_rooms)
+
     # Enemy randomization — resolve HP enums to config fields
     _enemy_hp = flags.enemy_hp
     if _enemy_hp == EnemyHp.RANDOM:
@@ -482,6 +488,8 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
         blue_ring_color=blue_ring_color,
         red_ring_color=red_ring_color,
         heart_color=heart_color,
+        # Dungeon room randomization
+        shuffle_dungeon_rooms=shuffle_dungeon_rooms,
         # Enemy randomization
         shuffle_dungeon_monsters=shuffle_dungeon_monsters,
         shuffle_ganon_zelda=shuffle_ganon_zelda,

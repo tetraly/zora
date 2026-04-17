@@ -29,8 +29,8 @@ meta:
   format_version: 3
   encoding: base64url      # chars: A-Z0-9!@a-z, value 0='A' through 63='z'
   bit_order: lsb_first     # bit 0 = LSB of first base64 character
-  total_bits: 150          # 25 base64 characters
-  string_length: 25
+  total_bits: 156          # 26 base64 characters
+  string_length: 26
 
 # Cosmetic flags are encoded separately and do not affect the seed hash.
 # Players can change cosmetics without changing the logical game.
@@ -1196,7 +1196,7 @@ flags:
     description: >
       Shuffles which enemies appear in each dungeon's sprite group,
       changing the enemy roster for each dungeon level.
-    group: "Enemies"
+    group: "Still in Testing"
     display_order: 70
     default: "off"
     enabled: true
@@ -1226,8 +1226,24 @@ flags:
       Redistributes which bosses belong to which sprite-set group
       (A/B/C), then replaces every existing boss room with a random
       pick from its group's new pool.
-    group: "Enemies"
+    group: "Still in Testing"
     display_order: 90
+    default: "off"
+    enabled: true
+    phase: 2
+
+  - id: shuffle_dungeon_rooms
+    type: tristate
+    bits: 2
+    bit_offset: 150
+    label: "Shuffle Dungeon Rooms"
+    description: >
+      Shuffles room contents within each dungeon level. The physical
+      wall layout is preserved — only the room contents (enemies, items,
+      room types, darkness, palettes) move between grid positions.
+      Door pairs between adjacent rooms are also shuffled.
+    group: "Still in Testing"
+    display_order: 10
     default: "off"
     enabled: true
     phase: 2
