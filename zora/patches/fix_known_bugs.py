@@ -115,20 +115,21 @@ class FixKnownBugs(BehaviorPatch):
                 ]),
                 comment="Enemy flash/pause routine",
             ),
-            # JSR redirect to enemy flash/pause routine
+            # JSR redirect to sound engine fix trampoline at $AC90 (ROM 0x16CA0).
+            # The trampoline calls the original routine at $6D50, then returns.
+            # WARNING: This redirect and the trampoline below are a paired unit —
+            # do not enable one without the other or the game will jump to 0xFF bytes.
             RomEdit(
                 offset=0x65A1,
                 new_bytes=bytes([32, 144, 172]),
                 old_bytes=bytes([0x20, 0x50, 0x6D]),
-                comment="JSR redirect to enemy flash/pause routine",
+                comment="JSR redirect to sound engine fix trampoline at $AC90",
             ),
-            # Sound engine fix routine (10 bytes): JSR $6D50, NOP x6, RTS
-            # TODO: 1234 ROM has a different variant here: JSR $6D50, JSR $ACA0, JSR $AC30, RTS
-            # — a more complete fix that calls two extra routines. Commented out until resolved.
-            # RomEdit(
-            #     offset=0x16CA0,
-            #     new_bytes=bytes([32, 80, 109, 234, 234, 234, 234, 234, 234, 96]),
-            #     old_bytes=bytes([0xFF] * 10),
-            #     comment="Sound engine fix routine",
-            # ),
+            # Sound engine fix trampoline (10 bytes): JSR $6D50, NOP x6, RTS
+            RomEdit(
+                offset=0x16CA0,
+                new_bytes=bytes([32, 80, 109, 234, 234, 234, 234, 234, 234, 96]),
+                old_bytes=bytes([0xFF] * 10),
+                comment="Sound engine fix trampoline",
+            ),
         ]
