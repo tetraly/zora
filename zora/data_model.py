@@ -818,6 +818,18 @@ class EnemyData:
     # Empty dict until the enemy shuffler runs.
     cave_groups: dict["EnemySpriteSet", list["Enemy"]] = field(default_factory=dict)
 
+    # Mixed enemy group definitions: group code (0x62-0x7F) → 8-member list.
+    # Populated during parsing from the ROM's mixed enemy data table.
+    # Updated by change_dungeon_enemy_groups to keep members compatible with
+    # their group's sprite set after shuffling.
+    mixed_groups: dict[int, list["Enemy"]] = field(default_factory=dict)
+
+    # Raw mixed enemy data blob and per-group byte offsets within it.
+    # Substitutions are applied directly to this blob to preserve the
+    # overlapping layout used by the vanilla ROM.  Serialized back as-is.
+    mixed_enemy_data: bytearray = field(default_factory=bytearray)
+    mixed_group_offsets: dict[int, int] = field(default_factory=dict)
+
 
 @dataclass
 class GameWorld:

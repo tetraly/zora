@@ -129,6 +129,7 @@ from zora.rom_layout import (
     ENEMY_HP_TABLE_SIZE,
     GANON_HP_ADDRESS,
     GLEEOK_HP_ADDRESS,
+    MIXED_ENEMY_DATA_ADDRESS,
     PATRA_HP_ADDRESS,
 )
 
@@ -968,6 +969,11 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
 
     # --- Enemy / boss HP ---
     _serialize_enemy_hp(game_world, patch)
+
+    # --- Mixed enemy group data ---
+    if game_world.enemies.mixed_enemy_data:
+        patch.add(MIXED_ENEMY_DATA_ADDRESS,
+                  bytes(game_world.enemies.mixed_enemy_data))
 
     # --- Quotes ---
     _serialize_hints(game_world, patch, hint_mode)

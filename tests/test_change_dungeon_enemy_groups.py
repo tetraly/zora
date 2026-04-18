@@ -155,7 +155,7 @@ class TestChangeDungeonEnemyGroups(unittest.TestCase):
         for li, level in enumerate(gw.levels):
             for ri, room in enumerate(level.rooms):
                 orig = orig_rooms[(li, ri)]
-                if orig.value >= 0x40 or orig.is_boss:
+                if orig.is_boss or (orig.value >= 0x40 and orig.value < 0x62):
                     self.assertEqual(
                         room.enemy_spec.enemy, orig,
                         f"Boss room changed: L{li+1} room {room.room_num}: "

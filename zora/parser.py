@@ -157,6 +157,8 @@ from zora.rom_layout import (
     LEVEL_TABLE_SIZE,
     MAGICAL_SWORD_REQUIREMENT_ADDRESS,
     MAZE_DIRECTIONS_ADDRESS,
+    MIXED_ENEMY_DATA_ADDRESS,
+    MIXED_ENEMY_DATA_SIZE,
     MIXED_ENEMY_POINTER_TABLE_ADDRESS,
     MMG_LOSE_LARGE_OFFSET,
     MMG_LOSE_SMALL_2_OFFSET,
@@ -345,9 +347,6 @@ def load_bin_files_q2(test_data_dir: Path) -> RawBinFiles:
 _NES_ROM_SIZE = NES_HEADER_SIZE + 0x20000
 _NES_MAGIC    = b"NES\x1a"
 
-# mixed_enemy_data sits immediately before the pointer table in bank 5.
-_MIXED_ENEMY_DATA_ADDRESS = MIXED_ENEMY_POINTER_TABLE_ADDRESS - 201
-_MIXED_ENEMY_DATA_SIZE    = 201
 
 
 def is_randomizer_rom(rom_bytes: bytes) -> bool:
@@ -382,7 +381,7 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         level_info                  = s(LEVEL_INFO_ADDRESS,                  0xA * 0xFC),
         level_pointers              = b"",
         overworld_data              = s(OVERWORLD_DATA_ADDRESS,              0x500),
-        mixed_enemy_data            = s(_MIXED_ENEMY_DATA_ADDRESS,           _MIXED_ENEMY_DATA_SIZE),
+        mixed_enemy_data            = s(MIXED_ENEMY_DATA_ADDRESS,            MIXED_ENEMY_DATA_SIZE),
         mixed_enemy_pointers        = s(MIXED_ENEMY_POINTER_TABLE_ADDRESS,   POINTER_COUNT * 2),
         armos_tables                = s(ARMOS_TABLES_ADDRESS,                14),
         armos_item                  = s(ARMOS_ITEM_ADDRESS,                  1),
@@ -1246,6 +1245,20 @@ def parse_game_world(bins: RawBinFiles) -> GameWorld:
 
     enemies = _parse_enemy_tile_data(bins.tile_mapping_pointers, bins.tile_mapping_data)
     _parse_enemy_hp(bins, enemies)
+
+    enemies.mixed_groups = {
+        code: list(spec.group_members or [])
+        for code, spec in mixed_groups.items()
+    }
+
+    ptr_data = bins.mixed_enemy_pointers
+    cpu_addrs = [ptr_data[i*2] | (ptr_data[i*2+1] << 8) for i in range(POINTER_COUNT)]
+    min_cpu = min(cpu_addrs)
+    enemies.mixed_enemy_data = bytearray(bins.mixed_enemy_data)
+    enemies.mixed_group_offsets = {
+        FIRST_MIXED_GROUP_CODE + i: cpu_addrs[i] - min_cpu
+        for i in range(POINTER_COUNT)
+    }
 
     return GameWorld(
         overworld=overworld,

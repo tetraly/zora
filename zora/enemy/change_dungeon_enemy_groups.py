@@ -14,6 +14,7 @@ from zora.data_model import (
     SCREEN_ENTRANCE_TYPES,
     Enemy,
     EnemyData,
+    EnemySpec,
     EnemySpriteSet,
     EntranceType,
     GameWorld,
@@ -98,6 +99,45 @@ _FORBIDDEN_FROM_OVERWORLD: frozenset[Enemy] = frozenset({
     Enemy.VIRE,
     Enemy.ZOL,
     Enemy.LIKE_LIKE,
+})
+
+# All enemies (primaries + companions) whose sprites live in the shuffleable
+# enemy sprite banks.  Members of mixed groups that match this set must be
+# replaced after the sprite group shuffle to stay compatible with the bank
+# the NES loads for their level.
+_SHUFFLEABLE_ENEMIES: frozenset[Enemy] = frozenset(
+    set(_ENEMY_TILE_COLUMNS.keys()) | set(_COMPANION_EXPANSIONS.values())
+)
+
+# Vanilla sprite set ownership for each dungeon mixed group.
+# Derived from which levels use each group in the unmodified ROM.
+# Groups that span multiple sprite sets in vanilla are assigned to one:
+#   Group 14 → B (removed from Level 9 / set C rooms before use).
+_MIXED_GROUP_SPRITE_SET: dict[int, EnemySpriteSet] = {
+    0x6D: EnemySpriteSet.B,   # Group 12 — L3(B)
+    0x6E: EnemySpriteSet.A,   # Group 13 — L2,7(A); removed from L3(B)
+    0x6F: EnemySpriteSet.B,   # Group 14 — L3,8(B); removed from L9(C)
+    0x70: EnemySpriteSet.B,   # Group 15 — L5,8(B)
+    0x71: EnemySpriteSet.C,   # Group 16 — L9(C)
+    0x72: EnemySpriteSet.C,   # Group 17 — L4,6(C)
+    0x73: EnemySpriteSet.C,   # Group 18 — L4,6,9(C)
+    0x74: EnemySpriteSet.B,   # Group 19 — L8(B)
+    0x75: EnemySpriteSet.A,   # Group 20 — L7(A)
+    0x76: EnemySpriteSet.C,   # Group 21 — L9(C)
+    0x77: EnemySpriteSet.C,   # Group 22 — L6,9(C)
+    0x78: EnemySpriteSet.B,   # Group 23 — L8(B)
+    0x79: EnemySpriteSet.A,   # Group 24 — L7(A)
+    0x7A: EnemySpriteSet.A,   # Group 25 — L7(A)
+    0x7B: EnemySpriteSet.C,   # Group 26 — L6,9(C)
+    0x7C: EnemySpriteSet.C,   # Group 27 — L6,9(C)
+}
+
+# Mixed groups that must be removed from specific levels because they span
+# multiple sprite sets in vanilla.  Maps (group_code, level_num) pairs that
+# should be decomposed to a single enemy from the level's pool.
+_MIXED_GROUP_CROSS_SET_REMOVALS: frozenset[tuple[int, int]] = frozenset({
+    (0x6E, 3),   # Group 13 owned by A, remove from L3 (set B)
+    (0x6F, 9),   # Group 14 owned by B, remove from L9 (set C)
 })
 
 # Enemies that must not share a group (Lanmola and Wallmaster are
@@ -844,6 +884,84 @@ def _replace_overworld_enemies(
 
 
 # ---------------------------------------------------------------------------
+# Mixed enemy group fixup
+# ---------------------------------------------------------------------------
+
+def _update_mixed_group_members(
+    world: GameWorld,
+    group_enemies: dict[EnemySpriteSet, list[Enemy]],
+    rng: Rng,
+) -> None:
+    """Replace shuffleable members in mixed enemy groups after sprite group reassignment.
+
+    Each dungeon mixed group is owned by one sprite set (A/B/C).  After the
+    shuffle, the enemies in that sprite set's pool may have changed.  For every
+    member that is a shuffleable enemy, replace it with a random enemy from the
+    owning sprite set's new pool.
+
+    Also handles cross-set removals: rooms that use a mixed group in a level
+    whose sprite set doesn't match the group's owner are decomposed into
+    single-enemy rooms drawn from the level's pool.
+
+    Updates both the canonical ``world.enemies.mixed_groups`` table (which is
+    serialized back to ROM) and every room ``EnemySpec.group_members`` that
+    references the modified group.
+    """
+    # --- Step 1: Decompose cross-set rooms ---
+    for level in world.levels:
+        level_pool = group_enemies.get(level.enemy_sprite_set)
+        if not level_pool:
+            continue
+
+        for room in level.rooms:
+            if not room.enemy_spec.is_group:
+                continue
+            code = room.enemy_spec.enemy.value
+            if (code, level.level_num) not in _MIXED_GROUP_CROSS_SET_REMOVALS:
+                continue
+
+            for _attempt in range(_MAX_ROOM_RETRIES):
+                new_enemy = rng.choice(level_pool)
+                if not is_safe_for_room(new_enemy, room.room_type,
+                                        has_push_block=room.movable_block):
+                    continue
+                room.enemy_spec = EnemySpec(enemy=new_enemy)
+                break
+
+    # --- Step 2: Substitute shuffleable members in the raw data blob ---
+    # Operate directly on mixed_enemy_data so overlapping groups that share
+    # bytes in the ROM get a single consistent substitution per byte.
+    data = world.enemies.mixed_enemy_data
+    offsets = world.enemies.mixed_group_offsets
+    for code, offset in offsets.items():
+        owner_set = _MIXED_GROUP_SPRITE_SET.get(code)
+        if owner_set is None:
+            continue
+        pool = group_enemies.get(owner_set)
+        if not pool:
+            continue
+        for i in range(8):
+            member = Enemy(data[offset + i])
+            if member in _SHUFFLEABLE_ENEMIES:
+                data[offset + i] = rng.choice(pool).value
+
+    # --- Step 3: Rebuild mixed_groups dict and propagate to room EnemySpecs ---
+    for code, offset in offsets.items():
+        world.enemies.mixed_groups[code] = [
+            Enemy(data[offset + i]) for i in range(8)
+        ]
+
+    for level in world.levels:
+        for room in level.rooms:
+            if not room.enemy_spec.is_group:
+                continue
+            code = room.enemy_spec.enemy.value
+            updated = world.enemies.mixed_groups.get(code)
+            if updated is not None:
+                room.enemy_spec.group_members = list(updated)
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -945,6 +1063,9 @@ def change_dungeon_enemy_groups(
 
     # --- Store the final group assignments ---
     world.enemies.cave_groups = dict(group_enemies)
+
+    # --- Update mixed enemy group members ---
+    _update_mixed_group_members(world, group_enemies, rng)
 
     # --- Replace enemies in dungeon rooms ---
     # Build a set of all enemies that belong to any vanilla group, for
