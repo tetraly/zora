@@ -194,7 +194,7 @@ def _serialize_level_grid(level: Level, grid: bytearray, level_index: int,
             t4 = (
                 (sc.item.value & 0x1F)
                 if sc.room_type == RoomType.ITEM_STAIRCASE and sc.item is not None
-                else DUNGEON_NOTHING_CODE
+                else item_byte(Item.NOTHING)
             )
             t5 = sc.t5_raw
         else:
