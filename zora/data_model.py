@@ -493,7 +493,8 @@ class WallSet:
     }
 
     def __getitem__(self, direction: Direction) -> WallType:
-        return getattr(self, self._DIR_TO_ATTR[direction])
+        result: WallType = getattr(self, self._DIR_TO_ATTR[direction])
+        return result
 
     def __setitem__(self, direction: Direction, value: WallType) -> None:
         setattr(self, self._DIR_TO_ATTR[direction], value)

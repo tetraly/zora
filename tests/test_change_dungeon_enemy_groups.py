@@ -47,9 +47,9 @@ def _load_game_world():
     return parse_game_world(bins)
 
 
-def _all_shuffleable_ids():
+def _all_shuffleable_ids() -> set[int]:
     """Enemy IDs that appear in _VANILLA_ENEMY_GROUPS (candidates for replacement)."""
-    ids = set()
+    ids: set[int] = set()
     for group in _VANILLA_ENEMY_GROUPS.values():
         ids.update(e.value for e in group)
     return ids
@@ -538,6 +538,7 @@ class TestChangeDungeonEnemyGroups(unittest.TestCase):
 
                 self.assertIsNotNone(lanmola_group,
                                      f"Seed {seed}: Lanmola not in any group")
+                assert lanmola_group is not None
                 bank_attr = _GROUP_SPRITE_ATTR[lanmola_group]
                 bank = getattr(gw.sprites, bank_attr)
                 actual = bytes(bank[0:len(src_data)])
