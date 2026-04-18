@@ -6,11 +6,13 @@ each on the appropriate GameConfig flags.
 
 Call order:
 1. shuffle_dungeon_rooms — shuffles room contents within each level
+2. scramble_dungeon_rooms — scrambles room contents across all levels
 """
 
 from __future__ import annotations
 
 from zora.data_model import GameWorld
+from zora.dungeon.scramble_dungeon_rooms import scramble_dungeon_rooms
 from zora.dungeon.shuffle_dungeon_rooms import shuffle_dungeon_rooms
 from zora.game_config import GameConfig
 from zora.rng import Rng
@@ -24,8 +26,8 @@ def randomize_dungeons(
     """Run all dungeon randomization steps in order.
 
     Each sub-function either self-gates on its config flags or is gated
-    here. The call order matters — future dungeon randomization steps
-    may depend on the room shuffle having already run.
+    here. The call order matters — scramble runs after shuffle so that
+    intra-level shuffling happens before cross-level scrambling.
 
     Args:
         game_world: The game state to modify in place.
@@ -35,3 +37,11 @@ def randomize_dungeons(
     if config.shuffle_dungeon_rooms:
         if not shuffle_dungeon_rooms(game_world, rng):
             raise RuntimeError("Dungeon room shuffle failed")
+    if config.scramble_dungeon_rooms:
+        if not scramble_dungeon_rooms(
+            game_world,
+            rng,
+            shuffle_gannon_and_zelda=config.shuffle_ganon_zelda,
+            shuffle_drops=True,
+        ):
+            raise RuntimeError("Dungeon room scramble failed")

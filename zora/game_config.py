@@ -158,6 +158,7 @@ class GameConfig:
 
     # Dungeon room randomization
     shuffle_dungeon_rooms: bool = False
+    scramble_dungeon_rooms: bool = False
 
     # Enemy randomization
     shuffle_dungeon_monsters: bool = False
@@ -373,6 +374,7 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
 
     # Dungeon room randomization
     shuffle_dungeon_rooms = resolve(flags.shuffle_dungeon_rooms)
+    scramble_dungeon_rooms = resolve(flags.scramble_dungeon_rooms)
 
     # Enemy randomization — resolve HP enums to config fields
     _enemy_hp = flags.enemy_hp
@@ -490,6 +492,7 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
         heart_color=heart_color,
         # Dungeon room randomization
         shuffle_dungeon_rooms=shuffle_dungeon_rooms,
+        scramble_dungeon_rooms=scramble_dungeon_rooms,
         # Enemy randomization
         shuffle_dungeon_monsters=shuffle_dungeon_monsters,
         shuffle_ganon_zelda=shuffle_ganon_zelda,

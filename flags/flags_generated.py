@@ -311,12 +311,13 @@ class Flags:
 
     # Still in Testing
     shuffle_dungeon_rooms: Tristate = Tristate.OFF
+    scramble_dungeon_rooms: Tristate = Tristate.OFF
     shuffle_enemy_groups: Tristate = Tristate.OFF
     change_dungeon_boss_groups: Tristate = Tristate.OFF
 
     # Schema metadata — used for sync checking, not a flag
     _schema_version: int = field(default=1, init=False, repr=False, compare=False)
-    _schema_hash: str = field(default="80087ffb21c93f02", init=False, repr=False, compare=False)
+    _schema_hash: str = field(default="b686b0b009581578", init=False, repr=False, compare=False)
 
 
 # ===========================================================================
@@ -422,6 +423,7 @@ _FLAG_LAYOUT: list[tuple[str, int, int]] = [
     ("shuffle_bosses", 146, 2),
     ("change_dungeon_boss_groups", 148, 2),
     ("shuffle_dungeon_rooms", 150, 2),
+    ("scramble_dungeon_rooms", 152, 2),
 ]
 
 # (flag_id, cosmetic_bit_offset, bit_width) — used by cosmetic encoder/decoder
@@ -1595,6 +1597,23 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
         "enabled": True,
         "phase": 2,
     },
+    "scramble_dungeon_rooms": {
+        "id": "scramble_dungeon_rooms",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 152,
+        "label": "Scramble Dungeon Rooms",
+        "description": (
+            "Scrambles room contents across ALL dungeon levels simultaneously. Unlike Shuffle Dungeon Rooms (which"
+            "rearranges rooms within a single level), this moves entire room contents between levels. Walls stay at"
+            "their grid positions; only the contents move. Also shuffles item assignments between the scrambled rooms.\n"
+        ),
+        "group": "Still in Testing",
+        "display_order": 11,
+        "default": "off",
+        "enabled": True,
+        "phase": 2,
+    },
     "select_swap_mode": {
         "id": "select_swap_mode",
         "type": "enum",
@@ -1939,4 +1958,4 @@ def resolve_random_flags(flags: Flags, rng: Rng) -> Flags:
 # ===========================================================================
 
 SCHEMA_VERSION = 1
-SCHEMA_HASH = "80087ffb21c93f02"
+SCHEMA_HASH = "b686b0b009581578"

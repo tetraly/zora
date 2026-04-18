@@ -1386,8 +1386,8 @@ class _LevelSnapshot:
         for snap in self.room_snaps:
             snap.restore(by_num[snap.room_num])
         sr_by_num = {sr.room_num: sr for sr in level.staircase_rooms}
-        for snap in self.staircase_snaps:
-            snap.restore(sr_by_num[snap.room_num])
+        for sr_snap in self.staircase_snaps:
+            sr_snap.restore(sr_by_num[sr_snap.room_num])
         level.entrance_room = self.entrance_room
 
 

@@ -1248,6 +1248,23 @@ flags:
     enabled: true
     phase: 2
 
+  - id: scramble_dungeon_rooms
+    type: tristate
+    bits: 2
+    bit_offset: 152
+    label: "Scramble Dungeon Rooms"
+    description: >
+      Scrambles room contents across ALL dungeon levels simultaneously.
+      Unlike Shuffle Dungeon Rooms (which rearranges rooms within a single
+      level), this moves entire room contents between levels. Walls stay
+      at their grid positions; only the contents move. Also shuffles item
+      assignments between the scrambled rooms.
+    group: "Still in Testing"
+    display_order: 11
+    default: "off"
+    enabled: true
+    phase: 2
+
   # ---------------------------------------------------------------------------
   # GROUP: Cosmetic
   # Visual and control feel settings that do not affect logic or item placement
