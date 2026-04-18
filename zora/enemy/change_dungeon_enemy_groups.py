@@ -860,11 +860,14 @@ def _replace_overworld_enemies(
                 group_members=None,
             )
 
-        # The C# replaces every screen that reaches this point from
-        # CaveGroups[3] (the OW pool).  The enemyGroups search starts at
-        # index 3, but enemyGroups only has 3 entries (0-2), so the search
-        # always falls through — every unflagged screen and every
-        # dangerous-flagged screen gets a replacement from the OW pool.
+        # The original decompiled code searches CaveGroups (not
+        # enemyGroups) starting at group 3.  Only enemies that were
+        # assigned to a CaveGroup during the assignment phase get
+        # replaced — fairies, ghinis, nothing, falling rocks, etc.
+        # are left untouched.
+        ow_enemy_id = screen.enemy_spec.enemy
+        if ow_enemy_id not in ow_pool:
+            continue
 
         # Pick a random replacement from the overworld pool.
         for _attempt in range(_MAX_ROOM_RETRIES):
