@@ -259,7 +259,6 @@ class Flags:
 
     # Misc
     hint_mode: HintMode = HintMode.VANILLA
-    randomize_dungeon_palettes: Tristate = Tristate.OFF
     permanent_sword_beam: Tristate = Tristate.OFF
     visual_roar_sound: VisualRoarSound = VisualRoarSound.DISABLED
     book_is_an_atlas: Tristate = Tristate.OFF
@@ -267,6 +266,11 @@ class Flags:
     replace_book_fire_with_explosion: Tristate = Tristate.OFF
     avoid_required_hard_combat: Tristate = Tristate.OFF
     magical_boomerang_does_one_hp_damage: bool = False
+
+    # Dungeons
+    shuffle_dungeon_rooms: Tristate = Tristate.OFF
+    scramble_dungeon_rooms: Tristate = Tristate.OFF
+    randomize_dungeon_palettes: Tristate = Tristate.OFF
 
     # Caves and Shops
     shuffle_shop_items: Tristate = Tristate.OFF
@@ -304,20 +308,16 @@ class Flags:
     shuffle_level_9_monsters: Tristate = Tristate.OFF
     shuffle_monsters_between_levels: Tristate = Tristate.OFF
     add_2nd_quest_monsters: Tristate = Tristate.OFF
+    shuffle_enemy_groups: Tristate = Tristate.OFF
     shuffle_bosses: Tristate = Tristate.OFF
+    change_dungeon_boss_groups: Tristate = Tristate.OFF
     enemy_hp: EnemyHp = EnemyHp.NORMAL
     boss_hp: BossHp = BossHp.NORMAL
     ganon_hp_to_zero: Tristate = Tristate.OFF
 
-    # Still in Testing
-    shuffle_dungeon_rooms: Tristate = Tristate.OFF
-    scramble_dungeon_rooms: Tristate = Tristate.OFF
-    shuffle_enemy_groups: Tristate = Tristate.OFF
-    change_dungeon_boss_groups: Tristate = Tristate.OFF
-
     # Schema metadata — used for sync checking, not a flag
     _schema_version: int = field(default=1, init=False, repr=False, compare=False)
-    _schema_hash: str = field(default="b686b0b009581578", init=False, repr=False, compare=False)
+    _schema_hash: str = field(default="b41c4b837add7471", init=False, repr=False, compare=False)
 
 
 # ===========================================================================
@@ -858,7 +858,7 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
             "Randomly assigns color palettes across all 9 dungeons. Each dungeon gets a randomized color theme drawn"
             "from 14 curated accent color schemes, while preserving structural fade and stairway palette sequences.\n"
         ),
-        "group": "Misc",
+        "group": "Dungeons",
         "display_order": 20,
         "default": "off",
         "enabled": True,
@@ -1542,7 +1542,7 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
             "Shuffles which enemies appear in each dungeon's sprite group, changing the enemy roster for each dungeon"
             "level.\n"
         ),
-        "group": "Still in Testing",
+        "group": "Enemies",
         "display_order": 70,
         "default": "off",
         "enabled": True,
@@ -1574,7 +1574,7 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
             "Redistributes which bosses belong to which sprite-set group (A/B/C), then replaces every existing boss"
             "room with a random pick from its group's new pool.\n"
         ),
-        "group": "Still in Testing",
+        "group": "Enemies",
         "display_order": 90,
         "default": "off",
         "enabled": True,
@@ -1591,7 +1591,7 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
             "contents (enemies, items, room types, darkness, palettes) move between grid positions. Door pairs between"
             "adjacent rooms are also shuffled.\n"
         ),
-        "group": "Still in Testing",
+        "group": "Dungeons",
         "display_order": 10,
         "default": "off",
         "enabled": True,
@@ -1608,7 +1608,7 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
             "rearranges rooms within a single level), this moves entire room contents between levels. Walls stay at"
             "their grid positions; only the contents move. Also shuffles item assignments between the scrambled rooms.\n"
         ),
-        "group": "Still in Testing",
+        "group": "Dungeons",
         "display_order": 11,
         "default": "off",
         "enabled": True,
@@ -1958,4 +1958,4 @@ def resolve_random_flags(flags: Flags, rng: Rng) -> Flags:
 # ===========================================================================
 
 SCHEMA_VERSION = 1
-SCHEMA_HASH = "b686b0b009581578"
+SCHEMA_HASH = "b41c4b837add7471"

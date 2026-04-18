@@ -508,7 +508,7 @@ flags:
       Randomly assigns color palettes across all 9 dungeons. Each dungeon gets
       a randomized color theme drawn from 14 curated accent color schemes,
       while preserving structural fade and stairway palette sequences.
-    group: "Misc"
+    group: "Dungeons"
     display_order: 20
     default: "off"
     enabled: true
@@ -1196,7 +1196,7 @@ flags:
     description: >
       Shuffles which enemies appear in each dungeon's sprite group,
       changing the enemy roster for each dungeon level.
-    group: "Still in Testing"
+    group: "Enemies"
     display_order: 70
     default: "off"
     enabled: true
@@ -1226,11 +1226,16 @@ flags:
       Redistributes which bosses belong to which sprite-set group
       (A/B/C), then replaces every existing boss room with a random
       pick from its group's new pool.
-    group: "Still in Testing"
+    group: "Enemies"
     display_order: 90
     default: "off"
     enabled: true
     phase: 2
+
+  # ---------------------------------------------------------------------------
+  # GROUP: Dungeons
+  # Dungeon room layout and palette randomization
+  # ---------------------------------------------------------------------------
 
   - id: shuffle_dungeon_rooms
     type: tristate
@@ -1242,7 +1247,7 @@ flags:
       wall layout is preserved — only the room contents (enemies, items,
       room types, darkness, palettes) move between grid positions.
       Door pairs between adjacent rooms are also shuffled.
-    group: "Still in Testing"
+    group: "Dungeons"
     display_order: 10
     default: "off"
     enabled: true
@@ -1259,7 +1264,7 @@ flags:
       level), this moves entire room contents between levels. Walls stay
       at their grid positions; only the contents move. Also shuffles item
       assignments between the scrambled rooms.
-    group: "Still in Testing"
+    group: "Dungeons"
     display_order: 11
     default: "off"
     enabled: true
