@@ -164,11 +164,11 @@ C# source: ShuffleDungeonRooms.cs (main method) and
 #     - T_ROOM (0x12): destination position must have a room below (pos+16)
 #       that belongs to the same level
 #     - ZELDA_ROOM (0x27): destination must have room below in same level
-#     - HORIZONTAL_CHUTE_ROOM (0x0F): destination must have room above
-#       (pos-16) in same level
-#     - VERTICAL_CHUTE_ROOM (0x0E): destination must have both left (pos-1)
+#     - HORIZONTAL_CHUTE_ROOM (0x0F): destination must have both left (pos-1)
 #       and right (pos+1) neighbors in same level, and not be on column 0
 #       or column 15
+#     - VERTICAL_CHUTE_ROOM (0x0E): destination must have room above (pos-16)
+#       and room below (pos+16) in same level
 #
 #   The shuffle is a constrained Fisher-Yates: for each position, pick a
 #   random swap target. If the swap violates any adjacency constraint, retry
@@ -403,16 +403,18 @@ _MAX_LEVEL_RETRIES = 50
 # Room types that require specific neighbors to function correctly.
 # These impose adjacency constraints during the shuffle.
 _NEEDS_ROOM_BELOW: frozenset[RoomType] = frozenset({
-    RoomType.T_ROOM,          # 0x12 — has a passage leading down
-    RoomType.ZELDA_ROOM,      # 0x27 — Zelda's room needs a room below
+    RoomType.T_ROOM,              # 0x12 — has a passage leading down
+    RoomType.ZELDA_ROOM,          # 0x27 — Zelda's room needs a room below
+    RoomType.VERTICAL_CHUTE_ROOM, # 0x0E — vertical chute needs room below
 })
 
 _NEEDS_ROOM_ABOVE: frozenset[RoomType] = frozenset({
-    RoomType.HORIZONTAL_CHUTE_ROOM,  # 0x0F — horizontal chute needs room above
+    RoomType.VERTICAL_CHUTE_ROOM,  # 0x0E — vertical chute needs room above
 })
 
+
 _NEEDS_LEFT_AND_RIGHT: frozenset[RoomType] = frozenset({
-    RoomType.VERTICAL_CHUTE_ROOM,    # 0x0E — vertical chute needs rooms on both sides
+    RoomType.HORIZONTAL_CHUTE_ROOM,  # 0x0F — horizontal chute needs rooms on both sides
 })
 
 
