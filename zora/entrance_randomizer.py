@@ -20,6 +20,17 @@ _LADDER_LOCATIONS = frozenset([0x18, 0x19])
 
 _ANY_ROAD_STAIRS_CODE = 5
 
+_ANY_ROAD_STAIRWAY_POSITION_CODE_TABLE: list[list[int]] = [
+    [ 3,  2,  2,  1,  2,  2,  3,  2, -1,  2,  0,  0,  2,  2,  3,  3],
+    [ 3,  2,  2,  2,  2,  2,  3, -1,  2,  2,  2,  2,  2,  0,  1,  2],
+    [ 3,  2,  0,  1, -1,  2,  3,  2,  3,  2, -1,  2,  1,  3, -1,  0],
+    [ 2, -1, -1,  2,  3, -1, -1,  0, -1, -1,  2, -1,  0,  1, -1, -1],
+    [-1, -1,  0, -1,  1,  1,  3,  2,  2,  0,  2,  3, -1,  3,  2, -1],
+    [-1,  2, -1,  3, -1, -1,  2, -1,  3, -1, -1,  3, -1, -1,  2, -1],
+    [ 3, -1,  3,  3,  3, -1,  3,  2,  3, -1,  2,  3,  2,  1,  2,  2],
+    [ 3,  3,  3, -1,  3,  2,  3, -1,  3,  2, -1,  0,  2,  2, -1, -1],
+]
+
 
 # ---------------------------------------------------------------------------
 # Location requirement helpers
@@ -416,12 +427,14 @@ def shuffle_caves(
 
         elif cave_type == _CAVE_TYPE_ANY_ROAD:
             # Any-road cave: update the any_road_screens list and patch
-            # exit_x_position and stairs_position_code for the new screen.
+            # stairs_position_code for the new screen.
             if any_road_slot < len(overworld.any_road_screens):
                 overworld.any_road_screens[any_road_slot] = screen_num
             any_road_slot += 1
+            row = screen_num // 16
+            col = screen_num % 16
             screen.exit_x_position      = _ANY_ROAD_STAIRS_CODE
-            screen.stairs_position_code = _ANY_ROAD_STAIRS_CODE
+            screen.stairs_position_code = _ANY_ROAD_STAIRWAY_POSITION_CODE_TABLE[row][col]
 
         elif cave_type == _CAVE_TYPE_WOOD_SWORD:
             result.wood_sword_screen = screen_num
