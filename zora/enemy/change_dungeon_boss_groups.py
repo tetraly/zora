@@ -501,4 +501,5 @@ def change_dungeon_boss_groups(world: GameWorld, rng: Rng) -> None:
                     continue
 
                 room.enemy_spec.enemy = new_boss
+                room.enemy_quantity = level.qty_table[0]
                 break

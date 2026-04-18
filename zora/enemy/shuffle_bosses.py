@@ -184,4 +184,5 @@ def shuffle_bosses(
                     continue
 
                 room.enemy_spec.enemy = new_boss
+                room.enemy_quantity = level.qty_table[0]
                 break
