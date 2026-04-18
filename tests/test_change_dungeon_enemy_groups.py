@@ -155,6 +155,8 @@ class TestChangeDungeonEnemyGroups(unittest.TestCase):
         for li, level in enumerate(gw.levels):
             for ri, room in enumerate(level.rooms):
                 orig = orig_rooms[(li, ri)]
+                if orig in (Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA):
+                    continue
                 if orig.is_boss or (orig.value >= 0x40 and orig.value < 0x62):
                     self.assertEqual(
                         room.enemy_spec.enemy, orig,
@@ -451,6 +453,99 @@ class TestChangeDungeonEnemyGroups(unittest.TestCase):
                                 f"{bank_offset}) contains data not matching any "
                                 f"source tile in {bank_attr}",
                             )
+
+
+    # ------------------------------------------------------------------
+    # Lanmola sprite-set consistency
+    # ------------------------------------------------------------------
+
+    _LANMOLA_IDS: frozenset[int] = frozenset({
+        Enemy.RED_LANMOLA.value, Enemy.BLUE_LANMOLA.value,
+    })
+
+    def test_lanmola_only_in_matching_sprite_set_levels(self):
+        """After enemy group shuffling, Lanmola rooms must only exist in
+        levels whose enemy_sprite_set matches the group Lanmola was
+        assigned to.  Lanmola's sprites live in enemy banks (not boss
+        banks), so a mismatch means the NES loads the wrong tiles."""
+        for seed in [1, 42, 100, 999, 12345, 99999]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                change_dungeon_enemy_groups(gw, SeededRng(seed))
+
+                lanmola_group: EnemySpriteSet | None = None
+                for ss, enemies in gw.enemies.cave_groups.items():
+                    if any(e.value in self._LANMOLA_IDS for e in enemies):
+                        lanmola_group = ss
+                        break
+
+                for level in gw.levels:
+                    for room in level.rooms:
+                        if room.enemy_spec.enemy.value not in self._LANMOLA_IDS:
+                            continue
+                        self.assertEqual(
+                            level.enemy_sprite_set, lanmola_group,
+                            f"Seed {seed}: Lanmola ({room.enemy_spec.enemy.name}) "
+                            f"in L{level.level_num} (sprite set "
+                            f"{level.enemy_sprite_set.name}) but Lanmola is in "
+                            f"group {lanmola_group.name if lanmola_group else None}",
+                        )
+
+    def test_lanmola_replaced_in_wrong_sprite_set_levels(self):
+        """Lanmola rooms in levels whose enemy_sprite_set differs from
+        Lanmola's assigned group must be replaced with a non-Lanmola
+        enemy from that level's pool."""
+        for seed in [1, 42, 100, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw_vanilla = _load_game_world()
+                gw = _load_game_world()
+                change_dungeon_enemy_groups(gw, SeededRng(seed))
+
+                lanmola_group: EnemySpriteSet | None = None
+                for ss, enemies in gw.enemies.cave_groups.items():
+                    if any(e.value in self._LANMOLA_IDS for e in enemies):
+                        lanmola_group = ss
+                        break
+
+                for li, level in enumerate(gw.levels):
+                    if level.enemy_sprite_set == lanmola_group:
+                        continue
+                    for room in level.rooms:
+                        self.assertNotIn(
+                            room.enemy_spec.enemy.value, self._LANMOLA_IDS,
+                            f"Seed {seed}: Lanmola ({room.enemy_spec.enemy.name}) "
+                            f"survived in L{level.level_num} (sprite set "
+                            f"{level.enemy_sprite_set.name}) despite belonging "
+                            f"to group {lanmola_group.name if lanmola_group else None}",
+                        )
+
+    def test_lanmola_sprite_data_at_offset_0_in_assigned_bank(self):
+        """Lanmola's 64-byte sprite tile data must be present at byte
+        offset 0 of its assigned group's enemy sprite bank."""
+        for seed in [42, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw_vanilla = _load_game_world()
+                gw = _load_game_world()
+                change_dungeon_enemy_groups(gw, SeededRng(seed))
+
+                src_data = _read_enemy_tiles(gw_vanilla.sprites, Enemy.RED_LANMOLA)
+
+                lanmola_group: EnemySpriteSet | None = None
+                for ss, enemies in gw.enemies.cave_groups.items():
+                    if Enemy.RED_LANMOLA in enemies:
+                        lanmola_group = ss
+                        break
+
+                self.assertIsNotNone(lanmola_group,
+                                     f"Seed {seed}: Lanmola not in any group")
+                bank_attr = _GROUP_SPRITE_ATTR[lanmola_group]
+                bank = getattr(gw.sprites, bank_attr)
+                actual = bytes(bank[0:len(src_data)])
+                self.assertEqual(
+                    actual, src_data,
+                    f"Seed {seed}: Lanmola sprite data at offset 0 of "
+                    f"{bank_attr} doesn't match vanilla source",
+                )
 
 
 if __name__ == '__main__':

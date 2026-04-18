@@ -1094,7 +1094,10 @@ def change_dungeon_enemy_groups(
             enemy = room.enemy_spec.enemy
 
             # Skip boss rooms — bosses are handled by change_dungeon_boss_groups.
-            if enemy.is_boss:
+            # Exception: Lanmola's sprites live in enemy sprite banks (not
+            # boss sprite banks), so Lanmola rooms must be replaced here to
+            # keep them in levels whose active enemy sprite set matches.
+            if enemy.is_boss and enemy not in (Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA):
                 continue
 
             # ZOL is always replaced with the start enemy.
