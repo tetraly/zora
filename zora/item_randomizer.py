@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 from zora.data_model import (
     Destination,
+    EntranceType,
     GameWorld,
     Item,
     ItemCave,
@@ -573,26 +574,56 @@ def _force_place(
         location_pool.remove(location)
 
 
+def _find_open_sword_cave(
+    game_world: GameWorld,
+    location_pool: list[Location],
+) -> CaveLocation | None:
+    """Find a sword cave (WOOD_SWORD_CAVE or LETTER_CAVE) behind an OPEN screen."""
+    open_dests: set[Destination] = set()
+    for screen in game_world.overworld.screens:
+        if screen.entrance_type == EntranceType.OPEN:
+            open_dests.add(screen.destination)
+
+    candidates = [
+        CaveLocation(Destination.WOOD_SWORD_CAVE, 0),
+        CaveLocation(Destination.LETTER_CAVE, 0),
+    ]
+    for loc in candidates:
+        if loc in location_pool and loc.destination in open_dests:
+            return loc
+    return None
+
+
 def _pre_place_forced_items(
     game_world: GameWorld,
     item_pool: list[Item],
     location_pool: list[Location],
     constraints: Constraints,
     rng: Rng,
-) -> None:
-    """Place forced items, mutating item_pool and location_pool in place."""
+) -> bool:
+    """Place forced items, mutating item_pool and location_pool in place.
+
+    Returns False if the layout makes a valid seed impossible (e.g. no sword
+    cave is behind an OPEN screen), signaling the caller to skip the fill.
+    """
     level_9_locs = [loc for loc in location_pool
                     if isinstance(loc, DungeonLocation) and loc.level_num == 9]
 
-    # Guarantee a starting sword or wand: place one at wood_sword_cave (if shuffled).
-    # This ensures the player always has an accessible sword/wand from the start.
     if constraints.guarantee_starting_sword_or_wand:
-        wood_sword_loc = CaveLocation(Destination.WOOD_SWORD_CAVE, 0)
-        if wood_sword_loc in location_pool:
+        sword_cave_in_pool = any(
+            loc for loc in location_pool
+            if isinstance(loc, CaveLocation)
+            and loc.destination in (Destination.WOOD_SWORD_CAVE, Destination.LETTER_CAVE)
+        )
+        if sword_cave_in_pool:
+            sword_loc = _find_open_sword_cave(game_world, location_pool)
+            if sword_loc is None:
+                logger.info("  pre-place: no sword cave behind OPEN screen — skipping fill")
+                return False
             swords_and_wands = [i for i in item_pool if i in _SWORD_OR_WAND]
             if swords_and_wands:
                 item = rng.choice(swords_and_wands)
-                _force_place(game_world, item, wood_sword_loc, item_pool, location_pool)
+                _force_place(game_world, item, sword_loc, item_pool, location_pool)
 
     if constraints.force_heart_container_to_armos:
         loc = CaveLocation(Destination.ARMOS_ITEM, 0)
@@ -636,6 +667,8 @@ def _pre_place_forced_items(
         if loc in location_pool and forced_item in item_pool:
             _force_place(game_world, forced_item, loc, item_pool, location_pool)
 
+    return True
+
 
 # ---------------------------------------------------------------------------
 # Assumed fill
@@ -676,8 +709,9 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
     for loc in location_pool:
         _clear_location(game_world, loc)
 
-    # Pre-place forced items
-    _pre_place_forced_items(game_world, item_pool, location_pool, constraints, rng)
+    # Pre-place forced items (returns False if layout is impossible)
+    if not _pre_place_forced_items(game_world, item_pool, location_pool, constraints, rng):
+        return False
 
     # Compute self-blocking constraints: rooms where an item can't go because
     # collecting it from that room requires the item itself to be in inventory.
