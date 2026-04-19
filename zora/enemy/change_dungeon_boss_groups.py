@@ -273,19 +273,49 @@ def _repack_boss_sprites(
     return column_assignments
 
 
-def _vanilla_col_range(boss: Enemy) -> tuple[int, int]:
-    """Return the (start_col, end_col_exclusive) of a boss's vanilla tile columns.
+def _build_group_column_maps(
+    column_assignments: dict[Enemy, int],
+    group_bosses: list[list[Enemy]],
+) -> list[dict[int, int]]:
+    """Build a vanilla-col → new-col mapping for each boss group.
 
-    Frames within this range belong to the boss sprite set and must be
-    remapped after repacking.  Frames outside this range (e.g. Aquamentus's
-    fireball tiles at columns 114-116) are shared/fixed tiles that must
-    not be touched.
+    For every boss (and companion) packed into a group, maps each of its
+    vanilla columns to the corresponding new column.  This covers ALL
+    columns in the group's bank, not just the columns of a single boss,
+    so cross-boss tile references within the same set resolve correctly.
     """
-    offset = _SPRITE_OFFSET[boss]
-    size = _SPRITE_SIZE[boss]
-    col_start = _COL_START_MAIN + offset // 16
-    col_end = col_start + size // 16
-    return col_start, col_end
+    group_maps: list[dict[int, int]] = [{} for _ in range(len(group_bosses))]
+
+    boss_to_group: dict[Enemy, int] = {}
+    for g, bosses in enumerate(group_bosses):
+        for boss in bosses:
+            boss_to_group[boss] = g
+
+    for boss, new_start in column_assignments.items():
+        if boss not in _SPRITE_OFFSET:
+            continue
+        grp = boss_to_group.get(boss)
+        if grp is None:
+            continue
+        vanilla_start = _COL_START_MAIN + _SPRITE_OFFSET[boss] // 16
+        num_cols = _SPRITE_SIZE[boss] // 16
+        for i in range(num_cols):
+            group_maps[grp][vanilla_start + i] = new_start + i
+
+    return group_maps
+
+
+# Which primary boss each variant/companion inherits its group from.
+_VARIANT_PRIMARY: dict[Enemy, Enemy] = {
+    Enemy.THE_BEAST: Enemy.AQUAMENTUS,
+    Enemy.MOLDORM: Enemy.GLEEOK_1,
+    Enemy.THE_KIDNAPPED: Enemy.BLUE_GOHMA,
+}
+for _primary, _variants in _VARIANT_EXPANSIONS.items():
+    for _v in _variants:
+        _VARIANT_PRIMARY[_v] = _primary
+for _primary, _companion in _COMPANIONS.items():
+    _VARIANT_PRIMARY[_companion] = _primary
 
 
 def _update_tile_frames(
@@ -295,44 +325,70 @@ def _update_tile_frames(
 ) -> None:
     """Update tile_frames for each boss to reflect its new sprite set position.
 
-    The engine uses tile_frames entries as column numbers to look up sprite
-    tiles.  After repacking, each boss's frames must be remapped from their
-    old column positions to the new ones.
+    Builds a per-group column mapping covering all bosses packed into each
+    group, then remaps every boss's (and variant's) tile_frames through
+    that mapping.  This handles cross-boss tile references within the same
+    set (e.g. Aquamentus referencing Dodongo/Digdogger columns).
 
-    Some bosses (notably Aquamentus) have tile_frame entries that reference
-    shared/fixed sprite tiles outside the boss sprite set.  Only frames
-    within the boss's vanilla column range are remapped; others are left
-    unchanged.
+    Frames outside the boss bank range (192-255) and expansion range
+    (48-79) are left unchanged — they reference fixed engine tiles.
     """
+    group_maps = _build_group_column_maps(column_assignments, group_bosses)
+
     is_in_shared_group = set(group_bosses[3]) if len(group_bosses) > 3 else set()
 
-    for boss, start_col in column_assignments.items():
+    boss_to_group: dict[Enemy, int] = {}
+    for g, bosses in enumerate(group_bosses):
+        for boss in bosses:
+            boss_to_group[boss] = g
+
+    all_bosses_with_frames: set[Enemy] = set()
+    for boss_set in _VANILLA_BOSS_GROUPS.values():
+        all_bosses_with_frames |= boss_set
+    all_bosses_with_frames |= {Enemy.THE_BEAST, Enemy.MOLDORM, Enemy.THE_KIDNAPPED}
+
+    for boss in all_bosses_with_frames:
         if boss not in enemies.tile_frames:
             continue
-
         frames = enemies.tile_frames[boss]
         if not frames:
             continue
 
-        vanilla_start, vanilla_end = _vanilla_col_range(boss)
-
-        # Collect only the frames that fall within the boss's vanilla sprite
-        # set range.  These are the values that need remapping.
-        boss_frames = [f for f in frames if vanilla_start <= f < vanilla_end]
-        if not boss_frames:
+        # Determine which group this boss belongs to.
+        grp = boss_to_group.get(boss)
+        if grp is None:
+            primary = _VARIANT_PRIMARY.get(boss)
+            if primary is not None:
+                grp = boss_to_group.get(primary)
+        if grp is None:
             continue
 
-        # Normalize: subtract the vanilla start to get 0-based sub-boss indices.
-        remapped = []
+        col_map = group_maps[grp]
+
+        # Bonuses only apply to frames within the boss's own vanilla
+        # column range, not to cross-boss references in the same set.
+        own_primary = _VARIANT_PRIMARY.get(boss, boss)
+        if own_primary in _SPRITE_OFFSET:
+            own_start = _COL_START_MAIN + _SPRITE_OFFSET[own_primary] // 16
+            own_end = own_start + _SPRITE_SIZE[own_primary] // 16
+        else:
+            own_start = own_end = -1
+
+        in_shared = boss in is_in_shared_group or (
+            own_primary in is_in_shared_group
+        )
+        is_aquamentus = boss in (Enemy.AQUAMENTUS, Enemy.THE_BEAST)
+
+        remapped: list[int] = []
         for f in frames:
-            if vanilla_start <= f < vanilla_end:
-                n = f - vanilla_start
-                v = start_col + n
-                if boss == Enemy.AQUAMENTUS:
-                    v += 2
-                if boss in is_in_shared_group:
-                    v += 1
-                remapped.append(v)
+            if f in col_map:
+                bonus = 0
+                if own_start <= f < own_end:
+                    if is_aquamentus:
+                        bonus += 2
+                    if in_shared:
+                        bonus += 1
+                remapped.append(col_map[f] + bonus)
             else:
                 remapped.append(f)
 
