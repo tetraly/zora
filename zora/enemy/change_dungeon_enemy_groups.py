@@ -339,6 +339,10 @@ _BAD_FOR_WIZZROBE_SCREENS: frozenset[int] = frozenset({
     5, 6, 7, 8, 114, 2, 29, 30, 23, 26, 56, 68, 85, 63,
 })
 
+_OW_WRITABLE_COLUMNS: frozenset[int] = (
+    frozenset(range(202, 222)) | frozenset(range(240, 256))
+)
+
 
 def _needs_bracelet(screen_num: int) -> bool:
     """Check if an overworld screen requires the Power Bracelet to access."""
@@ -803,12 +807,30 @@ def _assign_enemies_to_groups(
 # Overworld replacement
 # ---------------------------------------------------------------------------
 
+def _enemy_has_ow_column_conflict(
+    enemy: Enemy,
+    tile_frames: dict[Enemy, list[int]],
+) -> bool:
+    """Check if an enemy's tile_frames reference any OW writable columns."""
+    frames = tile_frames.get(enemy)
+    if not frames:
+        return False
+    return bool(_OW_WRITABLE_COLUMNS & frozenset(frames))
+
+
 def _replace_overworld_enemies(
     world: GameWorld,
     rng: Rng,
     group_enemies: dict[EnemySpriteSet, list[Enemy]],
 ) -> None:
     """Replace overworld screen enemies based on the new OW sprite group.
+
+    Screens are replaced if their enemy is in the OW pool (standard
+    shuffleable replacement) OR if the enemy's tile_frames overlap the
+    OW writable column regions.  The latter covers non-shuffleable
+    vanilla enemies (Tektites, Lynels, Moblins, Fairies) whose tile
+    data gets overwritten when the packer writes new enemy sprites into
+    the OW bank.
 
     Safety constraints:
     - Blue Moblins can't go on bracelet-required screens.
@@ -817,6 +839,8 @@ def _replace_overworld_enemies(
     ow_pool = group_enemies.get(EnemySpriteSet.OW, [])
     if not ow_pool:
         return
+
+    tile_frames = world.enemies.tile_frames
 
     for screen in world.overworld.screens:
         enemy = screen.enemy_spec.enemy
@@ -853,13 +877,10 @@ def _replace_overworld_enemies(
                 group_members=None,
             )
 
-        # The original decompiled code searches CaveGroups (not
-        # enemyGroups) starting at group 3.  Only enemies that were
-        # assigned to a CaveGroup during the assignment phase get
-        # replaced — fairies, ghinis, nothing, falling rocks, etc.
-        # are left untouched.
         ow_enemy_id = screen.enemy_spec.enemy
-        if ow_enemy_id not in ow_pool:
+        in_pool = ow_enemy_id in ow_pool
+        has_conflict = _enemy_has_ow_column_conflict(ow_enemy_id, tile_frames)
+        if not in_pool and not has_conflict:
             continue
 
         # Pick a random replacement from the overworld pool.
