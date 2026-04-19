@@ -132,13 +132,6 @@ _MIXED_GROUP_SPRITE_SET: dict[int, EnemySpriteSet] = {
     0x7C: EnemySpriteSet.C,   # Group 27 — L6,9(C)
 }
 
-# Mixed groups that must be removed from specific levels because they span
-# multiple sprite sets in vanilla.  Maps (group_code, level_num) pairs that
-# should be decomposed to a single enemy from the level's pool.
-_MIXED_GROUP_CROSS_SET_REMOVALS: frozenset[tuple[int, int]] = frozenset({
-    (0x6E, 3),   # Group 13 owned by A, remove from L3 (set B)
-    (0x6F, 9),   # Group 14 owned by B, remove from L9 (set C)
-})
 
 # Enemies that must not share a group (Lanmola and Wallmaster are
 # mutually exclusive).
@@ -920,7 +913,8 @@ def _update_mixed_group_members(
             if not room.enemy_spec.is_group:
                 continue
             code = room.enemy_spec.enemy.value
-            if (code, level.level_num) not in _MIXED_GROUP_CROSS_SET_REMOVALS:
+            group_owner = _MIXED_GROUP_SPRITE_SET.get(code)
+            if group_owner is None or group_owner == level.enemy_sprite_set:
                 continue
 
             for _attempt in range(_MAX_ROOM_RETRIES):

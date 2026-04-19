@@ -85,6 +85,8 @@ def _build_enemy_pools(world: GameWorld) -> dict[EnemySpriteSet, list[Enemy]]:
     for level in world.levels:
         sprite_set = LEVEL_SPRITE_SET[level.level_num]
         for room in level.rooms:
+            if room.enemy_spec.is_group:
+                continue
             enemy = room.enemy_spec.enemy
             if _is_excluded_from_enemy_shuffling(enemy):
                 continue
@@ -198,6 +200,8 @@ def _redistribute_enemies(
             has_blue_bubble = False
 
             for room in level.rooms:
+                if room.enemy_spec.is_group:
+                    continue
                 enemy = room.enemy_spec.enemy
                 if _is_excluded_from_enemy_shuffling(enemy):
                     continue
