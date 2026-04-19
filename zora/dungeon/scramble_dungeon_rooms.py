@@ -119,7 +119,7 @@ _VALID_ITEM_POSITIONS: dict[RoomType, list[ItemPosition]] = {
     RoomType.DOUBLE_BLOCK:          [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.LAVA_MOAT:             [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
     RoomType.MAZE_ROOM:             [ItemPosition.POSITION_D, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
-    RoomType.GRID_ROOM:             [ItemPosition.POSITION_B, ItemPosition.POSITION_C],
+    RoomType.GRID_ROOM:             [ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.VERTICAL_CHUTE_ROOM:   [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.HORIZONTAL_CHUTE_ROOM: [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.VERTICAL_ROWS:         [ItemPosition.POSITION_B, ItemPosition.POSITION_C],
