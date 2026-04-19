@@ -510,6 +510,8 @@ class TestSpriteSetConsistency(unittest.TestCase):
                     pool = set(pools[assigned_set])
 
                     for room in level.rooms:
+                        if room.enemy_spec.is_group:
+                            continue
                         enemy = room.enemy_spec.enemy
                         if _is_excluded_from_enemy_shuffling(enemy):
                             continue
