@@ -7,6 +7,7 @@ from typing import cast
 
 from zora.data_model import (
     Destination,
+    Direction,
     Enemy,
     EnemySpec,
     GameWorld,
@@ -264,6 +265,87 @@ def test_progressive_placement_passes_for_valid_pool():
     locs = [DungeonLocation(level_num=1, room_num=rooms[i].room_num) for i in range(5)]
     assert _check_progressive_placement_invariants(gw, cast(list[Location], locs), _DEFAULT_CONFIG), \
         "3x WOOD_SWORD + 2x BLUE_RING should pass invariant"
+
+
+def test_shutter_door_blocked_by_push_block_without_movable_block():
+    """Shutter doors with PUSHING_BLOCK_OPENS_SHUTTERS but no movable block are impassable."""
+    bins = load_bin_files(TEST_DATA)
+    gw = parse_game_world(bins)
+    v = _make_validator(gw)
+    v.inventory.items.add(Item.WOOD_SWORD)
+
+    walls = WallSet(WallType.OPEN_DOOR, WallType.SHUTTER_DOOR, WallType.OPEN_DOOR, WallType.OPEN_DOOR)
+    room = Room(
+        room_num=0x10,
+        room_type=RoomType.PLAIN_ROOM,
+        walls=walls,
+        enemy_spec=EnemySpec(Enemy.RED_DARKNUT),
+        enemy_quantity=3,
+        item=Item.NOTHING,
+        item_position=ItemPosition.POSITION_A,
+        room_action=RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS,
+        is_dark=False,
+        boss_cry_1=False,
+        boss_cry_2=False,
+        movable_block=False,
+        palette_0=0,
+        palette_1=0,
+    )
+    assert not v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
+
+
+def test_shutter_door_blocked_by_old_man_with_kill_action():
+    """Shutter doors with an unkillable NPC and a kill-based room action are impassable."""
+    bins = load_bin_files(TEST_DATA)
+    gw = parse_game_world(bins)
+    v = _make_validator(gw)
+    v.inventory.items.add(Item.WOOD_SWORD)
+
+    walls = WallSet(WallType.OPEN_DOOR, WallType.SHUTTER_DOOR, WallType.OPEN_DOOR, WallType.OPEN_DOOR)
+    room = Room(
+        room_num=0x10,
+        room_type=RoomType.PLAIN_ROOM,
+        walls=walls,
+        enemy_spec=EnemySpec(Enemy.OLD_MAN),
+        enemy_quantity=1,
+        item=Item.NOTHING,
+        item_position=ItemPosition.POSITION_A,
+        room_action=RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS,
+        is_dark=False,
+        boss_cry_1=False,
+        boss_cry_2=False,
+        movable_block=False,
+        palette_0=0,
+        palette_1=0,
+    )
+    assert not v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
+
+
+def test_shutter_door_allowed_for_killable_enemies():
+    """Shutter doors with killable enemies and a kill action are passable."""
+    bins = load_bin_files(TEST_DATA)
+    gw = parse_game_world(bins)
+    v = _make_validator(gw)
+    v.inventory.items.add(Item.WOOD_SWORD)
+
+    walls = WallSet(WallType.OPEN_DOOR, WallType.SHUTTER_DOOR, WallType.OPEN_DOOR, WallType.OPEN_DOOR)
+    room = Room(
+        room_num=0x10,
+        room_type=RoomType.PLAIN_ROOM,
+        walls=walls,
+        enemy_spec=EnemySpec(Enemy.RED_DARKNUT),
+        enemy_quantity=3,
+        item=Item.NOTHING,
+        item_position=ItemPosition.POSITION_A,
+        room_action=RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS,
+        is_dark=False,
+        boss_cry_1=False,
+        boss_cry_2=False,
+        movable_block=False,
+        palette_0=0,
+        palette_1=0,
+    )
+    assert v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
 
 
 def test_progressive_placement_only_checks_shuffled_locations():
