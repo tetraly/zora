@@ -15,12 +15,14 @@ Ported from ScrambleDungeonRooms (ScrambleDungeonRooms.cs).
 """
 
 from zora.data_model import (
+    Direction,
     Enemy,
     GameWorld,
     ItemPosition,
     Room,
     RoomAction,
     RoomType,
+    WallType,
 )
 from zora.rng import Rng
 from zora.enemy.safety_checks import is_safe_for_room
@@ -234,9 +236,58 @@ def _is_locked(room: Room) -> bool:
 # Safety checks for the swap
 # ---------------------------------------------------------------------------
 
+_NEEDS_ROOM_BELOW: frozenset[RoomType] = frozenset({
+    RoomType.T_ROOM,
+})
+
+# _NEEDS_ROOM_ABOVE_AND_BELOW: frozenset[RoomType] = frozenset({
+#     RoomType.HORIZONTAL_CHUTE_ROOM,
+# })
+
+# _NEEDS_LEFT_AND_RIGHT: frozenset[RoomType] = frozenset({
+#     RoomType.VERTICAL_CHUTE_ROOM,
+# })
+
+_MOVEMENT_CONSTRAINED: frozenset[RoomType] = (
+    _NEEDS_ROOM_BELOW  # | _NEEDS_ROOM_ABOVE_AND_BELOW | _NEEDS_LEFT_AND_RIGHT
+)
+
+
+def _check_adjacency(
+    room_type: RoomType,
+    room_num: int,
+    level_room_nums: frozenset[int],
+) -> bool:
+    """Check whether placing room_type at room_num satisfies adjacency constraints."""
+    if room_type in _NEEDS_ROOM_BELOW:
+        if room_num + 16 >= 128 or room_num + 16 not in level_room_nums:
+            return False
+
+    # if room_type in _NEEDS_ROOM_ABOVE_AND_BELOW:
+    #     if room_num - 16 < 0 or room_num - 16 not in level_room_nums:
+    #         return False
+    #     if room_num + 16 >= 128 or room_num + 16 not in level_room_nums:
+    #         return False
+
+    # if room_type in _NEEDS_LEFT_AND_RIGHT:
+    #     col = room_num % 16
+    #     if col == 0 or col == 15:
+    #         return False
+    #     if room_num - 1 not in level_room_nums:
+    #         return False
+    #     if room_num + 1 not in level_room_nums:
+    #         return False
+
+    return True
+
+
 def _is_swap_safe(
     contents_i: _RoomContents,
     contents_j: _RoomContents,
+    room_i_num: int,
+    room_j_num: int,
+    level_room_nums_i: frozenset[int],
+    level_room_nums_j: frozenset[int],
 ) -> bool:
     """Check whether swapping two room contents between positions is safe.
 
@@ -246,10 +297,17 @@ def _is_swap_safe(
     This is more conservative than strictly necessary (the enemy only moves
     to one position), but we replicate the C# behavior.
     """
-    enemy_i = contents_i.enemy_spec.enemy
-    enemy_j = contents_j.enemy_spec.enemy
     rt_i = contents_i.room_type
     rt_j = contents_j.room_type
+
+    if rt_i in _MOVEMENT_CONSTRAINED or rt_j in _MOVEMENT_CONSTRAINED:
+        if not _check_adjacency(rt_i, room_j_num, level_room_nums_j):
+            return False
+        if not _check_adjacency(rt_j, room_i_num, level_room_nums_i):
+            return False
+
+    enemy_i = contents_i.enemy_spec.enemy
+    enemy_j = contents_j.enemy_spec.enemy
 
     if enemy_i == Enemy.THE_BEAST or enemy_j == Enemy.THE_BEAST:
         if not is_safe_for_room(Enemy.THE_BEAST, rt_j):
@@ -353,6 +411,14 @@ def scramble_dungeon_rooms(
     contents = [_RoomContents(room) for room in pool]
     locked = [_is_locked(room) for room in pool]
 
+    # Build per-room level membership for adjacency checks.
+    room_to_level_nums: dict[int, frozenset[int]] = {}
+    for level in world.levels:
+        level_nums = frozenset(r.room_num for r in level.rooms)
+        for r in level.rooms:
+            room_to_level_nums[r.room_num] = level_nums
+    pool_level_nums = [room_to_level_nums.get(r.room_num, frozenset()) for r in pool]
+
     # --- Phase 2: Constrained Fisher-Yates shuffle ---
 
     total_retries = 0
@@ -371,7 +437,11 @@ def scramble_dungeon_rooms(
             constraint_failed = True
 
         if not constraint_failed:
-            if not _is_swap_safe(contents[i], contents[j]):
+            if not _is_swap_safe(
+                contents[i], contents[j],
+                pool[i].room_num, pool[j].room_num,
+                pool_level_nums[i], pool_level_nums[j],
+            ):
                 constraint_failed = True
 
         if constraint_failed:
@@ -407,12 +477,55 @@ def scramble_dungeon_rooms(
     return True
 
 
+# For direction-sensitive room types, maps (room_type, item_position) to the
+# set of entry directions from which the item can be collected. Positions not
+# listed are reachable from any direction. Derived from the standard position
+# table coordinates: A=(8,9) B=(D,6) C=(C,9) D=(2,C).
+_REQUIRED_DIRECTIONS: dict[tuple[RoomType, ItemPosition], frozenset[Direction]] = {
+    # HORIZONTAL_CHUTE: top(Y=6)=NORTH, middle(Y=9)=EAST|WEST, bottom(Y=C)=SOUTH
+    (RoomType.HORIZONTAL_CHUTE_ROOM, ItemPosition.POSITION_A): frozenset({Direction.EAST, Direction.WEST}),
+    (RoomType.HORIZONTAL_CHUTE_ROOM, ItemPosition.POSITION_B): frozenset({Direction.NORTH}),
+    (RoomType.HORIZONTAL_CHUTE_ROOM, ItemPosition.POSITION_C): frozenset({Direction.EAST, Direction.WEST}),
+    (RoomType.HORIZONTAL_CHUTE_ROOM, ItemPosition.POSITION_D): frozenset({Direction.SOUTH}),
+    # VERTICAL_CHUTE: left(X=2)=WEST, middle(X=8)=NORTH|SOUTH, right(X=D)=EAST
+    (RoomType.VERTICAL_CHUTE_ROOM, ItemPosition.POSITION_A): frozenset({Direction.NORTH, Direction.SOUTH}),
+    (RoomType.VERTICAL_CHUTE_ROOM, ItemPosition.POSITION_B): frozenset({Direction.EAST}),
+    (RoomType.VERTICAL_CHUTE_ROOM, ItemPosition.POSITION_C): frozenset({Direction.EAST}),
+    (RoomType.VERTICAL_CHUTE_ROOM, ItemPosition.POSITION_D): frozenset({Direction.WEST}),
+    # T_ROOM: bar(X=2,X=D,Y=6)=WEST|NORTH|EAST, stem(X in 5-A,Y in 8-C)=SOUTH
+    (RoomType.T_ROOM, ItemPosition.POSITION_A): frozenset({Direction.SOUTH}),
+    (RoomType.T_ROOM, ItemPosition.POSITION_B): frozenset({Direction.WEST, Direction.NORTH, Direction.EAST}),
+    (RoomType.T_ROOM, ItemPosition.POSITION_D): frozenset({Direction.WEST, Direction.NORTH, Direction.EAST}),
+}
+
+
+def _has_door(room: Room, direction: Direction) -> bool:
+    """Return True if the room has any kind of door/passage in the given direction."""
+    wall_map = {
+        Direction.NORTH: room.walls.north,
+        Direction.EAST: room.walls.east,
+        Direction.SOUTH: room.walls.south,
+        Direction.WEST: room.walls.west,
+    }
+    return wall_map.get(direction, WallType.SOLID_WALL) != WallType.SOLID_WALL
+
+
 def _assign_valid_item_positions(pool: list[Room], rng: Rng) -> None:
-    """Pick a random valid item position for each room based on its room type."""
+    """Pick a random valid item position for each room based on its room type
+    and available doors."""
     for room in pool:
         valid = _VALID_ITEM_POSITIONS.get(room.room_type)
-        if valid:
-            room.item_position = rng.choice(valid)
+        if not valid:
+            continue
+        # Filter positions to those reachable from at least one existing door
+        door_valid = []
+        for pos in valid:
+            required = _REQUIRED_DIRECTIONS.get((room.room_type, pos))
+            if required is None:
+                door_valid.append(pos)
+            elif any(_has_door(room, d) for d in required):
+                door_valid.append(pos)
+        room.item_position = rng.choice(door_valid if door_valid else valid)
 
 
 def _shuffle_drops(pool: list[Room], rng: Rng) -> None:

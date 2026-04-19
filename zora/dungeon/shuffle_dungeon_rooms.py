@@ -390,6 +390,7 @@ from zora.data_model import (
     StaircaseRoom,
     WallType,
 )
+from zora.game_validator import _CONSTRAINED_VALID_DIRS
 from zora.rng import Rng
 
 
@@ -402,20 +403,27 @@ _MAX_LEVEL_RETRIES = 50
 
 # Room types that require specific neighbors to function correctly.
 # These impose adjacency constraints during the shuffle.
+#
+# Chute rooms have internal walls that divide them into lanes/rows.
+# To access all regions of the room, doors must exist into each region:
+#   - Vertical chute: vertical walls create left/center/right lanes.
+#     Left lane needs WEST, right lane needs EAST, center needs N or S.
+#   - Horizontal chute: horizontal walls create top/middle/bottom rows.
+#     Top row needs NORTH, bottom needs SOUTH, middle needs E or W.
+# We require neighbors on the axes that feed the side regions, since
+# center/middle is almost always reachable from the remaining doors.
 _NEEDS_ROOM_BELOW: frozenset[RoomType] = frozenset({
-    RoomType.T_ROOM,              # 0x12 — has a passage leading down
+    RoomType.T_ROOM,              # 0x12 — stem extends south
     RoomType.ZELDA_ROOM,          # 0x27 — Zelda's room needs a room below
-    RoomType.VERTICAL_CHUTE_ROOM, # 0x0E — vertical chute needs room below
 })
 
-_NEEDS_ROOM_ABOVE: frozenset[RoomType] = frozenset({
-    RoomType.VERTICAL_CHUTE_ROOM,  # 0x0E — vertical chute needs room above
-})
+# _NEEDS_ROOM_ABOVE_AND_BELOW: frozenset[RoomType] = frozenset({
+#     RoomType.HORIZONTAL_CHUTE_ROOM,  # 0x0F — top row needs north, bottom needs south
+# })
 
-
-_NEEDS_LEFT_AND_RIGHT: frozenset[RoomType] = frozenset({
-    RoomType.HORIZONTAL_CHUTE_ROOM,  # 0x0F — horizontal chute needs rooms on both sides
-})
+# _NEEDS_LEFT_AND_RIGHT: frozenset[RoomType] = frozenset({
+#     RoomType.VERTICAL_CHUTE_ROOM,  # 0x0E — left lane needs west, right lane needs east
+# })
 
 
 def _level_room_nums(level: Level) -> frozenset[int]:
@@ -500,18 +508,20 @@ def _check_adjacency_constraints(
         if not _has_neighbor_in_level(dest_pos, Direction.SOUTH, level_room_nums):
             return False
 
-    if room_type in _NEEDS_ROOM_ABOVE:
-        if not _has_neighbor_in_level(dest_pos, Direction.NORTH, level_room_nums):
-            return False
+    # if room_type in _NEEDS_ROOM_ABOVE_AND_BELOW:
+    #     if not _has_neighbor_in_level(dest_pos, Direction.NORTH, level_room_nums):
+    #         return False
+    #     if not _has_neighbor_in_level(dest_pos, Direction.SOUTH, level_room_nums):
+    #         return False
 
-    if room_type in _NEEDS_LEFT_AND_RIGHT:
-        col = dest_pos % 16
-        if col == 0 or col == 15:
-            return False
-        if not _has_neighbor_in_level(dest_pos, Direction.WEST, level_room_nums):
-            return False
-        if not _has_neighbor_in_level(dest_pos, Direction.EAST, level_room_nums):
-            return False
+    # if room_type in _NEEDS_LEFT_AND_RIGHT:
+    #     col = dest_pos % 16
+    #     if col == 0 or col == 15:
+    #         return False
+    #     if not _has_neighbor_in_level(dest_pos, Direction.WEST, level_room_nums):
+    #         return False
+    #     if not _has_neighbor_in_level(dest_pos, Direction.EAST, level_room_nums):
+    #         return False
 
     return True
 
@@ -944,6 +954,63 @@ def _fix_vertical_door_pairs(
         lower_room = room_by_num[pos + 16]
         upper_room.walls.south = WallType((val >> 3) & 7)
         lower_room.walls.north = WallType(val & 7)
+
+
+def _fix_constrained_room_doors(level: Level, rng: Rng) -> None:
+    """Ensure movement-constrained rooms have at least one door on a required axis.
+
+    After the door pair shuffle, a constrained room may end up with solid walls
+    on all of its valid traversal directions, making it unreachable or a dead
+    end that splits the level. This repair pass guarantees at least one
+    valid-direction door exists by opening a randomly chosen wall on the
+    needed axis.
+    """
+    level_room_nums = _level_room_nums(level)
+    room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
+
+    for room in level.rooms:
+        rt = room.room_type
+        if rt not in _CONSTRAINED_VALID_DIRS:
+            continue
+
+        rn = room.room_num
+
+        if rt == RoomType.HORIZONTAL_CHUTE_ROOM:
+            if room.walls.east != WallType.SOLID_WALL or room.walls.west != WallType.SOLID_WALL:
+                continue
+            candidates: list[Direction] = []
+            if rn + 1 in level_room_nums and rn % 16 < 15:
+                candidates.append(Direction.EAST)
+            if rn - 1 in level_room_nums and rn % 16 > 0:
+                candidates.append(Direction.WEST)
+            if not candidates:
+                continue
+            pick = rng.choice(candidates)
+            room.walls[pick] = WallType.OPEN_DOOR
+            neighbor = room_by_num[rn + (1 if pick == Direction.EAST else -1)]
+            neighbor.walls[_OPPOSITE_DIR[pick]] = WallType.OPEN_DOOR
+
+        elif rt == RoomType.VERTICAL_CHUTE_ROOM:
+            if room.walls.north != WallType.SOLID_WALL or room.walls.south != WallType.SOLID_WALL:
+                continue
+            candidates = []
+            if rn - 16 in level_room_nums and rn >= 16:
+                candidates.append(Direction.NORTH)
+            if rn + 16 in level_room_nums and rn < 112:
+                candidates.append(Direction.SOUTH)
+            if not candidates:
+                continue
+            pick = rng.choice(candidates)
+            room.walls[pick] = WallType.OPEN_DOOR
+            neighbor = room_by_num[rn + (-16 if pick == Direction.NORTH else 16)]
+            neighbor.walls[_OPPOSITE_DIR[pick]] = WallType.OPEN_DOOR
+
+        elif rt == RoomType.T_ROOM:
+            if room.walls.south != WallType.SOLID_WALL:
+                continue
+            if rn + 16 in level_room_nums and rn < 112:
+                room.walls.south = WallType.OPEN_DOOR
+                room_by_num[rn + 16].walls.north = WallType.OPEN_DOOR
 
 
 def _shuffle_level(level: Level, rng: Rng) -> bool:
@@ -1391,98 +1458,120 @@ class _LevelSnapshot:
         level.entrance_room = self.entrance_room
 
 
+_OPPOSITE_DIR: dict[Direction, Direction] = {
+    Direction.NORTH: Direction.SOUTH,
+    Direction.SOUTH: Direction.NORTH,
+    Direction.EAST:  Direction.WEST,
+    Direction.WEST:  Direction.EAST,
+}
+
+_DIR_OFFSETS: list[tuple[Direction, int]] = [
+    (Direction.NORTH, -16),
+    (Direction.SOUTH,  16),
+    (Direction.WEST,   -1),
+    (Direction.EAST,    1),
+]
+
+
+def _is_path_obstructed(
+    room_type: RoomType,
+    entry_dir: Direction,
+    exit_dir: Direction,
+) -> bool:
+    """Check if traversal through a room is blocked by movement constraints.
+
+    Uses the same constraint tables as game_validator. Assumes no ladder
+    (conservative — items aren't placed yet).
+    """
+    if entry_dir == Direction.STAIRCASE:
+        return False
+    if room_type in _CONSTRAINED_VALID_DIRS:
+        valid = _CONSTRAINED_VALID_DIRS[room_type]
+        if entry_dir not in valid or exit_dir not in valid:
+            return True
+    return False
+
+
 def _is_level_connected(level: Level) -> bool:
     """Check that every room in the level is reachable from the entrance.
 
-    Flood-fills from entrance_room following non-SOLID_WALL walls between
-    rooms that belong to the level. Also follows transport staircase
-    connections: if a staircase room is reachable (one of its exits has
-    been visited), both exits become reachable seeds.
+    Direction-aware flood fill: tracks (room_num, entry_direction) states
+    so that movement-restricted rooms (chutes, T-rooms, moat rooms) only
+    allow traversal through valid direction pairs, matching the constraint
+    tables in game_validator.
 
-    Returns True if all rooms in level.rooms are visited.
+    Also follows transport staircase connections: if either exit room has
+    been reached, both exits become reachable seeds (entered via
+    Direction.STAIRCASE, which bypasses movement restrictions).
+
+    Returns True if all rooms in level.rooms are reached from any direction.
     """
     level_room_nums = frozenset(r.room_num for r in level.rooms)
     room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
-    staircase_room_nums = frozenset(sr.room_num for sr in level.staircase_rooms)
 
-    visited: set[int] = set()
-    queue: list[int] = [level.entrance_room]
+    visited_states: set[tuple[int, Direction]] = set()
+    reached_rooms: set[int] = set()
+    queue: list[tuple[int, Direction]] = [
+        (level.entrance_room, level.entrance_direction),
+    ]
 
-    while queue:
-        rn = queue.pop()
-        if rn in visited:
-            continue
-        visited.add(rn)
+    def _expand(rn: int, entry_dir: Direction) -> None:
+        state = (rn, entry_dir)
+        if state in visited_states:
+            return
+        visited_states.add(state)
+        reached_rooms.add(rn)
         if rn not in room_by_num:
-            continue
+            return
         room = room_by_num[rn]
         row, col = rn >> 4, rn & 0xF
-        # North
-        if row > 0 and room.walls.north != WallType.SOLID_WALL:
-            neighbor = rn - 16
-            if neighbor in level_room_nums and neighbor not in visited:
-                queue.append(neighbor)
-        # South
-        if row < 7 and room.walls.south != WallType.SOLID_WALL:
-            neighbor = rn + 16
-            if neighbor in level_room_nums and neighbor not in visited:
-                queue.append(neighbor)
-        # West
-        if col > 0 and room.walls.west != WallType.SOLID_WALL:
-            neighbor = rn - 1
-            if neighbor in level_room_nums and neighbor not in visited:
-                queue.append(neighbor)
-        # East
-        if col < 15 and room.walls.east != WallType.SOLID_WALL:
-            neighbor = rn + 1
-            if neighbor in level_room_nums and neighbor not in visited:
-                queue.append(neighbor)
+        for exit_dir, offset in _DIR_OFFSETS:
+            if exit_dir == Direction.NORTH and row == 0:
+                continue
+            if exit_dir == Direction.SOUTH and row == 7:
+                continue
+            if exit_dir == Direction.WEST and col == 0:
+                continue
+            if exit_dir == Direction.EAST and col == 15:
+                continue
+            if room.walls[exit_dir] == WallType.SOLID_WALL:
+                continue
+            if _is_path_obstructed(room.room_type, entry_dir, exit_dir):
+                continue
+            neighbor = rn + offset
+            if neighbor not in level_room_nums:
+                continue
+            neighbor_entry = _OPPOSITE_DIR[exit_dir]
+            if (neighbor, neighbor_entry) not in visited_states:
+                queue.append((neighbor, neighbor_entry))
 
-    # Follow transport staircases: if either exit is visited, both exits
-    # become seeds and we continue the fill.
+    while queue:
+        rn, entry_dir = queue.pop()
+        _expand(rn, entry_dir)
+
+    # Follow transport staircases: if either exit has been reached,
+    # both exits become seeds entered via STAIRCASE.
     changed = True
     while changed:
         changed = False
         for sr in level.staircase_rooms:
-            if sr.room_num in visited:
+            if sr.room_num in reached_rooms:
                 continue
             if sr.room_type != RoomType.TRANSPORT_STAIRCASE:
                 continue
             assert sr.left_exit is not None and sr.right_exit is not None
-            if sr.left_exit in visited or sr.right_exit in visited:
-                visited.add(sr.room_num)
+            if sr.left_exit in reached_rooms or sr.right_exit in reached_rooms:
+                reached_rooms.add(sr.room_num)
                 for exit_rn in (sr.left_exit, sr.right_exit):
-                    if exit_rn not in visited:
-                        queue.append(exit_rn)
+                    state = (exit_rn, Direction.STAIRCASE)
+                    if state not in visited_states:
+                        queue.append(state)
                         changed = True
-                # Re-fill from the new seeds.
                 while queue:
-                    rn = queue.pop()
-                    if rn in visited:
-                        continue
-                    visited.add(rn)
-                    if rn not in room_by_num:
-                        continue
-                    room = room_by_num[rn]
-                    row, col = rn >> 4, rn & 0xF
-                    if row > 0 and room.walls.north != WallType.SOLID_WALL:
-                        neighbor = rn - 16
-                        if neighbor in level_room_nums and neighbor not in visited:
-                            queue.append(neighbor)
-                    if row < 7 and room.walls.south != WallType.SOLID_WALL:
-                        neighbor = rn + 16
-                        if neighbor in level_room_nums and neighbor not in visited:
-                            queue.append(neighbor)
-                    if col > 0 and room.walls.west != WallType.SOLID_WALL:
-                        neighbor = rn - 1
-                        if neighbor in level_room_nums and neighbor not in visited:
-                            queue.append(neighbor)
-                    if col < 15 and room.walls.east != WallType.SOLID_WALL:
-                        neighbor = rn + 1
-                        if neighbor in level_room_nums and neighbor not in visited:
-                            queue.append(neighbor)
+                    rn, entry_dir = queue.pop()
+                    _expand(rn, entry_dir)
 
-    return level_room_nums.issubset(visited)
+    return level_room_nums.issubset(reached_rooms)
 
 
 def shuffle_dungeon_rooms(
@@ -1525,6 +1614,7 @@ def shuffle_dungeon_rooms(
 
             _fix_horizontal_door_pairs(level, rng)
             _fix_vertical_door_pairs(level, rng, must_beat_gannon)
+            _fix_constrained_room_doors(level, rng)
 
             _fix_special_rooms(level, world)
             _fix_peninsula_and_stairs(level, world)
