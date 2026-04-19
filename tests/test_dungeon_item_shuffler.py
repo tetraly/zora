@@ -1,22 +1,14 @@
 """
 Tests for dungeon_item_shuffler: intra-dungeon item shuffling.
 """
-from pathlib import Path
-
 from flags.flags_generated import Flags, Tristate
 from zora.data_model import Item, Level, RoomType
 from zora.dungeon_item_shuffler import _DUNGEON_MAJOR_ITEMS, _FIXED_ITEMS, shuffle_dungeon_items
 from zora.game_config import GameConfig, resolve_game_config
 from zora.game_validator import GameValidator
 from zora.item_randomizer import assumed_fill, randomize_items
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
-
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
-
-def _fresh_world():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _config(flags: Flags, seed: int = 0) -> GameConfig:
@@ -31,10 +23,10 @@ def _item_staircase_rooms(level: Level) -> list:
 # No-op when flag is off
 # ---------------------------------------------------------------------------
 
-def test_shuffle_within_dungeons_off_is_noop():
+def test_shuffle_within_dungeons_off_is_noop(bins):
     """When shuffle_within_dungeons is off, items must not be moved."""
     flags = Flags(shuffle_within_dungeons=Tristate.OFF)
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(flags)
 
     # Record items on a fresh (pre-fill) world
@@ -60,14 +52,14 @@ def test_shuffle_within_dungeons_off_is_noop():
 # Major items always land in staircase rooms (triforces_in_stairways off)
 # ---------------------------------------------------------------------------
 
-def test_major_items_in_staircase_rooms():
+def test_major_items_in_staircase_rooms(bins):
     """All item staircase rooms must hold a major item (or heart container) after shuffle."""
     flags = Flags(
         shuffle_within_dungeons=Tristate.ON,
         allow_triforces_in_stairways=Tristate.OFF,
     )
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         shuffle_dungeon_items(gw, config, SeededRng(seed))
         assumed_fill(gw, config, SeededRng(seed))
@@ -80,7 +72,7 @@ def test_major_items_in_staircase_rooms():
                 )
 
 
-def test_minor_items_not_in_staircase_rooms():
+def test_minor_items_not_in_staircase_rooms(bins):
     """Compasses, maps, and triforces (flag off) must not appear in staircase rooms."""
     flags = Flags(
         shuffle_within_dungeons=Tristate.ON,
@@ -88,7 +80,7 @@ def test_minor_items_not_in_staircase_rooms():
     )
     _minor = {Item.COMPASS, Item.MAP, Item.TRIFORCE}
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         shuffle_dungeon_items(gw, config, SeededRng(seed))
         assumed_fill(gw, config, SeededRng(seed))
@@ -105,7 +97,7 @@ def test_minor_items_not_in_staircase_rooms():
 # Triforces in stairways flag
 # ---------------------------------------------------------------------------
 
-def test_triforces_in_stairways_allows_triforce_in_staircase():
+def test_triforces_in_stairways_allows_triforce_in_staircase(bins):
     """With allow_triforces_in_stairways on, at least one seed must place a triforce
     in an item staircase room."""
     flags = Flags(
@@ -113,7 +105,7 @@ def test_triforces_in_stairways_allows_triforce_in_staircase():
         allow_triforces_in_stairways=Tristate.ON,
     )
     for seed in range(20):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         shuffle_dungeon_items(gw, config, SeededRng(seed))
         assumed_fill(gw, config, SeededRng(seed))
@@ -126,14 +118,14 @@ def test_triforces_in_stairways_allows_triforce_in_staircase():
     raise AssertionError("No triforce placed in a staircase room across 20 seeds")
 
 
-def test_triforces_stay_within_their_dungeon():
+def test_triforces_stay_within_their_dungeon(bins):
     """Each dungeon's triforce(s) must remain in that dungeon after shuffle."""
     flags = Flags(
         shuffle_within_dungeons=Tristate.ON,
         allow_triforces_in_stairways=Tristate.ON,
     )
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
 
         # Record which levels had triforces before shuffling
@@ -159,14 +151,14 @@ def test_triforces_stay_within_their_dungeon():
 # Fixed items never move
 # ---------------------------------------------------------------------------
 
-def test_triforce_of_power_never_moves():
+def test_triforce_of_power_never_moves(bins):
     """TRIFORCE_OF_POWER must always stay in its original room."""
     flags = Flags(
         shuffle_within_dungeons=Tristate.ON,
         allow_triforces_in_stairways=Tristate.ON,
     )
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         # Find the original room holding TRIFORCE_OF_POWER
         original: dict[tuple[int, int], Item] = {}
         for level in gw.levels:
@@ -192,7 +184,7 @@ def test_triforce_of_power_never_moves():
 # Item multiset preservation
 # ---------------------------------------------------------------------------
 
-def test_item_multiset_preserved_per_dungeon():
+def test_item_multiset_preserved_per_dungeon(bins):
     """The multiset of items within each dungeon must be identical before and after shuffle."""
     from collections import Counter
 
@@ -201,7 +193,7 @@ def test_item_multiset_preserved_per_dungeon():
         allow_triforces_in_stairways=Tristate.ON,
     )
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
 
         def _level_item_counter(level: Level) -> Counter:
@@ -226,11 +218,11 @@ def test_item_multiset_preserved_per_dungeon():
 # End-to-end beatability
 # ---------------------------------------------------------------------------
 
-def test_shuffle_within_dungeons_produces_beatable_seeds():
+def test_shuffle_within_dungeons_produces_beatable_seeds(bins):
     """Seeds with shuffle_within_dungeons on must be beatable (shuffle before assumed_fill)."""
     flags = Flags(shuffle_within_dungeons=Tristate.ON)
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         shuffle_dungeon_items(gw, config, SeededRng(seed))
         success = assumed_fill(gw, config, SeededRng(seed))
@@ -240,14 +232,14 @@ def test_shuffle_within_dungeons_produces_beatable_seeds():
         )
 
 
-def test_triforces_in_stairways_produces_beatable_seeds():
+def test_triforces_in_stairways_produces_beatable_seeds(bins):
     """Seeds with both flags on must be beatable (shuffle before assumed_fill)."""
     flags = Flags(
         shuffle_within_dungeons=Tristate.ON,
         allow_triforces_in_stairways=Tristate.ON,
     )
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         shuffle_dungeon_items(gw, config, SeededRng(seed))
         randomize_items(gw, config, SeededRng(seed))

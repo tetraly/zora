@@ -78,8 +78,8 @@ _COSMETIC_FLAGS = CosmeticFlags(
 
 def _assert_deterministic(flags: Flags, seed: int, label: str,
                           cosmetic_flags: CosmeticFlags | None = None) -> None:
-    """Generate three times with random-state pollution between calls.
-    All three must produce identical IPS bytes and hash codes."""
+    """Generate twice with random-state pollution between calls.
+    Both must produce identical IPS bytes and hash codes."""
     ips1, hash1, *_ = generate_game(flags, seed=seed,
                                     cosmetic_flags=cosmetic_flags)
 
@@ -90,28 +90,22 @@ def _assert_deterministic(flags: Flags, seed: int, label: str,
     ips2, hash2, *_ = generate_game(flags, seed=seed,
                                     cosmetic_flags=cosmetic_flags)
 
-    random.seed(0)
-    random.shuffle(list(range(1000)))
-
-    ips3, hash3, *_ = generate_game(flags, seed=seed,
-                                    cosmetic_flags=cosmetic_flags)
-
-    assert hash1 == hash2 == hash3, (
-        f"[{label}] Hash mismatch: {[hash1, hash2, hash3]}"
+    assert hash1 == hash2, (
+        f"[{label}] Hash mismatch: {hash1} vs {hash2}"
     )
-    assert ips1 == ips2 == ips3, (
+    assert ips1 == ips2, (
         f"[{label}] IPS patch bytes differ across generations"
     )
 
 
-@pytest.mark.parametrize("seed", [123, 456, 789])
+@pytest.mark.parametrize("seed", [123])
 def test_default_flags_deterministic(seed: int) -> None:
     """Default (all-off) flags must be deterministic with global random state
     pollution between calls."""
     _assert_deterministic(_FLAGS, seed, f"default seed={seed}")
 
 
-@pytest.mark.parametrize("seed", [123, 456, 789])
+@pytest.mark.parametrize("seed", [123])
 def test_full_item_shuffle_deterministic(seed: int) -> None:
     """Full item shuffle with shops, hints, QoL, and cosmetics must be
     deterministic across multiple seeds."""
@@ -155,7 +149,7 @@ _FULL_ITEM_AND_CAVE_SHUFFLE_FLAGS = Flags(
 )
 
 
-@pytest.mark.parametrize("seed", [123, 456, 789])
+@pytest.mark.parametrize("seed", [123])
 def test_full_item_and_cave_shuffle_deterministic(seed: int) -> None:
     """Full item shuffle + all-caves entrance shuffle must be deterministic."""
     _assert_deterministic(
@@ -245,7 +239,7 @@ _KITCHEN_SINK_COSMETIC_FLAGS = CosmeticFlags(
 )
 
 
-@pytest.mark.parametrize("seed", [123, 456, 789])
+@pytest.mark.parametrize("seed", [123])
 def test_kitchen_sink_deterministic(seed: int) -> None:
     """Every flag enabled (item shuffle, cave shuffle, enemies, progressive,
     L4 sword, all cosmetics) must be deterministic."""

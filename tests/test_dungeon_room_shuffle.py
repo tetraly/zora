@@ -1,17 +1,9 @@
-from pathlib import Path
-
 from zora.data_model import RoomType, WallType
 from zora.dungeon.shuffle_dungeon_rooms import shuffle_dungeon_rooms, _is_level_connected
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
 
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
 SEED = 3233987923
-
-
-def _parse():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _rooms_with_stairway(level):
@@ -24,11 +16,11 @@ def _rooms_with_stairway(level):
     return set(result)
 
 
-def test_staircase_refs_point_to_stairway_rooms():
+def test_staircase_refs_point_to_stairway_rooms(bins):
     """After shuffling, every staircase return_dest/left_exit/right_exit
     must point to a room that actually has a stairway (open staircase or
     push block).  This is the regression that caused unreachable items."""
-    gw = _parse()
+    gw = parse_game_world(bins)
     rng = SeededRng(SEED)
     assert shuffle_dungeon_rooms(gw, rng)
 
@@ -54,10 +46,10 @@ def test_staircase_refs_point_to_stairway_rooms():
                 )
 
 
-def test_staircase_refs_valid_across_seeds():
+def test_staircase_refs_valid_across_seeds(bins):
     """Staircase refs must remain valid across multiple seeds."""
     for seed in range(100):
-        gw = _parse()
+        gw = parse_game_world(bins)
         rng = SeededRng(seed)
         if not shuffle_dungeon_rooms(gw, rng):
             continue  # shuffle can legitimately fail; pipeline retries
@@ -81,11 +73,11 @@ def test_staircase_refs_valid_across_seeds():
                     )
 
 
-def test_all_levels_connected():
+def test_all_levels_connected(bins):
     """After shuffling, every room in each level must be reachable from
     the entrance via non-solid walls and transport staircases."""
     for seed in range(100):
-        gw = _parse()
+        gw = parse_game_world(bins)
         rng = SeededRng(seed)
         if not shuffle_dungeon_rooms(gw, rng):
             continue  # shuffle can legitimately fail; pipeline retries
@@ -96,9 +88,9 @@ def test_all_levels_connected():
             )
 
 
-def test_staircase_refs_unchanged_without_shuffle():
+def test_staircase_refs_unchanged_without_shuffle(vanilla_game_world):
     """Without shuffling, staircase refs should match vanilla positions."""
-    gw = _parse()
+    gw = vanilla_game_world
     for level in gw.levels:
         stairway_rooms = _rooms_with_stairway(level)
         for sr in level.staircase_rooms:

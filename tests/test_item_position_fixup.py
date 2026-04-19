@@ -1,6 +1,4 @@
 """Test that direction-sensitive item positions are fixed after room shuffle."""
-from pathlib import Path
-
 from zora.data_model import (
     BossSpriteSet,
     Direction,
@@ -19,10 +17,8 @@ from zora.data_model import (
 )
 from zora.dungeon.dungeon import _fix_direction_sensitive_item_positions, _get_entry_directions
 from zora.dungeon.scramble_dungeon_rooms import _STANDARD_ITEM_POSITION_TABLE
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
-
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
 
 _PLAIN_ROOM_DEFAULTS: dict[str, object] = dict(
     room_type=RoomType.PLAIN_ROOM,
@@ -69,14 +65,13 @@ def _make_minimal_level(rooms: list[Room], entrance_room: int,
     )
 
 
-def _make_game_world_with_level(level: Level) -> GameWorld:
-    bins = load_bin_files(TEST_DATA)
+def _make_game_world_with_level(bins, level: Level) -> GameWorld:
     gw = parse_game_world(bins)
     gw.levels = [level]
     return gw
 
 
-def test_t_room_item_position_fixed_when_only_south_entry():
+def test_t_room_item_position_fixed_when_only_south_entry(bins):
     """T_ROOM entered only from SOUTH should get an item position in the stem."""
     # Layout: entrance at 0x00 (plain room), south door leads to 0x10 (T_ROOM).
     # T_ROOM is only reachable from NORTH (entered from SOUTH of room 0x00,
@@ -115,14 +110,14 @@ def test_t_room_item_position_fixed_when_only_south_entry():
 
     # POSITION_A (stem) needs SOUTH, but room is only entered from WEST.
     # Fix should reassign to POSITION_B or POSITION_D (bar zone).
-    gw = _make_game_world_with_level(level)
+    gw = _make_game_world_with_level(bins, level)
     rng = SeededRng(42)
     _fix_direction_sensitive_item_positions(gw, rng)
 
     assert t_room.item_position in (ItemPosition.POSITION_B, ItemPosition.POSITION_D)
 
 
-def test_t_room_item_position_fixed_when_only_north_entry():
+def test_t_room_item_position_fixed_when_only_north_entry(bins):
     """T_ROOM entered only from SOUTH door (entry dir NORTH... no).
 
     Let me reconsider: if the T_ROOM's only door is SOUTH, the player enters
@@ -152,14 +147,14 @@ def test_t_room_item_position_fixed_when_only_north_entry():
     assert Direction.NORTH in entry_dirs[0x30]
     assert Direction.SOUTH not in entry_dirs.get(0x30, set())
 
-    gw = _make_game_world_with_level(level)
+    gw = _make_game_world_with_level(bins, level)
     rng = SeededRng(42)
     _fix_direction_sensitive_item_positions(gw, rng)
 
     assert t_room.item_position in (ItemPosition.POSITION_B, ItemPosition.POSITION_D)
 
 
-def test_t_room_position_unchanged_when_reachable():
+def test_t_room_position_unchanged_when_reachable(bins):
     """T_ROOM item position should not change when it's reachable from entry dirs."""
     entrance = _make_room(
         0x20,
@@ -175,7 +170,7 @@ def test_t_room_position_unchanged_when_reachable():
     )
     level = _make_minimal_level([entrance, t_room], 0x20, Direction.NORTH)
 
-    gw = _make_game_world_with_level(level)
+    gw = _make_game_world_with_level(bins, level)
     rng = SeededRng(42)
     _fix_direction_sensitive_item_positions(gw, rng)
 

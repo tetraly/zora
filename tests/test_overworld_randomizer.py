@@ -22,18 +22,15 @@ from zora.entrance_randomizer import (
 from zora.game_config import GameConfig, resolve_game_config
 from zora.game_validator import GameValidator
 from zora.item_randomizer import assumed_fill
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.patches import build_behavior_patch
 from zora.patches.extra_power_bracelet_blocks import ExtraPowerBraceletBlocks
 from zora.patches.extra_raft_blocks import ExtraRaftBlocks
 from zora.rng import SeededRng
 from zora.serializer import serialize_game_world
 
+
 TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
-
-def _fresh_world():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _load_originals():
@@ -57,9 +54,9 @@ def _config(flags: Flags, seed: int = 0) -> GameConfig:
 # 1. Entrance type override unit tests
 # =============================================================================
 
-def test_overrides_no_op_when_both_flags_off():
+def test_overrides_no_op_when_both_flags_off(bins):
     """With neither flag on, apply_entrance_type_overrides leaves all entrance types unchanged."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     vanilla_screens = {s.screen_num: s.entrance_type for s in world.overworld.screens}
     config = _config(Flags())  # both flags default OFF
     apply_entrance_type_overrides(world, config)
@@ -67,9 +64,9 @@ def test_overrides_no_op_when_both_flags_off():
         assert screen.entrance_type == vanilla_screens[screen.screen_num]
 
 
-def test_extra_raft_blocks_sets_raft_on_open_screens():
+def test_extra_raft_blocks_sets_raft_on_open_screens(bins):
     """extra_raft_blocks: screens in _EXTRA_RAFT_SCREENS become RAFT."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_raft_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -80,9 +77,9 @@ def test_extra_raft_blocks_sets_raft_on_open_screens():
         )
 
 
-def test_extra_raft_blocks_sets_raft_and_bomb_on_bomb_screen():
+def test_extra_raft_blocks_sets_raft_and_bomb_on_bomb_screen(bins):
     """extra_raft_blocks: screen 0x1E (vanilla BOMB) becomes RAFT_AND_BOMB."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_raft_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -93,9 +90,9 @@ def test_extra_raft_blocks_sets_raft_and_bomb_on_bomb_screen():
         )
 
 
-def test_extra_raft_blocks_does_not_affect_unrelated_screens():
+def test_extra_raft_blocks_does_not_affect_unrelated_screens(bins):
     """extra_raft_blocks: screens outside the affected sets keep their vanilla entrance type."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     vanilla_screens = {s.screen_num: s.entrance_type for s in world.overworld.screens}
 
     config = _config(Flags(extra_raft_blocks=Tristate.ON))
@@ -109,9 +106,9 @@ def test_extra_raft_blocks_does_not_affect_unrelated_screens():
             )
 
 
-def test_extra_pb_blocks_sets_pb_and_bomb_on_west_death_mountain():
+def test_extra_pb_blocks_sets_pb_and_bomb_on_west_death_mountain(bins):
     """extra_power_bracelet_blocks: screens in _EXTRA_PB_AND_BOMB_SCREENS become POWER_BRACELET_AND_BOMB."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_power_bracelet_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -123,9 +120,9 @@ def test_extra_pb_blocks_sets_pb_and_bomb_on_west_death_mountain():
         )
 
 
-def test_extra_pb_blocks_does_not_affect_unrelated_screens():
+def test_extra_pb_blocks_does_not_affect_unrelated_screens(bins):
     """extra_power_bracelet_blocks: screens outside the affected set keep their vanilla type."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     vanilla_screens = {s.screen_num: s.entrance_type for s in world.overworld.screens}
 
     config = _config(Flags(extra_power_bracelet_blocks=Tristate.ON))
@@ -138,9 +135,9 @@ def test_extra_pb_blocks_does_not_affect_unrelated_screens():
             )
 
 
-def test_both_flags_on_applies_both_sets_independently():
+def test_both_flags_on_applies_both_sets_independently(bins):
     """Both flags on: raft screens get RAFT, PB screens get POWER_BRACELET_AND_BOMB."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(
         extra_raft_blocks=Tristate.ON,
         extra_power_bracelet_blocks=Tristate.ON,
@@ -160,10 +157,10 @@ def test_both_flags_on_applies_both_sets_independently():
 # 2. Serializer patch tests
 # =============================================================================
 
-def test_extra_raft_blocks_asm_patch_written():
+def test_extra_raft_blocks_asm_patch_written(bins):
     """extra_raft_blocks behavior patch: all expected bytes appear at correct offsets."""
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags(extra_raft_blocks=Tristate.ON))
     data_patch = serialize_game_world(gw, originals)
     patch = data_patch.merge(build_behavior_patch(config))
@@ -178,10 +175,10 @@ def test_extra_raft_blocks_asm_patch_written():
         )
 
 
-def test_extra_raft_blocks_asm_patch_absent_by_default():
+def test_extra_raft_blocks_asm_patch_absent_by_default(bins):
     """Without extra_raft_blocks, none of its offsets appear."""
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags())
     data_patch = serialize_game_world(gw, originals)
     patch = data_patch.merge(build_behavior_patch(config))
@@ -192,10 +189,10 @@ def test_extra_raft_blocks_asm_patch_absent_by_default():
         )
 
 
-def test_extra_pb_blocks_asm_patch_written():
+def test_extra_pb_blocks_asm_patch_written(bins):
     """extra_power_bracelet_blocks behavior patch: all expected bytes appear at correct offsets."""
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags(extra_power_bracelet_blocks=Tristate.ON))
     data_patch = serialize_game_world(gw, originals)
     patch = data_patch.merge(build_behavior_patch(config))
@@ -210,10 +207,10 @@ def test_extra_pb_blocks_asm_patch_written():
         )
 
 
-def test_extra_pb_blocks_asm_patch_absent_by_default():
+def test_extra_pb_blocks_asm_patch_absent_by_default(bins):
     """Without extra_power_bracelet_blocks, none of its offsets appear."""
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags())
     data_patch = serialize_game_world(gw, originals)
     patch = data_patch.merge(build_behavior_patch(config))
@@ -228,10 +225,10 @@ def test_extra_pb_blocks_asm_patch_absent_by_default():
 # 3. Validator reachability tests
 # =============================================================================
 
-def test_extra_raft_blocks_screen_unreachable_without_raft():
+def test_extra_raft_blocks_screen_unreachable_without_raft(bins):
     """With extra_raft_blocks on, a screen in _EXTRA_RAFT_SCREENS is inaccessible
     without the raft."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_raft_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -246,9 +243,9 @@ def test_extra_raft_blocks_screen_unreachable_without_raft():
     )
 
 
-def test_extra_raft_blocks_screen_reachable_with_raft():
+def test_extra_raft_blocks_screen_reachable_with_raft(bins):
     """With extra_raft_blocks on, a screen in _EXTRA_RAFT_SCREENS is accessible with raft."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_raft_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -262,10 +259,10 @@ def test_extra_raft_blocks_screen_reachable_with_raft():
     )
 
 
-def test_extra_pb_blocks_screen_unreachable_without_bracelet():
+def test_extra_pb_blocks_screen_unreachable_without_bracelet(bins):
     """With extra_power_bracelet_blocks on, a screen in _EXTRA_PB_AND_BOMB_SCREENS
     is inaccessible without the power bracelet."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_power_bracelet_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -278,10 +275,10 @@ def test_extra_pb_blocks_screen_unreachable_without_bracelet():
     )
 
 
-def test_extra_pb_blocks_screen_unreachable_with_bracelet_but_no_sword():
+def test_extra_pb_blocks_screen_unreachable_with_bracelet_but_no_sword(bins):
     """POWER_BRACELET_AND_BOMB requires both bracelet and a sword/wand.
     Bracelet alone is not sufficient."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_power_bracelet_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -296,9 +293,9 @@ def test_extra_pb_blocks_screen_unreachable_with_bracelet_but_no_sword():
     )
 
 
-def test_extra_pb_blocks_screen_reachable_with_bracelet_and_sword():
+def test_extra_pb_blocks_screen_reachable_with_bracelet_and_sword(bins):
     """With extra_power_bracelet_blocks on, a PB screen is accessible with bracelet + sword."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     config = _config(Flags(extra_power_bracelet_blocks=Tristate.ON))
     apply_entrance_type_overrides(world, config)
 
@@ -317,7 +314,7 @@ def test_extra_pb_blocks_screen_reachable_with_bracelet_and_sword():
 # 4. Flag constraint test
 # =============================================================================
 
-def test_extra_pb_blocks_incompatible_with_include_any_road_caves():
+def test_extra_pb_blocks_incompatible_with_include_any_road_caves(bins):
     """extra_power_bracelet_blocks=ON with include_any_road_caves=ON must fail validation."""
     flags = Flags(
         extra_power_bracelet_blocks=Tristate.ON,
@@ -332,7 +329,7 @@ def test_extra_pb_blocks_incompatible_with_include_any_road_caves():
     )
 
 
-def test_extra_pb_blocks_valid_without_any_road_caves():
+def test_extra_pb_blocks_valid_without_any_road_caves(bins):
     """extra_power_bracelet_blocks=ON without include_any_road_caves must pass validation."""
     flags = Flags(extra_power_bracelet_blocks=Tristate.ON)
     errors = validate_flags_static(flags)
@@ -344,9 +341,9 @@ def test_extra_pb_blocks_valid_without_any_road_caves():
 # 5. End-to-end beatable seed tests
 # =============================================================================
 
-def test_extra_raft_blocks_produces_beatable_seed():
+def test_extra_raft_blocks_produces_beatable_seed(bins):
     """extra_raft_blocks on: assumed fill + GameValidator must pass for a single seed."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     seed = 42
     flags = Flags(extra_raft_blocks=Tristate.ON)
     config = _config(flags, seed)
@@ -360,9 +357,9 @@ def test_extra_raft_blocks_produces_beatable_seed():
     )
 
 
-def test_extra_pb_blocks_produces_beatable_seed():
+def test_extra_pb_blocks_produces_beatable_seed(bins):
     """extra_power_bracelet_blocks on: assumed fill + GameValidator must pass for a single seed."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     seed = 42
     flags = Flags(extra_power_bracelet_blocks=Tristate.ON)
     config = _config(flags, seed)
@@ -376,9 +373,9 @@ def test_extra_pb_blocks_produces_beatable_seed():
     )
 
 
-def test_both_block_flags_produce_beatable_seed():
+def test_both_block_flags_produce_beatable_seed(bins):
     """Both block flags on simultaneously: assumed fill + GameValidator must pass."""
-    world = _fresh_world()
+    world = parse_game_world(bins)
     seed = 42
     flags = Flags(
         extra_raft_blocks=Tristate.ON,
@@ -395,7 +392,7 @@ def test_both_block_flags_produce_beatable_seed():
     )
 
 
-def test_extra_raft_blocks_with_dungeon_shuffle_produces_beatable_seed():
+def test_extra_raft_blocks_with_dungeon_shuffle_produces_beatable_seed(bins):
     """extra_raft_blocks + dungeon entrance shuffle: assumed fill must still produce a beatable seed.
 
     This is the key ordering regression test: if entrance type overrides were applied
@@ -404,7 +401,7 @@ def test_extra_raft_blocks_with_dungeon_shuffle_produces_beatable_seed():
     """
     from zora.entrance_randomizer import shuffle_caves
 
-    world = _fresh_world()
+    world = parse_game_world(bins)
     seed = 42
     flags = Flags(
         extra_raft_blocks=Tristate.ON,

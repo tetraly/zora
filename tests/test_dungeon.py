@@ -23,8 +23,6 @@ Key facts that drive the test design:
     (9-22) can produce fade_palette_raw bytes with low nibble 0x0C if the
     template or dungeon-0 data contains them.
 """
-from pathlib import Path
-
 from flags.flags_generated import Flags, Tristate
 from zora.dungeon_randomizer import (
     PALETTE1_END,
@@ -36,10 +34,9 @@ from zora.dungeon_randomizer import (
     randomize_dungeon_palettes,
 )
 from zora.game_config import GameConfig, resolve_game_config
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
 
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
 
 SEED = 12345
 
@@ -48,15 +45,13 @@ SEED = 12345
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _parse():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 def _config() -> GameConfig:
     flags = Flags(shuffle_major_shop_items=Tristate.ON, randomize_dungeon_palettes=Tristate.ON)
     return resolve_game_config(flags, SeededRng(SEED))
 
-def _run(seed=SEED):
-    gw = _parse()
+def _run(bins, seed=SEED):
+    gw = parse_game_world(bins)
     config = _config()
     randomize_dungeon_palettes(gw, config, SeededRng(seed))
     return gw
@@ -116,10 +111,10 @@ def _build_expected_p1(slot_idx, d0_p1):
 # Tests
 # ---------------------------------------------------------------------------
 
-def test_ppu_header_and_end_byte_preserved():
+def test_ppu_header_and_end_byte_preserved(bins):
     """palette_raw PPU header (bytes 0-2) and end byte (byte 35) must never change."""
-    gw_before = _parse()
-    gw_after  = _run()
+    gw_before = parse_game_world(bins)
+    gw_after  = _run(bins)
     for lvl_before, lvl_after in zip(
         sorted(gw_before.levels, key=lambda lvl: lvl.level_num),
         sorted(gw_after.levels,  key=lambda lvl: lvl.level_num),
@@ -133,10 +128,10 @@ def test_ppu_header_and_end_byte_preserved():
         )
 
 
-def test_palette_raw_length_preserved():
+def test_palette_raw_length_preserved(bins):
     """palette_raw must remain the same length for every level."""
-    gw_before = _parse()
-    gw_after  = _run()
+    gw_before = parse_game_world(bins)
+    gw_after  = _run(bins)
     for lvl_b, lvl_a in zip(
         sorted(gw_before.levels, key=lambda lvl: lvl.level_num),
         sorted(gw_after.levels,  key=lambda lvl: lvl.level_num),
@@ -147,22 +142,22 @@ def test_palette_raw_length_preserved():
         )
 
 
-def test_fade_palette_raw_length_preserved():
+def test_fade_palette_raw_length_preserved(bins):
     """fade_palette_raw must remain 96 bytes for every level."""
-    gw = _run()
+    gw = _run(bins)
     for lvl in gw.levels:
         assert len(lvl.fade_palette_raw) == PALETTE2_LEN, (
             f"level {lvl.level_num}: fade_palette_raw length = {len(lvl.fade_palette_raw)}, expected {PALETTE2_LEN}"
         )
 
 
-def test_template_slot_palette1_matches_algorithm():
+def test_template_slot_palette1_matches_algorithm(bins):
     """For levels assigned a template slot, palette1 must exactly match the
     values produced by the algorithm: template write followed by exact-value remap."""
-    gw_orig = _parse()
+    gw_orig = parse_game_world(bins)
     d0_p1 = list(_palette1(gw_orig.levels[0]))
 
-    gw = _run()
+    gw = _run(bins)
     slot_assignments = _simulate_slot_assignment(SEED)
 
     for out_level_idx, slot_idx in enumerate(slot_assignments):
@@ -178,14 +173,14 @@ def test_template_slot_palette1_matches_algorithm():
         )
 
 
-def test_nibble_remap_slot_palette1_matches_algorithm():
+def test_nibble_remap_slot_palette1_matches_algorithm(bins):
     """For levels assigned slot 8 (nibble-remap of dungeon 0), palette1 must
     have every 0x0C low-nibble replaced with 0x04."""
     from zora.dungeon_randomizer import _nibble_remap
-    gw_orig = _parse()
+    gw_orig = parse_game_world(bins)
     d0_p1 = list(_palette1(gw_orig.levels[0]))
 
-    gw = _run()
+    gw = _run(bins)
     slot_assignments = _simulate_slot_assignment(SEED)
 
     for out_level_idx, slot_idx in enumerate(slot_assignments):
@@ -201,9 +196,9 @@ def test_nibble_remap_slot_palette1_matches_algorithm():
         )
 
 
-def test_nibble_remap_slot_no_0c_low_nibble_in_palette1():
+def test_nibble_remap_slot_no_0c_low_nibble_in_palette1(bins):
     """For levels assigned slot 8, no byte in palette1 may have low nibble 0x0C."""
-    gw = _run()
+    gw = _run(bins)
     slot_assignments = _simulate_slot_assignment(SEED)
     for out_level_idx, slot_idx in enumerate(slot_assignments):
         if slot_idx != 8:
@@ -216,11 +211,11 @@ def test_nibble_remap_slot_no_0c_low_nibble_in_palette1():
             )
 
 
-def test_all_levels_palettes_changed():
+def test_all_levels_palettes_changed(bins):
     """Every level's palette_raw must differ from the original after randomization
     (the shuffle always picks a different slot for each output level)."""
-    gw_before = _parse()
-    gw_after  = _run()
+    gw_before = parse_game_world(bins)
+    gw_after  = _run(bins)
     orig = {lvl.level_num: lvl.palette_raw for lvl in gw_before.levels}
     for lvl in gw_after.levels:
         assert lvl.palette_raw != orig[lvl.level_num], (
@@ -228,10 +223,10 @@ def test_all_levels_palettes_changed():
         )
 
 
-def test_randomize_dungeon_palettes_deterministic():
+def test_randomize_dungeon_palettes_deterministic(bins):
     """Same seed must produce identical palette_raw and fade_palette_raw for all levels."""
-    gw1 = _run(SEED)
-    gw2 = _run(SEED)
+    gw1 = _run(bins, SEED)
+    gw2 = _run(bins, SEED)
     for l1, l2 in zip(
         sorted(gw1.levels, key=lambda lvl: lvl.level_num),
         sorted(gw2.levels, key=lambda lvl: lvl.level_num),
@@ -245,19 +240,19 @@ def test_randomize_dungeon_palettes_deterministic():
         )
 
 
-def test_different_seeds_produce_different_palettes():
+def test_different_seeds_produce_different_palettes(bins):
     """Two different seeds must not produce identical palettes for all levels."""
-    gw1 = _run(SEED)
-    gw2 = _run(SEED + 1)
+    gw1 = _run(bins, SEED)
+    gw2 = _run(bins, SEED + 1)
     levels1 = sorted(gw1.levels, key=lambda lvl: lvl.level_num)
     levels2 = sorted(gw2.levels, key=lambda lvl: lvl.level_num)
     all_same = all(l1.palette_raw == l2.palette_raw for l1, l2 in zip(levels1, levels2, strict=True))
     assert not all_same, "Different seeds produced identical palettes for all levels"
 
 
-def test_nine_levels_written():
+def test_nine_levels_written(bins):
     """Exactly 9 levels must exist and all must have been written."""
-    gw = _run()
+    gw = _run(bins)
     assert len(gw.levels) == 9
     level_nums = sorted(lvl.level_num for lvl in gw.levels)
     assert level_nums == list(range(1, 10))

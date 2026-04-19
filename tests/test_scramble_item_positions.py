@@ -6,7 +6,6 @@ This catches the bug where T_ROOM was assigned POSITION_C (X=0xC, Y=0x9),
 which lands outside the T-room's walkable zones.
 """
 from collections.abc import Callable
-from pathlib import Path
 
 from zora.data_model import GameWorld, ItemPosition, RoomType
 from zora.dungeon.scramble_dungeon_rooms import (
@@ -16,14 +15,8 @@ from zora.dungeon.scramble_dungeon_rooms import (
     scramble_dungeon_rooms,
 )
 from zora.dungeon.shuffle_dungeon_rooms import shuffle_dungeon_rooms
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
-
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
-
-def _parse():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _unpack(pos: ItemPosition) -> tuple[int, int]:
@@ -75,11 +68,11 @@ def _standardize_and_reassign(gw: GameWorld, rng: SeededRng) -> None:
     _assign_valid_item_positions(all_rooms, rng)
 
 
-def test_scramble_produces_valid_item_positions():
+def test_scramble_produces_valid_item_positions(bins):
     """After scrambling + standardization, every room's item_position must
     be in the valid set for its room type."""
     for seed in range(50):
-        gw = _parse()
+        gw = parse_game_world(bins)
         rng = SeededRng(seed)
         scramble_dungeon_rooms(gw, rng, shuffle_gannon_and_zelda=False, shuffle_drops=True)
         _standardize_and_reassign(gw, rng)
@@ -96,11 +89,11 @@ def test_scramble_produces_valid_item_positions():
                 )
 
 
-def test_shuffle_produces_valid_item_positions():
+def test_shuffle_produces_valid_item_positions(bins):
     """After shuffle + standardization, every room's item_position must
     be in the valid set for its room type."""
     for seed in range(50):
-        gw = _parse()
+        gw = parse_game_world(bins)
         rng = SeededRng(seed)
         shuffle_dungeon_rooms(gw, rng)
         _standardize_and_reassign(gw, rng)

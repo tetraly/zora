@@ -2,7 +2,6 @@
 Validator tests: verify the GameValidator correctly identifies beatable and
 unbeatable seeds using the vanilla ROM as a baseline.
 """
-from pathlib import Path
 from typing import cast
 
 from zora.data_model import (
@@ -22,26 +21,21 @@ from zora.data_model import (
 )
 from zora.game_validator import DungeonLocation, GameValidator, Location
 from zora.inventory import Inventory
-from zora.parser import load_bin_files, parse_game_world
-
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
+from zora.parser import parse_game_world
 
 
-def _make_validator(game_world: GameWorld | None = None, avoid_required_hard_combat: bool = False) -> GameValidator:
-    if game_world is None:
-        bins = load_bin_files(TEST_DATA)
-        game_world = parse_game_world(bins)
+
+def _make_validator(game_world: GameWorld, avoid_required_hard_combat: bool = False) -> GameValidator:
     return GameValidator(game_world, avoid_required_hard_combat)
 
 
-def test_vanilla_rom_is_valid():
+def test_vanilla_rom_is_valid(vanilla_game_world):
     """Vanilla ROM must pass validation."""
-    assert _make_validator().is_seed_valid()
+    assert _make_validator(vanilla_game_world).is_seed_valid()
 
 
-def test_missing_wood_sword_is_invalid():
+def test_missing_wood_sword_is_invalid(bins):
     """Removing the wood sword from its cave makes the seed invalid (no starting sword)."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     cave_by_dest = {c.destination: c for c in gw.overworld.caves}
     wood_sword = cave_by_dest[Destination.WOOD_SWORD_CAVE]
@@ -50,9 +44,8 @@ def test_missing_wood_sword_is_invalid():
     assert not _make_validator(gw).is_seed_valid()
 
 
-def test_missing_recorder_is_invalid():
+def test_missing_recorder_is_invalid(bins):
     """Recorder is required to warp to level 7. Removing it makes the seed invalid."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     # Find and clear the recorder from whichever dungeon room holds it
     for level in gw.levels:
@@ -66,9 +59,8 @@ def test_missing_recorder_is_invalid():
     assert not _make_validator(gw).is_seed_valid()
 
 
-def test_get_reachable_locations_vanilla():
+def test_get_reachable_locations_vanilla(bins):
     """Vanilla ROM should reach all 9 dungeon levels."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     v = GameValidator(gw, False)
     locations = v.get_reachable_locations()
@@ -76,9 +68,8 @@ def test_get_reachable_locations_vanilla():
     assert level_nums == {1, 2, 3, 4, 5, 6, 7, 8, 9}
 
 
-def test_get_reachable_locations_with_full_assumed_inventory():
+def test_get_reachable_locations_with_full_assumed_inventory(bins):
     """With a full assumed inventory, all levels should be reachable."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     v = GameValidator(gw, False)
 
@@ -114,9 +105,8 @@ def _make_blue_wizzrobe_room() -> Room:
     )
 
 
-def test_avoid_hard_combat_blocks_wizzrobe_without_equipment():
+def test_avoid_hard_combat_blocks_wizzrobe_without_equipment(bins):
     """With avoid_required_hard_combat ON, blue wizzrobe room requires ring + white sword."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     v = GameValidator(gw, avoid_required_hard_combat=True)
     room = _make_blue_wizzrobe_room()
@@ -134,9 +124,8 @@ def test_avoid_hard_combat_blocks_wizzrobe_without_equipment():
     assert v._can_defeat_enemies(room)
 
 
-def test_avoid_hard_combat_off_allows_wizzrobe_with_sword():
+def test_avoid_hard_combat_off_allows_wizzrobe_with_sword(bins):
     """With avoid_required_hard_combat OFF, blue wizzrobe room only requires a sword."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     v = GameValidator(gw, avoid_required_hard_combat=False)
     room = _make_blue_wizzrobe_room()
@@ -150,7 +139,7 @@ def test_avoid_hard_combat_off_allows_wizzrobe_with_sword():
 # Progressive inventory upgrade chain tests
 # ---------------------------------------------------------------------------
 
-def test_progressive_inventory_sword_chain():
+def test_progressive_inventory_sword_chain(bins):
     """Two WOOD_SWORDs → WHITE_SWORD; three → MAGICAL_SWORD."""
     inv = Inventory(progressive_items=True)
     inv.add_item(Item.WOOD_SWORD)
@@ -165,7 +154,7 @@ def test_progressive_inventory_sword_chain():
     assert Item.MAGICAL_SWORD in inv.items
 
 
-def test_progressive_inventory_ring_chain():
+def test_progressive_inventory_ring_chain(bins):
     """Two BLUE_RINGs → RED_RING."""
     inv = Inventory(progressive_items=True)
     inv.add_item(Item.BLUE_RING)
@@ -175,7 +164,7 @@ def test_progressive_inventory_ring_chain():
     assert Item.RED_RING in inv.items
 
 
-def test_progressive_inventory_arrow_chain():
+def test_progressive_inventory_arrow_chain(bins):
     """Two WOOD_ARROWS → SILVER_ARROWS."""
     inv = Inventory(progressive_items=True)
     inv.add_item(Item.WOOD_ARROWS)
@@ -185,7 +174,7 @@ def test_progressive_inventory_arrow_chain():
     assert Item.SILVER_ARROWS in inv.items
 
 
-def test_progressive_inventory_candle_chain():
+def test_progressive_inventory_candle_chain(bins):
     """Two BLUE_CANDLEs → RED_CANDLE."""
     inv = Inventory(progressive_items=True)
     inv.add_item(Item.BLUE_CANDLE)
@@ -195,7 +184,7 @@ def test_progressive_inventory_candle_chain():
     assert Item.RED_CANDLE in inv.items
 
 
-def test_non_progressive_inventory_no_upgrades():
+def test_non_progressive_inventory_no_upgrades(bins):
     """Without progressive_items, duplicate items do not trigger upgrade chains."""
     inv = Inventory(progressive_items=False)
     inv.add_item(Item.WOOD_SWORD)
@@ -219,9 +208,8 @@ from zora.item_randomizer import _check_progressive_placement_invariants  # noqa
 _DEFAULT_CONFIG = GameConfig()
 
 
-def test_progressive_placement_rejects_higher_tier_items():
+def test_progressive_placement_rejects_higher_tier_items(bins):
     """Invariant check must fail if a shuffled location holds a higher-tier item."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     room = gw.levels[0].rooms[0]
     room.item = Item.WHITE_SWORD
@@ -229,8 +217,7 @@ def test_progressive_placement_rejects_higher_tier_items():
     assert not _check_progressive_placement_invariants(gw, [loc], _DEFAULT_CONFIG), \
         "WHITE_SWORD in shuffled location should fail invariant"
 
-    bins2 = load_bin_files(TEST_DATA)
-    gw2 = parse_game_world(bins2)
+    gw2 = parse_game_world(bins)
     room2 = gw2.levels[0].rooms[0]
     room2.item = Item.RED_RING
     loc2 = DungeonLocation(level_num=1, room_num=room2.room_num)
@@ -238,9 +225,8 @@ def test_progressive_placement_rejects_higher_tier_items():
         "RED_RING in shuffled location should fail invariant"
 
 
-def test_progressive_placement_rejects_too_many_base_items():
+def test_progressive_placement_rejects_too_many_base_items(bins):
     """Invariant check must fail if a base item appears more times than its chain length."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     # Place WOOD_SWORD in 4 dungeon rooms (max is 3)
     locs = []
@@ -252,9 +238,8 @@ def test_progressive_placement_rejects_too_many_base_items():
         "4x WOOD_SWORD in shuffled locations should exceed max-count invariant"
 
 
-def test_progressive_placement_passes_for_valid_pool():
+def test_progressive_placement_passes_for_valid_pool(bins):
     """Invariant check must pass when shuffled locations hold only valid base items."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     rooms = gw.levels[0].rooms
     rooms[0].item = Item.WOOD_SWORD
@@ -267,9 +252,8 @@ def test_progressive_placement_passes_for_valid_pool():
         "3x WOOD_SWORD + 2x BLUE_RING should pass invariant"
 
 
-def test_shutter_door_blocked_by_push_block_without_movable_block():
+def test_shutter_door_blocked_by_push_block_without_movable_block(bins):
     """Shutter doors with PUSHING_BLOCK_OPENS_SHUTTERS but no movable block are impassable."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     v = _make_validator(gw)
     v.inventory.items.add(Item.WOOD_SWORD)
@@ -294,9 +278,8 @@ def test_shutter_door_blocked_by_push_block_without_movable_block():
     assert not v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
 
 
-def test_shutter_door_blocked_by_old_man_with_kill_action():
+def test_shutter_door_blocked_by_old_man_with_kill_action(bins):
     """Shutter doors with an unkillable NPC and a kill-based room action are impassable."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     v = _make_validator(gw)
     v.inventory.items.add(Item.WOOD_SWORD)
@@ -321,9 +304,8 @@ def test_shutter_door_blocked_by_old_man_with_kill_action():
     assert not v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
 
 
-def test_shutter_door_allowed_for_killable_enemies():
+def test_shutter_door_allowed_for_killable_enemies(bins):
     """Shutter doors with killable enemies and a kill action are passable."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     v = _make_validator(gw)
     v.inventory.items.add(Item.WOOD_SWORD)
@@ -348,9 +330,8 @@ def test_shutter_door_allowed_for_killable_enemies():
     assert v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
 
 
-def test_progressive_placement_only_checks_shuffled_locations():
+def test_progressive_placement_only_checks_shuffled_locations(bins):
     """Non-shuffled locations (not in pool) must not affect the invariant check."""
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     # Put WHITE_SWORD in a room but don't include it in the location pool
     gw.levels[0].rooms[0].item = Item.WHITE_SWORD

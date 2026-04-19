@@ -7,7 +7,7 @@ import pytest
 
 from flags.flags_generated import Flags, Tristate
 from zora.game_config import resolve_game_config
-from zora.parser import load_bin_files, load_bin_files_q2, parse_game_world
+from zora.parser import load_bin_files_q2, parse_game_world
 from zora.patches import build_behavior_patch
 from zora.rng import SeededRng
 from zora.rom_layout import (
@@ -82,9 +82,8 @@ def _normalize_level_grid(data: bytes) -> bytes:
     return bytes(out)
 
 
-def test_level_grid_roundtrip():
+def test_level_grid_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -109,9 +108,8 @@ def test_level_grid_roundtrip():
             pytest.fail(f"{name} length mismatch: {len(got)} vs {len(exp)}")
 
 
-def test_level_info_roundtrip():
+def test_level_info_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -133,10 +131,9 @@ def test_level_info_roundtrip():
         pytest.fail(f"level_info length mismatch: {len(got)} vs {len(exp)}")
 
 
-def test_fade_palette_roundtrip():
+def test_fade_palette_roundtrip(bins):
     """fade_palette_raw (level_info block +0x7C, 96 bytes) must survive parse → serialize."""
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -159,9 +156,8 @@ def test_fade_palette_roundtrip():
         )
 
 
-def test_overworld_roundtrip():
+def test_overworld_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -183,13 +179,12 @@ def test_overworld_roundtrip():
         pytest.fail(f"overworld_data length mismatch: {len(got)} vs {len(exp)}")
 
 
-def test_quotes_roundtrip():
+def test_quotes_roundtrip(bins):
     quotes_bin = TEST_DATA / "quotes_data.bin"
     if not quotes_bin.exists():
         pytest.skip("quotes_data.bin not present")
 
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
 
     assert len(gw.quotes) == 38
@@ -208,9 +203,8 @@ def test_quotes_roundtrip():
         pytest.fail(f"quotes_data length mismatch: {len(got)} vs {len(exp)}")
 
 
-def test_cave_data_roundtrip():
+def test_cave_data_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -242,9 +236,8 @@ def test_cave_data_roundtrip():
         assert got_door == exp_door, f"door_repair mismatch: got {got_door}, expected {exp_door}"
 
 
-def test_recorder_warp_roundtrip():
+def test_recorder_warp_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -261,9 +254,8 @@ def test_recorder_warp_roundtrip():
             pytest.fail(f"{name} length mismatch: {len(got)} vs {len(exp)}")
 
 
-def test_any_road_and_start_screen_roundtrip():
+def test_any_road_and_start_screen_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -278,9 +270,8 @@ def test_any_road_and_start_screen_roundtrip():
         f"start_screen mismatch: got {got_start[0]:#04x}, expected {exp_start[0]:#04x}"
 
 
-def test_sprite_set_pointers_roundtrip():
+def test_sprite_set_pointers_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -299,9 +290,8 @@ def test_sprite_set_pointers_roundtrip():
             pytest.fail(f"{name} length mismatch: {len(got)} vs {len(exp)}")
 
 
-def test_sprite_data_roundtrip():
+def test_sprite_data_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -320,9 +310,8 @@ def test_sprite_data_roundtrip():
         assert got == exp, f"{key} roundtrip mismatch"
 
 
-def test_enemy_tile_maps_roundtrip():
+def test_enemy_tile_maps_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -341,8 +330,8 @@ def test_enemy_tile_maps_roundtrip():
 
 def test_q2_level_grid_roundtrip():
     originals_q2 = _load_originals_q2()
-    bins = load_bin_files_q2(TEST_DATA)
-    gw = parse_game_world(bins)
+    bins_q2 = load_bin_files_q2(TEST_DATA)
+    gw = parse_game_world(bins_q2)
     patch = serialize_game_world_q2(gw, originals_q2)
 
     for key, addr, name in [
@@ -366,8 +355,8 @@ def test_q2_level_grid_roundtrip():
 
 def test_q2_level_info_roundtrip():
     originals_q2 = _load_originals_q2()
-    bins = load_bin_files_q2(TEST_DATA)
-    gw = parse_game_world(bins)
+    bins_q2 = load_bin_files_q2(TEST_DATA)
+    gw = parse_game_world(bins_q2)
     patch = serialize_game_world_q2(gw, originals_q2)
 
     got = patch.data[LEVEL_INFO_ADDRESS]
@@ -386,9 +375,8 @@ def test_q2_level_info_roundtrip():
         pytest.fail(f"level_info_q2 length mismatch: {len(got)} vs {len(exp)}")
 
 
-def test_armos_and_coast_item_roundtrip():
+def test_armos_and_coast_item_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -403,10 +391,9 @@ def test_armos_and_coast_item_roundtrip():
         f"coast_item mismatch: got {got_coast[0]:#04x}, expected {exp_coast[0]:#04x}"
 
 
-def test_asm_nothing_code_patch_written_when_enabled():
+def test_asm_nothing_code_patch_written_when_enabled(bins):
     """When nothing_code behavior patch is active, the ASM patch byte must appear in the patch."""
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     config = resolve_game_config(
         Flags(shuffle_magical_sword=Tristate.ON, progressive_items=Tristate.OFF),
@@ -428,10 +415,9 @@ def test_asm_nothing_code_patch_written_when_enabled():
     )
 
 
-def test_asm_nothing_code_patch_absent_when_disabled():
+def test_asm_nothing_code_patch_absent_when_disabled(bins):
     """When no behavior patches are active, the ASM nothing-code patch must NOT appear."""
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     config = resolve_game_config(Flags(), SeededRng(0))
     data_patch = serialize_game_world(gw, originals)
@@ -443,10 +429,9 @@ def test_asm_nothing_code_patch_absent_when_disabled():
     )
 
 
-def test_progressive_items_behavior_patch_written():
+def test_progressive_items_behavior_patch_written(bins):
     """When progressive_items behavior patch is active, all three ASM patches must appear."""
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     config = resolve_game_config(Flags(progressive_items=Tristate.ON), SeededRng(0))
     data_patch = serialize_game_world(gw, originals)
@@ -469,10 +454,9 @@ def test_progressive_items_behavior_patch_written():
     )
 
 
-def test_progressive_items_behavior_patch_absent_by_default():
+def test_progressive_items_behavior_patch_absent_by_default(bins):
     """Without progressive_items, none of the ASM patches should appear."""
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     config = resolve_game_config(Flags(), SeededRng(0))
     data_patch = serialize_game_world(gw, originals)
@@ -483,10 +467,9 @@ def test_progressive_items_behavior_patch_absent_by_default():
     assert 0x1FFF4 not in patch.data, "Ring fix routine unexpectedly present"
 
 
-def test_maze_directions_roundtrip():
+def test_maze_directions_roundtrip(bins):
     """Maze direction bytes at MAZE_DIRECTIONS_ADDRESS must survive parse → serialize unchanged."""
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -499,9 +482,8 @@ def test_maze_directions_roundtrip():
     )
 
 
-def test_heart_requirements_roundtrip():
+def test_heart_requirements_roundtrip(bins):
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -516,7 +498,7 @@ def test_heart_requirements_roundtrip():
         f"magical_sword_requirement mismatch: got {got_ms[0]:#04x}, expected {exp_ms[0]:#04x}"
 
 
-def test_enemy_hp_roundtrip():
+def test_enemy_hp_roundtrip(bins):
     """Enemy/boss HP tables and secondary boss HP bytes must survive parse → serialize unchanged."""
     from zora.rom_layout import (
         AQUAMENTUS_HP_ADDRESS,
@@ -529,7 +511,6 @@ def test_enemy_hp_roundtrip():
     )
 
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
@@ -564,14 +545,13 @@ def test_enemy_hp_roundtrip():
         )
 
 
-def test_compass_points_to_stairway_room_when_triforce_in_staircase():
+def test_compass_points_to_stairway_room_when_triforce_in_staircase(bins):
     """When a triforce is placed in an item staircase, the compass room byte
     should point to the room with the stairway down (return_dest), not the
     staircase room itself."""
     from zora.data_model import Item, RoomType
 
     originals = _load_originals()
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
 
     # Find a level with an item staircase and move its triforce there.

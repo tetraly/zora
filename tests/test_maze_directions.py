@@ -31,7 +31,7 @@ from zora.hint_randomizer import (
     randomize_hints,
 )
 from zora.overworld_randomizer import randomize_maze_directions
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.patches import build_behavior_patch
 from zora.patches.randomize_dead_woods import RandomizeDeadWoods
 from zora.patches.randomize_lost_hills import RandomizeLostHills
@@ -39,7 +39,6 @@ from zora.rng import SeededRng
 from zora.rom_layout import MAZE_DIRECTIONS_ADDRESS
 from zora.serializer import serialize_game_world
 
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
 
 VANILLA_DEAD_WOODS = [
     OverworldDirection.UP_NORTH,
@@ -55,8 +54,7 @@ VANILLA_LOST_HILLS = [
 ]
 
 
-def _fresh_world():
-    return parse_game_world(load_bin_files(TEST_DATA))
+TEST_DATA = Path(__file__).parent.parent / "rom_data"
 
 
 def _load_originals():
@@ -76,10 +74,10 @@ def _config(flags: Flags, seed: int = 0) -> GameConfig:
 # 1. Round-trip: vanilla direction bytes survive parse → serialize unchanged
 # =============================================================================
 
-def test_maze_directions_roundtrip():
+def test_maze_directions_roundtrip(bins):
     """Parse → serialize must reproduce the vanilla direction bytes at MAZE_DIRECTIONS_ADDRESS."""
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     patch = serialize_game_world(gw, originals)
 
     got = patch.data[MAZE_DIRECTIONS_ADDRESS]
@@ -91,9 +89,9 @@ def test_maze_directions_roundtrip():
     )
 
 
-def test_maze_directions_parsed_correctly():
+def test_maze_directions_parsed_correctly(bins):
     """Parser populates direction lists with correct OverworldDirection values."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     assert gw.overworld.dead_woods_directions == VANILLA_DEAD_WOODS
     assert gw.overworld.lost_hills_directions == VANILLA_LOST_HILLS
 
@@ -102,9 +100,9 @@ def test_maze_directions_parsed_correctly():
 # 2. Direction randomization: structure constraints
 # =============================================================================
 
-def test_randomize_lost_hills_length_and_terminal():
+def test_randomize_lost_hills_length_and_terminal(bins):
     """Lost Hills sequence must be length 4 with UP_NORTH as the final step."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     flags = Flags(randomize_lost_hills=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
     randomize_maze_directions(gw, config, SeededRng(42))
@@ -116,9 +114,9 @@ def test_randomize_lost_hills_length_and_terminal():
                      OverworldDirection.RIGHT_EAST) for d in dirs)
 
 
-def test_randomize_dead_woods_length_and_terminal():
+def test_randomize_dead_woods_length_and_terminal(bins):
     """Dead Woods sequence must be length 4 with DOWN_SOUTH as the final step."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     flags = Flags(randomize_dead_woods=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
     randomize_maze_directions(gw, config, SeededRng(42))
@@ -134,27 +132,27 @@ def test_randomize_dead_woods_length_and_terminal():
 # 3. Determinism: same seed → same directions
 # =============================================================================
 
-def test_lost_hills_deterministic():
+def test_lost_hills_deterministic(bins):
     flags = Flags(randomize_lost_hills=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
 
-    gw1 = _fresh_world()
+    gw1 = parse_game_world(bins)
     randomize_maze_directions(gw1, config, SeededRng(99))
 
-    gw2 = _fresh_world()
+    gw2 = parse_game_world(bins)
     randomize_maze_directions(gw2, config, SeededRng(99))
 
     assert gw1.overworld.lost_hills_directions == gw2.overworld.lost_hills_directions
 
 
-def test_dead_woods_deterministic():
+def test_dead_woods_deterministic(bins):
     flags = Flags(randomize_dead_woods=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
 
-    gw1 = _fresh_world()
+    gw1 = parse_game_world(bins)
     randomize_maze_directions(gw1, config, SeededRng(99))
 
-    gw2 = _fresh_world()
+    gw2 = parse_game_world(bins)
     randomize_maze_directions(gw2, config, SeededRng(99))
 
     assert gw1.overworld.dead_woods_directions == gw2.overworld.dead_woods_directions
@@ -164,9 +162,9 @@ def test_dead_woods_deterministic():
 # 4. No-op when flags are off
 # =============================================================================
 
-def test_randomize_maze_directions_noop_when_both_off():
+def test_randomize_maze_directions_noop_when_both_off(bins):
     """randomize_maze_directions must not mutate directions when both flags are off."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     flags = Flags()  # both off by default
     config = _config(flags)
     randomize_maze_directions(gw, config, SeededRng(0))
@@ -175,8 +173,8 @@ def test_randomize_maze_directions_noop_when_both_off():
     assert gw.overworld.dead_woods_directions == VANILLA_DEAD_WOODS
 
 
-def test_randomize_lost_hills_only_leaves_dead_woods_unchanged():
-    gw = _fresh_world()
+def test_randomize_lost_hills_only_leaves_dead_woods_unchanged(bins):
+    gw = parse_game_world(bins)
     flags = Flags(randomize_lost_hills=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
     randomize_maze_directions(gw, config, SeededRng(7))
@@ -184,8 +182,8 @@ def test_randomize_lost_hills_only_leaves_dead_woods_unchanged():
     assert gw.overworld.dead_woods_directions == VANILLA_DEAD_WOODS
 
 
-def test_randomize_dead_woods_only_leaves_lost_hills_unchanged():
-    gw = _fresh_world()
+def test_randomize_dead_woods_only_leaves_lost_hills_unchanged(bins):
+    gw = parse_game_world(bins)
     flags = Flags(randomize_dead_woods=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
     randomize_maze_directions(gw, config, SeededRng(7))
@@ -197,26 +195,26 @@ def test_randomize_dead_woods_only_leaves_lost_hills_unchanged():
 # 5. Hint text generation
 # =============================================================================
 
-def test_lost_hills_hint_text_all_directions():
+def test_lost_hills_hint_text_all_directions(bins):
     """_lost_hills_hint_text produces correct format for each direction value."""
     dirs = [OverworldDirection.UP_NORTH, OverworldDirection.DOWN_SOUTH,
             OverworldDirection.RIGHT_EAST, OverworldDirection.UP_NORTH]
     assert _lost_hills_hint_text(dirs) == "GO UP, DOWN,|RIGHT, UP|THE MOUNTAIN AHEAD"
 
 
-def test_lost_hills_hint_text_vanilla():
+def test_lost_hills_hint_text_vanilla(bins):
     assert _lost_hills_hint_text(VANILLA_LOST_HILLS) == \
         "GO UP, UP,|UP, UP|THE MOUNTAIN AHEAD"
 
 
-def test_dead_woods_hint_text_all_directions():
+def test_dead_woods_hint_text_all_directions(bins):
     """_dead_woods_hint_text produces correct format for each direction value."""
     dirs = [OverworldDirection.UP_NORTH, OverworldDirection.LEFT_WEST,
             OverworldDirection.DOWN_SOUTH, OverworldDirection.DOWN_SOUTH]
     assert _dead_woods_hint_text(dirs) == "GO NORTH, WEST,|SOUTH, SOUTH TO|THE FOREST OF MAZE"
 
 
-def test_dead_woods_hint_text_vanilla():
+def test_dead_woods_hint_text_vanilla(bins):
     assert _dead_woods_hint_text(VANILLA_DEAD_WOODS) == \
         "GO NORTH, WEST,|SOUTH, WEST TO|THE FOREST OF MAZE"
 
@@ -229,8 +227,8 @@ def _quote_text_for_id(gw: GameWorld, quote_id: int) -> str:
     return str(next(q.text for q in gw.quotes if q.quote_id == quote_id))
 
 
-def test_lost_hills_quote_updated_when_flag_on():
-    gw = _fresh_world()
+def test_lost_hills_quote_updated_when_flag_on(bins):
+    gw = parse_game_world(bins)
     flags = Flags(randomize_lost_hills=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags, seed=5)
     randomize_maze_directions(gw, config, SeededRng(5))
@@ -241,8 +239,8 @@ def test_lost_hills_quote_updated_when_flag_on():
     assert _quote_text_for_id(gw, HintType.LOST_HILLS_HINT) == expected
 
 
-def test_dead_woods_quote_updated_when_flag_on():
-    gw = _fresh_world()
+def test_dead_woods_quote_updated_when_flag_on(bins):
+    gw = parse_game_world(bins)
     flags = Flags(randomize_dead_woods=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags, seed=5)
     randomize_maze_directions(gw, config, SeededRng(5))
@@ -253,9 +251,9 @@ def test_dead_woods_quote_updated_when_flag_on():
     assert _quote_text_for_id(gw, HintType.DEAD_WOODS_HINT) == expected
 
 
-def test_lost_hills_quote_unchanged_when_flag_off():
+def test_lost_hills_quote_unchanged_when_flag_off(bins):
     """When randomize_lost_hills is off, the Lost Hills cave quote is not overwritten."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     _original_text = _quote_text_for_id(gw, HintType.LOST_HILLS_HINT)
 
     flags = Flags(hint_mode=FlagHintMode.COMMUNITY)
@@ -269,8 +267,8 @@ def test_lost_hills_quote_unchanged_when_flag_off():
     assert "THE MOUNTAIN AHEAD" not in text
 
 
-def test_dead_woods_quote_unchanged_when_flag_off():
-    gw = _fresh_world()
+def test_dead_woods_quote_unchanged_when_flag_off(bins):
+    gw = parse_game_world(bins)
 
     flags = Flags(hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
@@ -285,9 +283,9 @@ def test_dead_woods_quote_unchanged_when_flag_off():
 # 7. Serializer patch: direction bytes land at the correct ROM address
 # =============================================================================
 
-def test_serializer_writes_randomized_lost_hills_directions():
+def test_serializer_writes_randomized_lost_hills_directions(bins):
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     flags = Flags(randomize_lost_hills=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags, seed=3)
     randomize_maze_directions(gw, config, SeededRng(3))
@@ -298,9 +296,9 @@ def test_serializer_writes_randomized_lost_hills_directions():
     assert got_lost_hills == expected
 
 
-def test_serializer_writes_randomized_dead_woods_directions():
+def test_serializer_writes_randomized_dead_woods_directions(bins):
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     flags = Flags(randomize_dead_woods=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags, seed=3)
     randomize_maze_directions(gw, config, SeededRng(3))
@@ -315,12 +313,12 @@ def test_serializer_writes_randomized_dead_woods_directions():
 # 8. Behavior patches: screen layout bytes present iff flag is on
 # =============================================================================
 
-def test_lost_hills_behavior_patches_present_when_flag_on():
+def test_lost_hills_behavior_patches_present_when_flag_on(bins):
     flags = Flags(randomize_lost_hills=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
 
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     data_patch = serialize_game_world(gw, originals, hint_mode=HintMode.COMMUNITY)
     asm_patch = build_behavior_patch(config)
     patch = data_patch.merge(asm_patch)
@@ -331,12 +329,12 @@ def test_lost_hills_behavior_patches_present_when_flag_on():
         )
 
 
-def test_lost_hills_behavior_patches_absent_when_flag_off():
+def test_lost_hills_behavior_patches_absent_when_flag_off(bins):
     flags = Flags()
     config = _config(flags)
 
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     data_patch = serialize_game_world(gw, originals)
     asm_patch = build_behavior_patch(config)
     patch = data_patch.merge(asm_patch)
@@ -346,12 +344,12 @@ def test_lost_hills_behavior_patches_absent_when_flag_off():
         )
 
 
-def test_dead_woods_behavior_patches_present_when_flag_on():
+def test_dead_woods_behavior_patches_present_when_flag_on(bins):
     flags = Flags(randomize_dead_woods=Tristate.ON, hint_mode=FlagHintMode.COMMUNITY)
     config = _config(flags)
 
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     data_patch = serialize_game_world(gw, originals, hint_mode=HintMode.COMMUNITY)
     asm_patch = build_behavior_patch(config)
     patch = data_patch.merge(asm_patch)
@@ -362,12 +360,12 @@ def test_dead_woods_behavior_patches_present_when_flag_on():
         )
 
 
-def test_dead_woods_behavior_patches_absent_when_flag_off():
+def test_dead_woods_behavior_patches_absent_when_flag_off(bins):
     flags = Flags()
     config = _config(flags)
 
     originals = _load_originals()
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     data_patch = serialize_game_world(gw, originals)
     asm_patch = build_behavior_patch(config)
     patch = data_patch.merge(asm_patch)
@@ -417,7 +415,7 @@ def test_maze_flag_incompatible_with_hint_mode_blank(maze_flag, label, maze_valu
     )
 
 
-def test_maze_flags_valid_when_hint_mode_community():
+def test_maze_flags_valid_when_hint_mode_community(bins):
     """Both maze flags ON with hint_mode=community should pass constraint validation."""
     flags = Flags(
         randomize_lost_hills=Tristate.ON,
@@ -428,7 +426,7 @@ def test_maze_flags_valid_when_hint_mode_community():
     assert not errors, f"Expected no errors, got: {errors}"
 
 
-def test_maze_flags_valid_when_hint_mode_helpful():
+def test_maze_flags_valid_when_hint_mode_helpful(bins):
     """Both maze flags ON with hint_mode=helpful should pass constraint validation."""
     flags = Flags(
         randomize_lost_hills=Tristate.ON,
@@ -443,7 +441,7 @@ def test_maze_flags_valid_when_hint_mode_helpful():
 # 10. End-to-end smoke test
 # =============================================================================
 
-def test_full_generation_with_both_maze_flags():
+def test_full_generation_with_both_maze_flags(bins):
     """Full generate_game pipeline completes without error with both maze flags on."""
 
     flags = Flags(

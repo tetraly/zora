@@ -1,24 +1,16 @@
 """
 Entrance shuffle tests: verify shuffle_caves produces correct, glitch-free results.
 """
-from pathlib import Path
-
 from flags.flags_generated import CaveShuffleMode, Flags
 from zora.data_model import Destination, GameWorld, QuestVisibility
 from zora.entrance_randomizer import shuffle_caves
 from zora.game_config import resolve_game_config
 from zora.game_validator import GameValidator
 from zora.item_randomizer import assumed_fill
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
 
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
 _DUNGEON_DESTINATIONS = frozenset(range(1, 10))  # Destination values 1-9
-
-
-def _fresh_world() -> GameWorld:
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _dungeon_screens(world: GameWorld) -> dict[int, int]:
@@ -44,10 +36,10 @@ def _non_dungeon_destinations(world: GameWorld) -> set[int]:
 # Dungeon shuffle invariants
 # ---------------------------------------------------------------------------
 
-def test_all_nine_dungeons_present_after_shuffle():
+def test_all_nine_dungeons_present_after_shuffle(bins):
     """All 9 dungeon entrances must still exist on the overworld after shuffling."""
     for seed in range(3):
-        world = _fresh_world()
+        world = parse_game_world(bins)
         rng = SeededRng(seed)
         result = shuffle_caves(
             world, rng,
@@ -64,12 +56,12 @@ def test_all_nine_dungeons_present_after_shuffle():
         )
 
 
-def test_each_dungeon_appears_exactly_once_after_shuffle():
+def test_each_dungeon_appears_exactly_once_after_shuffle(bins):
     """Each dungeon (1-9) must appear on exactly one Q1-visible overworld screen
     after shuffling. No dungeon destination may be duplicated or missing among
     FIRST_QUEST and BOTH_QUESTS screens (the only screens active in Q1 play)."""
     for seed in range(123, 133):
-        world = _fresh_world()
+        world = parse_game_world(bins)
         rng = SeededRng(seed)
         result = shuffle_caves(
             world, rng,
@@ -100,11 +92,11 @@ def test_each_dungeon_appears_exactly_once_after_shuffle():
         )
 
 
-def test_no_dungeon_lands_on_its_own_entrance_room_screen():
+def test_no_dungeon_lands_on_its_own_entrance_room_screen(bins):
     """No dungeon entrance should be placed on the overworld screen matching
     its own entrance_room number — the game glitches when these coincide."""
     for seed in range(5):
-        world = _fresh_world()
+        world = parse_game_world(bins)
         entrance_rooms = {lvl.level_num: lvl.entrance_room for lvl in world.levels}
         rng = SeededRng(seed)
         result = shuffle_caves(
@@ -128,12 +120,12 @@ def test_no_dungeon_lands_on_its_own_entrance_room_screen():
 # Non-dungeon shuffle invariants
 # ---------------------------------------------------------------------------
 
-def test_just_dungeons_leaves_non_dungeon_caves_unchanged():
+def test_just_dungeons_leaves_non_dungeon_caves_unchanged(bins):
     """With just_dungeons=True, non-dungeon cave destinations must not move."""
-    world_before = _fresh_world()
+    world_before = parse_game_world(bins)
     non_dungeon_before = _non_dungeon_destinations(world_before)
 
-    world_after = _fresh_world()
+    world_after = parse_game_world(bins)
     rng = SeededRng(0)
     result = shuffle_caves(
         world_after, rng,
@@ -149,7 +141,7 @@ def test_just_dungeons_leaves_non_dungeon_caves_unchanged():
     )
 
 
-def test_wood_sword_cave_lands_on_accessible_screen():
+def test_wood_sword_cave_lands_on_accessible_screen(bins):
     """The wood sword cave must always end up on a freely accessible screen
     (no raft, recorder, ladder, or bracelet required)."""
     raft_locations      = [0x2F, 0x45]
@@ -157,7 +149,7 @@ def test_wood_sword_cave_lands_on_accessible_screen():
     ladder_locations    = frozenset([0x18, 0x19])
 
     for seed in range(5):
-        world = _fresh_world()
+        world = parse_game_world(bins)
         rng = SeededRng(seed)
         result = shuffle_caves(
             world, rng,
@@ -184,12 +176,12 @@ def test_wood_sword_cave_lands_on_accessible_screen():
 # End-to-end: entrance shuffle + item fill produces beatable seeds
 # ---------------------------------------------------------------------------
 
-def test_dungeon_only_entrance_shuffle_produces_beatable_seeds():
+def test_dungeon_only_entrance_shuffle_produces_beatable_seeds(bins):
     """Dungeon-only entrance shuffle combined with assumed fill must produce
     valid, beatable seeds."""
     flags = Flags(cave_shuffle_mode=CaveShuffleMode.DUNGEONS_ONLY)
     for seed in range(3):
-        world = _fresh_world()
+        world = parse_game_world(bins)
         rng = SeededRng(seed)
         config = resolve_game_config(flags, SeededRng(seed))
         shuffle_caves(
@@ -214,12 +206,12 @@ def test_dungeon_only_entrance_shuffle_produces_beatable_seeds():
 # Armos shuffle: destination swap correctness
 # ---------------------------------------------------------------------------
 
-def test_armos_shuffle_swaps_destination_to_new_screen():
+def test_armos_shuffle_swaps_destination_to_new_screen(bins):
     """When armos moves off screen 36, screen 36 must no longer hold
     ARMOS_ITEM and the new screen must hold it instead."""
     # Try multiple seeds until we find one where armos actually moves.
     for seed in range(20):
-        world = _fresh_world()
+        world = parse_game_world(bins)
         rng = SeededRng(seed)
         result = shuffle_caves(
             world, rng,
@@ -259,12 +251,12 @@ def test_armos_shuffle_swaps_destination_to_new_screen():
     raise AssertionError("No seed in range(20) produced an armos move — expand the range")
 
 
-def test_full_cave_shuffle_produces_beatable_seeds():
+def test_full_cave_shuffle_produces_beatable_seeds(bins):
     """Full cave shuffle (dungeons + non-dungeons) combined with assumed fill
     must produce valid, beatable seeds."""
     flags = Flags(cave_shuffle_mode=CaveShuffleMode.ALL_CAVES)
     for seed in range(5):
-        world = _fresh_world()
+        world = parse_game_world(bins)
         rng = SeededRng(seed)
         config = resolve_game_config(flags, SeededRng(seed))
         result = shuffle_caves(

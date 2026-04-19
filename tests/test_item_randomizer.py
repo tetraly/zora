@@ -2,7 +2,6 @@
 Randomizer tests: verify assumed fill produces valid, beatable seeds.
 """
 import time
-from pathlib import Path
 
 from flags.flags_generated import Flags, Tristate
 from flags.flags_generated import Item as FlagItem
@@ -15,35 +14,29 @@ from zora.item_randomizer import (
     collect_all_placed_items,
     collect_item_locations,
 )
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
-
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
-
-def _fresh_world():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _config(flags: Flags, seed: int = 0) -> GameConfig:
     return resolve_game_config(flags, SeededRng(seed))
 
 
-def test_assumed_fill_produces_valid_seed():
+def test_assumed_fill_produces_valid_seed(bins):
     """Assumed fill should produce a beatable seed."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags(), seed=12345)
     success = assumed_fill(gw, config, SeededRng(12345))
     assert success
     assert GameValidator(gw, config.avoid_required_hard_combat).is_seed_valid()
 
 
-def test_assumed_fill_different_seeds_produce_different_results():
+def test_assumed_fill_different_seeds_produce_different_results(bins):
     """Different seeds should produce different item placements."""
-    gw1 = _fresh_world()
+    gw1 = parse_game_world(bins)
     assumed_fill(gw1, _config(Flags(), seed=1), SeededRng(1))
 
-    gw2 = _fresh_world()
+    gw2 = parse_game_world(bins)
     assumed_fill(gw2, _config(Flags(), seed=2), SeededRng(2))
 
     items1 = collect_all_placed_items(gw1)
@@ -51,11 +44,11 @@ def test_assumed_fill_different_seeds_produce_different_results():
     assert items1 != items2
 
 
-def test_assumed_fill_respects_ladder_not_at_coast():
+def test_assumed_fill_respects_ladder_not_at_coast(bins):
     """Ladder must never be placed at the coast location."""
     start = time.time()
     for seed in range(3):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         assumed_fill(gw, _config(Flags(), seed=seed), SeededRng(seed))
         cave_by_dest = {c.destination: c for c in gw.overworld.caves}
         coast = cave_by_dest.get(Destination.COAST_ITEM)
@@ -63,7 +56,7 @@ def test_assumed_fill_respects_ladder_not_at_coast():
     assert (elapsed := time.time() - start) < 60, f"took {elapsed:.1f}s"
 
 
-def test_assumed_fill_force_heart_container_to_armos():
+def test_assumed_fill_force_heart_container_to_armos(bins):
     """armos_item=HEART_CONTAINER must place a heart container at the armos location."""
     flags = Flags(
         armos_item=FlagItem.HEART_CONTAINER,  # shuffled + forced to heart container
@@ -74,7 +67,7 @@ def test_assumed_fill_force_heart_container_to_armos():
     )
     start = time.time()
     for seed in range(3):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         success = assumed_fill(gw, config, SeededRng(seed))
         assert success, f"Seed {seed} failed"
@@ -85,11 +78,11 @@ def test_assumed_fill_force_heart_container_to_armos():
     assert (elapsed := time.time() - start) < 60, f"took {elapsed:.1f}s"
 
 
-def test_many_seeds_are_valid():
+def test_many_seeds_are_valid(bins):
     """Assumed fill across 100 seeds must always produce valid, beatable results."""
     start = time.time()
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(Flags(), seed=seed)
         success = assumed_fill(gw, config, SeededRng(seed))
         assert success, f"Seed {seed} failed to generate"
@@ -98,12 +91,12 @@ def test_many_seeds_are_valid():
     assert (elapsed := time.time() - start) < 60, f"took {elapsed:.1f}s"
 
 
-def test_shop_shuffle_adds_items_to_pool():
+def test_shop_shuffle_adds_items_to_pool(bins):
     """Shop shuffle must add vanilla major shop items to the item pool."""
     flags = Flags(shuffle_major_shop_items=Tristate.ON)
     config = _config(flags)
 
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     pool = _collect_item_pool(gw, config)
     pool_items = set(pool)
 
@@ -113,12 +106,12 @@ def test_shop_shuffle_adds_items_to_pool():
     assert Item.BAIT in pool_items, "Bait missing from pool"
 
 
-def test_shop_shuffle_pool_matches_location_count():
+def test_shop_shuffle_pool_matches_location_count(bins):
     """Item pool size must be <= location pool size with shop shuffle on."""
     flags = Flags(shuffle_major_shop_items=Tristate.ON)
     config = _config(flags)
 
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     pool = _collect_item_pool(gw, config)
     locations = collect_item_locations(gw, config)
 
@@ -128,12 +121,12 @@ def test_shop_shuffle_pool_matches_location_count():
     )
 
 
-def test_shop_shuffle_produces_beatable_seeds():
+def test_shop_shuffle_produces_beatable_seeds(bins):
     """Seeds with shop shuffle enabled must be beatable."""
     flags = Flags(shuffle_major_shop_items=Tristate.ON)
 
     for seed in range(3):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         success = assumed_fill(gw, config, SeededRng(seed))
         assert success, f"Seed {seed} failed to generate with shop shuffle"
@@ -165,9 +158,9 @@ _SHOP_DESTINATIONS = {
 }
 
 
-def test_progressive_pool_contains_no_higher_tier_items():
+def test_progressive_pool_contains_no_higher_tier_items(bins):
     """With progressive_items on, the item pool must not contain any higher-tier items."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(_PROGRESSIVE_FLAGS)
     pool = _collect_item_pool(gw, config)
     higher_tier_in_pool = [item for item in pool if item in _HIGHER_TIER_ITEMS]
@@ -176,7 +169,7 @@ def test_progressive_pool_contains_no_higher_tier_items():
     )
 
 
-def test_progressive_pool_has_multiple_base_items():
+def test_progressive_pool_has_multiple_base_items(bins):
     """With progressive_items on, base items appear multiple times (replacing higher tiers)."""
     # Enable all sword cave shuffles so WHITE_SWORD and MAGICAL_SWORD enter the pool
     flags = Flags(
@@ -186,7 +179,7 @@ def test_progressive_pool_has_multiple_base_items():
         white_sword_item=FlagItem.RANDOM,
         shuffle_magical_sword=Tristate.ON,
     )
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(flags)
     pool = _collect_item_pool(gw, config)
     sword_count = pool.count(Item.WOOD_SWORD)
@@ -198,10 +191,10 @@ def test_progressive_pool_has_multiple_base_items():
     assert pool.count(Item.BLUE_CANDLE) >= 2, "Expected at least 2 BLUE_CANDLEs"
 
 
-def test_progressive_fill_no_base_items_in_shops():
+def test_progressive_fill_no_base_items_in_shops(bins):
     """With progressive_items on, progressive base items must not land in shops."""
     for seed in range(3):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(_PROGRESSIVE_FLAGS, seed=seed)
         success = assumed_fill(gw, config, SeededRng(seed))
         assert success, f"Seed {seed} failed"
@@ -218,10 +211,10 @@ def test_progressive_fill_no_base_items_in_shops():
                     )
 
 
-def test_progressive_magical_sword_cave_not_shuffled():
+def test_progressive_magical_sword_cave_not_shuffled(bins):
     """When progressive is on and magical sword is not shuffled, cave holds WOOD_SWORD."""
     flags = Flags(progressive_items=Tristate.ON)  # shuffle_magical_sword defaults off
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(flags)
     assert not config.shuffle_magical_sword, "Test precondition: magical sword not shuffled"
     assumed_fill(gw, config, SeededRng(0))
@@ -232,10 +225,10 @@ def test_progressive_magical_sword_cave_not_shuffled():
     )
 
 
-def test_progressive_seeds_are_beatable():
+def test_progressive_seeds_are_beatable(bins):
     """Seeds with progressive_items enabled must be valid and beatable."""
     for seed in range(3):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(_PROGRESSIVE_FLAGS, seed=seed)
         success = assumed_fill(gw, config, SeededRng(seed))
         assert success, f"Seed {seed} failed to generate with progressive items"
@@ -268,7 +261,7 @@ def _get_level_9_items(gw: GameWorld) -> list[Item]:
     return items
 
 
-def test_important_items_forbidden_from_l9_by_default():
+def test_important_items_forbidden_from_l9_by_default(bins):
     """With allow_important_in_l9 off (default), shuffle_dungeon_items and
     shuffle_armos_item on, bow/ladder/bracelet/raft/recorder must never
     appear in Level 9."""
@@ -277,7 +270,7 @@ def test_important_items_forbidden_from_l9_by_default():
         armos_item=FlagItem.RANDOM,
     )
     for seed in range(20):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         success = assumed_fill(gw, config, SeededRng(seed))
         assert success, f"Seed {seed} failed to generate"

@@ -2,24 +2,18 @@
 Invariant tests: validate_game_world passes on vanilla parsed data.
 """
 import copy
-from pathlib import Path
 
 import pytest
 
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.validator import validate_game_world
 
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
+
+def test_vanilla_invariants(vanilla_game_world):
+    validate_game_world(vanilla_game_world)  # must not raise
 
 
-def test_vanilla_invariants():
-    bins = load_bin_files(TEST_DATA)
-    gw = parse_game_world(bins)
-    validate_game_world(gw)  # must not raise
-
-
-def test_shared_room_within_grid_rejected():
-    bins = load_bin_files(TEST_DATA)
+def test_shared_room_within_grid_rejected(bins):
     gw = parse_game_world(bins)
 
     # Duplicate a room from level 1 into level 2 (both in the 1-6 grid)

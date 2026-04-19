@@ -15,8 +15,6 @@ Covers:
   - Missing caves are silently skipped (sword caves, candle caves)
 """
 
-from pathlib import Path
-
 from flags.flags_generated import Flags, Tristate
 from zora.cave_randomizer import randomize_caves
 from zora.data_model import (
@@ -28,14 +26,8 @@ from zora.data_model import (
     TakeAnyCave,
 )
 from zora.game_config import GameConfig, resolve_game_config
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
-
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
-
-def _fresh_world() -> GameWorld:
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _config(flags: Flags, seed: int = 0) -> GameConfig:
@@ -47,9 +39,9 @@ def _config(flags: Flags, seed: int = 0) -> GameConfig:
 # ---------------------------------------------------------------------------
 
 
-def test_no_op_when_all_flags_off():
+def test_no_op_when_all_flags_off(bins):
     """randomize_caves must not mutate anything when all cave flags are off."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     ow = gw.overworld
 
     mmg = ow.get_cave(Destination.MONEY_MAKING_GAME, MoneyMakingGameCave)
@@ -81,11 +73,11 @@ def test_no_op_when_all_flags_off():
 # ---------------------------------------------------------------------------
 
 
-def test_mmg_values_in_range():
+def test_mmg_values_in_range(bins):
     """All MMG values must fall in their documented ranges."""
     flags = Flags(randomize_mmg=Tristate.ON)
     for seed in range(20):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         randomize_caves(gw, _config(flags, seed=seed), SeededRng(seed))
 
         mmg = gw.overworld.get_cave(Destination.MONEY_MAKING_GAME, MoneyMakingGameCave)
@@ -97,11 +89,11 @@ def test_mmg_values_in_range():
         assert 25 <= mmg.win_large <= 75, f"Seed {seed}: win_large={mmg.win_large}"
 
 
-def test_mmg_lose_large_not_equal_win_small():
+def test_mmg_lose_large_not_equal_win_small(bins):
     """lose_large must never equal win_small (game uses exact match for win check)."""
     flags = Flags(randomize_mmg=Tristate.ON)
     for seed in range(50):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         randomize_caves(gw, _config(flags, seed=seed), SeededRng(seed))
 
         mmg = gw.overworld.get_cave(Destination.MONEY_MAKING_GAME, MoneyMakingGameCave)
@@ -111,11 +103,11 @@ def test_mmg_lose_large_not_equal_win_small():
         )
 
 
-def test_mmg_win_large_exceeds_win_small():
+def test_mmg_win_large_exceeds_win_small(bins):
     """win_large must be strictly greater than win_small."""
     flags = Flags(randomize_mmg=Tristate.ON)
     for seed in range(50):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         randomize_caves(gw, _config(flags, seed=seed), SeededRng(seed))
 
         mmg = gw.overworld.get_cave(Destination.MONEY_MAKING_GAME, MoneyMakingGameCave)
@@ -125,15 +117,15 @@ def test_mmg_win_large_exceeds_win_small():
         )
 
 
-def test_mmg_different_seeds_produce_different_values():
+def test_mmg_different_seeds_produce_different_values(bins):
     """Two different seeds should (very likely) produce different MMG values."""
     flags = Flags(randomize_mmg=Tristate.ON)
 
-    gw1 = _fresh_world()
+    gw1 = parse_game_world(bins)
     randomize_caves(gw1, _config(flags, seed=1), SeededRng(1))
     mmg1 = gw1.overworld.get_cave(Destination.MONEY_MAKING_GAME, MoneyMakingGameCave)
 
-    gw2 = _fresh_world()
+    gw2 = parse_game_world(bins)
     randomize_caves(gw2, _config(flags, seed=99), SeededRng(99))
     mmg2 = gw2.overworld.get_cave(Destination.MONEY_MAKING_GAME, MoneyMakingGameCave)
 
@@ -150,10 +142,10 @@ def test_mmg_different_seeds_produce_different_values():
 # ---------------------------------------------------------------------------
 
 
-def test_extra_candles_placed():
+def test_extra_candles_placed(bins):
     """When add_extra_candles is on, wood sword cave and take-any get blue candles."""
     flags = Flags(add_extra_candles=Tristate.ON)
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     randomize_caves(gw, _config(flags), SeededRng(0))
 
     ow = gw.overworld
@@ -166,9 +158,9 @@ def test_extra_candles_placed():
         assert take_any.items[1] == Item.BLUE_CANDLE
 
 
-def test_extra_candles_not_placed_when_off():
+def test_extra_candles_not_placed_when_off(bins):
     """When add_extra_candles is off, caves should keep their original values."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     ow = gw.overworld
 
     wood_sword = ow.get_cave(Destination.WOOD_SWORD_CAVE, ItemCave)
@@ -189,11 +181,11 @@ def test_extra_candles_not_placed_when_off():
 # ---------------------------------------------------------------------------
 
 
-def test_bomb_upgrade_in_range():
+def test_bomb_upgrade_in_range(bins):
     """Bomb upgrade cost and count must fall in their valid ranges."""
     flags = Flags(randomize_bomb_upgrade=Tristate.ON)
     for seed in range(20):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         randomize_caves(gw, _config(flags, seed=seed), SeededRng(seed))
 
         bu = gw.overworld.bomb_upgrade
@@ -201,9 +193,9 @@ def test_bomb_upgrade_in_range():
         assert 2 <= bu.count <= 6, f"Seed {seed}: bomb count={bu.count}"
 
 
-def test_bomb_upgrade_unchanged_when_off():
+def test_bomb_upgrade_unchanged_when_off(bins):
     """Bomb upgrade must not change when flag is off."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     before = (gw.overworld.bomb_upgrade.cost, gw.overworld.bomb_upgrade.count)
 
     randomize_caves(gw, _config(Flags()), SeededRng(0))
@@ -217,11 +209,11 @@ def test_bomb_upgrade_unchanged_when_off():
 # ---------------------------------------------------------------------------
 
 
-def test_white_sword_hearts_in_valid_set():
+def test_white_sword_hearts_in_valid_set(bins):
     """White sword heart requirement must be one of {4, 5, 6}."""
     flags = Flags(randomize_white_sword_hearts=True)
     for seed in range(20):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         randomize_caves(gw, _config(flags, seed=seed), SeededRng(seed))
 
         ws = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
@@ -231,11 +223,11 @@ def test_white_sword_hearts_in_valid_set():
             )
 
 
-def test_magical_sword_hearts_in_valid_set():
+def test_magical_sword_hearts_in_valid_set(bins):
     """Magical sword heart requirement must be one of {10, 11, 12}."""
     flags = Flags(randomize_magical_sword_hearts=True)
     for seed in range(20):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         randomize_caves(gw, _config(flags, seed=seed), SeededRng(seed))
 
         ms = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
@@ -245,9 +237,9 @@ def test_magical_sword_hearts_in_valid_set():
             )
 
 
-def test_sword_hearts_unchanged_when_off():
+def test_sword_hearts_unchanged_when_off(bins):
     """Sword heart requirements must not change when flags are off."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     ow = gw.overworld
     ws = ow.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
     ms = ow.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)

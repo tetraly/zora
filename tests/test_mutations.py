@@ -5,7 +5,7 @@ import copy
 from pathlib import Path
 
 from zora.data_model import Enemy, EnemySpec, Item, Shop
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rom_layout import (
     CAVE_ITEM_DATA_ADDRESS,
     LEVEL_1_6_DATA_ADDRESS,
@@ -17,6 +17,7 @@ from zora.rom_layout import (
 from zora.serializer import serialize_game_world
 
 TEST_DATA = Path(__file__).parent.parent / "rom_data"
+
 LEVEL_TABLE_SIZE = 0x80
 
 
@@ -25,7 +26,7 @@ def _dungeon_item_byte(item: Item) -> int:
     return 0x03 if item == Item.NOTHING else item.value
 
 
-def _setup():
+def _setup(bins):
     originals = {
         "level_1_6_data.bin": (TEST_DATA / "level_1_6_data.bin").read_bytes(),
         "level_7_9_data.bin": (TEST_DATA / "level_7_9_data.bin").read_bytes(),
@@ -34,7 +35,6 @@ def _setup():
         "armos_item.bin":     (TEST_DATA / "armos_item.bin").read_bytes(),
         "coast_item.bin":     (TEST_DATA / "coast_item.bin").read_bytes(),
     }
-    bins = load_bin_files(TEST_DATA)
     gw = parse_game_world(bins)
     return gw, originals
 
@@ -45,9 +45,9 @@ def _diff_bytes(a: bytes, b: bytes, label: str) -> list[tuple[int, int, int]]:
     return [(i, a[i], b[i]) for i in range(len(a)) if a[i] != b[i]]
 
 
-def test_change_room_item():
+def test_change_room_item(bins):
     """Changing a room's item updates only table 4 bits 4-0 for that room slot."""
-    gw, originals = _setup()
+    gw, originals = _setup(bins)
     gw = copy.deepcopy(gw)
 
     # Pick level 1, first room that doesn't already have a KEY
@@ -73,9 +73,9 @@ def test_change_room_item():
     assert (new_val & 0xE0) == (old_val & 0xE0)
 
 
-def test_change_room_enemy():
+def test_change_room_enemy(bins):
     """Changing a room's enemy updates table 2 (enemy bits) and table 3 (mixed flag)."""
-    gw, originals = _setup()
+    gw, originals = _setup(bins)
     gw = copy.deepcopy(gw)
 
     # Pick level 2, first room with a simple (non-mixed) enemy
@@ -103,9 +103,9 @@ def test_change_room_enemy():
     assert not other, f"Unexpected changes at offsets: {[hex(o) for o in other]}"
 
 
-def test_change_entrance_room():
+def test_change_entrance_room(bins):
     """Changing level.entrance_room updates level_info block[0x2F] only."""
-    gw, originals = _setup()
+    gw, originals = _setup(bins)
     gw = copy.deepcopy(gw)
 
     lvl = gw.levels[2]  # level 3
@@ -129,9 +129,9 @@ def test_change_entrance_room():
     assert old_val == old_entrance
 
 
-def test_change_recorder_warp_destination():
+def test_change_recorder_warp_destination(bins):
     """Changing one recorder warp destination updates exactly one byte."""
-    gw, originals = _setup()
+    gw, originals = _setup(bins)
     gw = copy.deepcopy(gw)
 
     old_dest = gw.overworld.recorder_warp_destinations[0]
@@ -150,9 +150,9 @@ def test_change_recorder_warp_destination():
     assert new_val == new_dest
 
 
-def test_change_start_screen():
+def test_change_start_screen(bins):
     """Changing start_screen updates exactly one byte."""
-    gw, originals = _setup()
+    gw, originals = _setup(bins)
     gw = copy.deepcopy(gw)
 
     old_screen = gw.overworld.start_screen
@@ -168,9 +168,9 @@ def test_change_start_screen():
     assert diffs[0] == (0, old_screen, new_screen)
 
 
-def test_change_cave_item():
+def test_change_cave_item(bins):
     """Changing a cave item updates exactly one byte in cave_item_data, preserving flag bits."""
-    gw, originals = _setup()
+    gw, originals = _setup(bins)
     gw = copy.deepcopy(gw)
 
     # Find a shop cave and change its first item slot

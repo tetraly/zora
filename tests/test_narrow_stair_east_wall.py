@@ -5,8 +5,6 @@ If the door data disagrees, the player sees an open doorway they can't walk
 through — or worse, a room to the right with an open west door leading into
 a wall.
 """
-from pathlib import Path
-
 from zora.data_model import (
     Enemy,
     EnemySpec,
@@ -21,14 +19,8 @@ from zora.data_model import (
 from zora.dungeon.dungeon import _fix_narrow_stair_east_walls
 from zora.dungeon.scramble_dungeon_rooms import scramble_dungeon_rooms
 from zora.dungeon.shuffle_dungeon_rooms import shuffle_dungeon_rooms
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
-
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
-
-
-def _parse():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _make_room(room_num: int, room_type: RoomType, walls: WallSet) -> Room:
@@ -61,9 +53,9 @@ def _assert_narrow_stair_invariant(world, context: str = "") -> None:
             )
 
 
-def test_fix_narrow_stair_east_wall_open_door():
+def test_fix_narrow_stair_east_wall_open_door(bins):
     """_fix_narrow_stair_east_walls corrects an OPEN_DOOR east wall."""
-    gw = _parse()
+    gw = parse_game_world(bins)
     for level in gw.levels:
         for room in level.rooms:
             if room.room_type == RoomType.NARROW_STAIR_ROOM:
@@ -72,9 +64,9 @@ def test_fix_narrow_stair_east_wall_open_door():
     _assert_narrow_stair_invariant(gw)
 
 
-def test_fix_narrow_stair_east_wall_fixes_neighbor():
+def test_fix_narrow_stair_east_wall_fixes_neighbor(bins):
     """The right neighbor's west wall is also forced to SOLID_WALL."""
-    gw = _parse()
+    gw = parse_game_world(bins)
 
     for level in gw.levels:
         rooms_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
@@ -102,20 +94,20 @@ def test_fix_narrow_stair_east_wall_fixes_neighbor():
                 )
 
 
-def test_narrow_stair_east_wall_after_scramble():
+def test_narrow_stair_east_wall_after_scramble(bins):
     """After scramble_dungeon_rooms, no NARROW_STAIR_ROOM has a non-SOLID east wall."""
     for seed in range(50):
-        gw = _parse()
+        gw = parse_game_world(bins)
         rng = SeededRng(seed)
         scramble_dungeon_rooms(gw, rng, shuffle_gannon_and_zelda=False)
         _fix_narrow_stair_east_walls(gw)
         _assert_narrow_stair_invariant(gw, f"seed {seed} ")
 
 
-def test_narrow_stair_east_wall_after_shuffle_and_scramble():
+def test_narrow_stair_east_wall_after_shuffle_and_scramble(bins):
     """After both shuffle and scramble, the invariant holds."""
     for seed in range(50):
-        gw = _parse()
+        gw = parse_game_world(bins)
         rng = SeededRng(seed)
         shuffle_dungeon_rooms(gw, rng)
         scramble_dungeon_rooms(gw, rng, shuffle_gannon_and_zelda=False)

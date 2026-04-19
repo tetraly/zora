@@ -12,8 +12,6 @@ Covers:
   - Constraint holds when shuffle_major_shop_items moves major items around
 """
 
-from pathlib import Path
-
 from flags.flags_generated import Flags, Tristate
 from zora.data_model import (
     Destination,
@@ -26,17 +24,12 @@ from zora.data_model import (
 from zora.game_config import GameConfig, resolve_game_config
 from zora.item_randomizer import assumed_fill
 from zora.normalizer import normalize_data
-from zora.parser import load_bin_files, parse_game_world
+from zora.parser import parse_game_world
 from zora.rng import SeededRng
 from zora.shop_shuffler import _MAJOR_ITEMS, _SHOP_DESTINATIONS, randomize_shops
 
-TEST_DATA = Path(__file__).parent.parent / "rom_data"
 
 _ITEMS_PER_SHOP = 3
-
-
-def _fresh_world():
-    return parse_game_world(load_bin_files(TEST_DATA))
 
 
 def _config(flags: Flags, seed: int = 0) -> GameConfig:
@@ -69,10 +62,10 @@ def _shop_prices(game_world: GameWorld) -> list[int]:
 # Second BAIT replaced with FAIRY (normalize_data)
 # ---------------------------------------------------------------------------
 
-def test_second_bait_replaced_with_fairy():
+def test_second_bait_replaced_with_fairy(bins):
     """When shuffle_major_shop_items is on, normalize_data replaces the second BAIT with a FAIRY."""
     flags = Flags(shuffle_major_shop_items=Tristate.ON)
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(flags)
 
     normalize_data(gw, config, SeededRng(0))
@@ -85,12 +78,12 @@ def test_second_bait_replaced_with_fairy():
     assert fairy_count == 1, f"Expected 1 FAIRY after normalize_data, got {fairy_count}"
 
 
-def test_bait_unchanged_when_flag_off():
+def test_bait_unchanged_when_flag_off(bins):
     """When shuffle_major_shop_items is off, normalize_data must not touch BAIT."""
-    gw_vanilla = _fresh_world()
+    gw_vanilla = parse_game_world(bins)
     vanilla_bait = _shop_items(gw_vanilla).count(Item.BAIT)
 
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags())
     normalize_data(gw, config, SeededRng(0))
 
@@ -101,9 +94,9 @@ def test_bait_unchanged_when_flag_off():
 # No-op when flag is off
 # ---------------------------------------------------------------------------
 
-def test_no_op_when_flag_off():
+def test_no_op_when_flag_off(bins):
     """randomize_shops must not mutate anything when shuffle_shop_items is off."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags())
 
     before_items = _shop_items(gw)
@@ -119,10 +112,10 @@ def test_no_op_when_flag_off():
 # Major items land in different shops (one per shop)
 # ---------------------------------------------------------------------------
 
-def test_major_items_in_different_shops():
+def test_major_items_in_different_shops(bins):
     """When there are ≤4 major items, each must land in a different shop."""
     flags = Flags(shuffle_shop_items=Tristate.ON, shuffle_major_shop_items=Tristate.ON)
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(flags)
 
     normalize_data(gw, config, SeededRng(0))
@@ -142,11 +135,11 @@ def test_major_items_in_different_shops():
     )
 
 
-def test_major_items_in_different_shops_across_seeds():
+def test_major_items_in_different_shops_across_seeds(bins):
     """When there are ≤4 major items, constraint holds across multiple seeds."""
     flags = Flags(shuffle_shop_items=Tristate.ON, shuffle_major_shop_items=Tristate.ON)
     for seed in range(10):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         normalize_data(gw, config, SeededRng(seed))
         randomize_shops(gw, config, SeededRng(seed))
@@ -165,11 +158,11 @@ def test_major_items_in_different_shops_across_seeds():
         )
 
 
-def test_at_least_one_major_item_per_shop():
+def test_at_least_one_major_item_per_shop(bins):
     """Every shop must contain at least one major item after shuffling."""
     flags = Flags(shuffle_shop_items=Tristate.ON)
     for seed in range(10):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         randomize_shops(gw, config, SeededRng(seed))
 
@@ -188,10 +181,10 @@ def test_at_least_one_major_item_per_shop():
 # Item multiset preserved
 # ---------------------------------------------------------------------------
 
-def test_item_multiset_preserved_except_bait_to_fairy():
+def test_item_multiset_preserved_except_bait_to_fairy(bins):
     """With shuffle_major_shop_items on, the only multiset change is second BAIT → FAIRY."""
     flags = Flags(shuffle_shop_items=Tristate.ON, shuffle_major_shop_items=Tristate.ON)
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(flags)
 
     before = sorted(i.value for i in _shop_items(gw))
@@ -217,11 +210,11 @@ def test_item_multiset_preserved_except_bait_to_fairy():
 # Price jitter stays in bounds
 # ---------------------------------------------------------------------------
 
-def test_prices_in_bounds_after_jitter():
+def test_prices_in_bounds_after_jitter(bins):
     """All shop prices must be in [1, 254] after shuffling."""
     flags = Flags(shuffle_shop_items=Tristate.ON)
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         randomize_shops(gw, config, SeededRng(seed))
 
@@ -233,15 +226,15 @@ def test_prices_in_bounds_after_jitter():
 # Shuffling produces different results for different seeds
 # ---------------------------------------------------------------------------
 
-def test_different_seeds_produce_different_shops():
+def test_different_seeds_produce_different_shops(bins):
     """Two different seeds should (very likely) produce different shop arrangements."""
     flags = Flags(shuffle_shop_items=Tristate.ON)
 
-    gw1 = _fresh_world()
+    gw1 = parse_game_world(bins)
     randomize_shops(gw1, _config(flags, seed=1), SeededRng(1))
     items1 = _shop_items(gw1)
 
-    gw2 = _fresh_world()
+    gw2 = parse_game_world(bins)
     randomize_shops(gw2, _config(flags, seed=99), SeededRng(99))
     items2 = _shop_items(gw2)
 
@@ -252,11 +245,11 @@ def test_different_seeds_produce_different_shops():
 # Auxiliary price ranges
 # ---------------------------------------------------------------------------
 
-def test_potion_shop_prices_in_range():
+def test_potion_shop_prices_in_range(bins):
     """Potion shop prices must be in their expected ranges after shuffling."""
     flags = Flags(shuffle_shop_items=Tristate.ON)
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         randomize_shops(gw, config, SeededRng(seed))
 
@@ -268,11 +261,11 @@ def test_potion_shop_prices_in_range():
         assert 48 <= p1 <= 88, f"Seed {seed}: potion item 1 price {p1} out of [48,88]"
 
 
-def test_secret_cave_prices_in_range():
+def test_secret_cave_prices_in_range(bins):
     """Secret cave rupee values must be in their expected ranges after shuffling."""
     flags = Flags(shuffle_shop_items=Tristate.ON)
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         randomize_shops(gw, config, SeededRng(seed))
 
@@ -292,11 +285,11 @@ def test_secret_cave_prices_in_range():
         )
 
 
-def test_door_repair_cost_in_range():
+def test_door_repair_cost_in_range(bins):
     """Door repair cost must be in [15, 25] after shuffling."""
     flags = Flags(shuffle_shop_items=Tristate.ON)
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         randomize_shops(gw, config, SeededRng(seed))
 
@@ -305,9 +298,9 @@ def test_door_repair_cost_in_range():
         assert 15 <= dr.cost <= 25, f"Seed {seed}: door repair cost {dr.cost} out of [15,25]"
 
 
-def test_aux_prices_unchanged_when_flag_off():
+def test_aux_prices_unchanged_when_flag_off(bins):
     """Potion shop, secret caves, and door repair must not change when flag is off."""
-    gw = _fresh_world()
+    gw = parse_game_world(bins)
     config = _config(Flags())
 
     ow = gw.overworld
@@ -340,7 +333,7 @@ def test_aux_prices_unchanged_when_flag_off():
 # Interaction with shuffle_major_shop_items — major items may vary
 # ---------------------------------------------------------------------------
 
-def test_major_item_constraint_holds_after_assumed_fill():
+def test_major_item_constraint_holds_after_assumed_fill(bins):
     """Constraint holds when assumed fill has placed a different set of major items in shops."""
     flags = Flags(
         shuffle_shop_items=Tristate.ON,
@@ -348,7 +341,7 @@ def test_major_item_constraint_holds_after_assumed_fill():
         shuffle_dungeon_items=Tristate.ON,
     )
     for seed in range(5):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         normalize_data(gw, config, SeededRng(seed))
         assumed_fill(gw, config, SeededRng(seed))
@@ -378,11 +371,11 @@ def test_major_item_constraint_holds_after_assumed_fill():
 # No shop contains duplicate items
 # ---------------------------------------------------------------------------
 
-def test_no_duplicate_items_in_any_shop():
+def test_no_duplicate_items_in_any_shop(bins):
     """No single shop should contain two copies of the same item after shuffling."""
     flags = Flags(shuffle_shop_items=Tristate.ON)
     for seed in range(50):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         randomize_shops(gw, config, SeededRng(seed))
 
@@ -397,11 +390,11 @@ def test_no_duplicate_items_in_any_shop():
             )
 
 
-def test_no_duplicate_items_with_major_shop_items_flag():
+def test_no_duplicate_items_with_major_shop_items_flag(bins):
     """Duplicate check holds when shuffle_major_shop_items moves items around."""
     flags = Flags(shuffle_shop_items=Tristate.ON, shuffle_major_shop_items=Tristate.ON)
     for seed in range(50):
-        gw = _fresh_world()
+        gw = parse_game_world(bins)
         config = _config(flags, seed=seed)
         normalize_data(gw, config, SeededRng(seed))
         randomize_shops(gw, config, SeededRng(seed))
