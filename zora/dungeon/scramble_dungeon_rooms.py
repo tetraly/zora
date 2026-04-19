@@ -123,7 +123,7 @@ _VALID_ITEM_POSITIONS: dict[RoomType, list[ItemPosition]] = {
     RoomType.VERTICAL_CHUTE_ROOM:   [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.HORIZONTAL_CHUTE_ROOM: [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.VERTICAL_ROWS:         [ItemPosition.POSITION_B, ItemPosition.POSITION_C],
-    RoomType.ZIGZAG_ROOM:           [ItemPosition.POSITION_A, ItemPosition.POSITION_D],
+    RoomType.ZIGZAG_ROOM:           [ItemPosition.POSITION_A, ItemPosition.POSITION_C],
     RoomType.T_ROOM:                [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.VERTICAL_MOAT_ROOM:    [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.CIRCLE_MOAT_ROOM:      [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
@@ -147,9 +147,9 @@ _VALID_ITEM_POSITIONS: dict[RoomType, list[ItemPosition]] = {
     RoomType.BLACK_ROOM:            [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.ZELDA_ROOM:            [ItemPosition.POSITION_A],
     RoomType.GANNON_ROOM:           [ItemPosition.POSITION_A, ItemPosition.POSITION_D],
-    RoomType.TRIFORCE_ROOM:         [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
+    RoomType.TRIFORCE_ROOM:         [ItemPosition.POSITION_A],
     RoomType.TRANSPORT_STAIRCASE:   [],
-    RoomType.ITEM_STAIRCASE:        [],
+    RoomType.ITEM_STAIRCASE:        [ItemPosition.POSITION_A],
 }
 
 
