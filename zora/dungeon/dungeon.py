@@ -65,17 +65,15 @@ def _fix_narrow_stair_east_walls(world: GameWorld) -> None:
     at the tile level. If the door data says anything other than
     SOLID_WALL, the player sees an open doorway into an impassable wall.
     """
-    grid_rooms: dict[int, Room] = {}
     for level in world.levels:
+        rooms_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
         for room in level.rooms:
-            grid_rooms[room.room_num] = room
-
-    for room in grid_rooms.values():
-        if room.room_type != RoomType.NARROW_STAIR_ROOM:
-            continue
-        if room.walls.east != WallType.SOLID_WALL:
-            room.walls.east = WallType.SOLID_WALL
-        right_num = room.room_num + 1
-        if room.room_num % 16 < 15 and right_num in grid_rooms:
-            if grid_rooms[right_num].walls.west != WallType.SOLID_WALL:
-                grid_rooms[right_num].walls.west = WallType.SOLID_WALL
+            if room.room_type != RoomType.NARROW_STAIR_ROOM:
+                continue
+            if room.walls.east != WallType.SOLID_WALL:
+                room.walls.east = WallType.SOLID_WALL
+            right_num = room.room_num + 1
+            right = rooms_by_num.get(right_num)
+            if room.room_num % 16 < 15 and right is not None:
+                if right.walls.west != WallType.SOLID_WALL:
+                    right.walls.west = WallType.SOLID_WALL
