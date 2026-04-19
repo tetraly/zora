@@ -6,7 +6,10 @@ determines whether a seed is beatable (all itemdicts obtainable, kidnapped rescu
 
 Does NOT mutate GameWorld. All mutable state lives on this object.
 """
+import logging
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 from zora.data_model import (
     Destination,
@@ -84,6 +87,7 @@ class GameValidator:
         self.inventory = Inventory(progressive_items=progressive_items)
         self.visited_rooms: set[tuple[int, int]] = set()  # (level_num, room_num)
         self.items_collected_rooms: set[tuple[int, int]] = set()  # rooms whose item has been collected
+        self.room_entry_directions: dict[tuple[int, int], set[Direction]] = {}  # directions room was entered from
         # Room lookup caches: built once, keyed by (level_num, room_num)
         self._room_cache: dict[tuple[int, int], Room | None ] = {
             (level.level_num, room.room_num): room
@@ -104,6 +108,7 @@ class GameValidator:
         self.inventory.reset()
         self.visited_rooms.clear()
         self.items_collected_rooms.clear()
+        self.room_entry_directions.clear()
 
     # -------------------------------------------------------------------------
     # GameWorld accessors
@@ -403,6 +408,19 @@ class GameValidator:
             return False
         return True
 
+    def _is_item_collectible_from_any_direction(
+        self, level_num: int, room: Room,
+        directions: set[Direction],
+    ) -> bool:
+        """Check if the item at this room's position could be collected from
+        any of the given entry directions."""
+        if room.room_type not in _DIRECTION_SENSITIVE_ROOM_TYPES:
+            return True
+        for d in directions:
+            if self._can_get_room_item(d, room, level_num):
+                return True
+        return False
+
     def _has_stairway(self, room: Room) -> bool:
         if room.room_type.has_open_staircase():
             return True
@@ -490,6 +508,10 @@ class GameValidator:
 
         if first_visit:
             self.visited_rooms.add(loc_key)
+
+        if loc_key not in self.room_entry_directions:
+            self.room_entry_directions[loc_key] = set()
+        self.room_entry_directions[loc_key].add(entry_direction)
 
         if first_visit or (direction_sensitive and loc_key not in self.items_collected_rooms):
             if self._can_get_room_item(entry_direction, room, level_num) and room.item != Item.NOTHING:
@@ -661,6 +683,11 @@ class GameValidator:
         # Build location list from visited rooms + reachable caves
         reachable = []
         for (level_num, room_num) in self.visited_rooms:
+            room = self._get_room(level_num, room_num)
+            if room is not None and room.room_type in _DIRECTION_SENSITIVE_ROOM_TYPES:
+                directions = self.room_entry_directions.get((level_num, room_num), set())
+                if not self._is_item_collectible_from_any_direction(level_num, room, directions):
+                    continue
             reachable.append(DungeonLocation(level_num, room_num))
         # Cave locations: any destination that was processed
         # Re-run accessible destinations to enumerate cave locations reached
@@ -693,11 +720,128 @@ class GameValidator:
         # TODO: wire to flags_generated.py in future phase
         # if not dont_guarantee_starting_sword_or_wand:
         if not self._has_accessible_sword_or_wand():
+            logger.info("is_seed_valid: FAIL — no accessible sword or wand")
             return False
 
         self.get_reachable_locations(assumed_inventory=None)
 
-        return (self.inventory.has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM)
-                and self._has_all_important_items())
+        rescued = self.inventory.has(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM)
+        has_all = self._has_all_important_items()
+        triforce_count = self.inventory.get_triforce_count()
+
+        if rescued and has_all:
+            return True
+
+        self._log_seed_failure(rescued, triforce_count)
+        return False
+
+    def _log_seed_failure(self, rescued: bool, triforce_count: int) -> None:
+        logger.info("is_seed_valid: FAIL — rescued=%s, triforces=%d/8", rescued, triforce_count)
+
+        missing_items = [
+            item for item in self._IMPORTANT_ITEMS
+            if not self.inventory.has(item)
+        ]
+        if missing_items:
+            logger.info("  Missing important items: %s",
+                        [item.name for item in missing_items])
+
+        if triforce_count < 8:
+            obtained = set(self.inventory.levels_with_triforce_obtained)
+            missing_levels = [lvl for lvl in range(1, 10) if lvl not in obtained]
+            logger.info("  Missing triforces from levels: %s", missing_levels)
+
+        all_missing = list(missing_items)
+        if triforce_count < 8:
+            all_missing.append(Item.TRIFORCE)
+        if not rescued:
+            all_missing.append(Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM)
+
+        for item in all_missing:
+            self._log_item_placement(item)
+
+    def _log_item_placement(self, item: Item) -> None:
+        found = False
+        for level in self.game_world.levels:
+            for room in level.rooms:
+                if room.item != item:
+                    continue
+                if item == Item.TRIFORCE:
+                    obtained = set(self.inventory.levels_with_triforce_obtained)
+                    if level.level_num in obtained:
+                        continue
+                found = True
+                loc_key = (level.level_num, room.room_num)
+                visited = loc_key in self.visited_rooms
+                collected = loc_key in self.items_collected_rooms
+                dirs = self.room_entry_directions.get(loc_key, set())
+                dir_sensitive = room.room_type in _DIRECTION_SENSITIVE_ROOM_TYPES
+
+                item_x, item_y = self._get_item_xy(level.level_num, room)
+
+                walls = (f"N={room.walls.north.name} E={room.walls.east.name} "
+                         f"S={room.walls.south.name} W={room.walls.west.name}")
+
+                logger.info(
+                    "  Item %s: L%d R%s %s pos=(%s,%s) %s",
+                    item.name, level.level_num, f"{room.room_num:#04x}",
+                    room.room_type.name, f"{item_x:#x}", f"{item_y:#x}", walls,
+                )
+
+                if not visited:
+                    logger.info("    -> Room was NEVER VISITED during traversal")
+                elif collected:
+                    logger.info("    -> Item was COLLECTED (should not be missing)")
+                elif dir_sensitive:
+                    dir_names = [d.name for d in dirs]
+                    logger.info("    -> Room visited from %s but item NOT collected "
+                                "(direction-sensitive room)", dir_names)
+                    for d in dirs:
+                        can = self._can_get_room_item(d, room, level.level_num)
+                        logger.info("       _can_get_room_item(%s) = %s", d.name, can)
+                    if room.room_action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM:
+                        can_defeat = self._can_defeat_enemies(room)
+                        logger.info("       requires enemy defeat, can_defeat=%s",
+                                    can_defeat)
+                else:
+                    logger.info("    -> Room visited but item not collected "
+                                "(non-direction-sensitive)")
+
+        if not found:
+            for cave in self.game_world.overworld.caves:
+                cave_items = self._get_cave_items(cave.destination)
+                if item in cave_items:
+                    found = True
+                    logger.info("  Item %s: cave %s",
+                                item.name, cave.destination.name)
+                    break
+
+        if not found:
+            _PROGRESSIVE_CHAIN: dict[Item, tuple[Item, int]] = {
+                Item.MAGICAL_SWORD: (Item.WOOD_SWORD, 3),
+                Item.WHITE_SWORD: (Item.WOOD_SWORD, 2),
+                Item.RED_RING: (Item.BLUE_RING, 2),
+                Item.SILVER_ARROWS: (Item.WOOD_ARROWS, 2),
+                Item.RED_CANDLE: (Item.BLUE_CANDLE, 2),
+            }
+            chain = _PROGRESSIVE_CHAIN.get(item) if self.progressive_items else None
+            if chain:
+                base_item, needed = chain
+                num_collected = 0
+                for (lv, rn) in self.items_collected_rooms:
+                    r = self._get_room(lv, rn)
+                    if r is not None and r.item == base_item:
+                        num_collected += 1
+                logger.info(
+                    "  Item %s: progressive — needs %d×%s, collected %d",
+                    item.name, needed, base_item.name, num_collected,
+                )
+            elif item in (Item.KIDNAPPED_RESCUED_VIRTUAL_ITEM,
+                          Item.BEAST_DEFEATED_VIRTUAL_ITEM):
+                logger.info("  Item %s: virtual item — enemy not defeated "
+                            "during traversal", item.name)
+            else:
+                logger.info("  Item %s: NOT PLACED in game world (fill failed "
+                            "before placing this item)", item.name)
 
 

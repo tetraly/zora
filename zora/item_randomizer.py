@@ -725,6 +725,44 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
         ]
 
         if not empty_reachable:
+            unfilled = [loc for loc in location_pool if loc not in filled]
+            logger.info(
+                "  assumed_fill STUCK: no empty reachable locations. "
+                "%d items unplaced, %d unfilled locations, %d reachable",
+                len(item_pool), len(unfilled), len(reachable),
+            )
+            logger.info("    Unplaced items: %s", [i.name for i in item_pool])
+            unreachable_unfilled = [
+                loc for loc in unfilled if loc not in reachable_set
+            ]
+            logger.info("    Unfilled unreachable locations (%d):",
+                        len(unreachable_unfilled))
+            for loc in unreachable_unfilled:
+                if isinstance(loc, DungeonLocation):
+                    level = game_world.levels[loc.level_num - 1]
+                    room = next(
+                        (r for r in level.rooms if r.room_num == loc.room_num),
+                        None,
+                    )
+                    visited = (loc.level_num, loc.room_num) in validator.visited_rooms
+                    dirs = validator.room_entry_directions.get(
+                        (loc.level_num, loc.room_num), set())
+                    if room:
+                        logger.info(
+                            "      L%d R%s: %s item=%s visited=%s dirs=%s",
+                            loc.level_num, f"{loc.room_num:#04x}",
+                            room.room_type.name, room.item.name,
+                            visited, [d.name for d in dirs],
+                        )
+                    else:
+                        logger.info(
+                            "      L%d R%s: (room not in cache) visited=%s dirs=%s",
+                            loc.level_num, f"{loc.room_num:#04x}",
+                            visited, [d.name for d in dirs],
+                        )
+                elif isinstance(loc, CaveLocation):
+                    logger.info("      Cave %s slot %d",
+                                loc.destination.name, loc.position)
             return False
 
         # Score each item by how many valid locations it has (without itself assumed).
@@ -795,9 +833,27 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
 
         if not placed:
             logger.info(
-                "  assumed_fill failed after %d items, %.2fs, %d traversals",
-                items_placed, time.monotonic() - fill_start, traversal_count,
+                "  assumed_fill PLACEMENT FAIL: no valid location for any item. "
+                "%d items placed, %d remaining, %.2fs, %d traversals",
+                items_placed, len(item_pool),
+                time.monotonic() - fill_start, traversal_count,
             )
+            logger.info("    Unplaced items: %s", [i.name for i in item_pool])
+            logger.info("    Empty reachable locations (%d):", len(empty_reachable))
+            for loc in empty_reachable[:10]:
+                if isinstance(loc, DungeonLocation):
+                    level = game_world.levels[loc.level_num - 1]
+                    room = next(
+                        (r for r in level.rooms if r.room_num == loc.room_num),
+                        None,
+                    )
+                    if room:
+                        logger.info("      L%d R%s: %s item=%s",
+                                    loc.level_num, f"{loc.room_num:#04x}",
+                                    room.room_type.name, room.item.name)
+                elif isinstance(loc, CaveLocation):
+                    logger.info("      Cave %s slot %d",
+                                loc.destination.name, loc.position)
             return False
 
     fill_elapsed = time.monotonic() - fill_start
