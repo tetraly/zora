@@ -471,6 +471,30 @@ class GameValidator:
         if wall == WallType.SHUTTER_DOOR:
             if room.room_action == RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
                 return self.inventory.has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
+            if room.room_action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS and not room.movable_block:
+                logger.warning(
+                    "L%d R%s: PUSHING_BLOCK_OPENS_SHUTTERS but no movable block — "
+                    "shutter doors can never open",
+                    level_num, f"{room_num:#04x}",
+                )
+                return False
+            enemy = room.enemy_spec.enemy
+            if (enemy in (
+                        Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3,
+                        Enemy.OLD_MAN_4, Enemy.OLD_MAN_5, Enemy.OLD_MAN_6,
+                        Enemy.BOMB_UPGRADER,
+                    )
+                    and room.room_action in (
+                        RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS,
+                        RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM,
+                        RoomAction.DEFEATING_NPC_OPENS_SHUTTERS,
+                    )):
+                logger.warning(
+                    "L%d R%s: NPC %s with shutter doors and room_action %s — "
+                    "shutter doors can never open",
+                    level_num, f"{room_num:#04x}", enemy.name, room.room_action.name,
+                )
+                return False
             if not self._can_defeat_enemies(room):
                 return False
 

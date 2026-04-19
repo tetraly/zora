@@ -1164,8 +1164,15 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
                 RoomAction.KILLING_RINGLEADER_KILLS_ENEMIES_OPENS_SHUTTERS,
             ):
                 # Room has shutter doors but room_action doesn't open them.
-                # Change to KILLING_ENEMIES_OPENS_SHUTTERS so shutters work.
-                room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+                # Convert shutter walls to solid walls (matching C# behavior).
+                if walls.south == WallType.SHUTTER_DOOR:
+                    walls.south = WallType.SOLID_WALL
+                if walls.north == WallType.SHUTTER_DOOR:
+                    walls.north = WallType.SOLID_WALL
+                if walls.east == WallType.SHUTTER_DOOR:
+                    walls.east = WallType.SOLID_WALL
+                if walls.west == WallType.SHUTTER_DOOR:
+                    walls.west = WallType.SOLID_WALL
 
         # ── Block 2: PUSHING_BLOCK_OPENS_SHUTTERS without shutters ───
         # If room_action says push-block opens shutters but there are no
@@ -1181,12 +1188,14 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
         # For rooms with this action whose enemy is NOT THE_BEAST: demote
         # room_action to KILLING_ENEMIES_OPENS_SHUTTERS (clear bit 1 of
         # the raw action value: 3 → 1).  If the item is TRIFORCE_OF_POWER,
-        # replace it with MAGICAL_SWORD (and clear dark/boss-cry flags).
+        # clear it to NOTHING (and clear dark/boss-cry flags).
+        # NOTE: The C# original wrote raw byte 0x03 here, which is the
+        # vanilla dungeon nothing sentinel — NOT Item.MAGICAL_SWORD.
         if action == RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
             if room.enemy_spec.enemy != Enemy.THE_BEAST:
                 room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
                 if room.item == Item.TRIFORCE_OF_POWER:
-                    room.item = Item.MAGICAL_SWORD
+                    room.item = Item.NOTHING
                     room.is_dark = False
                     room.boss_cry_1 = False
                     room.boss_cry_2 = False
@@ -1373,7 +1382,7 @@ def _clear_boss_cry_bits(world: GameWorld) -> None:
 
 # Maximum times to retry the full shuffle+fixup sequence for a single level
 # when the result isn't fully connected.
-_MAX_CONNECTIVITY_RETRIES = 200
+_MAX_CONNECTIVITY_RETRIES = 500
 
 
 class _RoomSnapshot:
