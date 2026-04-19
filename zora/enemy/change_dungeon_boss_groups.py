@@ -440,24 +440,24 @@ def change_dungeon_boss_groups(world: GameWorld, rng: Rng) -> None:
     # heads.  No data model properties exist for these yet.
 
     # --- Expand variant bosses ---
-    for group in group_bosses:
+    for boss_list in group_bosses:
         additions: list[Enemy] = []
         replacements: dict[Enemy, Enemy] = {}
 
-        for boss in group:
+        for boss in boss_list:
             if boss in _VARIANT_EXPANSIONS:
                 additions.extend(_VARIANT_EXPANSIONS[boss])
 
         # Special case: GLEEOK_1 gets replaced by GLEEOK_2 in the pool.
-        if Enemy.GLEEOK_1 in group:
+        if Enemy.GLEEOK_1 in boss_list:
             replacements[Enemy.GLEEOK_1] = Enemy.GLEEOK_2
 
         # Apply replacements.
-        for idx, boss in enumerate(group):
+        for idx, boss in enumerate(boss_list):
             if boss in replacements:
-                group[idx] = replacements[boss]
+                boss_list[idx] = replacements[boss]
 
-        group.extend(additions)
+        boss_list.extend(additions)
 
     # --- Merge shared group (3) into all three main groups ---
     if group_bosses[3]:

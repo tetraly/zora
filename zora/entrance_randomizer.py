@@ -526,31 +526,32 @@ def randomize_entrances(game_world: GameWorld, config: GameConfig, rng: Rng) -> 
     if config.randomize_dead_woods:
         dead_woods_screens = _screens_with_destination(game_world, Destination.DEAD_WOODS_HINT)
 
-    shuffle_kwargs = dict(
-        shuffle=config.shuffle_non_dungeon_caves,
-        include_bracelet_caves=config.include_any_road_caves,
-        include_wood_sword_cave=config.include_wood_sword_cave,
-        shuffle_armos=config.shuffle_armos_location,
-        add_armos_item=config.shuffle_armos_item,
-        mirror_ow=False,
-        just_dungeons=config.shuffle_dungeon_entrances and not config.shuffle_non_dungeon_caves,
-        shuffle_dungeons=config.shuffle_dungeon_entrances,
-        overworld_block_needed=config.shuffle_non_dungeon_caves,
-        raft_locations=raft_locations,
-        bracelet_locations=bracelet_locations,
-        lost_hills_screens=lost_hills_screens,
-        dead_woods_screens=dead_woods_screens,
-    )
-
     # The shuffle is randomized and may produce an arrangement that fails the
     # overworld block check. Retry up to 50 times with fresh RNG draws before
     # giving up. Each failed attempt already wrote back to game_world, but the
     # next attempt rebuilds working lists from the (now-shuffled) state and
     # re-shuffles, so stale state doesn't accumulate.
+    shuffle_non_dungeon = config.shuffle_non_dungeon_caves
+    just_dungeons = config.shuffle_dungeon_entrances and not shuffle_non_dungeon
     max_attempts = 50
     result = None
     for _ in range(max_attempts):
-        result = shuffle_caves(game_world, rng, **shuffle_kwargs)
+        result = shuffle_caves(
+            game_world, rng,
+            shuffle=shuffle_non_dungeon,
+            include_bracelet_caves=config.include_any_road_caves,
+            include_wood_sword_cave=config.include_wood_sword_cave,
+            shuffle_armos=config.shuffle_armos_location,
+            add_armos_item=config.shuffle_armos_item,
+            mirror_ow=False,
+            just_dungeons=just_dungeons,
+            shuffle_dungeons=config.shuffle_dungeon_entrances,
+            overworld_block_needed=shuffle_non_dungeon,
+            raft_locations=raft_locations,
+            bracelet_locations=bracelet_locations,
+            lost_hills_screens=lost_hills_screens,
+            dead_woods_screens=dead_woods_screens,
+        )
         if result is not None:
             break
     if result is None:

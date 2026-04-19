@@ -525,7 +525,7 @@ class TestSpriteSetConsistency(unittest.TestCase):
         appear in a _VANILLA_ENEMY_GROUPS set (i.e. its sprites really do
         live in the enemy sprite banks)."""
         from zora.enemy.change_dungeon_enemy_groups import _VANILLA_ENEMY_GROUPS
-        all_enemy_group_members = set()
+        all_enemy_group_members: set[Enemy] = set()
         for members in _VANILLA_ENEMY_GROUPS.values():
             all_enemy_group_members.update(members)
 

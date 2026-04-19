@@ -5,9 +5,10 @@ to coordinates that the game_validator considers valid for that room type.
 This catches the bug where T_ROOM was assigned POSITION_C (X=0xC, Y=0x9),
 which lands outside the T-room's walkable zones.
 """
+from collections.abc import Callable
 from pathlib import Path
 
-from zora.data_model import ItemPosition, RoomType
+from zora.data_model import GameWorld, ItemPosition, RoomType
 from zora.dungeon.scramble_dungeon_rooms import (
     _STANDARD_ITEM_POSITION_TABLE,
     _VALID_ITEM_POSITIONS,
@@ -33,7 +34,7 @@ def _unpack(pos: ItemPosition) -> tuple[int, int]:
 # -- Static check: every position in _VALID_ITEM_POSITIONS must land in a
 #    zone that the validator recognises for that room type. --
 
-_ZONE_CHECKS: dict[RoomType, callable] = {
+_ZONE_CHECKS: dict[RoomType, Callable[[int, int], bool]] = {
     RoomType.HORIZONTAL_CHUTE_ROOM: lambda x, y: (
         y in (0x6, 0x7) or y == 0x9 or y in (0xB, 0xC)
     ),
@@ -66,7 +67,7 @@ def test_t_room_excludes_position_c():
     assert ItemPosition.POSITION_C not in valid
 
 
-def _standardize_and_reassign(gw: object, rng: SeededRng) -> None:
+def _standardize_and_reassign(gw: GameWorld, rng: SeededRng) -> None:
     """Replicate the orchestrator's post-shuffle/scramble step."""
     for level in gw.levels:
         level.item_position_table = list(_STANDARD_ITEM_POSITION_TABLE)
