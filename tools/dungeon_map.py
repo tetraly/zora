@@ -5,7 +5,11 @@ traversal annotations from a GameValidator (visited/collected/stuck status).
 """
 from __future__ import annotations
 
+import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from zora.data_model import Item, Level, Room, RoomType, WallType
 
