@@ -142,7 +142,7 @@ _VALID_ITEM_POSITIONS: dict[RoomType, list[ItemPosition]] = {
     RoomType.ENTRANCE_ROOM:         [ItemPosition.POSITION_A],
     RoomType.SINGLE_BLOCK_ROOM:     [ItemPosition.POSITION_D, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
     RoomType.TWO_FIREBALL_ROOM:     [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
-    RoomType.FOUR_FIREBALL_ROOM:    [ItemPosition.POSITION_A, ItemPosition.POSITION_D],
+    RoomType.FOUR_FIREBALL_ROOM:    [ItemPosition.POSITION_A, ItemPosition.POSITION_C],
     RoomType.DESERT_ROOM:           [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.BLACK_ROOM:            [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.ZELDA_ROOM:            [ItemPosition.POSITION_A],
