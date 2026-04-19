@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import signal
 import sys
 import time
 from pathlib import Path
@@ -37,6 +38,15 @@ bp = Blueprint("api", __name__)
 
 VERSION = __version__
 SLOW_REQUEST_THRESHOLD_S = 3.0
+GENERATION_TIMEOUT_S = 50
+
+
+class _GenerationTimeout(Exception):
+    pass
+
+
+def _timeout_handler(signum: int, frame: Any) -> None:
+    raise _GenerationTimeout()
 
 
 # ---------------------------------------------------------------------------
@@ -184,18 +194,33 @@ def generate() -> Any:
         )
 
     # 8 & 9. Run randomizer and generate patch
+    old_handler = signal.getsignal(signal.SIGALRM)
     try:
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(GENERATION_TIMEOUT_S)
         patch_bytes, hash_code, spoiler_log, spoiler_data = generate_game(
             resolved_flags, seed, flag_string=flag_string,
             rom_version=rom_version, cosmetic_flags=cosmetic_flags,
         )
+        signal.alarm(0)
+    except _GenerationTimeout:
+        log.warning("Generation timed out after %ds: seed=%s flags=%s",
+                    GENERATION_TIMEOUT_S, seed, flag_string)
+        return _err(
+            "generation_timeout",
+            "Seed generation took too long. Please try a different seed.",
+            503,
+        )
     except RuntimeError:
+        signal.alarm(0)
         log.exception("Randomizer failed for seed=%s flags=%s", seed, flag_string)
         return _err(
             "generation_failed",
             "Randomizer could not produce a valid seed within iteration limit",
             500,
         )
+    finally:
+        signal.signal(signal.SIGALRM, old_handler)
 
     elapsed = time.monotonic() - t_start
     if elapsed > SLOW_REQUEST_THRESHOLD_S:
@@ -291,20 +316,36 @@ def generate_rerandomize() -> Any:
         )
 
     # 6. Run rerandomizer (validates ROM magic internally)
+    old_handler = signal.getsignal(signal.SIGALRM)
     try:
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(GENERATION_TIMEOUT_S)
         patch_bytes, hash_code, spoiler_log, spoiler_data = generate_game_from_rom(
             rom_bytes, resolved_flags, seed, flag_string=flag_string,
             rom_version=rom_version, cosmetic_flags=cosmetic_flags_rr,
         )
+        signal.alarm(0)
+    except _GenerationTimeout:
+        log.warning("Rerandomize timed out after %ds: seed=%s flags=%s",
+                    GENERATION_TIMEOUT_S, seed, flag_string)
+        return _err(
+            "generation_timeout",
+            "Seed generation took too long. Please try a different seed.",
+            503,
+        )
     except ValueError as exc:
+        signal.alarm(0)
         return _err("invalid_rom", str(exc), 400)
     except RuntimeError:
+        signal.alarm(0)
         log.exception("Rerandomizer failed for seed=%s flags=%s", seed, flag_string)
         return _err(
             "generation_failed",
             "Randomizer could not produce a valid seed within iteration limit",
             500,
         )
+    finally:
+        signal.signal(signal.SIGALRM, old_handler)
 
     elapsed = time.monotonic() - t_start
     if elapsed > SLOW_REQUEST_THRESHOLD_S:

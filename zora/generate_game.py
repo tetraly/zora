@@ -5,8 +5,12 @@ Called by both the API route and the CLI. Accepts resolved flags and a seed,
 runs assumed fill, serializes to a Patch, and returns IPS patch bytes.
 """
 
+import logging
+import time
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from flags.flags_generated import CosmeticFlags, Flags
 from zora.cave_randomizer import randomize_caves
@@ -110,7 +114,11 @@ def generate_game(
         game_world = parse_game_world(bins)
         try:
             for step in _RANDOMIZERS:
+                t0 = time.monotonic()
                 step(game_world, config, rng)
+                elapsed = time.monotonic() - t0
+                if elapsed > 0.5:
+                    logger.info("  %s: %.2fs", step.__name__, elapsed)
             break
         except RuntimeError:
             if attempt == max_pipeline_attempts - 1:

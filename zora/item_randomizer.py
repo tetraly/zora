@@ -15,8 +15,12 @@ The algorithm:
   4. Run is_seed_valid() as a final sanity check.
 """
 
+import logging
+import time
 from collections import defaultdict
 from dataclasses import dataclass
+
+logger = logging.getLogger(__name__)
 
 from zora.data_model import (
     Destination,
@@ -692,8 +696,13 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
     # placement has occurred). The cache is cleared immediately after each
     # _place_item call so stale entries never survive into the next iteration.
     _reachable_without_cache: dict[tuple[Item, ...], set[Location]] = {}
+    fill_start = time.monotonic()
+    items_placed = 0
+    traversal_count = 0
 
     while item_pool:
+        iter_start = time.monotonic()
+
         # Build assumed inventory: everything still unplaced
         assumed = Inventory()
         for item in item_pool:
@@ -707,6 +716,7 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
 
         # Find all reachable empty locations under assumed inventory
         reachable = validator.get_reachable_locations(assumed_inventory=assumed)
+        traversal_count += 1
         reachable_set = set(reachable)
 
         empty_reachable = [
@@ -729,6 +739,7 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
         candidates = list(item_pool)
         rng.shuffle(candidates)
 
+        cache_misses = 0
         item_valid_locs: list[tuple[Item, list[Location]]] = []
         for item in candidates:
             remaining_for_check = list(item_pool)
@@ -745,6 +756,8 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
                         assumed_without.levels_with_triforce_obtained.append(lvl)
                 rw = validator.get_reachable_locations(assumed_inventory=assumed_without)
                 _reachable_without_cache[cache_key] = set(rw)
+                cache_misses += 1
+                traversal_count += 1
 
             reachable_without_set = _reachable_without_cache[cache_key]
 
@@ -769,10 +782,29 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
             item_pool.remove(item)
             filled.add(loc)
             placed = True
+            items_placed += 1
+            iter_elapsed = time.monotonic() - iter_start
+            if iter_elapsed > 0.5:
+                logger.info(
+                    "  assumed_fill iter %d: placed %s, %.2fs "
+                    "(%d candidates, %d cache misses, %d total traversals)",
+                    items_placed, item.name, iter_elapsed,
+                    len(candidates), cache_misses, traversal_count,
+                )
             break
 
         if not placed:
+            logger.info(
+                "  assumed_fill failed after %d items, %.2fs, %d traversals",
+                items_placed, time.monotonic() - fill_start, traversal_count,
+            )
             return False
+
+    fill_elapsed = time.monotonic() - fill_start
+    logger.info(
+        "  assumed_fill complete: %d items in %.2fs, %d traversals",
+        items_placed, fill_elapsed, traversal_count,
+    )
 
     # All items placed — verify nothing was left behind
     assert len(item_pool) == 0, f"item_pool not empty after fill: {[i.name for i in item_pool]}"
