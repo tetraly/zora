@@ -395,20 +395,14 @@ def scramble_dungeon_rooms(
     for room, content in zip(pool, contents):
         content.apply_to(room)
 
-    # --- Phase 4: Assign valid item positions for each room's new room type ---
-
-    _assign_valid_item_positions(pool, rng)
-
-    # --- Phase 5: Standardize every level's item_position_table ---
-
-    for level in world.levels:
-        level.item_position_table = list(_STANDARD_ITEM_POSITION_TABLE)
-
-    # --- Phase 6: Shuffle item drops (optional) ---
+    # --- Phase 4: Shuffle item drops (optional) ---
 
     if shuffle_drops:
         _shuffle_drops(pool, rng)
-        _assign_valid_item_positions(pool, rng)
+
+    # NOTE: item_position_table standardization and valid position
+    # reassignment is handled by the orchestrator (dungeon.py) after
+    # all shuffle/scramble steps complete.
 
     return True
 

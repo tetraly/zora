@@ -12,7 +12,11 @@ Call order:
 from __future__ import annotations
 
 from zora.data_model import GameWorld
-from zora.dungeon.scramble_dungeon_rooms import scramble_dungeon_rooms
+from zora.dungeon.scramble_dungeon_rooms import (
+    _STANDARD_ITEM_POSITION_TABLE,
+    _assign_valid_item_positions,
+    scramble_dungeon_rooms,
+)
 from zora.dungeon.shuffle_dungeon_rooms import shuffle_dungeon_rooms
 from zora.game_config import GameConfig
 from zora.rng import Rng
@@ -45,3 +49,9 @@ def randomize_dungeons(
             shuffle_drops=True,
         ):
             raise RuntimeError("Dungeon room scramble failed")
+
+    if config.shuffle_dungeon_rooms or config.scramble_dungeon_rooms:
+        for level in game_world.levels:
+            level.item_position_table = list(_STANDARD_ITEM_POSITION_TABLE)
+        all_rooms = [room for level in game_world.levels for room in level.rooms]
+        _assign_valid_item_positions(all_rooms, rng)
