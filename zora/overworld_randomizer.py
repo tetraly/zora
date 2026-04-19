@@ -22,7 +22,7 @@ _ALL_SCREENS: list[int] = [
 ]
 
 # Screens always excluded regardless of mode.
-_BASE_EXCLUDE: list[int] = [0x0E, 0x62, 0x23, 0x2F, 0x45]
+_BASE_EXCLUDE: list[int] = [0x0E, 0x62, 0x23, 0x2F, 0x45, 0x39, 0x43]
 
 # Per-screen column widths (128 entries, index = screen number).
 # Used to calculate start_position_y = screen_widths[screen] * 16 + 13.
