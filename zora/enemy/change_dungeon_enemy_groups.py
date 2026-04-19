@@ -39,7 +39,9 @@ _MAX_ROOM_RETRIES = 1000
 
 
 # ---------------------------------------------------------------------------
-# Enemy definitions: the 12 "safe" enemies that can be shuffled between groups.
+# Enemy definitions: the "safe" enemies that can be shuffled between groups.
+# The 12 original dungeon enemies plus 3 overworld enemies (Lynel, Moblin,
+# Tektite) that can now be shuffled bidirectionally between dungeons and OW.
 # ---------------------------------------------------------------------------
 
 # Number of 16-byte sprite tile columns each enemy requires.
@@ -58,6 +60,9 @@ _ENEMY_TILE_COLUMNS: dict[Enemy, int] = {
     Enemy.STALFOS:        4,
     Enemy.GIBDO:          4,
     Enemy.RED_LANMOLA:    4,
+    Enemy.BLUE_LYNEL:    16,
+    Enemy.BLUE_MOBLIN:   16,
+    Enemy.BLUE_TEKTITE:   4,
 }
 
 # Vanilla enemy groups — which enemies originally belong to each sprite set.
@@ -189,6 +194,9 @@ _VANILLA_SPRITE_SET: dict[Enemy, EnemySpriteSet] = {
     Enemy.LIKE_LIKE:      EnemySpriteSet.C,
     Enemy.RED_WIZZROBE:   EnemySpriteSet.C,
     Enemy.RED_LANMOLA:    EnemySpriteSet.C,
+    Enemy.BLUE_LYNEL:     EnemySpriteSet.OW,
+    Enemy.BLUE_MOBLIN:    EnemySpriteSet.OW,
+    Enemy.BLUE_TEKTITE:   EnemySpriteSet.OW,
 }
 
 # Maps EnemySpriteSet → SpriteData attribute name.
@@ -260,18 +268,37 @@ def _compute_sprite_size(enemy: Enemy) -> int:
 
 # Pre-computed byte offset and size of each enemy's tile data within its
 # vanilla sprite set.
-_SPRITE_OFFSET: dict[Enemy, int] = {e: _compute_sprite_offset(e) for e in _VANILLA_SPRITE_SET}
-_SPRITE_SIZE: dict[Enemy, int] = {e: _compute_sprite_size(e) for e in _VANILLA_SPRITE_SET}
+_SPRITE_OFFSET: dict[Enemy, int] = {
+    e: _compute_sprite_offset(e) for e in _VANILLA_SPRITE_SET if e in _STAT_OFFSETS
+}
+_SPRITE_SIZE: dict[Enemy, int] = {
+    e: _compute_sprite_size(e) for e in _VANILLA_SPRITE_SET
+}
+
+# OW enemies: byte offsets within ow_sprites (including the 0x20 prefix).
+# Column N in the OW bank → byte offset = _OW_BANK_PREFIX + (N - _COL_START) * 16.
+_OW_ENEMY_FIRST_COL: dict[Enemy, int] = {
+    Enemy.BLUE_LYNEL:    206,
+    Enemy.BLUE_MOBLIN:   240,
+    Enemy.BLUE_TEKTITE:  202,
+}
+for _ow_e, _ow_col in _OW_ENEMY_FIRST_COL.items():
+    _SPRITE_OFFSET[_ow_e] = _OW_BANK_PREFIX + (_ow_col - _COL_START) * 16
 
 # Pre-computed vanilla engine column range for each enemy.
-# Column = _COL_START + (byte_offset_in_bank / 16).
-_VANILLA_COLUMNS: dict[Enemy, list[int]] = {
-    e: list(range(
-        _COL_START + _SPRITE_OFFSET[e] // 16,
-        _COL_START + _SPRITE_OFFSET[e] // 16 + _ENEMY_TILE_COLUMNS[e],
-    ))
-    for e in _VANILLA_SPRITE_SET
-}
+# Dungeon enemies: column = _COL_START + byte_offset / 16.
+# OW enemies: column derived from their known first column.
+_VANILLA_COLUMNS: dict[Enemy, list[int]] = {}
+for _e in _VANILLA_SPRITE_SET:
+    if _e in _OW_ENEMY_FIRST_COL:
+        _first = _OW_ENEMY_FIRST_COL[_e]
+        _VANILLA_COLUMNS[_e] = list(range(_first, _first + _ENEMY_TILE_COLUMNS[_e]))
+    else:
+        _off = _SPRITE_OFFSET[_e]
+        _VANILLA_COLUMNS[_e] = list(range(
+            _COL_START + _off // 16,
+            _COL_START + _off // 16 + _ENEMY_TILE_COLUMNS[_e],
+        ))
 
 # Number of tile frame entries per enemy (enemyMinDims in C#).
 # This is the count of entries in tile_frames for each safe enemy.
@@ -288,6 +315,9 @@ _TILE_FRAME_COUNT: dict[Enemy, int] = {
     Enemy.STALFOS:        1,
     Enemy.GIBDO:          1,
     Enemy.RED_LANMOLA:    0,
+    Enemy.BLUE_LYNEL:     4,
+    Enemy.BLUE_MOBLIN:    4,
+    Enemy.BLUE_TEKTITE:   2,
 }
 
 # Wallmaster has an additional 32-byte sprite block that must be written
@@ -1011,7 +1041,10 @@ def change_dungeon_enemy_groups(
         force_wizzrobes_to_9: If True, force RED_WIZZROBE into group C.
     """
     # --- Build the sorted enemy list ---
-    safe_enemies = list(_ENEMY_TILE_COLUMNS.keys())
+    safe_enemies = [
+        e for e in _ENEMY_TILE_COLUMNS
+        if overworld or _VANILLA_SPRITE_SET.get(e) != EnemySpriteSet.OW
+    ]
     sorted_enemies = _sort_enemies_by_tile_columns(safe_enemies, rng)
 
     # --- Pick start enemy ---

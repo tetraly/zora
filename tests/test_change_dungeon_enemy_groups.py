@@ -549,5 +549,139 @@ class TestChangeDungeonEnemyGroups(unittest.TestCase):
                 )
 
 
+    # ------------------------------------------------------------------
+    # Bidirectional OW enemy shuffling
+    # ------------------------------------------------------------------
+
+    _OW_PRIMARIES: frozenset[Enemy] = frozenset({
+        Enemy.BLUE_LYNEL, Enemy.BLUE_MOBLIN, Enemy.BLUE_TEKTITE,
+    })
+    _OW_COMPANIONS: frozenset[Enemy] = frozenset({
+        Enemy.RED_LYNEL, Enemy.RED_MOBLIN, Enemy.RED_TEKTITE,
+    })
+    _OW_ALL: frozenset[Enemy] = _OW_PRIMARIES | _OW_COMPANIONS
+
+    def test_ow_enemies_can_appear_in_dungeon_groups(self):
+        """With overworld=True, at least one OW enemy should end up in a
+        dungeon group (A/B/C) across several seeds."""
+        found_in_dungeon = False
+        for seed in [1, 42, 100, 999, 12345, 99999]:
+            gw = _load_game_world()
+            change_dungeon_enemy_groups(gw, SeededRng(seed), overworld=True)
+            for ss in (EnemySpriteSet.A, EnemySpriteSet.B, EnemySpriteSet.C):
+                pool = gw.enemies.cave_groups.get(ss, [])
+                if self._OW_ALL & set(pool):
+                    found_in_dungeon = True
+                    break
+            if found_in_dungeon:
+                break
+        self.assertTrue(
+            found_in_dungeon,
+            "No OW enemy appeared in any dungeon group across 6 seeds",
+        )
+
+    def test_ow_enemies_excluded_without_overworld_flag(self):
+        """With overworld=False, OW enemies must not appear in any group."""
+        for seed in [1, 42, 100, 999]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                change_dungeon_enemy_groups(gw, SeededRng(seed), overworld=False)
+                for ss, pool in gw.enemies.cave_groups.items():
+                    violators = self._OW_ALL & set(pool)
+                    self.assertFalse(
+                        violators,
+                        f"Seed {seed}: OW enemies {violators} in group "
+                        f"{ss.name} without overworld flag",
+                    )
+
+    def test_ow_enemy_companion_expansion(self):
+        """When an OW primary is in a group, its red companion must be too."""
+        for seed in [1, 42, 100, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                change_dungeon_enemy_groups(gw, SeededRng(seed), overworld=True)
+                for ss, pool in gw.enemies.cave_groups.items():
+                    pool_set = set(pool)
+                    for primary, companion in _COMPANION_EXPANSIONS.items():
+                        if primary in self._OW_PRIMARIES and primary in pool_set:
+                            self.assertIn(
+                                companion, pool_set,
+                                f"Seed {seed}, group {ss.name}: "
+                                f"{primary.name} present but companion "
+                                f"{companion.name} missing",
+                            )
+
+    def test_ow_enemy_tile_frames_remapped(self):
+        """OW enemies assigned to dungeon groups must have tile_frames
+        remapped to the dungeon bank range (158-191)."""
+        for seed in [42, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw = _load_game_world()
+                change_dungeon_enemy_groups(gw, SeededRng(seed), overworld=True)
+                for ss in (EnemySpriteSet.A, EnemySpriteSet.B, EnemySpriteSet.C):
+                    pool = gw.enemies.cave_groups.get(ss, [])
+                    for enemy in pool:
+                        if enemy not in self._OW_ALL:
+                            continue
+                        frames = gw.enemies.tile_frames.get(enemy)
+                        if not frames:
+                            continue
+                        for i, slot in enumerate(frames):
+                            self.assertGreaterEqual(
+                                slot, 158,
+                                f"Seed {seed}, {enemy.name} in {ss.name}: "
+                                f"frame[{i}]={slot} below bank range",
+                            )
+                            self.assertLess(
+                                slot, 192,
+                                f"Seed {seed}, {enemy.name} in {ss.name}: "
+                                f"frame[{i}]={slot} above dungeon bank range "
+                                f"(still in OW range?)",
+                            )
+
+    def test_ow_enemy_sprite_data_in_dungeon_bank(self):
+        """When an OW enemy is assigned to a dungeon group, its sprite tile
+        data must be present in that group's bank at the tile_frame slots."""
+        for seed in [42, 999, 12345]:
+            with self.subTest(seed=seed):
+                gw_vanilla = _load_game_world()
+                gw = _load_game_world()
+                change_dungeon_enemy_groups(gw, SeededRng(seed), overworld=True)
+
+                for ss in (EnemySpriteSet.A, EnemySpriteSet.B, EnemySpriteSet.C):
+                    bank_attr = _GROUP_SPRITE_ATTR.get(ss)
+                    if bank_attr is None:
+                        continue
+                    bank = getattr(gw.sprites, bank_attr)
+                    pool = gw.enemies.cave_groups.get(ss, [])
+
+                    for enemy in pool:
+                        if enemy not in self._OW_PRIMARIES:
+                            continue
+                        frames = gw.enemies.tile_frames.get(enemy)
+                        if not frames:
+                            continue
+
+                        src_data = _read_enemy_tiles(gw_vanilla.sprites, enemy)
+                        src_tiles = {
+                            tuple(src_data[t * 16:(t + 1) * 16])
+                            for t in range(len(src_data) // 16)
+                        }
+
+                        for fi, slot in enumerate(frames):
+                            if slot < 158 or slot >= 256:
+                                continue
+                            bank_offset = (slot - 158) * 16
+                            if bank_offset + 16 > len(bank):
+                                continue
+                            bank_tile = tuple(bank[bank_offset:bank_offset + 16])
+                            self.assertIn(
+                                bank_tile, src_tiles,
+                                f"Seed {seed}, {enemy.name} in {ss.name}: "
+                                f"frame[{fi}] slot {slot} data doesn't match "
+                                f"any source tile",
+                            )
+
+
 if __name__ == '__main__':
     unittest.main()
