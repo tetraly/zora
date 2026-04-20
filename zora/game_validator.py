@@ -489,7 +489,7 @@ class GameValidator:
                         RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM,
                         RoomAction.DEFEATING_NPC_OPENS_SHUTTERS,
                     )):
-                logger.warning(
+                logger.debug(
                     "L%d R%s: NPC %s with shutter doors and room_action %s — "
                     "shutter doors can never open",
                     level_num, f"{room_num:#04x}", enemy.name, room.room_action.name,
