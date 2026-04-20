@@ -1270,6 +1270,22 @@ flags:
     enabled: true
     phase: 2
 
+  - id: dungeon_shapes
+    type: tristate
+    bits: 2
+    bit_offset: 154
+    label: "Randomize Dungeon Shapes"
+    description: >
+      Generates entirely new dungeon layouts using the level generator.
+      Each dungeon gets a new shape, room arrangement, boss placement,
+      enemy placement, and item placement. The seed controls the output
+      deterministically.
+    group: "Dungeons"
+    display_order: 12
+    default: "off"
+    enabled: true
+    phase: 2
+
   # ---------------------------------------------------------------------------
   # GROUP: Cosmetic
   # Visual and control feel settings that do not affect logic or item placement

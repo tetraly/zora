@@ -440,17 +440,22 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
 # Mixed enemy group parsing
 # ---------------------------------------------------------------------------
 
-def _parse_mixed_enemy_groups(bins: RawBinFiles) -> dict[int, EnemySpec]:
+def _parse_mixed_enemy_groups_from_bytes(
+    mixed_enemy_data: bytes,
+    mixed_enemy_pointers: bytes,
+) -> dict[int, EnemySpec]:
     """Returns a dict mapping enemy code (0x62-0x7F) → EnemySpec."""
     groups: dict[int, EnemySpec] = {}
-    ptr_data = bins.mixed_enemy_pointers
-    cpu_addrs = [ptr_data[i*2] | (ptr_data[i*2+1] << 8) for i in range(POINTER_COUNT)]
+    cpu_addrs = [
+        mixed_enemy_pointers[i*2] | (mixed_enemy_pointers[i*2+1] << 8)
+        for i in range(POINTER_COUNT)
+    ]
     min_cpu = min(cpu_addrs)
     for i in range(POINTER_COUNT):
         code = FIRST_MIXED_GROUP_CODE + i
         cpu_addr = cpu_addrs[i]
         data_offset = cpu_addr - min_cpu
-        member_bytes = bins.mixed_enemy_data[data_offset:data_offset + 8]
+        member_bytes = mixed_enemy_data[data_offset:data_offset + 8]
         members = [Enemy(b) for b in member_bytes]
         groups[code] = EnemySpec(
             enemy=Enemy(code),
@@ -458,6 +463,12 @@ def _parse_mixed_enemy_groups(bins: RawBinFiles) -> dict[int, EnemySpec]:
             group_members=members,
         )
     return groups
+
+
+def _parse_mixed_enemy_groups(bins: RawBinFiles) -> dict[int, EnemySpec]:
+    return _parse_mixed_enemy_groups_from_bytes(
+        bins.mixed_enemy_data, bins.mixed_enemy_pointers,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -593,14 +604,22 @@ def _read_cpu_addr(data: bytes, index: int) -> int:
     return read_le16(data, index)
 
 
-def _parse_enemy_sprite_set(bins: RawBinFiles, level_num: int) -> EnemySpriteSet:
-    cpu_addr = _read_cpu_addr(bins.level_sprite_set_pointers, level_num)
+def parse_enemy_sprite_set(pointer_data: bytes, level_num: int) -> EnemySpriteSet:
+    cpu_addr = read_le16(pointer_data, level_num)
     return _CPU_TO_ENEMY_SET.get(cpu_addr, VANILLA_ENEMY_SPRITE_SETS[level_num])
 
 
-def _parse_boss_sprite_set(bins: RawBinFiles, level_num: int) -> BossSpriteSet:
-    cpu_addr = _read_cpu_addr(bins.boss_sprite_set_pointers, level_num)
+def parse_boss_sprite_set(pointer_data: bytes, level_num: int) -> BossSpriteSet:
+    cpu_addr = read_le16(pointer_data, level_num)
     return _CPU_TO_BOSS_SET.get(cpu_addr, VANILLA_BOSS_SPRITE_SETS[level_num])
+
+
+def _parse_enemy_sprite_set(bins: RawBinFiles, level_num: int) -> EnemySpriteSet:
+    return parse_enemy_sprite_set(bins.level_sprite_set_pointers, level_num)
+
+
+def _parse_boss_sprite_set(bins: RawBinFiles, level_num: int) -> BossSpriteSet:
+    return parse_boss_sprite_set(bins.boss_sprite_set_pointers, level_num)
 
 
 def _flood_fill_level_rooms(
@@ -679,14 +698,18 @@ def _flood_fill_level_rooms(
     return visited
 
 
-def _parse_level(
+def _parse_single_level(
     level_num: int,
     grid_data: bytes,
-    level_index: int,
-    bins: RawBinFiles,
+    level_info: bytes,
     mixed_groups: dict[int, EnemySpec],
 ) -> Level:
-    block = _level_info_block(bins, level_num)
+    """Parse one level from raw grid and level_info bytes.
+
+    Returned Level has default sprite sets — caller assigns those separately.
+    """
+    offset = level_num * LEVEL_INFO_SIZE
+    block = level_info[offset:offset + LEVEL_INFO_SIZE]
 
     palette_raw      = bytes(block[0x00:0x24])
     fade_palette_raw = bytes(block[0x7C:0xDC])
@@ -748,8 +771,8 @@ def _parse_level(
         rooms=rooms,
         staircase_rooms=staircase_rooms,
         boss_room=boss_room,
-        enemy_sprite_set=_parse_enemy_sprite_set(bins, level_num),
-        boss_sprite_set=_parse_boss_sprite_set(bins, level_num),
+        enemy_sprite_set=VANILLA_ENEMY_SPRITE_SETS[level_num],
+        boss_sprite_set=VANILLA_BOSS_SPRITE_SETS[level_num],
         start_y=start_y,
         item_position_table=item_position_table,
         map_start=map_start,
@@ -759,6 +782,58 @@ def _parse_level(
         rom_level_num=rom_level_num,
         screen_status_ram_offset=screen_status_ram_offset,
     )
+
+
+def parse_levels_from_bins(
+    level_1_6_data: bytes,
+    level_7_9_data: bytes,
+    level_info: bytes,
+    mixed_enemy_data: bytes,
+    mixed_enemy_pointers: bytes,
+) -> list[Level]:
+    """Parse levels 1-9 from raw binary data.
+
+    Returns levels with default (vanilla) sprite sets. Callers that need
+    non-vanilla sprite sets should assign them after the fact.
+    """
+    mixed_groups = _parse_mixed_enemy_groups_from_bytes(
+        mixed_enemy_data, mixed_enemy_pointers,
+    )
+
+    levels: list[Level] = []
+    for level_num in range(1, 7):
+        levels.append(_parse_single_level(
+            level_num=level_num,
+            grid_data=level_1_6_data,
+            level_info=level_info,
+            mixed_groups=mixed_groups,
+        ))
+    for level_num in range(7, 10):
+        levels.append(_parse_single_level(
+            level_num=level_num,
+            grid_data=level_7_9_data,
+            level_info=level_info,
+            mixed_groups=mixed_groups,
+        ))
+    return levels
+
+
+def _parse_level(
+    level_num: int,
+    grid_data: bytes,
+    level_index: int,
+    bins: RawBinFiles,
+    mixed_groups: dict[int, EnemySpec],
+) -> Level:
+    level = _parse_single_level(
+        level_num=level_num,
+        grid_data=grid_data,
+        level_info=bins.level_info,
+        mixed_groups=mixed_groups,
+    )
+    level.enemy_sprite_set = _parse_enemy_sprite_set(bins, level_num)
+    level.boss_sprite_set = _parse_boss_sprite_set(bins, level_num)
+    return level
 
 
 # ---------------------------------------------------------------------------

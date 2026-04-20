@@ -270,6 +270,7 @@ class Flags:
     # Dungeons
     shuffle_dungeon_rooms: Tristate = Tristate.OFF
     scramble_dungeon_rooms: Tristate = Tristate.OFF
+    dungeon_shapes: Tristate = Tristate.OFF
     randomize_dungeon_palettes: Tristate = Tristate.OFF
 
     # Caves and Shops
@@ -317,7 +318,7 @@ class Flags:
 
     # Schema metadata — used for sync checking, not a flag
     _schema_version: int = field(default=1, init=False, repr=False, compare=False)
-    _schema_hash: str = field(default="b41c4b837add7471", init=False, repr=False, compare=False)
+    _schema_hash: str = field(default="fa86e3f48c623edd", init=False, repr=False, compare=False)
 
 
 # ===========================================================================
@@ -424,6 +425,7 @@ _FLAG_LAYOUT: list[tuple[str, int, int]] = [
     ("change_dungeon_boss_groups", 148, 2),
     ("shuffle_dungeon_rooms", 150, 2),
     ("scramble_dungeon_rooms", 152, 2),
+    ("dungeon_shapes", 154, 2),
 ]
 
 # (flag_id, cosmetic_bit_offset, bit_width) — used by cosmetic encoder/decoder
@@ -1614,6 +1616,23 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
         "enabled": True,
         "phase": 2,
     },
+    "dungeon_shapes": {
+        "id": "dungeon_shapes",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 154,
+        "label": "Randomize Dungeon Shapes",
+        "description": (
+            "Generates entirely new dungeon layouts using the level generator. Each dungeon gets a new shape, room"
+            "arrangement, boss placement, enemy placement, and item placement. The seed controls the output"
+            "deterministically.\n"
+        ),
+        "group": "Dungeons",
+        "display_order": 12,
+        "default": "off",
+        "enabled": True,
+        "phase": 2,
+    },
     "select_swap_mode": {
         "id": "select_swap_mode",
         "type": "enum",
@@ -1958,4 +1977,4 @@ def resolve_random_flags(flags: Flags, rng: Rng) -> Flags:
 # ===========================================================================
 
 SCHEMA_VERSION = 1
-SCHEMA_HASH = "b41c4b837add7471"
+SCHEMA_HASH = "fa86e3f48c623edd"

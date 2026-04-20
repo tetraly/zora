@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import signal
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -194,15 +195,18 @@ def generate() -> Any:
         )
 
     # 8 & 9. Run randomizer and generate patch
-    old_handler = signal.getsignal(signal.SIGALRM)
+    use_alarm = threading.current_thread() is threading.main_thread()
+    old_handler = signal.getsignal(signal.SIGALRM) if use_alarm else None
     try:
-        signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(GENERATION_TIMEOUT_S)
+        if use_alarm:
+            signal.signal(signal.SIGALRM, _timeout_handler)
+            signal.alarm(GENERATION_TIMEOUT_S)
         patch_bytes, hash_code, spoiler_log, spoiler_data = generate_game(
             resolved_flags, seed, flag_string=flag_string,
             rom_version=rom_version, cosmetic_flags=cosmetic_flags,
         )
-        signal.alarm(0)
+        if use_alarm:
+            signal.alarm(0)
     except _GenerationTimeout:
         log.warning("Generation timed out after %ds: seed=%s flags=%s",
                     GENERATION_TIMEOUT_S, seed, flag_string)
@@ -212,7 +216,8 @@ def generate() -> Any:
             503,
         )
     except RuntimeError:
-        signal.alarm(0)
+        if use_alarm:
+            signal.alarm(0)
         log.exception("Randomizer failed for seed=%s flags=%s", seed, flag_string)
         return _err(
             "generation_failed",
@@ -220,7 +225,8 @@ def generate() -> Any:
             500,
         )
     finally:
-        signal.signal(signal.SIGALRM, old_handler)
+        if use_alarm:
+            signal.signal(signal.SIGALRM, old_handler)
 
     elapsed = time.monotonic() - t_start
     if elapsed > SLOW_REQUEST_THRESHOLD_S:
