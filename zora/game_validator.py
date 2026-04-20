@@ -472,7 +472,7 @@ class GameValidator:
             if room.room_action == RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
                 return self.inventory.has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
             if room.room_action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS and not room.movable_block:
-                logger.warning(
+                logger.debug(
                     "L%d R%s: PUSHING_BLOCK_OPENS_SHUTTERS but no movable block — "
                     "shutter doors can never open",
                     level_num, f"{room_num:#04x}",
