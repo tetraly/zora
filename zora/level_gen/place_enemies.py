@@ -156,15 +156,14 @@ def new_level_place_enemies(
             # The original sets the sprite-page bit (hi=128 -> bit 8)
             # on boss/special enemies (6-bit codes 0x32-0x3F).  On the
             # NES this is fine — the engine reads the 6-bit enemy code
-            # and the sprite-page flag independently.  But our parser
-            # combines them into a single enemy_code (6bit + 0x40),
-            # producing codes 0x72-0x7F that aren't in the Enemy enum.
-            # Strip bit 8 for these so the ROM round-trip succeeds.
-            # TODO: Teach the parser to handle sprite-page-flagged
-            # bosses natively instead of stripping here.
+            # and the sprite-page flag independently.  Our parser
+            # combines them into a single enemy_code (6bit + 0x40).
+            # Codes 0x40-0x52 and 0x62-0x7F are valid Enemy enum
+            # values (mixed enemy groups), so we keep bit 8 for those.
+            # Only strip for the 0x53-0x61 gap which has no enum entry.
             if combined & 0x100:
                 code_if_grouped = (combined & 0x3F) + 0x40
-                if code_if_grouped > 0x71 or 0x53 <= code_if_grouped <= 0x61:
+                if 0x53 <= code_if_grouped <= 0x61:
                     combined &= 0xFF
 
             if combined in _EXCLUDED:
