@@ -466,16 +466,56 @@ def _enemy_name(enemy: Enemy) -> str:
     return enemy.name.replace("_", " ").title()
 
 
+_FRAME_TILE_WIDTH: dict[Enemy, int] = {
+    Enemy.ZOL:           2,
+    Enemy.POLS_VOICE:    2,
+    Enemy.WALLMASTER:    2,
+    Enemy.VIRE:          2,
+    Enemy.LIKE_LIKE:     2,
+    Enemy.BLUE_TEKTITE:  2,
+    Enemy.RED_TEKTITE:   2,
+    Enemy.RED_LANMOLA:   2,
+    Enemy.BLUE_LANMOLA:  2,
+}
+
+
+def _frame_width(enemy: Enemy, col: int, sorted_unique: list[int]) -> int:
+    """Return tile width for a specific frame of an enemy."""
+    default = _FRAME_TILE_WIDTH.get(enemy, 4)
+    idx = sorted_unique.index(col) if col in sorted_unique else -1
+    if idx < 0:
+        return default
+    if idx + 1 < len(sorted_unique):
+        gap = sorted_unique[idx + 1] - col
+        if gap in (2, 4):
+            return gap
+    if idx > 0:
+        prev_gap = col - sorted_unique[idx - 1]
+        if prev_gap in (2, 4):
+            return prev_gap
+    return default
+
+
 def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
     """Build the enemies section of spoiler data."""
     enemies = game_world.enemies
     sprites = game_world.sprites
 
     # --- Enemy sprite sets ---
+    dungeon_common = bytes(sprites.dungeon_common)
+    common_tiles = len(dungeon_common) // 16
+
     enemy_sets: list[dict[str, Any]] = []
     for sprite_set in (EnemySpriteSet.A, EnemySpriteSet.B, EnemySpriteSet.C, EnemySpriteSet.OW):
         attr = _ENEMY_SET_ATTR[sprite_set]
         bank_bytes = bytes(getattr(sprites, attr))
+
+        if sprite_set == EnemySpriteSet.OW:
+            col_start = 156
+            frames_bank = bank_bytes
+        else:
+            col_start = 158 - common_tiles
+            frames_bank = dungeon_common + bank_bytes
 
         members = enemies.cave_groups.get(sprite_set) or _VANILLA_ENEMY_GROUPS.get(sprite_set, [])
         member_names = [_enemy_name(e) for e in members]
@@ -484,17 +524,22 @@ def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
         for level in game_world.levels:
             if level.enemy_sprite_set == sprite_set:
                 levels_using.append(level.level_num)
-        if sprite_set == game_world.overworld.enemy_sprite_set:
-            levels_using.append("OW")
         if sprite_set == EnemySpriteSet.OW:
             levels_using.append("OW")
 
         tile_frame_data: list[dict[str, Any]] = []
         for e in members:
             frames = enemies.tile_frames.get(e, [])
+            sorted_unique = sorted(set(frames))
+            seen: set[int] = set()
+            deduped: list[dict[str, int]] = []
+            for col in frames:
+                if col not in seen:
+                    seen.add(col)
+                    deduped.append({"col": col, "width": _frame_width(e, col, sorted_unique)})
             tile_frame_data.append({
                 "enemy": _enemy_name(e),
-                "frames": frames,
+                "frames": deduped,
             })
 
         mixed_in_set: list[dict[str, Any]] = []
@@ -510,6 +555,8 @@ def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
         enemy_sets.append({
             "set": sprite_set.name,
             "bank_b64": base64.b64encode(bank_bytes).decode("ascii"),
+            "frames_bank_b64": base64.b64encode(frames_bank).decode("ascii"),
+            "col_start": col_start,
             "enemies": member_names,
             "tile_frames": tile_frame_data,
             "levels": levels_using,

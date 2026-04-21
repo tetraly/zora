@@ -1667,41 +1667,64 @@ function decodeMetasprite(data, baseTile, numTiles) {
   return rows
 }
 
+function decodeHalfSprite(data, baseTile, numTiles) {
+  function getTile(idx) {
+    if (idx < numTiles) return decodeTile(data, idx * 16)
+    return Array.from({length: 8}, () => Array(8).fill(0))
+  }
+  const top = getTile(baseTile)
+  const bot = getTile(baseTile + 1)
+  const rows = []
+  for (let py = 0; py < 8; py++) rows.push(top[py])
+  for (let py = 0; py < 8; py++) rows.push(bot[py])
+  return rows
+}
+
 function renderEnemyFrames(canvas, b64Data, frames, colStart) {
   const raw = atob(b64Data)
   const data = new Uint8Array(raw.length)
   for (let i = 0; i < raw.length; i++) data[i] = raw.charCodeAt(i)
 
   const numTiles = Math.floor(data.length / 16)
-  const numFrames = frames.length
-  if (numFrames === 0) { canvas.width = 0; canvas.height = 0; return }
+  if (frames.length === 0) { canvas.width = 0; canvas.height = 0; return }
 
   const scale = 3
-  const spritePx = 16 * scale
   const gap = 2
-  canvas.width = numFrames * spritePx + (numFrames + 1) * gap
-  canvas.height = spritePx + 2 * gap
+  const palette = [[0,0,0], [85,85,85], [170,170,170], [255,255,255]]
+
+  let totalWidth = gap
+  for (const f of frames) {
+    const pxW = (f.width <= 2 ? 8 : 16) * scale
+    totalWidth += pxW + gap
+  }
+  canvas.width = totalWidth
+  canvas.height = 16 * scale + 2 * gap
 
   const ctx = canvas.getContext('2d')
   ctx.fillStyle = '#1a1a18'
   ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-  const palette = [[0,0,0], [85,85,85], [170,170,170], [255,255,255]]
+  let x0 = gap
+  for (const f of frames) {
+    const baseTile = f.col - colStart
+    const isWide = f.width > 2
+    const pxW = (isWide ? 16 : 8) * scale
 
-  for (let fi = 0; fi < numFrames; fi++) {
-    const col = frames[fi]
-    const baseTile = col - colStart
-    if (baseTile < 0 || baseTile + 3 >= numTiles) continue
-    const x0 = gap + fi * (spritePx + gap)
-    const y0 = gap
-    const pixels = decodeMetasprite(data, baseTile, numTiles)
+    if (baseTile < 0 || baseTile >= numTiles) { x0 += pxW + gap; continue }
+
+    const pixels = isWide
+      ? decodeMetasprite(data, baseTile, numTiles)
+      : decodeHalfSprite(data, baseTile, numTiles)
+
+    const sprW = isWide ? 16 : 8
     for (let py = 0; py < 16; py++) {
-      for (let px = 0; px < 16; px++) {
+      for (let px = 0; px < sprW; px++) {
         const c = palette[pixels[py][px]]
         ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'
-        ctx.fillRect(x0 + px * scale, y0 + py * scale, scale, scale)
+        ctx.fillRect(x0 + px * scale, gap + py * scale, scale, scale)
       }
     }
+    x0 += pxW + gap
   }
 }
 
@@ -1971,7 +1994,6 @@ function buildEnemiesHTML(data) {
   // --- Enemy sprite sets ---
   h += '<div class="section"><h3>Enemy Sprite Sets</h3>'
   for (const set of enemies.enemy_sets) {
-    const colStart = set.set === 'OW' ? 156 : 158
     h += `<div class="enemy-set-section">`
     h += `<h4>Set ${esc(set.set)}</h4>`
 
@@ -2001,7 +2023,7 @@ function buildEnemiesHTML(data) {
         if (tf.frames.length === 0) continue
         h += `<div class="enemy-frame-row">`
         h += `<span class="enemy-frame-name">${esc(tf.enemy)}</span>`
-        h += `<canvas class="enemy-frame-canvas" data-bank-b64="${set.bank_b64}" data-frames='${JSON.stringify(tf.frames)}' data-col-start="${colStart}"></canvas>`
+        h += `<canvas class="enemy-frame-canvas" data-bank-b64="${set.frames_bank_b64}" data-frames='${JSON.stringify(tf.frames)}' data-col-start="${set.col_start}"></canvas>`
         h += `</div>`
       }
       h += `</div>`
