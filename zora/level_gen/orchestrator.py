@@ -95,30 +95,69 @@ def _fix_pushblock_stair_shutter_doors(level: Level) -> None:
                 room.walls[direction] = WallType.OPEN_DOOR
 
 
+_MAX_SHAPES_ATTEMPTS = 50
+
+
 def generate_dungeon_shapes(
     game_world: GameWorld,
     bins: RawBinFiles,
     config: GameConfig,
     rng: Rng,
 ) -> None:
-    """Replace game_world.levels with freshly generated dungeon layouts."""
+    """Replace game_world.levels with freshly generated dungeon layouts.
+
+    Retries shape generation internally (up to _MAX_SHAPES_ATTEMPTS) when the
+    result has missing rooms or disconnected levels.  This is cheap (~0.04s per
+    attempt) compared to the full item-placement pipeline, so we keep retrying
+    here rather than burning expensive pipeline-level retries.
+    """
     if not config.dungeon_shapes:
         return
 
-    seed = int(rng.random() * 0xFFFFFFFF)
     inputs = _build_input(bins)
-    output = generate_new_levels(seed, inputs)
+
+    for shapes_attempt in range(_MAX_SHAPES_ATTEMPTS):
+        seed = int(rng.random() * 0xFFFFFFFF)
+        output = generate_new_levels(seed, inputs)
+
+        levels = parse_levels_from_bins(
+            level_1_6_data=output.level_1_6_grid,
+            level_7_9_data=output.level_7_9_grid,
+            level_info=output.level_info,
+            mixed_enemy_data=bins.mixed_enemy_data,
+            mixed_enemy_pointers=bins.mixed_enemy_pointers,
+        )
+
+        # Verify room counts match the grid.
+        expected_counts: dict[int, int] = {}
+        for grid in (output.grid_16, output.grid_79):
+            for row in grid:
+                for cell in row:
+                    if cell > 0:
+                        expected_counts[cell] = expected_counts.get(cell, 0) + 1
+
+        valid = True
+        for level in levels:
+            expected = expected_counts.get(level.level_num, 0)
+            if len(level.rooms) < expected:
+                valid = False
+                break
+
+        if valid:
+            for level in levels:
+                if not _is_level_connected(level):
+                    valid = False
+                    break
+
+        if valid:
+            break
+    else:
+        raise RuntimeError(
+            f"Shapes generation failed after {_MAX_SHAPES_ATTEMPTS} attempts"
+        )
 
     enemy_ptrs = output.sprite_table[:_SPRITE_PTR_SIZE]
     boss_ptrs = output.sprite_table[_SPRITE_PTR_SIZE:]
-
-    levels = parse_levels_from_bins(
-        level_1_6_data=output.level_1_6_grid,
-        level_7_9_data=output.level_7_9_grid,
-        level_info=output.level_info,
-        mixed_enemy_data=bins.mixed_enemy_data,
-        mixed_enemy_pointers=bins.mixed_enemy_pointers,
-    )
 
     all_rooms = []
     for level in levels:
@@ -128,31 +167,6 @@ def generate_dungeon_shapes(
         fix_npc_shutter_doors(level)
         _fix_pushblock_stair_shutter_doors(level)
         all_rooms.extend(level.rooms)
-
-    # Verify that parsing produced the expected number of rooms per level.
-    # The grid defines how many cells each level occupies; if the parsed
-    # room count is lower, rooms were lost during the pipeline (e.g. a
-    # level too small to hold a triforce room), making the seed unbeatable.
-    expected_counts: dict[int, int] = {}
-    for grid, base in [(output.grid_16, 1), (output.grid_79, 7)]:
-        for row in grid:
-            for cell in row:
-                if cell > 0:
-                    expected_counts[cell] = expected_counts.get(cell, 0) + 1
-    for level in levels:
-        expected = expected_counts.get(level.level_num, 0)
-        actual = len(level.rooms)
-        if actual < expected:
-            raise RuntimeError(
-                f"Shapes generation: level {level.level_num} has {actual} rooms "
-                f"but grid has {expected} cells"
-            )
-
-    for level in levels:
-        if not _is_level_connected(level):
-            raise RuntimeError(
-                f"Shapes generation produced disconnected level {level.level_num}"
-            )
 
     _assign_valid_item_positions(all_rooms, rng)
 
