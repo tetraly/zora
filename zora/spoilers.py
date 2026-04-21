@@ -9,10 +9,15 @@ from __future__ import annotations
 
 from typing import Any
 
+import base64
+
 from zora.data_model import (
+    BossSpriteSet,
     CaveDefinition,
     Destination,
     DoorRepairCave,
+    Enemy,
+    EnemySpriteSet,
     GameWorld,
     HintCave,
     HintShop,
@@ -403,6 +408,142 @@ def _cave_dict(cave: CaveDefinition) -> dict[str, Any]:
     return base
 
 
+_ENEMY_SET_ATTR: dict[EnemySpriteSet, str] = {
+    EnemySpriteSet.A:  "enemy_set_a",
+    EnemySpriteSet.B:  "enemy_set_b",
+    EnemySpriteSet.C:  "enemy_set_c",
+    EnemySpriteSet.OW: "ow_sprites",
+}
+
+_BOSS_SET_ATTR: dict[BossSpriteSet, str] = {
+    BossSpriteSet.A: "boss_set_a",
+    BossSpriteSet.B: "boss_set_b",
+    BossSpriteSet.C: "boss_set_c",
+}
+
+_VANILLA_ENEMY_GROUPS: dict[EnemySpriteSet, list[Enemy]] = {
+    EnemySpriteSet.A: [
+        Enemy.RED_GORIYA, Enemy.BLUE_GORIYA,
+        Enemy.WALLMASTER, Enemy.ROPE, Enemy.STALFOS,
+    ],
+    EnemySpriteSet.B: [
+        Enemy.RED_DARKNUT, Enemy.BLUE_DARKNUT,
+        Enemy.POLS_VOICE, Enemy.GIBDO,
+    ],
+    EnemySpriteSet.C: [
+        Enemy.VIRE, Enemy.LIKE_LIKE,
+        Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE,
+        Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA,
+    ],
+    EnemySpriteSet.OW: [
+        Enemy.BLUE_LYNEL, Enemy.RED_LYNEL,
+        Enemy.BLUE_MOBLIN, Enemy.RED_MOBLIN,
+        Enemy.BLUE_TEKTITE, Enemy.RED_TEKTITE,
+    ],
+}
+
+_MIXED_GROUP_SPRITE_SET: dict[int, EnemySpriteSet] = {
+    0x6D: EnemySpriteSet.B,
+    0x6E: EnemySpriteSet.A,
+    0x6F: EnemySpriteSet.B,
+    0x70: EnemySpriteSet.B,
+    0x71: EnemySpriteSet.C,
+    0x72: EnemySpriteSet.C,
+    0x73: EnemySpriteSet.C,
+    0x74: EnemySpriteSet.B,
+    0x75: EnemySpriteSet.A,
+    0x76: EnemySpriteSet.C,
+    0x77: EnemySpriteSet.C,
+    0x78: EnemySpriteSet.B,
+    0x79: EnemySpriteSet.A,
+    0x7A: EnemySpriteSet.A,
+    0x7B: EnemySpriteSet.C,
+    0x7C: EnemySpriteSet.C,
+}
+
+
+def _enemy_name(enemy: Enemy) -> str:
+    return enemy.name.replace("_", " ").title()
+
+
+def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
+    """Build the enemies section of spoiler data."""
+    enemies = game_world.enemies
+    sprites = game_world.sprites
+
+    # --- Enemy sprite sets ---
+    enemy_sets: list[dict[str, Any]] = []
+    for sprite_set in (EnemySpriteSet.A, EnemySpriteSet.B, EnemySpriteSet.C, EnemySpriteSet.OW):
+        attr = _ENEMY_SET_ATTR[sprite_set]
+        bank_bytes = bytes(getattr(sprites, attr))
+
+        members = enemies.cave_groups.get(sprite_set) or _VANILLA_ENEMY_GROUPS.get(sprite_set, [])
+        member_names = [_enemy_name(e) for e in members]
+
+        levels_using: list[int | str] = []
+        for level in game_world.levels:
+            if level.enemy_sprite_set == sprite_set:
+                levels_using.append(level.level_num)
+        if sprite_set == game_world.overworld.enemy_sprite_set:
+            levels_using.append("OW")
+        if sprite_set == EnemySpriteSet.OW:
+            levels_using.append("OW")
+
+        tile_frame_data: list[dict[str, Any]] = []
+        for e in members:
+            frames = enemies.tile_frames.get(e, [])
+            tile_frame_data.append({
+                "enemy": _enemy_name(e),
+                "frames": frames,
+            })
+
+        mixed_in_set: list[dict[str, Any]] = []
+        for code, owner_set in sorted(_MIXED_GROUP_SPRITE_SET.items()):
+            if owner_set == sprite_set:
+                group_members = enemies.mixed_groups.get(code, [])
+                mixed_in_set.append({
+                    "group_code": code,
+                    "group_num": code - 0x62 + 1,
+                    "members": [_enemy_name(e) for e in group_members],
+                })
+
+        enemy_sets.append({
+            "set": sprite_set.name,
+            "bank_b64": base64.b64encode(bank_bytes).decode("ascii"),
+            "enemies": member_names,
+            "tile_frames": tile_frame_data,
+            "levels": levels_using,
+            "mixed_groups": mixed_in_set,
+        })
+
+    # --- Boss sprite sets ---
+    boss_sets: list[dict[str, Any]] = []
+    for boss_set in (BossSpriteSet.A, BossSpriteSet.B, BossSpriteSet.C):
+        attr = _BOSS_SET_ATTR[boss_set]
+        bank_bytes = bytes(getattr(sprites, attr))
+
+        levels_using: list[int] = []
+        for level in game_world.levels:
+            if level.boss_sprite_set == boss_set:
+                levels_using.append(level.level_num)
+
+        boss_sets.append({
+            "set": boss_set.name,
+            "bank_b64": base64.b64encode(bank_bytes).decode("ascii"),
+            "levels": levels_using,
+        })
+
+    expansion_b64 = base64.b64encode(
+        bytes(sprites.boss_set_expansion),
+    ).decode("ascii")
+
+    return {
+        "enemy_sets": enemy_sets,
+        "boss_sets": boss_sets,
+        "boss_expansion_b64": expansion_b64,
+    }
+
+
 def build_spoiler_data(
     game_world: GameWorld,
     config: GameConfig,
@@ -513,4 +654,5 @@ def build_spoiler_data(
         "overworld": overworld_data,
         "caves": caves_data,
         "quotes": quotes_data,
+        "enemies": _build_enemy_spoiler_data(game_world),
     }

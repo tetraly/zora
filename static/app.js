@@ -1529,6 +1529,21 @@ h1 { font-size: 18px; margin-bottom: 0.25rem; }
 .hint:last-child { border-bottom: none; }
 .hint-id { color: #606060; font-weight: 600; margin-right: 0.5rem; }
 
+/* Enemies */
+.enemy-set-section { margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.1); }
+.enemy-set-section:last-child { border-bottom: none; }
+.enemy-set-section h4 { font-size: 14px; font-weight: 600; margin-bottom: 0.5rem; color: #1D9E75; }
+.enemy-set-meta { font-size: 11px; color: #a0a09a; margin-bottom: 0.75rem; font-family: 'SFMono-Regular', Consolas, monospace; }
+.enemy-set-members { font-size: 12px; margin-bottom: 1rem; font-family: 'SFMono-Regular', Consolas, monospace; }
+.sprite-bank-section { margin-bottom: 1rem; }
+.sprite-bank-label { font-size: 11px; font-weight: 600; color: #a0a09a; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sprite-bank-canvas { display: block; image-rendering: pixelated; background: #222; border-radius: 4px; }
+.enemy-frames-section { margin-bottom: 1rem; }
+.enemy-frame-row { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.enemy-frame-name { font-size: 11px; font-family: 'SFMono-Regular', Consolas, monospace; color: #f0efe9; min-width: 140px; }
+.enemy-frame-canvas { display: block; image-rendering: pixelated; }
+.mixed-groups-section { margin-top: 1rem; }
+
 @media (max-width: 768px) { .grid3 { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -1541,6 +1556,7 @@ h1 { font-size: 18px; margin-bottom: 0.25rem; }
   <button class="viz-tab active" onclick="switchTab('dungeons')">Dungeons</button>
   <button class="viz-tab" onclick="switchTab('overworld')">Overworld</button>
   <button class="viz-tab" onclick="switchTab('items')">Items</button>
+  <button class="viz-tab" onclick="switchTab('enemies')">Enemies</button>
   <button class="viz-tab" onclick="switchTab('hints')">Hints</button>
 </div>
 `)
@@ -1564,6 +1580,11 @@ h1 { font-size: 18px; margin-bottom: 0.25rem; }
   parts.push(buildItemsHTML(data))
   parts.push('</div>')
 
+  // --- Enemies panel ---
+  parts.push('<div id="tab-enemies" class="viz-panel">')
+  parts.push(buildEnemiesHTML(data))
+  parts.push('</div>')
+
   // --- Hints panel ---
   parts.push('<div id="tab-hints" class="viz-panel">')
   parts.push(buildHintsHTML(data))
@@ -1577,6 +1598,131 @@ function switchTab(id) {
   document.querySelectorAll('.viz-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   event.target.classList.add('active');
+}
+
+function renderSpriteBank(canvas, b64Data, cols) {
+  const raw = atob(b64Data)
+  const data = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) data[i] = raw.charCodeAt(i)
+
+  const numTiles = Math.floor(data.length / 16)
+  const numMeta = Math.floor((numTiles + 3) / 4)
+  const rows = Math.ceil(numMeta / cols)
+  const scale = 2
+  const spritePx = 16 * scale
+  const gap = 2
+
+  canvas.width = cols * spritePx + (cols + 1) * gap
+  canvas.height = rows * spritePx + (rows + 1) * gap
+
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#222'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const palette = [[0,0,0], [85,85,85], [170,170,170], [255,255,255]]
+
+  for (let mi = 0; mi < numMeta; mi++) {
+    const mr = Math.floor(mi / cols)
+    const mc = mi % cols
+    const x0 = gap + mc * (spritePx + gap)
+    const y0 = gap + mr * (spritePx + gap)
+    const baseTile = mi * 4
+    const pixels = decodeMetasprite(data, baseTile, numTiles)
+    for (let py = 0; py < 16; py++) {
+      for (let px = 0; px < 16; px++) {
+        const c = palette[pixels[py][px]]
+        ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'
+        ctx.fillRect(x0 + px * scale, y0 + py * scale, scale, scale)
+      }
+    }
+  }
+}
+
+function decodeTile(data, offset) {
+  const pixels = []
+  for (let row = 0; row < 8; row++) {
+    const lo = data[offset + row]
+    const hi = data[offset + row + 8]
+    const rowPx = []
+    for (let bit = 7; bit >= 0; bit--) {
+      rowPx.push(((hi >> bit) & 1) << 1 | ((lo >> bit) & 1))
+    }
+    pixels.push(rowPx)
+  }
+  return pixels
+}
+
+function decodeMetasprite(data, baseTile, numTiles) {
+  function getTile(idx) {
+    if (idx < numTiles) return decodeTile(data, idx * 16)
+    return Array.from({length: 8}, () => Array(8).fill(0))
+  }
+  const tl = getTile(baseTile)
+  const bl = getTile(baseTile + 1)
+  const tr = getTile(baseTile + 2)
+  const br = getTile(baseTile + 3)
+  const rows = []
+  for (let py = 0; py < 8; py++) rows.push([...tl[py], ...tr[py]])
+  for (let py = 0; py < 8; py++) rows.push([...bl[py], ...br[py]])
+  return rows
+}
+
+function renderEnemyFrames(canvas, b64Data, frames, colStart) {
+  const raw = atob(b64Data)
+  const data = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) data[i] = raw.charCodeAt(i)
+
+  const numTiles = Math.floor(data.length / 16)
+  const numFrames = frames.length
+  if (numFrames === 0) { canvas.width = 0; canvas.height = 0; return }
+
+  const scale = 3
+  const spritePx = 16 * scale
+  const gap = 2
+  canvas.width = numFrames * spritePx + (numFrames + 1) * gap
+  canvas.height = spritePx + 2 * gap
+
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#1a1a18'
+  ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+  const palette = [[0,0,0], [85,85,85], [170,170,170], [255,255,255]]
+
+  for (let fi = 0; fi < numFrames; fi++) {
+    const col = frames[fi]
+    const baseTile = col - colStart
+    if (baseTile < 0 || baseTile + 3 >= numTiles) continue
+    const x0 = gap + fi * (spritePx + gap)
+    const y0 = gap
+    const pixels = decodeMetasprite(data, baseTile, numTiles)
+    for (let py = 0; py < 16; py++) {
+      for (let px = 0; px < 16; px++) {
+        const c = palette[pixels[py][px]]
+        ctx.fillStyle = 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')'
+        ctx.fillRect(x0 + px * scale, y0 + py * scale, scale, scale)
+      }
+    }
+  }
+}
+
+function initEnemyCanvases() {
+  document.querySelectorAll('canvas.sprite-bank-canvas').forEach(canvas => {
+    const b64 = canvas.getAttribute('data-bank-b64')
+    const cols = parseInt(canvas.getAttribute('data-cols') || '8')
+    renderSpriteBank(canvas, b64, cols)
+  })
+  document.querySelectorAll('canvas.enemy-frame-canvas').forEach(canvas => {
+    const b64 = canvas.getAttribute('data-bank-b64')
+    const frames = JSON.parse(canvas.getAttribute('data-frames'))
+    const colStart = parseInt(canvas.getAttribute('data-col-start') || '158')
+    renderEnemyFrames(canvas, b64, frames, colStart)
+  })
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initEnemyCanvases)
+} else {
+  setTimeout(initEnemyCanvases, 0)
 }
 <\/script>
 </body>
@@ -1812,6 +1958,99 @@ function buildItemsHTML(data) {
     }
     h += '</tbody></table></div>'
   }
+
+  return h
+}
+
+function buildEnemiesHTML(data) {
+  if (!data.enemies) return '<div class="section"><p>Enemy data not available.</p></div>'
+
+  const enemies = data.enemies
+  let h = ''
+
+  // --- Enemy sprite sets ---
+  h += '<div class="section"><h3>Enemy Sprite Sets</h3>'
+  for (const set of enemies.enemy_sets) {
+    const colStart = set.set === 'OW' ? 156 : 158
+    h += `<div class="enemy-set-section">`
+    h += `<h4>Set ${esc(set.set)}</h4>`
+
+    h += `<div class="enemy-set-meta">`
+    if (set.levels.length > 0) {
+      h += `<span class="enemy-set-levels">Used by: ${set.levels.map(l => l === 'OW' ? 'Overworld' : 'Level ' + l).join(', ')}</span>`
+    }
+    h += `</div>`
+
+    h += `<div class="enemy-set-members">`
+    if (set.enemies.length > 0) {
+      h += `<strong>Enemies:</strong> ${set.enemies.map(esc).join(', ')}`
+    } else {
+      h += `<em>No enemies assigned</em>`
+    }
+    h += `</div>`
+
+    h += `<div class="sprite-bank-section">`
+    h += `<div class="sprite-bank-label">Raw Sprite Bank</div>`
+    h += `<canvas class="sprite-bank-canvas" data-bank-b64="${set.bank_b64}" data-cols="8"></canvas>`
+    h += `</div>`
+
+    if (set.tile_frames.length > 0) {
+      h += `<div class="enemy-frames-section">`
+      h += `<div class="sprite-bank-label">Enemy Poses</div>`
+      for (const tf of set.tile_frames) {
+        if (tf.frames.length === 0) continue
+        h += `<div class="enemy-frame-row">`
+        h += `<span class="enemy-frame-name">${esc(tf.enemy)}</span>`
+        h += `<canvas class="enemy-frame-canvas" data-bank-b64="${set.bank_b64}" data-frames='${JSON.stringify(tf.frames)}' data-col-start="${colStart}"></canvas>`
+        h += `</div>`
+      }
+      h += `</div>`
+    }
+
+    if (set.mixed_groups.length > 0) {
+      h += `<div class="mixed-groups-section">`
+      h += `<div class="sprite-bank-label">Mixed Enemy Groups</div>`
+      h += `<table class="s-table"><thead><tr><th>#</th><th>Members</th></tr></thead><tbody>`
+      for (const mg of set.mixed_groups) {
+        h += `<tr><td>Group ${mg.group_num}</td><td>${mg.members.map(esc).join(', ')}</td></tr>`
+      }
+      h += `</tbody></table>`
+      h += `</div>`
+    }
+
+    h += `</div>`
+  }
+  h += '</div>'
+
+  // --- Boss sprite sets ---
+  h += '<div class="section"><h3>Boss Sprite Sets</h3>'
+  for (const set of enemies.boss_sets) {
+    h += `<div class="enemy-set-section">`
+    h += `<h4>Boss Set ${esc(set.set)}</h4>`
+
+    h += `<div class="enemy-set-meta">`
+    if (set.levels.length > 0) {
+      h += `<span class="enemy-set-levels">Used by: ${set.levels.map(l => 'Level ' + l).join(', ')}</span>`
+    }
+    h += `</div>`
+
+    h += `<div class="sprite-bank-section">`
+    h += `<div class="sprite-bank-label">Raw Sprite Bank</div>`
+    h += `<canvas class="sprite-bank-canvas" data-bank-b64="${set.bank_b64}" data-cols="8"></canvas>`
+    h += `</div>`
+
+    h += `</div>`
+  }
+
+  if (enemies.boss_expansion_b64) {
+    h += `<div class="enemy-set-section">`
+    h += `<h4>Boss Shared Expansion</h4>`
+    h += `<div class="sprite-bank-section">`
+    h += `<canvas class="sprite-bank-canvas" data-bank-b64="${enemies.boss_expansion_b64}" data-cols="8"></canvas>`
+    h += `</div>`
+    h += `</div>`
+  }
+  h += '</div>'
 
   return h
 }
