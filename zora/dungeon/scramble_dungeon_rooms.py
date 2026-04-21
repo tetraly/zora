@@ -18,6 +18,7 @@ from zora.data_model import (
     Direction,
     Enemy,
     GameWorld,
+    Item,
     ItemPosition,
     Room,
     RoomAction,
@@ -399,9 +400,10 @@ def scramble_dungeon_rooms(
             if not _is_eligible(room):
                 continue
             enemy = room.enemy_spec.enemy
-            if not shuffle_gannon_and_zelda:
-                if enemy in (Enemy.THE_BEAST, Enemy.THE_KIDNAPPED):
-                    continue
+            if enemy in (Enemy.THE_BEAST, Enemy.THE_KIDNAPPED):
+                continue
+            if room.item == Item.TRIFORCE_OF_POWER:
+                continue
             pool.append(room)
 
     if len(pool) < 2:
@@ -553,3 +555,14 @@ def _shuffle_drops(pool: list[Room], rng: Rng) -> None:
     for room, (item, item_pos) in zip(pool, items):
         room.item = item
         room.item_position = item_pos
+
+    # TODO: Investigate why the original C# doesn't need this fixup.  The C#
+    # shuffleDrops swaps a byte at RoomExtraData + DungeonBlockSize, which
+    # lands in a DIFFERENT grid block's Table 5 — so it may be shuffling
+    # room_action values from cross-block data rather than items.  Our port
+    # shuffles items only, which can leave DROPS_ITEM paired with NOTHING.
+    # Until the C# semantics are fully understood, demote the action here.
+    for room in pool:
+        if (room.item == Item.NOTHING
+                and room.room_action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM):
+            room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS

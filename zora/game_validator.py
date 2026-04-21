@@ -736,7 +736,26 @@ class GameValidator:
     # Main entry point
     # -------------------------------------------------------------------------
 
+    def _check_no_nothing_drops(self) -> None:
+        """Raise if any room has the drop-item action with Item.NOTHING.
+
+        The game engine's "nothing" sentinel (0x03) shares its value with
+        MAGICAL_SWORD. The drop code path doesn't check the sentinel, so it
+        spawns a phantom Magical Sword.
+        """
+        for level in self.game_world.levels:
+            for room in level.rooms:
+                if (room.room_action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM
+                        and room.item == Item.NOTHING):
+                    raise ValueError(
+                        f"L{level.level_num} room 0x{room.room_num:02X}: "
+                        f"KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM with "
+                        f"Item.NOTHING — causes phantom Magical Sword drop"
+                    )
+
     def is_seed_valid(self) -> bool:
+        self._check_no_nothing_drops()
+
         # dont_guarantee_starting_sword_or_wand hardcoded False for MVP (always guarantee)
         # TODO: wire to flags_generated.py in future phase
         # if not dont_guarantee_starting_sword_or_wand:

@@ -1177,12 +1177,13 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
         # ── Block 2: PUSHING_BLOCK_OPENS_SHUTTERS without shutters ───
         # If room_action says push-block opens shutters but there are no
         # shutter doors, clear the movable_block flag (the push block is
-        # pointless without shutters to open).
+        # pointless without shutters to open) and demote the action.
         if (
             action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
             and not _has_any_shutter_door(room)
         ):
             room.movable_block = False
+            room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
         # ── Block 3: TRIFORCE_OF_POWER_OPENS_SHUTTERS rooms ──────────
         # For rooms with this action whose enemy is NOT THE_BEAST: demote
