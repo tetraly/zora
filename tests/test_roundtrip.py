@@ -131,6 +131,37 @@ def test_level_info_roundtrip(bins):
         pytest.fail(f"level_info length mismatch: {len(got)} vs {len(exp)}")
 
 
+def test_map_data_roundtrip(bins):
+    """map_data (block +0x3F, 16 bytes) and map_ppu_commands (block +0x4F, 45 bytes)
+    must survive parse → serialize."""
+    originals = _load_originals()
+    gw = parse_game_world(bins)
+    patch = serialize_game_world(gw, originals)
+
+    level_info_original = originals["level_info.bin"]
+    level_info_serialized = patch.data[LEVEL_INFO_ADDRESS]
+
+    for lvl in gw.levels:
+        block_offset = lvl.level_num * LEVEL_INFO_SIZE
+        orig_map_data = level_info_original[block_offset + 0x3F : block_offset + 0x4F]
+        got_map_data  = level_info_serialized[block_offset + 0x3F : block_offset + 0x4F]
+        assert got_map_data == orig_map_data, (
+            f"Level {lvl.level_num}: map_data mismatch"
+        )
+        assert lvl.map_data == orig_map_data, (
+            f"Level {lvl.level_num}: map_data not parsed correctly"
+        )
+
+        orig_ppu = level_info_original[block_offset + 0x4F : block_offset + 0x7C]
+        got_ppu  = level_info_serialized[block_offset + 0x4F : block_offset + 0x7C]
+        assert got_ppu == orig_ppu, (
+            f"Level {lvl.level_num}: map_ppu_commands mismatch"
+        )
+        assert lvl.map_ppu_commands == orig_ppu, (
+            f"Level {lvl.level_num}: map_ppu_commands not parsed correctly"
+        )
+
+
 def test_fade_palette_roundtrip(bins):
     """fade_palette_raw (level_info block +0x7C, 96 bytes) must survive parse → serialize."""
     originals = _load_originals()

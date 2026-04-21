@@ -567,6 +567,8 @@ class Level:
     item_position_table: list[int]  # 4 packed 0xXY bytes: high nibble=X tile, low nibble=Y tile
     map_start: int
     map_cursor_offset: int
+    map_data: bytes              # 16 bytes: column occupancy bitmap (block 0x3F–0x4E)
+    map_ppu_commands: bytes      # 45 bytes: PPU command sequences (block 0x4F–0x7B)
     qty_table: list[int]         # 4 bytes, preserved
     stairway_data_raw: bytes     # 10 bytes, preserved verbatim for round-trip
     rom_level_num: int = 0       # block[0x33]: ROM's display level number (differs from slot in Q2)

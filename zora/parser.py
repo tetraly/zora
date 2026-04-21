@@ -724,6 +724,8 @@ def _parse_single_level(
     rom_level_num        = block[0x33]
     stairway_data_raw    = bytes(block[0x34:0x3E])
     boss_room            = block[0x3E]
+    map_data             = bytes(block[0x3F:0x4F])
+    map_ppu_commands     = bytes(block[0x4F:0x7C])
 
     staircase_room_pool: list[int] = []
     for b in stairway_data_raw:
@@ -777,6 +779,8 @@ def _parse_single_level(
         item_position_table=item_position_table,
         map_start=map_start,
         map_cursor_offset=map_cursor_offset,
+        map_data=map_data,
+        map_ppu_commands=map_ppu_commands,
         qty_table=qty_table,
         stairway_data_raw=stairway_data_raw,
         rom_level_num=rom_level_num,

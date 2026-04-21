@@ -235,6 +235,8 @@ def _serialize_level_info(level: Level, block: bytearray) -> None:
     block[0x2D] = level.map_start
     block[0x2E] = level.map_cursor_offset
     block[0x2F] = level.entrance_room
+    block[0x3F:0x4F] = level.map_data
+    block[0x4F:0x7C] = level.map_ppu_commands
 
     # The compass points to the room containing the triforce (or Zelda in L9).
     # If the triforce is in an item staircase, point to the room with the

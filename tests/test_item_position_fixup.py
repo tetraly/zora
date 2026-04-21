@@ -60,6 +60,8 @@ def _make_minimal_level(rooms: list[Room], entrance_room: int,
         item_position_table=list(_STANDARD_ITEM_POSITION_TABLE),
         map_start=0,
         map_cursor_offset=0,
+        map_data=b"\x00" * 16,
+        map_ppu_commands=b"\x00" * 45,
         qty_table=[0, 0, 0, 0],
         stairway_data_raw=b"\x00" * 10,
     )
