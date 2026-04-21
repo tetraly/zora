@@ -25,6 +25,7 @@ from zora.enemy.shuffle_bosses import shuffle_bosses
 from zora.enemy.shuffle_monsters import shuffle_monsters
 from zora.enemy.shuffle_monsters_between_levels import shuffle_monsters_between_levels
 from zora.game_config import GameConfig
+from zora.level_gen.orchestrator import fix_npc_shutter_doors
 from zora.rng import Rng
 
 
@@ -77,6 +78,9 @@ def randomize_enemies(
 
     if config.change_dungeon_boss_groups:
         change_dungeon_boss_groups(game_world, rng)
+
+    for level in game_world.levels:
+        fix_npc_shutter_doors(level)
 
 
 def _replace_gleeok_1(game_world: GameWorld) -> None:

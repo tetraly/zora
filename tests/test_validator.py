@@ -4,6 +4,8 @@ unbeatable seeds using the vanilla ROM as a baseline.
 """
 from typing import cast
 
+import pytest
+
 from zora.data_model import (
     Destination,
     Direction,
@@ -275,11 +277,12 @@ def test_shutter_door_blocked_by_push_block_without_movable_block(bins):
         palette_0=0,
         palette_1=0,
     )
-    assert not v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
+    with pytest.raises(AssertionError, match="PUSHING_BLOCK_OPENS_SHUTTERS but no movable block"):
+        v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
 
 
 def test_shutter_door_blocked_by_old_man_with_kill_action(bins):
-    """Shutter doors with an unkillable NPC and a kill-based room action are impassable."""
+    """Shutter doors with an unkillable NPC and a kill-based room action are an invalid state."""
     gw = parse_game_world(bins)
     v = _make_validator(gw)
     v.inventory.items.add(Item.WOOD_SWORD)
@@ -301,7 +304,8 @@ def test_shutter_door_blocked_by_old_man_with_kill_action(bins):
         palette_0=0,
         palette_1=0,
     )
-    assert not v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
+    with pytest.raises(AssertionError, match="NPC OLD_MAN with shutter doors"):
+        v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
 
 
 def test_shutter_door_allowed_for_killable_enemies(bins):

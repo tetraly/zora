@@ -113,8 +113,8 @@ def generate_game(
     max_pipeline_attempts = 10
     for attempt in range(max_pipeline_attempts):
         game_world = parse_game_world(bins)
-        generate_dungeon_shapes(game_world, bins, config, rng)
         try:
+            generate_dungeon_shapes(game_world, bins, config, rng)
             for step in _RANDOMIZERS:
                 t0 = time.monotonic()
                 step(game_world, config, rng)
@@ -201,8 +201,8 @@ def generate_game_from_rom(
     max_pipeline_attempts = 10
     for attempt in range(max_pipeline_attempts):
         game_world = parse_game_world(bins)
-        generate_dungeon_shapes(game_world, bins, config, rng)
         try:
+            generate_dungeon_shapes(game_world, bins, config, rng)
             for step in _RANDOMIZERS:
                 step(game_world, config, rng)
             break
