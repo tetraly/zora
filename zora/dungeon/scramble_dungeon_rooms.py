@@ -25,6 +25,7 @@ from zora.data_model import (
     RoomType,
     WallType,
 )
+from zora.dungeon.shuffle_dungeon_rooms import _is_level_connected
 from zora.rng import Rng
 from zora.enemy.safety_checks import is_safe_for_room
 
@@ -101,14 +102,14 @@ _NPC_ENEMIES: frozenset[Enemy] = frozenset({
 
 # Replaces each level's item_position_table so all levels use the same
 # four drop coordinates:
-#   A=0x89 (middle), B=0xD6 (top-right), C=0xC9 (bottom-left), D=0x2C (right)
+#   A=0x89 (center), B=0xD6 (NE), C=0xC9 (right), D=0x2C (SW)
 _STANDARD_ITEM_POSITION_TABLE: list[int] = [0x89, 0xD6, 0xC9, 0x2C]
 
 # Which ItemPositions are safe to use in each room type.  Positions that
 # would land inside walls, water, or blocks are excluded.
 _VALID_ITEM_POSITIONS: dict[RoomType, list[ItemPosition]] = {
     RoomType.PLAIN_ROOM:            [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
-    RoomType.SPIKE_TRAP_ROOM:       [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
+    RoomType.SPIKE_TRAP_ROOM:       [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.FOUR_SHORT_ROOM:       [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.FOUR_TALL_ROOM:        [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.AQUAMENTUS_ROOM:       [ItemPosition.POSITION_D, ItemPosition.POSITION_A, ItemPosition.POSITION_C],
@@ -128,7 +129,7 @@ _VALID_ITEM_POSITIONS: dict[RoomType, list[ItemPosition]] = {
     RoomType.T_ROOM:                [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.VERTICAL_MOAT_ROOM:    [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
     RoomType.CIRCLE_MOAT_ROOM:      [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
-    RoomType.POINTLESS_MOAT_ROOM:   [ItemPosition.POSITION_B, ItemPosition.POSITION_C],
+    RoomType.POINTLESS_MOAT_ROOM:   [ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.CHEVY_ROOM:            [ItemPosition.POSITION_A, ItemPosition.POSITION_D],
     RoomType.NSU:                   [ItemPosition.POSITION_A, ItemPosition.POSITION_D],
     RoomType.HORIZONTAL_MOAT_ROOM:  [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
@@ -467,7 +468,13 @@ def scramble_dungeon_rooms(
     for room, content in zip(pool, contents):
         content.apply_to(room)
 
-    # --- Phase 4: Shuffle item drops (optional) ---
+    # --- Phase 4: Connectivity check ---
+
+    for level in world.levels:
+        if not _is_level_connected(level):
+            return False
+
+    # --- Phase 5: Shuffle item drops (optional) ---
 
     if shuffle_drops:
         _shuffle_drops(pool, rng)
