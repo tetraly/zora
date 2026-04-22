@@ -31,6 +31,7 @@ from zora.dungeon.scramble_dungeon_rooms import (
 from zora.dungeon.shuffle_dungeon_rooms import (
     _DIR_OFFSETS,
     _OPPOSITE_DIR,
+    _is_level_connected,
     _is_path_obstructed,
     shuffle_dungeon_rooms,
 )
@@ -75,6 +76,9 @@ def randomize_dungeons(
         all_rooms = [room for level in game_world.levels for room in level.rooms]
         _assign_valid_item_positions(all_rooms, rng)
         _fix_direction_sensitive_item_positions(game_world, rng)
+
+        if not all(_is_level_connected(level) for level in game_world.levels):
+            raise RuntimeError("Dungeon post-fixup connectivity check failed")
 
 
 def _get_entry_directions(level: Level) -> dict[int, set[Direction]]:
