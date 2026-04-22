@@ -1163,27 +1163,22 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
                 RoomAction.NOTHING_OPENS_SHUTTERS,
                 RoomAction.KILLING_RINGLEADER_KILLS_ENEMIES_OPENS_SHUTTERS,
             ):
-                # Room has shutter doors but room_action doesn't open them.
-                # Convert shutter walls to solid walls (matching C# behavior).
-                if walls.south == WallType.SHUTTER_DOOR:
-                    walls.south = WallType.SOLID_WALL
-                if walls.north == WallType.SHUTTER_DOOR:
-                    walls.north = WallType.SOLID_WALL
-                if walls.east == WallType.SHUTTER_DOOR:
-                    walls.east = WallType.SOLID_WALL
-                if walls.west == WallType.SHUTTER_DOOR:
-                    walls.west = WallType.SOLID_WALL
+                room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+            elif (
+                action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
+                and not room.movable_block
+            ):
+                room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
         # ── Block 2: PUSHING_BLOCK_OPENS_SHUTTERS without shutters ───
         # If room_action says push-block opens shutters but there are no
         # shutter doors, clear the movable_block flag (the push block is
-        # pointless without shutters to open) and demote the action.
+        # pointless without shutters to open). Don't change room_action.
         if (
             action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
             and not _has_any_shutter_door(room)
         ):
             room.movable_block = False
-            room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
         # ── Block 3: TRIFORCE_OF_POWER_OPENS_SHUTTERS rooms ──────────
         # For rooms with this action whose enemy is NOT THE_BEAST: demote
@@ -1327,7 +1322,7 @@ def _fix_peninsula_and_stairs(level: Level, world: GameWorld) -> None:
         # ── Part 2: T_ROOM/ZELDA_ROOM with south wall == SOLID_WALL ──────────
         # If the room below exists in this level, track for stair-adjacency fix:
         # clear the wall between this room and the room below.
-        if room.room_type in (RoomType.T_ROOM, RoomType.ZELDA_ROOM):
+        if room.room_type in (RoomType.T_ROOM, RoomType.ZELDA_ROOM) and not room.movable_block:
             if walls.south == WallType.SOLID_WALL:
                 below_num = room.room_num + 16
                 if below_num < 128 and below_num in level_room_nums:
@@ -1502,6 +1497,21 @@ def _is_path_obstructed(
     return False
 
 
+def _room_has_stairway(room: Room) -> bool:
+    """Check if a room provides access to a staircase.
+
+    Matches game_validator._has_stairway: open staircase room types always
+    have access; push-block rooms have access only if movable_block is set
+    AND no shutter doors are present (shutters consume the push block action).
+    """
+    if room.room_type.has_open_staircase():
+        return True
+    for wall in (room.walls.north, room.walls.east, room.walls.south, room.walls.west):
+        if wall == WallType.SHUTTER_DOOR:
+            return False
+    return room.room_type.can_have_push_block() and room.movable_block
+
+
 def _is_level_connected(level: Level) -> bool:
     """Check that every room in the level is reachable from the entrance.
 
@@ -1559,8 +1569,9 @@ def _is_level_connected(level: Level) -> bool:
         rn, entry_dir = queue.pop()
         _expand(rn, entry_dir)
 
-    # Follow transport staircases: if either exit has been reached,
-    # both exits become seeds entered via STAIRCASE.
+    # Follow transport staircases: if either exit room has been reached
+    # AND that room provides stairway access, both exits become seeds
+    # entered via STAIRCASE.
     changed = True
     while changed:
         changed = False
@@ -1570,7 +1581,13 @@ def _is_level_connected(level: Level) -> bool:
             if sr.room_type != RoomType.TRANSPORT_STAIRCASE:
                 continue
             assert sr.left_exit is not None and sr.right_exit is not None
-            if sr.left_exit in reached_rooms or sr.right_exit in reached_rooms:
+            can_enter = False
+            for exit_rn in (sr.left_exit, sr.right_exit):
+                if exit_rn in reached_rooms and exit_rn in room_by_num:
+                    if _room_has_stairway(room_by_num[exit_rn]):
+                        can_enter = True
+                        break
+            if can_enter:
                 reached_rooms.add(sr.room_num)
                 for exit_rn in (sr.left_exit, sr.right_exit):
                     state = (exit_rn, Direction.STAIRCASE)

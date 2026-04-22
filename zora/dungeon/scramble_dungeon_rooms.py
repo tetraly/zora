@@ -36,6 +36,7 @@ from zora.enemy.safety_checks import is_safe_for_room
 
 _MAX_PER_POSITION_RETRIES = 10_000
 _MAX_TOTAL_RETRIES = 500_000
+_MAX_SCRAMBLE_ATTEMPTS = 200
 
 
 # ---------------------------------------------------------------------------
@@ -368,62 +369,14 @@ def _safe_for_gleeok(room_type: RoomType, enemy: Enemy) -> bool:
 # Main scramble
 # ---------------------------------------------------------------------------
 
-def scramble_dungeon_rooms(
-    world: GameWorld,
+def _run_fisher_yates(
+    contents: list[_RoomContents],
+    locked: list[bool],
+    pool: list[Room],
+    pool_level_nums: list[frozenset[int]],
     rng: Rng,
-    shuffle_gannon_and_zelda: bool = True,
-    shuffle_drops: bool = False,
-) -> bool:
-    """Scramble room contents across all dungeon levels.
-
-    Collects eligible rooms from all levels 1-9, then performs a constrained
-    Fisher-Yates shuffle to redistribute room contents (enemy, room type,
-    items, etc.) across the entire dungeon grid.  Locked rooms (stair rooms,
-    push-block stairway rooms) can only swap with other locked rooms.
-
-    Args:
-        world: The game world to modify in place.
-        rng: Seeded RNG for deterministic output.
-        shuffle_gannon_and_zelda: If False, rooms containing THE_BEAST or
-            THE_KIDNAPPED are excluded from the scramble pool.
-        shuffle_drops: If True, also shuffle item assignments between the
-            scrambled rooms after the main content shuffle.
-
-    Returns:
-        True on success, False if the retry budget was exhausted (caller
-        should retry with a different seed).
-    """
-    # --- Phase 1: Collect eligible rooms across all levels ---
-
-    pool: list[Room] = []
-    for level in world.levels:
-        for room in level.rooms:
-            if not _is_eligible(room):
-                continue
-            enemy = room.enemy_spec.enemy
-            if enemy in (Enemy.THE_BEAST, Enemy.THE_KIDNAPPED):
-                continue
-            if room.item == Item.TRIFORCE_OF_POWER:
-                continue
-            pool.append(room)
-
-    if len(pool) < 2:
-        return True
-
-    # Extract contents and lock status for each room in the pool.
-    contents = [_RoomContents(room) for room in pool]
-    locked = [_is_locked(room) for room in pool]
-
-    # Build per-room level membership for adjacency checks.
-    room_to_level_nums: dict[int, frozenset[int]] = {}
-    for level in world.levels:
-        level_nums = frozenset(r.room_num for r in level.rooms)
-        for r in level.rooms:
-            room_to_level_nums[r.room_num] = level_nums
-    pool_level_nums = [room_to_level_nums.get(r.room_num, frozenset()) for r in pool]
-
-    # --- Phase 2: Constrained Fisher-Yates shuffle ---
-
+) -> None:
+    """Run the constrained Fisher-Yates shuffle in place."""
     total_retries = 0
     per_position_retries = 0
     i = 0
@@ -463,16 +416,99 @@ def scramble_dungeon_rooms(
         locked[i], locked[j] = locked[j], locked[i]
         i += 1
 
-    # --- Phase 3: Write shuffled contents back to rooms ---
 
-    for room, content in zip(pool, contents):
-        content.apply_to(room)
+def scramble_dungeon_rooms(
+    world: GameWorld,
+    rng: Rng,
+    shuffle_gannon_and_zelda: bool = True,
+    shuffle_drops: bool = False,
+) -> bool:
+    """Scramble room contents across all dungeon levels.
 
-    # --- Phase 4: Connectivity check ---
+    Collects eligible rooms from all levels 1-9, then performs a constrained
+    Fisher-Yates shuffle to redistribute room contents (enemy, room type,
+    items, etc.) across the entire dungeon grid.  Locked rooms (stair rooms,
+    push-block stairway rooms) can only swap with other locked rooms.
 
+    Retries the shuffle internally up to _MAX_SCRAMBLE_ATTEMPTS times when
+    the result breaks level connectivity, since a single shuffle pass is
+    cheap compared to restarting the full generation pipeline.
+
+    Args:
+        world: The game world to modify in place.
+        rng: Seeded RNG for deterministic output.
+        shuffle_gannon_and_zelda: If False, rooms containing THE_BEAST or
+            THE_KIDNAPPED are excluded from the scramble pool.
+        shuffle_drops: If True, also shuffle item assignments between the
+            scrambled rooms after the main content shuffle.
+
+    Returns:
+        True on success, False if the retry budget was exhausted (caller
+        should retry with a different seed).
+    """
+    # --- Phase 1: Collect eligible rooms across all levels ---
+
+    pool: list[Room] = []
     for level in world.levels:
-        if not _is_level_connected(level):
-            return False
+        for room in level.rooms:
+            if not _is_eligible(room):
+                continue
+            enemy = room.enemy_spec.enemy
+            if enemy in (Enemy.THE_BEAST, Enemy.THE_KIDNAPPED):
+                continue
+            if room.item == Item.TRIFORCE_OF_POWER:
+                continue
+            pool.append(room)
+
+    if len(pool) < 2:
+        return True
+
+    # Save original contents so we can restore on failed attempts.
+    original_contents = [_RoomContents(room) for room in pool]
+    original_locked = [_is_locked(room) for room in pool]
+
+    # Build per-room level membership for adjacency checks.
+    room_to_level_nums: dict[int, frozenset[int]] = {}
+    for level in world.levels:
+        level_nums = frozenset(r.room_num for r in level.rooms)
+        for r in level.rooms:
+            room_to_level_nums[r.room_num] = level_nums
+    pool_level_nums = [room_to_level_nums.get(r.room_num, frozenset()) for r in pool]
+
+    for _attempt in range(_MAX_SCRAMBLE_ATTEMPTS):
+        # --- Phase 2: Constrained Fisher-Yates shuffle ---
+        contents = [_RoomContents(room) for room in pool]
+        locked = [_is_locked(room) for room in pool]
+
+        _run_fisher_yates(contents, locked, pool, pool_level_nums, rng)
+
+        # --- Phase 3: Write shuffled contents back to rooms ---
+        for room, content in zip(pool, contents):
+            content.apply_to(room)
+
+        # --- Phase 3b: Fix pushblock/shutter mismatches ---
+        for room in pool:
+            if (
+                room.room_action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
+                and not room.movable_block
+                and any(
+                    w == WallType.SHUTTER_DOOR
+                    for w in (room.walls.north, room.walls.south,
+                              room.walls.east, room.walls.west)
+                )
+            ):
+                room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+
+        # --- Phase 4: Connectivity check ---
+        connected = all(_is_level_connected(level) for level in world.levels)
+        if connected:
+            break
+
+        # Restore original contents for next attempt.
+        for room, content in zip(pool, original_contents):
+            content.apply_to(room)
+    else:
+        return False
 
     # --- Phase 5: Shuffle item drops (optional) ---
 

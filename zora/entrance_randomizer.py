@@ -351,7 +351,8 @@ def shuffle_caves(
             do_swap = False
 
             if cave_types[i] == _CAVE_TYPE_WOOD_SWORD:
-                # Wood sword: must land on a screen reachable without any item or virtual item.
+                # Wood sword: must land on a screen reachable without any item or virtual item,
+                # AND whose entrance_type doesn't require a weapon (bomb, candle, etc.).
                 accessible = [
                     k for k in range(len(cave_screens))
                     if _need_no_item_to_enter(
@@ -359,6 +360,8 @@ def shuffle_caves(
                         raft_locations, recorder_locations, bracelet_locations,
                         lost_hills_screens, dead_woods_screens,
                     )
+                    and screens_by_num[cave_screens[k]].entrance_type
+                        in (EntranceType.OPEN, EntranceType.NONE)
                 ]
                 k = rng.choice(accessible)
                 offset = k - i
