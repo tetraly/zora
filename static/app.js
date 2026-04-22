@@ -1593,11 +1593,16 @@ h1 { font-size: 18px; margin-bottom: 0.25rem; }
   parts.push(`
 </div>
 <script>
+let enemyCanvasesRendered = false
 function switchTab(id) {
   document.querySelectorAll('.viz-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.viz-panel').forEach(p => p.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
   event.target.classList.add('active');
+  if (id === 'enemies' && !enemyCanvasesRendered) {
+    enemyCanvasesRendered = true
+    setTimeout(initEnemyCanvases, 0)
+  }
 }
 
 function renderSpriteBank(canvas, b64Data, cols) {
@@ -1742,11 +1747,6 @@ function initEnemyCanvases() {
   })
 }
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initEnemyCanvases)
-} else {
-  setTimeout(initEnemyCanvases, 0)
-}
 <\/script>
 </body>
 </html>`)
