@@ -2,16 +2,18 @@
 
 Renders a level's room grid with walls, items, room types, and optional
 traversal annotations from a GameValidator (visited/collected/stuck status).
+Staircase connections are labeled A-Z for transport and *A-*Z for item stairs.
 """
 from __future__ import annotations
 
+import string
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from zora.data_model import Item, Level, Room, RoomType, WallType
+from zora.data_model import Item, Level, Room, RoomType, StaircaseRoom, WallType
 
 if TYPE_CHECKING:
     from zora.game_validator import GameValidator
@@ -86,21 +88,36 @@ _ITEM_ABBREV: dict[str, str] = {
     "SINGLE_HEART": "HEART",
 }
 
+# Wall display: single character for N/S (horizontal), single for E/W (vertical)
+_WALL_H: dict[WallType, str] = {
+    WallType.SOLID_WALL: "─",
+    WallType.OPEN_DOOR: " ",
+    WallType.LOCKED_DOOR_1: "K",
+    WallType.LOCKED_DOOR_2: "K",
+    WallType.SHUTTER_DOOR: "S",
+    WallType.BOMB_HOLE: "B",
+    WallType.WALK_THROUGH_WALL_1: "W",
+    WallType.WALK_THROUGH_WALL_2: "W",
+}
 
-def _wall_char(wt: WallType) -> str:
-    if wt == WallType.SOLID_WALL:
-        return "█"
-    if wt == WallType.OPEN_DOOR:
-        return " "
-    if wt in (WallType.LOCKED_DOOR_1, WallType.LOCKED_DOOR_2):
-        return "L"
-    if wt == WallType.SHUTTER_DOOR:
-        return "S"
-    if wt == WallType.BOMB_HOLE:
-        return "B"
-    if wt in (WallType.WALK_THROUGH_WALL_1, WallType.WALK_THROUGH_WALL_2):
-        return "W"
-    return "?"
+_WALL_V: dict[WallType, str] = {
+    WallType.SOLID_WALL: "│",
+    WallType.OPEN_DOOR: " ",
+    WallType.LOCKED_DOOR_1: "K",
+    WallType.LOCKED_DOOR_2: "K",
+    WallType.SHUTTER_DOOR: "S",
+    WallType.BOMB_HOLE: "B",
+    WallType.WALK_THROUGH_WALL_1: "W",
+    WallType.WALK_THROUGH_WALL_2: "W",
+}
+
+
+def _wall_h(wt: WallType) -> str:
+    return _WALL_H.get(wt, "?")
+
+
+def _wall_v(wt: WallType) -> str:
+    return _WALL_V.get(wt, "?")
 
 
 def _abbrev_room_type(name: str) -> str:
@@ -136,6 +153,56 @@ def _room_status(
     return ""
 
 
+def _build_staircase_labels(
+    level: Level,
+) -> tuple[dict[int, str], list[str]]:
+    """Assign labels to staircases and build a legend.
+
+    Transport staircases get letters A, B, C, ...
+    Item staircases get *A, *B, *C, ...
+
+    Returns:
+        room_labels: maps room_num -> label string for rooms connected to stairs
+        legend_lines: human-readable legend entries
+    """
+    room_labels: dict[int, str] = {}
+    legend_lines: list[str] = []
+
+    transport_idx = 0
+    item_idx = 0
+    letters = string.ascii_uppercase
+
+    for sr in level.staircase_rooms:
+        if sr.room_type == RoomType.TRANSPORT_STAIRCASE:
+            if transport_idx >= len(letters):
+                continue
+            label = letters[transport_idx]
+            transport_idx += 1
+            left = sr.left_exit
+            right = sr.right_exit
+            if left is not None:
+                room_labels[left] = room_labels.get(left, "") + f">{label}"
+            if right is not None:
+                room_labels[right] = room_labels.get(right, "") + f">{label}"
+            left_str = f"R{left:02X}" if left is not None else "?"
+            right_str = f"R{right:02X}" if right is not None else "?"
+            legend_lines.append(f"  Stair {label}: {left_str} <-> {right_str}")
+        elif sr.room_type == RoomType.ITEM_STAIRCASE:
+            if item_idx >= len(letters):
+                continue
+            label = f"*{letters[item_idx]}"
+            item_idx += 1
+            ret = sr.return_dest
+            if ret is not None:
+                room_labels[ret] = room_labels.get(ret, "") + f">{label}"
+            item_name = sr.item.name if sr.item is not None else "NONE"
+            item_str = _abbrev_item(item_name)
+            ret_str = f"R{ret:02X}" if ret is not None else "?"
+            legend_lines.append(f"  Stair {label}: {ret_str} -> [{item_str}]")
+
+    return room_labels, legend_lines
+
+
 def render_level_map(
     level: Level,
     *,
@@ -156,6 +223,8 @@ def render_level_map(
     rooms_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
     if not rooms_by_num:
         return f"  Level {level.level_num}: no rooms\n"
+
+    stair_labels, stair_legend = _build_staircase_labels(level)
 
     all_nums = list(rooms_by_num.keys())
     rows_list = [rn >> 4 for rn in all_nums]
@@ -191,10 +260,10 @@ def render_level_map(
                     cell_lines[row_idx].append(blank)
                 continue
 
-            n = _wall_char(room.walls.north)
-            s = _wall_char(room.walls.south)
-            e = _wall_char(room.walls.east)
-            w = _wall_char(room.walls.west)
+            n = _wall_h(room.walls.north)
+            s = _wall_h(room.walls.south)
+            e = _wall_v(room.walls.east)
+            w = _wall_v(room.walls.west)
 
             status = _room_status(
                 room, rn, level.level_num, level.entrance_room,
@@ -205,25 +274,31 @@ def render_level_map(
                 if room.item != Item.NOTHING else ""
             )
             rt_str = _abbrev_room_type(room.room_type.name)
+            stair_str = stair_labels.get(rn, "")
 
             half = (iw - 1) // 2
             top_bar = "─" * half + n + "─" * (iw - 1 - half)
             bot_bar = "─" * half + s + "─" * (iw - 1 - half)
 
-            label_line = f"{rn:02X}  {status}"
+            label_line = f"{rn:02X} {status}"
 
             cell_lines[0].append(f"┌{top_bar}┐ ")
-            cell_lines[1].append(f"{w} {label_line:<{iw - 2}s} {e} ")
-            cell_lines[2].append(f"{w}{' ' * iw}{e} ")
+            cell_lines[1].append(f"│ {label_line:<{iw - 2}s} │ ")
+            cell_lines[2].append(f"│ {stair_str:<{iw - 2}s} │ ")
             cell_lines[3].append(f"{w} {item_str:^{iw - 2}s} {e} ")
-            cell_lines[4].append(f"{w} {rt_str:^{iw - 2}s} {e} ")
-            cell_lines[5].append(f"{w}{' ' * iw}{e} ")
+            cell_lines[4].append(f"│ {rt_str:^{iw - 2}s} │ ")
+            cell_lines[5].append(f"│{' ' * iw}│ ")
             cell_lines[6].append(f"└{bot_bar}┘ ")
 
         for row_cells in cell_lines:
             lines.append("  " + "".join(row_cells))
 
     lines.append("")
+    if stair_legend:
+        lines.append("  Staircases:")
+        for leg in stair_legend:
+            lines.append(leg)
+        lines.append("")
     if validator is not None:
         lines.append(
             "  Status: [ENTER] entrance  [UNREACH] unfilled & unreachable"
@@ -234,7 +309,7 @@ def render_level_map(
             "  [no visit] never reached during traversal"
         )
     lines.append(
-        "  Walls:  █ solid  (space) open  L locked"
+        "  Walls:  ─│ solid  (space) open  K locked"
         "  S shutter  B bomb  W walk-through"
     )
     return "\n".join(lines)
