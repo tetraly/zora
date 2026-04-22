@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from zora.level_gen.place_items import validate_level_items
 from zora.level_gen.rom_buffer import (
     GRID_COLS,
     GRID_ROWS,
@@ -237,22 +238,25 @@ def create_new_levels(
     level_grid: LevelGrid = [[0] * GRID_COLS for _ in range(GRID_ROWS)]
 
     for attempt in range(MAX_RETRIES):
-        result = _try_create(
-            rom, rng, level_grid,
-            swordless, add_2nd_monsters, add_2nd_rooms, add_2nd_doors,
-            create_16, create_79, shuffle_entrances, sort_dungeons,
-            regenerate_level_map_fn=regenerate_level_map_fn,
-            new_level_doors_fn=new_level_doors_fn,
-            new_level_add_entrances_fn=new_level_add_entrances_fn,
-            new_level_place_initial_stairs_fn=new_level_place_initial_stairs_fn,
-            new_level_rooms_fn=new_level_rooms_fn,
-            new_level_place_bosses_fn=new_level_place_bosses_fn,
-            new_level_place_enemies_fn=new_level_place_enemies_fn,
-            new_level_place_items_fn=new_level_place_items_fn,
-            add_item_drop_fn=add_item_drop_fn,
-            mixed_quest_type_1=mixed_quest_type_1,
-            mixed_quest_type_2=mixed_quest_type_2,
-        )
+        try:
+            result = _try_create(
+                rom, rng, level_grid,
+                swordless, add_2nd_monsters, add_2nd_rooms, add_2nd_doors,
+                create_16, create_79, shuffle_entrances, sort_dungeons,
+                regenerate_level_map_fn=regenerate_level_map_fn,
+                new_level_doors_fn=new_level_doors_fn,
+                new_level_add_entrances_fn=new_level_add_entrances_fn,
+                new_level_place_initial_stairs_fn=new_level_place_initial_stairs_fn,
+                new_level_rooms_fn=new_level_rooms_fn,
+                new_level_place_bosses_fn=new_level_place_bosses_fn,
+                new_level_place_enemies_fn=new_level_place_enemies_fn,
+                new_level_place_items_fn=new_level_place_items_fn,
+                add_item_drop_fn=add_item_drop_fn,
+                mixed_quest_type_1=mixed_quest_type_1,
+                mixed_quest_type_2=mixed_quest_type_2,
+            )
+        except ItemPlacementError:
+            result = None
         if result is not None:
             return result
         # On retry, C# consumes 1 RNG for the recursive call's seed param
@@ -391,6 +395,7 @@ def _try_create(
         rng.next()
         if not new_level_place_items_fn(rom, rng, 1, level_grid):
             return None
+        validate_level_items(rom, level_grid, 1)
 
         # 4l: NewLevelRewriteMaps (Module.cs:29423)
         new_level_rewrite_maps(rom, level_grid, 1)
@@ -454,6 +459,7 @@ def _try_create(
         rng.next()
         if not new_level_place_items_fn(rom, rng, 7, level_grid):
             return None
+        validate_level_items(rom, level_grid, 7)
 
         # 5l: NewLevelRewriteMaps (Module.cs:29483)
         level9_start_col = new_level_rewrite_maps(rom, level_grid, 7)

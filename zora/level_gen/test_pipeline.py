@@ -39,7 +39,7 @@ from zora.level_gen.place_initial_stairs import new_level_place_initial_stairs
 from zora.level_gen.rooms import new_level_rooms
 from zora.level_gen.place_bosses import new_level_place_bosses
 from zora.level_gen.place_enemies import new_level_place_enemies
-from zora.level_gen.place_items import new_level_place_items
+from zora.level_gen.place_items import new_level_place_items, validate_level_items
 from zora.level_gen.add_item_drop import new_level_add_item_drop
 
 
@@ -187,6 +187,7 @@ def run_group(
     if not new_level_place_items(rom, rng, start_level, level_grid):
         print(f"  [{group}] place_items FAILED")
         return False
+    validate_level_items(rom, level_grid, start_level)
     dump_rom_snapshot(rom, f"{group}_8_place_items")
     dump_level_grid(level_grid, f"{group}_8_place_items")
     print(f"  [{group}] After place_items — dumped")

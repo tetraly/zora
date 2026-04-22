@@ -16,6 +16,7 @@ from zora.dungeon.scramble_dungeon_rooms import (
 from zora.dungeon.shuffle_dungeon_rooms import _is_level_connected
 from zora.game_config import GameConfig
 from zora.level_gen.api import NewLevelInput, generate_new_levels
+from zora.level_gen.place_items import ItemPlacementError
 from zora.parser import (
     RawBinFiles,
     parse_boss_sprite_set,
@@ -118,7 +119,10 @@ def generate_dungeon_shapes(
 
     for shapes_attempt in range(_MAX_SHAPES_ATTEMPTS):
         seed = int(rng.random() * 0xFFFFFFFF)
-        output = generate_new_levels(seed, inputs)
+        try:
+            output = generate_new_levels(seed, inputs)
+        except ItemPlacementError:
+            continue
 
         levels = parse_levels_from_bins(
             level_1_6_data=output.level_1_6_grid,

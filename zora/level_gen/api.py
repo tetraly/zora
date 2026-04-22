@@ -36,7 +36,7 @@ from zora.level_gen.place_initial_stairs import new_level_place_initial_stairs
 from zora.level_gen.rooms import new_level_rooms
 from zora.level_gen.place_bosses import new_level_place_bosses
 from zora.level_gen.place_enemies import new_level_place_enemies
-from zora.level_gen.place_items import new_level_place_items
+from zora.level_gen.place_items import new_level_place_items, validate_level_items
 from zora.level_gen.add_item_drop import new_level_add_item_drop
 
 _OW_ENEMY_TABLES_SIZE = 256
@@ -214,6 +214,7 @@ def generate_new_levels(
         new_level_place_enemies(rom, rng, start_level, level_grid, add_2nd_monsters)
         rng.next()
         new_level_place_items(rom, rng, start_level, level_grid)
+        validate_level_items(rom, level_grid, start_level)
         new_level_rewrite_maps(rom, level_grid, start_level)
 
         saved_grids[start_level] = [row[:] for row in level_grid]
