@@ -393,12 +393,11 @@ class GameValidator:
             else:
                 return False
         if rt == RoomType.CHEVY_ROOM:
-            # Only the east alcove (X==c, Y==9) is reachable without a ladder via the EAST door.
-            # All other positions require the ladder.
+            if self.inventory.has(Item.LADDER):
+                return True
             if item_x == 0xC and item_y == 0x9:
                 return entry_direction == Direction.EAST
-            if not self.inventory.has(Item.LADDER):
-                return False
+            return False
         if rt == RoomType.CIRCLE_MOAT_ROOM and not self.inventory.has(Item.LADDER):
             # Item inside the moat ring (X in {4..b}, Y in {8..a}) requires ladder.
             # Item outside the ring is reachable without ladder regardless of entry door.
