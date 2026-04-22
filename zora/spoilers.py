@@ -442,6 +442,30 @@ _VANILLA_ENEMY_GROUPS: dict[EnemySpriteSet, list[Enemy]] = {
     ],
 }
 
+_VANILLA_BOSS_GROUPS: dict[BossSpriteSet, list[Enemy]] = {
+    BossSpriteSet.A: [
+        Enemy.AQUAMENTUS,
+        Enemy.TRIPLE_DODONGO, Enemy.SINGLE_DODONGO,
+        Enemy.TRIPLE_DIGDOGGER, Enemy.SINGLE_DIGDOGGER,
+        Enemy.DIGDOGGER_SPAWN,
+    ],
+    BossSpriteSet.B: [
+        Enemy.MANHANDLA,
+        Enemy.BLUE_GOHMA, Enemy.RED_GOHMA,
+        Enemy.GLEEOK_1, Enemy.GLEEOK_2, Enemy.GLEEOK_3, Enemy.GLEEOK_4,
+        Enemy.FLYING_GLEEOK_HEAD,
+    ],
+    BossSpriteSet.C: [
+        Enemy.PATRA_1, Enemy.PATRA_2,
+        Enemy.PATRA_SPAWN,
+    ],
+}
+
+_BOSS_FRAME_TILE_WIDTH: dict[Enemy, int] = {
+    Enemy.DIGDOGGER_SPAWN:    2,
+    Enemy.PATRA_SPAWN:        2,
+}
+
 _MIXED_GROUP_SPRITE_SET: dict[int, EnemySpriteSet] = {
     0x6D: EnemySpriteSet.B,
     0x6E: EnemySpriteSet.A,
@@ -496,6 +520,22 @@ def _frame_width(enemy: Enemy, col: int, sorted_unique: list[int]) -> int:
     return default
 
 
+def _frame_width_from_list(col: int, sorted_in_range: list[int], default: int) -> int:
+    """Compute frame width from gap to next in-range column."""
+    if col not in sorted_in_range:
+        return default
+    idx = sorted_in_range.index(col)
+    if idx + 1 < len(sorted_in_range):
+        gap = sorted_in_range[idx + 1] - col
+        if gap in (2, 4):
+            return gap
+    if idx > 0:
+        prev_gap = col - sorted_in_range[idx - 1]
+        if prev_gap in (2, 4):
+            return prev_gap
+    return default
+
+
 def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
     """Build the enemies section of spoiler data."""
     enemies = game_world.enemies
@@ -529,14 +569,17 @@ def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
 
         tile_frame_data: list[dict[str, Any]] = []
         for e in members:
-            frames = enemies.tile_frames.get(e, [])
-            sorted_unique = sorted(set(frames))
-            seen: set[int] = set()
-            deduped: list[dict[str, int]] = []
-            for col in frames:
-                if col not in seen:
-                    seen.add(col)
-                    deduped.append({"col": col, "width": _frame_width(e, col, sorted_unique)})
+            if e in (Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA):
+                deduped = [{"col": 158, "width": 2}, {"col": 160, "width": 2}]
+            else:
+                frames = enemies.tile_frames.get(e, [])
+                sorted_unique = sorted(set(frames))
+                seen: set[int] = set()
+                deduped: list[dict[str, int]] = []
+                for col in frames:
+                    if col not in seen:
+                        seen.add(col)
+                        deduped.append({"col": col, "width": _frame_width(e, col, sorted_unique)})
             tile_frame_data.append({
                 "enemy": _enemy_name(e),
                 "frames": deduped,
@@ -564,6 +607,7 @@ def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
         })
 
     # --- Boss sprite sets ---
+    boss_col_start = 192
     boss_sets: list[dict[str, Any]] = []
     for boss_set in (BossSpriteSet.A, BossSpriteSet.B, BossSpriteSet.C):
         attr = _BOSS_SET_ATTR[boss_set]
@@ -574,9 +618,33 @@ def _build_enemy_spoiler_data(game_world: GameWorld) -> dict[str, Any]:
             if level.boss_sprite_set == boss_set:
                 levels_using.append(level.level_num)
 
+        members = _VANILLA_BOSS_GROUPS.get(boss_set, [])
+        member_names = [_enemy_name(e) for e in members]
+
+        tile_frame_data: list[dict[str, Any]] = []
+        for e in members:
+            frames = enemies.tile_frames.get(e, [])
+            sorted_unique = sorted(set(frames))
+            in_range = [c for c in sorted_unique if boss_col_start <= c < boss_col_start + 64]
+            seen: set[int] = set()
+            deduped: list[dict[str, int]] = []
+            for col in frames:
+                if col not in seen and boss_col_start <= col < boss_col_start + 64:
+                    seen.add(col)
+                    default_w = _BOSS_FRAME_TILE_WIDTH.get(e, 4)
+                    w = _frame_width_from_list(col, in_range, default_w)
+                    deduped.append({"col": col, "width": w})
+            tile_frame_data.append({
+                "enemy": _enemy_name(e),
+                "frames": deduped,
+            })
+
         boss_sets.append({
             "set": boss_set.name,
             "bank_b64": base64.b64encode(bank_bytes).decode("ascii"),
+            "col_start": boss_col_start,
+            "bosses": member_names,
+            "tile_frames": tile_frame_data,
             "levels": levels_using,
         })
 

@@ -2056,10 +2056,29 @@ function buildEnemiesHTML(data) {
     }
     h += `</div>`
 
+    h += `<div class="enemy-set-members">`
+    if (set.bosses && set.bosses.length > 0) {
+      h += `<strong>Bosses:</strong> ${set.bosses.map(esc).join(', ')}`
+    }
+    h += `</div>`
+
     h += `<div class="sprite-bank-section">`
     h += `<div class="sprite-bank-label">Raw Sprite Bank</div>`
     h += `<canvas class="sprite-bank-canvas" data-bank-b64="${set.bank_b64}" data-cols="8"></canvas>`
     h += `</div>`
+
+    if (set.tile_frames && set.tile_frames.length > 0) {
+      h += `<div class="enemy-frames-section">`
+      h += `<div class="sprite-bank-label">Boss Poses</div>`
+      for (const tf of set.tile_frames) {
+        if (tf.frames.length === 0) continue
+        h += `<div class="enemy-frame-row">`
+        h += `<span class="enemy-frame-name">${esc(tf.enemy)}</span>`
+        h += `<canvas class="enemy-frame-canvas" data-bank-b64="${set.bank_b64}" data-frames='${JSON.stringify(tf.frames)}' data-col-start="${set.col_start}"></canvas>`
+        h += `</div>`
+      }
+      h += `</div>`
+    }
 
     h += `</div>`
   }
