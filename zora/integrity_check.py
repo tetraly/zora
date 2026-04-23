@@ -19,6 +19,7 @@ from zora.data_model import (
     RoomType,
     WallType,
 )
+from zora.dungeon.shuffle_dungeon_rooms import _is_level_connected
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,15 @@ def _walls_compatible(wall_a: WallType, wall_b: WallType) -> bool:
     return a_passable == b_passable
 
 
+def _check_dungeon_connectivity(game_world: GameWorld, errors: list[str]) -> None:
+    for level in game_world.levels:
+        if not _is_level_connected(level):
+            errors.append(
+                f"Level {level.level_num}: not all rooms reachable from "
+                f"entrance (room 0x{level.entrance_room:02X})"
+            )
+
+
 _ALL_CHECKS: list[Callable[[GameWorld, list[str]], None]] = [
     _check_level_count,
     _check_dungeon_items,
@@ -218,12 +228,19 @@ _ALL_CHECKS: list[Callable[[GameWorld, list[str]], None]] = [
     _check_wall_reciprocity,
 ]
 
+_DUNGEON_TOPOLOGY_PHASES: frozenset[str] = frozenset({
+    "generate_dungeon_shapes",
+    "randomize_dungeons",
+})
+
 
 def integrity_check(game_world: GameWorld, phase_name: str) -> None:
     """Run all integrity checks. Raises IntegrityError if any fail."""
     errors: list[str] = []
     for check in _ALL_CHECKS:
         check(game_world, errors)
+    if phase_name in _DUNGEON_TOPOLOGY_PHASES:
+        _check_dungeon_connectivity(game_world, errors)
     if errors:
         msg = f"Integrity check failed after {phase_name}:\n" + "\n".join(
             f"  - {e}" for e in errors

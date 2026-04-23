@@ -54,6 +54,7 @@ def _run_seed(flags: Flags, seed: int) -> dict[str, Any]:
     }
 
     phases: dict[str, float] = {}
+    retries: list[dict[str, Any]] = []
     total_t0 = time.monotonic()
 
     max_pipeline_attempts = 10
@@ -70,8 +71,10 @@ def _run_seed(flags: Flags, seed: int) -> dict[str, Any]:
                 step(game_world, config, rng)
                 phases[step.__name__] = time.monotonic() - t0
             break
-        except RuntimeError:
-            phases[f"retry_{attempt}"] = time.monotonic() - total_t0
+        except RuntimeError as e:
+            elapsed = time.monotonic() - total_t0
+            retries.append({"attempt": attempt, "elapsed": elapsed, "error": str(e)[:80]})
+            phases[f"retry_{attempt}"] = elapsed
             if attempt == max_pipeline_attempts - 1:
                 raise
 
@@ -90,7 +93,8 @@ def _run_seed(flags: Flags, seed: int) -> dict[str, Any]:
     phases["serialize_and_patch"] = time.monotonic() - t0
 
     total = time.monotonic() - total_t0
-    return {"seed": seed, "total": total, "phases": phases, "ok": True}
+    return {"seed": seed, "total": total, "phases": phases, "ok": True,
+            "retries": retries, "attempts": len(retries) + 1}
 
 
 def _run_seed_in_process(flags: Flags, seed: int, timeout: int) -> dict[str, Any]:
@@ -147,7 +151,9 @@ def main() -> None:
 
         status = "OK" if result["ok"] else f"FAIL ({result.get('error', '?')})"
         total_str = f"{result['total']:.2f}s" if result["ok"] else f"{TIMEOUT:.0f}s"
-        print(f"Seed {seed:>5}: {total_str:>8}  {status}")
+        attempts = result.get("attempts", 1)
+        retry_str = f"  ({attempts} attempts)" if attempts > 1 else ""
+        print(f"Seed {seed:>5}: {total_str:>8}  {status}{retry_str}")
 
         if result["ok"] and result["phases"]:
             slow_phases = sorted(
@@ -201,6 +207,35 @@ def main() -> None:
     timeout_seeds = [r for r in results if not r["ok"]]
     if timeout_seeds:
         print(f"Timed out:     {[r['seed'] for r in timeout_seeds]}")
+
+    retry_results = [r for r in results if r.get("attempts", 1) > 1]
+    if retry_results:
+        print(f"Seeds retried: {len(retry_results)}")
+        error_counts: dict[str, int] = {}
+        for r in retry_results:
+            for retry in r.get("retries", []):
+                err = retry["error"]
+                error_counts[err] = error_counts.get(err, 0) + 1
+        if error_counts:
+            print("\nRetry error breakdown:")
+            for err, count in sorted(error_counts.items(), key=lambda kv: -kv[1]):
+                print(f"  {count:>3}x  {err}")
+
+    # RCA candidates: slowest seeds and failures, with ready-to-run commands
+    rca_candidates = sorted(results, key=lambda r: r["total"], reverse=True)[:5]
+    rca_candidates = [r for r in rca_candidates if r["total"] > 5 or not r["ok"]]
+    if rca_candidates:
+        print(f"\nRCA candidates (top {len(rca_candidates)} slowest/failed):")
+        for r in rca_candidates:
+            status = "FAIL" if not r["ok"] else f"{r['total']:.1f}s"
+            attempts = r.get("attempts", 1)
+            retry_info = f", {attempts} attempts" if attempts > 1 else ""
+            errs = [rt["error"] for rt in r.get("retries", [])]
+            err_summary = f" [{'; '.join(errs)}]" if errs else ""
+            print(f"  Seed {r['seed']:>5} ({status}{retry_info}){err_summary}")
+        print(f"\nRCA commands:")
+        for r in rca_candidates:
+            print(f"  python tools/rca_seed.py -v {flag_string} {r['seed']}")
 
 
 if __name__ == "__main__":

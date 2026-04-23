@@ -674,6 +674,27 @@ def _pre_place_forced_items(
 # Assumed fill
 # ---------------------------------------------------------------------------
 
+def _apply_progressive_upgrades(inv: Inventory, item_list: list[Item]) -> None:
+    """Add progressive upgrade items to an assumed inventory.
+
+    The assumed inventory is built with set.add() which deduplicates base items.
+    This function counts base item occurrences in the original list and adds the
+    corresponding upgrade items that would result from collecting them in sequence.
+    """
+    if not inv.progressive_items:
+        return
+    _UPGRADE_CHAINS: list[tuple[Item, list[Item]]] = [
+        (Item.WOOD_SWORD, [Item.WHITE_SWORD, Item.MAGICAL_SWORD]),
+        (Item.BLUE_RING, [Item.RED_RING]),
+        (Item.WOOD_ARROWS, [Item.SILVER_ARROWS]),
+        (Item.BLUE_CANDLE, [Item.RED_CANDLE]),
+    ]
+    for base, upgrades in _UPGRADE_CHAINS:
+        count = item_list.count(base)
+        for upgrade in upgrades[:count - 1]:
+            inv.items.add(upgrade)
+
+
 def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
     """Place all major items using assumed fill. Mutates game_world in place.
 
@@ -738,9 +759,10 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
         iter_start = time.monotonic()
 
         # Build assumed inventory: everything still unplaced
-        assumed = Inventory()
+        assumed = Inventory(progressive_items=config.progressive_items)
         for item in item_pool:
             assumed.items.add(item)
+        _apply_progressive_upgrades(assumed, item_pool)
         # Triforces are tracked by level, not as generic items.  Credit one
         # assumed level per unplaced triforce so the validator can open L9.
         assumed_triforce_count = item_pool.count(Item.TRIFORCE)
@@ -819,9 +841,10 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
             cache_key = tuple(sorted(remaining_for_check, key=lambda i: i.value))
 
             if cache_key not in _reachable_without_cache:
-                assumed_without = Inventory()
+                assumed_without = Inventory(progressive_items=config.progressive_items)
                 for other in remaining_for_check:
                     assumed_without.items.add(other)
+                _apply_progressive_upgrades(assumed_without, remaining_for_check)
                 without_triforce_count = remaining_for_check.count(Item.TRIFORCE)
                 for lvl in range(1, without_triforce_count + 1):
                     if lvl not in assumed_without.levels_with_triforce_obtained:
