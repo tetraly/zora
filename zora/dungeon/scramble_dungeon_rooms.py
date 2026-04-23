@@ -25,7 +25,10 @@ from zora.data_model import (
     RoomType,
     WallType,
 )
-from zora.dungeon.shuffle_dungeon_rooms import _is_level_connected
+from zora.dungeon.shuffle_dungeon_rooms import (
+    _fix_narrow_stair_east_walls_level,
+    _is_level_connected,
+)
 from zora.rng import Rng
 from zora.enemy.safety_checks import is_safe_for_room
 
@@ -369,6 +372,14 @@ def _safe_for_gleeok(room_type: RoomType, enemy: Enemy) -> bool:
 # Main scramble
 # ---------------------------------------------------------------------------
 
+def _narrow_stair_walls_ok(content: _RoomContents, dest_room: Room) -> bool:
+    """Return False if placing a NARROW_STAIR_ROOM at dest_room would require
+    solidifying a non-solid east wall (which breaks connectivity)."""
+    if content.room_type != RoomType.NARROW_STAIR_ROOM:
+        return True
+    return dest_room.walls.east == WallType.SOLID_WALL
+
+
 def _run_fisher_yates(
     contents: list[_RoomContents],
     locked: list[bool],
@@ -398,6 +409,12 @@ def _run_fisher_yates(
                 pool[i].room_num, pool[j].room_num,
                 pool_level_nums[i], pool_level_nums[j],
             ):
+                constraint_failed = True
+
+        if not constraint_failed:
+            if not _narrow_stair_walls_ok(contents[j], pool[i]):
+                constraint_failed = True
+            elif not _narrow_stair_walls_ok(contents[i], pool[j]):
                 constraint_failed = True
 
         if constraint_failed:
@@ -565,6 +582,10 @@ def scramble_dungeon_rooms(
                 )
             ):
                 room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+
+        # --- Phase 3d: Fix narrow stair east walls before connectivity check ---
+        for level in world.levels:
+            _fix_narrow_stair_east_walls_level(level)
 
         # --- Phase 4: Connectivity check ---
         connected = all(_is_level_connected(level) for level in world.levels)

@@ -1512,6 +1512,24 @@ def _room_has_stairway(room: Room) -> bool:
     return room.room_type.can_have_push_block() and room.movable_block
 
 
+def _fix_narrow_stair_east_walls_level(level: Level) -> None:
+    """Force NARROW_STAIR_ROOM east walls to SOLID_WALL within a single level.
+
+    Must run before the connectivity check so that layouts broken by this
+    constraint are rejected immediately rather than discovered post-fixup.
+    """
+    rooms_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
+    for room in level.rooms:
+        if room.room_type != RoomType.NARROW_STAIR_ROOM:
+            continue
+        room.walls.east = WallType.SOLID_WALL
+        right_num = room.room_num + 1
+        if room.room_num % 16 < 15:
+            right = rooms_by_num.get(right_num)
+            if right is not None:
+                right.walls.west = WallType.SOLID_WALL
+
+
 def _is_level_connected(level: Level) -> bool:
     """Check that every room in the level is reachable from the entrance.
 
@@ -1645,6 +1663,7 @@ def shuffle_dungeon_rooms(
 
             _fix_special_rooms(level, world)
             _fix_peninsula_and_stairs(level, world)
+            _fix_narrow_stair_east_walls_level(level)
 
             if _is_level_connected(level):
                 connected = True
