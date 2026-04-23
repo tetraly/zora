@@ -291,17 +291,102 @@ def _shuffle_level(
     return True
 
 
+def _cleanup_stale_gannon_rooms(world: GameWorld) -> None:
+    """Clear TRIFORCE_OF_POWER from rooms where THE_BEAST no longer resides.
+
+    When shuffle_monsters moves THE_BEAST, _configure_gannon_room sets up the
+    new room but doesn't clean up the old one.  The old room retains its
+    TRIFORCE_OF_POWER item and TRIFORCE_OF_POWER_OPENS_SHUTTERS action,
+    causing a duplicate TRIFORCE_OF_POWER in L9.
+    """
+    for level in world.levels:
+        for room in level.rooms:
+            if room.enemy_spec.enemy == Enemy.THE_BEAST:
+                continue
+            if room.item == Item.TRIFORCE_OF_POWER:
+                room.item = Item.NOTHING
+                room.room_action = RoomAction.NOTHING_OPENS_SHUTTERS
+                room.is_dark = False
+
+
+def _fix_kidnapped_neighbors(world: GameWorld) -> None:
+    """Ensure rooms adjacent to THE_KIDNAPPED have proper shutter gates.
+
+    After monster shuffling moves THE_KIDNAPPED, the rooms around its new
+    position need shutter doors facing it and TRIFORCE_OF_POWER_OPENS_SHUTTERS
+    as their room_action — this is the gate that requires collecting the
+    Triforce of Power before reaching Zelda.
+    """
+    level_9 = world.levels[8] if len(world.levels) >= 9 else None
+    if level_9 is None:
+        return
+
+    room_by_num: dict[int, Room] = {r.room_num: r for r in level_9.rooms}
+
+    kidnapped_room: Room | None = None
+    for room in level_9.rooms:
+        if room.enemy_spec.enemy == Enemy.THE_KIDNAPPED:
+            kidnapped_room = room
+            break
+    if kidnapped_room is None:
+        return
+
+    rn = kidnapped_room.room_num
+    opposite: dict[Direction, Direction] = {
+        Direction.NORTH: Direction.SOUTH,
+        Direction.SOUTH: Direction.NORTH,
+        Direction.EAST: Direction.WEST,
+        Direction.WEST: Direction.EAST,
+    }
+
+    for direction in (Direction.NORTH, Direction.SOUTH,
+                      Direction.EAST, Direction.WEST):
+        neighbor_num = rn + direction.value
+        if neighbor_num < 0 or neighbor_num >= 128:
+            continue
+        neighbor = room_by_num.get(neighbor_num)
+        if neighbor is None:
+            continue
+
+        kidnapped_wall = kidnapped_room.walls[direction]
+        if kidnapped_wall == WallType.SOLID_WALL:
+            continue
+
+        facing = opposite[direction]
+        if neighbor.walls[facing] not in (WallType.SOLID_WALL, WallType.SHUTTER_DOOR):
+            neighbor.walls[facing] = WallType.SHUTTER_DOOR
+
+        neighbor.room_action = RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS
+
+        if neighbor.enemy_spec.enemy == Enemy.THE_BEAST:
+            continue
+        if neighbor.item == Item.TRIFORCE_OF_POWER:
+            continue
+        for other_dir in (Direction.NORTH, Direction.SOUTH,
+                          Direction.EAST, Direction.WEST):
+            if other_dir == facing:
+                continue
+            if neighbor.walls[other_dir] == WallType.SHUTTER_DOOR:
+                neighbor.walls[other_dir] = WallType.OPEN_DOOR
+
+
 def _post_process_gannon_flags(world: GameWorld) -> None:
     """Post-processing pass: clear boss_cry bits and re-tag Gannon adjacents.
 
     Port of PostProcessGannonRoomFlags (MonsterShuffler.cs:534-557) and
     ProcessGannonBlock (MonsterShuffler.cs:566-619).
 
-    1. Clears boss_cry_1 and boss_cry_2 on ALL dungeon rooms across ALL levels.
-    2. For levels 7-9: finds Gannon rooms, configures them (dark, Triforce,
+    1. Cleans up stale TRIFORCE_OF_POWER from old Gannon rooms.
+    2. Fixes shutter gates around THE_KIDNAPPED's new position.
+    3. Clears boss_cry_1 and boss_cry_2 on ALL dungeon rooms across ALL levels.
+    4. For levels 7-9: finds Gannon rooms, configures them (dark, Triforce,
        room action), and sets boss_cry_1 on adjacent rooms that belong to
        level 9.
     """
+    # Phase 0: Clean up old Gannon rooms and fix kidnapped neighbors.
+    _cleanup_stale_gannon_rooms(world)
+    _fix_kidnapped_neighbors(world)
+
     # Phase 1: Clear boss_cry bits on all rooms in all levels.
     for level in world.levels:
         for room in level.rooms:

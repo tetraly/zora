@@ -870,7 +870,7 @@ def change_dungeon_boss_groups(
         env var, or "boss_groups_debug.log" in the cwd if unset.
     """
     if debug is None:
-        debug = True
+        debug = False
     if debug_log_path is None:
         debug_log_path = os.environ.get(
             "ZORA_BOSS_DEBUG_LOG", "boss_groups_debug.log"
