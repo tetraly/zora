@@ -833,6 +833,11 @@ class EnemyData:
     mixed_enemy_data: bytearray = field(default_factory=bytearray)
     mixed_group_offsets: dict[int, int] = field(default_factory=dict)
 
+    aquamentus_sprite_ptr: int | None = None
+    gleeok_head_sprite_ptr_a: int | None = None
+    gleeok_head_sprite_ptr_b: int | None = None
+    gleeok_head_sprite_ptr_c: int | None = None
+
 
 @dataclass
 class GameWorld:

@@ -120,6 +120,7 @@ from zora.rom_layout import (
     WHITE_SWORD_REQUIREMENT_ADDRESS,
     AQUAMENTUS_HP_ADDRESS,
     AQUAMENTUS_SP_ADDRESS,
+    AQUAMENTUS_SPRITE_PTR_ADDRESS,
     BOSS_HP_FIRST_ENEMY_VALUE,
     BOSS_HP_NIBBLE_COUNT,
     BOSS_HP_TABLE_ADDRESS,
@@ -129,6 +130,9 @@ from zora.rom_layout import (
     ENEMY_HP_TABLE_SIZE,
     GANON_HP_ADDRESS,
     GLEEOK_HP_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS,
     MIXED_ENEMY_DATA_ADDRESS,
     PATRA_HP_ADDRESS,
 )
@@ -873,6 +877,16 @@ def _serialize_enemy_hp(game_world: GameWorld, patch: Patch) -> None:
     patch.add(GANON_HP_ADDRESS,      bytes([(ed.ganon_hp & 0x0F) << 4]))
     patch.add(GLEEOK_HP_ADDRESS,     bytes([(ed.gleeok_hp & 0x0F) << 4]))
     patch.add(PATRA_HP_ADDRESS,      bytes([(ed.patra_hp & 0x0F) << 4]))
+
+    # Boss engine sprite pointers (set by change_dungeon_boss_groups)
+    if ed.aquamentus_sprite_ptr is not None:
+        patch.add(AQUAMENTUS_SPRITE_PTR_ADDRESS, bytes([ed.aquamentus_sprite_ptr & 0xFF]))
+    if ed.gleeok_head_sprite_ptr_a is not None:
+        patch.add(GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS, bytes([ed.gleeok_head_sprite_ptr_a & 0xFF]))
+    if ed.gleeok_head_sprite_ptr_b is not None:
+        patch.add(GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS, bytes([ed.gleeok_head_sprite_ptr_b & 0xFF]))
+    if ed.gleeok_head_sprite_ptr_c is not None:
+        patch.add(GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS, bytes([ed.gleeok_head_sprite_ptr_c & 0xFF]))
 
 
 # ---------------------------------------------------------------------------
