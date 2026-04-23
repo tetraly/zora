@@ -5,6 +5,7 @@ from zora.data_model import (
     Direction,
     Enemy,
     GameWorld,
+    Item,
     Level,
     Room,
     RoomAction,
@@ -147,6 +148,13 @@ def _fix_kidnapped_neighbors(level: Level) -> None:
             neighbor.walls[facing_dir] = WallType.SHUTTER_DOOR
         if neighbor.room_action != RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
             neighbor.room_action = RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS
+        has_beast = neighbor.enemy_spec.enemy == Enemy.THE_BEAST
+        has_top = neighbor.item == Item.TRIFORCE_OF_POWER
+        if not (has_beast or has_top):
+            for d in (Direction.NORTH, Direction.SOUTH,
+                      Direction.EAST, Direction.WEST):
+                if d != facing_dir and neighbor.walls[d] == WallType.SHUTTER_DOOR:
+                    neighbor.walls[d] = WallType.OPEN_DOOR
 
 
 _MAX_SHAPES_ATTEMPTS = 50

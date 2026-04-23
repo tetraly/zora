@@ -174,6 +174,23 @@ def _check_kidnapped(game_world: GameWorld, errors: list[str]) -> None:
                 f"TRIFORCE_OF_POWER_OPENS_SHUTTERS"
             )
 
+        has_beast = neighbor.enemy_spec.enemy == Enemy.THE_BEAST
+        has_top = neighbor.item == Item.TRIFORCE_OF_POWER
+        if not (has_beast or has_top):
+            shutter_count = sum(
+                1 for d in (Direction.NORTH, Direction.SOUTH,
+                            Direction.EAST, Direction.WEST)
+                if neighbor.walls[d] == WallType.SHUTTER_DOOR
+            )
+            if shutter_count != 1:
+                errors.append(
+                    f"Level 9 room 0x{neighbor_num:02X}: adjacent to "
+                    f"THE_KIDNAPPED (0x{rn:02X}) has {shutter_count} shutter "
+                    f"doors (expected exactly 1 facing the kidnapped room) — "
+                    f"extra shutters could allow bypassing the Triforce of "
+                    f"Power gate"
+                )
+
 
 def _check_wall_reciprocity(game_world: GameWorld, errors: list[str]) -> None:
     for level in game_world.levels:
