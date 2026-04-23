@@ -417,6 +417,68 @@ def _run_fisher_yates(
         i += 1
 
 
+def _restore_level_bound_items(
+    pool: list[Room],
+    room_to_level_num: dict[int, int],
+    world: GameWorld,
+) -> None:
+    """Swap maps and compasses back so each level has exactly one of each.
+
+    The main scramble moves entire room contents between levels.  Maps and
+    compasses must stay in the level they started in. For each item type,
+    count ALL copies per level (including non-pool rooms), then swap surplus
+    pool items with non-bound pool items from deficit levels.
+    """
+    pool_set: frozenset[int] = frozenset(id(r) for r in pool)
+
+    pool_by_level: dict[int, list[int]] = {}
+    for i, room in enumerate(pool):
+        lv = room_to_level_num[room.room_num]
+        pool_by_level.setdefault(lv, []).append(i)
+
+    for item_type in (Item.MAP, Item.COMPASS):
+        total_count: dict[int, int] = {}
+        for level in world.levels:
+            n = sum(1 for r in level.rooms if r.item == item_type)
+            n += sum(1 for sr in level.staircase_rooms if sr.item == item_type)
+            total_count[level.level_num] = n
+
+        deficit_levels: list[int] = [
+            lv for lv in range(1, 10) if total_count.get(lv, 0) == 0
+        ]
+
+        surplus: list[int] = []
+        for level_num in range(1, 10):
+            count = total_count.get(level_num, 0)
+            if count <= 1:
+                continue
+            non_pool_count = sum(
+                1 for r in world.levels[level_num - 1].rooms
+                if r.item == item_type and id(r) not in pool_set
+            ) + sum(
+                1 for sr in world.levels[level_num - 1].staircase_rooms
+                if sr.item == item_type
+            )
+            pool_target = max(0, 1 - non_pool_count)
+            pool_copies = [i for i in pool_by_level.get(level_num, []) if pool[i].item == item_type]
+            surplus.extend(pool_copies[pool_target:])
+
+        for surplus_idx in surplus:
+            if not deficit_levels:
+                break
+            target_level = deficit_levels[0]
+            for candidate_idx in pool_by_level.get(target_level, []):
+                if pool[candidate_idx].item not in _LEVEL_BOUND_ITEMS:
+                    pool[surplus_idx].item, pool[candidate_idx].item = (
+                        pool[candidate_idx].item, pool[surplus_idx].item
+                    )
+                    pool[surplus_idx].item_position, pool[candidate_idx].item_position = (
+                        pool[candidate_idx].item_position, pool[surplus_idx].item_position
+                    )
+                    deficit_levels.pop(0)
+                    break
+
+
 def scramble_dungeon_rooms(
     world: GameWorld,
     rng: Rng,
@@ -469,10 +531,12 @@ def scramble_dungeon_rooms(
 
     # Build per-room level membership for adjacency checks.
     room_to_level_nums: dict[int, frozenset[int]] = {}
+    room_to_level_num: dict[int, int] = {}
     for level in world.levels:
         level_nums = frozenset(r.room_num for r in level.rooms)
         for r in level.rooms:
             room_to_level_nums[r.room_num] = level_nums
+            room_to_level_num[r.room_num] = level.level_num
     pool_level_nums = [room_to_level_nums.get(r.room_num, frozenset()) for r in pool]
 
     for _attempt in range(_MAX_SCRAMBLE_ATTEMPTS):
@@ -485,6 +549,9 @@ def scramble_dungeon_rooms(
         # --- Phase 3: Write shuffled contents back to rooms ---
         for room, content in zip(pool, contents):
             content.apply_to(room)
+
+        # --- Phase 3c: Restore maps/compasses to their original levels ---
+        _restore_level_bound_items(pool, room_to_level_num, world)
 
         # --- Phase 3b: Fix pushblock/shutter mismatches ---
         for room in pool:
@@ -573,6 +640,9 @@ def _assign_valid_item_positions(pool: list[Room], rng: Rng) -> None:
         room.item_position = rng.choice(door_valid if door_valid else valid)
 
 
+_LEVEL_BOUND_ITEMS: frozenset[Item] = frozenset({Item.MAP, Item.COMPASS})
+
+
 def _shuffle_drops(pool: list[Room], rng: Rng) -> None:
     """Shuffle item assignments between the scrambled rooms.
 
@@ -584,9 +654,14 @@ def _shuffle_drops(pool: list[Room], rng: Rng) -> None:
     artifact.
 
     We approximate the game-level intent by shuffling item and item_position
-    between the rooms that participated in the main scramble.
+    between the rooms that participated in the main scramble.  Maps and
+    compasses are excluded — they must stay in their original level.
     """
-    items = [(room.item, room.item_position) for room in pool]
+    shufflable_indices: list[int] = [
+        i for i, room in enumerate(pool)
+        if room.item not in _LEVEL_BOUND_ITEMS
+    ]
+    items = [(pool[i].item, pool[i].item_position) for i in shufflable_indices]
 
     for k in range(len(items) - 1):
         remaining = len(items) - k
@@ -595,9 +670,9 @@ def _shuffle_drops(pool: list[Room], rng: Rng) -> None:
             swap_idx = len(items) - 1
         items[k], items[swap_idx] = items[swap_idx], items[k]
 
-    for room, (item, item_pos) in zip(pool, items):
-        room.item = item
-        room.item_position = item_pos
+    for idx, (item, item_pos) in zip(shufflable_indices, items):
+        pool[idx].item = item
+        pool[idx].item_position = item_pos
 
     # TODO: Investigate why the original C# doesn't need this fixup.  The C#
     # shuffleDrops swaps a byte at RoomExtraData + DungeonBlockSize, which

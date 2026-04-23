@@ -3,8 +3,10 @@ from __future__ import annotations
 
 from zora.data_model import (
     Direction,
+    Enemy,
     GameWorld,
     Level,
+    Room,
     RoomAction,
     RoomType,
     WallType,
@@ -96,6 +98,87 @@ def _fix_pushblock_stair_shutter_doors(level: Level) -> None:
                 room.walls[direction] = WallType.OPEN_DOOR
 
 
+_NPC_ENEMIES: frozenset[Enemy] = frozenset({
+    Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3, Enemy.OLD_MAN_4,
+    Enemy.BOMB_UPGRADER, Enemy.OLD_MAN_5, Enemy.MUGGER, Enemy.OLD_MAN_6,
+})
+
+_OPPOSITE_DIR: dict[Direction, Direction] = {
+    Direction.NORTH: Direction.SOUTH,
+    Direction.SOUTH: Direction.NORTH,
+    Direction.EAST: Direction.WEST,
+    Direction.WEST: Direction.EAST,
+}
+
+
+def _fix_npc_north_walls(level: Level) -> None:
+    """Force solid north walls on NPC rooms.
+
+    The NES engine lets Link walk off the top of the screen in NPC rooms
+    if the north wall isn't solid.  The one exception is the L9 OLD_MAN
+    room directly north of the entrance — that room uses shutter doors
+    and is handled separately by _fix_special_rooms.
+    """
+    l9_exception = level.entrance_room - 0x10 if level.level_num == 9 else -1
+
+    for room in level.rooms:
+        if room.enemy_spec.enemy not in _NPC_ENEMIES:
+            continue
+        if level.level_num == 9 and room.enemy_spec.enemy == Enemy.OLD_MAN and room.room_num == l9_exception:
+            continue
+        if room.walls.north != WallType.SOLID_WALL:
+            room.walls.north = WallType.SOLID_WALL
+            # Fix reciprocity: the room above must also have a solid south wall
+            above_num = room.room_num - 0x10
+            if above_num >= 0:
+                for other in level.rooms:
+                    if other.room_num == above_num:
+                        other.walls.south = WallType.SOLID_WALL
+                        break
+
+
+def _fix_kidnapped_neighbors(level: Level) -> None:
+    """Ensure rooms adjacent to THE_KIDNAPPED have shutter doors facing
+    the kidnapped room and TRIFORCE_OF_POWER_OPENS_SHUTTERS action."""
+    if level.level_num != 9:
+        return
+
+    room_map: dict[int, Room] = {r.room_num: r for r in level.rooms}
+
+    kidnapped_room: Room | None = None
+    for room in level.rooms:
+        if room.enemy_spec.enemy == Enemy.THE_KIDNAPPED:
+            kidnapped_room = room
+            break
+    if kidnapped_room is None:
+        return
+
+    rn = kidnapped_room.room_num
+    neighbors: list[tuple[Direction, int]] = [
+        (Direction.NORTH, rn - 0x10),
+        (Direction.SOUTH, rn + 0x10),
+        (Direction.EAST, rn + 1),
+        (Direction.WEST, rn - 1),
+    ]
+
+    for direction, neighbor_num in neighbors:
+        if neighbor_num < 0 or neighbor_num > 0x7F:
+            continue
+        neighbor = room_map.get(neighbor_num)
+        if neighbor is None:
+            continue
+
+        kidnapped_wall = kidnapped_room.walls[direction]
+        if kidnapped_wall == WallType.SOLID_WALL:
+            continue
+
+        facing_dir = _OPPOSITE_DIR[direction]
+        if neighbor.walls[facing_dir] != WallType.SHUTTER_DOOR:
+            neighbor.walls[facing_dir] = WallType.SHUTTER_DOOR
+        if neighbor.room_action != RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
+            neighbor.room_action = RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS
+
+
 _MAX_SHAPES_ATTEMPTS = 50
 
 
@@ -170,6 +253,8 @@ def generate_dungeon_shapes(
         level.item_position_table = list(_STANDARD_ITEM_POSITION_TABLE)
         fix_npc_shutter_doors(level)
         _fix_pushblock_stair_shutter_doors(level)
+        _fix_npc_north_walls(level)
+        _fix_kidnapped_neighbors(level)
         all_rooms.extend(level.rooms)
 
     _assign_valid_item_positions(all_rooms, rng)
