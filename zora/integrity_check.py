@@ -210,6 +210,37 @@ def _walls_compatible(wall_a: WallType, wall_b: WallType) -> bool:
     return a_passable == b_passable
 
 
+def _check_pushblock_stair_shutter_conflict(game_world: GameWorld, errors: list[str]) -> None:
+    for level in game_world.levels:
+        stair_rooms: set[int] = set()
+        for sr in level.staircase_rooms:
+            if sr.room_type == RoomType.ITEM_STAIRCASE:
+                if sr.return_dest is not None:
+                    stair_rooms.add(sr.return_dest)
+            else:
+                if sr.left_exit is not None:
+                    stair_rooms.add(sr.left_exit)
+                if sr.right_exit is not None:
+                    stair_rooms.add(sr.right_exit)
+
+        for room in level.rooms:
+            if room.room_num not in stair_rooms:
+                continue
+            if room.room_type.has_open_staircase():
+                continue
+            if not (room.room_type.can_have_push_block() and room.movable_block):
+                continue
+            for direction in (Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST):
+                if room.walls[direction] == WallType.SHUTTER_DOOR:
+                    errors.append(
+                        f"Level {level.level_num} room 0x{room.room_num:02X}: "
+                        f"push-block staircase room has SHUTTER_DOOR on "
+                        f"{direction.name} — push block will open shutters "
+                        f"instead of staircase"
+                    )
+                    break
+
+
 def _check_dungeon_connectivity(game_world: GameWorld, errors: list[str]) -> None:
     for level in game_world.levels:
         if not _is_level_connected(level):
@@ -226,6 +257,7 @@ _ALL_CHECKS: list[Callable[[GameWorld, list[str]], None]] = [
     _check_npc_north_wall,
     _check_kidnapped,
     _check_wall_reciprocity,
+    _check_pushblock_stair_shutter_conflict,
 ]
 
 _DUNGEON_TOPOLOGY_PHASES: frozenset[str] = frozenset({
