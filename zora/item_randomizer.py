@@ -600,6 +600,8 @@ def _pre_place_forced_items(
     location_pool: list[Location],
     constraints: Constraints,
     rng: Rng,
+    validator: GameValidator,
+    config: GameConfig,
 ) -> bool:
     """Place forced items, mutating item_pool and location_pool in place.
 
@@ -636,21 +638,36 @@ def _pre_place_forced_items(
         level_9_locs = [loc for loc in location_pool
                         if isinstance(loc, DungeonLocation) and loc.level_num == 9]
 
+    if constraints.force_arrow_to_level_nine or constraints.force_ring_to_level_nine:
+        # Compute reachable locations so force-placement doesn't pick an
+        # unreachable staircase (e.g. behind a shutter-door pushblock room).
+        assumed = Inventory(progressive_items=config.progressive_items)
+        for item in item_pool:
+            assumed.items.add(item)
+        _apply_progressive_upgrades(assumed, item_pool)
+        assumed_triforce_count = item_pool.count(Item.TRIFORCE)
+        for lvl in range(1, assumed_triforce_count + 1):
+            if lvl not in assumed.levels_with_triforce_obtained:
+                assumed.levels_with_triforce_obtained.append(lvl)
+        reachable_set = set(validator.get_reachable_locations(assumed_inventory=assumed))
+
     if constraints.force_arrow_to_level_nine:
-        level_9_locs = [loc for loc in location_pool
-                        if isinstance(loc, DungeonLocation) and loc.level_num == 9]
+        reachable_l9 = [loc for loc in location_pool
+                        if isinstance(loc, DungeonLocation) and loc.level_num == 9
+                        and loc in reachable_set]
         arrows = [i for i in item_pool if i in _ARROW_ITEMS]
-        if arrows and level_9_locs:
-            dloc = rng.choice(level_9_locs)
+        if arrows and reachable_l9:
+            dloc = rng.choice(reachable_l9)
             item = rng.choice(arrows)
             _force_place(game_world, item, dloc, item_pool, location_pool)
 
     if constraints.force_ring_to_level_nine:
-        level_9_locs = [loc for loc in location_pool
-                        if isinstance(loc, DungeonLocation) and loc.level_num == 9]
+        reachable_l9 = [loc for loc in location_pool
+                        if isinstance(loc, DungeonLocation) and loc.level_num == 9
+                        and loc in reachable_set]
         rings = [i for i in item_pool if i in _RING_ITEMS]
-        if rings and level_9_locs:
-            dloc = rng.choice(level_9_locs)
+        if rings and reachable_l9:
+            dloc = rng.choice(reachable_l9)
             item = rng.choice(rings)
             _force_place(game_world, item, dloc, item_pool, location_pool)
 
@@ -731,7 +748,7 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
         _clear_location(game_world, loc)
 
     # Pre-place forced items (returns False if layout is impossible)
-    if not _pre_place_forced_items(game_world, item_pool, location_pool, constraints, rng):
+    if not _pre_place_forced_items(game_world, item_pool, location_pool, constraints, rng, validator, config):
         return False
 
     # Compute self-blocking constraints: rooms where an item can't go because
