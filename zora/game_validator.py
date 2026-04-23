@@ -702,7 +702,7 @@ class GameValidator:
 
         # Build location list from visited rooms + reachable caves
         reachable = []
-        for (level_num, room_num) in self.visited_rooms:
+        for (level_num, room_num) in sorted(self.visited_rooms):
             room = self._get_room(level_num, room_num)
             if room is not None and room.room_type in _DIRECTION_SENSITIVE_ROOM_TYPES:
                 directions = self.room_entry_directions.get((level_num, room_num), set())
