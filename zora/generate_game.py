@@ -27,6 +27,7 @@ from zora.l4_sword_randomizer import place_l4_sword
 from zora.normalizer import normalize_data
 from zora.overworld_randomizer import randomize_maze_directions, recalculate_recorder_warp_screens, remap_game_start
 from zora.level_gen.orchestrator import generate_dungeon_shapes
+from zora.integrity_check import integrity_check
 from zora.parser import is_randomizer_rom, load_bin_files, load_bin_files_from_rom, parse_game_world
 from zora.patch import build_ips_patch
 from zora.patches import build_behavior_patch
@@ -67,6 +68,13 @@ _RANDOMIZERS = [
     expand_quote_slots,  # adds quote slots 39-43; must run before randomize_hints
     randomize_hints,
 ]
+
+_CRITICAL_STEPS = {
+    randomize_dungeons,
+    randomize_enemies,
+    shuffle_dungeon_items,
+    randomize_items,
+}
 
 
 def generate_game(
@@ -115,12 +123,15 @@ def generate_game(
         game_world = parse_game_world(bins)
         try:
             generate_dungeon_shapes(game_world, bins, config, rng)
+            integrity_check(game_world, "generate_dungeon_shapes")
             for step in _RANDOMIZERS:
                 t0 = time.monotonic()
                 step(game_world, config, rng)
                 elapsed = time.monotonic() - t0
                 if elapsed > 0.5:
                     logger.info("  %s: %.2fs", step.__name__, elapsed)
+                if step in _CRITICAL_STEPS:
+                    integrity_check(game_world, step.__name__)
             break
         except RuntimeError:
             if attempt == max_pipeline_attempts - 1:
@@ -203,8 +214,11 @@ def generate_game_from_rom(
         game_world = parse_game_world(bins)
         try:
             generate_dungeon_shapes(game_world, bins, config, rng)
+            integrity_check(game_world, "generate_dungeon_shapes")
             for step in _RANDOMIZERS:
                 step(game_world, config, rng)
+                if step in _CRITICAL_STEPS:
+                    integrity_check(game_world, step.__name__)
             break
         except RuntimeError:
             if attempt == max_pipeline_attempts - 1:
