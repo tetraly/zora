@@ -98,11 +98,6 @@ def _fix_pushblock_stair_shutter_doors(level: Level) -> None:
                 room.walls[direction] = WallType.OPEN_DOOR
 
 
-_NPC_ENEMIES: frozenset[Enemy] = frozenset({
-    Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3, Enemy.OLD_MAN_4,
-    Enemy.BOMB_UPGRADER, Enemy.OLD_MAN_5, Enemy.MUGGER, Enemy.OLD_MAN_6,
-})
-
 _OPPOSITE_DIR: dict[Direction, Direction] = {
     Direction.NORTH: Direction.SOUTH,
     Direction.SOUTH: Direction.NORTH,
@@ -110,31 +105,6 @@ _OPPOSITE_DIR: dict[Direction, Direction] = {
     Direction.WEST: Direction.EAST,
 }
 
-
-def _fix_npc_north_walls(level: Level) -> None:
-    """Force solid north walls on NPC rooms.
-
-    The NES engine lets Link walk off the top of the screen in NPC rooms
-    if the north wall isn't solid.  The one exception is the L9 OLD_MAN
-    room directly north of the entrance — that room uses shutter doors
-    and is handled separately by _fix_special_rooms.
-    """
-    l9_exception = level.entrance_room - 0x10 if level.level_num == 9 else -1
-
-    for room in level.rooms:
-        if room.enemy_spec.enemy not in _NPC_ENEMIES:
-            continue
-        if level.level_num == 9 and room.enemy_spec.enemy == Enemy.OLD_MAN and room.room_num == l9_exception:
-            continue
-        if room.walls.north != WallType.SOLID_WALL:
-            room.walls.north = WallType.SOLID_WALL
-            # Fix reciprocity: the room above must also have a solid south wall
-            above_num = room.room_num - 0x10
-            if above_num >= 0:
-                for other in level.rooms:
-                    if other.room_num == above_num:
-                        other.walls.south = WallType.SOLID_WALL
-                        break
 
 
 def _fix_kidnapped_neighbors(level: Level) -> None:
@@ -253,7 +223,6 @@ def generate_dungeon_shapes(
         level.item_position_table = list(_STANDARD_ITEM_POSITION_TABLE)
         fix_npc_shutter_doors(level)
         _fix_pushblock_stair_shutter_doors(level)
-        _fix_npc_north_walls(level)
         _fix_kidnapped_neighbors(level)
         all_rooms.extend(level.rooms)
 

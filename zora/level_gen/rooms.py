@@ -14,6 +14,7 @@ from __future__ import annotations
 from zora.level_gen.rom_buffer import (
     LevelGrid,
     ROMOFS_ENEMY_DATA,
+    ROMOFS_SCREEN_LAYOUT,
 )
 from zora.rng import Rng
 
@@ -334,6 +335,7 @@ def new_level_rooms(
         base_offset = 768
 
     rom_base = base_offset + ROMOFS_ENEMY_DATA
+    t0_base = base_offset + ROMOFS_SCREEN_LAYOUT
 
     # === PRE-LOOP: Place boss rooms, item rooms, L5/L7/L9 specials ===
     end_level = 6 if level_start == 1 else 9
@@ -438,7 +440,9 @@ def new_level_rooms(
                 if row < len(level_grid) and col < len(level_grid[row]):
                     if level_grid[row][col] == level:
                         if (rom[item_room + rom_base] & 0x7F) == 0:
-                            break
+                            north_wall = (rom[item_room + t0_base] >> 5) & 0x07
+                            if north_wall == 1:
+                                break
                 item_room = rng.next() % 112
                 item_retries += 1
                 if item_retries >= 1000:
@@ -470,7 +474,9 @@ def new_level_rooms(
                 if row < len(level_grid) and col < len(level_grid[row]):
                     if level_grid[row][col] == level:
                         if (rom[spec_room + rom_base] & 0x7F) == 0:
-                            break
+                            north_wall = (rom[spec_room + t0_base] >> 5) & 0x07
+                            if north_wall == 1:
+                                break
                 spec_room = rng.next() % 112
                 spec_retries += 1
                 if spec_retries > 4001:

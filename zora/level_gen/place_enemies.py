@@ -266,6 +266,15 @@ def new_level_place_enemies(
         # END WORKAROUND
         # =================================================================
 
+        # NPC north-wall check: the NES engine lets Link walk off the top
+        # of the screen in NPC rooms if the north wall isn't solid.
+        # Re-roll rather than placing an NPC here.
+        if 0x0B <= enemy_6bit <= 0x12:
+            t0_addr_nw = room + base_offset + ROMOFS_SCREEN_LAYOUT
+            north_wall = (rom[t0_addr_nw] >> 5) & 0x07
+            if north_wall != 1:
+                continue  # retry same room
+
         # Write enemy to ROM
         rom[room + base_offset + ROMOFS_ITEM_DATA] = selected & 0xFF
         rom[screen_addr] = rom[screen_addr] | ((selected >> 1) & 0x80)

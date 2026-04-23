@@ -36,7 +36,7 @@ from zora.dungeon.shuffle_dungeon_rooms import (
     shuffle_dungeon_rooms,
 )
 from zora.game_config import GameConfig
-from zora.level_gen.orchestrator import _fix_kidnapped_neighbors, _fix_npc_north_walls
+from zora.level_gen.orchestrator import _fix_kidnapped_neighbors
 from zora.rng import Rng
 
 logger = logging.getLogger(__name__)
@@ -73,7 +73,6 @@ def randomize_dungeons(
     if config.shuffle_dungeon_rooms or config.scramble_dungeon_rooms:
         _fix_narrow_stair_east_walls(game_world)
         for level in game_world.levels:
-            _fix_npc_north_walls(level)
             _fix_kidnapped_neighbors(level)
             level.item_position_table = list(_STANDARD_ITEM_POSITION_TABLE)
         all_rooms = [room for level in game_world.levels for room in level.rooms]
