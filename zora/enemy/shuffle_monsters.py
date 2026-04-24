@@ -171,13 +171,29 @@ def _fix_gannon_room_walls(room: Room) -> None:
     room.palette_1 = t1 & 0x03
 
 
-def _configure_gannon_room(room: Room) -> None:
+def _configure_gannon_room(room: Room, level: Level | None = None) -> None:
     """Set the Gannon room's special properties.
 
     The C# writes 0x8E to RoomEnemyData (is_dark + item = TRIFORCE_OF_POWER)
     and 0x03 to RoomExtraData (room_action = TRIFORCE_OF_POWER_OPENS_SHUTTERS).
     It also fixes the wall/palette enemy count bits.
+
+    If *level* is given and the new Gannon room currently holds a dungeon-
+    critical item (MAP or COMPASS), rehome it to the stale ex-Gannon room
+    (identified by item == TRIFORCE_OF_POWER and enemy != THE_BEAST) before
+    overwriting.  Without this swap, L9 silently loses its MAP/COMPASS.
     """
+    if level is not None and room.item in (Item.MAP, Item.COMPASS):
+        displaced = room.item
+        for other in level.rooms:
+            if other is room:
+                continue
+            if other.enemy_spec.enemy == Enemy.THE_BEAST:
+                continue
+            if other.item == Item.TRIFORCE_OF_POWER:
+                other.item = displaced
+                break
+
     room.is_dark = True
     room.boss_cry_1 = True
     room.boss_cry_2 = False
@@ -284,7 +300,7 @@ def _shuffle_level(
     if shuffle_gannon:
         gannon_room = _find_gannon_room(level)
         if gannon_room is not None:
-            _configure_gannon_room(gannon_room)
+            _configure_gannon_room(gannon_room, level)
             level.boss_room = gannon_room.room_num
             _set_boss_cry_on_neighbors(gannon_room, room_by_num)
 

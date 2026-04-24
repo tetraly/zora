@@ -17,6 +17,7 @@ Call order (matches original C# ordering):
 from __future__ import annotations
 
 from zora.data_model import Enemy, GameWorld
+from zora.dungeon.dungeon import fix_pushblock_staircase_shutters
 from zora.enemy.change_dungeon_boss_groups import change_dungeon_boss_groups
 from zora.enemy.change_dungeon_enemy_groups import change_dungeon_enemy_groups
 from zora.enemy.hp import randomize_hp
@@ -81,6 +82,7 @@ def randomize_enemies(
 
     for level in game_world.levels:
         fix_npc_shutter_doors(level)
+        fix_pushblock_staircase_shutters(level)
 
 
 def _replace_gleeok_1(game_world: GameWorld) -> None:
