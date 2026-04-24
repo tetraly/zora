@@ -43,7 +43,7 @@ from zora.rom_layout import (
     WHITE_SWORD_REQUIREMENT_ADDRESS,
 )
 from zora.serializer import serialize_game_world
-from zora.shop_shuffler import randomize_shops
+from zora.shop_shuffler import randomize_shop_prices, randomize_shops
 from zora.spoilers import build_spoiler_data, build_spoiler_log
 
 ROM_DATA = Path(__file__).parent.parent / "rom_data"
@@ -65,6 +65,7 @@ _RANDOMIZERS = [
     randomize_caves,     # must run before randomize_hints so heart requirements are set
     shuffle_dungeon_items,
     randomize_items,
+    randomize_shop_prices,  # after randomize_items: shop contents are final
     expand_quote_slots,  # adds quote slots 39-43; must run before randomize_hints
     randomize_hints,
 ]

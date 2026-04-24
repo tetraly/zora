@@ -24,6 +24,7 @@ from zora.data_model import (
     ShopItem,
 )
 from zora.game_config import GameConfig
+from zora.hint_randomizer import HINTABLE_NICE_TO_HAVE_ITEMS, HINTABLE_PROGRESSION_ITEMS
 from zora.item_randomizer import MAJOR_ITEMS
 from zora.rng import Rng
 
@@ -137,21 +138,54 @@ def randomize_shops(game_world: GameWorld, config: GameConfig, rng: Rng) -> None
     # duplicates with items in other shops where no new conflict is created.
     _resolve_shop_duplicates(result)
 
-    # --- Jitter prices: ±20, clamped to [1, 254] ---
-    for si in result:
-        delta = int(rng.random() * 41) - 20  # [-20, +20]
-        adjusted = si.price + delta
-        if 1 <= adjusted <= 254:
-            si.price = adjusted
-
     # --- Write shuffled items back into shops ---
+    # Prices are set later by randomize_shop_prices, which runs after
+    # randomize_items so it sees the final shop contents (major-item shop
+    # slots can be reassigned by assumed fill when shuffle_major_shop_items
+    # is enabled).
     for shop_idx, shop in enumerate(shops):
         base = shop_idx * _ITEMS_PER_SHOP
         for slot in range(_ITEMS_PER_SHOP):
             shop.items[slot] = result[base + slot]
 
-    # --- Randomize auxiliary prices ---
+
+def randomize_shop_prices(game_world: GameWorld, config: GameConfig, rng: Rng) -> None:
+    """Price shop items based on their final post-fill contents.
+
+    Runs after randomize_items so that major shop slots reassigned by
+    assumed fill are priced according to the item that actually lands there:
+      - Progression items (required to beat the game): [80, 120]
+      - Nice-to-have items (rings, rods, etc.):        [180, 240]
+      - Everything else: vanilla price jittered by ±20, clamped to [1, 254]
+
+    Also randomizes potion shop / secret cave / door repair prices.
+    Gated on shuffle_shop_items.
+    """
+    if not config.shuffle_shop_items:
+        return
+
+    ow = game_world.overworld
+    for dest in _SHOP_DESTINATIONS:
+        shop = ow.get_cave(dest, Shop)
+        if shop is None:
+            continue
+        for si in shop.items:
+            si.price = _price_for(si.item, si.price, rng)
+
     _randomize_aux_prices(ow, rng)
+
+
+def _price_for(item: Item, vanilla_price: int, rng: Rng) -> int:
+    """Return a randomized price for a shop item based on its category."""
+    if item in HINTABLE_PROGRESSION_ITEMS:
+        return int(rng.random() * 41) + 80    # [80, 120]
+    if item in HINTABLE_NICE_TO_HAVE_ITEMS:
+        return int(rng.random() * 61) + 180   # [180, 240]
+    delta = int(rng.random() * 41) - 20       # [-20, +20]
+    adjusted = vanilla_price + delta
+    if 1 <= adjusted <= 254:
+        return adjusted
+    return vanilla_price
 
 
 def _swap_preserves_major_constraint(
