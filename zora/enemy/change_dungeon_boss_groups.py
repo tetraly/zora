@@ -87,22 +87,26 @@ _USE_CORRECTED_DIGDOGGER_OFFSETS = True
 # Each sprite set has a fixed column budget (64 columns = 1024 bytes for
 # groups A/B/C, 32 columns = 512 bytes for the shared group).  A boss can
 # only be assigned to a group that has enough remaining columns.
+#
+# The value is (own-block cols) + (count of external frame cols the boss
+# references — see _BOSS_FRAME_EXTERNAL_COLS).  AQUAMENTUS's 7 external
+# cols dominate the packing cost.
 _BOSS_TILE_COLUMNS_ORIGINAL: dict[Enemy, int] = {
-    Enemy.AQUAMENTUS:        20,
+    Enemy.AQUAMENTUS:        20 + 7,  # 27, includes 7 external cols
     Enemy.TRIPLE_DODONGO:    36,
-    Enemy.TRIPLE_DIGDOGGER:   4,
+    Enemy.TRIPLE_DIGDOGGER:   4 + 1,  # 5, includes 1 external col
     Enemy.MANHANDLA:         14,
-    Enemy.GLEEOK_1:          32,
+    Enemy.GLEEOK_1:          32 + 1,  # 33, includes 1 external col
     Enemy.BLUE_GOHMA:        16,
     Enemy.PATRA_2:            4,
 }
 
 _BOSS_TILE_COLUMNS_CORRECTED: dict[Enemy, int] = {
-    Enemy.AQUAMENTUS:        20,
+    Enemy.AQUAMENTUS:        20 + 7,
     Enemy.TRIPLE_DODONGO:    36,
-    Enemy.TRIPLE_DIGDOGGER:   4,
+    Enemy.TRIPLE_DIGDOGGER:   4 + 1,
     Enemy.MANHANDLA:         14,
-    Enemy.GLEEOK_1:          32,
+    Enemy.GLEEOK_1:          32 + 1,
     Enemy.BLUE_GOHMA:        16,
     Enemy.PATRA_2:            4,
 }
@@ -117,10 +121,11 @@ _BOSS_TILE_COLUMNS = (
 # FLYING_GLEEOK_HEAD with GLEEOK_1, PATRA_SPAWN with PATRA_2).  The
 # companions are not added to the replacement pool, but their sprite tiles
 # are packed alongside the primary by _repack_boss_sprites.
+# Values below include companion's own cols AND its external frame cols.
 _BOSS_TILE_COLUMNS_WITH_COMPANION: dict[Enemy, int] = {
-    Enemy.GLEEOK_1:          32 + 2,  # 34
-    Enemy.TRIPLE_DIGDOGGER:   4 + 4,  #  8
-    Enemy.PATRA_2:            4 + 4,  #  8
+    Enemy.GLEEOK_1:          33 + 2 + 1,  # 36: own+ext + companion own + companion ext
+    Enemy.TRIPLE_DIGDOGGER:   5 + 4,      #  9: own+ext + companion own (no ext)
+    Enemy.PATRA_2:            4 + 4,      #  8
 }
 
 # ---------------------------------------------------------------------------
@@ -226,9 +231,21 @@ _COMPANIONS: dict[Enemy, Enemy] = {
     Enemy.PATRA_2:           Enemy.PATRA_SPAWN,
 }
 
-# Number of 16-byte columns reserved at the start of boss_set_c that must
-# not be overwritten.  The original pre-fills columns 192-247 (56 columns).
-_BOSS_SET_C_RESERVED_BYTES = 56 * 16  # 896
+# Extra tile columns each boss's tile_frames reference *outside* its own
+# _SPRITE_OFFSET block.  These are cross-references into adjacent bosses'
+# territory in the vanilla bank.  When we repack into a new layout, these
+# columns must be packed alongside the boss so its frame pointers still
+# resolve to real tile data.
+#
+# Derived empirically by dumping world.enemies.tile_frames from a vanilla
+# ROM and filtering out each boss's own-block cols.  See
+# BUG_REPORT_boss_sprite_empty_columns.md for the analysis.
+_BOSS_FRAME_EXTERNAL_COLS: dict[Enemy, tuple[int, ...]] = {
+    Enemy.AQUAMENTUS:         (212, 216, 220, 224, 228, 232, 234),
+    Enemy.TRIPLE_DIGDOGGER:   (212,),
+    Enemy.GLEEOK_1:           (238,),
+    Enemy.FLYING_GLEEOK_HEAD: (222,),
+}
 
 
 # "Special" bosses: one is randomly forced into the shared group (group 3).
@@ -414,24 +431,34 @@ def _read_boss_tiles(sprites: SpriteData, boss: Enemy) -> bytes:
     return bytes(source[offset:offset + size])
 
 
+def _read_vanilla_column(sprites: SpriteData, bank: BossSpriteSet, col: int) -> bytes:
+    """Read a single 16-byte column from a vanilla bank, by engine column number."""
+    attr = _GROUP_SPRITE_ATTR[_GROUP_ORDER.index(bank)]
+    buf = getattr(sprites, attr)
+    byte_off = (col - _COL_START_MAIN) * 16
+    return bytes(buf[byte_off:byte_off + 16])
+
+
 def _repack_boss_sprites(
     sprites: SpriteData,
     group_bosses: list[list[Enemy]],
     dbg: _DebugLog,
-) -> dict[Enemy, int]:
+) -> dict[Enemy, dict[int, int]]:
     """Rewrite boss sprite sets to match the new group assignments.
 
     For groups 0-2 (A/B/C), boss tile data is packed sequentially into the
-    corresponding boss_set_* bytearray.  Group 2 (C) preserves the first
-    896 bytes (56 reserved columns) and packs new data after that.
+    corresponding boss_set_* bytearray.  Each boss's own-block tiles are
+    packed first, followed by any "external" tile columns that its
+    tile_frames reference (see _BOSS_FRAME_EXTERNAL_COLS).
 
     For group 3 (shared), tile data is packed into boss_set_expansion.
 
     Companion bosses (DIGDOGGER_SPAWN, FLYING_GLEEOK_HEAD, PATRA_SPAWN)
     follow their primary into whichever group it was assigned to.
 
-    Returns a dict mapping each packed boss (including companions) to the
-    engine column number where its tile data starts in the target set.
+    Returns a dict mapping each packed boss to a per-column lookup:
+      column_assignments[boss][vanilla_col] = new_col
+    This covers the boss's own block AND its external frame cols.
     """
     with dbg.section("Repack boss sprites"):
         # Snapshot the vanilla sets BEFORE we overwrite anything.  This
@@ -476,76 +503,86 @@ def _repack_boss_sprites(
                     f"overlap, see TODO in _SPRITE_OFFSET_CORRECTED]"
                 )
 
-        # Maps each boss to its starting engine column in the new set.
-        column_assignments: dict[Enemy, int] = {}
+        # Per-boss column mapping: column_assignments[boss][vanilla_col] = new_col.
+        # Covers each boss's own block plus any external cols it references.
+        column_assignments: dict[Enemy, dict[int, int]] = {}
+
+        def _read_vanilla_col_from_snapshot(boss: Enemy, col: int) -> bytes:
+            bank = _VANILLA_SPRITE_SET[boss]
+            g_idx = _GROUP_ORDER.index(bank)
+            buf = vanilla_snapshots[g_idx]
+            byte_off = (col - _COL_START_MAIN) * 16
+            return buf[byte_off:byte_off + 16]
+
+        def _pack_boss(
+            boss: Enemy,
+            target: bytearray,
+            write_pos: int,
+            col_start: int,
+            label: str,
+        ) -> int:
+            """Pack a boss's own block + its external frame cols.  Returns new write_pos."""
+            data = tile_cache[boss]
+            start_col = col_start + write_pos // 16
+            end_col = start_col + len(data) // 16
+
+            dbg.log(f"   pack {boss.name:24s} "
+                    f"own @ cols {start_col:3d}-{end_col-1:3d} "
+                    f"(bytes {write_pos:4d}-{write_pos+len(data)-1:4d}) "
+                    f"len={len(data):4d}{label}")
+
+            if write_pos + len(data) > len(target):
+                dbg.warn(f"{boss.name} own-block overruns target "
+                         f"(end_byte={write_pos+len(data)}, "
+                         f"target_len={len(target)})")
+
+            target[write_pos:write_pos + len(data)] = data
+            write_pos += len(data)
+
+            # Build the own-block mapping.
+            vanilla_start = _COL_START_MAIN + _SPRITE_OFFSET[boss] // 16
+            num_cols = _SPRITE_SIZE[boss] // 16
+            mapping: dict[int, int] = {
+                vanilla_start + i: start_col + i for i in range(num_cols)
+            }
+
+            # Pack external frame cols, if any.
+            for ext_col in _BOSS_FRAME_EXTERNAL_COLS.get(boss, ()):
+                ext_data = _read_vanilla_col_from_snapshot(boss, ext_col)
+                new_col = col_start + write_pos // 16
+                if write_pos + 16 > len(target):
+                    dbg.warn(f"{boss.name} external col {ext_col} overruns target")
+                target[write_pos:write_pos + 16] = ext_data
+                write_pos += 16
+                mapping[ext_col] = new_col
+                dbg.log(f"   pack {boss.name:24s} "
+                        f"ext col {ext_col} -> new col {new_col} "
+                        f"(byte {write_pos-16:4d})")
+
+            column_assignments[boss] = mapping
+            return write_pos
 
         # Repack groups 0-2 into boss_set_a/b/c.
         for g in range(3):
             target = getattr(sprites, _GROUP_SPRITE_ATTR[g])
             dbg.log(f"-- packing group {g} ({_GROUP_ORDER[g].name}) "
                     f"into {_GROUP_SPRITE_ATTR[g]} (target len={len(target)})")
-
-            if g == 2:
-                # Preserve the reserved region; pack new data after it.
-                write_pos = _BOSS_SET_C_RESERVED_BYTES
-                dbg.log(f"   group 2 reserves {_BOSS_SET_C_RESERVED_BYTES} "
-                        f"bytes (56 cols); writes start at byte {write_pos} "
-                        f"= col {_COL_START_MAIN + write_pos // 16}")
-            else:
-                write_pos = 0
+            write_pos = 0
 
             for boss in group_bosses[g]:
-                # Only pack primary bosses and companions that have sprite data.
-                # Variant expansions (SINGLE_DODONGO, RED_GOHMA, etc.) share
-                # their primary's sprites — they don't have separate tile entries.
                 if boss not in tile_cache:
                     dbg.log(f"   {boss.name} has no tile entry (variant) — "
                             f"skipped during packing")
                     continue
 
-                col = _COL_START_MAIN + write_pos // 16
-                column_assignments[boss] = col
-                data = tile_cache[boss]
-                end_col = col + len(data) // 16
+                write_pos = _pack_boss(boss, target, write_pos, _COL_START_MAIN, "")
 
-                dbg.log(f"   pack {boss.name:24s} "
-                        f"@ cols {col:3d}-{end_col-1:3d} "
-                        f"(bytes {write_pos:4d}-{write_pos+len(data)-1:4d}) "
-                        f"len={len(data):4d}")
-
-                if write_pos + len(data) > len(target):
-                    dbg.warn(
-                        f"{boss.name} packing overruns target "
-                        f"{_GROUP_SPRITE_ATTR[g]} "
-                        f"(end_byte={write_pos+len(data)}, "
-                        f"target_len={len(target)})"
-                    )
-
-                target[write_pos:write_pos + len(data)] = data
-                write_pos += len(data)
-
-                # Pack companion's tiles immediately after the primary.
                 if boss in _COMPANIONS:
                     companion = _COMPANIONS[boss]
-                    ccol = _COL_START_MAIN + write_pos // 16
-                    column_assignments[companion] = ccol
-                    cdata = tile_cache[companion]
-                    cend = ccol + len(cdata) // 16
-
-                    dbg.log(f"   pack {companion.name:24s} "
-                            f"@ cols {ccol:3d}-{cend-1:3d} "
-                            f"(bytes {write_pos:4d}-"
-                            f"{write_pos+len(cdata)-1:4d}) "
-                            f"len={len(cdata):4d} [companion of {boss.name}]")
-
-                    if write_pos + len(cdata) > len(target):
-                        dbg.warn(
-                            f"{companion.name} packing overruns target "
-                            f"{_GROUP_SPRITE_ATTR[g]}"
-                        )
-
-                    target[write_pos:write_pos + len(cdata)] = cdata
-                    write_pos += len(cdata)
+                    write_pos = _pack_boss(
+                        companion, target, write_pos, _COL_START_MAIN,
+                        f" [companion of {boss.name}]",
+                    )
 
             dbg.log(f"   group {g} final write_pos = {write_pos} bytes "
                     f"(= col {_COL_START_MAIN + write_pos // 16})")
@@ -560,68 +597,45 @@ def _repack_boss_sprites(
                         f"skipped during packing")
                 continue
 
-            col = _COL_START_EXPANSION + write_pos // 16
-            column_assignments[boss] = col
-            data = tile_cache[boss]
-            end_col = col + len(data) // 16
-
-            dbg.log(f"   pack {boss.name:24s} "
-                    f"@ cols {col:3d}-{end_col-1:3d} "
-                    f"(bytes {write_pos:4d}-{write_pos+len(data)-1:4d}) "
-                    f"len={len(data):4d} [shared group]")
-
-            if write_pos + len(data) > len(sprites.boss_set_expansion):
-                dbg.warn(f"{boss.name} packing overruns boss_set_expansion")
-
-            sprites.boss_set_expansion[write_pos:write_pos + len(data)] = data
-            write_pos += len(data)
-
+            write_pos = _pack_boss(
+                boss, sprites.boss_set_expansion, write_pos,
+                _COL_START_EXPANSION, " [shared]",
+            )
             if boss in _COMPANIONS:
                 companion = _COMPANIONS[boss]
-                ccol = _COL_START_EXPANSION + write_pos // 16
-                column_assignments[companion] = ccol
-                cdata = tile_cache[companion]
-                cend = ccol + len(cdata) // 16
-
-                dbg.log(f"   pack {companion.name:24s} "
-                        f"@ cols {ccol:3d}-{cend-1:3d} "
-                        f"(bytes {write_pos:4d}-"
-                        f"{write_pos+len(cdata)-1:4d}) "
-                        f"len={len(cdata):4d} [companion, shared]")
-
-                if write_pos + len(cdata) > len(sprites.boss_set_expansion):
-                    dbg.warn(
-                        f"{companion.name} packing overruns boss_set_expansion"
-                    )
-
-                sprites.boss_set_expansion[write_pos:write_pos + len(cdata)] = cdata
-                write_pos += len(cdata)
+                write_pos = _pack_boss(
+                    companion, sprites.boss_set_expansion, write_pos,
+                    _COL_START_EXPANSION, f" [companion of {boss.name}, shared]",
+                )
 
         dbg.log(f"   group 3 final write_pos = {write_pos} bytes "
                 f"(= col {_COL_START_EXPANSION + write_pos // 16})")
 
         # Final column_assignments dump, sorted by group then column.
         with dbg.section("Final column_assignments"):
-            # Group by target set.
-            by_target: dict[str, list[tuple[int, Enemy]]] = {}
-            for b, c in column_assignments.items():
-                # Determine which set b lives in based on its column range.
-                if c < _COL_START_MAIN:
+            by_target: dict[str, list[tuple[int, Enemy, dict[int, int]]]] = {}
+            for b, mapping in column_assignments.items():
+                own_start = _COL_START_MAIN + _SPRITE_OFFSET[b] // 16
+                new_start = mapping.get(own_start, min(mapping.values()))
+                if new_start < _COL_START_MAIN:
                     key = "boss_set_expansion"
                 else:
-                    # Walk group_bosses to find which group b was packed into.
                     key = "?"
                     for gi, bs in enumerate(group_bosses):
                         if b in bs:
                             key = _GROUP_SPRITE_ATTR.get(gi, "expansion")
                             break
-                by_target.setdefault(key, []).append((c, b))
+                by_target.setdefault(key, []).append((new_start, b, mapping))
 
             for key in sorted(by_target):
                 dbg.log(f"  {key}:")
-                for c, b in sorted(by_target[key]):
+                for c, b, mapping in sorted(by_target[key], key=lambda x: x[0]):
                     n_cols = _SPRITE_SIZE.get(b, 0) // 16
-                    dbg.log(f"    col {c:3d} ({n_cols:2d} cols) {b.name}")
+                    ext = sorted(v for v in mapping
+                                 if not (_COL_START_MAIN + _SPRITE_OFFSET[b] // 16
+                                         <= v < _COL_START_MAIN + _SPRITE_OFFSET[b] // 16 + n_cols))
+                    ext_str = f" +ext{ext}" if ext else ""
+                    dbg.log(f"    col {c:3d} ({n_cols:2d} cols) {b.name}{ext_str}")
 
         # Hex signature of each populated column.  Useful for diffing
         # against an emulator CHR dump.
@@ -644,64 +658,6 @@ def _repack_boss_sprites(
         return column_assignments
 
 
-def _build_group_column_maps(
-    column_assignments: dict[Enemy, int],
-    group_bosses: list[list[Enemy]],
-    dbg: _DebugLog,
-) -> list[dict[int, int]]:
-    """Build a vanilla-col → new-col mapping for each boss group.
-
-    For every boss (and companion) packed into a group, maps each of its
-    vanilla columns to the corresponding new column.  This covers ALL
-    columns in the group's bank, not just the columns of a single boss,
-    so cross-boss tile references within the same set resolve correctly.
-    """
-    group_maps: list[dict[int, int]] = [{} for _ in range(len(group_bosses))]
-
-    boss_to_group: dict[Enemy, int] = {}
-    for g, bosses in enumerate(group_bosses):
-        for boss in bosses:
-            boss_to_group[boss] = g
-
-    with dbg.section("Per-group column maps (vanilla_col -> new_col)"):
-        for boss, new_start in column_assignments.items():
-            if boss not in _SPRITE_OFFSET:
-                dbg.log(f"  {boss.name}: no _SPRITE_OFFSET entry — skipped")
-                continue
-            grp = boss_to_group.get(boss)
-            if grp is None:
-                # Companion bosses aren't in group_bosses; infer from primary.
-                for primary, companion in _COMPANIONS.items():
-                    if companion == boss:
-                        grp = boss_to_group.get(primary)
-                        dbg.log(f"  {boss.name}: inferred group {grp} "
-                                f"from primary {primary.name}")
-                        break
-            if grp is None:
-                dbg.warn(f"{boss.name}: has column assignment but no group "
-                         f"— tile references will not be remapped")
-                continue
-
-            vanilla_start = _COL_START_MAIN + _SPRITE_OFFSET[boss] // 16
-            num_cols = _SPRITE_SIZE[boss] // 16
-            dbg.log(f"  {boss.name:24s} grp={grp} "
-                    f"vanilla_cols={vanilla_start:3d}-"
-                    f"{vanilla_start+num_cols-1:3d} -> "
-                    f"new_cols={new_start:3d}-{new_start+num_cols-1:3d}")
-            for i in range(num_cols):
-                v = vanilla_start + i
-                n = new_start + i
-                if v in group_maps[grp] and group_maps[grp][v] != n:
-                    dbg.warn(
-                        f"duplicate vanilla col {v} in group {grp}: "
-                        f"was -> {group_maps[grp][v]}, now -> {n} "
-                        f"(boss={boss.name}) — later wins"
-                    )
-                group_maps[grp][v] = n
-
-    return group_maps
-
-
 # Which primary boss each variant/companion inherits its group from.
 _VARIANT_PRIMARY: dict[Enemy, Enemy] = {
     Enemy.THE_BEAST: Enemy.AQUAMENTUS,
@@ -717,29 +673,22 @@ for _primary, _companion in _COMPANIONS.items():
 
 def _update_tile_frames(
     enemies: EnemyData,
-    column_assignments: dict[Enemy, int],
+    column_assignments: dict[Enemy, dict[int, int]],
     group_bosses: list[list[Enemy]],
     dbg: _DebugLog,
 ) -> None:
     """Update tile_frames for each boss to reflect its new sprite set position.
 
-    Builds a per-group column mapping covering all bosses packed into each
-    group, then remaps every boss's (and variant's) tile_frames through
-    that mapping.  This handles cross-boss tile references within the same
-    set (e.g. Aquamentus referencing Dodongo/Digdogger columns).
+    Each boss's column_assignments[boss] dict contains an explicit
+    vanilla_col -> new_col mapping covering its own block plus any
+    external cols listed in _BOSS_FRAME_EXTERNAL_COLS.  Every frame in a
+    boss's tile_frames that's in a boss-bank range should be present in
+    that dict; if not, it's a bug.
 
-    Frames outside the boss bank range (192-255) and expansion range
-    (48-79) are left unchanged — they reference fixed engine tiles.
+    Frames outside boss-bank ranges (< 192, or in expansion 48-79 but
+    not assigned, etc.) are left unchanged — they reference fixed engine
+    tiles or are resolved elsewhere.
     """
-    group_maps = _build_group_column_maps(column_assignments, group_bosses, dbg)
-
-    is_in_shared_group = set(group_bosses[3]) if len(group_bosses) > 3 else set()
-
-    boss_to_group: dict[Enemy, int] = {}
-    for g, bosses in enumerate(group_bosses):
-        for boss in bosses:
-            boss_to_group[boss] = g
-
     all_bosses_with_frames: set[Enemy] = set()
     for boss_set in _VANILLA_BOSS_GROUPS.values():
         all_bosses_with_frames |= boss_set
@@ -755,77 +704,38 @@ def _update_tile_frames(
                 dbg.log(f"  {boss.name}: empty tile_frames — skipped")
                 continue
 
-            # Determine which group this boss belongs to.
-            grp = boss_to_group.get(boss)
-            via_primary = False
-            if grp is None:
-                primary = _VARIANT_PRIMARY.get(boss)
-                if primary is not None:
-                    grp = boss_to_group.get(primary)
-                    via_primary = True
-            if grp is None:
-                dbg.warn(f"{boss.name}: no group assignment "
-                         f"(primary={_VARIANT_PRIMARY.get(boss)}) "
-                         f"— tile_frames left UNCHANGED")
+            # Look up the tile-source boss whose packed data this boss uses.
+            # Variants (THE_BEAST, RED_GOHMA, etc.) inherit from their primary;
+            # companions (PATRA_SPAWN) use their own mapping.
+            source = _VARIANT_PRIMARY.get(boss, boss)
+            mapping = column_assignments.get(source)
+            if mapping is None and source is not boss:
+                mapping = column_assignments.get(boss)
+            if mapping is None:
+                dbg.warn(f"{boss.name}: no column_assignments entry "
+                         f"(source={source.name}) — tile_frames left UNCHANGED")
                 continue
 
-            col_map = group_maps[grp]
-
-            # Bonuses only apply to frames within the boss's own vanilla
-            # column range, not to cross-boss references in the same set.
-            own_primary = _VARIANT_PRIMARY.get(boss, boss)
-            if own_primary in _SPRITE_OFFSET:
-                own_start = _COL_START_MAIN + _SPRITE_OFFSET[own_primary] // 16
-                own_end = own_start + _SPRITE_SIZE[own_primary] // 16
-            else:
-                own_start = own_end = -1
-
-            in_shared = boss in is_in_shared_group or (
-                own_primary in is_in_shared_group
-            )
-            is_aquamentus = boss in (Enemy.AQUAMENTUS, Enemy.THE_BEAST)
-
-            dbg.log(
-                f"  {boss.name:24s} "
-                f"grp={grp}{' (via primary)' if via_primary else ''} "
-                f"own_primary={own_primary.name} "
-                f"own_col_range=[{own_start},{own_end}) "
-                f"in_shared={in_shared} "
-                f"aquamentus_bonus={is_aquamentus}"
-            )
+            dbg.log(f"  {boss.name:24s} source={source.name} "
+                    f"mapping_cols={sorted(mapping.keys())}")
             dbg.log(f"    before: {list(frames)}")
 
             remapped: list[int] = []
             trace: list[str] = []
             for f in frames:
-                if f in col_map:
-                    bonus = 0
-                    bonus_desc = []
-                    if own_start <= f < own_end:
-                        if is_aquamentus:
-                            bonus += 2
-                            bonus_desc.append("+2(aqua)")
-                        if in_shared:
-                            bonus += 1
-                            bonus_desc.append("+1(shared)")
-                    new_f = col_map[f] + bonus
+                if f in mapping:
+                    new_f = mapping[f]
                     remapped.append(new_f)
-                    trace.append(
-                        f"{f}->{new_f}"
-                        + (f"({'+'.join(bonus_desc)})" if bonus_desc else "")
-                    )
+                    trace.append(f"{f}->{new_f}")
                 else:
-                    # A frame outside col_map may be legitimate (engine
-                    # tiles below col 192 / in the 48-79 expansion range)
-                    # or a bug (in-bank column with no mapping).
                     remapped.append(f)
                     note = "passthrough"
                     if 192 <= f < 256 or 48 <= f < 80:
                         note = "passthrough[IN-BANK,UNMAPPED]"
                         dbg.warn(
-                            f"{boss.name} frame {f} is in a boss-bank "
-                            f"range but has no entry in group {grp}'s "
-                            f"col_map — likely a cross-group reference"
+                            f"{boss.name} frame {f} is in boss-bank range "
+                            f"but has no entry in {source.name}'s mapping "
+                            f"— missing from _BOSS_FRAME_EXTERNAL_COLS?"
                         )
                     trace.append(f"{f}->{f}({note})")
 
@@ -901,10 +811,11 @@ def change_dungeon_boss_groups(
                 f"{[(b.name, _BOSS_TILE_COLUMNS[b]) for b in primary_bosses]}")
 
         # --- Column budgets: groups 0-2 have 64 columns each, shared has 32 ---
+        # Bank C's vanilla 56-col reservation (from the C# port) was removed
+        # when the packer learned to pack external frame cols alongside each
+        # boss.  With cross-references handled properly, bank C can be used
+        # in full.
         group_budget = [64, 64, 64, 32]
-
-        # --- Pre-fill: group 2 (BossSpriteSet.C) has 56 columns reserved ---
-        group_budget[2] -= 56  # 64 - 56 = 8 columns available
 
         # --- Pick a special boss to force into the shared group ---
         special_boss = rng.choice(_SPECIAL_BOSSES)
