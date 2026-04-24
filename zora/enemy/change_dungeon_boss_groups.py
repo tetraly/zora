@@ -1032,24 +1032,32 @@ def change_dungeon_boss_groups(
                         continue
                     enemy = room.enemy_spec.enemy
 
-                    original_group: BossSpriteSet | None = None
-                    for sprite_set, members in _VANILLA_BOSS_GROUPS.items():
-                        if enemy in members:
-                            original_group = sprite_set
-                            break
-
-                    if original_group is None:
+                    # Only replace rooms that currently contain a boss enemy.
+                    is_boss_room = any(
+                        enemy in members
+                        for members in _VANILLA_BOSS_GROUPS.values()
+                    )
+                    if not is_boss_room:
                         rooms_no_match += 1
                         continue
 
-                    pool = new_pools.get(original_group)
+                    # Pick from the pool matching THIS level's loaded bank.
+                    # The level's boss_sprite_set determines which of the
+                    # per-level banks (A/B/C) gets loaded into VRAM alongside
+                    # the universal expansion bank.  Picking from any other
+                    # pool causes bank-mismatch glitches where the engine
+                    # reads the boss's remapped tile columns but the wrong
+                    # bank is in VRAM (e.g. patra orbiters rendering as
+                    # gohma, aquamentus with patra bleed-through).
+                    level_group = level.boss_sprite_set
+                    pool = new_pools.get(level_group)
                     if not pool:
                         rooms_no_pool += 1
                         dbg.warn(
                             f"room L{getattr(level, 'number', '?')} "
                             f"{getattr(room, 'id', '?')}: "
-                            f"enemy {enemy.name} is in vanilla group "
-                            f"{original_group.name} but new pool is empty"
+                            f"level boss_sprite_set={level_group.name} "
+                            f"but new pool is empty"
                         )
                         continue
 
@@ -1076,7 +1084,7 @@ def change_dungeon_boss_groups(
                             f"room={getattr(room, 'id', '?'):>4} "
                             f"type={room.room_type.name:<20} "
                             f"{enemy.name:>24} -> {new_boss.name:<24} "
-                            f"(src_grp={original_group.name}, "
+                            f"(level_grp={level_group.name}, "
                             f"attempts={attempts}, "
                             f"new_frames={list(new_frames)})"
                         )
