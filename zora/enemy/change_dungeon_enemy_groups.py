@@ -978,6 +978,30 @@ def _enemy_has_ow_column_conflict(
     return enemy in vanilla_ow_cols
 
 
+_COMPANION_TO_PRIMARY: dict[Enemy, Enemy] = {
+    companion: primary for primary, companion in _COMPANION_EXPANSIONS.items()
+}
+
+
+def _is_ow_origin_orphaned(
+    enemy: Enemy,
+    ow_pool: list[Enemy],
+    column_assignments: dict[Enemy, list[int]],
+) -> bool:
+    """True if enemy is vanilla-OW but got packed into a non-OW bank.
+
+    Such an enemy's global tile_frames have been remapped to dungeon-bank
+    columns that don't exist in bank OW, so rendering it on any overworld
+    screen produces garbage (see BUG_REPORT_ow_origin_enemy_frames_on_overworld).
+    """
+    primary = _COMPANION_TO_PRIMARY.get(enemy, enemy)
+    if _VANILLA_SPRITE_SET.get(primary) != EnemySpriteSet.OW:
+        return False
+    if primary in ow_pool:
+        return False
+    return primary in column_assignments
+
+
 def _replace_overworld_enemies(
     world: GameWorld,
     rng: Rng,
@@ -1033,6 +1057,16 @@ def _replace_overworld_enemies(
                     needs_replacement = True
                     reasons.append("wizzrobe+bad-screen")
 
+                orphaned_members = [
+                    m for m in (members or [])
+                    if _is_ow_origin_orphaned(m, ow_pool, column_assignments)
+                ]
+                if orphaned_members:
+                    needs_replacement = True
+                    reasons.append(
+                        f"ow_origin_orphaned({[m.name for m in orphaned_members]})"
+                    )
+
                 if not needs_replacement:
                     skipped += 1
                     continue
@@ -1056,8 +1090,11 @@ def _replace_overworld_enemies(
 
             in_pool = ow_enemy_id in ow_pool
             has_conflict = _enemy_has_ow_column_conflict(ow_enemy_id, vanilla_ow_cols)
+            is_orphaned = _is_ow_origin_orphaned(
+                ow_enemy_id, ow_pool, column_assignments
+            )
 
-            if not in_pool and not has_conflict:
+            if not in_pool and not has_conflict and not is_orphaned:
                 skipped += 1
                 continue
 
@@ -1068,6 +1105,8 @@ def _replace_overworld_enemies(
                 reason.append(
                     f"column_conflict(vanilla_cols={sorted(vanilla_ow_cols.get(ow_enemy_id, set()))})"
                 )
+            if is_orphaned:
+                reason.append("ow_origin_orphaned")
 
             for _attempt in range(_MAX_ROOM_RETRIES):
                 new_enemy = rng.choice(ow_pool)
