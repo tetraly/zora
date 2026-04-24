@@ -1,15 +1,17 @@
-"""Benchmark seed generation with per-attempt retry diagnostics.
+"""Benchmark seed generation through the full generate_game codepath.
 
 Usage:
     python tools/bench_gen.py <flag_string> [num_seeds] [start_seed]
     python tools/bench_gen.py --diag <flag_string> [seeds...]
 
 Default mode: benchmark num_seeds (default 10) starting from start_seed (default 1).
-Diag mode:    run specific seeds with verbose per-attempt error logging.
+Diag mode:    run specific seeds with verbose logging.
 
-Output streams in real time (flush=True on all prints).
+Uses the same generate_game function as the API/CLI to ensure results
+reflect real user-facing behavior.
 """
 
+import logging
 import random
 import sys
 import time
@@ -24,17 +26,10 @@ from flags.flags_generated import (
     decode_flags,
     resolve_random_flags,
 )
-from zora.generate_game import _RANDOMIZERS
-from zora.game_config import resolve_game_config
-from zora.parser import load_bin_files, parse_game_world
-from zora.level_gen.orchestrator import generate_dungeon_shapes
-from zora.rng import SeededRng
-
-ROM_DATA = Path(__file__).resolve().parent.parent / "rom_data"
+from zora.generate_game import generate_game
 
 NUM_SEEDS = 10
 START_SEED = 1
-MAX_ATTEMPTS = 10
 DIAG_TIMEOUT = 30
 
 
@@ -42,86 +37,40 @@ def _resolve(flag_string: str, seed: int) -> Flags:
     return resolve_random_flags(decode_flags(flag_string), random.Random(seed))
 
 
-def _run_seed(flags: Flags, seed: int, verbose: bool = False) -> dict:
-    """Run one seed through the pipeline with retry logging.
+def _run_seed(flags: Flags, seed: int, flag_string: str) -> dict:
+    """Run one seed through generate_game.
 
-    Returns dict with keys: seed, total, ok, attempts (list of dicts).
+    Returns dict with keys: seed, total, ok, error (on failure), patch_size (on success).
     """
-    bins = load_bin_files(ROM_DATA)
-    rng = SeededRng(seed)
-    config = resolve_game_config(flags, rng)
-
-    attempts: list[dict] = []
-    total_t0 = time.monotonic()
-
-    for attempt in range(MAX_ATTEMPTS):
-        game_world = parse_game_world(bins)
-        attempt_t0 = time.monotonic()
-        try:
-            generate_dungeon_shapes(game_world, bins, config, rng)
-            phase_times: dict[str, float] = {}
-            for step in _RANDOMIZERS:
-                t0 = time.monotonic()
-                step(game_world, config, rng)
-                phase_times[step.__name__] = time.monotonic() - t0
-
-            elapsed = time.monotonic() - attempt_t0
-            attempts.append({"attempt": attempt, "ok": True, "elapsed": elapsed, "phases": phase_times})
-            total = time.monotonic() - total_t0
-            return {"seed": seed, "total": total, "ok": True, "attempts": attempts}
-
-        except RuntimeError as e:
-            elapsed = time.monotonic() - attempt_t0
-            attempts.append({"attempt": attempt, "ok": False, "elapsed": elapsed, "error": str(e)})
-            if verbose:
-                print(f"    attempt {attempt}: FAIL after {elapsed:.2f}s — {e}", flush=True)
-
-        if verbose and time.monotonic() - total_t0 > DIAG_TIMEOUT:
-            print(f"    GIVING UP after {time.monotonic() - total_t0:.1f}s", flush=True)
-            total = time.monotonic() - total_t0
-            return {"seed": seed, "total": total, "ok": False, "attempts": attempts}
-
-    total = time.monotonic() - total_t0
-    return {"seed": seed, "total": total, "ok": False, "attempts": attempts}
+    t0 = time.monotonic()
+    try:
+        patch_bytes, hash_code, spoiler_log, spoiler_data = generate_game(
+            flags, seed, flag_string=flag_string,
+        )
+        elapsed = time.monotonic() - t0
+        return {
+            "seed": seed, "total": elapsed, "ok": True,
+            "patch_size": len(patch_bytes),
+        }
+    except RuntimeError as e:
+        elapsed = time.monotonic() - t0
+        return {
+            "seed": seed, "total": elapsed, "ok": False,
+            "error": str(e),
+        }
 
 
 def _print_seed_result(result: dict) -> None:
-    """Print a single seed's result with retry breakdown."""
+    """Print a single seed's result."""
     seed = result["seed"]
     total = result["total"]
-    attempts = result["attempts"]
 
     if result["ok"]:
-        n_retries = len(attempts) - 1
-        retry_str = f" ({n_retries} retries)" if n_retries > 0 else ""
-        print(f"Seed {seed:>5}: {total:>6.2f}s  OK{retry_str}", flush=True)
-
-        if n_retries > 0:
-            error_counts: dict[str, int] = {}
-            retry_time = sum(a["elapsed"] for a in attempts if not a["ok"])
-            for a in attempts:
-                if not a["ok"]:
-                    err = a["error"]
-                    error_counts[err] = error_counts.get(err, 0) + 1
-            for err, count in error_counts.items():
-                print(f"           retry errors: {err} (x{count})", flush=True)
-            print(f"           retry time:  {retry_time:.2f}s wasted", flush=True)
-
-        last = attempts[-1]
-        slow_phases = sorted(last["phases"].items(), key=lambda kv: kv[1], reverse=True)
-        for name, elapsed in slow_phases:
-            if elapsed >= 0.01:
-                bar = "#" * int(min(elapsed, 15) * 4)
-                print(f"           {name:<30} {elapsed:>6.3f}s  {bar}", flush=True)
+        patch_info = f" ({result.get('patch_size', '?')} bytes)"
+        print(f"Seed {seed:>5}: {total:>6.2f}s  OK{patch_info}", flush=True)
     else:
-        error_counts = {}
-        for a in attempts:
-            if not a["ok"]:
-                err = a["error"]
-                error_counts[err] = error_counts.get(err, 0) + 1
-        print(f"Seed {seed:>5}: {total:>6.1f}s  FAIL after {len(attempts)} attempts", flush=True)
-        for err, count in error_counts.items():
-            print(f"           {err} (x{count})", flush=True)
+        print(f"Seed {seed:>5}: {total:>6.2f}s  FAIL", flush=True)
+        print(f"           {result['error']}", flush=True)
     print(flush=True)
 
 
@@ -146,41 +95,7 @@ def _print_summary(results: list[dict]) -> None:
         if len(ok_times) > 1:
             print(f"Stdev:         {statistics.stdev(ok_times):.2f}s", flush=True)
 
-    total_retries = sum(len(r["attempts"]) - 1 for r in ok)
-    total_retry_time = sum(
-        sum(a["elapsed"] for a in r["attempts"] if not a["ok"])
-        for r in results
-    )
-    if total_retries > 0:
-        print(f"\nRetries:       {total_retries} across {sum(1 for r in ok if len(r['attempts']) > 1)} seeds", flush=True)
-        print(f"Retry time:    {total_retry_time:.1f}s wasted total", flush=True)
-
-        all_errors: dict[str, int] = {}
-        for r in results:
-            for a in r["attempts"]:
-                if not a["ok"]:
-                    err = a["error"]
-                    all_errors[err] = all_errors.get(err, 0) + 1
-        print(f"\nRetry error breakdown:", flush=True)
-        for err, count in sorted(all_errors.items(), key=lambda kv: -kv[1]):
-            print(f"  {count:>3}x  {err}", flush=True)
-
-    if ok:
-        print(f"\nPhase averages (successful seeds):", flush=True)
-        all_phase_names: list[str] = []
-        for r in ok:
-            last = r["attempts"][-1]
-            for name in last["phases"]:
-                if name not in all_phase_names:
-                    all_phase_names.append(name)
-        for name in all_phase_names:
-            phase_times = [r["attempts"][-1]["phases"].get(name, 0) for r in ok]
-            avg = statistics.mean(phase_times)
-            mx = max(phase_times)
-            if avg >= 0.005:
-                print(f"  {name:<30} avg={avg:.3f}s  max={mx:.3f}s", flush=True)
-
-    slow = [r for r in results if r["total"] > 5]
+    slow = [r for r in ok if r["total"] > 5]
     print(f"\nSeeds > 5s:    {len(slow)}", flush=True)
     if fail:
         print(f"Failed seeds:  {[r['seed'] for r in fail]}", flush=True)
@@ -197,7 +112,7 @@ def bench_mode(flag_string: str, num_seeds: int, start_seed: int) -> None:
     for i in range(num_seeds):
         seed = start_seed + i
         flags = _resolve(flag_string, seed)
-        result = _run_seed(flags, seed)
+        result = _run_seed(flags, seed, flag_string)
         results.append(result)
         _print_seed_result(result)
 
@@ -205,6 +120,8 @@ def bench_mode(flag_string: str, num_seeds: int, start_seed: int) -> None:
 
 
 def diag_mode(flag_string: str, seeds: list[int]) -> None:
+    logging.basicConfig(level=logging.INFO, format="%(name)s: %(message)s")
+
     print(f"Flagset: {flag_string}", flush=True)
     print(f"Diagnosing seeds: {seeds}", flush=True)
     print("=" * 70, flush=True)
@@ -212,12 +129,11 @@ def diag_mode(flag_string: str, seeds: list[int]) -> None:
     for seed in seeds:
         flags = _resolve(flag_string, seed)
         print(f"\nSeed {seed}:", flush=True)
-        result = _run_seed(flags, seed, verbose=True)
+        result = _run_seed(flags, seed, flag_string)
         if result["ok"]:
-            n_retries = len(result["attempts"]) - 1
-            print(f"    SUCCESS on attempt {n_retries} ({result['total']:.2f}s total)", flush=True)
+            print(f"    SUCCESS ({result['total']:.2f}s, {result.get('patch_size', '?')} bytes)", flush=True)
         else:
-            print(f"    ALL ATTEMPTS FAILED ({result['total']:.1f}s)", flush=True)
+            print(f"    FAILED ({result['total']:.2f}s): {result['error']}", flush=True)
 
 
 def main() -> None:

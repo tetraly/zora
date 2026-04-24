@@ -23,8 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "flags"))
 
 from flags.flags_generated import decode_flags, resolve_random_flags
-from zora.generate_game import _RANDOMIZERS
+from zora.generate_game import _RANDOMIZERS, _CRITICAL_STEPS
 from zora.game_config import resolve_game_config
+from zora.integrity_check import integrity_check
 from zora.parser import load_bin_files, parse_game_world
 from zora.level_gen.orchestrator import generate_dungeon_shapes
 from zora.rng import SeededRng
@@ -51,11 +52,14 @@ def _run_attempt(
         pt = time.monotonic()
         generate_dungeon_shapes(game_world, bins, config, rng)
         phase_times["generate_dungeon_shapes"] = time.monotonic() - pt
+        integrity_check(game_world, "generate_dungeon_shapes")
 
         for step in _RANDOMIZERS:
             pt = time.monotonic()
             step(game_world, config, rng)
             phase_times[step.__name__] = time.monotonic() - pt
+            if step in _CRITICAL_STEPS:
+                integrity_check(game_world, step.__name__)
 
         return {
             "ok": True,
