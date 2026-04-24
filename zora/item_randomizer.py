@@ -1005,6 +1005,9 @@ def _restore_locations(game_world: GameWorld, snapshot: dict[Location, Item]) ->
 
 
 def randomize_items(game_world: GameWorld, config: GameConfig, rng: Rng) -> None:
+    if config.progressive_items:
+        _downgrade_unshuffled_progressive_items(game_world, config)
+
     max_attempts = 3
     for attempt in range(max_attempts):
         snapshot = _snapshot_locations(game_world, config)
@@ -1014,6 +1017,42 @@ def randomize_items(game_world: GameWorld, config: GameConfig, rng: Rng) -> None
         if attempt < max_attempts - 1:
             _restore_locations(game_world, snapshot)
     raise RuntimeError("Randomizer could not produce a valid seed")
+
+
+def _downgrade_unshuffled_progressive_items(
+    game_world: GameWorld, config: GameConfig
+) -> None:
+    """Replace higher-tier progressive items with their base version in any
+    location that is NOT being shuffled.  Without this, an unshuffled
+    location keeps its vanilla high-tier item (e.g. WHITE_SWORD in the white
+    sword cave), bypassing the progressive upgrade chain: the player gets the
+    high-tier item directly instead of collecting a base item that upgrades."""
+    ow = game_world.overworld
+    cave_by_dest = {c.destination: c for c in ow.caves}
+
+    unshuffled_cave_dests: list[Destination] = []
+    if not config.shuffle_wood_sword:
+        unshuffled_cave_dests.append(Destination.WOOD_SWORD_CAVE)
+    if not config.shuffle_white_sword:
+        unshuffled_cave_dests.append(Destination.WHITE_SWORD_CAVE)
+    if not config.shuffle_magical_sword:
+        unshuffled_cave_dests.append(Destination.MAGICAL_SWORD_CAVE)
+    if not config.shuffle_letter:
+        unshuffled_cave_dests.append(Destination.LETTER_CAVE)
+
+    for dest in unshuffled_cave_dests:
+        c = cave_by_dest.get(dest)
+        if isinstance(c, ItemCave):
+            c.item = _progressive_downgrade(c.item)
+
+    if not config.shuffle_armos_item:
+        c = cave_by_dest.get(Destination.ARMOS_ITEM)
+        if isinstance(c, OverworldItem):
+            c.item = _progressive_downgrade(c.item)
+    if not config.shuffle_coast_item:
+        c = cave_by_dest.get(Destination.COAST_ITEM)
+        if isinstance(c, OverworldItem):
+            c.item = _progressive_downgrade(c.item)
 
 
 def collect_all_placed_items(game_world: GameWorld) -> list[Item]:
