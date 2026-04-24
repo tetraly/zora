@@ -69,10 +69,10 @@ _FULL_ITEM_SHUFFLE_FLAGS = Flags(
 _COSMETIC_FLAGS = CosmeticFlags(
     disable_music=Tristate.ON,
     reduce_flashing=Tristate.ON,
-    green_tunic_color=14,  # random
-    blue_ring_color=14,
-    red_ring_color=14,
-    heart_color=14,
+    green_tunic_color=5,
+    blue_ring_color=10,
+    red_ring_color=20,
+    heart_color=3,
 )
 
 
@@ -230,12 +230,12 @@ _KITCHEN_SINK_COSMETIC_FLAGS = CosmeticFlags(
     deathwarp_button=DeathwarpButton.P1_UP_SEL,
     low_hearts_sound=LowHeartsSound.SOFTER,
     disable_music=Tristate.ON,
-    level_name=LevelName.RANDOM_CHOICE,
+    level_name=LevelName.LEVEL,
     reduce_flashing=Tristate.ON,
-    green_tunic_color=14,
-    blue_ring_color=14,
-    red_ring_color=14,
-    heart_color=14,
+    green_tunic_color=5,
+    blue_ring_color=10,
+    red_ring_color=20,
+    heart_color=3,
 )
 
 

@@ -34,6 +34,8 @@ from flags.flags_generated import (
 from flags.flags_generated import (
     Item as FlagItem,
 )
+import random as _random
+
 from zora.data_model import Item
 from zora.rng import Rng
 
@@ -361,17 +363,20 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
     full_start_shuffle    = (_ss == StartScreen.FULL_SHUFFLE)
     wood_sword_cave_start = (_ss == StartScreen.WOOD_SWORD_SCREEN)
 
-    # Resolve color cosmetics (order matters: blue ring excludes start, red excludes both)
-    green_tunic_color = _resolve_color(cosmetic_flags.green_tunic_color, rng, _TUNIC_RANDOM_POOL)
+    # Cosmetic resolution uses a non-seeded RNG so cosmetic choices never
+    # affect gameplay RNG state (item placement, dungeon layout, etc.).
+    cosmetic_rng = _random.Random()
+
+    green_tunic_color = _resolve_color(cosmetic_flags.green_tunic_color, cosmetic_rng, _TUNIC_RANDOM_POOL)
     blue_ring_color = _resolve_color(
-        cosmetic_flags.blue_ring_color, rng, _TUNIC_RANDOM_POOL,
+        cosmetic_flags.blue_ring_color, cosmetic_rng, _TUNIC_RANDOM_POOL,
         exclude=[green_tunic_color] if green_tunic_color is not None else [],
     )
     red_ring_color = _resolve_color(
-        cosmetic_flags.red_ring_color, rng, _TUNIC_RANDOM_POOL,
+        cosmetic_flags.red_ring_color, cosmetic_rng, _TUNIC_RANDOM_POOL,
         exclude=[c for c in (green_tunic_color, blue_ring_color) if c is not None],
     )
-    heart_color = _resolve_color(cosmetic_flags.heart_color, rng, _HEART_RANDOM_POOL)
+    heart_color = _resolve_color(cosmetic_flags.heart_color, cosmetic_rng, _HEART_RANDOM_POOL)
 
     # Dungeon room randomization
     shuffle_dungeon_rooms = resolve(flags.shuffle_dungeon_rooms)
@@ -485,7 +490,7 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
         fix_known_bugs=resolve(flags.fix_known_bugs),
         select_swap_mode=cosmetic_flags.select_swap_mode,
         deathwarp_button=cosmetic_flags.deathwarp_button,
-        level_name=_resolve_level_name(cosmetic_flags.level_name, rng),
+        level_name=_resolve_level_name(cosmetic_flags.level_name, cosmetic_rng),
         add_l4_sword=flags.add_l4_sword and progressive_items,
         magical_boomerang_does_one_hp_damage=flags.magical_boomerang_does_one_hp_damage,
         green_tunic_color=green_tunic_color,
