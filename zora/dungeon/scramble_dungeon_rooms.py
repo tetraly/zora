@@ -483,16 +483,20 @@ def _restore_level_bound_items(
         for surplus_idx in surplus:
             if not deficit_levels:
                 break
-            target_level = deficit_levels[0]
-            for candidate_idx in pool_by_level.get(target_level, []):
-                if pool[candidate_idx].item not in _LEVEL_BOUND_ITEMS:
-                    pool[surplus_idx].item, pool[candidate_idx].item = (
-                        pool[candidate_idx].item, pool[surplus_idx].item
-                    )
-                    pool[surplus_idx].item_position, pool[candidate_idx].item_position = (
-                        pool[candidate_idx].item_position, pool[surplus_idx].item_position
-                    )
-                    deficit_levels.pop(0)
+            matched = False
+            for di, target_level in enumerate(deficit_levels):
+                for candidate_idx in pool_by_level.get(target_level, []):
+                    if pool[candidate_idx].item not in _LEVEL_BOUND_ITEMS:
+                        pool[surplus_idx].item, pool[candidate_idx].item = (
+                            pool[candidate_idx].item, pool[surplus_idx].item
+                        )
+                        pool[surplus_idx].item_position, pool[candidate_idx].item_position = (
+                            pool[candidate_idx].item_position, pool[surplus_idx].item_position
+                        )
+                        deficit_levels.pop(di)
+                        matched = True
+                        break
+                if matched:
                     break
 
 
@@ -556,6 +560,11 @@ def scramble_dungeon_rooms(
             room_to_level_num[r.room_num] = level.level_num
     pool_level_nums = [room_to_level_nums.get(r.room_num, frozenset()) for r in pool]
 
+    pinned_items: dict[int, tuple[Item, int]] = {}
+    for i, room in enumerate(pool):
+        if room.item in _LEVEL_BOUND_ITEMS:
+            pinned_items[i] = (room.item, room.item_position)
+
     for _attempt in range(_MAX_SCRAMBLE_ATTEMPTS):
         # --- Phase 2: Constrained Fisher-Yates shuffle ---
         contents = [_RoomContents(room) for room in pool]
@@ -567,8 +576,13 @@ def scramble_dungeon_rooms(
         for room, content in zip(pool, contents):
             content.apply_to(room)
 
-        # --- Phase 3c: Restore maps/compasses to their original levels ---
-        _restore_level_bound_items(pool, room_to_level_num, world)
+        # --- Phase 3c: Pin maps/compasses to their original rooms ---
+        for i, (orig_item, orig_pos) in pinned_items.items():
+            pool[i].item = orig_item
+            pool[i].item_position = orig_pos
+        for i, room in enumerate(pool):
+            if i not in pinned_items and room.item in _LEVEL_BOUND_ITEMS:
+                room.item = Item.NOTHING
 
         # --- Phase 3b: Fix pushblock/shutter mismatches ---
         for room in pool:

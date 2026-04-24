@@ -18,8 +18,9 @@ from flags.flags_generated import (
     decode_flags,
     resolve_random_flags,
 )
-from zora.generate_game import _RANDOMIZERS
+from zora.generate_game import _RANDOMIZERS, _CRITICAL_STEPS
 from zora.game_config import resolve_game_config
+from zora.integrity_check import integrity_check
 from zora.parser import load_bin_files, parse_game_world
 from zora.level_gen.orchestrator import generate_dungeon_shapes
 from zora.serializer import serialize_game_world
@@ -70,6 +71,8 @@ def _run_seed(flags: Flags, seed: int) -> dict[str, Any]:
                 t0 = time.monotonic()
                 step(game_world, config, rng)
                 phases[step.__name__] = time.monotonic() - t0
+                if step in _CRITICAL_STEPS:
+                    integrity_check(game_world, step.__name__)
             break
         except RuntimeError as e:
             elapsed = time.monotonic() - total_t0
@@ -134,10 +137,10 @@ def main() -> None:
     start_seed = int(sys.argv[3]) if len(sys.argv) > 3 else START_SEED
 
     base_flags = decode_flags(flag_string)
-    print(f"Flagset: {flag_string}")
-    print(f"Seeds: {start_seed}..{start_seed + num_seeds - 1}  |  Timeout: {TIMEOUT}s")
-    print("=" * 70)
-    print()
+    print(f"Flagset: {flag_string}", flush=True)
+    print(f"Seeds: {start_seed}..{start_seed + num_seeds - 1}  |  Timeout: {TIMEOUT}s", flush=True)
+    print("=" * 70, flush=True)
+    print(flush=True)
 
     results: list[dict[str, Any]] = []
 
@@ -153,7 +156,7 @@ def main() -> None:
         total_str = f"{result['total']:.2f}s" if result["ok"] else f"{TIMEOUT:.0f}s"
         attempts = result.get("attempts", 1)
         retry_str = f"  ({attempts} attempts)" if attempts > 1 else ""
-        print(f"Seed {seed:>5}: {total_str:>8}  {status}{retry_str}")
+        print(f"Seed {seed:>5}: {total_str:>8}  {status}{retry_str}", flush=True)
 
         if result["ok"] and result["phases"]:
             slow_phases = sorted(
@@ -162,8 +165,8 @@ def main() -> None:
             for name, elapsed in slow_phases:
                 if elapsed >= 0.01:
                     bar = "#" * int(min(elapsed, 15) * 4)
-                    print(f"           {name:<30} {elapsed:>6.3f}s  {bar}")
-        print()
+                    print(f"           {name:<30} {elapsed:>6.3f}s  {bar}", flush=True)
+        print(flush=True)
 
     print("=" * 70)
     print("SUMMARY")
