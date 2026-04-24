@@ -532,16 +532,27 @@ def _is_swap_valid(
     pos_i: int,
     pos_j: int,
     level_room_nums: frozenset[int],
+    enemy_i: Enemy = Enemy.NOTHING,
+    enemy_j: Enemy = Enemy.NOTHING,
+    north_walls: dict[int, WallType] | None = None,
 ) -> bool:
     """Check if swapping room contents between positions i and j is valid.
 
     After the swap, room_type_i would be at pos_j and room_type_j at pos_i.
-    Both placements must satisfy adjacency constraints.
+    Both placements must satisfy adjacency constraints. NPC enemies must
+    land at positions with a solid north wall (NES engine constraint).
     """
     if not _check_adjacency_constraints(room_type_i, pos_j, level_room_nums):
         return False
     if not _check_adjacency_constraints(room_type_j, pos_i, level_room_nums):
         return False
+    if north_walls is not None:
+        if enemy_i in _NPC_ENEMIES_IN_BLACK_ROOM:
+            if north_walls.get(pos_j) != WallType.SOLID_WALL:
+                return False
+        if enemy_j in _NPC_ENEMIES_IN_BLACK_ROOM:
+            if north_walls.get(pos_i) != WallType.SOLID_WALL:
+                return False
     return True
 
 
@@ -826,10 +837,12 @@ def _is_vert_pair_locked(
     if lower.room_type in (RoomType.ZELDA_ROOM, RoomType.NARROW_STAIR_ROOM):
         return True
 
-    # Condition 2: lower room is an NPC-in-BLACK_ROOM — lock its north wall
-    if lower.room_type == RoomType.BLACK_ROOM:
-        if lower.enemy_spec.enemy in _NPC_ENEMIES_IN_BLACK_ROOM:
-            return True
+    # Condition 2: lower room is an NPC room — lock its north wall.
+    # The NES engine lets Link walk off the top of the screen if the north
+    # wall isn't solid. The original C# only checked BLACK_ROOM NPCs, but
+    # the content shuffle can place NPCs in any room type.
+    if lower.enemy_spec.enemy in _NPC_ENEMIES_IN_BLACK_ROOM:
+        return True
 
     # ── Conditions 3-4: staircase-adjacent-to-Zelda protection ──────────
     #
@@ -997,7 +1010,9 @@ def _fix_constrained_room_doors(level: Level, rng: Rng) -> None:
             if rn - 16 in level_room_nums and rn >= 16:
                 candidates.append(Direction.NORTH)
             if rn + 16 in level_room_nums and rn < 112:
-                candidates.append(Direction.SOUTH)
+                below = room_by_num.get(rn + 16)
+                if below is None or below.enemy_spec.enemy not in _NPC_ENEMIES_IN_BLACK_ROOM:
+                    candidates.append(Direction.SOUTH)
             if not candidates:
                 continue
             pick = rng.choice(candidates)
@@ -1009,8 +1024,12 @@ def _fix_constrained_room_doors(level: Level, rng: Rng) -> None:
             if room.walls.south != WallType.SOLID_WALL:
                 continue
             if rn + 16 in level_room_nums and rn < 112:
+                below = room_by_num.get(rn + 16)
+                if below is not None and below.enemy_spec.enemy in _NPC_ENEMIES_IN_BLACK_ROOM:
+                    continue
                 room.walls.south = WallType.OPEN_DOOR
-                room_by_num[rn + 16].walls.north = WallType.OPEN_DOOR
+                if below is not None:
+                    below.walls.north = WallType.OPEN_DOOR
 
 
 def _shuffle_level(level: Level, rng: Rng) -> bool:
@@ -1034,6 +1053,7 @@ def _shuffle_level(level: Level, rng: Rng) -> bool:
 
     level_room_nums = _level_room_nums(level)
     room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
+    north_walls: dict[int, WallType] = {r.room_num: r.walls.north for r in level.rooms}
 
     for _level_attempt in range(_MAX_LEVEL_RETRIES):
         # Extract contents from rooms (fresh each attempt since we swap in-place)
@@ -1063,6 +1083,9 @@ def _shuffle_level(level: Level, rng: Rng) -> bool:
                 contents[i].room_type, contents[j].room_type,
                 positions[i], positions[j],
                 level_room_nums,
+                enemy_i=contents[i].enemy_spec.enemy,
+                enemy_j=contents[j].enemy_spec.enemy,
+                north_walls=north_walls,
             ):
                 continue
 
@@ -1244,13 +1267,17 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
     # The C# identifies this room by Table2 == 0x0B && Table3 & 0x80 &&
     # level == 9.  As documented in CLAUDE.md, the parser drops is_group
     # for this NPC enemy, so we identify by enemy == OLD_MAN && level == 9.
-    # Fix walls: non-SOLID north/west → SHUTTER, south → OPEN, non-SOLID east → SHUTTER.
+    # Fix walls: north must be SOLID (NES engine constraint), south → OPEN,
+    # non-SOLID west/east → SHUTTER.
     if level.level_num == 9:
         for room in level.rooms:
             if room.enemy_spec.enemy == Enemy.OLD_MAN:
                 w = room.walls
                 if w.north != WallType.SOLID_WALL:
-                    w.north = WallType.SHUTTER_DOOR
+                    w.north = WallType.SOLID_WALL
+                    above_num = room.room_num - 16
+                    if above_num >= 0 and above_num in grid_rooms:
+                        grid_rooms[above_num].walls.south = WallType.SOLID_WALL
                 w.south = WallType.OPEN_DOOR
                 if w.west != WallType.SOLID_WALL:
                     w.west = WallType.SHUTTER_DOOR
@@ -1350,11 +1377,15 @@ def _fix_peninsula_and_stairs(level: Level, world: GameWorld) -> None:
     # ── Apply stair-adjacency fixes ───────────────────────────────────────
     # For tracked T_ROOM/ZELDA_ROOM rooms, clear the south wall of this room
     # and the north wall of the room below, opening a passage between them.
+    # Skip if the room below is an NPC room — its north wall must stay solid.
     for room in stair_fix_rooms:
         below_num = room.room_num + 16
-        if below_num in room_by_num:
+        below_room = room_by_num.get(below_num)
+        if below_room is not None:
+            if below_room.enemy_spec.enemy in _NPC_ENEMIES_IN_BLACK_ROOM:
+                continue
             room.walls.south = WallType.OPEN_DOOR
-            room_by_num[below_num].walls.north = WallType.OPEN_DOOR
+            below_room.walls.north = WallType.OPEN_DOOR
 
 
 def _clear_boss_cry_bits(world: GameWorld) -> None:
