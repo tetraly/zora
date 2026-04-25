@@ -1195,14 +1195,31 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
                 room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
         # ── Block 2: PUSHING_BLOCK_OPENS_SHUTTERS without shutters ───
-        # If room_action says push-block opens shutters but there are no
-        # shutter doors, clear the movable_block flag (the push block is
-        # pointless without shutters to open). Don't change room_action.
+        # Demote the action to KILLING_ENEMIES_OPENS_SHUTTERS. Previously
+        # this cleared movable_block and kept the action, which left the
+        # room in a latent inconsistent state: any later phase (e.g.
+        # scramble) that brought a shutter into the room would then
+        # violate the PUSHING_BLOCK_OPENS_SHUTTERS invariant (action set
+        # but no movable block). Demoting the action makes the room
+        # consistent regardless of later wall changes.
         if (
             action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
             and not _has_any_shutter_door(room)
         ):
-            room.movable_block = False
+            room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+
+        # ── Block 2.5: KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM with no item ──
+        # Without an actual item, the game's drop logic reads the
+        # Item.NOTHING code (0x03 in the dungeon item byte) which collides
+        # with MAGICAL_SWORD (also 0x03), producing a phantom Magical
+        # Sword drop. Demote the action so the room still opens shutters
+        # but doesn't trigger the broken drop logic. The reference 100-seed
+        # full-shuffle corpus has 0/7400 such rooms — confirms direction.
+        if (
+            room.room_action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM
+            and room.item == Item.NOTHING
+        ):
+            room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
         # ── Block 3: TRIFORCE_OF_POWER_OPENS_SHUTTERS rooms ──────────
         # For rooms with this action whose enemy is NOT THE_BEAST: demote

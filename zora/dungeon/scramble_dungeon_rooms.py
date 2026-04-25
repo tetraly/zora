@@ -98,7 +98,9 @@ from zora.dungeon.shuffle_dungeon_rooms import (
     _DIR_OFFSETS,
     _OPPOSITE_DIR,
     _RoomSnapshot,
+    _clear_boss_cry_bits,
     _fix_constrained_room_doors,
+    _fix_special_rooms,
     _is_level_connected,
 )
 from zora.rng import Rng
@@ -312,6 +314,15 @@ def scramble_dungeon_rooms(world: GameWorld, rng: Rng) -> bool:
 
         if all_connected and no_kidnapped_conflict:
             _shuffle_minor_items_globally(world, rng)
+            # Re-run room-content fixups: scramble can move (room_type,
+            # movable_block) into a slot whose room_action no longer
+            # matches (e.g. PUSHING_BLOCK_OPENS_SHUTTERS at a slot whose
+            # new occupant has movable_block=False). Mirrors the
+            # post-shuffle fixup pass; clear boss_cry first because
+            # THE_BEAST may have moved.
+            _clear_boss_cry_bits(world)
+            for level in world.levels:
+                _fix_special_rooms(level, world)
             return True
 
         _restore_world(world, snapshots)
