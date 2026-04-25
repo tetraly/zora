@@ -52,6 +52,14 @@ _CONSTRAINED_VALID_DIRS: dict[RoomType, list[Direction]] = {
 
 _SWORD_OR_WAND_ITEMS = (Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.WAND)
 
+# Enemies treated as NPCs for shutter-passability checks.
+# DEFEATING_NPC_OPENS_SHUTTERS triggers only on these.
+_NPC_ENEMIES: frozenset[Enemy] = frozenset({
+    Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3, Enemy.OLD_MAN_4,
+    Enemy.OLD_MAN_5, Enemy.OLD_MAN_6,
+    Enemy.BOMB_UPGRADER, Enemy.HUNGRY_GORIYA,
+})
+
 # Room types where item accessibility depends on entry direction.
 # On re-entry from a different direction, item collection must be re-attempted.
 _DIRECTION_SENSITIVE_ROOM_TYPES: frozenset[RoomType] = frozenset(
@@ -452,6 +460,54 @@ class GameValidator:
                 return True
         return False
 
+    def _can_open_shutter(self, room: Room, level_num: int) -> bool:
+        """Return True iff the player can open a SHUTTER_DOOR in this room.
+
+        Shutter doors are gated by ``room.room_action`` plus content
+        preconditions. Unknown or non-opening actions return False
+        (default-deny). False positives here cause regen retries; false
+        negatives cause unbeatable seeds, so we err on the strict side.
+        """
+        action = room.room_action
+        enemy = room.enemy_spec.enemy
+
+        if action == RoomAction.NOTHING_OPENS_SHUTTERS:
+            # Only the L9 triforce-checker is a legal action-0 + shutter
+            # room. Identified by content (level + room_type + base
+            # OLD_MAN variant) rather than room_num so entrance-shuffle
+            # can't break the rule. The 8-triforce check is technically
+            # redundant with the L9 entry gate at line 691, but is kept
+            # here as defense in depth.
+            return (
+                level_num == 9
+                and room.room_type == RoomType.BLACK_ROOM
+                and enemy == Enemy.OLD_MAN
+                and self.inventory.get_triforce_count() >= 8
+            )
+        if action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS:
+            # Unkillable enemies (OLD_MAN, NPC, NOTHING) can never satisfy
+            # a kill action, even though _can_defeat_enemies returns True
+            # for them (it answers "does this room block traversal?", a
+            # different question).
+            if enemy.is_unkillable():
+                return False
+            return self._can_defeat_enemies(room)
+        if action == RoomAction.KILLING_RINGLEADER_KILLS_ENEMIES_OPENS_SHUTTERS:
+            return False
+        if action == RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
+            return self.inventory.has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
+        if action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS:
+            return room.movable_block and self._can_defeat_enemies(room)
+        if action == RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE:
+            return False
+        if action == RoomAction.DEFEATING_NPC_OPENS_SHUTTERS:
+            return enemy in _NPC_ENEMIES
+        if action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM:
+            if enemy.is_unkillable():
+                return False
+            return self._can_defeat_enemies(room) and room.item != Item.NOTHING
+        return False
+
     def _can_move(self, entry_direction: Direction, exit_direction: Direction,
                   level_num: int, room_num: int, room: Room) -> bool:
         has_ladder = self.inventory.has(Item.LADDER)
@@ -468,30 +524,7 @@ class GameValidator:
         wall = room.walls[exit_direction]
 
         if wall == WallType.SHUTTER_DOOR:
-            if room.room_action == RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
-                return self.inventory.has(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
-            if room.room_action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS and not room.movable_block:
-                assert False, (
-                    f"L{level_num} R{room_num:#04x}: PUSHING_BLOCK_OPENS_SHUTTERS "
-                    f"but no movable block — shuffler should not produce this"
-                )
-            enemy = room.enemy_spec.enemy
-            if (enemy in (
-                        Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3,
-                        Enemy.OLD_MAN_4, Enemy.OLD_MAN_5, Enemy.OLD_MAN_6,
-                        Enemy.BOMB_UPGRADER,
-                    )
-                    and room.room_action in (
-                        RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS,
-                        RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM,
-                        RoomAction.DEFEATING_NPC_OPENS_SHUTTERS,
-                    )):
-                assert False, (
-                    f"L{level_num} R{room_num:#04x}: NPC {enemy.name} with shutter "
-                    f"doors and room_action {room.room_action.name} — "
-                    f"shuffler should not produce this"
-                )
-            if not self._can_defeat_enemies(room):
+            if not self._can_open_shutter(room, level_num):
                 return False
 
         if wall == WallType.SOLID_WALL:

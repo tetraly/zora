@@ -1154,6 +1154,33 @@ def _has_any_shutter_door(room: Room) -> bool:
     )
 
 
+def _is_kidnapped_gate_room(room: Room, level: Level) -> bool:
+    """Return True if *room* is a kidnapped-neighbor gate room in level 9.
+
+    A kidnapped-gate room is a cardinal neighbor of THE_KIDNAPPED's room
+    where the kidnapped room's wall toward this neighbor is non-SOLID
+    (i.e. THE_KIDNAPPED can be reached from this neighbor). These rooms
+    legitimately carry RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS as
+    set by _fix_kidnapped_neighbors — zora's implementation of the
+    "force boss fight" mechanic that makes the player defeat Ganon
+    before reaching Zelda.
+    """
+    if level.level_num != 9:
+        return False
+    rn = room.room_num
+    for kid_room in level.rooms:
+        if kid_room.enemy_spec.enemy != Enemy.THE_KIDNAPPED:
+            continue
+        krn = kid_room.room_num
+        for direction, offset in _DIR_OFFSETS:
+            if krn + offset != rn:
+                continue
+            if kid_room.walls[direction] != WallType.SOLID_WALL:
+                return True
+        return False
+    return False
+
+
 def _fix_special_rooms(level: Level, world: GameWorld) -> None:
     """Fix wall/door interactions after the content shuffle.
 
@@ -1221,15 +1248,25 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
         ):
             room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
-        # ── Block 3: TRIFORCE_OF_POWER_OPENS_SHUTTERS rooms ──────────
-        # For rooms with this action whose enemy is NOT THE_BEAST: demote
-        # room_action to KILLING_ENEMIES_OPENS_SHUTTERS (clear bit 1 of
-        # the raw action value: 3 → 1).  If the item is TRIFORCE_OF_POWER,
-        # clear it to NOTHING (and clear dark/boss-cry flags).
-        # NOTE: The C# original wrote raw byte 0x03 here, which is the
-        # vanilla dungeon nothing sentinel — NOT Item.MAGICAL_SWORD.
+        # ── Block 3: TRIFORCE_OF_POWER_OPENS_SHUTTERS legitimacy ─────
+        # This action has two legitimate uses in zora:
+        #   1. THE_BEAST's room itself (Block 4 sets this canonically).
+        #   2. Kidnapped-neighbor rooms — the gate that ensures the
+        #      player must defeat Ganon and obtain Triforce of Power
+        #      before reaching Zelda. Set by _fix_kidnapped_neighbors
+        #      in zora/enemy/shuffle_monsters.py and orchestrator.py.
+        #
+        # Historically Block 3 only ran post-shuffle (before kidnapped-
+        # gate assignment), so demoting any non-beast action-3 was
+        # correct then. Now that we re-run post-enemy-randomization,
+        # kidnapped-gate rooms are already set and must be preserved.
+        # NOTE: The C# original wrote raw byte 0x03 for the cleared
+        # item, which is the vanilla dungeon nothing sentinel — NOT
+        # Item.MAGICAL_SWORD.
         if action == RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
-            if room.enemy_spec.enemy != Enemy.THE_BEAST:
+            is_beast_room = room.enemy_spec.enemy == Enemy.THE_BEAST
+            is_kidnapped_gate = _is_kidnapped_gate_room(room, level)
+            if not (is_beast_room or is_kidnapped_gate):
                 room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
                 if room.item == Item.TRIFORCE_OF_POWER:
                     room.item = Item.NOTHING

@@ -18,6 +18,10 @@ from __future__ import annotations
 
 from zora.data_model import Enemy, GameWorld
 from zora.dungeon.dungeon import fix_pushblock_staircase_shutters
+from zora.dungeon.shuffle_dungeon_rooms import (
+    _clear_boss_cry_bits,
+    _fix_special_rooms,
+)
 from zora.enemy.change_dungeon_boss_groups import change_dungeon_boss_groups
 from zora.enemy.change_dungeon_enemy_groups import change_dungeon_enemy_groups
 from zora.enemy.hp import randomize_hp
@@ -80,7 +84,15 @@ def randomize_enemies(
     if config.change_dungeon_boss_groups:
         change_dungeon_boss_groups(game_world, rng)
 
+    # Re-run the post-shuffle/post-scramble fixups now that enemy
+    # placement has changed. Enemy randomization can move a non-NPC
+    # enemy into a room whose room_action assumes an NPC (or vice
+    # versa), so the action+content pairing has to be re-reconciled
+    # before validation. Clear boss_cry first because THE_BEAST may
+    # have moved across rooms.
+    _clear_boss_cry_bits(game_world)
     for level in game_world.levels:
+        _fix_special_rooms(level, game_world)
         fix_npc_shutter_doors(level)
         fix_pushblock_staircase_shutters(level)
 

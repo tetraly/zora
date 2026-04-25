@@ -277,12 +277,14 @@ def test_shutter_door_blocked_by_push_block_without_movable_block(bins):
         palette_0=0,
         palette_1=0,
     )
-    with pytest.raises(AssertionError, match="PUSHING_BLOCK_OPENS_SHUTTERS but no movable block"):
-        v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
+    # PUSHING_BLOCK_OPENS_SHUTTERS without a movable block: the shutter has
+    # no opener, so it must be treated as impassable. (Previously this was
+    # an assertion-style invalid state; the validator now default-denies.)
+    assert v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room) is False
 
 
 def test_shutter_door_blocked_by_old_man_with_kill_action(bins):
-    """Shutter doors with an unkillable NPC and a kill-based room action are an invalid state."""
+    """Shutter doors with an unkillable NPC and a kill-based room action are impassable."""
     gw = parse_game_world(bins)
     v = _make_validator(gw)
     v.inventory.items.add(Item.WOOD_SWORD)
@@ -304,8 +306,9 @@ def test_shutter_door_blocked_by_old_man_with_kill_action(bins):
         palette_0=0,
         palette_1=0,
     )
-    with pytest.raises(AssertionError, match="NPC OLD_MAN with shutter doors"):
-        v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room)
+    # OLD_MAN is unkillable, so KILLING_ENEMIES_OPENS_SHUTTERS can never
+    # trigger here — the shutter is impassable.
+    assert v._can_move(Direction.WEST, Direction.EAST, 1, 0x10, room) is False
 
 
 def test_shutter_door_allowed_for_killable_enemies(bins):
