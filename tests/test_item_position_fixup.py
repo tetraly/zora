@@ -16,7 +16,7 @@ from zora.data_model import (
     WallType,
 )
 from zora.dungeon.dungeon import _fix_direction_sensitive_item_positions, _get_entry_directions
-from zora.dungeon.scramble_dungeon_rooms import _STANDARD_ITEM_POSITION_TABLE
+from zora.dungeon.item_positions import _STANDARD_ITEM_POSITION_TABLE
 from zora.parser import parse_game_world
 from zora.rng import SeededRng
 

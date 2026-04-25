@@ -8,12 +8,12 @@ which lands outside the T-room's walkable zones.
 from collections.abc import Callable
 
 from zora.data_model import GameWorld, ItemPosition, RoomType
-from zora.dungeon.scramble_dungeon_rooms import (
+from zora.dungeon.item_positions import (
     _STANDARD_ITEM_POSITION_TABLE,
     _VALID_ITEM_POSITIONS,
     _assign_valid_item_positions,
-    scramble_dungeon_rooms,
 )
+from zora.dungeon.scramble_dungeon_rooms import scramble_dungeon_rooms
 from zora.dungeon.shuffle_dungeon_rooms import shuffle_dungeon_rooms
 from zora.parser import parse_game_world
 from zora.rng import SeededRng
@@ -74,7 +74,7 @@ def test_scramble_produces_valid_item_positions(bins):
     for seed in range(50):
         gw = parse_game_world(bins)
         rng = SeededRng(seed)
-        scramble_dungeon_rooms(gw, rng, shuffle_gannon_and_zelda=False, shuffle_drops=True)
+        scramble_dungeon_rooms(gw, rng)
         _standardize_and_reassign(gw, rng)
 
         for level in gw.levels:

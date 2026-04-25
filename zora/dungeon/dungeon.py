@@ -21,13 +21,13 @@ from zora.data_model import (
     RoomType,
     WallType,
 )
-from zora.dungeon.scramble_dungeon_rooms import (
+from zora.dungeon.item_positions import (
     _REQUIRED_DIRECTIONS,
     _STANDARD_ITEM_POSITION_TABLE,
     _VALID_ITEM_POSITIONS,
     _assign_valid_item_positions,
-    scramble_dungeon_rooms,
 )
+from zora.dungeon.scramble_dungeon_rooms import scramble_dungeon_rooms
 from zora.dungeon.shuffle_dungeon_rooms import (
     _DIR_OFFSETS,
     _OPPOSITE_DIR,
@@ -62,12 +62,7 @@ def randomize_dungeons(
         if not shuffle_dungeon_rooms(game_world, rng):
             raise RuntimeError("Dungeon room shuffle failed")
     if config.scramble_dungeon_rooms:
-        if not scramble_dungeon_rooms(
-            game_world,
-            rng,
-            shuffle_gannon_and_zelda=config.shuffle_ganon_zelda,
-            shuffle_drops=True,
-        ):
+        if not scramble_dungeon_rooms(game_world, rng):
             raise RuntimeError("Dungeon room scramble failed")
 
     if config.shuffle_dungeon_rooms or config.scramble_dungeon_rooms:

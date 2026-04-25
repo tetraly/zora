@@ -380,6 +380,7 @@ C# source: ShuffleDungeonRooms.cs (main method) and
 from zora.data_model import (
     Direction,
     Enemy,
+    EnemySpec,
     GameWorld,
     Item,
     ItemPosition,
@@ -1388,6 +1389,51 @@ def _fix_peninsula_and_stairs(level: Level, world: GameWorld) -> None:
             below_room.walls.north = WallType.OPEN_DOOR
 
 
+# Per-level OLD_MAN variant reassignment. The reference randomizer rewrites
+# the variant of each old-man room in the level after shuffling, by a fixed
+# table (deliberate divergence from the C# decompilation, established
+# empirically from the reference 100-seed corpus).
+#
+# For L9, the pinned room at R$0x66 (identified via _is_level9_fixed_room)
+# keeps OLD_MAN; the other 3 old-man rooms get {OLD_MAN_2, OLD_MAN_3,
+# OLD_MAN_4} assigned in ascending room_num order.
+_OLD_MAN_REASSIGNMENT: dict[int, list[Enemy]] = {
+    1: [Enemy.OLD_MAN_3],
+    2: [Enemy.OLD_MAN_2],
+    3: [Enemy.OLD_MAN_3],
+    4: [Enemy.OLD_MAN],
+    5: [Enemy.OLD_MAN, Enemy.OLD_MAN_4],
+    6: [Enemy.OLD_MAN_2, Enemy.OLD_MAN_4],
+    9: [Enemy.OLD_MAN_2, Enemy.OLD_MAN_3, Enemy.OLD_MAN_4],
+}
+
+_OLD_MAN_VARIANTS: frozenset[Enemy] = frozenset({
+    Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3, Enemy.OLD_MAN_4,
+})
+
+
+def _reassign_old_man_variants(level: Level) -> None:
+    """Rewrite the OLD_MAN variant of each old-man room per the reference table.
+
+    For L9 the room pinned by _is_level9_fixed_room (R$0x66 in vanilla)
+    keeps OLD_MAN; the remaining old-man rooms in the level are paired with
+    the table entries by ascending room_num.
+    """
+    table = _OLD_MAN_REASSIGNMENT.get(level.level_num)
+    if table is None:
+        return
+
+    candidates = [
+        r for r in level.rooms
+        if r.enemy_spec.enemy in _OLD_MAN_VARIANTS
+        and not _is_level9_fixed_room(r, level.level_num)
+    ]
+    candidates.sort(key=lambda r: r.room_num)
+
+    for room, new_variant in zip(candidates, table):
+        room.enemy_spec = EnemySpec(enemy=new_variant, is_group=False)
+
+
 def _clear_boss_cry_bits(world: GameWorld) -> None:
     """Clear boss_cry_1 and boss_cry_2 on all rooms in the grid.
 
@@ -1678,6 +1724,13 @@ def shuffle_dungeon_rooms(
         True on success, False if any level's shuffle exhausted its retry
         budget (caller should retry the entire seed generation).
     """
+    # Clear boss cry bits across the whole grid up front. _fix_special_rooms
+    # sets boss_cry_1=True on the cardinal neighbors of THE_BEAST's room
+    # (only L9 has THE_BEAST), and we want those bits to survive. The C#
+    # reference clears the grid before each level's special-rooms fixup;
+    # since only L9 sets boss_cry_1, a single up-front pass is equivalent.
+    _clear_boss_cry_bits(world)
+
     for level in world.levels:
         snapshot = _LevelSnapshot(level)
         connected = False
@@ -1694,7 +1747,13 @@ def shuffle_dungeon_rooms(
 
             _fix_special_rooms(level, world)
             _fix_peninsula_and_stairs(level, world)
+            _reassign_old_man_variants(level)
             _fix_narrow_stair_east_walls_level(level)
+
+            for room in level.rooms:
+                if room.enemy_spec.enemy == Enemy.THE_BEAST:
+                    level.boss_room = room.room_num
+                    break
 
             if _is_level_connected(level):
                 connected = True
@@ -1702,8 +1761,5 @@ def shuffle_dungeon_rooms(
 
         if not connected:
             return False
-
-    # Phase 9 in the C#: clear boss cry bits on all rooms in the grid.
-    _clear_boss_cry_bits(world)
 
     return True

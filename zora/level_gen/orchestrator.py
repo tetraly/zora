@@ -12,7 +12,7 @@ from zora.data_model import (
     RoomType,
     WallType,
 )
-from zora.dungeon.scramble_dungeon_rooms import (
+from zora.dungeon.item_positions import (
     _STANDARD_ITEM_POSITION_TABLE,
     _assign_valid_item_positions,
 )

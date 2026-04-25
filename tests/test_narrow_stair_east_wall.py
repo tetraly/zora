@@ -99,7 +99,7 @@ def test_narrow_stair_east_wall_after_scramble(bins):
     for seed in range(50):
         gw = parse_game_world(bins)
         rng = SeededRng(seed)
-        scramble_dungeon_rooms(gw, rng, shuffle_gannon_and_zelda=False)
+        scramble_dungeon_rooms(gw, rng)
         _fix_narrow_stair_east_walls(gw)
         _assert_narrow_stair_invariant(gw, f"seed {seed} ")
 
@@ -110,6 +110,6 @@ def test_narrow_stair_east_wall_after_shuffle_and_scramble(bins):
         gw = parse_game_world(bins)
         rng = SeededRng(seed)
         shuffle_dungeon_rooms(gw, rng)
-        scramble_dungeon_rooms(gw, rng, shuffle_gannon_and_zelda=False)
+        scramble_dungeon_rooms(gw, rng)
         _fix_narrow_stair_east_walls(gw)
         _assert_narrow_stair_invariant(gw, f"seed {seed} ")
