@@ -46,13 +46,26 @@ _EXCLUDED_FROM_ENEMY_SHUFFLING: frozenset[Enemy] = frozenset({
 })
 
 
-# Bosses whose sprites live in the enemy sprite sets (not boss sprite sets).
-# These must participate in between-level shuffling so they stay matched to the
-# level's enemy_sprite_set; the blanket is_boss exclusion would otherwise strand
-# them in a level whose sprite bank no longer contains their tile data.
+# Bosses (per Enemy.is_boss) whose sprites live in the enemy sprite sets, not
+# the boss sprite sets. These must participate in between-level shuffling so
+# they stay matched to their level's enemy_sprite_set; the blanket is_boss
+# exclusion would otherwise strand them in a level whose sprite bank no longer
+# contains their tile data.
+#
+# Empirically derived from a 50-seed reference corpus (flagset
+# MSqT2vqlQRwbDXS41SNS518uL):
+#   - RED_LANMOLA, BLUE_LANMOLA: live in enemy sprite set C (L9's set)
+#   - MOLDORM: lives in enemy sprite set A (L2/L7's set)
+#   - RUPEE_BOSS: not actually a boss (money-room old-man variant); its
+#     is_boss=True classification in data_model is a misclassification we
+#     work around here. Reference includes RUPEE_BOSS in all three pools.
+#     TODO: cleaner fix is to correct Enemy.is_boss; deferred to avoid
+#     wider ripple effects on other code that checks is_boss.
 _BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS: frozenset[Enemy] = frozenset({
     Enemy.RED_LANMOLA,
     Enemy.BLUE_LANMOLA,
+    Enemy.MOLDORM,
+    Enemy.RUPEE_BOSS,
 })
 
 

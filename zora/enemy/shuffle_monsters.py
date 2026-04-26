@@ -15,6 +15,7 @@ pass from generateGame (Module.cs:124838-124959).
 from zora.data_model import (
     Direction,
     Enemy,
+    EnemySpec,
     GameWorld,
     Item,
     Level,
@@ -63,6 +64,44 @@ _NON_COMBAT_ENEMIES: frozenset[Enemy] = frozenset({
     Enemy.MUGGER,               # 0x51
     Enemy.OLD_MAN_6,            # 0x52
 })
+
+
+# Per-position canonical NPC assignments. After shuffle_monsters runs, these
+# (level, room_num) positions are overwritten with the canonical enemy value
+# regardless of what the shuffle did. Derived empirically from a 50-seed
+# reference corpus (flagset HG0MJvVJXNm5YDPY1mFE18uL,
+# analysis/shuffle_dungeon_monsters_50/); every entry is the same in all 50
+# seeds.
+#
+# Most entries are baseline-identity (the reference doesn't change L7, L9,
+# parts of L5/L6). Notable non-identity entries:
+#   - L1-L4 OLD_MAN variant reassigned (e.g. L1 OLD_MAN_2 -> OLD_MAN_3)
+#   - L5 $0x15 OLD_MAN_3 -> OLD_MAN
+#   - L6 $0x6a OLD_MAN_3 -> OLD_MAN_4
+#   - L8 $0x3b/$0x3d OLD_MAN_5/BOMB_UPGRADER swapped from baseline
+#
+# These positions are already excluded from the shuffle pool via
+# _NON_COMBAT_ENEMIES, so the table is enforcing canonical variants on
+# already-pinned positions, not relocating anyone.
+_CANONICAL_NPC_POSITIONS: dict[tuple[int, int], Enemy] = {
+    (1, 0x41): Enemy.OLD_MAN_3,
+    (2, 0x1f): Enemy.OLD_MAN_2,
+    (3, 0x2b): Enemy.OLD_MAN_3,
+    (4, 0x00): Enemy.OLD_MAN,
+    (5, 0x15): Enemy.OLD_MAN,
+    (5, 0x17): Enemy.BOMB_UPGRADER,
+    (5, 0x67): Enemy.OLD_MAN_4,
+    (6, 0x0b): Enemy.OLD_MAN_2,
+    (6, 0x6a): Enemy.OLD_MAN_4,
+    (7, 0x48): Enemy.BOMB_UPGRADER,
+    (7, 0x5b): Enemy.OLD_MAN_5,
+    (8, 0x3b): Enemy.BOMB_UPGRADER,
+    (8, 0x3d): Enemy.OLD_MAN_5,
+    (9, 0x02): Enemy.OLD_MAN_4,
+    (9, 0x06): Enemy.OLD_MAN_3,
+    (9, 0x43): Enemy.OLD_MAN_2,
+    (9, 0x66): Enemy.OLD_MAN,
+}
 
 
 def _is_eligible(enemy: Enemy, shuffle_gannon: bool) -> bool:
@@ -251,11 +290,18 @@ def _shuffle_level(
     room_enemy_pairs = _build_room_enemy_pairs(level)
 
     # Build parallel arrays for the Fisher-Yates shuffle.
-    # room_positions stays fixed; enemy specs move between rooms.
-    # We shuffle whole EnemySpec objects to preserve is_group/group_members.
+    # room_positions stays fixed; enemy specs and quantities move together.
+    # The C# decompilation (MonsterShuffler.cs) swaps three parallel arrays:
+    # enemyIds, roomTypes, enemyFlags. The variable named "roomTypes" is
+    # misleadingly named — it is actually the per-room enemy quantity table.
+    # Treating (enemy_spec, enemy_quantity) as a unit that moves together is
+    # required for per-level (enemy, quantity) pair multisets to match the
+    # reference; verified across the 50-seed reference corpus
+    # (analysis/shuffle_dungeon_monsters_50/).
     room_positions = [room.room_num for room in eligible_rooms]
     specs = [room.enemy_spec for room in eligible_rooms]
     enemy_ids = [s.enemy.value for s in specs]
+    quantities = [room.enemy_quantity for room in eligible_rooms]
 
     attempt_count = 0
     i = 0
@@ -290,11 +336,13 @@ def _shuffle_level(
 
         specs[i], specs[j] = specs[j], specs[i]
         enemy_ids[i], enemy_ids[j] = enemy_ids[j], enemy_ids[i]
+        quantities[i], quantities[j] = quantities[j], quantities[i]
         i += 1
 
-    # Write shuffled enemy specs back to rooms.
-    for room, spec in zip(eligible_rooms, specs):
+    # Write shuffled enemy specs and quantities back to rooms.
+    for room, spec, qty in zip(eligible_rooms, specs, quantities):
         room.enemy_spec = spec
+        room.enemy_quantity = qty
 
     # Gannon room post-processing: if Gannon moved, configure the new room.
     if shuffle_gannon:
@@ -438,6 +486,33 @@ def _post_process_gannon_flags(world: GameWorld) -> None:
                         adj_room.boss_cry_1 = True
 
 
+def _apply_canonical_npc_positions(world: GameWorld) -> None:
+    """Overwrite specific NPC positions with canonical enemy values.
+
+    Runs after shuffle and post-processing. The positions in
+    _CANONICAL_NPC_POSITIONS are excluded from the shuffle pool (see
+    _NON_COMBAT_ENEMIES), so most entries are baseline-identity; this
+    pass exists to capture the cases where the reference reassigns NPC
+    variants (most notably L8's OLD_MAN_5 / BOMB_UPGRADER swap).
+
+    Empirically derived from 50-seed reference corpus; see
+    analysis/shuffle_dungeon_monsters_50/.
+    """
+    by_level = {l.level_num: l for l in world.levels}
+    for (ln, rn), canonical_enemy in _CANONICAL_NPC_POSITIONS.items():
+        level = by_level.get(ln)
+        if level is None:
+            continue
+        for room in level.rooms:
+            if room.room_num == rn:
+                room.enemy_spec = EnemySpec(
+                    enemy=canonical_enemy,
+                    is_group=False,
+                    group_members=None,
+                )
+                break
+
+
 def shuffle_monsters(
     world: GameWorld,
     rng: Rng,
@@ -484,5 +559,6 @@ def shuffle_monsters(
     # in levels 7-9. This runs regardless of shuffle_gannon — it's a separate
     # pass from generateGame (Module.cs:124838-124959).
     _post_process_gannon_flags(world)
+    _apply_canonical_npc_positions(world)
 
     return True

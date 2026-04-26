@@ -11,6 +11,10 @@ from zora.parser import load_bin_files_q2, parse_game_world
 from zora.patches import build_behavior_patch
 from zora.rng import SeededRng
 from zora.rom_layout import (
+    AQUAMENTUS_SPRITE_PTR_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS,
     OW_SPRITES_ADDRESS,
     ANY_ROAD_SCREENS_ADDRESS,
     ARMOS_ITEM_ADDRESS,
@@ -615,3 +619,41 @@ def test_compass_points_to_stairway_room_when_triforce_in_staircase(bins):
         f"L{level.level_num}: compass points to {compass_room:#04x}, "
         f"expected return_dest {staircase.return_dest:#04x}"
     )
+
+
+def test_boss_engine_sprite_pointers_roundtrip(bins):
+    """The four boss engine sprite pointer bytes must populate as ints
+    after parse, round-trip byte-identical, and remain stable across
+    repeated parse/serialize cycles."""
+    originals = _load_originals()
+    gw = parse_game_world(bins)
+
+    for name in ("aquamentus_sprite_ptr", "gleeok_head_sprite_ptr_a",
+                 "gleeok_head_sprite_ptr_b", "gleeok_head_sprite_ptr_c"):
+        v = getattr(gw.enemies, name)
+        assert isinstance(v, int) and 0 <= v <= 0xFF, \
+            f"{name} not populated as int 0-255: got {v!r}"
+
+    addrs = {
+        "aquamentus_sprite_ptr.bin":    AQUAMENTUS_SPRITE_PTR_ADDRESS,
+        "gleeok_head_sprite_ptr_a.bin": GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS,
+        "gleeok_head_sprite_ptr_b.bin": GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS,
+        "gleeok_head_sprite_ptr_c.bin": GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS,
+    }
+
+    patch = serialize_game_world(gw, originals)
+    for fname, addr in addrs.items():
+        exp = (TEST_DATA / fname).read_bytes()
+        got = patch.data[addr]
+        assert got == exp, \
+            f"{fname}: got {got[0]:#04x}, expected {exp[0]:#04x}"
+
+    # Two further cycles: parse → serialize → parse → serialize.
+    for _ in range(2):
+        gw = parse_game_world(bins)
+        patch = serialize_game_world(gw, originals)
+        for fname, addr in addrs.items():
+            exp = (TEST_DATA / fname).read_bytes()
+            got = patch.data[addr]
+            assert got == exp, \
+                f"cycle {fname}: got {got[0]:#04x}, expected {exp[0]:#04x}"

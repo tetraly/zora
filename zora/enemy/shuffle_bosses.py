@@ -4,6 +4,13 @@ Assigns a boss difficulty tier (mapped to BossSpriteSet) to each dungeon,
 then replaces boss enemies in rooms with random picks from the assigned
 tier's pool. Optionally adds extra bosses to non-boss rooms.
 
+L9 is fully pinned by this shuffle: PATRA_1, PATRA_2, RED/BLUE_LANMOLA,
+and THE_BEAST all stay at their baseline positions, and L9's
+boss_sprite_set stays C. LANMOLAs and THE_BEAST are pinned naturally
+because they're not in BOSS_TIERS, but PATRA_1/PATRA_2 are in
+BOSS_TIERS[C], so the per-room replacement loop explicitly skips L9
+to match reference behavior (otherwise PATRAs would be re-rolled).
+
 Ported from BossShuffler.cs (remapBosses, Module.cs:72753-73135).
 """
 
@@ -151,6 +158,12 @@ def shuffle_bosses(
 
     # Replace bosses in rooms.
     for level in world.levels:
+        # L9 is fully pinned (see module docstring). PATRA_1/PATRA_2 are in
+        # BOSS_TIERS[C] so without this skip they'd be re-rolled against the
+        # reference, which leaves L9 untouched.
+        if level.level_num == 9:
+            continue
+
         assigned_tier = tier_assignments[level.level_num]
         default_tier = _DEFAULT_BOSS_TIER[level.level_num]
         boss_pool = BOSS_TIERS[assigned_tier]
@@ -184,5 +197,10 @@ def shuffle_bosses(
                     continue
 
                 room.enemy_spec.enemy = new_boss
+                # TODO: reference preserves per-room baseline quantity instead
+                # of overwriting. This coincidentally produces the same value
+                # in the vanilla baseline because every boss room has
+                # qty == qty_table[0]. Worth changing to a no-op for clarity,
+                # but not a behavioral divergence in this baseline.
                 room.enemy_quantity = level.qty_table[0]
                 break

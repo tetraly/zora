@@ -169,15 +169,10 @@ _SPRITE_OFFSET_ORIGINAL: dict[Enemy, int] = {
 }
 
 _SPRITE_OFFSET_CORRECTED: dict[Enemy, int] = {
-    Enemy.AQUAMENTUS:           0,  # 0xDFEB - 0xDFEB (unchanged)
-    Enemy.TRIPLE_DIGDOGGER:   384,  # was 320; moves to col 216
-    # TODO: DIGDOGGER_SPAWN now has the same offset as TRIPLE_DIGDOGGER
-    # (384).  If both primary and companion share the same offset, one of
-    # them is probably wrong — they may share tiles, or the companion may
-    # start at 384+64=448 (but that collides with TRIPLE_DODONGO).
-    # Needs verification against a hex dump of boss_set_a.
-    Enemy.DIGDOGGER_SPAWN:    384,  # unchanged value, but suspicious overlap
-    Enemy.TRIPLE_DODONGO:     448,  # 0xE1AB - 0xDFEB (unchanged)
+    Enemy.AQUAMENTUS:           0,  # cols 192-211 in boss_set_a
+    Enemy.TRIPLE_DIGDOGGER:   320,  # cols 212-215 in boss_set_a
+    Enemy.DIGDOGGER_SPAWN:    384,  # cols 216-219 in boss_set_a
+    Enemy.TRIPLE_DODONGO:     448,  # cols 220-255 in boss_set_a
     Enemy.GLEEOK_1:             0,  # 0xE3EB - 0xE3EB (unchanged)
     Enemy.MANHANDLA:          512,  # 0xE5EB - 0xE3EB (unchanged)
     Enemy.FLYING_GLEEOK_HEAD: 736,  # 0xE6DB - 0xE3EB (unchanged)
@@ -242,7 +237,7 @@ _COMPANIONS: dict[Enemy, Enemy] = {
 # BUG_REPORT_boss_sprite_empty_columns.md for the analysis.
 _BOSS_FRAME_EXTERNAL_COLS: dict[Enemy, tuple[int, ...]] = {
     Enemy.AQUAMENTUS:         (212, 216, 220, 224, 228, 232, 234),
-    Enemy.TRIPLE_DIGDOGGER:   (212,),
+    Enemy.TRIPLE_DIGDOGGER:   (),
     Enemy.GLEEOK_1:           (238,),
     Enemy.FLYING_GLEEOK_HEAD: (222,),
 }
@@ -487,21 +482,6 @@ def _repack_boss_sprites(
                 dbg.warn(f"{boss.name} tile cache is ALL ZERO — "
                          f"offset/set probably wrong")
 
-            if boss == Enemy.TRIPLE_DIGDOGGER:
-                dbg.log(
-                    f"  [check: Triple Digdogger first16="
-                    f"{tile_cache[boss][:16].hex()}; "
-                    f"expected non-Aquamentus tile data if offset is "
-                    f"correct, looks like Aquamentus body tiles if "
-                    f"offset is wrong]"
-                )
-            if boss == Enemy.DIGDOGGER_SPAWN:
-                dbg.log(
-                    f"  [check: Digdogger Spawn first16="
-                    f"{tile_cache[boss][:16].hex()}; "
-                    f"same offset as TRIPLE_DIGDOGGER — suspicious "
-                    f"overlap, see TODO in _SPRITE_OFFSET_CORRECTED]"
-                )
 
         # Per-boss column mapping: column_assignments[boss][vanilla_col] = new_col.
         # Covers each boss's own block plus any external cols it references.
@@ -671,6 +651,30 @@ for _primary, _companion in _COMPANIONS.items():
     _VARIANT_PRIMARY[_companion] = _primary
 
 
+def _broadcast_tile_frames_update(
+    enemies: EnemyData,
+    primary: Enemy,
+    new_frames: list[int],
+) -> None:
+    """Assign new_frames to every Enemy whose tile_pointer matches primary's.
+
+    The parser populates tile_frames[A] and tile_frames[B] with the same
+    Python list object when A and B share a pointer. When mutating one
+    Enemy's tile_frames via list-rebind (rather than in-place mutation),
+    the alias is broken: the rebound Enemy gets the new list, siblings
+    still point at the old one. The serializer is first-write-wins by
+    Enum value (serializer.py lines 813-832), so which sibling's list
+    lands in ROM was previously safe-by-luck. Rebinding the same updated
+    list across all sharers preserves the invariant that every sharer of
+    a pointer holds the same tile_frames data, regardless of who wins
+    the serializer race.
+    """
+    primary_ptr = enemies.tile_pointers[primary]
+    for enemy, ptr in enemies.tile_pointers.items():
+        if ptr == primary_ptr:
+            enemies.tile_frames[enemy] = new_frames
+
+
 def _update_tile_frames(
     enemies: EnemyData,
     column_assignments: dict[Enemy, dict[int, int]],
@@ -725,6 +729,14 @@ def _update_tile_frames(
             for f in frames:
                 if f in mapping:
                     new_f = mapping[f]
+                    # q3bonus: if the remapped column lands in the expansion bank
+                    # (cols 48..79), the engine reads at col+1. Reference data
+                    # confirms this pattern across all 50 seeds with bosses
+                    # placed in expansion. Without this adjustment, sprites in
+                    # expansion render at the wrong byte offset and look glitched
+                    # (e.g., DIGDOGGER → mini-digdogger texture).
+                    if 48 <= new_f < 80:
+                        new_f += 1
                     remapped.append(new_f)
                     trace.append(f"{f}->{new_f}")
                 else:
@@ -742,7 +754,94 @@ def _update_tile_frames(
             dbg.log(f"    trace:  {' '.join(trace)}")
             dbg.log(f"    after:  {remapped}")
 
-            enemies.tile_frames[boss] = remapped
+            _broadcast_tile_frames_update(enemies, boss, remapped)
+
+
+def _update_companion_tile_frames(
+    enemies: EnemyData,
+    column_assignments: dict[Enemy, dict[int, int]],
+    dbg: _DebugLog,
+) -> None:
+    """Remap tile_frames for boss companions whose ROM bytes aren't
+    already written by their primary's broadcast.
+
+    Companions DIGDOGGER_SPAWN and PATRA_SPAWN are placed alongside
+    their primary boss by _repack_boss_sprites and have their own
+    column_assignments entries. They are NOT iterated by
+    _update_tile_frames (which only covers _VANILLA_BOSS_GROUPS +
+    {THE_BEAST, MOLDORM, THE_KIDNAPPED}), so without this pass their
+    tile_frames stay at vanilla column references and the engine reads
+    sprite data from wrong bank locations.
+
+    User-visible symptom (confirmed via in-game playtest): PATRA_SPAWN
+    renders as dodongo-like sprites, DIGDOGGER_SPAWN renders as
+    bomb/boomerang-like sprites. Both fixed by this pass.
+
+    FLYING_GLEEOK_HEAD is intentionally NOT handled here. It shares
+    tile_pointer 0xC6 with GLEEOK_1, and _update_tile_frames's broadcast
+    already writes GLEEOK_1's remapped tile_frames across all 6 sharers
+    (including FGH). GLEEOK_1's mapping is the empirically-correct one
+    (verified by in-game playtest of GLEEOK_2 in L1). Adding FGH to this
+    pass would overwrite those correct bytes with FGH's column_assignments
+    mapping, which has been shown to disagree with GLEEOK_1's at some
+    columns.
+    """
+    companions = [
+        Enemy.DIGDOGGER_SPAWN,
+        Enemy.PATRA_SPAWN,
+    ]
+    with dbg.section("tile_frames remap (companions)"):
+        for companion in companions:
+            if companion not in enemies.tile_frames:
+                dbg.log(f"  {companion.name}: not in tile_frames — skipped")
+                continue
+            mapping = column_assignments.get(companion)
+            if mapping is None:
+                dbg.log(f"  {companion.name}: no column_assignments entry "
+                        f"— skipped (companion not packed by this seed)")
+                continue
+
+            frames = enemies.tile_frames[companion]
+            if not frames:
+                dbg.log(f"  {companion.name}: empty tile_frames — skipped")
+                continue
+
+            dbg.log(f"  {companion.name:24s} mapping_cols="
+                    f"{sorted(mapping.keys())}")
+            dbg.log(f"    before: {list(frames)}")
+
+            remapped: list[int] = []
+            trace: list[str] = []
+            for f in frames:
+                if f in mapping:
+                    new_f = mapping[f]
+                    # q3bonus: if the remapped column lands in the expansion bank
+                    # (cols 48..79), the engine reads at col+1. Reference data
+                    # confirms this pattern across all 50 seeds with bosses
+                    # placed in expansion. Without this adjustment, sprites in
+                    # expansion render at the wrong byte offset and look glitched
+                    # (e.g., DIGDOGGER → mini-digdogger texture).
+                    if 48 <= new_f < 80:
+                        new_f += 1
+                    remapped.append(new_f)
+                    trace.append(f"{f}->{new_f}")
+                else:
+                    remapped.append(f)
+                    note = "passthrough"
+                    if 192 <= f < 256 or 48 <= f < 80:
+                        note = "passthrough[IN-BANK,UNMAPPED]"
+                        dbg.warn(
+                            f"{companion.name} frame {f} is in boss-bank "
+                            f"range but has no entry in companion's "
+                            f"mapping — missing from "
+                            f"_BOSS_FRAME_EXTERNAL_COLS or companion mapping?"
+                        )
+                    trace.append(f"{f}->{f}({note})")
+
+            dbg.log(f"    trace:  {' '.join(trace)}")
+            dbg.log(f"    after:  {remapped}")
+
+            _broadcast_tile_frames_update(enemies, companion, remapped)
 
 
 # ---------------------------------------------------------------------------
@@ -891,71 +990,89 @@ def change_dungeon_boss_groups(
 
         # --- Update tile frame mappings so the engine finds the tiles ---
         _update_tile_frames(world.enemies, column_assignments, group_bosses, dbg)
+        _update_companion_tile_frames(world.enemies, column_assignments, dbg)
 
         # Aquamentus engine sprite pointer patch.
         # ROM 0x11898 tells the engine where Aquamentus's head/body tiles
-        # live in VRAM.  Must be updated whenever the packer moves Aquamentus
-        # to a different column (even within its vanilla group).
+        # live in VRAM after repacking.
+        #
+        # Empirical formula (verified across 50 reference seeds at flagset
+        # SWtsu3luit!n1H0rLFzE4x18uL):
+        #   ptr = aqua_new_base_col + q3bonus
+        # where q3bonus is 1 iff AQUA's new base column lies in the shared
+        # (expansion) bank's column range [48, 80), else 0.
+        #
+        # We derive q3bonus from the column range, NOT from group_bosses
+        # membership. Reason: group_bosses gets repurposed later in this
+        # function (in-place GLEEOK_1->GLEEOK_2 swap, plus shared-pool merge
+        # that appends group_bosses[3] onto buckets 0/1/2), so a "find which
+        # bucket AQUA is in" lookup is unreliable as soon as you re-order
+        # the function. column_assignments[AQUAMENTUS][192] is the
+        # authoritative new base column and stays correct regardless.
         with dbg.section("Sanity check: Aquamentus engine pointer patch"):
-            aqua_group = None
-            for g, bs in enumerate(group_bosses):
-                if Enemy.AQUAMENTUS in bs:
-                    aqua_group = g
-                    break
-            dbg.log(f"  Aquamentus is in group {aqua_group} "
-                    f"({'shared' if aqua_group == 3 else 'A/B/C'})")
-            if Enemy.AQUAMENTUS in world.enemies.tile_frames:
-                frames = world.enemies.tile_frames[Enemy.AQUAMENTUS]
-                if len(frames) >= 4:
-                    q3bonus = 1 if aqua_group == 3 else 0
-                    value = frames[3] + q3bonus - 2
+            aqua_mapping = column_assignments.get(Enemy.AQUAMENTUS)
+            if aqua_mapping is None:
+                dbg.warn("AQUAMENTUS missing from column_assignments — "
+                         "skipped sprite_ptr patch")
+            else:
+                new_base_col = aqua_mapping.get(192)
+                if new_base_col is None:
+                    dbg.warn("column_assignments[AQUAMENTUS] has no entry "
+                             "for vanilla col 192 — cannot compute sprite_ptr")
+                else:
+                    in_expansion = 48 <= new_base_col < 80
+                    q3bonus = 1 if in_expansion else 0
+                    value = new_base_col + q3bonus
                     world.enemies.aquamentus_sprite_ptr = value
                     dbg.log(f"  wrote ROM 0x11898 = "
-                            f"tile_frames[AQUAMENTUS][3]({frames[3]}) "
-                            f"+ q3bonus({q3bonus}) - 2 = "
-                            f"{value}")
-                    aqua_start_col = column_assignments.get(Enemy.AQUAMENTUS)
-                    if aqua_start_col is not None and aqua_start_col != 192:
-                        dbg.warn(
-                            f"Aquamentus start column is {aqua_start_col} "
-                            f"(vanilla=192) — pointer patch applied"
-                        )
+                            f"new_base_col({new_base_col}) + "
+                            f"q3bonus({q3bonus}) = {value}  "
+                            f"[in_expansion={in_expansion}]")
 
         # Gleeok multi-head engine sprite pointer patches.
         # ROM 0x126F8, 0x126FE, 0x6F5A tell the engine where Gleeok's
         # extra head tiles live in VRAM.
+        #
+        # Empirical formula (verified across 50 reference seeds):
+        #   ptr_a = gleeok_new_base_col + 26 + q3bonus
+        #   ptr_b = gleeok_new_base_col + 28 + q3bonus
+        #   ptr_c = gleeok_new_base_col + 30 + q3bonus
+        # where q3bonus is 1 iff GLEEOK_1's new base column is in the
+        # shared (expansion) bank's column range [48, 80), else 0.
+        #
+        # As with the AQUA patch above, we derive q3bonus from the column
+        # range rather than from group_bosses membership. group_bosses
+        # gets mutated mid-function in ways that don't affect
+        # column_assignments, making column_assignments the authoritative
+        # source.
         with dbg.section("Sanity check: Gleeok engine pointer patches"):
-            gleeok_group = None
-            for g, bs in enumerate(group_bosses):
-                if Enemy.GLEEOK_1 in bs:
-                    gleeok_group = g
-                    break
-            dbg.log(f"  Gleeok is in group {gleeok_group} "
-                    f"({'shared' if gleeok_group == 3 else 'A/B/C'})")
-            if Enemy.GLEEOK_1 in world.enemies.tile_frames:
-                frames = world.enemies.tile_frames[Enemy.GLEEOK_1]
-                if frames:
-                    q3bonus = 1 if gleeok_group == 3 else 0
-                    base = frames[0]
-                    val_a = base + q3bonus + 26
-                    val_b = base + q3bonus + 28
-                    val_c = base + q3bonus + 30
+            gleeok_mapping = column_assignments.get(Enemy.GLEEOK_1)
+            if gleeok_mapping is None:
+                dbg.warn("GLEEOK_1 missing from column_assignments — "
+                         "skipped sprite_ptr patches")
+            else:
+                new_base_col = gleeok_mapping.get(192)
+                if new_base_col is None:
+                    dbg.warn("column_assignments[GLEEOK_1] has no entry "
+                             "for vanilla col 192 — cannot compute "
+                             "sprite_ptrs")
+                else:
+                    in_expansion = 48 <= new_base_col < 80
+                    q3bonus = 1 if in_expansion else 0
+                    val_a = new_base_col + q3bonus + 26
+                    val_b = new_base_col + q3bonus + 28
+                    val_c = new_base_col + q3bonus + 30
                     world.enemies.gleeok_head_sprite_ptr_a = val_a
                     world.enemies.gleeok_head_sprite_ptr_b = val_b
                     world.enemies.gleeok_head_sprite_ptr_c = val_c
                     dbg.log(f"  wrote:")
-                    dbg.log(f"    ROM 0x126F8 = {base} + {q3bonus} + 26 "
-                            f"= {val_a}")
-                    dbg.log(f"    ROM 0x126FE = {base} + {q3bonus} + 28 "
-                            f"= {val_b}")
-                    dbg.log(f"    ROM 0x6F5A  = {base} + {q3bonus} + 30 "
-                            f"= {val_c}")
-                    gleeok_start_col = column_assignments.get(Enemy.GLEEOK_1)
-                    if gleeok_start_col is not None and gleeok_start_col != 192:
-                        dbg.warn(
-                            f"Gleeok start column is {gleeok_start_col} "
-                            f"(vanilla=192) — pointer patches applied"
-                        )
+                    dbg.log(f"    ROM 0x126F8 = {new_base_col} + "
+                            f"{q3bonus} + 26 = {val_a}")
+                    dbg.log(f"    ROM 0x126FE = {new_base_col} + "
+                            f"{q3bonus} + 28 = {val_b}")
+                    dbg.log(f"    ROM 0x6F5A  = {new_base_col} + "
+                            f"{q3bonus} + 30 = {val_c}")
+                    dbg.log(f"  [in_expansion={in_expansion}]")
 
         # --- Expand variant bosses ---
         with dbg.section("Variant expansion + GLEEOK replacement"):

@@ -139,6 +139,10 @@ from zora.rom_layout import (
     HINT_SHOP_QUOTES_ADDRESS,
     AQUAMENTUS_HP_ADDRESS,
     AQUAMENTUS_SP_ADDRESS,
+    AQUAMENTUS_SPRITE_PTR_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS,
+    GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS,
     BOSS_HP_FIRST_ENEMY_VALUE,
     BOSS_HP_NIBBLE_COUNT,
     BOSS_HP_TABLE_ADDRESS,
@@ -253,6 +257,11 @@ class RawBinFiles:
     ganon_hp:                     bytes   # 1 byte at 77607
     gleeok_hp:                    bytes   # 1 byte at 70869
     patra_hp:                     bytes   # 1 byte at 76357
+    # Boss engine sprite pointers (single bytes)
+    aquamentus_sprite_ptr:        bytes   # 1 byte at 0x11898 (71832)
+    gleeok_head_sprite_ptr_a:     bytes   # 1 byte at 0x126F8 (75512)
+    gleeok_head_sprite_ptr_b:     bytes   # 1 byte at 0x126FE (75518)
+    gleeok_head_sprite_ptr_c:     bytes   # 1 byte at 0x6F5A  (28506)
     # Player (Link) sprite banks
     player_main_sprites:              bytes  # 0x1C0 bytes at 0x808F
     player_cheer_sprites:             bytes  # 0x20 bytes at 0x4E44
@@ -320,6 +329,10 @@ def load_bin_files(test_data_dir: Path) -> RawBinFiles:
         ganon_hp                        = read("ganon_hp.bin"),
         gleeok_hp                       = read("gleeok_hp.bin"),
         patra_hp                        = read("patra_hp.bin"),
+        aquamentus_sprite_ptr           = read("aquamentus_sprite_ptr.bin"),
+        gleeok_head_sprite_ptr_a        = read("gleeok_head_sprite_ptr_a.bin"),
+        gleeok_head_sprite_ptr_b        = read("gleeok_head_sprite_ptr_b.bin"),
+        gleeok_head_sprite_ptr_c        = read("gleeok_head_sprite_ptr_c.bin"),
         player_main_sprites              = read("player_main_sprites.bin"),
         player_cheer_sprites             = read("player_cheer_sprites.bin"),
         player_big_shield_profile_sprites = read("player_big_shield_profile_sprites.bin"),
@@ -427,6 +440,10 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         ganon_hp                    = s(GANON_HP_ADDRESS,              1),
         gleeok_hp                   = s(GLEEOK_HP_ADDRESS,             1),
         patra_hp                    = s(PATRA_HP_ADDRESS,              1),
+        aquamentus_sprite_ptr       = s(AQUAMENTUS_SPRITE_PTR_ADDRESS,    1),
+        gleeok_head_sprite_ptr_a    = s(GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS, 1),
+        gleeok_head_sprite_ptr_b    = s(GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS, 1),
+        gleeok_head_sprite_ptr_c    = s(GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS, 1),
         player_main_sprites              = s(PLAYER_MAIN_SPRITES_ADDRESS,              PLAYER_MAIN_SPRITES_SIZE),
         player_cheer_sprites             = s(PLAYER_CHEER_SPRITES_ADDRESS,             PLAYER_CHEER_SPRITES_SIZE),
         player_big_shield_profile_sprites = s(PLAYER_BIG_SHIELD_PROFILE_SPRITES_ADDRESS, PLAYER_BIG_SHIELD_PROFILE_SPRITES_SIZE),
@@ -1278,6 +1295,12 @@ def _parse_enemy_hp(bins: RawBinFiles, enemies: EnemyData) -> None:
     enemies.ganon_hp      = (bins.ganon_hp[0] >> 4) & 0x0F
     enemies.gleeok_hp     = (bins.gleeok_hp[0] >> 4) & 0x0F
     enemies.patra_hp      = (bins.patra_hp[0] >> 4) & 0x0F
+
+    # Boss engine sprite pointers (full bytes; written by change_dungeon_boss_groups)
+    enemies.aquamentus_sprite_ptr    = bins.aquamentus_sprite_ptr[0]
+    enemies.gleeok_head_sprite_ptr_a = bins.gleeok_head_sprite_ptr_a[0]
+    enemies.gleeok_head_sprite_ptr_b = bins.gleeok_head_sprite_ptr_b[0]
+    enemies.gleeok_head_sprite_ptr_c = bins.gleeok_head_sprite_ptr_c[0]
 
 
 # ---------------------------------------------------------------------------
