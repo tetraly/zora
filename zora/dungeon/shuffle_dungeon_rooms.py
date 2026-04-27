@@ -390,6 +390,7 @@ from zora.data_model import (
     RoomType,
     StaircaseRoom,
     WallType,
+    is_l9_entry_gate,
 )
 from zora.game_validator import _CONSTRAINED_VALID_DIRS
 from zora.rng import Rng
@@ -459,15 +460,18 @@ def _is_level9_fixed_room(room: Room, level_num: int) -> bool:
     return level_num == 9 and room.enemy_spec.enemy == Enemy.OLD_MAN
 
 
-def _is_shufflable(room: Room, level_num: int) -> bool:
+def _is_shufflable(room: Room, level: Level) -> bool:
     """Return True if a room's contents should participate in the shuffle.
 
-    Excludes entrance rooms and the fixed NPC room in level 9.
-    Staircase rooms are already in Level.staircase_rooms, not Level.rooms.
+    Excludes entrance rooms, the fixed NPC room in level 9, and the L9
+    Triforce gate room.  Staircase rooms are already in
+    Level.staircase_rooms, not Level.rooms.
     """
     if room.room_type == RoomType.ENTRANCE_ROOM:
         return False
-    if _is_level9_fixed_room(room, level_num):
+    if _is_level9_fixed_room(room, level.level_num):
+        return False
+    if is_l9_entry_gate(level, room):
         return False
     return True
 
@@ -1046,7 +1050,7 @@ def _shuffle_level(level: Level, rng: Rng) -> bool:
     """
     shufflable = [
         room for room in level.rooms
-        if _is_shufflable(room, level.level_num)
+        if _is_shufflable(room, level)
     ]
 
     if len(shufflable) < 2:
@@ -1317,6 +1321,30 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
                     continue
                 if neighbor_num in level9_room_nums and neighbor_num in grid_rooms:
                     grid_rooms[neighbor_num].boss_cry_1 = True
+
+        # ── Block 6: movable_block without purpose ──────────────────────
+        # After shuffles, a room can end up with movable_block=True paired
+        # with a room_action that doesn't reference pushblocks. The block
+        # becomes purposeless: player pushes it, nothing happens.
+        #
+        # Exemption: rooms with has_open_staircase() (DIAMOND/NARROW/SPIRAL
+        # stair rooms) ship with movable_block=True in vanilla regardless
+        # of action. The staircase is always visible; the block is
+        # decorative. 14 of 15 vanilla integrity-check violations of this
+        # invariant are these rooms — they're a documented baseline case,
+        # not a bug.
+        #
+        # For all other rooms, demote movable_block to False when paired
+        # with a non-pushblock action.
+        if (
+            room.movable_block
+            and room.room_action not in (
+                RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS,
+                RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE,
+            )
+            and not room.room_type.has_open_staircase()
+        ):
+            room.movable_block = False
 
     # ── Block 5: Level 9 OLD_MAN NPC room wall fix ───────────────────
     # The C# identifies this room by Table2 == 0x0B && Table3 & 0x80 &&

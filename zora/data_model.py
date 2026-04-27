@@ -848,6 +848,29 @@ class GameWorld:
     enemies: EnemyData
 
 
+def is_l9_entry_gate(level: Level, room: Room) -> bool:
+    """Is this the L9 entry gate room?
+
+    The room positioned adjacent to the L9 entrance that gates access to
+    the rest of the level. In vanilla its shutters open when the player
+    obtains all 8 Triforces (the engine's Triforce-of-Power-opens-shutters
+    behavior fires when Ganon is defeated). The gate's NPC is removed at
+    that point.
+
+    Identified by position rather than by enemy, because the engine
+    removes the NPC at the right moment and identifying-by-enemy would
+    lose the gate after that.
+
+    This room has structural meaning that ordinary NPC-handling and
+    room-shuffling passes don't account for. Passes that operate on
+    "rooms with unkillable NPCs" or "eligible-for-shuffle rooms" should
+    skip this room.
+    """
+    if level.level_num != 9:
+        return False
+    return room.room_num == level.entrance_room - 16
+
+
 # --- Post-definition constants ---
 
 

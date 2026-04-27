@@ -17,6 +17,7 @@ from zora.cave_randomizer import randomize_caves
 from zora.dungeon_item_shuffler import shuffle_dungeon_items
 from zora.dungeon_randomizer import randomize_dungeon_palettes
 from zora.dungeon.dungeon import randomize_dungeons
+from zora.dungeon.shuffle_dungeon_rooms import _clear_boss_cry_bits, _fix_special_rooms
 from zora.enemy.randomize import randomize_enemies
 from zora.entrance_randomizer import randomize_entrances
 from zora.game_config import resolve_game_config
@@ -124,6 +125,16 @@ def generate_game(
         game_world = parse_game_world(bins)
         try:
             generate_dungeon_shapes(game_world, bins, config, rng)
+            # Apply the same post-shape repair pass that the shuffle pipeline
+            # uses. generate_dungeon_shapes can produce rooms with
+            # (movable_block, room_action) combinations that violate the
+            # pushblock_purpose invariant — most notably
+            # TRIFORCE_OF_POWER_OPENS_SHUTTERS rooms with movable_block=True
+            # (boss rooms, kidnapped-gate rooms). Block 6 in
+            # _fix_special_rooms demotes those movable_blocks to False.
+            _clear_boss_cry_bits(game_world)
+            for level in game_world.levels:
+                _fix_special_rooms(level, game_world)
             integrity_check(game_world, "generate_dungeon_shapes")
             for step in _RANDOMIZERS:
                 t0 = time.monotonic()
@@ -215,6 +226,16 @@ def generate_game_from_rom(
         game_world = parse_game_world(bins)
         try:
             generate_dungeon_shapes(game_world, bins, config, rng)
+            # Apply the same post-shape repair pass that the shuffle pipeline
+            # uses. generate_dungeon_shapes can produce rooms with
+            # (movable_block, room_action) combinations that violate the
+            # pushblock_purpose invariant — most notably
+            # TRIFORCE_OF_POWER_OPENS_SHUTTERS rooms with movable_block=True
+            # (boss rooms, kidnapped-gate rooms). Block 6 in
+            # _fix_special_rooms demotes those movable_blocks to False.
+            _clear_boss_cry_bits(game_world)
+            for level in game_world.levels:
+                _fix_special_rooms(level, game_world)
             integrity_check(game_world, "generate_dungeon_shapes")
             for step in _RANDOMIZERS:
                 step(game_world, config, rng)

@@ -11,6 +11,7 @@ from zora.data_model import (
     RoomAction,
     RoomType,
     WallType,
+    is_l9_entry_gate,
 )
 from zora.dungeon.item_positions import (
     _STANDARD_ITEM_POSITION_TABLE,
@@ -56,6 +57,8 @@ def fix_npc_shutter_doors(level: Level) -> None:
     """Replace shutter doors with open doors on rooms where unkillable NPCs
     make shutter-opening room actions impossible."""
     for room in level.rooms:
+        if is_l9_entry_gate(level, room):
+            continue
         if not room.enemy_spec.enemy.is_unkillable():
             continue
         if room.room_action not in _SHUTTER_KILL_ACTIONS:

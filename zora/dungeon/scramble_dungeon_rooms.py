@@ -93,6 +93,7 @@ from zora.data_model import (
     Room,
     RoomType,
     WallType,
+    is_l9_entry_gate,
 )
 from zora.dungeon.shuffle_dungeon_rooms import (
     _DIR_OFFSETS,
@@ -118,6 +119,18 @@ _MINOR_ITEMS: frozenset[Item] = frozenset({
     Item.KEY,           # 0x19
     Item.BOMBS,         # 0x00
     Item.FIVE_RUPEES,   # 0x0F
+})
+
+_BLACK_ROOM_NPC_ENEMIES: frozenset[Enemy] = frozenset({
+    Enemy.OLD_MAN,
+    Enemy.OLD_MAN_2,
+    Enemy.OLD_MAN_3,
+    Enemy.OLD_MAN_4,
+    Enemy.OLD_MAN_5,
+    Enemy.OLD_MAN_6,
+    Enemy.BOMB_UPGRADER,
+    Enemy.MUGGER,
+    Enemy.HUNGRY_GORIYA,
 })
 
 _MAX_SCRAMBLE_RETRIES = 500
@@ -147,11 +160,20 @@ def _collect_staircase_bound_rooms(level: Level) -> frozenset[int]:
     return frozenset(pinned)
 
 
-def _is_eligible_for_shuffle(room: Room, staircase_bound: frozenset[int]) -> bool:
+def _is_eligible_for_shuffle(
+    level: Level, room: Room, staircase_bound: frozenset[int],
+) -> bool:
     """Return True if this room's room_type is eligible to participate in the shuffle."""
     if room.room_type in _LEVEL_LOCKED_ROOM_TYPES:
         return False
     if room.room_num in staircase_bound:
+        return False
+    # NPCs in BLACK_ROOM rooms are tightly coupled to their room_type.
+    # The room_type scramble doesn't move enemy_spec, so scrambling these
+    # rooms' types orphans the NPC in a non-BLACK_ROOM. Pin them.
+    if room.enemy_spec.enemy in _BLACK_ROOM_NPC_ENEMIES:
+        return False
+    if is_l9_entry_gate(level, room):
         return False
     return True
 
@@ -173,7 +195,7 @@ def _shuffle_room_types_globally(world: GameWorld, rng: Rng) -> None:
     eligible: list = []
     for level, pinned in zip(world.levels, pinned_per_level):
         for room in level.rooms:
-            if _is_eligible_for_shuffle(room, pinned):
+            if _is_eligible_for_shuffle(level, room, pinned):
                 eligible.append(room)
 
     if len(eligible) < 2:

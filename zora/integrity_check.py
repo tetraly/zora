@@ -34,6 +34,19 @@ _NPC_ENEMIES: frozenset[Enemy] = frozenset({
     Enemy.BOMB_UPGRADER, Enemy.OLD_MAN_5, Enemy.MUGGER, Enemy.OLD_MAN_6,
 })
 
+_BLACK_ROOM_REQUIRED_ENEMIES: frozenset[Enemy] = frozenset({
+    Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3, Enemy.OLD_MAN_4,
+    Enemy.OLD_MAN_5, Enemy.OLD_MAN_6,
+    Enemy.BOMB_UPGRADER, Enemy.MUGGER,
+    Enemy.HUNGRY_GORIYA,
+})
+
+_KIDNAPPED_FORBIDDEN_ROOM_TYPES: frozenset[RoomType] = frozenset({
+    RoomType.DIAMOND_STAIR_ROOM,
+    RoomType.NARROW_STAIR_ROOM,
+    RoomType.SPIRAL_STAIR_ROOM,
+})
+
 _OPPOSITE: dict[Direction, Direction] = {
     Direction.NORTH: Direction.SOUTH,
     Direction.SOUTH: Direction.NORTH,
@@ -227,18 +240,24 @@ def _walls_compatible(wall_a: WallType, wall_b: WallType) -> bool:
     return a_passable == b_passable
 
 
+def _staircase_trigger_rooms(level: Level) -> set[int]:
+    """Return room_nums whose floor block / shutter trigger reveals a staircase."""
+    stair_rooms: set[int] = set()
+    for sr in level.staircase_rooms:
+        if sr.room_type == RoomType.ITEM_STAIRCASE:
+            if sr.return_dest is not None:
+                stair_rooms.add(sr.return_dest)
+        else:
+            if sr.left_exit is not None:
+                stair_rooms.add(sr.left_exit)
+            if sr.right_exit is not None:
+                stair_rooms.add(sr.right_exit)
+    return stair_rooms
+
+
 def _check_pushblock_stair_shutter_conflict(game_world: GameWorld, errors: list[str]) -> None:
     for level in game_world.levels:
-        stair_rooms: set[int] = set()
-        for sr in level.staircase_rooms:
-            if sr.room_type == RoomType.ITEM_STAIRCASE:
-                if sr.return_dest is not None:
-                    stair_rooms.add(sr.return_dest)
-            else:
-                if sr.left_exit is not None:
-                    stair_rooms.add(sr.left_exit)
-                if sr.right_exit is not None:
-                    stair_rooms.add(sr.right_exit)
+        stair_rooms = _staircase_trigger_rooms(level)
 
         for room in level.rooms:
             if room.room_num not in stair_rooms:
@@ -258,6 +277,139 @@ def _check_pushblock_stair_shutter_conflict(game_world: GameWorld, errors: list[
                     break
 
 
+def _check_npc_black_room(game_world: GameWorld, errors: list[str]) -> None:
+    """Old men, bomb upgraders, muggers, and hungry enemies must live in BLACK_ROOM."""
+    for level in game_world.levels:
+        for room in level.rooms:
+            if room.enemy_spec.enemy not in _BLACK_ROOM_REQUIRED_ENEMIES:
+                continue
+            if room.room_type == RoomType.BLACK_ROOM:
+                continue
+            errors.append(
+                f"Level {level.level_num} room 0x{room.room_num:02X}: "
+                f"{room.enemy_spec.enemy.name} requires RoomType.BLACK_ROOM, "
+                f"got {room.room_type.name}"
+            )
+
+
+def _check_kidnapped_room_type(game_world: GameWorld, errors: list[str]) -> None:
+    """THE_KIDNAPPED (Zelda) must not be placed in a staircase room type."""
+    level_9 = game_world.levels[8]
+    for room in level_9.rooms:
+        if room.enemy_spec.enemy != Enemy.THE_KIDNAPPED:
+            continue
+        if room.room_type in _KIDNAPPED_FORBIDDEN_ROOM_TYPES:
+            errors.append(
+                f"Level 9 room 0x{room.room_num:02X}: THE_KIDNAPPED placed in "
+                f"forbidden room type {room.room_type.name}"
+            )
+
+
+def _check_pushblock_purpose(game_world: GameWorld, errors: list[str]) -> None:
+    """Every movable_block must do something — open shutters or reveal a stair.
+
+    Either:
+      (a) the room has at least one SHUTTER_DOOR wall and room_action ==
+          PUSHING_BLOCK_OPENS_SHUTTERS, or
+      (b) the room is a staircase trigger and room_action ==
+          PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE.
+
+    A pushblock that satisfies neither is dead weight (player pushes it,
+    nothing happens).
+
+    Exemption: rooms whose room_type has an always-visible staircase
+    (DIAMOND_STAIR_ROOM, NARROW_STAIR_ROOM, SPIRAL_STAIR_ROOM — see
+    RoomType.has_open_staircase). These rooms display a permanent
+    staircase regardless of pushblock or action state, so a movable_block
+    here is decorative/legacy. 14 of 15 vanilla violations were such
+    rooms. The remaining vanilla case (L9 R0x37, TWO_FIREBALL_ROOM with
+    no stair trigger and no shutter) is a known vanilla weirdness left
+    intentionally not allowlisted for now.
+    """
+    for level in game_world.levels:
+        stair_rooms = _staircase_trigger_rooms(level)
+        for room in level.rooms:
+            if not room.movable_block:
+                continue
+            if room.room_type.has_open_staircase():
+                continue
+
+            has_shutter = any(
+                room.walls[d] == WallType.SHUTTER_DOOR
+                for d in (Direction.NORTH, Direction.SOUTH,
+                          Direction.EAST, Direction.WEST)
+            )
+            opens_shutters = (
+                has_shutter
+                and room.room_action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
+            )
+            opens_stairway = (
+                room.room_num in stair_rooms
+                and room.room_action == RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE
+            )
+            if opens_shutters or opens_stairway:
+                continue
+
+            errors.append(
+                f"Level {level.level_num} room 0x{room.room_num:02X}: "
+                f"movable_block but does nothing — needs either "
+                f"(SHUTTER_DOOR + PUSHING_BLOCK_OPENS_SHUTTERS) or "
+                f"(staircase trigger + PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE); "
+                f"has shutter={has_shutter}, is stair trigger="
+                f"{room.room_num in stair_rooms}, action={room.room_action.name}"
+            )
+
+
+def _check_pushblock_stairway_action_requires_block(
+    game_world: GameWorld, errors: list[str],
+) -> None:
+    """A room with PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE must actually have a block."""
+    for level in game_world.levels:
+        for room in level.rooms:
+            if room.room_action != RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE:
+                continue
+            if room.movable_block:
+                continue
+            errors.append(
+                f"Level {level.level_num} room 0x{room.room_num:02X}: "
+                f"room_action is PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE but "
+                f"movable_block is False"
+            )
+
+
+def _check_l9_triforce_gate(game_world: GameWorld, errors: list[str]) -> None:
+    """The L9 Triforce-of-Power gate room (one row north of the entrance) must
+    have south=OPEN_DOOR and N/E/W ∈ {SOLID_WALL, SHUTTER_DOOR}.
+
+    Identified by position (entrance_room - 16) rather than enemy, since the
+    gate's NPC may be removed once the player holds 8 triforces.
+    """
+    level_9 = game_world.levels[8]
+    gate_num = level_9.entrance_room - 16
+    gate = next((r for r in level_9.rooms if r.room_num == gate_num), None)
+    if gate is None:
+        errors.append(
+            f"Level 9: Triforce gate room 0x{gate_num:02X} "
+            f"(entrance 0x{level_9.entrance_room:02X} - 0x10) not found"
+        )
+        return
+
+    allowed = {WallType.SOLID_WALL, WallType.SHUTTER_DOOR}
+    if gate.walls.south != WallType.OPEN_DOOR:
+        errors.append(
+            f"Level 9 room 0x{gate.room_num:02X}: Triforce gate south wall "
+            f"is {gate.walls.south.name}, expected OPEN_DOOR"
+        )
+    for direction in (Direction.NORTH, Direction.EAST, Direction.WEST):
+        wall = gate.walls[direction]
+        if wall not in allowed:
+            errors.append(
+                f"Level 9 room 0x{gate.room_num:02X}: Triforce gate "
+                f"{direction.name} wall is {wall.name}, expected "
+                f"SOLID_WALL or SHUTTER_DOOR"
+            )
+
+
 def _check_dungeon_connectivity(game_world: GameWorld, errors: list[str]) -> None:
     for level in game_world.levels:
         if not _is_level_connected(level):
@@ -275,6 +427,11 @@ _ALL_CHECKS: list[Callable[[GameWorld, list[str]], None]] = [
     _check_kidnapped,
     _check_wall_reciprocity,
     _check_pushblock_stair_shutter_conflict,
+    _check_npc_black_room,
+    _check_kidnapped_room_type,
+    _check_pushblock_purpose,
+    _check_pushblock_stairway_action_requires_block,
+    _check_l9_triforce_gate,
 ]
 
 _DUNGEON_TOPOLOGY_PHASES: frozenset[str] = frozenset({
