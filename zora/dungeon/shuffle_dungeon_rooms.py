@@ -1195,6 +1195,8 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
     grid_rooms = _grid_room_lookup(world, level)
 
     for room in level.rooms:
+        if is_l9_entry_gate(level, room):
+            continue
         walls = room.walls
         action = room.room_action
 
