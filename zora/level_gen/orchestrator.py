@@ -141,6 +141,15 @@ def _fix_kidnapped_neighbors(level: Level) -> None:
         neighbor = room_map.get(neighbor_num)
         if neighbor is None:
             continue
+        if is_l9_entry_gate(level, neighbor):
+            # The two L9 gates (entry gate uses NOTHING_OPENS_SHUTTERS +
+            # engine 8-Triforce-of-Wisdom special case; kidnapped gate uses
+            # TRIFORCE_OF_POWER_OPENS_SHUTTERS) can't share state. Sever the
+            # wall so the entry gate keeps its semantics; the kidnapped gate
+            # will be enforced through one of the other neighbors.
+            kidnapped_room.walls[direction] = WallType.SOLID_WALL
+            neighbor.walls[_OPPOSITE_DIR[direction]] = WallType.SOLID_WALL
+            continue
 
         kidnapped_wall = kidnapped_room.walls[direction]
         if kidnapped_wall == WallType.SOLID_WALL:

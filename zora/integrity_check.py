@@ -410,6 +410,50 @@ def _check_l9_triforce_gate(game_world: GameWorld, errors: list[str]) -> None:
             )
 
 
+def _check_l9_full_reachability(
+    game_world: GameWorld, errors: list[str]
+) -> None:
+    """L9 must be fully reachable from its entrance with full inventory.
+
+    Structural invariant: vanilla L9 has all rooms reachable when the
+    validator has every item, all 8 Triforces, and any virtual items
+    used by shutter-opening logic. The dungeon's geometry must preserve
+    this property after randomization.
+
+    Catches structural failures (severed sections, dead-end gates,
+    walled-off staircase rooms) cheaply instead of letting assumed_fill
+    burn its retry budget on an unbeatable layout.
+    """
+    from zora.game_validator import GameValidator
+    from zora.inventory import Inventory
+
+    level_9 = game_world.levels[8]
+
+    inventory = Inventory(progressive_items=False)
+    for item in Item:
+        inventory.items.add(item)
+    inventory.items.add(Item.BEAST_DEFEATED_VIRTUAL_ITEM)
+    for lvl in range(1, 9):
+        inventory.levels_with_triforce_obtained.append(lvl)
+    inventory.num_keys = 99
+
+    validator = GameValidator(game_world, avoid_required_hard_combat=False,
+                              progressive_items=False)
+    validator.get_reachable_locations(assumed_inventory=inventory)
+
+    l9_room_nums = {r.room_num for r in level_9.rooms}
+    reachable_l9 = {rn for (lvl, rn) in validator.visited_rooms if lvl == 9}
+    unreachable = l9_room_nums - reachable_l9
+
+    if unreachable:
+        sorted_unreachable = sorted(f"0x{rn:02X}" for rn in unreachable)
+        errors.append(
+            f"Level 9: {len(unreachable)} rooms unreachable with full "
+            f"inventory ({', '.join(sorted_unreachable)}). Layout has a "
+            f"structural defect."
+        )
+
+
 def _check_dungeon_connectivity(game_world: GameWorld, errors: list[str]) -> None:
     for level in game_world.levels:
         if not _is_level_connected(level):
@@ -439,6 +483,10 @@ _DUNGEON_TOPOLOGY_PHASES: frozenset[str] = frozenset({
     "randomize_dungeons",
 })
 
+_L9_REACHABILITY_PHASES: frozenset[str] = _DUNGEON_TOPOLOGY_PHASES | {
+    "randomize_enemies",
+}
+
 
 def integrity_check(game_world: GameWorld, phase_name: str) -> None:
     """Run all integrity checks. Raises IntegrityError if any fail."""
@@ -447,6 +495,8 @@ def integrity_check(game_world: GameWorld, phase_name: str) -> None:
         check(game_world, errors)
     if phase_name in _DUNGEON_TOPOLOGY_PHASES:
         _check_dungeon_connectivity(game_world, errors)
+    if phase_name in _L9_REACHABILITY_PHASES:
+        _check_l9_full_reachability(game_world, errors)
     if errors:
         msg = f"Integrity check failed after {phase_name}:\n" + "\n".join(
             f"  - {e}" for e in errors

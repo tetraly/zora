@@ -23,6 +23,7 @@ from zora.data_model import (
     RoomAction,
     RoomType,
     WallType,
+    is_l9_entry_gate,
 )
 from zora.enemy.safety_checks import is_safe_for_room
 from zora.rng import Rng
@@ -410,6 +411,15 @@ def _fix_kidnapped_neighbors(world: GameWorld) -> None:
             continue
         neighbor = room_by_num.get(neighbor_num)
         if neighbor is None:
+            continue
+        if is_l9_entry_gate(level_9, neighbor):
+            # The two L9 gates (entry gate uses NOTHING_OPENS_SHUTTERS +
+            # engine 8-Triforce-of-Wisdom special case; kidnapped gate uses
+            # TRIFORCE_OF_POWER_OPENS_SHUTTERS) can't share state. Sever the
+            # wall so the entry gate keeps its semantics; the kidnapped gate
+            # will be enforced through one of the other neighbors.
+            kidnapped_room.walls[direction] = WallType.SOLID_WALL
+            neighbor.walls[opposite[direction]] = WallType.SOLID_WALL
             continue
 
         kidnapped_wall = kidnapped_room.walls[direction]
