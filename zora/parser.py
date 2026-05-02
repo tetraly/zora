@@ -750,6 +750,17 @@ def _parse_single_level(
             break
         staircase_room_pool.append(b)
 
+    # Byte 61 ($6BBB) of the LevelInfo block stores the entrance direction
+    # enum (1=N, 2=S, 3=E, 4=W). In vanilla ROMs this slot is unset (0xFF or
+    # part of the stairway list), so we apply the visualizer's vanilla-format
+    # detection convention: if the last byte of the stairway list is not in
+    # 1..4, treat as vanilla and default to SOUTH.
+    _DIR_BYTE_TO_DIRECTION = {1: Direction.NORTH, 2: Direction.SOUTH,
+                              3: Direction.EAST,  4: Direction.WEST}
+    entrance_direction = _DIR_BYTE_TO_DIRECTION.get(
+        stairway_data_raw[-1], Direction.SOUTH,
+    )
+
     if level_num == 3 and len(staircase_room_pool) == 0:
         staircase_room_pool.append(0x0F)
 
@@ -783,7 +794,7 @@ def _parse_single_level(
     return Level(
         level_num=level_num,
         entrance_room=entrance_room,
-        entrance_direction=Direction.SOUTH,
+        entrance_direction=entrance_direction,
         palette_raw=palette_raw,
         fade_palette_raw=fade_palette_raw,
         staircase_room_pool=staircase_room_pool,

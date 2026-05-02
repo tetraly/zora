@@ -141,37 +141,6 @@ _FIXES: list[tuple[str, RomEdit]] = [
         old_bytes=bytes([0xFF] * 10),
         comment="Sound engine fix trampoline",
     )),
-    # ------------------------------------------------------------------
-    # EXPERIMENTAL: testing entrance-direction hypothesis for B9 softlock.
-    # See analysis/zero_flags_baseline/b9_investigation/probe_results.md
-    # B9's runtime reads LevelInfo bytes 35 ($6BA1) and 61 ($6BBB) of each
-    # block (OW + UW1..UW9). ZORA leaves them as stock 0xFF; reference
-    # populates them with stable seed-independent values. Populating these
-    # 19 differing slots tests whether B9's softlock disappears.
-    # If confirmed, the proper fix is a separate BehaviorPatch — these
-    # edits are scaffolding only.
-    # ------------------------------------------------------------------
-    # Byte 35 of each LevelInfo (CPU $6BA1) — UW1..UW9; OW already matches.
-    ("EXP_B9_DIRS", RomEdit(offset=0x1942F, new_bytes=bytes([0x80]), old_bytes=bytes([0xFF]), comment="EXP UW1 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x1952B, new_bytes=bytes([0x80]), old_bytes=bytes([0xFF]), comment="EXP UW2 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19627, new_bytes=bytes([0x80]), old_bytes=bytes([0xFF]), comment="EXP UW3 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19723, new_bytes=bytes([0x85]), old_bytes=bytes([0xFF]), comment="EXP UW4 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x1981F, new_bytes=bytes([0x80]), old_bytes=bytes([0xFF]), comment="EXP UW5 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x1991B, new_bytes=bytes([0x80]), old_bytes=bytes([0xFF]), comment="EXP UW6 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19A17, new_bytes=bytes([0x81]), old_bytes=bytes([0xFF]), comment="EXP UW7 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19B13, new_bytes=bytes([0x81]), old_bytes=bytes([0xFF]), comment="EXP UW8 byte35")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19C0F, new_bytes=bytes([0x88]), old_bytes=bytes([0xFF]), comment="EXP UW9 byte35")),
-    # Byte 61 of each LevelInfo (CPU $6BBB) — OW + UW1..UW9.
-    ("EXP_B9_DIRS", RomEdit(offset=0x1934D, new_bytes=bytes([0x00]), old_bytes=bytes([0xFF]), comment="EXP OW  byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19449, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW1 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19545, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW2 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19641, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW3 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x1973D, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW4 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19839, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW5 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19935, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW6 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19A31, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW7 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19B2D, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW8 byte61")),
-    ("EXP_B9_DIRS", RomEdit(offset=0x19C29, new_bytes=bytes([0x02]), old_bytes=bytes([0xFF]), comment="EXP UW9 byte61")),
 ]
 
 
