@@ -18,14 +18,17 @@ from zora.patches.base import RomEdit, VariableBehaviorPatch
 # Tile data for each sound: " -XXXX- " encoded with Zelda 1 tile indices.
 # Each entry is 9 bytes; the table is laid out at 0x16C80 with sounds at
 # consecutive 9-byte slots. The index loaded into $0108 selects the slot.
+# Slot 0 is reserved for the vanilla LIFE label; chosen sounds occupy slots 1+.
+_LIFE_TILES = "24 2F 15 12 0F 0E 2F 24 24"
+
 _SOUND_TILES: dict[VisualRoarSound, tuple[int, str]] = {
     # (table_index, tile_hex_string)
-    VisualRoarSound.ROAR: (0,  "24 2F 1B 18 0A 1B 2F 24 24"),
-    VisualRoarSound.RAWR: (1,  "24 2F 1B 0A 20 1B 2F 24 24"),
-    VisualRoarSound.MEOW: (2,  "24 2F 16 0E 18 20 2F 24 24"),
-    VisualRoarSound.WOOF: (3,  "24 2F 20 18 18 0F 2F 24 24"),
-    VisualRoarSound.HISS: (4,  "24 2F 11 12 1C 1C 2F 24 24"),
-    VisualRoarSound.HONK: (5,  "24 2F 11 18 17 14 2F 24 24"),
+    VisualRoarSound.ROAR: (1,  "24 2F 1B 18 0A 1B 2F 24 24"),
+    VisualRoarSound.RAWR: (2,  "24 2F 1B 0A 20 1B 2F 24 24"),
+    VisualRoarSound.MEOW: (3,  "24 2F 16 0E 18 20 2F 24 24"),
+    VisualRoarSound.WOOF: (4,  "24 2F 20 18 18 0F 2F 24 24"),
+    VisualRoarSound.HISS: (5,  "24 2F 11 12 1C 1C 2F 24 24"),
+    VisualRoarSound.HONK: (6,  "24 2F 11 18 17 14 2F 24 24"),
 }
 
 _TABLE_BASE = 0x16C80
@@ -93,7 +96,14 @@ class VisualRoar(VariableBehaviorPatch):
                 old_bytes="FF " * 38 + "FF",
                 comment="PPU nametable write loop for label tiles",
             ),
-            # Block 4: Tile data for the chosen sound at its slot in the table.
+            # Block 4a: Vanilla LIFE label at slot 0 (matches reference layout).
+            RomEdit(
+                offset=_TABLE_BASE,
+                new_bytes=_LIFE_TILES,
+                old_bytes="FF FF FF FF FF FF FF FF FF",
+                comment="Slot 0: vanilla LIFE label",
+            ),
+            # Block 4b: Tile data for the chosen sound at its slot in the table.
             RomEdit(
                 offset=_TABLE_BASE + table_index * _SLOT_SIZE,
                 new_bytes=tile_hex,
