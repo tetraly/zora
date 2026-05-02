@@ -567,8 +567,11 @@ def shuffle_monsters(
 
     # Post-processing: clear all boss_cry bits, then re-tag Gannon adjacents
     # in levels 7-9. This runs regardless of shuffle_gannon — it's a separate
-    # pass from generateGame (Module.cs:124838-124959).
-    _post_process_gannon_flags(world)
-    _apply_canonical_npc_positions(world)
+    # pass from generateGame (Module.cs:124838-124959). Gated on `shuffle` so
+    # shuffle=False stays a true noop; in production shuffle_monsters is only
+    # called when config.shuffle_dungeon_monsters=True.
+    if shuffle:
+        _post_process_gannon_flags(world)
+        _apply_canonical_npc_positions(world)
 
     return True

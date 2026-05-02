@@ -102,17 +102,26 @@ _VANILLA_ENEMY_GROUPS: dict[EnemySpriteSet, frozenset[Enemy]] = {
     EnemySpriteSet.A: frozenset({
         Enemy.BLUE_GORIYA, Enemy.RED_GORIYA,
         Enemy.WALLMASTER, Enemy.ROPE, Enemy.STALFOS,
+        Enemy.MOLDORM, Enemy.RUPEE_BOSS,
     }),
     EnemySpriteSet.B: frozenset({
         Enemy.RED_DARKNUT, Enemy.BLUE_DARKNUT,
         Enemy.POLS_VOICE, Enemy.GIBDO,
+        Enemy.RUPEE_BOSS,
     }),
     EnemySpriteSet.C: frozenset({
         Enemy.VIRE, Enemy.LIKE_LIKE,
         Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE,
         Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA,
+        Enemy.RUPEE_BOSS,
     }),
 }
+# Note: MOLDORM and RUPEE_BOSS are listed because their sprites empirically
+# live in the noted enemy banks (see _BOSS_ENEMIES_IN_ENEMY_SPRITE_SETS in
+# shuffle_monsters_between_levels.py — derived from a 50-seed reference
+# corpus). Both are filtered out of the per-room replacement loop below by
+# the `enemy.is_boss` check, so adding them here has no effect on packing
+# logic; the membership is purely a sprite-bank ground-truth claim.
 
 _COMPANION_EXPANSIONS: dict[Enemy, Enemy] = {
     Enemy.RED_GORIYA:    Enemy.BLUE_GORIYA,

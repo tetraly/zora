@@ -71,8 +71,15 @@ class TestNpcExclusionFromShuffleMonsters(unittest.TestCase):
         signal.alarm(0)
 
     def test_npc_rooms_unchanged_after_shuffle_monsters(self) -> None:
-        """Rooms containing NPC enemies (OLD_MAN*, BOMB_UPGRADER, MUGGER)
-        must not be touched by the within-level shuffler."""
+        """Rooms containing NPC enemies (OLD_MAN*, BOMB_UPGRADER, MUGGER) must
+        stay NPC rooms after the within-level shuffler runs.
+
+        The shuffler may reassign OLD_MAN variants among NPC values to match
+        reference parity (see _CANONICAL_NPC_POSITIONS in shuffle_monsters.py
+        — e.g. L1 r0x41 OLD_MAN_2 → OLD_MAN_3). What must never happen is an
+        NPC slot getting replaced with a combat enemy: that would mean a
+        non-combat entity leaked into the shuffle pool.
+        """
         from zora.enemy.shuffle_monsters import shuffle_monsters
 
         for seed in [1, 42, 999, 12345]:
@@ -94,13 +101,14 @@ class TestNpcExclusionFromShuffleMonsters(unittest.TestCase):
                     for ri, room in enumerate(level.rooms):
                         vanilla_eid = gw_vanilla.levels[li].rooms[ri].enemy_spec.enemy.value
                         if vanilla_eid in _NPC_ENEMY_VALUES:
-                            self.assertEqual(
+                            self.assertIn(
                                 room.enemy_spec.enemy.value,
-                                vanilla_eid,
+                                _NPC_ENEMY_VALUES,
                                 f"Seed {seed}, L{level.level_num} room {room.room_num}: "
                                 f"NPC enemy 0x{vanilla_eid:02X} "
-                                f"({Enemy(vanilla_eid).name}) was changed to "
-                                f"0x{room.enemy_spec.enemy.value:02X}",
+                                f"({Enemy(vanilla_eid).name}) was replaced with non-NPC "
+                                f"0x{room.enemy_spec.enemy.value:02X} "
+                                f"({Enemy(room.enemy_spec.enemy.value).name})",
                             )
 
     def test_no_npc_appears_after_shuffle_monsters(self) -> None:
