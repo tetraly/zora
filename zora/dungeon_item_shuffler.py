@@ -13,13 +13,18 @@ topology and can make correct reachability decisions — major items placed by
 assumed fill are never moved afterward.
 
 Within each dungeon the shuffle partitions items into two buckets:
-  - Staircase-eligible: must land in ITEM_STAIRCASE rooms.
-    By default: only major items (from MAJOR_ITEMS) and heart containers.
-    When triforces_in_stairways is on: Item.TRIFORCE is also eligible.
-  - Non-staircase: compasses, maps, triforces (flag off), hearts (flag off).
-    These permute freely among regular room slots.
+  - Major-item slots: regular rooms whose vanilla item is a dungeon-major
+    item (MAJOR_ITEMS ∪ HEART_CONTAINER) or TRIFORCE (when triforces_in_stairways
+    is on), plus all ITEM_STAIRCASE rooms.
+  - Non-major regular rooms: compasses, maps, keys, bombs, rupees, hearts
+    (flag off), triforces (flag off). Shuffled among themselves only.
 
-TRIFORCE_OF_POWER (Ganon, level 9) is never shuffled — it stays fixed.
+When triforces_in_stairways is on, the triforce participates in the major-item
+slot pool — so it can land in any major-item slot (regular or staircase) with
+uniform probability, instead of being forced into a staircase.
+
+TRIFORCE_OF_POWER (Ganon, level 9) is never shuffled — it stays fixed. The
+entrance room is never shuffled — items there are unreachable on entry.
 """
 
 from zora.data_model import GameWorld, Item, Level, Room, RoomType, StaircaseRoom
@@ -56,54 +61,57 @@ def shuffle_dungeon_items(game_world: GameWorld, config: GameConfig, rng: Rng) -
 def _shuffle_level(level: Level, triforces_in_stairways: bool, rng: Rng) -> None:
     """Shuffle items within a single level. Mutates level in place.
 
-    The shuffle proceeds in two steps:
+    Two independent uniform shuffles run on disjoint pools:
 
-    1. Triforce swap (only when triforces_in_stairways is on): each dungeon's
-       triforce room is randomly swapped with one of the item staircase rooms,
-       so the triforce may end up in a staircase room and the displaced major
-       item moves to the triforce room.
+    1. Major-item pool: regular rooms whose vanilla item is in
+       _DUNGEON_MAJOR_ITEMS, plus (when triforces_in_stairways is on) the
+       triforce room, plus all ITEM_STAIRCASE rooms. Items in this pool are
+       permuted uniformly across all of these slots — triforce, when in the
+       pool, lands in any slot with equal probability rather than being
+       forced into a staircase.
 
-    2. Regular-room shuffle: all regular rooms that hold a non-fixed item
-       (compass, map, heart container, triforce, keys, bombs, rupees, etc.)
-       are permuted among themselves. Staircase rooms are only touched in
-       step 1 — the shuffler never permutes items between staircase rooms.
+    2. Non-major-regular pool: remaining regular rooms holding non-fixed
+       items (compasses, maps, keys, bombs, rupees, hearts when flag off,
+       triforces when flag off). Permuted among themselves only.
+
+    Excluded from both pools: entrance rooms, fixed-item rooms
+    (TRIFORCE_OF_POWER, NOTHING).
     """
+    major_pool_items: frozenset[Item] = (
+        _DUNGEON_MAJOR_ITEMS | {Item.TRIFORCE} if triforces_in_stairways
+        else _DUNGEON_MAJOR_ITEMS
+    )
+
+    major_regular_rooms: list[Room] = []
+    other_regular_rooms: list[Room] = []
+    for room in level.rooms:
+        if room.item in _FIXED_ITEMS:
+            continue
+        if room.room_num == level.entrance_room:
+            continue
+        if room.item in major_pool_items:
+            major_regular_rooms.append(room)
+        else:
+            other_regular_rooms.append(room)
+
     item_staircase_rooms: list[StaircaseRoom] = [
         sr for sr in level.staircase_rooms if _is_item_staircase(sr) and sr.item is not None
     ]
-    regular_rooms: list[Room] = [
-        room for room in level.rooms
-        if room.item not in _FIXED_ITEMS
-    ]
 
-    if not regular_rooms:
-        return
+    # Pool 1: major-item slots — regular major rooms + item-staircase rooms.
+    major_slots: list[Room | StaircaseRoom] = list(major_regular_rooms) + list(item_staircase_rooms)
+    if len(major_slots) >= 2:
+        major_items: list[Item] = []
+        for slot in major_slots:
+            assert slot.item is not None
+            major_items.append(slot.item)
+        rng.shuffle(major_items)
+        for slot, item in zip(major_slots, major_items, strict=True):
+            slot.item = item
 
-    # Step 1: optionally swap the triforce into a staircase room.
-    if triforces_in_stairways and item_staircase_rooms:
-        triforce_rooms = [r for r in regular_rooms if r.item == Item.TRIFORCE]
-        for triforce_room in triforce_rooms:
-            # Pick a random staircase room to swap with.
-            sr = rng.choice(item_staircase_rooms)
-            assert sr.item is not None
-            triforce_room.item, sr.item = sr.item, triforce_room.item
-
-    # Step 2: shuffle all regular rooms among themselves freely.
-    items = [room.item for room in regular_rooms]
-    assert len(items) == len(regular_rooms), (
-        f"L{level.level_num}: item pool size {len(items)} != location pool size {len(regular_rooms)}"
-    )
-    assert all(item not in _FIXED_ITEMS for item in items), (
-        f"L{level.level_num}: fixed item found in shuffle pool: {[i.name for i in items if i in _FIXED_ITEMS]}"
-    )
-
-    rng.shuffle(items)
-    for room, item in zip(regular_rooms, items, strict=True):
-        room.item = item
-
-    # Verify pool is fully consumed — every slot filled, none left over.
-    remaining = [room for room in regular_rooms if room.item in _FIXED_ITEMS]
-    assert len(remaining) == 0, (
-        f"L{level.level_num}: {len(remaining)} room(s) not filled after shuffle: "
-        f"{[hex(r.room_num) for r in remaining]}"
-    )
+    # Pool 2: non-major regular rooms — permute among themselves.
+    if len(other_regular_rooms) >= 2:
+        other_items = [room.item for room in other_regular_rooms]
+        rng.shuffle(other_items)
+        for room, item in zip(other_regular_rooms, other_items, strict=True):
+            room.item = item
