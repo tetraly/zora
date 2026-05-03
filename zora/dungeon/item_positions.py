@@ -45,7 +45,7 @@ _VALID_ITEM_POSITIONS: dict[RoomType, list[ItemPosition]] = {
     RoomType.ZIGZAG_ROOM:           [ItemPosition.POSITION_A, ItemPosition.POSITION_C],
     RoomType.T_ROOM:                [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.VERTICAL_MOAT_ROOM:    [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C, ItemPosition.POSITION_D],
-    RoomType.CIRCLE_MOAT_ROOM:      [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_C],
+    RoomType.CIRCLE_MOAT_ROOM:      [ItemPosition.POSITION_A, ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.POINTLESS_MOAT_ROOM:   [ItemPosition.POSITION_B, ItemPosition.POSITION_D],
     RoomType.CHEVY_ROOM:            [ItemPosition.POSITION_A, ItemPosition.POSITION_C],
     RoomType.NSU:                   [ItemPosition.POSITION_A, ItemPosition.POSITION_C],
