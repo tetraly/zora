@@ -1,4 +1,4 @@
-"""Benchmark a specific flagset: 10 seeds, 15s timeout, subprocess isolation.
+"""Benchmark a specific flagset: 10 seeds, 20s timeout, subprocess isolation.
 
 Runs each seed through the same generate_game codepath as the API/CLI to
 ensure benchmark results reflect real user-facing behavior.
@@ -20,15 +20,29 @@ from flags.flags_generated import (
     decode_flags,
     resolve_random_flags,
 )
+import zora.generate_game as gg
 from zora.generate_game import generate_game
 
-TIMEOUT = 15
+TIMEOUT = 20
 NUM_SEEDS = 10
 START_SEED = 1
 
 
 def _run_seed(flags: Flags, seed: int, flag_string: str) -> dict[str, Any]:
-    """Run one seed through generate_game. Executed in a subprocess."""
+    """Run one seed through generate_game. Executed in a subprocess.
+
+    Wraps parse_game_world to count pipeline attempts: generate_game calls
+    parse_game_world once at the top of each pipeline-retry iteration,
+    so the call count equals the number of attempts used.
+    """
+    attempts = [0]
+    orig_parse = gg.parse_game_world
+
+    def _counting_parse(*args: Any, **kwargs: Any) -> Any:
+        attempts[0] += 1
+        return orig_parse(*args, **kwargs)
+
+    gg.parse_game_world = _counting_parse  # type: ignore[assignment]
     t0 = time.monotonic()
     try:
         patch_bytes, hash_code, spoiler_log, spoiler_data = generate_game(
@@ -38,13 +52,17 @@ def _run_seed(flags: Flags, seed: int, flag_string: str) -> dict[str, Any]:
         return {
             "seed": seed, "total": elapsed, "ok": True,
             "patch_size": len(patch_bytes),
+            "attempts": attempts[0],
         }
     except RuntimeError as e:
         elapsed = time.monotonic() - t0
         return {
             "seed": seed, "total": elapsed, "ok": False,
             "error": str(e)[:200],
+            "attempts": attempts[0],
         }
+    finally:
+        gg.parse_game_world = orig_parse  # type: ignore[assignment]
 
 
 def _run_seed_in_process(
@@ -104,12 +122,14 @@ def main() -> None:
         result = _run_seed_in_process(resolved, seed, flag_string, TIMEOUT)
         results.append(result)
 
+        attempts = result.get("attempts")
+        attempts_str = f"  [{attempts} attempts]" if attempts is not None else ""
         if result["ok"]:
             patch_info = f"  ({result.get('patch_size', '?')} bytes)"
-            print(f"Seed {seed:>5}: {result['total']:>8.2f}s  OK{patch_info}", flush=True)
+            print(f"Seed {seed:>5}: {result['total']:>8.2f}s  OK{attempts_str}{patch_info}", flush=True)
         else:
             err = result.get("error", "?")
-            print(f"Seed {seed:>5}: {TIMEOUT:>8.0f}s  FAIL ({err})", flush=True)
+            print(f"Seed {seed:>5}: {result['total']:>8.2f}s  FAIL{attempts_str} ({err})", flush=True)
         print(flush=True)
 
     print("=" * 70)

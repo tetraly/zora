@@ -120,7 +120,7 @@ def generate_game(
     # Some cave shuffle arrangements make item placement impossible.
     # Retry with a fresh game world (the RNG has advanced, producing a
     # different cave layout) when the pipeline fails.
-    max_pipeline_attempts = 10
+    max_pipeline_attempts = 25
     for attempt in range(max_pipeline_attempts):
         game_world = parse_game_world(bins)
         try:
@@ -221,7 +221,7 @@ def generate_game_from_rom(
         ],
     }
 
-    max_pipeline_attempts = 10
+    max_pipeline_attempts = 25
     for attempt in range(max_pipeline_attempts):
         game_world = parse_game_world(bins)
         try:
