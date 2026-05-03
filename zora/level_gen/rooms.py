@@ -624,7 +624,34 @@ def new_level_rooms(
 
         # Flag logic
         if (screen_type & 0x40) != 0 and screen_type != 96:
-            rom[room + rom_base + 256] = (rom[room + rom_base + 256] & ~0x07) | 4
+            # Original behavior:
+            # rom[room + rom_base + 256] = (rom[room + rom_base + 256] & ~0x07) | 4
+            #
+            # Vanilla picks PUSHING_BLOCK_OPENS_SHUTTERS (=4) for any room with
+            # the movable_block bit set. That presumes the room has a shutter
+            # door — true in hand-authored vanilla, but not guaranteed when
+            # walls were randomly assigned earlier in new_level_doors. If no
+            # shutter is present, the block is dead weight (push it, nothing
+            # happens) and the integrity check rejects the layout. Bias
+            # toward changing the room_action: leave action=0 (or whatever a
+            # later pass writes) and clear the movable_block bit (bit 6 of
+            # T3) so the room becomes a regular non-pushblock room. The
+            # room_type's floor layout is preserved; only the block sprite
+            # disappears. Downstream stair-trigger pushblock rooms still get
+            # action=5 written by place_initial_stairs on rooms it sets up
+            # explicitly.
+            t0 = rom[room + t0_base]
+            t1 = rom[room + t0_base + 128]
+            north = (t0 >> 5) & 0x07
+            south = (t0 >> 2) & 0x07
+            west  = (t1 >> 5) & 0x07
+            east  = (t1 >> 2) & 0x07
+            has_shutter = 7 in (north, south, east, west)
+            if has_shutter:
+                rom[room + rom_base + 256] = (rom[room + rom_base + 256] & ~0x07) | 4
+            else:
+                # No shutter: drop the movable_block bit, leave action at 0.
+                rom[room + rom_base] &= 0xBF  # clear bit 6 (movable_block)
         elif rng.next() % 3 != 0:
             if rom[room + rom_base + 128] != 3:
                 rom[room + rom_base + 256] = rom[room + rom_base + 256] | 7

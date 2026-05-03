@@ -135,6 +135,19 @@ def test_generate_deterministic_with_same_seed(client: FlaskClient) -> None:
     assert r1.get_json()["patch"] == r2.get_json()["patch"]
 
 
+def test_generate_user_reported_failing_seed(client: FlaskClient) -> None:
+    # Regression: user-reported flagset+seed combo fails with generation_failed
+    # because every retry hits an integrity-check error (Level 9 unreachable
+    # rooms from generate_dungeon_shapes, plus invalid NPC room placements
+    # from randomize_enemies).
+    payload = {"flag_string": "FUBRVAAASKh8eKCIG6QBRVRCVV", "seed": "12345"}
+    r = client.post("/generate", json=payload)
+    assert r.status_code == 200, r.get_json()
+    data = r.get_json()
+    assert data["seed"] == "12345"
+    assert "patch" in data and isinstance(data["patch"], str) and len(data["patch"]) > 0
+
+
 # ---------------------------------------------------------------------------
 # POST /generate — invalid flag strings
 # ---------------------------------------------------------------------------

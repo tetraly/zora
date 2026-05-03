@@ -514,13 +514,23 @@ def _apply_canonical_npc_positions(world: GameWorld) -> None:
         if level is None:
             continue
         for room in level.rooms:
-            if room.room_num == rn:
-                room.enemy_spec = EnemySpec(
-                    enemy=canonical_enemy,
-                    is_group=False,
-                    group_members=None,
-                )
+            if room.room_num != rn:
+                continue
+            # Only reassign the NPC variant if upstream already placed an
+            # NPC here. The (level, room_num) keys in this table were
+            # derived from a vanilla-shape reference corpus; with
+            # dungeon_shapes randomized, the room at that number is
+            # often a normal combat/staircase room with a non-NPC enemy
+            # or wrong room_type. Forcing an NPC into such a room would
+            # violate the BLACK_ROOM / solid-north integrity invariants.
+            if room.enemy_spec.enemy not in _NON_COMBAT_ENEMIES:
                 break
+            room.enemy_spec = EnemySpec(
+                enemy=canonical_enemy,
+                is_group=False,
+                group_members=None,
+            )
+            break
 
 
 def shuffle_monsters(
