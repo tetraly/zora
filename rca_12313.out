@@ -1,0 +1,318 @@
+RCA Diagnostic: seed 12313
+Flagset: FUBRVAAASKh8eKCIG6QBRVRCVV
+Max attempts: 10
+======================================================================
+
+Attempt 0... FAIL (0.23s): Randomizer could not produce a valid seed
+
+Attempt 1... FAIL (0.35s): Randomizer could not produce a valid seed
+
+Attempt 2... FAIL (0.45s): Dungeon room scramble failed
+
+Attempt 3... FAIL (0.12s): Randomizer could not produce a valid seed
+
+Attempt 4... FAIL (0.28s): Randomizer could not produce a valid seed
+
+Attempt 5...Integrity check failed after randomize_enemies:
+  - Level 9: 5 rooms unreachable with full inventory (0x35, 0x44, 0x45, 0x55, 0x65). Layout has a structural defect.
+ FAIL (0.35s): Integrity check failed after randomize_enemies:
+  - Level 9: 5 rooms unreachable with full inventory (0x35, 0x44, 0x45, 0x55, 0x65). Layout has a structural defect.
+
+Attempt 6...Integrity check failed after randomize_enemies:
+  - Level 9: 49 rooms unreachable with full inventory (0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x10, 0x11, 0x12, 0x13, 0x16, 0x17, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x40, 0x41, 0x42, 0x43, 0x46, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x72, 0x73, 0x74, 0x75, 0x76). Layout has a structural defect.
+ FAIL (0.79s): Integrity check failed after randomize_enemies:
+  - Level 9: 49 rooms unreachable with full inventory (0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x10, 0x11, 0x12, 0x13, 0x16, 0x17, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x40, 0x41, 0x42, 0x43, 0x46, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x72, 0x73, 0x74, 0x75, 0x76). Layout has a structural defect.
+
+Attempt 7... FAIL (0.21s): Randomizer could not produce a valid seed
+
+Attempt 8...Integrity check failed after randomize_dungeons:
+  - Level 9: 2 rooms unreachable with full inventory (0x07, 0x17). Layout has a structural defect.
+ FAIL (0.26s): Integrity check failed after randomize_dungeons:
+  - Level 9: 2 rooms unreachable with full inventory (0x07, 0x17). Layout has a structural defect.
+
+Attempt 9...Integrity check failed after randomize_dungeons:
+  - Level 9: 1 rooms unreachable with full inventory (0x37). Layout has a structural defect.
+ FAIL (0.32s): Integrity check failed after randomize_dungeons:
+  - Level 9: 1 rooms unreachable with full inventory (0x37). Layout has a structural defect.
+
+ TIMELINE
+----------------------------------------------------------------------
+  #     Time  Result  Details
+----------------------------------------------------------------------
+  0    0.23s  FAIL    Randomizer could not produce a valid seed
+  1    0.35s  FAIL    Randomizer could not produce a valid seed
+  2    0.45s  FAIL    Dungeon room scramble failed
+  3    0.12s  FAIL    Randomizer could not produce a valid seed
+  4    0.28s  FAIL    Randomizer could not produce a valid seed
+  5    0.35s  FAIL    Integrity check failed after randomize_enemies:
+  - Level 9: 5 rooms unreachable with full inventory (0x35, 0x44, 0x45, 0x55, 0x65). Layout has a structural defect.
+  6    0.79s  FAIL    Integrity check failed after randomize_enemies:
+  - Level 9: 49 rooms unreachable with full inventory (0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x10, 0x11, 0x12, 0x13, 0x16, 0x17, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x40, 0x41, 0x42, 0x43, 0x46, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x72, 0x73, 0x74, 0x75, 0x76). Layout has a structural defect.
+  7    0.21s  FAIL    Randomizer could not produce a valid seed
+  8    0.26s  FAIL    Integrity check failed after randomize_dungeons:
+  - Level 9: 2 rooms unreachable with full inventory (0x07, 0x17). Layout has a structural defect.
+  9    0.32s  FAIL    Integrity check failed after randomize_dungeons:
+  - Level 9: 1 rooms unreachable with full inventory (0x37). Layout has a structural defect.
+----------------------------------------------------------------------
+Total: 3.37s  (wasted on retries: 3.37s)
+
+ ATTEMPT 6 DETAILS (FAILED)
+  Error: Integrity check failed after randomize_enemies:
+  - Level 9: 49 rooms unreachable with full inventory (0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x10, 0x11, 0x12, 0x13, 0x16, 0x17, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x30, 0x31, 0x33, 0x34, 0x35, 0x36, 0x37, 0x40, 0x41, 0x42, 0x43, 0x46, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x62, 0x63, 0x64, 0x65, 0x66, 0x67, 0x72, 0x73, 0x74, 0x75, 0x76). Layout has a structural defect.
+  Phase timing:
+    generate_dungeon_shapes             0.623s
+    randomize_enemies                   0.078s
+    randomize_dungeons                  0.067s
+
+ CONNECTIVITY CHECK
+  L9: NOT CONNECTED
+  Level 9 map  (entrance = R0x71)
+
+  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                 
+  │ 00          │ │ 01          │ │ 02          │ │ 03          │ │ 04          │ │ 05          │ │ 06          │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  │    BOMBS    K K             │ │                     KEY     K K             K K                             │                 
+  │  CIR MOAT   │ │   ZIGZAG    │ │    BLACK    │ │    GRID     │ │    PLAIN    │ │    PLAIN    │ │    BLACK    │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  └────── ──────┘ └──────S──────┘ └─────────────┘ └──────K──────┘ └─────────────┘ └─────────────┘ └──────K──────┘                 
+  ┌────── ──────┐ ┌──────S──────┐ ┌─────────────┐ ┌──────K──────┐                                 ┌──────K──────┐ ┌─────────────┐ 
+  │ 10          │ │ 11          │ │ 12          │ │ 13          │                                 │ 16          │ │ 17          │ 
+  │             │ │             │ │             │ │             │                                 │             │ │             │ 
+  │             B B     KEY     S S TRIFORCE_OF B B             │                                 │     KEY     B B             │ 
+  │     NSU     │ │ 2-FIREBALL  │ │   GANNON    │ │   V-MOAT    │                                 │   GLEEOK    │ │    GRID     │ 
+  │             │ │             │ │             │ │             │                                 │             │ │             │ 
+  └─────────────┘ └──────S──────┘ └──────S──────┘ └─────────────┘                                 └────── ──────┘ └─────────────┘ 
+  ┌─────────────┐ ┌──────S──────┐ ┌──────K──────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────── ──────┐                 
+  │ 20          │ │ 21          │ │ 22          │ │ 23          │ │ 24          │ │ 25          │ │ 26          │                 
+  │ >*B         │ │             │ │             │ │             │ │ >E          │ │             │ │             │                 
+  │             │ │     KEY     │ │             S S             K K             │ │             B B             │                 
+  │  NAR STAIR  │ │    BLACK    │ │    PLAIN    │ │   V-MOAT    │ │  DIA STAIR  │ │    BLACK    │ │   V-MOAT    │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  └──────K──────┘ └──────K──────┘ └─────────────┘ └─────────────┘ └──────B──────┘ └─────────────┘ └─────────────┘                 
+  ┌──────K──────┐ ┌──────K──────┐                 ┌─────────────┐ ┌──────B──────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ 
+  │ 30          │ │ 31          │                 │ 33          │ │ 34          │ │ 35          │ │ 36          │ │ 37          │ 
+  │             │ │ >A          │                 │             │ │             │ │ >E          │ │             │ │ >A          │ 
+  │             K K     KEY     │                 │               S   COMPASS   │ │     MAP     │ │               S             │ 
+  │    PLAIN    │ │  SGL BLOCK  │                 │    BLACK    │ │   H-MOAT    │ │  NAR STAIR  │ │    PLAIN    │ │  DIA STAIR  │ 
+  │             │ │             │                 │             │ │             │ │             │ │             │ │             │ 
+  └──────B──────┘ └────── ──────┘                 └────── ──────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ 
+  ┌──────B──────┐ ┌────── ──────┐ ┌─────────────┐ ┌────── ──────┐                                 ┌─────────────┐                 
+  │ 40          │ │ 41          │ │ 42          │ │ 43          │                                 │ 46          │                 
+  │             │ │ >F          │ │             │ │ >B          │                                 │             │                 
+  │     KEY     S S             │ │             │ │             │                                 │    BOMBS    │                 
+  │   GLEEOK    │ │  SPI STAIR  │ │    ZELDA    │ │  DBL BLOCK  │                                 │   V-MOAT    │                 
+  │             │ │             │ │             │ │             │                                 │             │                 
+  └─────────────┘ └──────K──────┘ └──────S──────┘ └──────K──────┘                                 └──────B──────┘                 
+                  ┌──────K──────┐ ┌────── ──────┐ ┌──────K──────┐ ┌─────────────┐ ┌─────────────┐ ┌──────B──────┐                 
+                  │ 51          │ │ 52          │ │ 53          │ │ 54          │ │ 55          │ │ 56          │                 
+                  │ >C          │ │             │ │ >D          │ │ >B          │ │             │ │ >F          │                 
+                  │    BOMBS    │ │             K K     KEY     K K                     KEY     K K     KEY     │                 
+                  │  DIA STAIR  │ │    PLAIN    │ │  DIA STAIR  │ │  REVERSE-C  │ │ 2-FIREBALL  │ │  DIA STAIR  │                 
+                  │             │ │             │ │             │ │             │ │             │ │             │                 
+                  └─────────────┘ └──────S──────┘ └──────B──────┘ └─────────────┘ └─────────────┘ └──────B──────┘                 
+  ┌─────────────┐ ┌─────────────┐ ┌────── ──────┐ ┌──────B──────┐ ┌─────────────┐ ┌─────────────┐ ┌──────B──────┐ ┌─────────────┐ 
+  │ 60          │ │ 61          │ │ 62          │ │ 63          │ │ 64          │ │ 65          │ │ 66          │ │ 67          │ 
+  │             │ │             │ │ >*A         │ │             │ │             │ │ >D          │ │             │ │             │ 
+  │     KEY     S S             │ │             │ │             │ │     KEY     B B             │ │     KEY     S S             │ 
+  │  SGL 6-BLK  │ │    BLACK    │ │  DBL BLOCK  │ │   DESERT    │ │  CIR MOAT   │ │  DBL BLOCK  │ │   4-TALL    │ │  DBL 6-BLK  │ 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │ │             │ 
+  └──────S──────┘ └────── ──────┘ └──────B──────┘ └──────K──────┘ └──────B──────┘ └────── ──────┘ └──────K──────┘ └─────────────┘ 
+  ┌────── ──────┐ ┌────── ──────┐ ┌──────S──────┐ ┌──────K──────┐ ┌──────B──────┐ ┌────── ──────┐ ┌──────K──────┐                 
+  │ 70          │ │ 71 [ENTER]  │ │ 72          │ │ 73          │ │ 74          │ │ 75          │ │ 76          │                 
+  │             │ │             │ │             │ │             │ │ >C          │ │             │ │             │                 
+  │   5 RUPEE   │ │             │ │                             │ │     KEY     │ │    BOMBS    S S   5 RUPEE   │                 
+  │   DESERT    │ │  ENTRANCE   │ │    MAZE     │ │  CIR MOAT   │ │  DIA STAIR  │ │   GLEEOK    │ │   4-TALL    │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  └─────────────┘ └────── ──────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘                 
+
+  Staircases:
+  Stair *A: R62 -> [S.ARROW]
+  Stair *B: R20 -> [RD.RING]
+  Stair A: R31 <-> R37
+  Stair B: R54 <-> R43
+  Stair C: R51 <-> R74
+  Stair D: R53 <-> R65
+  Stair E: R35 <-> R24
+  Stair F: R56 <-> R41
+
+  Walls:  ─│ solid  (space) open  K locked  S shutter  B bomb  W walk-through
+
+ L9 KEY ECONOMY
+  Locked door sides: 33 (unique doors ~ 16)
+  Key-drop rooms: 13
+    R0x00 EAST
+    R0x01 WEST
+    R0x03 SOUTH
+    R0x03 EAST
+    R0x04 EAST
+    R0x04 WEST
+    R0x05 WEST
+    R0x06 SOUTH
+    R0x13 NORTH
+    R0x16 NORTH
+    R0x20 SOUTH
+    R0x21 SOUTH
+    R0x22 NORTH
+    R0x23 EAST
+    R0x24 WEST
+    R0x30 NORTH
+    R0x30 EAST
+    R0x31 NORTH
+    R0x31 WEST
+    R0x41 SOUTH
+    R0x43 SOUTH
+    R0x51 NORTH
+    R0x52 EAST
+    R0x53 NORTH
+    R0x53 EAST
+    R0x53 WEST
+    R0x54 WEST
+    R0x55 EAST
+    R0x56 WEST
+    R0x63 SOUTH
+    R0x66 SOUTH
+    R0x73 NORTH
+    R0x76 NORTH
+  MAGICAL_KEY placed at: L8 staircase R0x15
+  L9 rooms unreachable even with full inventory (57):
+    R0x00 (room, type=CIRCLE_MOAT_ROOM, item=BOMBS)
+    R0x01 (room, type=ZIGZAG_ROOM, item=NOTHING)
+    R0x02 (room, type=BLACK_ROOM, item=NOTHING)
+    R0x03 (room, type=GRID_ROOM, item=KEY)
+    R0x04 (room, type=PLAIN_ROOM, item=NOTHING)
+    R0x05 (room, type=PLAIN_ROOM, item=NOTHING)
+    R0x06 (room, type=BLACK_ROOM, item=NOTHING)
+    R0x10 (room, type=NSU, item=NOTHING)
+    R0x11 (room, type=TWO_FIREBALL_ROOM, item=KEY)
+    R0x12 (room, type=GANNON_ROOM, item=TRIFORCE_OF_POWER)
+    R0x13 (room, type=VERTICAL_MOAT_ROOM, item=NOTHING)
+    R0x16 (room, type=GLEEOK_ROOM, item=KEY)
+    R0x17 (room, type=GRID_ROOM, item=NOTHING)
+    R0x20 (room, type=NARROW_STAIR_ROOM, item=NOTHING)
+    R0x21 (room, type=BLACK_ROOM, item=KEY)
+    R0x22 (room, type=PLAIN_ROOM, item=NOTHING)
+    R0x23 (room, type=VERTICAL_MOAT_ROOM, item=NOTHING)
+    R0x24 (room, type=DIAMOND_STAIR_ROOM, item=NOTHING)
+    R0x25 (room, type=BLACK_ROOM, item=NOTHING)
+    R0x26 (room, type=VERTICAL_MOAT_ROOM, item=NOTHING)
+    R0x30 (room, type=PLAIN_ROOM, item=NOTHING)
+    R0x31 (room, type=SINGLE_BLOCK_ROOM, item=KEY)
+    R0x32 (staircase, item=SILVER_ARROWS, return_dest=R0x62)
+    R0x33 (room, type=BLACK_ROOM, item=NOTHING)
+    R0x34 (room, type=HORIZONTAL_MOAT_ROOM, item=COMPASS)
+    R0x35 (room, type=NARROW_STAIR_ROOM, item=MAP)
+    R0x36 (room, type=PLAIN_ROOM, item=NOTHING)
+    R0x37 (room, type=DIAMOND_STAIR_ROOM, item=NOTHING)
+    R0x3d (staircase, item=RED_RING, return_dest=R0x20)
+    R0x3f (staircase, transport, exits=R0x31<->R0x37)
+    R0x40 (room, type=GLEEOK_ROOM, item=KEY)
+    R0x41 (room, type=SPIRAL_STAIR_ROOM, item=NOTHING)
+    R0x42 (room, type=ZELDA_ROOM, item=NOTHING)
+    R0x43 (room, type=DOUBLE_BLOCK, item=NOTHING)
+    R0x44 (staircase, transport, exits=R0x54<->R0x43)
+    R0x45 (staircase, transport, exits=R0x51<->R0x74)
+    R0x46 (room, type=VERTICAL_MOAT_ROOM, item=BOMBS)
+    R0x49 (staircase, transport, exits=R0x53<->R0x65)
+    R0x50 (staircase, transport, exits=R0x35<->R0x24)
+    R0x51 (room, type=DIAMOND_STAIR_ROOM, item=BOMBS)
+    R0x52 (room, type=PLAIN_ROOM, item=NOTHING)
+    R0x53 (room, type=DIAMOND_STAIR_ROOM, item=KEY)
+    R0x54 (room, type=REVERSE_C, item=NOTHING)
+    R0x55 (room, type=TWO_FIREBALL_ROOM, item=KEY)
+    R0x56 (room, type=DIAMOND_STAIR_ROOM, item=KEY)
+    R0x59 (staircase, transport, exits=R0x56<->R0x41)
+    R0x62 (room, type=DOUBLE_BLOCK, item=NOTHING)
+    R0x63 (room, type=DESERT_ROOM, item=NOTHING)
+    R0x64 (room, type=CIRCLE_MOAT_ROOM, item=KEY)
+    R0x65 (room, type=DOUBLE_BLOCK, item=NOTHING)
+    R0x66 (room, type=FOUR_TALL_ROOM, item=KEY)
+    R0x67 (room, type=DOUBLE_SIX_BLOCK_ROOM, item=NOTHING)
+    R0x72 (room, type=MAZE_ROOM, item=NOTHING)
+    R0x73 (room, type=CIRCLE_MOAT_ROOM, item=NOTHING)
+    R0x74 (room, type=DIAMOND_STAIR_ROOM, item=KEY)
+    R0x75 (room, type=GLEEOK_ROOM, item=BOMBS)
+    R0x76 (room, type=FOUR_TALL_ROOM, item=FIVE_RUPEES)
+
+  L9 STAIRCASE ROOMS (8):
+    R0x32 ITEM item=SILVER_ARROWS return_dest=R0x62 [UNREACHABLE]
+    R0x3d ITEM item=RED_RING return_dest=R0x20 [UNREACHABLE]
+    R0x3f TRANSPORT R0x31<->R0x37 [UNREACHABLE]
+    R0x44 TRANSPORT R0x54<->R0x43 [UNREACHABLE]
+    R0x45 TRANSPORT R0x51<->R0x74 [UNREACHABLE]
+    R0x49 TRANSPORT R0x53<->R0x65 [UNREACHABLE]
+    R0x50 TRANSPORT R0x35<->R0x24 [UNREACHABLE]
+    R0x59 TRANSPORT R0x56<->R0x41 [UNREACHABLE]
+
+  Connectivity check and validator agree on reachable rooms.
+  Level 9 map  (entrance = R0x71)
+
+  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                 
+  │ 00          │ │ 01          │ │ 02          │ │ 03          │ │ 04          │ │ 05          │ │ 06          │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  │    BOMBS    K K             │ │                     KEY     K K             K K                             │                 
+  │  CIR MOAT   │ │   ZIGZAG    │ │    BLACK    │ │    GRID     │ │    PLAIN    │ │    PLAIN    │ │    BLACK    │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  └────── ──────┘ └──────S──────┘ └─────────────┘ └──────K──────┘ └─────────────┘ └─────────────┘ └──────K──────┘                 
+  ┌────── ──────┐ ┌──────S──────┐ ┌─────────────┐ ┌──────K──────┐                                 ┌──────K──────┐ ┌─────────────┐ 
+  │ 10          │ │ 11          │ │ 12          │ │ 13          │                                 │ 16          │ │ 17          │ 
+  │             │ │             │ │             │ │             │                                 │             │ │             │ 
+  │             B B     KEY     S S TRIFORCE_OF B B             │                                 │     KEY     B B             │ 
+  │     NSU     │ │ 2-FIREBALL  │ │   GANNON    │ │   V-MOAT    │                                 │   GLEEOK    │ │    GRID     │ 
+  │             │ │             │ │             │ │             │                                 │             │ │             │ 
+  └─────────────┘ └──────S──────┘ └──────S──────┘ └─────────────┘                                 └────── ──────┘ └─────────────┘ 
+  ┌─────────────┐ ┌──────S──────┐ ┌──────K──────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────── ──────┐                 
+  │ 20          │ │ 21          │ │ 22          │ │ 23          │ │ 24          │ │ 25          │ │ 26          │                 
+  │ >*B         │ │             │ │             │ │             │ │ >E          │ │             │ │             │                 
+  │             │ │     KEY     │ │             S S             K K             │ │             B B             │                 
+  │  NAR STAIR  │ │    BLACK    │ │    PLAIN    │ │   V-MOAT    │ │  DIA STAIR  │ │    BLACK    │ │   V-MOAT    │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  └──────K──────┘ └──────K──────┘ └─────────────┘ └─────────────┘ └──────B──────┘ └─────────────┘ └─────────────┘                 
+  ┌──────K──────┐ ┌──────K──────┐                 ┌─────────────┐ ┌──────B──────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ 
+  │ 30          │ │ 31          │                 │ 33          │ │ 34          │ │ 35          │ │ 36          │ │ 37          │ 
+  │             │ │ >A          │                 │             │ │             │ │ >E          │ │             │ │ >A          │ 
+  │             K K     KEY     │                 │               S   COMPASS   │ │     MAP     │ │               S             │ 
+  │    PLAIN    │ │  SGL BLOCK  │                 │    BLACK    │ │   H-MOAT    │ │  NAR STAIR  │ │    PLAIN    │ │  DIA STAIR  │ 
+  │             │ │             │                 │             │ │             │ │             │ │             │ │             │ 
+  └──────B──────┘ └────── ──────┘                 └────── ──────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ 
+  ┌──────B──────┐ ┌────── ──────┐ ┌─────────────┐ ┌────── ──────┐                                 ┌─────────────┐                 
+  │ 40          │ │ 41          │ │ 42          │ │ 43          │                                 │ 46          │                 
+  │             │ │ >F          │ │             │ │ >B          │                                 │             │                 
+  │     KEY     S S             │ │             │ │             │                                 │    BOMBS    │                 
+  │   GLEEOK    │ │  SPI STAIR  │ │    ZELDA    │ │  DBL BLOCK  │                                 │   V-MOAT    │                 
+  │             │ │             │ │             │ │             │                                 │             │                 
+  └─────────────┘ └──────K──────┘ └──────S──────┘ └──────K──────┘                                 └──────B──────┘                 
+                  ┌──────K──────┐ ┌────── ──────┐ ┌──────K──────┐ ┌─────────────┐ ┌─────────────┐ ┌──────B──────┐                 
+                  │ 51          │ │ 52          │ │ 53          │ │ 54          │ │ 55          │ │ 56          │                 
+                  │ >C          │ │             │ │ >D          │ │ >B          │ │             │ │ >F          │                 
+                  │    BOMBS    │ │             K K     KEY     K K                     KEY     K K     KEY     │                 
+                  │  DIA STAIR  │ │    PLAIN    │ │  DIA STAIR  │ │  REVERSE-C  │ │ 2-FIREBALL  │ │  DIA STAIR  │                 
+                  │             │ │             │ │             │ │             │ │             │ │             │                 
+                  └─────────────┘ └──────S──────┘ └──────B──────┘ └─────────────┘ └─────────────┘ └──────B──────┘                 
+  ┌─────────────┐ ┌─────────────┐ ┌────── ──────┐ ┌──────B──────┐ ┌─────────────┐ ┌─────────────┐ ┌──────B──────┐ ┌─────────────┐ 
+  │ 60          │ │ 61          │ │ 62          │ │ 63          │ │ 64          │ │ 65          │ │ 66          │ │ 67          │ 
+  │             │ │             │ │ >*A         │ │             │ │             │ │ >D          │ │             │ │             │ 
+  │     KEY     S S             │ │             │ │             │ │     KEY     B B             │ │     KEY     S S             │ 
+  │  SGL 6-BLK  │ │    BLACK    │ │  DBL BLOCK  │ │   DESERT    │ │  CIR MOAT   │ │  DBL BLOCK  │ │   4-TALL    │ │  DBL 6-BLK  │ 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │ │             │ 
+  └──────S──────┘ └────── ──────┘ └──────B──────┘ └──────K──────┘ └──────B──────┘ └────── ──────┘ └──────K──────┘ └─────────────┘ 
+  ┌────── ──────┐ ┌────── ──────┐ ┌──────S──────┐ ┌──────K──────┐ ┌──────B──────┐ ┌────── ──────┐ ┌──────K──────┐                 
+  │ 70          │ │ 71 [ENTER]  │ │ 72          │ │ 73          │ │ 74          │ │ 75          │ │ 76          │                 
+  │             │ │             │ │             │ │             │ │ >C          │ │             │ │             │                 
+  │   5 RUPEE   │ │             │ │                             │ │     KEY     │ │    BOMBS    S S   5 RUPEE   │                 
+  │   DESERT    │ │  ENTRANCE   │ │    MAZE     │ │  CIR MOAT   │ │  DIA STAIR  │ │   GLEEOK    │ │   4-TALL    │                 
+  │             │ │             │ │             │ │             │ │             │ │             │ │             │                 
+  └─────────────┘ └────── ──────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘                 
+
+  Staircases:
+  Stair *A: R62 -> [S.ARROW]
+  Stair *B: R20 -> [RD.RING]
+  Stair A: R31 <-> R37
+  Stair B: R54 <-> R43
+  Stair C: R51 <-> R74
+  Stair D: R53 <-> R65
+  Stair E: R35 <-> R24
+  Stair F: R56 <-> R41
+
+  Walls:  ─│ solid  (space) open  K locked  S shutter  B bomb  W walk-through
+
+ SEED FAILED after 10 attempts

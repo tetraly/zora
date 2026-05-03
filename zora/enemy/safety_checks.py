@@ -138,13 +138,15 @@ _UNSAFE_ROOMS_THE_KIDNAPPED: frozenset[RoomType] = frozenset({
     RoomType.CIRCLE_WALL,            # 9
     RoomType.HORIZONTAL_CHUTE_ROOM,  # 15
     RoomType.VERTICAL_ROWS,          # 16
-    RoomType.SINGLE_SIX_BLOCK_ROOM,  # 30
-})
-
-# Extra rooms unsafe for THE_KIDNAPPED when "must beat Gannon" is enabled.
-_UNSAFE_ROOMS_THE_KIDNAPPED_MUST_BEAT_GANNON: frozenset[RoomType] = frozenset({
+    # Open-stairway room types: DIAMOND/NARROW/SPIRAL all render a
+    # visible staircase regardless of room state, which would let the
+    # player walk past the kidnapped gate. Matches
+    # _KIDNAPPED_FORBIDDEN_ROOM_TYPES in zora/integrity_check.py so the
+    # safety check and integrity check stay aligned.
+    RoomType.DIAMOND_STAIR_ROOM,     # 26
     RoomType.NARROW_STAIR_ROOM,      # 27
     RoomType.SPIRAL_STAIR_ROOM,      # 28
+    RoomType.SINGLE_SIX_BLOCK_ROOM,  # 30
 })
 
 
@@ -185,8 +187,7 @@ UNSAFE_ROOM_TYPES: dict[Enemy, frozenset[RoomType]] = {
     # The Beast/Gannon
     Enemy.THE_BEAST:            _UNSAFE_ROOMS_THE_BEAST,
 
-    # The Kidnapped (Zelda) — base restrictions only.
-    # The mustBeatGannon extension is handled in is_safe_for_room().
+    # The Kidnapped (Zelda)
     Enemy.THE_KIDNAPPED:        _UNSAFE_ROOMS_THE_KIDNAPPED,
 }
 
@@ -205,9 +206,8 @@ def is_safe_for_room(
     Args:
         enemy: The enemy to check.
         room_type: The room's layout type.
-        must_beat_gannon: When True, THE_KIDNAPPED also cannot be placed
-            in NARROW_STAIR_ROOM or SPIRAL_STAIR_ROOM (rooms adjacent to
-            Gannon that would let the player skip the fight).
+        must_beat_gannon: Reserved for future enemy-specific rules.
+            Currently has no effect for any enemy.
         has_push_block: When True, the room has a movable push block.
             GLEEOK_4 cannot be placed in rooms with push blocks.
 
@@ -217,10 +217,6 @@ def is_safe_for_room(
     unsafe = UNSAFE_ROOM_TYPES.get(enemy)
     if unsafe is not None and room_type in unsafe:
         return False
-
-    if must_beat_gannon and enemy == Enemy.THE_KIDNAPPED:
-        if room_type in _UNSAFE_ROOMS_THE_KIDNAPPED_MUST_BEAT_GANNON:
-            return False
 
     if has_push_block and enemy == Enemy.GLEEOK_4:
         return False
