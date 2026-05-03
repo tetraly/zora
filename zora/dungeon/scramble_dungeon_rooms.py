@@ -217,12 +217,21 @@ def _shuffle_room_types_globally(world: GameWorld, rng: Rng) -> None:
 
 
 def _shuffle_minor_items_globally(world: GameWorld, rng: Rng) -> None:
-    """Permute minor items (NOTHING, KEY, BOMBS, FIVE_RUPEES) across all levels."""
+    """Permute minor items (NOTHING, KEY, BOMBS, FIVE_RUPEES) across all levels.
+
+    Entrance rooms and rooms with NPC enemies (old men, bomb upgrader, mugger,
+    hungry goriya) are excluded — items there are unreachable or interfere with
+    the NPC interaction."""
     eligible: list = []
     for level in world.levels:
         for room in level.rooms:
-            if room.item in _MINOR_ITEMS:
-                eligible.append(room)
+            if room.item not in _MINOR_ITEMS:
+                continue
+            if room.room_num == level.entrance_room:
+                continue
+            if room.enemy_spec.enemy in _BLACK_ROOM_NPC_ENEMIES:
+                continue
+            eligible.append(room)
 
     if len(eligible) < 2:
         return

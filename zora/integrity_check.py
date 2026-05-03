@@ -454,6 +454,34 @@ def _check_l9_full_reachability(
         )
 
 
+def _check_entrance_rooms_no_item(game_world: GameWorld, errors: list[str]) -> None:
+    """Entrance rooms must hold Item.NOTHING — items there are unreachable on
+    entry (Link spawns mid-screen, item placement assumes normal traversal)
+    and must not participate in any item shuffle."""
+    for level in game_world.levels:
+        for room in level.rooms:
+            if room.room_num == level.entrance_room and room.item != Item.NOTHING:
+                errors.append(
+                    f"Level {level.level_num} room 0x{room.room_num:02X}: "
+                    f"entrance room has item {room.item.name}, expected NOTHING"
+                )
+
+
+def _check_npc_rooms_no_item(game_world: GameWorld, errors: list[str]) -> None:
+    """NPC rooms (old men, bomb upgrader, mugger, hungry goriya) must hold
+    Item.NOTHING — the NPC interaction occupies the room and any dropped item
+    interferes with or is unreachable behind the NPC."""
+    for level in game_world.levels:
+        for room in level.rooms:
+            if (room.enemy_spec.enemy in _BLACK_ROOM_REQUIRED_ENEMIES
+                    and room.item != Item.NOTHING):
+                errors.append(
+                    f"Level {level.level_num} room 0x{room.room_num:02X}: "
+                    f"NPC room ({room.enemy_spec.enemy.name}) has item "
+                    f"{room.item.name}, expected NOTHING"
+                )
+
+
 def _check_dungeon_connectivity(game_world: GameWorld, errors: list[str]) -> None:
     for level in game_world.levels:
         if not _is_level_connected(level):
@@ -476,6 +504,8 @@ _ALL_CHECKS: list[Callable[[GameWorld, list[str]], None]] = [
     _check_pushblock_purpose,
     _check_pushblock_stairway_action_requires_block,
     _check_l9_triforce_gate,
+    _check_entrance_rooms_no_item,
+    _check_npc_rooms_no_item,
 ]
 
 _DUNGEON_TOPOLOGY_PHASES: frozenset[str] = frozenset({
