@@ -3,14 +3,17 @@ Debug Beast — convenience hacks for quickly exercising Level 9.
 
 Behavior (only when ``config.debug_beast`` is True):
 
-  1. Swap the overworld entrance destinations of the Wood Sword Cave and
-     Level 9. Walking into the L9 entrance puts you in the wood sword cave
-     (and vice versa) — i.e. you can enter L9 from the start screen.
+  1. Force the first-quest Level 9 entrance to land on the vanilla wood
+     sword cave overworld screen (0x77), regardless of where any cave or
+     start-screen shuffle moved things. Whatever destination was at 0x77
+     gets swapped back into L9's old screen so no cave is lost.
 
-  2. Open every internal wall in Level 9 to a regular door, on both sides,
-     excluding walls touching the entrance room or the triforce-check gate
-     room one north of it. Effectively: treat those two rooms as if they
-     aren't part of L9 for the wall-opening pass.
+  2. Open every internal wall in Level 9 to a regular door, on both
+     sides, excluding walls touching the entrance room, the triforce-
+     check gate room one north of it, the THE_BEAST (Ganon) room, and
+     the THE_KIDNAPPED (Zelda) room. Treating those rooms as out-of-
+     level preserves their boss/gate shutter behavior, which the engine
+     reads at boss-defeat time and from the entry-gate triforce check.
 
 This step is destructive to game integrity (the validator and assumed_fill
 won't have planned around the modified layout) so it must run AFTER
@@ -22,6 +25,7 @@ from __future__ import annotations
 from zora.data_model import (
     Destination,
     Direction,
+    Enemy,
     GameWorld,
     QuestVisibility,
     WallType,
@@ -29,6 +33,11 @@ from zora.data_model import (
 )
 from zora.game_config import GameConfig
 from zora.rng import Rng
+
+
+# Vanilla overworld screen for the wood sword cave entrance. We force L9 to
+# land here even when cave_shuffle_mode has rearranged things.
+_VANILLA_WOOD_SWORD_SCREEN_NUM = 0x77
 
 
 _DIR_TO_OFFSET: dict[Direction, int] = {
@@ -46,23 +55,32 @@ _OPPOSITE_DIR: dict[Direction, Direction] = {
 }
 
 
-def _swap_l9_and_wood_sword_overworld(world: GameWorld) -> None:
-    # Z1 has two L9 entrances on the overworld (one per quest). We only swap
-    # the first-quest one with the (single) wood sword cave entrance.
+def _force_l9_onto_vanilla_wood_sword_screen(world: GameWorld) -> None:
+    """Put the first-quest L9 entrance at screen 0x77 (the vanilla wood sword
+    cave screen). Swap whatever destination is currently there back onto the
+    screen L9 used to occupy, so the Q1 L9 always lives at 0x77 by the time
+    debug_beast is done.
+
+    No-op if either screen can't be found or L9 is already at 0x77.
+    """
+    screens_by_num = {s.screen_num: s for s in world.overworld.screens}
+    target = screens_by_num.get(_VANILLA_WOOD_SWORD_SCREEN_NUM)
+    if target is None:
+        return
+
+    # Z1 has two L9 entrances on the overworld (Q1 + Q2). Only the
+    # first-quest one matters for normal play; leave the Q2 entrance alone.
     l9_screen = next(
         (s for s in world.overworld.screens
          if s.destination == Destination.LEVEL_9
          and s.quest_visibility != QuestVisibility.SECOND_QUEST),
         None,
     )
-    ws_screen = next(
-        (s for s in world.overworld.screens if s.destination == Destination.WOOD_SWORD_CAVE),
-        None,
-    )
-    if l9_screen is None or ws_screen is None:
+    if l9_screen is None or l9_screen is target:
         return
-    l9_screen.destination, ws_screen.destination = (
-        ws_screen.destination,
+
+    l9_screen.destination, target.destination = (
+        target.destination,
         l9_screen.destination,
     )
 
@@ -72,10 +90,15 @@ def _open_l9_internal_walls(world: GameWorld) -> None:
     if level.level_num != 9:
         return
 
-    # Treat the entrance and entry-gate rooms as out-of-level for this pass.
+    # Treat structural rooms as out-of-level for this pass: their walls
+    # encode boss-defeat shutters and gate semantics that the engine
+    # reads at runtime. Replacing those walls with OPEN_DOOR can hard-
+    # lock the game on boss defeat or break the triforce check.
     excluded_room_nums = {level.entrance_room}
     for r in level.rooms:
         if is_l9_entry_gate(level, r):
+            excluded_room_nums.add(r.room_num)
+        if r.enemy_spec.enemy in (Enemy.THE_BEAST, Enemy.THE_KIDNAPPED):
             excluded_room_nums.add(r.room_num)
 
     eligible_room_nums = frozenset(
@@ -102,5 +125,5 @@ def apply_debug_beast(world: GameWorld, config: GameConfig, rng: Rng) -> None:
     """
     if not config.debug_beast:
         return
-    _swap_l9_and_wood_sword_overworld(world)
+    _force_l9_onto_vanilla_wood_sword_screen(world)
     _open_l9_internal_walls(world)

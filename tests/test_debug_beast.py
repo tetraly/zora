@@ -1,8 +1,11 @@
 """Tests for the debug_beast flag.
 
 Verifies the flag's two effects in isolation:
-  - swapping WOOD_SWORD_CAVE ↔ LEVEL_9 destinations on the overworld
-  - opening every internal L9 wall (excluding entrance & gate rooms)
+  - L9 (Q1) entrance is forced to overworld screen 0x77, the screen
+    previously there is swapped onto L9's old slot.
+  - Every internal L9 wall is opened to OPEN_DOOR, except for walls
+    touching the entrance, the entry-gate, the THE_BEAST (Ganon) room,
+    or the THE_KIDNAPPED (Zelda) room.
 
 Both effects must be no-ops when the flag is off.
 """
@@ -14,6 +17,7 @@ import pytest
 from zora.data_model import (
     Destination,
     Direction,
+    Enemy,
     QuestVisibility,
     WallType,
     is_l9_entry_gate,
@@ -25,6 +29,7 @@ from zora.rng import SeededRng
 
 
 ROM_DATA = Path(__file__).parent.parent / "rom_data"
+_VANILLA_WS_SCREEN = 0x77
 
 
 @pytest.fixture
@@ -33,9 +38,8 @@ def world():
     return parse_game_world(bins)
 
 
-def _ws_screen(world):
-    return next(s for s in world.overworld.screens
-                if s.destination == Destination.WOOD_SWORD_CAVE)
+def _screen_at(world, screen_num):
+    return next(s for s in world.overworld.screens if s.screen_num == screen_num)
 
 
 def _l9_screen_q1(world):
@@ -46,13 +50,11 @@ def _l9_screen_q1(world):
 
 
 def test_debug_beast_off_is_noop(world) -> None:
-    ws_before = _ws_screen(world).screen_num
-    l9_before = _l9_screen_q1(world).screen_num
+    ws_dest_before = _screen_at(world, _VANILLA_WS_SCREEN).destination
+    l9_screen_before = _l9_screen_q1(world).screen_num
     apply_debug_beast(world, GameConfig(debug_beast=False), SeededRng(0))
-    assert _ws_screen(world).screen_num == ws_before
-    assert _l9_screen_q1(world).screen_num == l9_before
-    # Walls untouched: pick a known-non-OPEN_DOOR wall in vanilla L9 and assert.
-    # (Don't pin a specific wall — just confirm not every wall is OPEN_DOOR.)
+    assert _screen_at(world, _VANILLA_WS_SCREEN).destination == ws_dest_before
+    assert _l9_screen_q1(world).screen_num == l9_screen_before
     l9 = world.levels[8]
     assert any(
         room.walls[d] != WallType.OPEN_DOOR
@@ -61,26 +63,31 @@ def test_debug_beast_off_is_noop(world) -> None:
     )
 
 
-def test_debug_beast_swaps_overworld_entrances(world) -> None:
-    ws_screen_num_before = _ws_screen(world).screen_num
-    l9_q1_screen_num_before = _l9_screen_q1(world).screen_num
+def test_debug_beast_forces_l9_to_screen_0x77(world) -> None:
+    # Pre-condition: in vanilla, screen 0x77 holds the wood sword cave and
+    # L9 (Q1) is at screen 0x05.
+    pre_l9_screen = _l9_screen_q1(world).screen_num
+    pre_77_dest = _screen_at(world, _VANILLA_WS_SCREEN).destination
 
     apply_debug_beast(world, GameConfig(debug_beast=True), SeededRng(0))
 
-    # The Q1 L9 destination and the wood sword destination are now on each
-    # other's old screens. (The Q2 L9 entrance is intentionally untouched.)
-    assert _ws_screen(world).screen_num == l9_q1_screen_num_before
-    assert _l9_screen_q1(world).screen_num == ws_screen_num_before
+    # Post: L9 (Q1) is at 0x77, and the destination that was at 0x77 is now
+    # at L9's old screen (preserving every overworld destination, just
+    # swapped between two screens).
+    assert _l9_screen_q1(world).screen_num == _VANILLA_WS_SCREEN
+    assert _screen_at(world, _VANILLA_WS_SCREEN).destination == Destination.LEVEL_9
+    assert _screen_at(world, pre_l9_screen).destination == pre_77_dest
 
 
 def test_debug_beast_opens_l9_internal_walls(world) -> None:
     apply_debug_beast(world, GameConfig(debug_beast=True), SeededRng(0))
 
     l9 = world.levels[8]
-    rooms_by_num = {r.room_num: r for r in l9.rooms}
     excluded = {l9.entrance_room}
     for r in l9.rooms:
         if is_l9_entry_gate(l9, r):
+            excluded.add(r.room_num)
+        if r.enemy_spec.enemy in (Enemy.THE_BEAST, Enemy.THE_KIDNAPPED):
             excluded.add(r.room_num)
     eligible = {r.room_num for r in l9.rooms if r.room_num not in excluded}
 
@@ -91,7 +98,6 @@ def test_debug_beast_opens_l9_internal_walls(world) -> None:
         Direction.WEST: -1,
     }
 
-    # Every wall between two eligible L9 rooms must be OPEN_DOOR on both sides.
     for room in l9.rooms:
         if room.room_num not in eligible:
             continue
@@ -105,38 +111,34 @@ def test_debug_beast_opens_l9_internal_walls(world) -> None:
 
 
 def test_debug_beast_preserves_excluded_rooms(world) -> None:
-    """Walls of the entrance room and gate room are NOT touched
-    on the side that faces an excluded room."""
-    l9 = world.levels[8]
-    entrance_num = l9.entrance_room
-    gate_num = entrance_num - 0x10
+    """Entrance, gate, beast, and kidnapped rooms must keep their walls
+    untouched after debug_beast runs."""
+    bins = load_bin_files(ROM_DATA)
+    fresh = parse_game_world(bins)
+    fresh_l9 = fresh.levels[8]
+    fresh_by_num = {r.room_num: r for r in fresh_l9.rooms}
 
-    # Snapshot the entrance room's walls before.
-    rooms_by_num = {r.room_num: r for r in l9.rooms}
-    entrance_room = rooms_by_num[entrance_num]
-    walls_before = {
-        d: entrance_room.walls[d]
-        for d in (Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST)
-    }
+    entrance_num = fresh_l9.entrance_room
+    gate_num = entrance_num - 0x10
+    beast_num = next(r.room_num for r in fresh_l9.rooms
+                     if r.enemy_spec.enemy == Enemy.THE_BEAST)
+    kidnapped_num = next(
+        (r.room_num for r in fresh_l9.rooms
+         if r.enemy_spec.enemy == Enemy.THE_KIDNAPPED),
+        None,
+    )
 
     apply_debug_beast(world, GameConfig(debug_beast=True), SeededRng(0))
 
-    # Entrance walls should be untouched (we treat it as out-of-level).
-    for d in (Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST):
-        assert entrance_room.walls[d] == walls_before[d], (
-            f"entrance room wall {d.name} should not have been mutated"
-        )
+    l9 = world.levels[8]
+    by_num = {r.room_num: r for r in l9.rooms}
 
-    # Gate room: same story.
-    if gate_num in rooms_by_num:
-        gate = rooms_by_num[gate_num]
-        # All gate walls must still match their pre-apply values.
-        # (We didn't snapshot earlier, so re-derive from a fresh world.)
-        bins = load_bin_files(ROM_DATA)
-        fresh = parse_game_world(bins)
-        fresh_rooms_by_num = {r.room_num: r for r in fresh.levels[8].rooms}
-        fresh_gate = fresh_rooms_by_num[gate_num]
+    excluded_nums = [n for n in (entrance_num, gate_num, beast_num, kidnapped_num)
+                     if n is not None and n in fresh_by_num]
+    for rn in excluded_nums:
+        room_after = by_num[rn]
+        room_before = fresh_by_num[rn]
         for d in (Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST):
-            assert gate.walls[d] == fresh_gate.walls[d], (
-                f"gate room wall {d.name} should not have been mutated"
+            assert room_after.walls[d] == room_before.walls[d], (
+                f"room {rn:#x} wall {d.name} should not have been mutated"
             )
