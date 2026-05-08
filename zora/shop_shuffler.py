@@ -175,17 +175,27 @@ def randomize_shop_prices(game_world: GameWorld, config: GameConfig, rng: Rng) -
     _randomize_aux_prices(ow, rng)
 
 
+_FALLTHROUGH_PRICE_CAP = 150
+
+
 def _price_for(item: Item, vanilla_price: int, rng: Rng) -> int:
-    """Return a randomized price for a shop item based on its category."""
+    """Return a randomized price for a shop item based on its category.
+
+    Note: vanilla_price reflects the slot's *original* item, not the current
+    one. When shuffle_major_shop_items relocates a major item out of a
+    high-priced slot (e.g. BLUE_RING at 250), the replacement item inherits
+    that slot's vanilla_price. The fall-through branch caps the result at
+    _FALLTHROUGH_PRICE_CAP so cheap consumables (BAIT, KEY, etc.) can't end
+    up priced like rare equipment."""
     if item in HINTABLE_PROGRESSION_ITEMS:
         return int(rng.random() * 41) + 80    # [80, 120]
     if item in HINTABLE_NICE_TO_HAVE_ITEMS:
         return int(rng.random() * 61) + 180   # [180, 240]
     delta = int(rng.random() * 41) - 20       # [-20, +20]
-    adjusted = vanilla_price + delta
+    adjusted = min(vanilla_price, _FALLTHROUGH_PRICE_CAP) + delta
     if 1 <= adjusted <= 254:
         return adjusted
-    return vanilla_price
+    return min(vanilla_price, _FALLTHROUGH_PRICE_CAP)
 
 
 def _swap_preserves_major_constraint(
