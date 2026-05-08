@@ -490,16 +490,20 @@ def test_progressive_items_behavior_patch_written(bins):
 
 
 def test_progressive_items_behavior_patch_absent_by_default(bins):
-    """Without progressive_items, none of the ASM patches should appear."""
+    """Without progressive_items, the progressive-specific hook should not appear.
+
+    The 0x6BFB JSR redirect and 0x1FFF4 stub are byte-equivalent to the
+    always-on FixKnownBugs B6/B7 fix and are written even when progressive
+    items is off, so we only assert that the progressive-specific hook at
+    0x6D06 is absent.
+    """
     originals = _load_originals()
     gw = parse_game_world(bins)
     config = resolve_game_config(Flags(), SeededRng(0))
     data_patch = serialize_game_world(gw, originals)
     patch = data_patch.merge(build_behavior_patch(config))
 
-    assert 0x6D06  not in patch.data, "HandleClass2 patch unexpectedly present"
-    assert 0x6BFB  not in patch.data, "Ring call site patch unexpectedly present"
-    assert 0x1FFF4 not in patch.data, "Ring fix routine unexpectedly present"
+    assert 0x6D06 not in patch.data, "HandleClass2 patch unexpectedly present"
 
 
 def test_maze_directions_roundtrip(bins):

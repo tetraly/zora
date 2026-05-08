@@ -873,18 +873,20 @@ flags:
     enabled: true
     phase: 1
 
-  - id: fix_known_bugs
-    type: tristate
-    bits: 2
+  - id: debug_beast
+    type: bool
+    bits: 1
     bit_offset: 112
-    label: "Fix Known Bugs"
+    label: "Debug Beast"
     description: >
-      Applies a collection of vanilla ROM bug fixes: scrolling glitch,
-      continue screen, enemy kill counter, enemy sprite rendering, quest
-      mode check, enemy flash/pause routine, and sound engine fixes.
-    group: "Quality of Life"
-    display_order: 80
-    default: "off"
+      Debug-only convenience flag. Swaps the overworld entrance positions of
+      the Wood Sword Cave and Level 9, and opens every internal wall in
+      Level 9 (excluding the entrance room and the triforce-check gate room
+      one north of it). Lets you walk into Level 9 from the start screen and
+      breeze through it. Not intended for serious play.
+    group: "Misc"
+    display_order: 999
+    default: false
     enabled: true
     phase: 1
 

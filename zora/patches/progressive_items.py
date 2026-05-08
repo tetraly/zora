@@ -25,31 +25,26 @@ class ProgressiveItems(VariableBehaviorPatch):
             ),
         ]
         # The JSR redirect at 0x6BFB and the stub at 0x1FFF4 are byte-equivalent
-        # to FixKnownBugs' B6/B7 enemy-kill-counter fix. When FixKnownBugs is
-        # active it owns those edits; install them here only when it is not.
-        if not config.fix_known_bugs:
-            edits.extend([
-                RomEdit(
-                    offset=0x6BFB,
-                    new_bytes="20 E4 FF",
-                    old_bytes="8E 02 06",
-                    comment="Redirect item-got handler to progressive upgrade stub",
-                ),
-                RomEdit(
-                    offset=0x1FFF4,
-                    new_bytes="8E 02 06 8E 72 06 EE 4F 03 60",
-                    old_bytes="FF FF FF FF FF FF FF 5A 45 4C",
-                    comment="Upgrade stub: write both RAM mirrors, bump counter, return",
-                ),
-            ])
+        # to FixKnownBugs' B6/B7 enemy-kill-counter fix. FixKnownBugs is now
+        # always active so it owns those edits and we don't install them here.
+        # Kept as commented-out code in case progressive items ever needs to
+        # own them again (e.g. if FKB's variant of B6/B7 changes).
+        #
+        # edits.extend([
+        #     RomEdit(
+        #         offset=0x6BFB,
+        #         new_bytes="20 E4 FF",
+        #         old_bytes="8E 02 06",
+        #         comment="Redirect item-got handler to progressive upgrade stub",
+        #     ),
+        #     RomEdit(
+        #         offset=0x1FFF4,
+        #         new_bytes="8E 02 06 8E 72 06 EE 4F 03 60",
+        #         old_bytes="FF FF FF FF FF FF FF 5A 45 4C",
+        #         comment="Upgrade stub: write both RAM mirrors, bump counter, return",
+        #     ),
+        # ])
         return edits
 
     def test_only_get_all_variant_edits(self) -> list[RomEdit]:
-        # The FKB-off variant additionally installs B6/B7 — these are byte-equivalent
-        # to FixKnownBugs' edits and are mutually exclusive with that patch by
-        # construction (config-gated). The conflict-detection test compares variants
-        # against the always-on baseline and would flag them as false-positive
-        # collisions, so we only report the FKB-on variant's edits here.
-        config = MagicMock()
-        config.fix_known_bugs = True
-        return list(self.get_edits_for_config(config))
+        return list(self.get_edits_for_config(MagicMock()))

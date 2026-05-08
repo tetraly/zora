@@ -51,8 +51,8 @@ _FIXES: list[tuple[str, RomEdit]] = [
     )),
     # B6/B7: enemy kill counter fix routine + JSR redirect (paired unit).
     # WARNING: never enable one without the other. Byte-equivalent to
-    # ProgressiveItems' stub; ProgressiveItems omits these edits when
-    # fix_known_bugs is active.
+    # ProgressiveItems' stub; ProgressiveItems defers these edits to this
+    # patch (which is always-on).
     ("B6", RomEdit(
         offset=0x1FFF4,
         new_bytes=bytes([0x8E, 0x02, 0x06, 0x8E, 0x72, 0x06, 0xEE, 0x4F, 0x03, 0x60]),
@@ -151,7 +151,7 @@ class FixKnownBugs(BehaviorPatch):
     _debug_disabled_fix_ids: frozenset[str] = frozenset()
 
     def is_active(self, config: GameConfig) -> bool:
-        return config.fix_known_bugs
+        return True
 
     def get_edits(self, rom_version: int | None = None) -> list[RomEdit]:
         disabled = self._debug_disabled_fix_ids

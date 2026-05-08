@@ -27,6 +27,7 @@ from zora.item_randomizer import randomize_items
 from zora.l4_sword_randomizer import place_l4_sword
 from zora.normalizer import normalize_data
 from zora.overworld_randomizer import randomize_maze_directions, recalculate_recorder_warp_screens, remap_game_start
+from zora.debug_beast import apply_debug_beast
 from zora.level_gen.orchestrator import generate_dungeon_shapes
 from zora.integrity_check import integrity_check
 from zora.parser import is_randomizer_rom, load_bin_files, load_bin_files_from_rom, parse_game_world
@@ -149,6 +150,9 @@ def generate_game(
             if attempt == max_pipeline_attempts - 1:
                 raise
 
+    # Debug-only mutation; runs after all validation/integrity checks.
+    apply_debug_beast(game_world, config, rng)
+
     data_patch = serialize_game_world(
         game_world,
         original_bins_bytes,
@@ -245,6 +249,9 @@ def generate_game_from_rom(
         except RuntimeError:
             if attempt == max_pipeline_attempts - 1:
                 raise
+
+    # Debug-only mutation; runs after all validation/integrity checks.
+    apply_debug_beast(game_world, config, rng)
 
     data_patch = serialize_game_world(
         game_world,

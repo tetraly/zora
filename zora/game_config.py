@@ -142,7 +142,9 @@ class GameConfig:
     reduce_flashing: bool = False
     visual_roar_sound: VisualRoarSound = VisualRoarSound.DISABLED
     replace_book_fire_with_explosion: bool = False
-    fix_known_bugs: bool = False
+
+    # Debug-only conveniences (not for serious use)
+    debug_beast: bool = False
 
     # Cosmetic patches
     select_swap_mode: SelectSwapMode = SelectSwapMode.PAUSE
@@ -493,7 +495,7 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
         reduce_flashing=cosmetic_flags.reduce_flashing == Tristate.ON,
         visual_roar_sound=_resolve_visual_roar_sound(flags.visual_roar_sound, rng),
         replace_book_fire_with_explosion=resolve(flags.replace_book_fire_with_explosion),
-        fix_known_bugs=resolve(flags.fix_known_bugs),
+        debug_beast=flags.debug_beast,
         select_swap_mode=cosmetic_flags.select_swap_mode,
         deathwarp_button=cosmetic_flags.deathwarp_button,
         level_name=_resolve_level_name(cosmetic_flags.level_name, cosmetic_rng),

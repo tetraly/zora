@@ -10,8 +10,7 @@ blocks, 252 bytes each at file offset 0x19310). Reference randomizers populate
 them with stable, seed-independent values; without them, B9 dereferences
 garbage and softlocks at the dungeon entry sprite-carry-over check.
 
-This patch is gated on ``config.fix_known_bugs`` so FKB-off ROMs remain
-byte-equivalent to the upstream baseline.
+This patch is always active; it pairs with the always-on FixKnownBugs patch.
 
 Implementation note (temporary pragmatic choice — option B):
 The reference randomizer's vanilla writer ``SmallPatchers.AssignBaseDirections``
@@ -66,7 +65,7 @@ def _vanilla_entry_room_markers() -> list[tuple[int, int]]:
 class WriteLevelInfoEntryRoomMarkers(BehaviorPatch):
 
     def is_active(self, config: GameConfig) -> bool:
-        return config.fix_known_bugs
+        return True
 
     def get_edits(self, rom_version: int | None = None) -> list[RomEdit]:
         return [

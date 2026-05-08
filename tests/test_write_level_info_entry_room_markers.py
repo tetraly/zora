@@ -32,10 +32,9 @@ def _byte61_offset(level: int) -> int:
     return _LEVEL_BLOCK_BASE + level * _LEVEL_BLOCK_SIZE + 0x3D
 
 
-def test_patch_active_only_when_fix_known_bugs() -> None:
+def test_patch_is_always_active() -> None:
     bp = WriteLevelInfoEntryRoomMarkers()
-    assert not bp.is_active(GameConfig(fix_known_bugs=False))
-    assert bp.is_active(GameConfig(fix_known_bugs=True))
+    assert bp.is_active(GameConfig())
 
 
 def test_writes_expected_byte35_for_each_dungeon() -> None:

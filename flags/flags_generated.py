@@ -340,6 +340,7 @@ class Flags:
     replace_book_fire_with_explosion: Tristate = Tristate.OFF
     avoid_required_hard_combat: Tristate = Tristate.OFF
     magical_boomerang_does_one_hp_damage: bool = False
+    debug_beast: bool = False
 
     # Dungeons
     shuffle_dungeon_rooms: Tristate = Tristate.OFF
@@ -358,7 +359,6 @@ class Flags:
     fast_fill: Tristate = Tristate.OFF
     speed_up_text: Tristate = Tristate.OFF
     speed_up_dungeon_transitions: Tristate = Tristate.OFF
-    fix_known_bugs: Tristate = Tristate.OFF
     auto_show_letter: Tristate = Tristate.OFF
     four_potion_inventory: Tristate = Tristate.OFF
     flute_kills_pols: Tristate = Tristate.OFF
@@ -420,7 +420,7 @@ class Flags:
 
     # Schema metadata — used for sync checking, not a flag
     _schema_version: int = field(default=1, init=False, repr=False, compare=False)
-    _schema_hash: str = field(default="6ceeae6dd94684e0", init=False, repr=False, compare=False)
+    _schema_hash: str = field(default="321035a5901c9e1c", init=False, repr=False, compare=False)
 
 
 # ===========================================================================
@@ -508,7 +508,7 @@ _FLAG_LAYOUT: list[tuple[str, int, int]] = [
     ("book_is_a_translator", 105, 2),
     ("visual_roar_sound", 107, 3),
     ("replace_book_fire_with_explosion", 110, 2),
-    ("fix_known_bugs", 112, 2),
+    ("debug_beast", 112, 1),
     ("shuffle_shop_items", 114, 2),
     ("update_recorder_warp_screens", 120, 2),
     ("magical_boomerang_does_one_hp_damage", 122, 1),
@@ -1351,19 +1351,21 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
         "enabled": True,
         "phase": 1,
     },
-    "fix_known_bugs": {
-        "id": "fix_known_bugs",
-        "type": "tristate",
-        "bits": 2,
+    "debug_beast": {
+        "id": "debug_beast",
+        "type": "bool",
+        "bits": 1,
         "bit_offset": 112,
-        "label": "Fix Known Bugs",
+        "label": "Debug Beast",
         "description": (
-            "Applies a collection of vanilla ROM bug fixes: scrolling glitch, continue screen, enemy kill counter,"
-            "enemy sprite rendering, quest mode check, enemy flash/pause routine, and sound engine fixes.\n"
+            "Debug-only convenience flag. Swaps the overworld entrance positions of the Wood Sword Cave and Level 9,"
+            "and opens every internal wall in Level 9 (excluding the entrance room and the triforce-check gate room one"
+            "north of it). Lets you walk into Level 9 from the start screen and breeze through it. Not intended for"
+            "serious play.\n"
         ),
-        "group": "Quality of Life",
-        "display_order": 80,
-        "default": "off",
+        "group": "Misc",
+        "display_order": 999,
+        "default": False,
         "enabled": True,
         "phase": 1,
     },
@@ -2509,4 +2511,4 @@ def resolve_random_flags(flags: Flags, rng: Rng) -> Flags:
 # ===========================================================================
 
 SCHEMA_VERSION = 1
-SCHEMA_HASH = "6ceeae6dd94684e0"
+SCHEMA_HASH = "321035a5901c9e1c"

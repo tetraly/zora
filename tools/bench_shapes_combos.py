@@ -68,7 +68,6 @@ BASE = dict(
     shuffle_armos_location=Tristate.ON,
     progressive_items=Tristate.ON,
     fast_fill=Tristate.ON,
-    fix_known_bugs=Tristate.ON,
     dungeon_shapes=Tristate.ON,
 )
 
