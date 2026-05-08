@@ -1352,13 +1352,20 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
     # The C# identifies this room by Table2 == 0x0B && Table3 & 0x80 &&
     # level == 9.  As documented in CLAUDE.md, the parser drops is_group
     # for this NPC enemy, so we identify by enemy == OLD_MAN && level == 9.
-    # Fix walls: north must be SOLID (NES engine constraint), south → OPEN,
-    # non-SOLID west/east → SHUTTER.
+    # Fix walls so they satisfy the integrity contract: south = OPEN_DOOR,
+    # and N/E/W ∈ {SOLID_WALL, SHUTTER_DOOR}.
+    #
+    # The NORTH wall is allowed to be either SOLID or SHUTTER. For the
+    # L9 entry-gate room, the SHUTTER_DOOR is the triforce-check that
+    # opens when the player has all 8 triforces, so it must be preserved.
+    # Only force N → SOLID when it is currently neither SOLID nor SHUTTER
+    # (i.e. an invalid value introduced by upstream shuffles).
     if level.level_num == 9:
+        _allowed_n = (WallType.SOLID_WALL, WallType.SHUTTER_DOOR)
         for room in level.rooms:
             if room.enemy_spec.enemy == Enemy.OLD_MAN:
                 w = room.walls
-                if w.north != WallType.SOLID_WALL:
+                if w.north not in _allowed_n:
                     w.north = WallType.SOLID_WALL
                     above_num = room.room_num - 16
                     if above_num >= 0 and above_num in grid_rooms:
