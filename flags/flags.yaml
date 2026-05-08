@@ -26,11 +26,11 @@
 version: 1
 
 meta:
-  format_version: 3
+  format_version: 4
   encoding: base64url      # chars: A-Z0-9!@a-z, value 0='A' through 63='z'
   bit_order: lsb_first     # bit 0 = LSB of first base64 character
-  total_bits: 156          # 26 base64 characters
-  string_length: 26
+  total_bits: 216          # 36 base64 characters
+  string_length: 36
 
 # Cosmetic flags are encoded separately and do not affect the seed hash.
 # Players can change cosmetics without changing the logical game.
@@ -1518,6 +1518,387 @@ flags:
     phase: 1
 
 
+  # ---------------------------------------------------------------------------
+  # GROUP: Start Items
+  # Items, hearts, and triforce pieces granted at the start of a new save.
+  # Each tristate item flag is RESOLVED per seed: off=never, on=always,
+  # random=coin-flip. After resolution, max_start_items optionally truncates
+  # the granted set, and start_hearts / start_triforce add hearts/triforces.
+  # The 23 item flags mirror the Parity randomizer's start-items panel.
+  # ---------------------------------------------------------------------------
+
+  - id: start_wood_sword
+    type: tristate
+    bits: 2
+    bit_offset: 156
+    label: "Wood Sword"
+    description: "Start with the wood sword. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 10
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_white_sword
+    type: tristate
+    bits: 2
+    bit_offset: 158
+    label: "White Sword"
+    description: "Start with the white sword. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 11
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_magical_sword
+    type: tristate
+    bits: 2
+    bit_offset: 160
+    label: "Magical Sword"
+    description: "Start with the magical sword. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 12
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_bombs
+    type: tristate
+    bits: 2
+    bit_offset: 162
+    label: "8 Bombs"
+    description: "Start with 8 bombs and a full-capacity bomb count."
+    group: "Start Items"
+    display_order: 20
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_bow
+    type: tristate
+    bits: 2
+    bit_offset: 164
+    label: "Bow"
+    description: "Start with the bow."
+    group: "Start Items"
+    display_order: 30
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_wood_arrows
+    type: tristate
+    bits: 2
+    bit_offset: 166
+    label: "Wood Arrows"
+    description: "Start with wood arrows. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 31
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_silver_arrows
+    type: tristate
+    bits: 2
+    bit_offset: 168
+    label: "Silver Arrows"
+    description: "Start with silver arrows. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 32
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_blue_candle
+    type: tristate
+    bits: 2
+    bit_offset: 170
+    label: "Blue Candle"
+    description: "Start with the blue candle. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 40
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_red_candle
+    type: tristate
+    bits: 2
+    bit_offset: 172
+    label: "Red Candle"
+    description: "Start with the red candle. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 41
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_recorder
+    type: tristate
+    bits: 2
+    bit_offset: 174
+    label: "Recorder"
+    description: "Start with the recorder."
+    group: "Start Items"
+    display_order: 50
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_bait
+    type: tristate
+    bits: 2
+    bit_offset: 176
+    label: "Bait"
+    description: "Start with bait (food)."
+    group: "Start Items"
+    display_order: 60
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_wand
+    type: tristate
+    bits: 2
+    bit_offset: 178
+    label: "Wand"
+    description: "Start with the magical rod (wand)."
+    group: "Start Items"
+    display_order: 70
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_raft
+    type: tristate
+    bits: 2
+    bit_offset: 180
+    label: "Raft"
+    description: "Start with the raft."
+    group: "Start Items"
+    display_order: 80
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_book
+    type: tristate
+    bits: 2
+    bit_offset: 182
+    label: "Book"
+    description: "Start with the book of magic."
+    group: "Start Items"
+    display_order: 90
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_blue_ring
+    type: tristate
+    bits: 2
+    bit_offset: 184
+    label: "Blue Ring"
+    description: "Start with the blue ring. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 100
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_red_ring
+    type: tristate
+    bits: 2
+    bit_offset: 186
+    label: "Red Ring"
+    description: "Start with the red ring. Incompatible with Progressive Items."
+    group: "Start Items"
+    display_order: 101
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_ladder
+    type: tristate
+    bits: 2
+    bit_offset: 188
+    label: "Ladder"
+    description: "Start with the ladder."
+    group: "Start Items"
+    display_order: 110
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_magical_key
+    type: tristate
+    bits: 2
+    bit_offset: 190
+    label: "Magical Key"
+    description: "Start with the magical key."
+    group: "Start Items"
+    display_order: 120
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_power_bracelet
+    type: tristate
+    bits: 2
+    bit_offset: 192
+    label: "Power Bracelet"
+    description: "Start with the power bracelet."
+    group: "Start Items"
+    display_order: 130
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_letter
+    type: tristate
+    bits: 2
+    bit_offset: 194
+    label: "Letter"
+    description: "Start with the letter."
+    group: "Start Items"
+    display_order: 140
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_wood_boomerang
+    type: tristate
+    bits: 2
+    bit_offset: 196
+    label: "Wood Boomerang"
+    description: "Start with the wood boomerang."
+    group: "Start Items"
+    display_order: 150
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_magical_boomerang
+    type: tristate
+    bits: 2
+    bit_offset: 198
+    label: "Magical Boomerang"
+    description: "Start with the magical boomerang."
+    group: "Start Items"
+    display_order: 151
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_magic_shield
+    type: tristate
+    bits: 2
+    bit_offset: 200
+    label: "Magical Shield"
+    description: "Start with the magical shield."
+    group: "Start Items"
+    display_order: 160
+    default: "off"
+    enabled: true
+    phase: 1
+
+  - id: start_hearts
+    type: enum
+    bits: 5
+    bit_offset: 202
+    label: "Starting Hearts"
+    description: >
+      Number of hearts (and heart containers) Link begins with on a new save.
+      Vanilla = 3 hearts. Random 1-5 picks a value from 1-5 at generation time.
+    group: "Start Items"
+    display_order: 200
+    default: "three"
+    enabled: true
+    phase: 1
+    values:
+      - { id: "one",       label: "1 Heart" }
+      - { id: "two",       label: "2 Hearts" }
+      - { id: "three",     label: "3 Hearts (Vanilla)" }
+      - { id: "four",      label: "4 Hearts" }
+      - { id: "five",      label: "5 Hearts" }
+      - { id: "six",       label: "6 Hearts" }
+      - { id: "seven",     label: "7 Hearts" }
+      - { id: "eight",     label: "8 Hearts" }
+      - { id: "nine",      label: "9 Hearts" }
+      - { id: "ten",       label: "10 Hearts" }
+      - { id: "eleven",    label: "11 Hearts" }
+      - { id: "twelve",    label: "12 Hearts" }
+      - { id: "thirteen",  label: "13 Hearts" }
+      - { id: "fourteen",  label: "14 Hearts" }
+      - { id: "fifteen",   label: "15 Hearts" }
+      - { id: "sixteen",   label: "16 Hearts" }
+      - { id: "random_1_5", label: "Random 1-5 Hearts" }
+
+  - id: max_start_items
+    type: enum
+    bits: 5
+    bit_offset: 207
+    label: "Max Start Items"
+    description: >
+      Optional cap on the total number of starting items. After resolving each
+      item flag, if more items are granted than this cap, a random subset is
+      kept. "All" disables the cap. "Random" picks a cap of 0-20 at generation.
+    group: "Start Items"
+    display_order: 210
+    default: "all"
+    enabled: true
+    phase: 1
+    values:
+      - { id: "all",        label: "All" }
+      - { id: "n_0",        label: "0" }
+      - { id: "n_1",        label: "1" }
+      - { id: "n_2",        label: "2" }
+      - { id: "n_3",        label: "3" }
+      - { id: "n_4",        label: "4" }
+      - { id: "n_5",        label: "5" }
+      - { id: "n_6",        label: "6" }
+      - { id: "n_7",        label: "7" }
+      - { id: "n_8",        label: "8" }
+      - { id: "n_9",        label: "9" }
+      - { id: "n_10",       label: "10" }
+      - { id: "n_11",       label: "11" }
+      - { id: "n_12",       label: "12" }
+      - { id: "n_13",       label: "13" }
+      - { id: "n_14",       label: "14" }
+      - { id: "n_15",       label: "15" }
+      - { id: "n_16",       label: "16" }
+      - { id: "n_17",       label: "17" }
+      - { id: "n_18",       label: "18" }
+      - { id: "n_19",       label: "19" }
+      - { id: "n_20",       label: "20" }
+      - { id: "random",     label: "Random" }
+
+  - id: start_triforce
+    type: enum
+    bits: 4
+    bit_offset: 212
+    label: "Triforce Pieces"
+    description: >
+      Number of triforce pieces (out of 8) Link starts with. The specific pieces
+      are picked at generation time. Random picks a count of 0-8 at generation.
+    group: "Start Items"
+    display_order: 220
+    default: "t_0"
+    enabled: true
+    phase: 1
+    values:
+      - { id: "t_0",     label: "0" }
+      - { id: "t_1",     label: "1" }
+      - { id: "t_2",     label: "2" }
+      - { id: "t_3",     label: "3" }
+      - { id: "t_4",     label: "4" }
+      - { id: "t_5",     label: "5" }
+      - { id: "t_6",     label: "6" }
+      - { id: "t_7",     label: "7" }
+      - { id: "t_8",     label: "8" }
+      - { id: "random",  label: "Random" }
+
 # =============================================================================
 # CONSTRAINTS
 # =============================================================================
@@ -1838,3 +2219,101 @@ constraints:
         must_not_be: "off"
         error: >
           Shuffle Overworld Monsters requires Shuffle Enemy Groups to be enabled.
+
+  # ---------------------------------------------------------------------------
+  # Progressive items vs. start items
+  # Granting a specific tier of a progressive item class via Start Items
+  # would conflict with the upgrade-chain logic. We forbid each progressive
+  # base/upgrade item from being granted while progressive_items is on.
+  # (Non-progressive start items — bow, raft, ladder, etc. — are unaffected.)
+  # ---------------------------------------------------------------------------
+
+  - id: start_wood_sword_incompatible_with_progressive
+    description: Start Wood Sword is incompatible with Progressive Items.
+    when:
+      - flag: start_wood_sword
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Wood Sword is incompatible with Progressive Items."
+
+  - id: start_white_sword_incompatible_with_progressive
+    description: Start White Sword is incompatible with Progressive Items.
+    when:
+      - flag: start_white_sword
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start White Sword is incompatible with Progressive Items."
+
+  - id: start_magical_sword_incompatible_with_progressive
+    description: Start Magical Sword is incompatible with Progressive Items.
+    when:
+      - flag: start_magical_sword
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Magical Sword is incompatible with Progressive Items."
+
+  - id: start_wood_arrows_incompatible_with_progressive
+    description: Start Wood Arrows is incompatible with Progressive Items.
+    when:
+      - flag: start_wood_arrows
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Wood Arrows is incompatible with Progressive Items."
+
+  - id: start_silver_arrows_incompatible_with_progressive
+    description: Start Silver Arrows is incompatible with Progressive Items.
+    when:
+      - flag: start_silver_arrows
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Silver Arrows is incompatible with Progressive Items."
+
+  - id: start_blue_candle_incompatible_with_progressive
+    description: Start Blue Candle is incompatible with Progressive Items.
+    when:
+      - flag: start_blue_candle
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Blue Candle is incompatible with Progressive Items."
+
+  - id: start_red_candle_incompatible_with_progressive
+    description: Start Red Candle is incompatible with Progressive Items.
+    when:
+      - flag: start_red_candle
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Red Candle is incompatible with Progressive Items."
+
+  - id: start_blue_ring_incompatible_with_progressive
+    description: Start Blue Ring is incompatible with Progressive Items.
+    when:
+      - flag: start_blue_ring
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Blue Ring is incompatible with Progressive Items."
+
+  - id: start_red_ring_incompatible_with_progressive
+    description: Start Red Ring is incompatible with Progressive Items.
+    when:
+      - flag: start_red_ring
+        not_equals: "off"
+    then:
+      - flag: progressive_items
+        must_be: "off"
+        error: "Start Red Ring is incompatible with Progressive Items."

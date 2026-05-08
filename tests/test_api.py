@@ -36,7 +36,7 @@ def test_flags_returns_schema(client: FlaskClient) -> None:
     r = client.get("/flags")
     assert r.status_code == 200
     data = r.get_json()
-    assert data["schema_version"] == 3
+    assert data["schema_version"] == 4
     assert data["string_length"] == FLAG_STRING_LENGTH
     assert "cosmetic_string_length" in data
     assert isinstance(data["flags"], list)

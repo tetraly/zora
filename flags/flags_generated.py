@@ -226,6 +226,80 @@ class LevelName(IntEnum):
 
 
 # ===========================================================================
+# STARTHEARTS ENUM  (flag: start_hearts)
+# ===========================================================================
+
+class StartHearts(IntEnum):
+    """Values for the start_hearts flag."""
+    ONE = 0
+    TWO = 1
+    THREE = 2
+    FOUR = 3
+    FIVE = 4
+    SIX = 5
+    SEVEN = 6
+    EIGHT = 7
+    NINE = 8
+    TEN = 9
+    ELEVEN = 10
+    TWELVE = 11
+    THIRTEEN = 12
+    FOURTEEN = 13
+    FIFTEEN = 14
+    SIXTEEN = 15
+    RANDOM_1_5 = 16
+
+
+# ===========================================================================
+# MAXSTARTITEMS ENUM  (flag: max_start_items)
+# ===========================================================================
+
+class MaxStartItems(IntEnum):
+    """Values for the max_start_items flag."""
+    ALL = 0
+    N_0 = 1
+    N_1 = 2
+    N_2 = 3
+    N_3 = 4
+    N_4 = 5
+    N_5 = 6
+    N_6 = 7
+    N_7 = 8
+    N_8 = 9
+    N_9 = 10
+    N_10 = 11
+    N_11 = 12
+    N_12 = 13
+    N_13 = 14
+    N_14 = 15
+    N_15 = 16
+    N_16 = 17
+    N_17 = 18
+    N_18 = 19
+    N_19 = 20
+    N_20 = 21
+    RANDOM = 22
+
+
+# ===========================================================================
+# STARTTRIFORCE ENUM  (flag: start_triforce)
+# ===========================================================================
+
+class StartTriforce(IntEnum):
+    """Values for the start_triforce flag."""
+    T_0 = 0
+    T_1 = 1
+    T_2 = 2
+    T_3 = 3
+    T_4 = 4
+    T_5 = 5
+    T_6 = 6
+    T_7 = 7
+    T_8 = 8
+    RANDOM = 9
+
+
+# ===========================================================================
 # FLAGS DATACLASS
 # ===========================================================================
 
@@ -316,9 +390,37 @@ class Flags:
     boss_hp: BossHp = BossHp.NORMAL
     ganon_hp_to_zero: Tristate = Tristate.OFF
 
+    # Start Items
+    start_wood_sword: Tristate = Tristate.OFF
+    start_white_sword: Tristate = Tristate.OFF
+    start_magical_sword: Tristate = Tristate.OFF
+    start_bombs: Tristate = Tristate.OFF
+    start_bow: Tristate = Tristate.OFF
+    start_wood_arrows: Tristate = Tristate.OFF
+    start_silver_arrows: Tristate = Tristate.OFF
+    start_blue_candle: Tristate = Tristate.OFF
+    start_red_candle: Tristate = Tristate.OFF
+    start_recorder: Tristate = Tristate.OFF
+    start_bait: Tristate = Tristate.OFF
+    start_wand: Tristate = Tristate.OFF
+    start_raft: Tristate = Tristate.OFF
+    start_book: Tristate = Tristate.OFF
+    start_blue_ring: Tristate = Tristate.OFF
+    start_red_ring: Tristate = Tristate.OFF
+    start_ladder: Tristate = Tristate.OFF
+    start_magical_key: Tristate = Tristate.OFF
+    start_power_bracelet: Tristate = Tristate.OFF
+    start_letter: Tristate = Tristate.OFF
+    start_wood_boomerang: Tristate = Tristate.OFF
+    start_magical_boomerang: Tristate = Tristate.OFF
+    start_magic_shield: Tristate = Tristate.OFF
+    start_hearts: StartHearts = StartHearts.THREE
+    max_start_items: MaxStartItems = MaxStartItems.ALL
+    start_triforce: StartTriforce = StartTriforce.T_0
+
     # Schema metadata — used for sync checking, not a flag
     _schema_version: int = field(default=1, init=False, repr=False, compare=False)
-    _schema_hash: str = field(default="fa86e3f48c623edd", init=False, repr=False, compare=False)
+    _schema_hash: str = field(default="6ceeae6dd94684e0", init=False, repr=False, compare=False)
 
 
 # ===========================================================================
@@ -354,8 +456,8 @@ class CosmeticFlags:
 # ===========================================================================
 
 BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@abcdefghijklmnopqrstuvwxyz"
-FLAG_STRING_LENGTH = 26
-TOTAL_BITS = 156
+FLAG_STRING_LENGTH = 36
+TOTAL_BITS = 216
 COSMETIC_FLAG_STRING_LENGTH = 7
 COSMETIC_TOTAL_BITS = 42
 
@@ -426,6 +528,32 @@ _FLAG_LAYOUT: list[tuple[str, int, int]] = [
     ("shuffle_dungeon_rooms", 150, 2),
     ("scramble_dungeon_rooms", 152, 2),
     ("dungeon_shapes", 154, 2),
+    ("start_wood_sword", 156, 2),
+    ("start_white_sword", 158, 2),
+    ("start_magical_sword", 160, 2),
+    ("start_bombs", 162, 2),
+    ("start_bow", 164, 2),
+    ("start_wood_arrows", 166, 2),
+    ("start_silver_arrows", 168, 2),
+    ("start_blue_candle", 170, 2),
+    ("start_red_candle", 172, 2),
+    ("start_recorder", 174, 2),
+    ("start_bait", 176, 2),
+    ("start_wand", 178, 2),
+    ("start_raft", 180, 2),
+    ("start_book", 182, 2),
+    ("start_blue_ring", 184, 2),
+    ("start_red_ring", 186, 2),
+    ("start_ladder", 188, 2),
+    ("start_magical_key", 190, 2),
+    ("start_power_bracelet", 192, 2),
+    ("start_letter", 194, 2),
+    ("start_wood_boomerang", 196, 2),
+    ("start_magical_boomerang", 198, 2),
+    ("start_magic_shield", 200, 2),
+    ("start_hearts", 202, 5),
+    ("max_start_items", 207, 5),
+    ("start_triforce", 212, 4),
 ]
 
 # (flag_id, cosmetic_bit_offset, bit_width) — used by cosmetic encoder/decoder
@@ -1841,6 +1969,410 @@ _FLAG_DEFS: dict[str, dict[str, Any]] = {
         "enabled": True,
         "phase": 1,
     },
+    "start_wood_sword": {
+        "id": "start_wood_sword",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 156,
+        "label": "Wood Sword",
+        "description": "Start with the wood sword. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 10,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_white_sword": {
+        "id": "start_white_sword",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 158,
+        "label": "White Sword",
+        "description": "Start with the white sword. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 11,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_magical_sword": {
+        "id": "start_magical_sword",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 160,
+        "label": "Magical Sword",
+        "description": "Start with the magical sword. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 12,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_bombs": {
+        "id": "start_bombs",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 162,
+        "label": "8 Bombs",
+        "description": "Start with 8 bombs and a full-capacity bomb count.",
+        "group": "Start Items",
+        "display_order": 20,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_bow": {
+        "id": "start_bow",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 164,
+        "label": "Bow",
+        "description": "Start with the bow.",
+        "group": "Start Items",
+        "display_order": 30,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_wood_arrows": {
+        "id": "start_wood_arrows",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 166,
+        "label": "Wood Arrows",
+        "description": "Start with wood arrows. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 31,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_silver_arrows": {
+        "id": "start_silver_arrows",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 168,
+        "label": "Silver Arrows",
+        "description": "Start with silver arrows. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 32,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_blue_candle": {
+        "id": "start_blue_candle",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 170,
+        "label": "Blue Candle",
+        "description": "Start with the blue candle. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 40,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_red_candle": {
+        "id": "start_red_candle",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 172,
+        "label": "Red Candle",
+        "description": "Start with the red candle. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 41,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_recorder": {
+        "id": "start_recorder",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 174,
+        "label": "Recorder",
+        "description": "Start with the recorder.",
+        "group": "Start Items",
+        "display_order": 50,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_bait": {
+        "id": "start_bait",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 176,
+        "label": "Bait",
+        "description": "Start with bait (food).",
+        "group": "Start Items",
+        "display_order": 60,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_wand": {
+        "id": "start_wand",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 178,
+        "label": "Wand",
+        "description": "Start with the magical rod (wand).",
+        "group": "Start Items",
+        "display_order": 70,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_raft": {
+        "id": "start_raft",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 180,
+        "label": "Raft",
+        "description": "Start with the raft.",
+        "group": "Start Items",
+        "display_order": 80,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_book": {
+        "id": "start_book",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 182,
+        "label": "Book",
+        "description": "Start with the book of magic.",
+        "group": "Start Items",
+        "display_order": 90,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_blue_ring": {
+        "id": "start_blue_ring",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 184,
+        "label": "Blue Ring",
+        "description": "Start with the blue ring. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 100,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_red_ring": {
+        "id": "start_red_ring",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 186,
+        "label": "Red Ring",
+        "description": "Start with the red ring. Incompatible with Progressive Items.",
+        "group": "Start Items",
+        "display_order": 101,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_ladder": {
+        "id": "start_ladder",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 188,
+        "label": "Ladder",
+        "description": "Start with the ladder.",
+        "group": "Start Items",
+        "display_order": 110,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_magical_key": {
+        "id": "start_magical_key",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 190,
+        "label": "Magical Key",
+        "description": "Start with the magical key.",
+        "group": "Start Items",
+        "display_order": 120,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_power_bracelet": {
+        "id": "start_power_bracelet",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 192,
+        "label": "Power Bracelet",
+        "description": "Start with the power bracelet.",
+        "group": "Start Items",
+        "display_order": 130,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_letter": {
+        "id": "start_letter",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 194,
+        "label": "Letter",
+        "description": "Start with the letter.",
+        "group": "Start Items",
+        "display_order": 140,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_wood_boomerang": {
+        "id": "start_wood_boomerang",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 196,
+        "label": "Wood Boomerang",
+        "description": "Start with the wood boomerang.",
+        "group": "Start Items",
+        "display_order": 150,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_magical_boomerang": {
+        "id": "start_magical_boomerang",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 198,
+        "label": "Magical Boomerang",
+        "description": "Start with the magical boomerang.",
+        "group": "Start Items",
+        "display_order": 151,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_magic_shield": {
+        "id": "start_magic_shield",
+        "type": "tristate",
+        "bits": 2,
+        "bit_offset": 200,
+        "label": "Magical Shield",
+        "description": "Start with the magical shield.",
+        "group": "Start Items",
+        "display_order": 160,
+        "default": "off",
+        "enabled": True,
+        "phase": 1,
+    },
+    "start_hearts": {
+        "id": "start_hearts",
+        "type": "enum",
+        "bits": 5,
+        "bit_offset": 202,
+        "label": "Starting Hearts",
+        "description": (
+            "Number of hearts (and heart containers) Link begins with on a new save. Vanilla = 3 hearts. Random 1-5"
+            "picks a value from 1-5 at generation time.\n"
+        ),
+        "group": "Start Items",
+        "display_order": 200,
+        "default": "three",
+        "enabled": True,
+        "phase": 1,
+        "values": [
+            {"id": "one", "label": "1 Heart", "index": 0},
+            {"id": "two", "label": "2 Hearts", "index": 1},
+            {"id": "three", "label": "3 Hearts (Vanilla)", "index": 2},
+            {"id": "four", "label": "4 Hearts", "index": 3},
+            {"id": "five", "label": "5 Hearts", "index": 4},
+            {"id": "six", "label": "6 Hearts", "index": 5},
+            {"id": "seven", "label": "7 Hearts", "index": 6},
+            {"id": "eight", "label": "8 Hearts", "index": 7},
+            {"id": "nine", "label": "9 Hearts", "index": 8},
+            {"id": "ten", "label": "10 Hearts", "index": 9},
+            {"id": "eleven", "label": "11 Hearts", "index": 10},
+            {"id": "twelve", "label": "12 Hearts", "index": 11},
+            {"id": "thirteen", "label": "13 Hearts", "index": 12},
+            {"id": "fourteen", "label": "14 Hearts", "index": 13},
+            {"id": "fifteen", "label": "15 Hearts", "index": 14},
+            {"id": "sixteen", "label": "16 Hearts", "index": 15},
+            {"id": "random_1_5", "label": "Random 1-5 Hearts", "index": 16},
+        ],
+    },
+    "max_start_items": {
+        "id": "max_start_items",
+        "type": "enum",
+        "bits": 5,
+        "bit_offset": 207,
+        "label": "Max Start Items",
+        "description": (
+            "Optional cap on the total number of starting items. After resolving each item flag, if more items are"
+            'granted than this cap, a random subset is kept. "All" disables the cap. "Random" picks a cap of 0-20 at'
+            "generation.\n"
+        ),
+        "group": "Start Items",
+        "display_order": 210,
+        "default": "all",
+        "enabled": True,
+        "phase": 1,
+        "values": [
+            {"id": "all", "label": "All", "index": 0},
+            {"id": "n_0", "label": "0", "index": 1},
+            {"id": "n_1", "label": "1", "index": 2},
+            {"id": "n_2", "label": "2", "index": 3},
+            {"id": "n_3", "label": "3", "index": 4},
+            {"id": "n_4", "label": "4", "index": 5},
+            {"id": "n_5", "label": "5", "index": 6},
+            {"id": "n_6", "label": "6", "index": 7},
+            {"id": "n_7", "label": "7", "index": 8},
+            {"id": "n_8", "label": "8", "index": 9},
+            {"id": "n_9", "label": "9", "index": 10},
+            {"id": "n_10", "label": "10", "index": 11},
+            {"id": "n_11", "label": "11", "index": 12},
+            {"id": "n_12", "label": "12", "index": 13},
+            {"id": "n_13", "label": "13", "index": 14},
+            {"id": "n_14", "label": "14", "index": 15},
+            {"id": "n_15", "label": "15", "index": 16},
+            {"id": "n_16", "label": "16", "index": 17},
+            {"id": "n_17", "label": "17", "index": 18},
+            {"id": "n_18", "label": "18", "index": 19},
+            {"id": "n_19", "label": "19", "index": 20},
+            {"id": "n_20", "label": "20", "index": 21},
+            {"id": "random", "label": "Random", "index": 22},
+        ],
+    },
+    "start_triforce": {
+        "id": "start_triforce",
+        "type": "enum",
+        "bits": 4,
+        "bit_offset": 212,
+        "label": "Triforce Pieces",
+        "description": (
+            "Number of triforce pieces (out of 8) Link starts with. The specific pieces are picked at generation time."
+            "Random picks a count of 0-8 at generation.\n"
+        ),
+        "group": "Start Items",
+        "display_order": 220,
+        "default": "t_0",
+        "enabled": True,
+        "phase": 1,
+        "values": [
+            {"id": "t_0", "label": "0", "index": 0},
+            {"id": "t_1", "label": "1", "index": 1},
+            {"id": "t_2", "label": "2", "index": 2},
+            {"id": "t_3", "label": "3", "index": 3},
+            {"id": "t_4", "label": "4", "index": 4},
+            {"id": "t_5", "label": "5", "index": 5},
+            {"id": "t_6", "label": "6", "index": 6},
+            {"id": "t_7", "label": "7", "index": 7},
+            {"id": "t_8", "label": "8", "index": 8},
+            {"id": "random", "label": "Random", "index": 9},
+        ],
+    },
 }
 
 _ITEM_ENUM: list[dict[str, Any]] = [
@@ -1977,4 +2509,4 @@ def resolve_random_flags(flags: Flags, rng: Rng) -> Flags:
 # ===========================================================================
 
 SCHEMA_VERSION = 1
-SCHEMA_HASH = "fa86e3f48c623edd"
+SCHEMA_HASH = "6ceeae6dd94684e0"

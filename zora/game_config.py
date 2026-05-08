@@ -11,7 +11,7 @@ This is Layer 2 in the three-layer design:
   Layer 3: modules    — assumed_fill, validator etc. take only what they need
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 
 from flags.flags_generated import (
@@ -38,6 +38,7 @@ import random as _random
 
 from zora.data_model import Item
 from zora.rng import Rng
+from zora.start_item_generator import StartItemResult, generate_start_items
 
 
 class HintMode(Enum):
@@ -182,6 +183,9 @@ class GameConfig:
     max_enemy_health: bool = False
     max_boss_health: bool = False
     swordless: bool = False
+
+    # Start items (resolved per seed from the Start Items flag group)
+    start_items: StartItemResult = field(default_factory=StartItemResult)
 
 def _resolve_hint_mode(flag_hint_mode: FlagHintMode, rng: Rng) -> HintMode:
     """Resolve the hint_mode enum flag to a concrete HintMode.
@@ -420,6 +424,8 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
         shuffle_boss_hp = 0
         boss_hp_to_zero = True
 
+    start_items = generate_start_items(flags, rng)
+
     shuffle_dungeon_monsters = resolve(flags.shuffle_dungeon_monsters)
     shuffle_ganon_zelda = resolve(flags.shuffle_ganon_zelda) if shuffle_dungeon_monsters else False
     include_level_9 = resolve(flags.shuffle_level_9_monsters)
@@ -520,4 +526,5 @@ def resolve_game_config(flags: Flags, rng: Rng, cosmetic_flags: CosmeticFlags | 
         max_enemy_health=False,
         max_boss_health=False,
         swordless=False,
+        start_items=start_items,
     )
