@@ -183,16 +183,16 @@ ENEMY_HP_TABLE_ADDRESS = 0x1FB5E      # 26 bytes, 52 nibbles (Enemy 0x00-0x33)
 ENEMY_HP_TABLE_SIZE    = 26
 ENEMY_HP_NIBBLE_COUNT  = 52
 
-BOSS_HP_TABLE_ADDRESS  = 0x1FB78      # 12 bytes, 24 nibbles (Enemy 0x34-0x4B)
+BOSS_HP_TABLE_ADDRESS  = 0x1FB77      # 12 bytes, 24 nibbles (Enemy 0x32-0x49)
 BOSS_HP_TABLE_SIZE     = 12
 BOSS_HP_NIBBLE_COUNT   = 24
 
-BOSS_HP_FIRST_ENEMY_VALUE = 0x34      # Enemy.RED_GOHMA — first entry in boss HP table
+BOSS_HP_FIRST_ENEMY_VALUE = 0x32      # Enemy.SINGLE_DODONGO — first entry in boss HP table
 
 # Secondary boss HP byte offsets (file offsets)
 AQUAMENTUS_HP_ADDRESS  = 0x120C6
 AQUAMENTUS_SP_ADDRESS  = 0x12735
-GANON_HP_ADDRESS       = 0x12F37
+GANON_HP_ADDRESS       = 0x12F27
 GLEEOK_HP_ADDRESS      = 0x114D5
 PATRA_HP_ADDRESS       = 0x12A45
 
