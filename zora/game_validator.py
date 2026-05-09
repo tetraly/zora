@@ -88,10 +88,12 @@ Location = DungeonLocation | CaveLocation
 
 class GameValidator:
     def __init__(self, game_world: GameWorld, avoid_required_hard_combat: bool,
-                 progressive_items: bool = False) -> None:
+                 progressive_items: bool = False,
+                 book_is_a_translator: bool = False) -> None:
         self.game_world = game_world
         self.avoid_required_hard_combat = avoid_required_hard_combat
         self.progressive_items = progressive_items
+        self.book_is_a_translator = book_is_a_translator
         self.inventory = Inventory(progressive_items=progressive_items)
         self.visited_rooms: set[tuple[int, int]] = set()  # (level_num, room_num)
         self.items_collected_rooms: set[tuple[int, int]] = set()  # rooms whose item has been collected
@@ -180,10 +182,14 @@ class GameValidator:
             if dest == Destination.NONE:
                 continue
 
-            # Side effects: hint screens grant virtual items regardless of dedup
-            if dest == Destination.LOST_HILLS_HINT:
+            # Side effects: hint screens grant virtual items regardless of dedup.
+            # When book_is_a_translator is on, the old-man text in these caves is
+            # unreadable without the Book of Magic, so the hint isn't actually
+            # learned until the player has the book.
+            can_read = (not self.book_is_a_translator) or self.inventory.has(Item.BOOK)
+            if dest == Destination.LOST_HILLS_HINT and can_read:
                 self.inventory.add_item(Item.LOST_HILLS_HINT_VIRTUAL_ITEM)
-            if dest == Destination.DEAD_WOODS_HINT:
+            if dest == Destination.DEAD_WOODS_HINT and can_read:
                 self.inventory.add_item(Item.DEAD_WOODS_HINT_VIRTUAL_ITEM)
 
             if dest not in seen:

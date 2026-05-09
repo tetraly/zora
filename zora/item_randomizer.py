@@ -720,7 +720,8 @@ def assumed_fill(game_world: GameWorld, config: GameConfig, rng: Rng) -> bool:
     """
     constraints = Constraints.from_config(config)
     validator = GameValidator(game_world, config.avoid_required_hard_combat,
-                              progressive_items=config.progressive_items)
+                              progressive_items=config.progressive_items,
+                              book_is_a_translator=config.book_is_a_translator)
 
     # Progressive items + magical sword cave not shuffled: overwrite the cave
     # with a WOOD_SWORD so the player finds a sword upgrade there instead of
