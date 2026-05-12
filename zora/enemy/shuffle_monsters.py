@@ -340,6 +340,11 @@ def _shuffle_level(
         quantities[i], quantities[j] = quantities[j], quantities[i]
         i += 1
 
+    # Capture the pre-shuffle Gannon room so we can transfer its boss_cry_1
+    # flag to the new Gannon room if it moves (C# gannonMatchRoom logic,
+    # MonsterShuffler.cs:452-456).
+    pre_shuffle_gannon_room = _find_gannon_room(level) if shuffle_gannon else None
+
     # Write shuffled enemy specs and quantities back to rooms.
     for room, spec, qty in zip(eligible_rooms, specs, quantities):
         room.enemy_spec = spec
@@ -349,6 +354,11 @@ def _shuffle_level(
     if shuffle_gannon:
         gannon_room = _find_gannon_room(level)
         if gannon_room is not None:
+            # Transfer boss_cry_1 from old Gannon room to the new one before
+            # _configure_gannon_room overwrites the new room's flags.
+            if (pre_shuffle_gannon_room is not None
+                    and pre_shuffle_gannon_room is not gannon_room):
+                gannon_room.boss_cry_1 = pre_shuffle_gannon_room.boss_cry_1
             _configure_gannon_room(gannon_room, level)
             level.boss_room = gannon_room.room_num
             _set_boss_cry_on_neighbors(gannon_room, room_by_num)
@@ -559,17 +569,6 @@ def shuffle_monsters(
         True on success, False if any level's shuffle exhausted its retry
         budget (caller should retry the entire seed generation).
     """
-    # If !mustBeatGannon and level 9 exists, patch Gannon room action.
-    # The C# does (rom[addr] & 0xF8) | 0x01 = clear low 3 bits, set to 1.
-    if not must_beat_gannon:
-        for level in world.levels:
-            if level.level_num == 9:
-                gannon_room = _find_gannon_room(level)
-                if gannon_room is not None:
-                    gannon_room.room_action = RoomAction(
-                        (gannon_room.room_action.value & 0xF8) | 0x01
-                    )
-
     for level in world.levels:
         if shuffle:
             if not _shuffle_level(level, rng, shuffle_gannon, must_beat_gannon):
@@ -583,5 +582,19 @@ def shuffle_monsters(
     if shuffle:
         _post_process_gannon_flags(world)
         _apply_canonical_npc_positions(world)
+
+    # If !mustBeatGannon, patch the Gannon room action after all shuffle and
+    # post-processing passes have settled on the final Gannon room location.
+    # Applied last so _post_process_gannon_flags (which writes
+    # TRIFORCE_OF_POWER_OPENS_SHUTTERS) cannot overwrite this patch.
+    # The C# does (rom[addr] & 0xF8) | 0x01 = clear low 3 bits, set to 1.
+    if not must_beat_gannon:
+        for level in world.levels:
+            if level.level_num == 9:
+                gannon_room = _find_gannon_room(level)
+                if gannon_room is not None:
+                    gannon_room.room_action = RoomAction(
+                        (gannon_room.room_action.value & 0xF8) | 0x01
+                    )
 
     return True

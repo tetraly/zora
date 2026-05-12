@@ -271,7 +271,9 @@ class TestShuffleMonsters(unittest.TestCase):
         for seed in [42, 999]:
             with self.subTest(seed=seed):
                 gw = _load_game_world()
-                config = GameConfig(shuffle_dungeon_monsters=True)
+                # force_ganon=True so the mustBeatGannon=False patch doesn't
+                # overwrite room_action after post-processing sets it to 0x03.
+                config = GameConfig(shuffle_dungeon_monsters=True, force_ganon=True)
                 shuffle_monsters(gw, config, SeededRng(seed))
 
                 for level in gw.levels:
