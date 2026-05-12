@@ -699,6 +699,7 @@ def _update_tile_frames(
     all_bosses_with_frames |= {Enemy.THE_BEAST, Enemy.MOLDORM, Enemy.THE_KIDNAPPED}
 
     with dbg.section("tile_frames remap (per boss)"):
+        seen_ptrs: set[int] = set()
         for boss in sorted(all_bosses_with_frames, key=lambda e: e.name):
             if boss not in enemies.tile_frames:
                 dbg.log(f"  {boss.name}: no tile_frames entry — skipped")
@@ -706,6 +707,15 @@ def _update_tile_frames(
             frames = enemies.tile_frames[boss]
             if not frames:
                 dbg.log(f"  {boss.name}: empty tile_frames — skipped")
+                continue
+
+            # _broadcast_tile_frames_update writes the remapped list to ALL
+            # enemies sharing this pointer.  If we then process a sharing enemy
+            # a second time we remap already-remapped values, producing garbage.
+            boss_ptr = enemies.tile_pointers.get(boss)
+            if boss_ptr is not None and boss_ptr in seen_ptrs:
+                dbg.log(f"  {boss.name}: pointer {boss_ptr:#x} already remapped "
+                        f"via a sibling — skipped to avoid double-remap")
                 continue
 
             # Look up the tile-source boss whose packed data this boss uses.
@@ -755,6 +765,8 @@ def _update_tile_frames(
             dbg.log(f"    after:  {remapped}")
 
             _broadcast_tile_frames_update(enemies, boss, remapped)
+            if boss_ptr is not None:
+                seen_ptrs.add(boss_ptr)
 
 
 def _update_companion_tile_frames(
