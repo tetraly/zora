@@ -121,6 +121,7 @@ from zora.rom_layout import (
     AQUAMENTUS_HP_ADDRESS,
     AQUAMENTUS_SP_ADDRESS,
     AQUAMENTUS_SPRITE_PTR_ADDRESS,
+    AQUAMENTUS_TILE_LAYOUT_TABLE_ADDRESS,
     BOSS_HP_FIRST_ENEMY_VALUE,
     BOSS_HP_NIBBLE_COUNT,
     BOSS_HP_TABLE_ADDRESS,
@@ -881,6 +882,9 @@ def _serialize_enemy_hp(game_world: GameWorld, patch: Patch) -> None:
     # Boss engine sprite pointers (set by change_dungeon_boss_groups)
     if ed.aquamentus_sprite_ptr is not None:
         patch.add(AQUAMENTUS_SPRITE_PTR_ADDRESS, bytes([ed.aquamentus_sprite_ptr & 0xFF]))
+    if ed.aquamentus_tile_layout_table is not None:
+        patch.add(AQUAMENTUS_TILE_LAYOUT_TABLE_ADDRESS,
+                  bytes(v & 0xFF for v in ed.aquamentus_tile_layout_table))
     if ed.gleeok_head_sprite_ptr_a is not None:
         patch.add(GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS, bytes([ed.gleeok_head_sprite_ptr_a & 0xFF]))
     if ed.gleeok_head_sprite_ptr_b is not None:

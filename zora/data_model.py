@@ -834,6 +834,9 @@ class EnemyData:
     mixed_group_offsets: dict[int, int] = field(default_factory=dict)
 
     aquamentus_sprite_ptr: int | None = None
+    # 12-byte tile column table at ROM 0x11844 used by the Aquamentus/Ganon draw
+    # routine. Set by change_dungeon_boss_groups when AQUAMENTUS is repacked.
+    aquamentus_tile_layout_table: list[int] | None = None
     gleeok_head_sprite_ptr_a: int | None = None
     gleeok_head_sprite_ptr_b: int | None = None
     gleeok_head_sprite_ptr_c: int | None = None

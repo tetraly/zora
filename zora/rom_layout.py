@@ -198,7 +198,8 @@ PATRA_HP_ADDRESS       = 0x12A45
 
 # Boss engine sprite pointer offsets (hardcoded ROM locations that tell the
 # engine where specific boss sprite tiles live in VRAM).
-AQUAMENTUS_SPRITE_PTR_ADDRESS   = 0x11898
+AQUAMENTUS_SPRITE_PTR_ADDRESS        = 0x11898
+AQUAMENTUS_TILE_LAYOUT_TABLE_ADDRESS = 0x11844  # 12-byte tile column table for Aquamentus/Ganon draw routine
 GLEEOK_HEAD_SPRITE_PTR_A_ADDRESS = 0x126F8
 GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS = 0x126FE
 GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS = 0x6F5A

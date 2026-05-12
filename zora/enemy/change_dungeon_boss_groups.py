@@ -1041,6 +1041,39 @@ def change_dungeon_boss_groups(
                             f"q3bonus({q3bonus}) = {value}  "
                             f"[in_expansion={in_expansion}]")
 
+        # Aquamentus tile layout table patch.
+        # ROM 0x11844–0x1184F: 12-byte table of tile column references used by
+        # the Aquamentus (and THE_BEAST/Ganon) draw routine.  Vanilla values
+        # assume Aquamentus is packed at base column 194 (boss_set_A).  After
+        # repacking we must rewrite the table or some sprite elements render
+        # from the wrong columns, producing visual corruption.
+        #
+        # Formula verified across 50 reference seeds (both main-bank and
+        # expansion-bank placements):
+        #   table[i] = _AQUA_TILE_LAYOUT_OFFSETS[i] + new_base_col + 2
+        # where new_base_col = column_assignments[AQUAMENTUS][192] and the
+        # +2 shift puts table_min at the third column of the pack.
+        _AQUA_TILE_LAYOUT_OFFSETS: list[int] = [
+            10, 2, 6, 0, 4, 8, 10, 2, 6, 12, 14, 16,
+        ]
+        with dbg.section("Aquamentus tile layout table patch (ROM 0x11844)"):
+            aqua_mapping = column_assignments.get(Enemy.AQUAMENTUS)
+            if aqua_mapping is None:
+                dbg.warn("AQUAMENTUS missing from column_assignments — "
+                         "skipped tile layout table patch")
+            else:
+                new_base_col = aqua_mapping.get(192)
+                if new_base_col is None:
+                    dbg.warn("column_assignments[AQUAMENTUS] has no entry "
+                             "for vanilla col 192 — cannot compute tile "
+                             "layout table")
+                else:
+                    table_min = new_base_col + 2
+                    table = [table_min + off for off in _AQUA_TILE_LAYOUT_OFFSETS]
+                    world.enemies.aquamentus_tile_layout_table = table
+                    dbg.log(f"  new_base_col={new_base_col} table_min={table_min}")
+                    dbg.log(f"  table={[hex(v) for v in table]}")
+
         # Gleeok multi-head engine sprite pointer patches.
         # ROM 0x126F8, 0x126FE, 0x6F5A tell the engine where Gleeok's
         # extra head tiles live in VRAM.
