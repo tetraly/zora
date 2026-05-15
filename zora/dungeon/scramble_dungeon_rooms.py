@@ -91,6 +91,7 @@ from zora.data_model import (
     Item,
     Level,
     Room,
+    RoomAction,
     RoomType,
     WallType,
     is_l9_entry_gate,
@@ -313,6 +314,98 @@ def _has_kidnapped_gate_conflict(level: Level) -> bool:
     return False
 
 
+_BLOCK_TRIGGER_ACTIONS = frozenset({
+    RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS,
+    RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE,
+})
+
+
+def _reconcile_movable_blocks(world: GameWorld) -> None:
+    """Re-align movable_block with room_action after the scramble shuffle.
+
+    The scramble moves (room_type, movable_block) as a pair while room_action
+    stays at its grid position, so the two can become mismatched:
+      - A room can end up with movable_block=True but an action that has
+        nothing to do with pushing a block.
+      - A room can end up with action=PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE
+        but the room is not a staircase trigger, so nothing would ever appear.
+
+    Fixes:
+      1. If action=PUSHING_BLOCK_OPENS_SHUTTERS but movable_block=False
+         → set movable_block=True (Block 2 in _fix_special_rooms will clear it
+         again if there are no shutter walls, which is the correct outcome).
+      2. If action=PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE and the room IS a
+         staircase trigger → set movable_block=True.
+      3. If action=PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE and the room is NOT a
+         staircase trigger → demote action to KILLING_ENEMIES_OPENS_SHUTTERS
+         and clear movable_block. The staircase mechanic can't work here.
+      4. If movable_block=True but action doesn't need a block, and the room
+         type has no always-open staircase, and it's not TWO_FIREBALL_ROOM
+         → clear movable_block=False.
+    """
+    for level in world.levels:
+        staircase_triggers = _collect_staircase_bound_rooms(level)
+        for room in level.rooms:
+            action = room.room_action
+            if action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS:
+                room.movable_block = True
+            elif action == RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE:
+                if room.room_num in staircase_triggers:
+                    room.movable_block = True
+                else:
+                    room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+                    room.movable_block = False
+            elif (
+                room.movable_block
+                and not room.room_type.has_open_staircase()
+                and room.room_type != RoomType.TWO_FIREBALL_ROOM
+            ):
+                room.movable_block = False
+
+
+def _post_scramble_fixup(world: GameWorld) -> None:
+    """Fix wall invariants that can break after the room-type scramble.
+
+    The scramble moves room_type values globally while walls stay at their
+    grid positions, which can violate constraints that depend on both:
+
+    1. L9 non-gate OLD_MAN rooms must have north == SOLID_WALL.
+       Only the OLD_MAN at entrance_room - 16 (the Triforce gate) is exempt.
+       Any other OLD_MAN room that ended up with a non-solid north wall
+       (e.g. from the per-level door-pair shuffle) gets it forced to SOLID_WALL.
+
+    2. The Triforce gate room (entrance_room - 16 in L9) must have
+       south == OPEN_DOOR and north/east/west ∈ {SOLID_WALL, SHUTTER_DOOR}.
+       The scramble can land a room_type there whose walls violate this.
+    """
+    for level in world.levels:
+        if level.level_num != 9:
+            continue
+
+        gate_num = level.entrance_room - 16
+        room_by_num = {r.room_num: r for r in level.rooms}
+
+        # Fix 1: non-gate OLD_MAN rooms must have north == SOLID_WALL.
+        for room in level.rooms:
+            if (
+                room.enemy_spec.enemy == Enemy.OLD_MAN
+                and room.room_num != gate_num
+                and room.walls.north != WallType.SOLID_WALL
+            ):
+                room.walls.north = WallType.SOLID_WALL
+
+        # Fix 2: Triforce gate wall constraints.
+        gate = room_by_num.get(gate_num)
+        if gate is None:
+            continue
+        if gate.walls.south not in (WallType.OPEN_DOOR,):
+            gate.walls.south = WallType.OPEN_DOOR
+        allowed = (WallType.SOLID_WALL, WallType.SHUTTER_DOOR)
+        for direction in (Direction.NORTH, Direction.EAST, Direction.WEST):
+            if gate.walls[direction] not in allowed:
+                gate.walls[direction] = WallType.SOLID_WALL
+
+
 def scramble_dungeon_rooms(world: GameWorld, rng: Rng) -> bool:
     """Apply the additional shuffles that distinguish full shuffle from in-dungeon.
 
@@ -336,7 +429,10 @@ def scramble_dungeon_rooms(world: GameWorld, rng: Rng) -> bool:
         _shuffle_room_types_globally(world, rng)
 
         for level in world.levels:
-            _fix_constrained_room_doors(level, rng)
+            _fix_constrained_room_doors(
+                level, rng,
+                frozenset(r.room_num for r in level.rooms),
+            )
 
         all_connected = all(_is_level_connected(level) for level in world.levels)
         no_kidnapped_conflict = not any(
@@ -351,9 +447,11 @@ def scramble_dungeon_rooms(world: GameWorld, rng: Rng) -> bool:
             # new occupant has movable_block=False). Mirrors the
             # post-shuffle fixup pass; clear boss_cry first because
             # THE_BEAST may have moved.
+            _reconcile_movable_blocks(world)
             _clear_boss_cry_bits(world)
             for level in world.levels:
                 _fix_special_rooms(level, world)
+            _post_scramble_fixup(world)
             return True
 
         _restore_world(world, snapshots)

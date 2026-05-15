@@ -202,8 +202,8 @@ C# source: ShuffleDungeonRooms.cs (main method) and
 #       east/west wall bits.
 #
 #   Horizontal lock conditions (DetermineHorizDoorLocked):
-#     - Either room has room_type ZELDA_ROOM (0x27) → locked
-#     - Either room has room_type NARROW_STAIR_ROOM (0x1B) → locked
+#     - Left room has room_type ZELDA_ROOM (0x27) or NARROW_STAIR_ROOM (0x1B) → locked
+#     - Right room has room_type ZELDA_ROOM (0x27) → locked (NOT NARROW_STAIR_ROOM)
 #     - The right room has Table 3 byte == 0xA6 (is_group + BLACK_ROOM, NO
 #       movable_block) AND the right room's raw 6-bit enemy field is in
 #       range 11-18.  These are NPC rooms (OLD_MAN variants, BOMB_UPGRADER)
@@ -220,7 +220,7 @@ C# source: ShuffleDungeonRooms.cs (main method) and
 #
 #   Vertical lock conditions (DetermineVertDoorLocked):
 #     - Lower room has room_type ZELDA_ROOM (0x27) → locked
-#     - Lower room has room_type NARROW_STAIR_ROOM (0x1B) → locked
+#     - Lower room has room_type NARROW_STAIR_ROOM (0x1B) → NOT locked (C# doesn't check this)
 #     - Pair where one room has enemy THE_KIDNAPPED and the other has a
 #       specific enemy → locked (prevents breaking Zelda accessibility)
 #     - If mustBeatGanon: pair where one room has ZOLA-coded enemy and the
@@ -471,8 +471,10 @@ def _is_shufflable(room: Room, level: Level) -> bool:
         return False
     if _is_level9_fixed_room(room, level.level_num):
         return False
-    if is_l9_entry_gate(level, room):
-        return False
+    # Commented out: was added to protect the Triforce gate room but is not
+    # in the C# — re-enable if gate room bugs reappear after other fixes.
+    # if is_l9_entry_gate(level, room):
+    #     return False
     return True
 
 
@@ -651,33 +653,47 @@ def _is_horiz_pair_locked(
     left: Room,
     right: Room,
     level_num: int,
+    must_beat_ganon: bool = True,
 ) -> bool:
     """Determine if a horizontal door pair should be locked (not shuffled).
 
     Locked pairs are forced to door pair value 9 (SOLID_WALL on both sides).
 
     Lock conditions from DetermineHorizDoorLocked:
-    1. Either room has ZELDA_ROOM or NARROW_STAIR_ROOM -> locked.
-    2. The right room is an NPC room in a BLACK_ROOM layout (the C# checks
-       Table 3 == 0xA6 = is_group | BLACK_ROOM, then checks the enemy field
-       against a numeric range).  This protects NPC rooms (old men, bomb
-       upgrader) from having their wall configurations disrupted.
+    1. Left room has ZELDA_ROOM or NARROW_STAIR_ROOM, OR right room has
+       ZELDA_ROOM -> locked. (C# only locks NARROW_STAIR_ROOM on the left.)
+    2. (Level 9 only) Either room is ENTRANCE_ROOM -> locked.
+    3. (Level 9 only) Enemy pair is THE_KIDNAPPED/RED_DARKNUT in either
+       order -> locked.
+    4. (Level 9 + must_beat_ganon only) Enemy pair is THE_KIDNAPPED/ZOLA
+       in either order -> locked.
+    Note: C# has no NPC-in-BLACK_ROOM lock for horizontal pairs.
     """
-    # Condition 1: ZELDA_ROOM or NARROW_STAIR_ROOM on either side
-    locked_types = (RoomType.ZELDA_ROOM, RoomType.NARROW_STAIR_ROOM)
-    if left.room_type in locked_types or right.room_type in locked_types:
+    # Condition 1: left room ZELDA_ROOM or NARROW_STAIR_ROOM; right room ZELDA_ROOM.
+    # C# locks sfCurr (left) for both 0x27 and 0x1B, but only sfNext (right) for 0x27.
+    if left.room_type in (RoomType.ZELDA_ROOM, RoomType.NARROW_STAIR_ROOM):
+        return True
+    if right.room_type == RoomType.ZELDA_ROOM:
         return True
 
-    # Level 9 exception: the right room is an NPC-in-BLACK_ROOM.
-    # The C# also checks (T2[left] & 0x8F) != 17.  This masks
-    # the left room's packed Table 2 byte to keep the high
-    # quantity bit and low 4 enemy bits.  In vanilla ROM data
-    # this always passes (no left neighbor has that exact
-    # combination).  We omit it because our model stores the
-    # decoded quantity (1/4/5/6), not the raw 2-bit code, so
-    # we can't reconstruct the packed byte faithfully.
-    if level_num == 9 and right.room_type == RoomType.BLACK_ROOM:
-        if right.enemy_spec.enemy in _NPC_ENEMIES_L9:
+    if level_num != 9:
+        return False
+
+    # NOTE: the C# has no NPC-in-BLACK_ROOM lock for horizontal pairs at
+    # any level — that check only exists for vertical pairs. Removed.
+
+    # Condition 3: ENTRANCE_ROOM on either side (level 9 only).
+    if (left.room_type == RoomType.ENTRANCE_ROOM or
+            right.room_type == RoomType.ENTRANCE_ROOM):
+        return True
+
+    # Conditions 4-5: enemy pair locks (level 9 only).
+    left_enemy = left.enemy_spec.enemy
+    right_enemy = right.enemy_spec.enemy
+    if {left_enemy, right_enemy} == {Enemy.RED_DARKNUT, Enemy.THE_KIDNAPPED}:
+        return True
+    if must_beat_ganon:
+        if {left_enemy, right_enemy} == {Enemy.ZOLA, Enemy.THE_KIDNAPPED}:
             return True
 
     return False
@@ -687,14 +703,14 @@ def _is_horiz_pair_locked(
 _SEALED_DOOR_PAIR = (WallType.SOLID_WALL.value << 3) | WallType.SOLID_WALL.value
 
 
-def _fix_horizontal_door_pairs(level: Level, rng: Rng) -> None:
+def _fix_horizontal_door_pairs(level: Level, rng: Rng, must_beat_ganon: bool = True) -> None:
     """Shuffle horizontal door pairs within a level.
 
     For each pair of horizontally adjacent rooms (room i, room i+1) that both
     belong to the level, extract the door pair value encoding both rooms' wall
     types at the shared boundary.
 
-    Locked pairs (containing ZELDA_ROOM, NARROW_STAIR_ROOM, or certain
+    Locked pairs (containing ZELDA_ROOM, left-room NARROW_STAIR_ROOM, or certain
     Gannon-area configurations) are forced to SOLID_WALL on both sides.
     Unlocked pairs are Fisher-Yates shuffled among themselves.
 
@@ -722,7 +738,7 @@ def _fix_horizontal_door_pairs(level: Level, rng: Rng) -> None:
 
         pair_positions.append(room_num)
         pair_values.append(_horiz_door_pair_value(left_room, right_room))
-        pair_locked.append(_is_horiz_pair_locked(left_room, right_room, level.level_num))
+        pair_locked.append(_is_horiz_pair_locked(left_room, right_room, level.level_num, must_beat_ganon))
 
     if not pair_positions:
         return
@@ -802,6 +818,7 @@ def _pack_table2_7bit(room: Room) -> int:
 def _is_vert_pair_locked(
     upper: Room,
     lower: Room,
+    level_num: int,
     must_beat_gannon: bool,
 ) -> bool:
     """Determine if a vertical door pair should be locked (not shuffled).
@@ -816,7 +833,7 @@ def _is_vert_pair_locked(
 
     Lock conditions from DetermineVertDoorLocked:
 
-    1. Lower room has ZELDA_ROOM or NARROW_STAIR_ROOM → locked.
+    1. Lower room has ZELDA_ROOM → locked. (C# does not check NARROW_STAIR_ROOM for vertical pairs.)
 
     2. One room's packed Table 2 byte (& 0x7F) is 0x37 and the other's is
        0x0B → locked.
@@ -838,16 +855,28 @@ def _is_vert_pair_locked(
     We reproduce the checks as a faithful safety net, but they should
     effectively never trigger.
     """
-    # Condition 1: lower room is ZELDA_ROOM or NARROW_STAIR_ROOM
-    if lower.room_type in (RoomType.ZELDA_ROOM, RoomType.NARROW_STAIR_ROOM):
+    # Condition 1: lower room is ZELDA_ROOM.
+    # C# checks sfBelowMasked == 0x27 (ZELDA_ROOM) only — NARROW_STAIR_ROOM
+    # is not checked for vertical pairs.
+    if lower.room_type == RoomType.ZELDA_ROOM:
         return True
 
-    # Condition 2: lower room is an NPC room — lock its north wall.
-    # The NES engine lets Link walk off the top of the screen if the north
-    # wall isn't solid. The original C# only checked BLACK_ROOM NPCs, but
-    # the content shuffle can place NPCs in any room type.
-    if lower.enemy_spec.enemy in _NPC_ENEMIES_IN_BLACK_ROOM:
-        return True
+    # Condition 2: lower room is an NPC room in a BLACK_ROOM layout.
+    # C# checks sfBelow == 166 (0xA6 = is_group | BLACK_ROOM) then checks
+    # the enemy field in range 11-18 (non-L9) or 12-18 (L9).
+    # Non-L9 excludes MUGGER (raw=17); L9 excludes OLD_MAN (raw=11) and
+    # also requires (Table2[upper] & 0x8F) != 17 on the upper room.
+    if lower.room_type == RoomType.BLACK_ROOM:
+        if level_num == 9:
+            npc_set = _NPC_ENEMIES_IN_BLACK_ROOM - {Enemy.OLD_MAN}
+            if lower.enemy_spec.enemy in npc_set:
+                upper_t2 = _pack_table2_7bit(upper)
+                if (upper_t2 & 0x8F) != 17:
+                    return True
+        else:
+            npc_set = _NPC_ENEMIES_NON_L9
+            if lower.enemy_spec.enemy in npc_set:
+                return True
 
     # ── Conditions 3-4: staircase-adjacent-to-Zelda protection ──────────
     #
@@ -931,7 +960,7 @@ def _fix_vertical_door_pairs(
         pair_positions.append(room_num)
         pair_values.append(_vert_door_pair_value(upper_room, lower_room))
         pair_locked.append(_is_vert_pair_locked(
-            upper_room, lower_room, must_beat_gannon,
+            upper_room, lower_room, level.level_num, must_beat_gannon,
         ))
 
     if not pair_positions:
@@ -974,7 +1003,11 @@ def _fix_vertical_door_pairs(
         lower_room.walls.north = WallType(val & 7)
 
 
-def _fix_constrained_room_doors(level: Level, rng: Rng) -> None:
+def _fix_constrained_room_doors(
+    level: Level,
+    rng: Rng,
+    shuffled_room_nums: frozenset[int],
+) -> None:
     """Ensure movement-constrained rooms have at least one door on a required axis.
 
     After the door pair shuffle, a constrained room may end up with solid walls
@@ -982,11 +1015,17 @@ def _fix_constrained_room_doors(level: Level, rng: Rng) -> None:
     end that splits the level. This repair pass guarantees at least one
     valid-direction door exists by opening a randomly chosen wall on the
     needed axis.
+
+    Only operates on rooms that were in the shufflable pool — vanilla rooms
+    that were never shuffled had their wall state set by the level designer
+    and should not be modified here.
     """
     level_room_nums = _level_room_nums(level)
     room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
 
     for room in level.rooms:
+        if room.room_num not in shuffled_room_nums:
+            continue
         rt = room.room_type
         if rt not in _CONSTRAINED_VALID_DIRS:
             continue
@@ -1037,7 +1076,7 @@ def _fix_constrained_room_doors(level: Level, rng: Rng) -> None:
                     below.walls.north = WallType.OPEN_DOOR
 
 
-def _shuffle_level(level: Level, rng: Rng) -> bool:
+def _shuffle_level(level: Level, rng: Rng) -> frozenset[int] | None:
     """Shuffle room contents within a single dungeon level.
 
     Performs a constrained Fisher-Yates shuffle: for each position in the
@@ -1045,16 +1084,18 @@ def _shuffle_level(level: Level, rng: Rng) -> bool:
     violate adjacency constraints, retry with a new target. If retries
     are exhausted, restart the entire level.
 
-    Returns True on success, False if the level couldn't be shuffled
-    within the retry budget.
+    Returns the frozenset of shuffled room_nums on success, or None if the
+    level couldn't be shuffled within the retry budget.
     """
     shufflable = [
         room for room in level.rooms
         if _is_shufflable(room, level)
     ]
 
+    shuffled_room_nums = frozenset(r.room_num for r in shufflable)
+
     if len(shufflable) < 2:
-        return True
+        return shuffled_room_nums
 
     level_room_nums = _level_room_nums(level)
     room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
@@ -1105,10 +1146,16 @@ def _shuffle_level(level: Level, rng: Rng) -> bool:
                 room = room_by_num[pos]
                 content.apply_to(room)
 
-            # Build remap: old_position → new_position.
-            remap = {orig: dest for orig, dest in zip(orig_positions, positions)}
+            # NOTE: C# Phase 6 updates the NES start-room pointer for
+            # NARROW_STAIR_ROOM and THE_KIDNAPPED destinations. In the Python
+            # model entrance_room is the dungeon entry point (where Link spawns),
+            # which is a different concept — we don't update it here.
 
-            # Update staircase refs to follow shuffled room contents.
+            # Update staircase refs: return_dest/left_exit/right_exit identify
+            # rooms by their contents (specifically needing a stairway trigger),
+            # not by grid position. After shuffling contents move to new positions,
+            # so refs must follow the contents to remain valid.
+            remap = {orig: dest for orig, dest in zip(orig_positions, positions)}
             for sr in level.staircase_rooms:
                 if sr.return_dest is not None and sr.return_dest in remap:
                     sr.return_dest = remap[sr.return_dest]
@@ -1117,9 +1164,9 @@ def _shuffle_level(level: Level, rng: Rng) -> bool:
                 if sr.right_exit is not None and sr.right_exit in remap:
                     sr.right_exit = remap[sr.right_exit]
 
-            return True
+            return shuffled_room_nums
 
-    return False
+    return None
 
 
 def _get_level9_room_nums(world: GameWorld) -> frozenset[int]:
@@ -1228,54 +1275,42 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
                 room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
         # ── Block 2: PUSHING_BLOCK_OPENS_SHUTTERS without shutters ───
-        # Demote the action to KILLING_ENEMIES_OPENS_SHUTTERS. Previously
-        # this cleared movable_block and kept the action, which left the
-        # room in a latent inconsistent state: any later phase (e.g.
-        # scramble) that brought a shutter into the room would then
-        # violate the PUSHING_BLOCK_OPENS_SHUTTERS invariant (action set
-        # but no movable block). Demoting the action makes the room
-        # consistent regardless of later wall changes.
+        # C# clears bit 6 of Table 3 (movable_block) when doorType == 4 and
+        # no wall has a 7/56 pattern (i.e. no SHUTTER_DOOR). The action is
+        # left as PUSHING_BLOCK_OPENS_SHUTTERS — only the block flag is cleared.
         if (
             action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
             and not _has_any_shutter_door(room)
         ):
-            room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+            room.movable_block = False
 
-        # ── Block 2.5: KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM with no item ──
-        # Without an actual item, the game's drop logic reads the
-        # Item.NOTHING code (0x03 in the dungeon item byte) which collides
-        # with MAGICAL_SWORD (also 0x03), producing a phantom Magical
-        # Sword drop. Demote the action so the room still opens shutters
-        # but doesn't trigger the broken drop logic. The reference 100-seed
-        # full-shuffle corpus has 0/7400 such rooms — confirms direction.
-        if (
-            room.room_action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM
-            and room.item == Item.NOTHING
-        ):
-            room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+        # ── Block 2.5: (commented out — not in C#) ───────────────────────────
+        # Was added as a protective fixup but diverges from C#. Re-enable if
+        # phantom Magical Sword drops appear after other fixes.
+        # if (
+        #     room.room_action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS_AND_DROPS_ITEM
+        #     and room.item == Item.NOTHING
+        # ):
+        #     room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
 
-        # ── Block 3: TRIFORCE_OF_POWER_OPENS_SHUTTERS legitimacy ─────
-        # This action has two legitimate uses in zora:
-        #   1. THE_BEAST's room itself (Block 4 sets this canonically).
-        #   2. Kidnapped-neighbor rooms — the gate that ensures the
-        #      player must defeat Ganon and obtain Triforce of Power
-        #      before reaching Zelda. Set by _fix_kidnapped_neighbors
-        #      in zora/enemy/shuffle_monsters.py and orchestrator.py.
-        #
-        # Historically Block 3 only ran post-shuffle (before kidnapped-
-        # gate assignment), so demoting any non-beast action-3 was
-        # correct then. Now that we re-run post-enemy-randomization,
-        # kidnapped-gate rooms are already set and must be preserved.
-        # NOTE: The C# original wrote raw byte 0x03 for the cleared
-        # item, which is the vanilla dungeon nothing sentinel — NOT
-        # Item.MAGICAL_SWORD.
+        # ── Block 3: doorType == 3 (TRIFORCE_OF_POWER_OPENS_SHUTTERS) fix ──
+        # C# (lines 1685-1695): when doorType == 3 and enemy != THE_BEAST:
+        #   1. Clear bit 1 of Table 5 (room_action). This demotes
+        #      KILLING_RINGLEADER (2=0b010) → NOTHING (0) and
+        #      TRIFORCE_OF_POWER (3=0b011) → KILLING_ENEMIES (1).
+        #   2. If Table 4 item field (& 0x1F) == 14 (TRIFORCE_OF_POWER),
+        #      set Table 4 to 3: item=MAGICAL_SWORD, dark=False, boss_cry=0.
         if action == RoomAction.TRIFORCE_OF_POWER_OPENS_SHUTTERS:
             is_beast_room = room.enemy_spec.enemy == Enemy.THE_BEAST
-            is_kidnapped_gate = _is_kidnapped_gate_room(room, level)
-            if not (is_beast_room or is_kidnapped_gate):
-                room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+            # Commented out: kidnapped-gate exemption was added to protect the
+            # Triforce gate mechanic but is not in the C#. Re-enable if needed.
+            # is_kidnapped_gate = _is_kidnapped_gate_room(room, level)
+            # if not (is_beast_room or is_kidnapped_gate):
+            if not is_beast_room:
+                # Clear bit 1 of room_action: 3 (0b011) → 1 (0b001)
+                room.room_action = RoomAction(action.value & ~0x02)
                 if room.item == Item.TRIFORCE_OF_POWER:
-                    room.item = Item.NOTHING
+                    room.item = Item.MAGICAL_SWORD
                     room.is_dark = False
                     room.boss_cry_1 = False
                     room.boss_cry_2 = False
@@ -1324,29 +1359,18 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
                 if neighbor_num in level9_room_nums and neighbor_num in grid_rooms:
                     grid_rooms[neighbor_num].boss_cry_1 = True
 
-        # ── Block 6: movable_block without purpose ──────────────────────
-        # After shuffles, a room can end up with movable_block=True paired
-        # with a room_action that doesn't reference pushblocks. The block
-        # becomes purposeless: player pushes it, nothing happens.
-        #
-        # Exemption: rooms with has_open_staircase() (DIAMOND/NARROW/SPIRAL
-        # stair rooms) ship with movable_block=True in vanilla regardless
-        # of action. The staircase is always visible; the block is
-        # decorative. 14 of 15 vanilla integrity-check violations of this
-        # invariant are these rooms — they're a documented baseline case,
-        # not a bug.
-        #
-        # For all other rooms, demote movable_block to False when paired
-        # with a non-pushblock action.
-        if (
-            room.movable_block
-            and room.room_action not in (
-                RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS,
-                RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE,
-            )
-            and not room.room_type.has_open_staircase()
-        ):
-            room.movable_block = False
+        # ── Block 6: (commented out — not in C#) ────────────────────────
+        # Was added to clear purposeless movable_block flags after shuffling,
+        # but diverges from C#. Re-enable if dangling push-block bugs reappear.
+        # if (
+        #     room.movable_block
+        #     and room.room_action not in (
+        #         RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS,
+        #         RoomAction.PUSHING_BLOCK_MAKES_STAIRWAY_VISIBLE,
+        #     )
+        #     and not room.room_type.has_open_staircase()
+        # ):
+        #     room.movable_block = False
 
     # ── Block 5: Level 9 OLD_MAN NPC room wall fix ───────────────────
     # The C# identifies this room by Table2 == 0x0B && Table3 & 0x80 &&
@@ -1355,21 +1379,18 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
     # Fix walls so they satisfy the integrity contract: south = OPEN_DOOR,
     # and N/E/W ∈ {SOLID_WALL, SHUTTER_DOOR}.
     #
-    # The NORTH wall is allowed to be either SOLID or SHUTTER. For the
-    # L9 entry-gate room, the SHUTTER_DOOR is the triforce-check that
-    # opens when the player has all 8 triforces, so it must be preserved.
-    # Only force N → SOLID when it is currently neither SOLID nor SHUTTER
-    # (i.e. an invalid value introduced by upstream shuffles).
+    # C# (lines 1760-1763): if north != SOLID_WALL (l1s & ~7 != 8 means
+    # north field != 1), set north to SHUTTER_DOOR (OR 0xE0); always clear
+    # south to OPEN_DOOR (& ~0x1C). East/west handled by Table 1 bits.
     if level.level_num == 9:
-        _allowed_n = (WallType.SOLID_WALL, WallType.SHUTTER_DOOR)
         for room in level.rooms:
             if room.enemy_spec.enemy == Enemy.OLD_MAN:
                 w = room.walls
-                if w.north not in _allowed_n:
-                    w.north = WallType.SOLID_WALL
+                if w.north != WallType.SOLID_WALL:
+                    w.north = WallType.SHUTTER_DOOR
                     above_num = room.room_num - 16
                     if above_num >= 0 and above_num in grid_rooms:
-                        grid_rooms[above_num].walls.south = WallType.SOLID_WALL
+                        grid_rooms[above_num].walls.south = WallType.SHUTTER_DOOR
                 w.south = WallType.OPEN_DOOR
                 if w.west != WallType.SOLID_WALL:
                     w.west = WallType.SHUTTER_DOOR
@@ -1415,37 +1436,70 @@ def _fix_peninsula_and_stairs(level: Level, world: GameWorld) -> None:
     for room in level.rooms:
         walls = room.walls
 
-        # ── Part 1: Stair rooms (room_action == DEFEATING_NPC_OPENS_SHUTTERS) ─
-        # The C# checks: Table2 byte in [0x0B, 0x13] && Table3 >= 128 (is_group)
-        # && doorType == 6 (DEFEATING_NPC_OPENS_SHUTTERS).
-        # In our model the enemy range 0x0B-0x13 with is_group maps to various
-        # NPC/grouped enemies.  The key condition is room_action == 6.
-        # For these rooms: if any wall is OPEN_DOOR or LOCKED_DOOR_1, upgrade
-        # to SHUTTER_DOOR so the stair mechanic works properly.
-        enemy_val = room.enemy_spec.enemy.value
-        if (
-            0x0B <= enemy_val <= 0x13
-            and room.enemy_spec.is_group
-            and room.room_action == RoomAction.DEFEATING_NPC_OPENS_SHUTTERS
-        ):
-            _upgrade = (WallType.OPEN_DOOR, WallType.LOCKED_DOOR_1)
-            if walls.south in _upgrade:
-                walls.south = WallType.SHUTTER_DOOR
-            if walls.north in _upgrade:
-                walls.north = WallType.SHUTTER_DOOR
-            if walls.east in _upgrade:
-                walls.east = WallType.SHUTTER_DOOR
-            if walls.west in _upgrade:
-                walls.west = WallType.SHUTTER_DOOR
+        # ── Part 1: NPC-range rooms (OLD_MAN through OLD_MAN_6) ─────────────
+        # C# checks: raw Table2 6-bit code in [0x0B, 0x13] && Table3 bit7 set
+        # (is_group). In our model this maps to Enemy.OLD_MAN–Enemy.OLD_MAN_6.
+        # C# also excludes rooms handled by the level-9 special fix:
+        #   level==9 AND (enemy==OLD_MAN OR room_type==ENTRANCE_ROOM).
+        # doorType==6 branch: upgrade OPEN_DOOR/LOCKED_DOOR_1 walls to SHUTTER_DOOR.
+        # doorType!=6 branch: clear any lingering SHUTTER_DOOR walls to OPEN_DOOR.
+        is_npc_range = Enemy.OLD_MAN <= room.enemy_spec.enemy <= Enemy.OLD_MAN_6
+        handled_by_l9 = (
+            level.level_num == 9 and (
+                room.enemy_spec.enemy == Enemy.OLD_MAN
+                or room.room_type == RoomType.ENTRANCE_ROOM
+            )
+        )
+        if is_npc_range and not handled_by_l9:
+            if room.room_action == RoomAction.DEFEATING_NPC_OPENS_SHUTTERS:
+                _upgrade = (WallType.OPEN_DOOR, WallType.LOCKED_DOOR_1)
+                if walls.south in _upgrade:
+                    walls.south = WallType.SHUTTER_DOOR
+                if walls.north in _upgrade:
+                    walls.north = WallType.SHUTTER_DOOR
+                if walls.east in _upgrade:
+                    walls.east = WallType.SHUTTER_DOOR
+                if walls.west in _upgrade:
+                    walls.west = WallType.SHUTTER_DOOR
+            else:
+                if walls.south == WallType.SHUTTER_DOOR:
+                    walls.south = WallType.OPEN_DOOR
+                if walls.north == WallType.SHUTTER_DOOR:
+                    walls.north = WallType.OPEN_DOOR
+                if walls.east == WallType.SHUTTER_DOOR:
+                    walls.east = WallType.OPEN_DOOR
+                if walls.west == WallType.SHUTTER_DOOR:
+                    walls.west = WallType.OPEN_DOOR
 
         # ── Part 2: T_ROOM/ZELDA_ROOM with south wall == SOLID_WALL ──────────
         # If the room below exists in this level, track for stair-adjacency fix:
         # clear the wall between this room and the room below.
-        if room.room_type in (RoomType.T_ROOM, RoomType.ZELDA_ROOM) and not room.movable_block:
+        # C# has no movable_block filter here — removed to match.
+        # NOTE: C# also guards on chuteMarkers.Contains(i + 128); that system
+        # is not yet ported (see Bug 6), so this fires for all matching rooms.
+        if room.room_type in (RoomType.T_ROOM, RoomType.ZELDA_ROOM):
             if walls.south == WallType.SOLID_WALL:
                 below_num = room.room_num + 16
                 if below_num < 128 and below_num in level_room_nums:
                     stair_fix_rooms.append(room)
+
+        # ── Part 2b: KIDNAPPED+ZELDA_ROOM+action1 shutter-clear ──────────────
+        # C# lines 1889-1907: enemy==THE_KIDNAPPED AND room_type==ZELDA_ROOM
+        # AND room_action==KILLING_ENEMIES_OPENS_SHUTTERS → clear SHUTTER_DOOR
+        # walls to OPEN_DOOR (the 7/56 bit-clear pattern).
+        if (
+            room.enemy_spec.enemy == Enemy.THE_KIDNAPPED
+            and room.room_type == RoomType.ZELDA_ROOM
+            and room.room_action == RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+        ):
+            if walls.south == WallType.SHUTTER_DOOR:
+                walls.south = WallType.OPEN_DOOR
+            if walls.north == WallType.SHUTTER_DOOR:
+                walls.north = WallType.OPEN_DOOR
+            if walls.east == WallType.SHUTTER_DOOR:
+                walls.east = WallType.OPEN_DOOR
+            if walls.west == WallType.SHUTTER_DOOR:
+                walls.west = WallType.OPEN_DOOR
 
         # ── Part 3: HUNGRY_GORIYA rooms — clear lingering shutter doors ───────
         # The C# checks ScreenType_0x36 against Table 3 (room_type field) and
@@ -1787,6 +1841,102 @@ def _is_level_connected(level: Level) -> bool:
     return level_room_nums.issubset(reached_rooms)
 
 
+def _post_shuffle_wall_fixup(world: GameWorld) -> None:
+    """Post-loop wall and push-block cleanup (C# lines 618-710).
+
+    Runs over all rooms in both Q1 grids (L1-6 and L7-9) and applies three
+    wall-fixup patterns plus a push-block cleanup.  Mirrors the C# outer loop
+    over num325 in {0, 768} (Q1 only).
+    """
+    # Build per-grid room lookup: grid_rooms[g][room_num] = Room.
+    # Grid 0 = levels 1-6 (level_num 1-6), Grid 1 = levels 7-9 (level_num 7-9).
+    grid_rooms: list[dict[int, Room]] = [{}, {}]
+    for level in world.levels:
+        g = 0 if level.level_num <= 6 else 1
+        for room in level.rooms:
+            grid_rooms[g][room.room_num] = room
+
+    def _not_beast(grid: dict[int, Room], rn: int) -> bool:
+        """Room at rn is not a bare THE_BEAST room (itemVal==62 && !is_group)."""
+        neighbor = grid.get(rn)
+        if neighbor is None:
+            return True
+        return not (
+            neighbor.enemy_spec.enemy == Enemy.THE_BEAST
+            and not neighbor.enemy_spec.is_group
+        )
+
+    for grid in grid_rooms:
+        # Pattern 1: THE_BEAST (0x3E), not is_group → set all non-SOLID/non-BOMB_HOLE walls to SHUTTER_DOOR
+        # C# itemVal==62 (Table 2 byte == 0x3E == Enemy.THE_BEAST), enemyVal & 128 == 0
+        # C#: skip if wall == 1 (SOLID_WALL) or wall == 4 (BOMB_HOLE)
+        for room in grid.values():
+            if room.enemy_spec.enemy == Enemy.THE_BEAST and not room.enemy_spec.is_group:
+                w = room.walls
+                if w.south not in (WallType.SOLID_WALL, WallType.BOMB_HOLE):
+                    w.south = WallType.SHUTTER_DOOR
+                if w.north not in (WallType.SOLID_WALL, WallType.BOMB_HOLE):
+                    w.north = WallType.SHUTTER_DOOR
+                if w.east not in (WallType.SOLID_WALL, WallType.BOMB_HOLE):
+                    w.east = WallType.SHUTTER_DOOR
+                if w.west not in (WallType.SOLID_WALL, WallType.BOMB_HOLE):
+                    w.west = WallType.SHUTTER_DOOR
+
+        # Pattern 2: ZOLA + is_group → set OPEN_DOOR(0) or LOCKED_DOOR_1(5) walls to SHUTTER_DOOR
+        # C#: trigger if wall == 0 (OPEN_DOOR) or wall == 5 (LOCKED_DOOR_1)
+        for room in grid.values():
+            if room.enemy_spec.enemy == Enemy.ZOLA and room.enemy_spec.is_group:
+                w = room.walls
+                if w.south in (WallType.OPEN_DOOR, WallType.LOCKED_DOOR_1):
+                    w.south = WallType.SHUTTER_DOOR
+                if w.north in (WallType.OPEN_DOOR, WallType.LOCKED_DOOR_1):
+                    w.north = WallType.SHUTTER_DOOR
+                if w.east in (WallType.OPEN_DOOR, WallType.LOCKED_DOOR_1):
+                    w.east = WallType.SHUTTER_DOOR
+                if w.west in (WallType.OPEN_DOOR, WallType.LOCKED_DOOR_1):
+                    w.west = WallType.SHUTTER_DOOR
+
+        # Pattern 3: RED_DARKNUT + is_group → clear adjacent rooms' matching wall to OPEN_DOOR
+        for room in grid.values():
+            if room.enemy_spec.enemy == Enemy.RED_DARKNUT and room.enemy_spec.is_group:
+                rn = room.room_num
+                w = room.walls
+                # south == SHUTTER_DOOR: clear room_below.north unconditionally
+                if w.south == WallType.SHUTTER_DOOR:
+                    below = grid.get(rn + 16)
+                    if below is not None:
+                        below.walls.north = WallType.OPEN_DOOR
+                # north == SHUTTER_DOOR: clear room_above.south if it's not a bare staircase
+                if w.north == WallType.SHUTTER_DOOR and _not_beast(grid, rn - 16):
+                    above = grid.get(rn - 16)
+                    if above is not None:
+                        above.walls.south = WallType.OPEN_DOOR
+                # east == SHUTTER_DOOR: clear room_right.west if it's not a bare staircase
+                if w.east == WallType.SHUTTER_DOOR and _not_beast(grid, rn + 1):
+                    right = grid.get(rn + 1)
+                    if right is not None:
+                        right.walls.west = WallType.OPEN_DOOR
+                # west == SHUTTER_DOOR: clear room_left.east if it's not a bare staircase
+                if w.west == WallType.SHUTTER_DOOR and _not_beast(grid, rn - 1):
+                    left = grid.get(rn - 1)
+                    if left is not None:
+                        left.walls.east = WallType.OPEN_DOOR
+
+        # Pattern 4: PUSHING_BLOCK_OPENS_SHUTTERS + movable_block, no SHUTTER_DOOR walls → clear movable_block
+        for room in grid.values():
+            if (
+                room.room_action == RoomAction.PUSHING_BLOCK_OPENS_SHUTTERS
+                and room.movable_block
+            ):
+                w = room.walls
+                has_shutter = any(
+                    wt == WallType.SHUTTER_DOOR
+                    for wt in (w.north, w.south, w.east, w.west)
+                )
+                if not has_shutter:
+                    room.movable_block = False
+
+
 def shuffle_dungeon_rooms(
     world: GameWorld,
     rng: Rng,
@@ -1829,12 +1979,13 @@ def shuffle_dungeon_rooms(
         for _attempt in range(_MAX_CONNECTIVITY_RETRIES):
             snapshot.restore(level)
 
-            if not _shuffle_level(level, rng):
+            shuffled = _shuffle_level(level, rng)
+            if shuffled is None:
                 continue
 
-            _fix_horizontal_door_pairs(level, rng)
+            _fix_horizontal_door_pairs(level, rng, must_beat_gannon)
             _fix_vertical_door_pairs(level, rng, must_beat_gannon)
-            _fix_constrained_room_doors(level, rng)
+            _fix_constrained_room_doors(level, rng, shuffled)
 
             _fix_special_rooms(level, world)
             _fix_peninsula_and_stairs(level, world)
@@ -1853,4 +2004,5 @@ def shuffle_dungeon_rooms(
         if not connected:
             return False
 
+    _post_shuffle_wall_fixup(world)
     return True
