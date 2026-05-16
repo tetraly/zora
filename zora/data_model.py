@@ -845,10 +845,11 @@ class EnemyData:
 @dataclass
 class GameWorld:
     overworld: Overworld
-    levels: list[Level]   # exactly 9, index 0 = Level 1
-    quotes: list[Quote]   # exactly 38
+    levels: list[Level]      # exactly 9, index 0 = Level 1
+    quotes: list[Quote]      # exactly 38
     sprites: SpriteData
     enemies: EnemyData
+    levels_2q: list[Level] = field(default_factory=list)  # exactly 9, index 0 = 2Q Level 1; read-only, never serialised
 
 
 def is_l9_entry_gate(level: Level, room: Room) -> bool:

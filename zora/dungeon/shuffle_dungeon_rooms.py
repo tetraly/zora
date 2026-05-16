@@ -1175,24 +1175,28 @@ def _shuffle_level(level: Level, rng: Rng) -> frozenset[int] | None:
     return None
 
 
-def _get_level9_room_nums(world: GameWorld) -> frozenset[int]:
-    """Return room_nums belonging to level 9, for cross-level neighbor checks."""
-    for level in world.levels:
-        if level.level_num == 9:
-            return frozenset(r.room_num for r in level.rooms)
+def _get_level9_room_nums(world: GameWorld, level: Level) -> frozenset[int]:
+    """Return room_nums belonging to level 9 in the same quest as *level*."""
+    source = world.levels_2q if level in world.levels_2q else world.levels
+    for lv in source:
+        if lv.level_num == 9:
+            return frozenset(r.room_num for r in lv.rooms)
     return frozenset()
 
 
 def _grid_room_lookup(world: GameWorld, level: Level) -> dict[int, Room]:
     """Build a room_num → Room dict for all levels sharing a grid with *level*.
 
-    Levels 1-6 share one grid; levels 7-9 share another.  The boss-cry
-    neighbor fix in FixSpecialRooms needs to look up rooms across levels.
+    Levels 1-6 share one grid; levels 7-9 share another.  Q1 and Q2 have
+    separate grids.  The boss-cry neighbor fix in FixSpecialRooms needs to
+    look up rooms across levels within the same grid.
     """
+    is_q2 = level in world.levels_2q
+    source = world.levels_2q if is_q2 else world.levels
     if level.level_num <= 6:
-        grid_levels = [lv for lv in world.levels if lv.level_num <= 6]
+        grid_levels = [lv for lv in source if lv.level_num <= 6]
     else:
-        grid_levels = [lv for lv in world.levels if lv.level_num >= 7]
+        grid_levels = [lv for lv in source if lv.level_num >= 7]
     result: dict[int, Room] = {}
     for lv in grid_levels:
         for room in lv.rooms:
@@ -1244,7 +1248,7 @@ def _fix_special_rooms(level: Level, world: GameWorld) -> None:
     Ported from ShuffleDungeonRoomsHelpers.cs FixSpecialRooms (lines 426-601).
     """
     level_room_nums = _level_room_nums(level)
-    level9_room_nums = _get_level9_room_nums(world)
+    level9_room_nums = _get_level9_room_nums(world, level)
     grid_rooms = _grid_room_lookup(world, level)
 
     for room in level.rooms:
@@ -1592,9 +1596,10 @@ def _clear_boss_cry_bits(world: GameWorld) -> None:
     after each level's shuffle. Since levels 1-6 share one grid and levels
     7-9 share another, this clears boss cries for all co-located levels.
 
-    We clear across all levels since we process all levels sequentially.
+    We clear across all levels (both quests) since we process all levels
+    sequentially.
     """
-    for level in world.levels:
+    for level in world.levels + world.levels_2q:
         for room in level.rooms:
             room.boss_cry_1 = False
             room.boss_cry_2 = False
@@ -2059,15 +2064,20 @@ def _apply_connectivity_fallback_door(
 def _post_shuffle_wall_fixup(world: GameWorld) -> None:
     """Post-loop wall and push-block cleanup (C# lines 618-710).
 
-    Runs over all rooms in both Q1 grids (L1-6 and L7-9) and applies three
-    wall-fixup patterns plus a push-block cleanup.  Mirrors the C# outer loop
-    over num325 in {0, 768} (Q1 only).
+    Runs over all rooms in all four dungeon grids (Q1 L1-6, Q1 L7-9,
+    Q2 L1-6, Q2 L7-9) and applies three wall-fixup patterns plus a
+    push-block cleanup.  Mirrors the C# outer loop over num325 in
+    {0, 768, 1536, 2304}.
     """
     # Build per-grid room lookup: grid_rooms[g][room_num] = Room.
-    # Grid 0 = levels 1-6 (level_num 1-6), Grid 1 = levels 7-9 (level_num 7-9).
-    grid_rooms: list[dict[int, Room]] = [{}, {}]
+    # Grid 0 = Q1 L1-6, Grid 1 = Q1 L7-9, Grid 2 = Q2 L1-6, Grid 3 = Q2 L7-9.
+    grid_rooms: list[dict[int, Room]] = [{}, {}, {}, {}]
     for level in world.levels:
         g = 0 if level.level_num <= 6 else 1
+        for room in level.rooms:
+            grid_rooms[g][room.room_num] = room
+    for level in world.levels_2q:
+        g = 2 if level.level_num <= 6 else 3
         for room in level.rooms:
             grid_rooms[g][room.room_num] = room
 
@@ -2167,7 +2177,7 @@ def shuffle_dungeon_rooms(
     # since only L9 sets boss_cry_1, a single up-front pass is equivalent.
     _clear_boss_cry_bits(world)
 
-    for level in world.levels:
+    for level in world.levels + world.levels_2q:
         snapshot = _LevelSnapshot(level)
         connected = False
 

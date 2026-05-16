@@ -153,8 +153,15 @@ from zora.rom_layout import (
     GANON_HP_ADDRESS,
     GLEEOK_HP_ADDRESS,
     PATRA_HP_ADDRESS,
+    DUNGEON_VARIOUS_DATA_Q2_PTR_TABLE,
+    DUNGEON_VARIOUS_DATA_Q2_LEN_TABLE,
+    DUNGEON_VARIOUS_DATA_Q2_BANK6_CPU,
+    DUNGEON_VARIOUS_DATA_Q2_BANK6_FILE,
+    DUNGEON_VARIOUS_DATA_Q2_INFO_OFFSET,
     LEVEL_1_6_DATA_ADDRESS,
+    LEVEL_1_6_DATA_ADDRESS_Q2,
     LEVEL_7_9_DATA_ADDRESS,
+    LEVEL_7_9_DATA_ADDRESS_Q2,
     LEVEL_INFO_ADDRESS,
     LEVEL_INFO_SIZE,
     LEVEL_SPRITE_SET_POINTERS_ADDRESS,
@@ -207,6 +214,9 @@ class RawBinFiles:
     level_1_6_data:       bytes   # 0x300 bytes
     level_7_9_data:       bytes   # 0x300 bytes
     level_info:           bytes   # 0xA * 0xFC bytes
+    level_1_6_data_q2:   bytes   # 0x300 bytes
+    level_7_9_data_q2:   bytes   # 0x300 bytes
+    level_info_q2:        bytes   # 0xA * 0xFC bytes, patched from 1Q
     level_pointers:       bytes
     overworld_data:       bytes   # 0x500 bytes
     mixed_enemy_data:     bytes
@@ -281,6 +291,9 @@ def load_bin_files(test_data_dir: Path) -> RawBinFiles:
         level_1_6_data       = read("level_1_6_data.bin"),
         level_7_9_data       = read("level_7_9_data.bin"),
         level_info           = read("level_info.bin"),
+        level_1_6_data_q2    = read("level_1_6_data_q2.bin"),
+        level_7_9_data_q2    = read("level_7_9_data_q2.bin"),
+        level_info_q2        = read("level_info_q2.bin"),
         level_pointers       = b"",  # placeholder
         overworld_data       = read("overworld_data.bin"),
         mixed_enemy_data     = read("mixed_enemy_data.bin"),
@@ -378,6 +391,30 @@ def is_randomizer_rom(rom_bytes: bytes) -> bool:
     return magic_slice == RANDOMIZER_MAGIC
 
 
+def _build_level_info_q2_from_rom(rom_bytes: bytes) -> bytes:
+    """Derive 2Q level_info bytes by patching 1Q level_info with the ROM's 2Q Various Data.
+
+    The ROM stores compact patch blocks for each 2Q dungeon at addresses listed in a
+    pointer table (DUNGEON_VARIOUS_DATA_Q2_PTR_TABLE).  Each block replaces bytes in
+    the level_info starting at offset +DUNGEON_VARIOUS_DATA_Q2_INFO_OFFSET (+0x29).
+    The block length is given by DUNGEON_VARIOUS_DATA_Q2_LEN_TABLE.
+    """
+    level_info_q2 = bytearray(rom_bytes[LEVEL_INFO_ADDRESS: LEVEL_INFO_ADDRESS + 0xA * LEVEL_INFO_SIZE])
+
+    for i in range(9):
+        level_num = i + 1
+        ptr_off  = DUNGEON_VARIOUS_DATA_Q2_PTR_TABLE + i * 2
+        cpu_addr = rom_bytes[ptr_off] | (rom_bytes[ptr_off + 1] << 8)
+        file_off = DUNGEON_VARIOUS_DATA_Q2_BANK6_FILE + (cpu_addr - DUNGEON_VARIOUS_DATA_Q2_BANK6_CPU)
+        length   = rom_bytes[DUNGEON_VARIOUS_DATA_Q2_LEN_TABLE + i]
+
+        patch = rom_bytes[file_off: file_off + length]
+        dest  = level_num * LEVEL_INFO_SIZE + DUNGEON_VARIOUS_DATA_Q2_INFO_OFFSET
+        level_info_q2[dest: dest + length] = patch
+
+    return bytes(level_info_q2)
+
+
 def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
     """Build a RawBinFiles by slicing a full .nes ROM file in memory.
 
@@ -392,6 +429,9 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         level_1_6_data              = s(LEVEL_1_6_DATA_ADDRESS,              0x300),
         level_7_9_data              = s(LEVEL_7_9_DATA_ADDRESS,              0x300),
         level_info                  = s(LEVEL_INFO_ADDRESS,                  0xA * 0xFC),
+        level_1_6_data_q2           = s(LEVEL_1_6_DATA_ADDRESS_Q2,           0x300),
+        level_7_9_data_q2           = s(LEVEL_7_9_DATA_ADDRESS_Q2,           0x300),
+        level_info_q2               = _build_level_info_q2_from_rom(rom_bytes),
         level_pointers              = b"",
         overworld_data              = s(OVERWORLD_DATA_ADDRESS,              0x500),
         mixed_enemy_data            = s(MIXED_ENEMY_DATA_ADDRESS,            MIXED_ENEMY_DATA_SIZE),
@@ -856,11 +896,12 @@ def _parse_level(
     level_index: int,
     bins: RawBinFiles,
     mixed_groups: dict[int, EnemySpec],
+    level_info: bytes | None = None,
 ) -> Level:
     level = _parse_single_level(
         level_num=level_num,
         grid_data=grid_data,
-        level_info=bins.level_info,
+        level_info=level_info if level_info is not None else bins.level_info,
         mixed_groups=mixed_groups,
     )
     level.enemy_sprite_set = _parse_enemy_sprite_set(bins, level_num)
@@ -1341,6 +1382,26 @@ def parse_game_world(bins: RawBinFiles) -> GameWorld:
             mixed_groups=mixed_groups,
         ))
 
+    levels_2q: list[Level] = []
+    for level_num in range(1, 7):
+        levels_2q.append(_parse_level(
+            level_num=level_num,
+            grid_data=bins.level_1_6_data_q2,
+            level_index=level_num - 1,
+            bins=bins,
+            mixed_groups=mixed_groups,
+            level_info=bins.level_info_q2,
+        ))
+    for level_num in range(7, 10):
+        levels_2q.append(_parse_level(
+            level_num=level_num,
+            grid_data=bins.level_7_9_data_q2,
+            level_index=level_num - 7,
+            bins=bins,
+            mixed_groups=mixed_groups,
+            level_info=bins.level_info_q2,
+        ))
+
     overworld = _parse_overworld(bins, mixed_groups)
     quotes    = _parse_quotes(bins.quotes_data) if bins.quotes_data else []
 
@@ -1379,4 +1440,5 @@ def parse_game_world(bins: RawBinFiles) -> GameWorld:
         quotes=quotes,
         sprites=sprites,
         enemies=enemies,
+        levels_2q=levels_2q,
     )

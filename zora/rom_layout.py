@@ -22,6 +22,16 @@ LEVEL_7_9_DATA_ADDRESS    = 0x18A00 + NES_HEADER_SIZE
 LEVEL_1_6_DATA_ADDRESS_Q2 = 0x18D00 + NES_HEADER_SIZE
 LEVEL_7_9_DATA_ADDRESS_Q2 = 0x19000 + NES_HEADER_SIZE
 
+# 2Q dungeon "Various Data" patch tables (ROM addresses; add NES_HEADER_SIZE for file offset).
+# Pointer table: 9 × 2-byte LE CPU addresses pointing into bank 6 (CPU base 0x8000).
+# Length table:  9 bytes, one per dungeon.  Each block patches level_info starting at +0x29.
+DUNGEON_VARIOUS_DATA_Q2_PTR_TABLE  = 0x183A4 + NES_HEADER_SIZE  # 9 × 2 bytes
+DUNGEON_VARIOUS_DATA_Q2_LEN_TABLE  = 0x183B6 + NES_HEADER_SIZE  # 9 bytes
+DUNGEON_VARIOUS_DATA_Q2_BANK6_CPU  = 0x8000                     # CPU base of bank 6
+DUNGEON_VARIOUS_DATA_Q2_BANK6_FILE = 0x18000 + NES_HEADER_SIZE  # file base of bank 6
+# Byte offset within the 0xFC-byte level_info block where the patch data begins.
+DUNGEON_VARIOUS_DATA_Q2_INFO_OFFSET = 0x29  # item_position_table[0]
+
 # ---------------------------------------------------------------------------
 # Overworld / level info addresses
 # ---------------------------------------------------------------------------
