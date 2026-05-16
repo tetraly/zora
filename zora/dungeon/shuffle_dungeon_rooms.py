@@ -396,6 +396,14 @@ from zora.game_validator import _CONSTRAINED_VALID_DIRS
 from zora.rng import Rng
 
 
+def _randbelow(rng: Rng, n: int) -> int:
+    """Return a random int in [0, n). Uses rng.randbelow(n) if available
+    (for hash-based parity RNGs that use modulo), else int(rng.random() * n)."""
+    if hasattr(rng, "randbelow"):
+        return rng.randbelow(n)  # type: ignore[attr-defined]
+    return int(rng.random() * n)
+
+
 # Maximum retries for the constrained Fisher-Yates before restarting a level.
 _MAX_SHUFFLE_RETRIES = 1_000
 
@@ -419,13 +427,13 @@ _NEEDS_ROOM_BELOW: frozenset[RoomType] = frozenset({
     RoomType.ZELDA_ROOM,          # 0x27 — Zelda's room needs a room below
 })
 
-# _NEEDS_ROOM_ABOVE_AND_BELOW: frozenset[RoomType] = frozenset({
-#     RoomType.HORIZONTAL_CHUTE_ROOM,  # 0x0F — top row needs north, bottom needs south
-# })
+_NEEDS_ROOM_ABOVE_AND_BELOW: frozenset[RoomType] = frozenset({
+    RoomType.HORIZONTAL_CHUTE_ROOM,  # 0x0F — needs north neighbor in level
+})
 
-# _NEEDS_LEFT_AND_RIGHT: frozenset[RoomType] = frozenset({
-#     RoomType.VERTICAL_CHUTE_ROOM,  # 0x0E — left lane needs west, right lane needs east
-# })
+_NEEDS_LEFT_AND_RIGHT: frozenset[RoomType] = frozenset({
+    RoomType.VERTICAL_CHUTE_ROOM,  # 0x0E — needs both left and right neighbors in level
+})
 
 
 def _level_room_nums(level: Level) -> frozenset[int]:
@@ -515,20 +523,20 @@ def _check_adjacency_constraints(
         if not _has_neighbor_in_level(dest_pos, Direction.SOUTH, level_room_nums):
             return False
 
-    # if room_type in _NEEDS_ROOM_ABOVE_AND_BELOW:
-    #     if not _has_neighbor_in_level(dest_pos, Direction.NORTH, level_room_nums):
-    #         return False
-    #     if not _has_neighbor_in_level(dest_pos, Direction.SOUTH, level_room_nums):
-    #         return False
+    if room_type in _NEEDS_ROOM_ABOVE_AND_BELOW:
+        if not _has_neighbor_in_level(dest_pos, Direction.NORTH, level_room_nums):
+            return False
+        if not _has_neighbor_in_level(dest_pos, Direction.SOUTH, level_room_nums):
+            return False
 
-    # if room_type in _NEEDS_LEFT_AND_RIGHT:
-    #     col = dest_pos % 16
-    #     if col == 0 or col == 15:
-    #         return False
-    #     if not _has_neighbor_in_level(dest_pos, Direction.WEST, level_room_nums):
-    #         return False
-    #     if not _has_neighbor_in_level(dest_pos, Direction.EAST, level_room_nums):
-    #         return False
+    if room_type in _NEEDS_LEFT_AND_RIGHT:
+        col = dest_pos % 16
+        if col == 0 or col == 15:
+            return False
+        if not _has_neighbor_in_level(dest_pos, Direction.WEST, level_room_nums):
+            return False
+        if not _has_neighbor_in_level(dest_pos, Direction.EAST, level_room_nums):
+            return False
 
     return True
 
@@ -539,27 +547,20 @@ def _is_swap_valid(
     pos_i: int,
     pos_j: int,
     level_room_nums: frozenset[int],
-    enemy_i: Enemy = Enemy.NOTHING,
-    enemy_j: Enemy = Enemy.NOTHING,
-    north_walls: dict[int, WallType] | None = None,
 ) -> bool:
     """Check if swapping room contents between positions i and j is valid.
 
     After the swap, room_type_i would be at pos_j and room_type_j at pos_i.
-    Both placements must satisfy adjacency constraints. NPC enemies must
-    land at positions with a solid north wall (NES engine constraint).
+    Both placements must satisfy adjacency constraints.
+
+    NOTE: The C# does NOT check NPC north-wall placement during the shuffle
+    (no such check in CheckSwapConstraints or Phase 4). NPC door constraints
+    are resolved by _fix_horizontal_door_pairs / _fix_vertical_door_pairs.
     """
     if not _check_adjacency_constraints(room_type_i, pos_j, level_room_nums):
         return False
     if not _check_adjacency_constraints(room_type_j, pos_i, level_room_nums):
         return False
-    if north_walls is not None:
-        if enemy_i in _NPC_ENEMIES_IN_BLACK_ROOM:
-            if north_walls.get(pos_j) != WallType.SOLID_WALL:
-                return False
-        if enemy_j in _NPC_ENEMIES_IN_BLACK_ROOM:
-            if north_walls.get(pos_i) != WallType.SOLID_WALL:
-                return False
     return True
 
 
@@ -703,7 +704,7 @@ def _is_horiz_pair_locked(
 _SEALED_DOOR_PAIR = (WallType.SOLID_WALL.value << 3) | WallType.SOLID_WALL.value
 
 
-def _fix_horizontal_door_pairs(level: Level, rng: Rng, must_beat_ganon: bool = True) -> None:
+def _fix_horizontal_door_pairs(level: Level, rng: Rng, must_beat_ganon: bool = True) -> list[int]:
     """Shuffle horizontal door pairs within a level.
 
     For each pair of horizontally adjacent rooms (room i, room i+1) that both
@@ -715,6 +716,9 @@ def _fix_horizontal_door_pairs(level: Level, rng: Rng, must_beat_ganon: bool = T
     Unlocked pairs are Fisher-Yates shuffled among themselves.
 
     Finally, write the shuffled wall types back to the room objects.
+
+    Returns a list of chute marker positions (left room_num of pairs where at
+    least one side is SOLID_WALL after shuffling), used by the connectivity fallback.
     """
     level_room_nums = _level_room_nums(level)
     room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
@@ -741,7 +745,7 @@ def _fix_horizontal_door_pairs(level: Level, rng: Rng, must_beat_ganon: bool = T
         pair_locked.append(_is_horiz_pair_locked(left_room, right_room, level.level_num, must_beat_ganon))
 
     if not pair_positions:
-        return
+        return []
 
     # Force locked pairs to the sealed value (9).
     # The C# first tries to swap with an unlocked pair that already has value 9,
@@ -770,7 +774,7 @@ def _fix_horizontal_door_pairs(level: Level, rng: Rng, must_beat_ganon: bool = T
             i += 1
             continue
         remaining = count - i
-        j = i + int(rng.random() * remaining)
+        j = i + _randbelow(rng, remaining)
         if pair_locked[j]:
             # Retry this index with a new random target (C# does i--).
             # No infinite loop risk: locked pairs already have value 9, so
@@ -780,11 +784,17 @@ def _fix_horizontal_door_pairs(level: Level, rng: Rng, must_beat_ganon: bool = T
         i += 1
 
     # Write shuffled door pair values back to room wall fields.
+    # Collect chute markers: horizontal pairs where one side is SOLID_WALL (value 1).
+    # These are candidates for the connectivity fallback.
+    chute_markers: list[int] = []
     for pos, val in zip(pair_positions, pair_values):
         left_room = room_by_num[pos]
         right_room = room_by_num[pos + 1]
         left_room.walls.east = WallType((val >> 3) & 7)
         right_room.walls.west = WallType(val & 7)
+        if (val >> 3) & 7 == 1 or val & 7 == 1:
+            chute_markers.append(pos)
+    return chute_markers
 
 
 def _vert_door_pair_value(upper: Room, lower: Room) -> int:
@@ -921,7 +931,7 @@ def _fix_vertical_door_pairs(
     level: Level,
     rng: Rng,
     must_beat_gannon: bool,
-) -> None:
+) -> list[int]:
     """Shuffle vertical door pairs within a level.
 
     Same overall structure as _fix_horizontal_door_pairs: collect pairs,
@@ -937,6 +947,9 @@ def _fix_vertical_door_pairs(
         and uses staircase-exit-position pair checks instead of the
         BLACK_ROOM configuration check. See _is_vert_pair_locked for
         details.
+
+    Returns a list of chute marker positions (upper room_num + 128 for pairs
+    where at least one side is SOLID_WALL after shuffling).
     """
     level_room_nums = _level_room_nums(level)
     room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
@@ -964,7 +977,7 @@ def _fix_vertical_door_pairs(
         ))
 
     if not pair_positions:
-        return
+        return []
 
     # Force locked pairs to the sealed value (9).
     for i in range(len(pair_locked)):
@@ -989,18 +1002,23 @@ def _fix_vertical_door_pairs(
             i += 1
             continue
         remaining = count - i
-        j = i + int(rng.random() * remaining)
+        j = i + _randbelow(rng, remaining)
         if pair_locked[j]:
             continue
         pair_values[i], pair_values[j] = pair_values[j], pair_values[i]
         i += 1
 
     # Write shuffled door pair values back to room wall fields.
+    # Collect chute markers: vertical pairs where one side is SOLID_WALL (value 1).
+    chute_markers: list[int] = []
     for pos, val in zip(pair_positions, pair_values):
         upper_room = room_by_num[pos]
         lower_room = room_by_num[pos + 16]
         upper_room.walls.south = WallType((val >> 3) & 7)
         lower_room.walls.north = WallType(val & 7)
+        if (val >> 3) & 7 == 1 or val & 7 == 1:
+            chute_markers.append(pos + 128)
+    return chute_markers
 
 
 def _fix_constrained_room_doors(
@@ -1099,14 +1117,17 @@ def _shuffle_level(level: Level, rng: Rng) -> frozenset[int] | None:
 
     level_room_nums = _level_room_nums(level)
     room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
-    north_walls: dict[int, WallType] = {r.room_num: r.walls.north for r in level.rooms}
 
     for _level_attempt in range(_MAX_LEVEL_RETRIES):
         # Extract contents from rooms (fresh each attempt since we swap in-place)
         contents = [_RoomContents(room) for room in shufflable]
-        positions = [room.room_num for room in shufflable]
-        # Track where each content originated so we can remap staircase refs.
-        orig_positions = list(positions)
+        # dest_positions: fixed write-targets (C# shuffledPositions — never changes)
+        dest_positions = [room.room_num for room in shufflable]
+        # src_positions: tracks where each content bundle came from; swapped
+        # alongside contents on every valid swap, exactly like C# roomPositions.
+        # Validity checks use src_positions so they see the mutated state from
+        # prior swaps, matching C# Phase 4 behavior.
+        src_positions = list(dest_positions)
         pool_size = len(shufflable)
 
         retry_count = 0
@@ -1119,43 +1140,28 @@ def _shuffle_level(level: Level, rng: Rng) -> frozenset[int] | None:
                 success = False
                 break
 
-            # Pick a random swap target from the remaining unprocessed positions.
-            # The C# uses `rng.Next() % remaining` where remaining = total count,
-            # not (count - i). This means the swap target can be any position,
-            # not just unprocessed ones. This is the C#'s actual behavior.
-            j = int(rng.random() * pool_size)
+            j = _randbelow(rng, pool_size)
 
             if not _is_swap_valid(
                 contents[i].room_type, contents[j].room_type,
-                positions[i], positions[j],
+                src_positions[i], src_positions[j],
                 level_room_nums,
-                enemy_i=contents[i].enemy_spec.enemy,
-                enemy_j=contents[j].enemy_spec.enemy,
-                north_walls=north_walls,
             ):
                 continue
 
-            # Swap contents only — positions are fixed grid slots.
             contents[i], contents[j] = contents[j], contents[i]
-            orig_positions[i], orig_positions[j] = orig_positions[j], orig_positions[i]
+            src_positions[i], src_positions[j] = src_positions[j], src_positions[i]
             i += 1
 
         if success:
-            # Write shuffled contents back to rooms at their new positions.
-            for pos, content in zip(positions, contents):
+            # Write shuffled contents to their fixed destination slots.
+            for pos, content in zip(dest_positions, contents):
                 room = room_by_num[pos]
                 content.apply_to(room)
 
-            # NOTE: C# Phase 6 updates the NES start-room pointer for
-            # NARROW_STAIR_ROOM and THE_KIDNAPPED destinations. In the Python
-            # model entrance_room is the dungeon entry point (where Link spawns),
-            # which is a different concept — we don't update it here.
-
-            # Update staircase refs: return_dest/left_exit/right_exit identify
-            # rooms by their contents (specifically needing a stairway trigger),
-            # not by grid position. After shuffling contents move to new positions,
-            # so refs must follow the contents to remain valid.
-            remap = {orig: dest for orig, dest in zip(orig_positions, positions)}
+            # Staircase remap: content that came from src_positions[i] now lives
+            # at dest_positions[i].
+            remap = {src: dest for src, dest in zip(src_positions, dest_positions)}
             for sr in level.staircase_rooms:
                 if sr.return_dest is not None and sr.return_dest in remap:
                     sr.return_dest = remap[sr.return_dest]
@@ -1841,6 +1847,215 @@ def _is_level_connected(level: Level) -> bool:
     return level_room_nums.issubset(reached_rooms)
 
 
+def _is_level_connected_with_reached(level: Level) -> tuple[bool, set[int]]:
+    """Like _is_level_connected but also returns the set of reached room_nums.
+
+    Used by the connectivity fallback to identify which rooms are reachable
+    so it can find a chute marker bridging a reachable and unreachable room.
+    """
+    level_room_nums = frozenset(r.room_num for r in level.rooms)
+    room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
+
+    visited_states: set[tuple[int, Direction]] = set()
+    reached_rooms: set[int] = set()
+    queue: list[tuple[int, Direction]] = [
+        (level.entrance_room, level.entrance_direction),
+    ]
+
+    def _expand(rn: int, entry_dir: Direction) -> None:
+        state = (rn, entry_dir)
+        if state in visited_states:
+            return
+        visited_states.add(state)
+        reached_rooms.add(rn)
+        if rn not in room_by_num:
+            return
+        room = room_by_num[rn]
+        row, col = rn >> 4, rn & 0xF
+        for exit_dir, offset in _DIR_OFFSETS:
+            if exit_dir == Direction.NORTH and row == 0:
+                continue
+            if exit_dir == Direction.SOUTH and row == 7:
+                continue
+            if exit_dir == Direction.WEST and col == 0:
+                continue
+            if exit_dir == Direction.EAST and col == 15:
+                continue
+            if room.walls[exit_dir] == WallType.SOLID_WALL:
+                continue
+            if _is_path_obstructed(room.room_type, entry_dir, exit_dir):
+                continue
+            neighbor = rn + offset
+            if neighbor not in level_room_nums:
+                continue
+            neighbor_entry = _OPPOSITE_DIR[exit_dir]
+            if (neighbor, neighbor_entry) not in visited_states:
+                queue.append((neighbor, neighbor_entry))
+
+    while queue:
+        rn, entry_dir = queue.pop()
+        _expand(rn, entry_dir)
+
+    changed = True
+    while changed:
+        changed = False
+        for sr in level.staircase_rooms:
+            if sr.room_num in reached_rooms:
+                continue
+            if sr.room_type != RoomType.TRANSPORT_STAIRCASE:
+                continue
+            assert sr.left_exit is not None and sr.right_exit is not None
+            can_enter = False
+            for exit_rn in (sr.left_exit, sr.right_exit):
+                if exit_rn in reached_rooms and exit_rn in room_by_num:
+                    if _room_has_stairway(room_by_num[exit_rn]):
+                        can_enter = True
+                        break
+            if can_enter:
+                reached_rooms.add(sr.room_num)
+                for exit_rn in (sr.left_exit, sr.right_exit):
+                    state = (exit_rn, Direction.STAIRCASE)
+                    if state not in visited_states:
+                        queue.append(state)
+                        changed = True
+                while queue:
+                    rn, entry_dir = queue.pop()
+                    _expand(rn, entry_dir)
+
+    connected = level_room_nums.issubset(reached_rooms)
+    return connected, reached_rooms
+
+
+def _try_apply_connectivity_fallback(
+    level: Level,
+    rng: Rng,
+    chute_markers: list[int],
+) -> bool:
+    """Attempt to repair a disconnected level by opening chute walls.
+
+    Mirrors C# TryApplyConnectivityFallback. Iteratively picks unused chute
+    markers that bridge a reachable and unreachable room, opens the wall
+    between them, and repeats until the level is connected or no marker works.
+
+    chute_markers: list of ints from _fix_horizontal/vertical_door_pairs.
+      - marker < 128:  horizontal pair, firstRoom=marker, secondRoom=marker+1
+      - marker >= 128: vertical pair, firstRoom=marker-128, secondRoom=firstRoom+16
+
+    Returns True if the level is now connected, False if unrepairable.
+    """
+    room_by_num: dict[int, Room] = {r.room_num: r for r in level.rooms}
+    used = [False] * len(chute_markers)
+
+    while True:
+        connected, reached = _is_level_connected_with_reached(level)
+        if connected:
+            return True
+
+        # Find first unused marker that bridges a reachable and unreachable room.
+        marker_index = -1
+        first_room = -1
+        second_room = -1
+        vertical = False
+        for i, marker in enumerate(chute_markers):
+            if used[i]:
+                continue
+            if marker >= 128:
+                fr = marker - 128
+                sr = fr + 16
+                vert = True
+            else:
+                fr = marker
+                sr = fr + 1
+                vert = False
+
+            if not (0 <= fr < 128 and 0 <= sr < 128):
+                continue
+            if fr not in room_by_num or sr not in room_by_num:
+                continue
+
+            # Skip pairs involving THE_KIDNAPPED (unflagged dark room in C# terms).
+            fr_room = room_by_num[fr]
+            sr_room = room_by_num[sr]
+            if (fr_room.enemy_spec.enemy == Enemy.THE_KIDNAPPED and not fr_room.enemy_spec.is_group):
+                continue
+            if (sr_room.enemy_spec.enemy == Enemy.THE_KIDNAPPED and not sr_room.enemy_spec.is_group):
+                continue
+
+            # Bridging test: exactly one of the two rooms is reachable.
+            first_reached = fr in reached
+            second_reached = sr in reached
+            if first_reached == second_reached:
+                continue
+
+            marker_index = i
+            first_room = fr
+            second_room = sr
+            vertical = vert
+            break
+
+        if marker_index < 0:
+            return False
+
+        used[marker_index] = True
+
+        # Open the wall between first_room and second_room.
+        _apply_connectivity_fallback_door(room_by_num, first_room, second_room, vertical, rng)
+
+        # Fix room_action on both rooms (C# SetFallbackDoorLowBits).
+        for rn in (first_room, second_room):
+            room = room_by_num[rn]
+            if room.room_action in (
+                RoomAction.NOTHING_OPENS_SHUTTERS,
+                RoomAction.KILLING_RINGLEADER_KILLS_ENEMIES_OPENS_SHUTTERS,
+            ):
+                room.room_action = RoomAction.KILLING_ENEMIES_OPENS_SHUTTERS
+
+
+def _apply_connectivity_fallback_door(
+    room_by_num: dict[int, "Room"],
+    first_room: int,
+    second_room: int,
+    vertical: bool,
+    rng: "Rng",
+) -> None:
+    """Open the wall between first_room and second_room.
+
+    Mirrors C# ApplyConnectivityFallbackDoor. For vertical pairs (south/north),
+    doorBit = 1 if rng gives 0 mod 3, else 0 → WallType OPEN_DOOR or BOMB_HOLE.
+    For horizontal pairs, the RNG is consumed but the result is always OPEN_DOOR
+    (the double-shift in the C# decompilation is a no-op at 8-bit width).
+
+    If the room's enemy is THE_BEAST (t2 byte == 0x3E), SHUTTER_DOOR is forced.
+    """
+    fr = room_by_num[first_room]
+    sr = room_by_num[second_room]
+
+    if vertical:
+        # C#: doorBit = rng() % 3 == 0 ? 1 : 0
+        door_bit = 1 if _randbelow(rng, 3) == 0 else 0
+        wall = WallType(door_bit * 4)  # 0 = OPEN_DOOR, 4 = BOMB_HOLE
+
+        fr.walls.south = WallType.SHUTTER_DOOR if (
+            fr.enemy_spec.enemy == Enemy.THE_BEAST and not fr.enemy_spec.is_group
+        ) else wall
+
+        sr.walls.north = WallType.SHUTTER_DOOR if (
+            sr.enemy_spec.enemy == Enemy.THE_BEAST and not sr.enemy_spec.is_group
+        ) else wall
+    else:
+        # C#: (rng() % 2 << 4) << 4 & 0xFF = 0 always → OPEN_DOOR.
+        # Still consume the RNG to match C# call sequence.
+        _randbelow(rng, 2)
+
+        fr.walls.east = WallType.SHUTTER_DOOR if (
+            fr.enemy_spec.enemy == Enemy.THE_BEAST and not fr.enemy_spec.is_group
+        ) else WallType.OPEN_DOOR
+
+        sr.walls.west = WallType.SHUTTER_DOOR if (
+            sr.enemy_spec.enemy == Enemy.THE_BEAST and not sr.enemy_spec.is_group
+        ) else WallType.OPEN_DOOR
+
+
 def _post_shuffle_wall_fixup(world: GameWorld) -> None:
     """Post-loop wall and push-block cleanup (C# lines 618-710).
 
@@ -1896,31 +2111,11 @@ def _post_shuffle_wall_fixup(world: GameWorld) -> None:
                 if w.west in (WallType.OPEN_DOOR, WallType.LOCKED_DOOR_1):
                     w.west = WallType.SHUTTER_DOOR
 
-        # Pattern 3: RED_DARKNUT + is_group → clear adjacent rooms' matching wall to OPEN_DOOR
-        for room in grid.values():
-            if room.enemy_spec.enemy == Enemy.RED_DARKNUT and room.enemy_spec.is_group:
-                rn = room.room_num
-                w = room.walls
-                # south == SHUTTER_DOOR: clear room_below.north unconditionally
-                if w.south == WallType.SHUTTER_DOOR:
-                    below = grid.get(rn + 16)
-                    if below is not None:
-                        below.walls.north = WallType.OPEN_DOOR
-                # north == SHUTTER_DOOR: clear room_above.south if it's not a bare staircase
-                if w.north == WallType.SHUTTER_DOOR and _not_beast(grid, rn - 16):
-                    above = grid.get(rn - 16)
-                    if above is not None:
-                        above.walls.south = WallType.OPEN_DOOR
-                # east == SHUTTER_DOOR: clear room_right.west if it's not a bare staircase
-                if w.east == WallType.SHUTTER_DOOR and _not_beast(grid, rn + 1):
-                    right = grid.get(rn + 1)
-                    if right is not None:
-                        right.walls.west = WallType.OPEN_DOOR
-                # west == SHUTTER_DOOR: clear room_left.east if it's not a bare staircase
-                if w.west == WallType.SHUTTER_DOOR and _not_beast(grid, rn - 1):
-                    left = grid.get(rn - 1)
-                    if left is not None:
-                        left.walls.east = WallType.OPEN_DOOR
+        # Pattern 3 (dormant): C# checks Table2 6-bit code == 0x0B AND Table3 bit7 == 1,
+        # then clears shutter-door neighbors' matching walls to OPEN_DOOR. The Python
+        # parser translates that ROM encoding as enemy=OLD_MAN, is_group=False (0x0B +
+        # 0x40 = 0x4B = OLD_MAN; not in mixed_groups so is_group stays False). No vanilla
+        # room has this encoding, so the pattern never fires in C# or Python. Omitted.
 
         # Pattern 4: PUSHING_BLOCK_OPENS_SHUTTERS + movable_block, no SHUTTER_DOOR walls → clear movable_block
         for room in grid.values():
@@ -1983,8 +2178,9 @@ def shuffle_dungeon_rooms(
             if shuffled is None:
                 continue
 
-            _fix_horizontal_door_pairs(level, rng, must_beat_gannon)
-            _fix_vertical_door_pairs(level, rng, must_beat_gannon)
+            h_markers = _fix_horizontal_door_pairs(level, rng, must_beat_gannon)
+            v_markers = _fix_vertical_door_pairs(level, rng, must_beat_gannon)
+            chute_markers = h_markers + v_markers
             _fix_constrained_room_doors(level, rng, shuffled)
 
             _fix_special_rooms(level, world)
@@ -1998,6 +2194,10 @@ def shuffle_dungeon_rooms(
                     break
 
             if _is_level_connected(level):
+                connected = True
+                break
+
+            if chute_markers and _try_apply_connectivity_fallback(level, rng, chute_markers):
                 connected = True
                 break
 
