@@ -1,0 +1,16 @@
+# ZORA music off (a player setting, FP-SET-04): DriveSong never starts the three area songs.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_SET_MUSIC_OFF"
+bank = 0
+start = 0xA000
+
+[[hook]]
+name = "song-request"
+offset = 0x01C7B
+length = 3
+note = "DriveSong reads the song request through SongRequestUnlessAreaSong."
+code = """
+    JSR SongRequestUnlessAreaSong
+"""

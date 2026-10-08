@@ -1,0 +1,18 @@
+# ZORA FP-RESET-01, controller 1 Up and Select (a player setting): UpdateMenuActive's
+# death-warp test reads controller 1 and tests Up+Select ($28). The item screen's hot-key
+# toggle (FP-HOT-01) leaves Select with Up held to the death warp, which takes precedence.
+# asm/README.md describes this file.
+
+[[hook]]
+name = "death-warp-buttons"
+offset = 0x140EA
+length = 6
+note = "The test reads controller 1 and compares with Up+Select."
+code = """
+    LDA ButtonsDown
+    AND #$28
+    CMP #$28
+"""
+
+[series.routines]
+"fp-hot-01/bank_05.s" = "replaces-fp-hot-01-bank_05.s"

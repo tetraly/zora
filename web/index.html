@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZORA in the browser</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="zora.css">
+</head>
+<body>
+
+<aside class="beta-banner" role="note" aria-label="Beta notice">
+  <p><strong>Beta.</strong> ZORA 2.0 has been tested by automated checks but not yet
+    tested by hand. Expect there to be bugs and unbeatable seeds. Please
+    don't use it for races yet. If something looks wrong, report it with
+    the seed, flags and version in the <a href="https://discord.gg/DVyPXcG5v" target="_blank" rel="noopener">ZORA Discord</a>.</p>
+</aside>
+
+<header class="masthead">
+  <div class="masthead-bar">
+    <span class="wordmark">ZORA</span>
+    <nav class="masthead-nav">
+      <a href="https://github.com/tetraly/zora/blob/main/docs/flag-names.md">Flag guide</a>
+      <a href="https://github.com/tetraly/zora/blob/main/docs/CHANGELOG.md">What's new</a>
+      <span class="version-pill" id="version"></span>
+      <button id="dark-mode-btn" class="theme-btn" type="button"></button>
+    </nav>
+  </div>
+  <div class="masthead-hero">
+    <h1>A new Hyrule, in three steps.</h1>
+    <p>The Legend of Zelda randomizer. Your ROM is read in this page only and is never uploaded.</p>
+  </div>
+  <svg class="waves" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
+    <path class="wave wave-1" d="M0 60 C 240 20, 480 100, 720 60 S 1200 20, 1440 56 L1440 120 L0 120 Z"></path>
+    <path class="wave wave-2" d="M0 84 C 260 52, 520 116, 780 84 S 1240 56, 1440 80 L1440 120 L0 120 Z"></path>
+    <path class="wave wave-3" d="M0 104 C 300 84, 600 124, 900 102 S 1300 90, 1440 100 L1440 120 L0 120 Z"></path>
+  </svg>
+</header>
+
+<main class="steps">
+
+  <!-- Step 1: the base ROM -->
+  <section class="step" id="step-rom" aria-labelledby="step-rom-title">
+    <span class="step-num" id="step-rom-num" aria-hidden="true">1</span>
+    <div class="step-body step-body--row">
+      <div>
+        <h2 class="step-title" id="step-rom-title">Select ROM</h2>
+        <p class="step-sub" id="rom-label">Legend of Zelda, The (USA), PRG0 release, as a .nes file.</p>
+        <p class="step-error" id="rom-error" role="alert"></p>
+      </div>
+      <button id="rom-btn" class="btn btn-tint" type="button">Choose file</button>
+      <input id="rom" type="file" accept=".nes" hidden>
+    </div>
+  </section>
+
+  <!-- Step 2: the settings, built by zora-web.js from the worker's metadata -->
+  <section class="step" aria-labelledby="step-settings-title">
+    <span class="step-num" aria-hidden="true">2</span>
+    <div class="step-body">
+      <div>
+        <h2 class="step-title" id="step-settings-title">Choose your settings</h2>
+        <p class="step-sub">Starting from <strong id="start-name">…</strong>. A teal dot marks a setting
+          you changed. To use flags someone gave you, paste them into the strings below.</p>
+      </div>
+
+      <div class="flag-bar">
+        <label class="flag-bar-label" for="flags">Z1R</label>
+        <input id="flags" class="flag-bar-input flag-bar-input--z1r" type="text" spellcheck="false" autocomplete="off" disabled>
+        <label class="flag-bar-label" for="zora-flags">ZORA</label>
+        <input id="zora-flags" class="flag-bar-input flag-bar-input--zora" type="text" spellcheck="false" autocomplete="off" placeholder="none" disabled>
+        <button id="presets-btn" class="btn btn-teal" type="button" aria-haspopup="dialog" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><path d="M17 21v-8H7v8"></path><path d="M7 3v5h8"></path></svg>
+          Save / load preset</button>
+      </div>
+      <div class="flag-messages">
+        <p id="flags-error" class="message message--error" role="alert"></p>
+        <p id="flags-note" class="message mono"></p>
+        <p id="zora-flags-error" class="message message--error" role="alert"></p>
+        <p id="zora-flags-note" class="message mono"></p>
+      </div>
+
+      <div id="form" hidden>
+        <!-- The flag tabs (web/flag-tabs.json), ZORA extras (the ZORA flag
+             string) and Look and feel (player settings). -->
+        <div class="tabs" role="tablist" aria-label="Setting groups" id="tabs"></div>
+        <div id="panels"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Step 3: generate -->
+  <section class="step" aria-labelledby="step-generate-title">
+    <span class="step-num" id="step-generate-num" aria-hidden="true">3</span>
+    <div class="step-body">
+      <h2 class="step-title" id="step-generate-title">Generate the game</h2>
+      <div class="generate-row">
+        <div class="seed-field">
+          <label class="seed-label" for="seed">Seed</label>
+          <div class="seed-inputs">
+            <input id="seed" class="seed-input mono" type="text" inputmode="numeric" spellcheck="false" autocomplete="off">
+            <button id="new-seed" class="btn-icon" type="button" aria-label="New random seed">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16"></path><path d="M3 21v-5h5"></path></svg>
+            </button>
+          </div>
+        </div>
+        <button id="generate" class="btn-generate" type="button" disabled>Generate</button>
+      </div>
+      <p class="status-line"><span id="status-dot" class="status-dot" aria-hidden="true"></span><span id="status" role="status">Loading Python…</span></p>
+      <ul id="problems" class="problems"></ul>
+
+      <div id="generate-result" class="result-card" hidden>
+        <div class="result-head">
+          <span class="result-title">Your game is ready</span>
+          <span id="gen-time" class="result-time"></span>
+        </div>
+        <div class="seed-code" id="seed-code-row" hidden>
+          <span class="seed-code-label">Seed code</span>
+          <span id="seed-code" class="seed-code-items"></span>
+        </div>
+        <dl id="result" class="result-list"></dl>
+        <div class="result-actions" id="download"></div>
+        <p class="after-seed" id="after-seed" role="status"></p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="page-footer">
+  <p class="panel-note">Based on Zelda Randomizer by fcoughlin.
+    <a href="https://github.com/tetraly/zora/blob/main/docs/credits.md" target="_blank" rel="noopener">All credits</a></p>
+</footer>
+
+<dialog id="presets" class="preset-dialog" aria-labelledby="presets-title" aria-modal="true">
+  <div class="preset-dialog-head">
+    <h2 id="presets-title">Presets</h2>
+    <button id="presets-close" class="btn-close" type="button" aria-label="Close">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </button>
+  </div>
+  <div class="preset-group">
+    <span class="preset-group-label">Built-in</span>
+    <div id="presets-list" class="preset-list"></div>
+  </div>
+  <div class="preset-group">
+    <span class="preset-group-label">Your presets</span>
+    <div id="custom-presets" class="preset-list"></div>
+    <p class="preset-footnote" id="custom-presets-note">Save stores the current settings in that slot, under the
+      name you type. Your presets are kept in this browser.</p>
+  </div>
+</dialog>
+
+<script src="widgets.js"></script>
+<script src="zora-web.js"></script>
+</body>
+</html>

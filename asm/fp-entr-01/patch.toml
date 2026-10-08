@@ -1,0 +1,17 @@
+# ZORA FP-ENTR-01: Link's arrival place by the level's arrival code (level information +$3D) and ZORA's overworld start Y.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_ENTR_01"
+bank = 5
+start = 0xB900
+
+[[hook]]
+name = "place-link"
+offset = 0x17054
+length = 16
+note = "Link's placement on arrival goes to PlaceLinkByArrivalCode; the rest of the 16 bytes is NOPs."
+code = """
+    JMP PlaceLinkByArrivalCode
+    .RES 13, $EA
+"""

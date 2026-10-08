@@ -1,0 +1,55 @@
+# ZORA 2.0 Speed Up Dungeon Transitions (docs/design/zora-flags-2.0.md section 5): dungeon
+# rooms scroll with the overworld's timings. Each hook drops the "in a level" branch after
+# LDY/LDX CurLevel, so the overworld's values apply everywhere: vertical scrolling every
+# second frame instead of every fourth, 4 pixels a frame horizontally instead of 2, and the
+# overworld's starting columns. asm/README.md and asm/flags2/build.py describe this file.
+
+[[hook]]
+name = "vertical-delay"
+offset = 0x141F3
+length = 2
+note = "ScrollWorld: the vertical-scroll frame mask is the overworld's (every second frame)."
+code = """
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "horizontal-speed"
+offset = 0x1426B
+length = 2
+note = "ScrollWorldH: the horizontal speed is the overworld's (4 pixels a frame)."
+code = """
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "right-column"
+offset = 0x1446B
+length = 2
+note = "ScrollHorizontal: the starting column scrolling right is the overworld's ($E0)."
+code = """
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "left-column"
+offset = 0x14478
+length = 2
+note = "ScrollHorizontal: the starting column scrolling left is the overworld's ($41)."
+code = """
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "vertical-start"
+offset = 0x144AD
+length = 2
+note = "The vertical-scroll start frame is computed with the overworld's mask, matching ScrollWorld."
+code = """
+    NOP
+    NOP
+"""

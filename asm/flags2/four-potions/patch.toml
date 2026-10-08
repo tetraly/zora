@@ -1,0 +1,20 @@
+# ZORA 2.0 Four Potion Inventory (docs/design/zora-flags-2.0.md section 8): the potion slot
+# holds up to 4 instead of 2. asm/README.md and asm/flags2/build.py describe this file.
+
+[[hook]]
+name = "cap-test"
+offset = 0x06C6F
+length = 2
+note = "Taking an item: the potion slot's sum is capped from 5 up, not from 3 up."
+code = """
+    CMP #$05
+"""
+
+[[hook]]
+name = "cap-value"
+offset = 0x06C73
+length = 2
+note = "Taking an item: the capped potion count is 4, not 2."
+code = """
+    LDA #$04
+"""

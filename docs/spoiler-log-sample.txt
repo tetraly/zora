@@ -1,0 +1,317 @@
+ZORA 2.0 beta 1 spoiler log
+================================================================================
+Seed: 12345
+Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
+ZORA flags: 2.1B
+Seed code: Blue Potion, Magical Key, Letter, Bait
+Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
+next level of its line that you lack. Items are listed as the ROM holds them,
+with their line.
+
+================================================================================
+Flags: each setting as chosen, and as this seed resolved it
+================================================================================
+C01   Overworld Quest .............................................. First quest
+C02   Dungeon Quest ..................................................... Shapes
+C03   Hint Type .......................................................... Mixed
+C04   Start Screen .......................................... Easy start shuffle
+C05   Cave Shuffle .................................................... All Cave
+C06   Item Shuffle ............... Full (dungeons, caves and overworld together)
+C07   Swords ............................................................ Normal
+C08   Level 9 Entry ................................................... 8 pieces
+C09   "Most" Enemy HP ................................................. +/- 2 HP
+C10   Boss HP ......................................................... +/- 2 HP
+C11   Armos Item ................................................... None pinned
+C12   Coast Item ................................................... None pinned
+C13   White Sword Item ............................................. None pinned
+C14   Dungeon Room Shuffle ........................................ Full Shuffle
+C15   Item Sprites ...................................................... Normal
+C16   Starting Hearts ................................................. 3 hearts
+C17   Max Start Items ................................................ At most 0
+C18   Triforce Pieces ................................................. 0 pieces
+C19   Red Bubble Curse ............................................... Swordless
+C20   White Sword Hearts (min) ........................................ 4 hearts
+C21   White Sword Hearts (max) ........................................ 6 hearts
+C22   Magical Sword Hearts (min) ..................................... 10 hearts
+C23   Magical Sword Hearts (max) ..................................... 14 hearts
+C24   Triforce Range (min) ................................................... 0
+C25   Triforce Range (max) ................................................... 8
+C26   Level 9 Item 1 ............................................... None pinned
+C27   Level 9 Item 2 ............................................... None pinned
+B01   Recorder To New Dungeons .............................................. On
+B02   Shuffle Wood Sword Cave ............................................... On
+B03   Allow OW Blocks of Wood Sword ........................................ Off
+B04   Shuffle "Take Any Road" Caves ......................................... On
+B05   Change Secret Spots .................................................. Off
+B06   Mirror Overworld ..................................................... Off
+B07   Recorder to Unbeaten Dungeons ........................................ Off
+B08   Shuffle Shop Items .................................................... On
+B09   Extra Candles ........................................................ Off
+B10   Change Sword Hearts ................................................... On
+B11   Change MMG ............................................................ On
+B12   Change Bomb Upgrades .................................................. On
+B13   Shuffle Armos ......................................................... On
+B14   (No effect; FL-DEP-05) ................................................ On
+B15   Shuffle Dungeon Drops ................................................. On
+B16   (No effect; FL-DEP-05) ................................................ On
+B17   Shuffle Minor Dungeon Drops .......................................... Off
+B18   Force Gannon Fight .................................................... On
+B19   Shuffle Dungeon Text .................................................. On
+B20   Add 2nd Quest Rooms ................................................... On
+B21   Add 2nd Quest Doors .................................................. Off
+B22   Add Money or Life Rooms ............................................... On
+B23   Change "Leave your..." Rooms .......................................... On
+B24   Hide Dungeon Numbers ................................................. Off
+B25   Allow Important Items in 9 ........................................... Off
+B26   Shuffle Dungeon Start Room ........................................... Off
+B27   Shuffle Dungeon Palettes ......................................... ? -> On
+B28   Shuffle Hungry Goriya ................................................. On
+B29   Shuffle Bomb Upgrade Men .............................................. On
+B30   Remove Most Open Stairs .............................................. Off
+B31   Shuffle Overworld Monsters ...................................... ? -> Off
+B32   Shuffle Dungeon Monsters .............................................. On
+B33   Shuffle Gannon and Zelda .............................................. On
+B34   Shuffle Bosses ........................................................ On
+B35   Shuffle Level 9 Monsters .............................................. On
+B36   Shuffle Monsters Between Levels ....................................... On
+B37   Add 2nd Quest Monsters ............................................... Off
+B38   Shuffle Enemy Drop Groups ............................................ Off
+B39   Make Important Items Drops ........................................... Off
+B40   Randomize Boss Groups ................................................. On
+B41   Set Gannon HP to 0 ................................................... Off
+B42   Shuffle Enemy Groups ............................................ ? -> Off
+B43   Shuffle Overworld Group ............................................... On
+B44   Randomize Item Drop Rate ............................................. Off
+B45   Maximum Enemy Health ................................................. Off
+B46   Maximum Boss Health .................................................. Off
+B47   Replace Book Fire with Explosion ..................................... Off
+B48   Book To Understand Old Men ........................................... Off
+B49   Book is an Atlas ...................................................... On
+B50   Blackout ............................................................. Off
+B51   Print Quest Info ..................................................... Off
+B52   Permanent Sword Beam ................................................. Off
+B53   OHKO ................................................................. Off
+B54   Speed Up Text ......................................................... On
+B55   Hidden Health ........................................................ Off
+B56   Killable Drop Items .................................................. Off
+B57   Start with Raft ...................................................... Off
+B58   Start with Bow ....................................................... Off
+B59   Start with 8 Bombs ................................................... Off
+B60   Start with Recorder .................................................. Off
+B61   Start with Bait ...................................................... Off
+B62   Start with Magical Key ............................................... Off
+B63   Start with Letter .................................................... Off
+B64   Start with Power Bracelet ............................................ Off
+B65   Start with Ladder .................................................... Off
+B66   Start with Wand ...................................................... Off
+B67   Start with Book ...................................................... Off
+B68   Start with Wood Sword ................................................ Off
+B69   Start with White Sword ............................................... Off
+B70   Start with Magical Sword ............................................. Off
+B71   Start with Wood Arrow ................................................ Off
+B72   Start with Silver Arrow .............................................. Off
+B73   Start with Blue Candle ............................................... Off
+B74   Start with Red Candle ................................................ Off
+B75   Start with Blue Ring ................................................. Off
+B76   Start with Red Ring .................................................. Off
+B77   Start with Wood Boomerang ............................................ Off
+B78   Start with Magical Boomerang ......................................... Off
+B79   Add extra bosses ..................................................... Off
+B80   Rupees Affect Speed .................................................. Off
+B81   Force Overworld Block ................................................ Off
+B82   Encode level data .................................................... Off
+B83   Hidden Numbers ....................................................... Off
+B84   Prevent Clipping ..................................................... Off
+B85   Start with the magical shield ........................................ Off
+B86   Do Not Sort Shapes ................................................... Off
+B87   Add Bridges to the River ............................................. Off
+B88   Add Lost Woods Shortcut .............................................. Off
+B89   Change Hidden OW Tiles ............................................... Off
+B90   Increase Bomb Capacity Upgrade ....................................... Off
+B91   Allow universal drops in shapes ...................................... Off
+ZORA  Randomize Magical Sword .............................................. off
+ZORA  Randomize Letter ...................................................... on
+ZORA  Magical-sword hearts, highest ....................... follow the Z1R flags
+ZORA  Progressive Items ..................................................... on
+ZORA  Shop Items in the Item Pool ........................................... on
+ZORA  Shuffle Blue Potion .................................................. off
+ZORA  Add L4 Sword ......................................................... off
+ZORA  Extra Raft Blocks .................................................... off
+ZORA  Extra Power Bracelet Blocks .......................................... off
+ZORA  Speed Up Dungeon Transitions ......................................... off
+ZORA  Speed Up Heart Fill .................................................. off
+ZORA  Recorder Kills Dungeon Pols Voice .................................... off
+ZORA  Four Potion Inventory ................................................ off
+ZORA  Auto Show Letter ..................................................... off
+ZORA  Like-Like Eats Rupees ................................................ off
+ZORA  Magical Boomerang Does 1 HP Damage ................................... off
+ZORA  Randomize Lost Hills ................................................. off
+ZORA  Randomize Dead Woods ................................................. off
+
+================================================================================
+Major items by place
+================================================================================
+Level 1
+    room 47 (column 4, row 5): Heart Container, on the floor
+    room 57 (column 4, row 6): Book, drops when the room's foes are beaten
+    room 67 (column 4, row 7), down the stairs: Heart Container
+    room 68 (column 5, row 7): Triforce, drops when the room's foes are beaten
+Level 2
+    room 45 (column 4, row 5): Triforce, on the floor
+    room 64 (column 3, row 7): Arrow Upgrade (Wooden Arrow), drops when the
+      room's foes are beaten
+    room 66 (column 5, row 7): Arrow Upgrade (Silver Arrow), on the floor
+Level 3
+    room 4C (column 5, row 5): Raft, on the floor
+    room 5B (column 4, row 6): Triforce, drops when the room's foes are beaten
+    room 6C (column 5, row 7), down the stairs: Bow
+Level 4
+    room 19 (column 5, row 2), down the stairs: Ladder
+    room 37 (column 3, row 4): Boomerang Upgrade (Magical Boomerang), drops when
+      the room's foes are beaten
+    room 5A (column 6, row 6): Triforce, drops when the room's foes are beaten
+Level 5
+    room 2F (column 6, row 3): Triforce, on the floor
+    room 3F (column 6, row 4): Heart Container, drops when the room's foes are
+      beaten
+    room 4E (column 5, row 5), down the stairs: Ring Upgrade (Blue Ring)
+Level 6
+    room 02 (column 4, row 1): Triforce, drops when the room's foes are beaten
+    room 43 (column 5, row 5), down the stairs: Ring Upgrade (Red Ring)
+    room 73 (column 5, row 8): Recorder, drops when the room's foes are beaten
+Level 7
+    room 09 (column 5, row 1): Sword Upgrade (White Sword), drops when the
+      room's foes are beaten
+    room 58 (column 4, row 6), down the stairs: Magical Key
+    room 6A (column 6, row 7): Triforce, on the floor
+Level 8
+    room 1F (column 7, row 2): Triforce, drops when the room's foes are beaten
+    room 2B (column 3, row 3), down the stairs: Heart Container
+    room 4E (column 6, row 5), down the stairs: Candle Upgrade (Blue Candle)
+    room 5B (column 3, row 6): Power Bracelet, on the floor
+Level 9
+    room 11 (column 2, row 2), down the stairs: Heart Container
+    room 51 (column 2, row 6): Triforce of Power, appears when Ganon is beaten
+    room 60 (column 1, row 7), down the stairs: Heart Container
+Overworld
+    Armos statue: Boomerang Upgrade (Boomerang)
+    Coast: Letter
+    Wood Sword Cave: Sword Upgrade (Wood Sword)
+    Take Any: Heart Container
+    White Sword Cave: Heart Container
+    Magical Sword Cave: Sword Upgrade (Magical Sword)
+    Letter Cave: Heart Container
+    Shop 2: Heart Container for 36 rupees
+    Shop 3: Candle Upgrade (Red Candle) for 61 rupees
+    Shop 4: Wand for 205 rupees
+
+================================================================================
+Caves and shops: every ware, in the order the cave shows it
+================================================================================
+Wood Sword Cave: Sword Upgrade (Wood Sword)
+Take Any: Red Potion; Heart Container
+White Sword Cave: Heart Container
+Magical Sword Cave: Sword Upgrade (Magical Sword)
+Letter Cave: Heart Container
+Potion Shop: Blue Potion (38 rupees); Red Potion (70 rupees)
+Shop 1: Shield (82 rupees); Key (65 rupees); Bombs (40 rupees)
+Shop 2: Shield (137 rupees); Heart Container (36 rupees, sold once); Key (108
+    rupees)
+Shop 3: Bait (53 rupees); Candle Upgrade (Red Candle) (61 rupees, sold once);
+    Shield (159 rupees)
+Shop 4: Bait (95 rupees); Wand (205 rupees, sold once); Heart (11 rupees)
+
+================================================================================
+Texts: the game's texts in its order, with who says them
+================================================================================
+ 0.  FINDING THE WOOD SWORD FILLS YOU WITH DETERMINATION
+     said by Wood Sword Cave
+ 1.  INSERT COMMUNITY HINT 5
+     said by Magical Sword Cave
+ 2.  THIS IS A LOST WOODS-BOUND EXPRESS TRAIN
+     said by Any Road
+ 3.  PRAISE THE SUN
+     said by Lost Hills Hint
+ 4.  BONUS CHANCE PRESS 'A' BUTTON
+     said by Money Making Game
+ 5.  YOU HAVE BEEN RECRUITED BY THE STAR LEAGUE
+     said by Door Repair
+ 6.  SHOW THE OLD WOMAN SOMETHING
+     said by Letter Cave
+ 7.  MEET THE MERCHANT IN REGION 4
+     said by Dead Woods Hint
+ 8.  YOUR PRESCRIPTION IS READY
+     said by Potion Shop
+ 9.  YOU'RE GONNA NEED A BIGGER BOAT
+     said by Hint Shop 1; Hint Shop 2
+10.  INSERT COMMUNITY HINT 8
+11.  YOU TEACH ME A SPELL
+12.  THE MANHANDLA HOLDS A BOOMERANG UPGRADE
+     said by Hint Shop 1, hint 1
+13.  INSERT COMMUNITY HINT 22
+14.  GET IN, LOSER, WE'RE GOING SHOPPING
+     said by Shop 1; Shop 2
+15.  THE MIDDLE ITEM IS MY FAMILY HEIRLOOM
+     said by Shop 3; Shop 4
+16.  RED, RED, WINE
+     said by Take Any
+17.  IF YOU PICK THIS UP YOU'LL LOSE IT AT THE NEXT DOOR REPAIR
+     said by Medium Secret; Large Secret; Small Secret
+18.  THE SOUP IS FOR MY FAMILY.
+     said by Level 5, room 3C
+19.  INSERT COMMUNITY HINT 4
+     said by White Sword Cave
+20.  THE GLEEOK IS IN REGION 1
+21.  THE AQUAMENTUS IS IN REGION 7
+22.  !LFG
+     said by Level 4, room 09
+23.  THE DIGDOGGER IS IN REGION 2
+     said by Level 5, room 3E
+24.  INSERT COMMUNITY HINT 12
+     said by Level 5, room 5E
+25.  SOMEONE SET UP US THE BOMB UPGRADE
+     said by Level 3, room 0A; Level 7, room 0A
+26.  INSERT COMMUNITY HINT 15
+     said by Level 8, room 6F
+27.  LEAVE YOUR LIFE OR KEYS
+     said by Level 2, room 65
+28.  READ THE WIKI ALREADY!
+     said by Level 6, room 71
+29.  THE GOHMA IS IN REGION 5
+     said by Level 6, room 53
+30.  INSERT COMMUNITY HINT 16
+31.  THE LURKING MANHANDLA IS IN REGION 5
+     said by Level 7, room 19
+32.  THE MOLDORM IS IN REGION 5
+     said by Level 7, room 45
+33.  THE LURKING MANHANDLA HOLDS THE POWER BRACELET
+     said by Level 8, room 2C
+34.  YOU NEED EIGHT TRIFORCE PIECES.
+     said by Level 9, room 64
+35.  INSERT COMMUNITY HINT 29
+     said by Level 9, room 22
+36.  GANON IS IN THE SOUTH-WEST
+     said by Level 9, room 42
+37.  IF YOU CAN READ THIS YOU DON'T NEED NEW GLASSES
+     said by Level 9, room 34
+38.  MEOW MEOW MEOW MEOW
+     said by Level 1, room 14
+39.  INSERT COMMUNITY HINT 36
+     said by Hint Shop 1, hint 2
+40.  THE LETTER NEEDS THE LADDER
+     said by Hint Shop 1, hint 3
+41.  THE GLEEOK HOLDS A RING UPGRADE
+     said by Hint Shop 2, hint 1
+42.  THE MANHANDLA HOLDS THE LADDER
+     said by Hint Shop 2, hint 2
+43.  INSERT COMMUNITY HINT 47
+     said by Hint Shop 2, hint 3
+44.  INSERT COMMUNITY HINT 38
+
+================================================================================
+Requirements
+================================================================================
+White sword cave: hearts needed: 6
+Magical sword cave: hearts needed: 13
+Level 9: triforce pieces needed: 8
+Door repair charge (rupees): 23

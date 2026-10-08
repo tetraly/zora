@@ -1,0 +1,15 @@
+# ZORA's 6502 patches, in build order (scripts/asm_patches.py).
+fp-lock-01
+fp-fix-05
+fp-fix-06
+fp-fix-03
+fp-fix-02
+fp-entr-02
+fp-book-01
+fp-hash-01
+fp-entr-01
+fp-fix-04
+fp-roar-01
+fp-hot-01
+fp-prog-01
+fp-prog-02

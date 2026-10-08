@@ -1,0 +1,13 @@
+# ZORA 2.0 Add L4 Sword (docs/design/zora-flags-2.0.md section 2): a sword shot at sword
+# level 3 or more does the magical sword's damage, so a fourth sword's beam does not fall
+# through to the wooden sword's. Its stab reads SwordDamagePoints-1 + 4 unchanged.
+# asm/README.md and asm/flags2/build.py describe this file.
+
+[[hook]]
+name = "beam-damage"
+offset = 0x07540
+length = 2
+note = "The sword shot's damage test in the weapon-collision code takes sword level 3 or more as the magical sword (the document's BEQ to BCS at 0x7540)."
+code = """
+    BCS @CheckCollision
+"""

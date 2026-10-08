@@ -1,0 +1,14 @@
+# ZORA 2.0 Like-Like Eats Rupees (docs/design/zora-flags-2.0.md section 10): once a Like-Like
+# has held Link for $60 frames it takes a rupee (then one each time its capture time passes
+# $60 again) instead of the magical shield. asm/README.md and asm/flags2/build.py describe
+# this file.
+
+[[hook]]
+name = "eat-rupee"
+offset = 0x11D44
+length = 5
+note = "The Like-Like's capture code requests one rupee off (RupeesToSubtract) instead of clearing InvMagicShield (the document's edit at 0x11D45, widened to the whole two instructions)."
+code = """
+    LDA #$01
+    STA RupeesToSubtract
+"""

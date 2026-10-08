@@ -1,0 +1,17 @@
+# ZORA FP-ENTR-02: a dungeon move into the level's exit room (its count at level information +$23) leaves the level.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_ENTR_02"
+bank = 5
+start = 0xB8C0
+
+[[hook]]
+name = "level-exit"
+offset = 0x17553
+length = 4
+note = "The test of a next room that leaves the level goes to CheckLevelExitRoom."
+code = """
+    JMP CheckLevelExitRoom
+    NOP
+"""

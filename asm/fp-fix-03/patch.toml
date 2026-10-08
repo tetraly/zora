@@ -1,0 +1,22 @@
+# ZORA FP-FIX-03: the PPU address increment is reset to +1 before a level's pattern blocks are sent.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_FIX_03"
+bank = 3
+start = 0xABE0
+
+[imports]
+bank_07 = ["TransferLevelPatternBlocksPlus1"]
+
+[exports]
+bank_03 = ["TransferLevelPatternBlocksPlus1"]
+
+[[hook]]
+name = "pattern-blocks"
+offset = 0x1E99E
+length = 3
+note = "InitMode2 calls TransferLevelPatternBlocksPlus1 to send the level's pattern blocks."
+code = """
+    JSR TransferLevelPatternBlocksPlus1
+"""

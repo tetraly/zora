@@ -1,0 +1,14 @@
+# ROM files and anything extracted from ROMs must never be committed.
+*.nes
+*.csv
+!docs/flag-names.csv
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+temp/
+_site/
+# Local settings for scripts/verify.sh
+verify.env

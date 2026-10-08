@@ -1,0 +1,45 @@
+# ZORA FP-ROAR-01: the status-bar label names a boss-sound room.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_ROAR_01"
+bank = 5
+start = 0xB940
+
+[imports]
+bank_01 = ["FormatBombCountAndRoomLabel"]
+bank_05 = ["FormatDecimalCountByteInTextBuf"]
+
+[exports]
+bank_01 = ["FormatDecimalCountByteInTextBuf"]
+bank_05 = ["FormatBombCountAndRoomLabel"]
+
+[[hook]]
+name = "status-bar"
+offset = 0x065CD
+length = 3
+note = "FormatStatusBarText's last step goes to FormatBombCountAndRoomLabel, which adds the label record."
+code = """
+    JMP FormatBombCountAndRoomLabel
+"""
+
+[[hook]]
+name = "boss-sound"
+offset = 0x15359
+length = 4
+note = "A boss-sound room's request goes through RequestBossSoundAndLabel."
+code = """
+    JMP RequestBossSoundAndLabel
+    NOP
+"""
+
+[[hook]]
+name = "no-boss-sound"
+offset = 0x1535D
+length = 5
+note = "A room without a boss sound goes through SilenceBossSoundAndLabel."
+code = """
+    JMP SilenceBossSoundAndLabel
+    NOP
+    NOP
+"""

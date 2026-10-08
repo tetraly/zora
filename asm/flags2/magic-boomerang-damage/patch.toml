@@ -1,0 +1,41 @@
+# ZORA 2.0 Magical Boomerang Does 1 HP Damage (docs/design/zora-flags-2.0.md section 11): a
+# boomerang hit still stuns, and with the magical boomerang held it also deals $10 damage
+# points (the wooden sword's) instead of 0. The edit is 30 bytes at 0x7478, old and new (the
+# ROM and the disassembly agree; an earlier copy of the document said 31). It is two hooks,
+# because an anonymous label lies between PRG0's instructions there. ZORA's own order of the
+# same steps: the boomerang is sent back; the invincibility test (the damage type ANDed with
+# the monster's mask) sends an invincible monster to the parry tune and out; then the stun,
+# then the damage points. asm/README.md and asm/flags2/build.py describe this file.
+
+[[hook]]
+name = "return-fast"
+offset = 0x07478
+length = 10
+note = "A boomerang hit sends the boomerang back first, then tests the monster's invincibility to it."
+code = """
+    LDA #$50
+    STA a:ObjState, Y
+    LDA $09
+    AND ObjInvincibilityMask, X
+"""
+
+[[hook]]
+name = "stun-and-damage"
+offset = 0x07482
+length = 20
+note = "An invincible monster gets the parry tune and nothing else; otherwise it is stunned as before, and the damage points are $10 with the magical boomerang (InvMagicBoomerang shifted up 4) or 0."
+code = """
+    BEQ :+
+    JSR PlayParryTune
+    RTS
+:
+    LDA #$10
+    STA ObjStunTimer, X
+    LDA InvMagicBoomerang
+    ASL
+    ASL
+    ASL
+    ASL
+    STA $07
+    NOP
+"""

@@ -1,0 +1,53 @@
+# ZORA FP-HOT-01: the Select hot key cycles the B item or pauses; the item screen toggles the mode.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_HOT_01_PLAY"
+bank = 2
+start = 0xB000
+
+[[segment]]
+name = "ZORA_FP_HOT_01_MENU"
+bank = 5
+start = 0xB9C0
+
+[[segment]]
+name = "ZORA_FP_HOT_01_BANK5"
+bank = 7
+start = 0xFFDC
+
+[imports]
+bank_02 = ["FindItemSlotInBank5"]
+bank_07 = ["HotKeyFrame"]
+
+[exports]
+bank_02 = ["HotKeyFrame"]
+bank_07 = ["FindItemSlotInBank5"]
+
+[[hook]]
+name = "item-screen"
+offset = 0x140E4
+length = 3
+note = "The item screen draws through DrawSubmenuItemsAndHotKeyToggle, where Select toggles the mode."
+code = """
+    JSR DrawSubmenuItemsAndHotKeyToggle
+"""
+
+[[hook]]
+name = "item-screen-heading"
+offset = 0x1A040
+length = 2
+note = "The item screen heading's transfer record is the hot-key label record in WRAM ($6C7F)."
+code = """
+    .ADDR $6C7F
+"""
+
+[[hook]]
+name = "select-button"
+offset = 0x1EC46
+length = 4
+note = "The play mode's Select test calls HotKeyFrame (bank 2, which UpdateMode put in), which returns Z set unless Select should pause."
+code = """
+    JSR HotKeyFrame
+    NOP
+"""

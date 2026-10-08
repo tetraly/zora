@@ -1,0 +1,12 @@
+# ZORA FP-RESET-01, controller 1 Up and A (a player setting): UpdateMenuActive's death-warp
+# test reads controller 1.
+# asm/README.md describes this file.
+
+[[hook]]
+name = "death-warp-controller"
+offset = 0x140EA
+length = 2
+note = "The test's button read takes controller 1."
+code = """
+    LDA ButtonsDown
+"""

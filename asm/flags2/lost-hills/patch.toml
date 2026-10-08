@@ -1,0 +1,39 @@
+# ZORA 2.0 Randomize Lost Hills (docs/design/zora-flags-2.0.md sections 12-13): the screen
+# edits that go with a randomized mountain-maze sequence (the sequence itself, MountainMazeDirs
+# at 0x6DAB, is per-seed data, not part of this patch).
+#
+# The maze screen ($1B, layout 26) is already open up, down, right and left in PRG0, so every
+# sequence of up/down/right steps ending with up can be walked without an edit there
+# (tests/test_flags2_emulator.py walks all 27). These edits change the screens around it. Read
+# through the layouts' squares (walkable or not by their lower tiles), they join $0B to $0C,
+# close the paths up from $1C and $1D and down from $0C and $0D, and open a square near the top
+# of $0D: $0B-$0D become reachable through the maze only. Layout 10 also serves screen $3C,
+# whose right edge opens with $0B's. No emulator test walks these screens yet.
+#
+# Column descriptors in RoomLayoutsOW (a binary include in the pinned disassembly): data edits,
+# as in raft-blocks. asm/README.md and asm/flags2/build.py describe the rest of this file.
+
+[[data]]
+offset = 0x154D7
+bytes = "01 01 01 01 01 01 01"
+note = "Layout 10 (screens $0B and $3C), column 15, and layout 11 (screen $0C), columns 0 to 5."
+
+[[data]]
+offset = 0x154F1
+bytes = "09"
+note = "Layout 12 (screen $0D), column 9."
+
+[[data]]
+offset = 0x154F5
+bytes = "06"
+note = "Layout 12 (screen $0D), column 13."
+
+[[data]]
+offset = 0x155DD
+bytes = "02"
+note = "Layout 27 (screen $1C), column 5."
+
+[[data]]
+offset = 0x155F5
+bytes = "51"
+note = "Layout 28 (screen $1D), column 13."

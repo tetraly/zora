@@ -1,0 +1,16 @@
+# ZORA FP-FIX-02: the Triforce of Power flash selects its palette only when no tile transfer is pending.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_FIX_02"
+bank = 1
+start = 0xBEC0
+
+[[hook]]
+name = "flash-palette"
+offset = 0x061A3
+length = 3
+note = "The flash's palette store and return go through SelectFanfarePaletteIfIdle."
+code = """
+    JMP SelectFanfarePaletteIfIdle
+"""

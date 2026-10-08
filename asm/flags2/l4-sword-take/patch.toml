@@ -1,0 +1,41 @@
+# ZORA 2.0 Add L4 Sword, the take (docs/design/l4-sword.md R14-R16): a magical sword ($03)
+# taken as a dungeon room item while Link has the magical sword (sword level 3) raises his
+# sword to level 4. Nothing else changes: TakeItem runs as before (grade 3 is below 4, so the
+# level stays 4), other items and other sword levels are untouched, and cave and shop wares are
+# not on this path. With Progressive Items (which the flag needs) a sword room item is shown at
+# Link's next level, so the item equals his sword level only at the top.
+#
+# The take code (TryTakeItem) runs from work RAM with whichever bank is switched in, so its call
+# goes to the fixed bank: TakeRoomItemForL4Sword ($FF43, bank 7's last 13-byte gap) checks that
+# Link is in a dungeon, where the play loop has bank 1 switched in when room items are taken
+# (UpdateMode's dungeon branch ends with bank 1, before TryTakeRoomItem), and only then calls
+# RaiseSwordToL4 in bank 1's free bytes ($BFC0). On the overworld (the coast and Armos items)
+# it only marks the item taken, as PRG0 does. asm/README.md and asm/flags2/build.py describe
+# this file.
+
+[[segment]]
+name = "ZORA_F2_L4_TAKE_FIXED"
+bank = 7
+start = 0xFF43              # bank 7 free space, $FF43-$FF4F (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_F2_L4_TAKE"
+bank = 1
+start = 0xBFC0              # bank 1 free space, $BFC0-$BFF9 (docs/rom-map.md)
+
+[imports]
+bank_01 = ["TakeRoomItemForL4Sword"]
+bank_07 = ["RaiseSwordToL4", "SetRoomFlagUWItemState"]
+
+[exports]
+bank_01 = ["RaiseSwordToL4", "SetRoomFlagUWItemState"]
+bank_07 = ["TakeRoomItemForL4Sword"]
+
+[[hook]]
+name = "room-item-taken"
+offset = 0x06BEB
+length = 3
+note = "TryTakeItem marks a taken room item through TakeRoomItemForL4Sword, which first raises the sword to level 4 when the item is the magical sword at level 3 (in a dungeon)."
+code = """
+    JSR TakeRoomItemForL4Sword
+"""

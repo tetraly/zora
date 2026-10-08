@@ -1,0 +1,39 @@
+# ZORA FP-BOOK-01: Book is an Atlas. Holding the Book of Magic counts as holding each level's map.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_BOOK_01_MAP"
+bank = 5
+start = 0xB8E0
+
+[[segment]]
+name = "ZORA_FP_BOOK_01_TAKE"
+bank = 7
+start = 0xFFC0
+
+[imports]
+bank_01 = ["SetItemValueAndBookMap"]
+
+[exports]
+bank_07 = ["SetItemValueAndBookMap"]
+
+[[hook]]
+name = "set-item"
+offset = 0x06C35
+length = 3
+note = "SetItemValue stores through SetItemValueAndBookMap, which also requests the status-bar map when the item is the Book."
+code = """
+    JMP SetItemValueAndBookMap
+"""
+
+[[hook]]
+name = "has-map"
+offset = 0x17611
+length = 6
+note = "The level-item test of HasMap and HasCompass goes to LevelItemOrBookMap."
+code = """
+    JMP LevelItemOrBookMap
+    NOP
+    NOP
+    NOP
+"""

@@ -1,0 +1,29 @@
+# ZORA 2.0 Extra Power Bracelet Blocks (docs/design/zora-flags-2.0.md section 4): boulders
+# in West Death Mountain's screen layouts. Column descriptors in RoomLayoutsOW (a binary
+# include in the pinned disassembly): data edits, as in raft-blocks. asm/README.md and
+# asm/flags2/build.py describe the rest of this file.
+
+[[data]]
+offset = 0x1554E
+bytes = "38"
+note = "Layout 18 (screen $13), column 6."
+
+[[data]]
+offset = 0x15554
+bytes = "06 E7 00 00 00"
+note = "Layout 18 (screen $13), columns 12 to 15, and layout 19 (screen $14), column 0."
+
+[[data]]
+offset = 0x15649
+bytes = "00 A9"
+note = "Layout 34 (screen $23), columns 1 and 2."
+
+[[data]]
+offset = 0x1564E
+bytes = "B6"
+note = "Layout 34 (screen $23), column 6."
+
+[[data]]
+offset = 0x1574E
+bytes = "02"
+note = "Layout 50 (screen $33), column 6."

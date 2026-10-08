@@ -1,0 +1,20 @@
+# ZORA 2.0 Randomize Dead Woods (docs/design/zora-flags-2.0.md sections 12-13): the screen
+# edits that go with a randomized forest-maze sequence (the sequence itself, ForestMazeDirs at
+# 0x6DA7, is per-seed data, not part of this patch).
+#
+# Worked out from the disassembly (CheckMazes) and the layouts: the forest maze is screen $61
+# (layout 92). A step repeats the screen, entering from the opposite edge; the last step (south)
+# leaves for $71, and going east always leaves for $62. Layout 92 is open on all four edges in
+# PRG0 (north and south at columns 10-11, west and east at rows 4-6), and $71's top edge is open
+# at the same columns, so every sequence of north/west/south steps ending with south can be
+# walked with no further edit (tests/test_flags2_emulator.py walks all 27). The one edit is the
+# document's: read through the layout's squares, it closes row 8 of screen $73's west edge
+# (layout 110), the path from $72.
+#
+# A column descriptor in RoomLayoutsOW (a binary include in the pinned disassembly): a data
+# edit, as in raft-blocks. asm/README.md and asm/flags2/build.py describe the rest of this file.
+
+[[data]]
+offset = 0x15B08
+bytes = "29"
+note = "Layout 110 (screen $73), column 0."

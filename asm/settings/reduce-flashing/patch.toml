@@ -1,0 +1,41 @@
+# ZORA reduce flashing (a player setting, FP-FIX-02): the four flashes are removed.
+# asm/README.md describes this file.
+
+[[hook]]
+name = "bomb-grayscale"
+offset = 0x06A5B
+length = 2
+note = "The bomb's grayscale mask is never committed."
+code = """
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "power-triforce-flash"
+offset = 0x07ED7
+length = 2
+note = "Inside ZORA's SelectFanfarePaletteIfIdle (fp-fix-02): the flash never selects its palette."
+code = """
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "ending-flash"
+offset = 0x0AA2F
+length = 4
+note = "EndingFlashColors: all black."
+code = """
+    .BYTE $0F, $0F, $0F, $0F
+"""
+
+[[hook]]
+name = "level-end-flash"
+offset = 0x16895
+length = 2
+note = "The level-end flash stores no palette, so the level palette stays."
+code = """
+    NOP
+    NOP
+"""

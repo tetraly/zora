@@ -1,0 +1,23 @@
+/* DM Sans and DM Mono, self-hosted (SIL Open Font License 1.1; fonts/OFL.txt).
+   The page loads no font from any font server. */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 1000;
+  src: url('fonts/dm-sans-latin-opsz-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url('fonts/dm-mono-latin-400-normal.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url('fonts/dm-mono-latin-500-normal.woff2') format('woff2');
+}

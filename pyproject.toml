@@ -1,0 +1,87 @@
+[build-system]
+requires = ["setuptools>=77"]     # PEP 639 licence expressions
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zora"
+# ZORA's version (zora/version.py): the wheel's name, the page and the title screen.
+dynamic = ["version"]
+description = "ZORA: Zelda 1 randomizer (shapes dungeon generator)"
+requires-python = ">=3.11"
+# Owner decision 2026-10-07: MIT (LICENSE). PEP 639: the expression replaces the licence
+# classifier, which setuptools 77+ refuses next to it; the wheel's METADATA shows
+# "License-Expression: MIT" and carries LICENSE.
+license = "MIT"
+license-files = ["LICENSE"]
+
+[project.optional-dependencies]
+# The emulator tests (tests/emulator.py; docs/packaging.md "Emulator tests"),
+# the parallel test run of scripts/verify.sh (pytest -n auto) and the seed format's schema
+# (tests/test_seed_document.py).
+# numpy (cynes' dependency) below 2.5: 2.5's type stubs use the 3.12 `type` statement, which
+# mypy refuses while it checks for the 3.11 floor.
+test = ["cynes==0.1.2", "jsonschema>=4.18", "numpy<2.5", "pytest-xdist>=3"]
+# The private site build (scripts/build_site.py --with-private; docs/site-build.md).
+site = ["python-minifier==3.4.0"]
+
+[tool.setuptools.dynamic]
+version = {attr = "zora.version.ZORA_VERSION"}
+
+[tool.setuptools.packages.find]
+include = ["zora*"]
+
+[tool.setuptools.package-data]
+# The hint pool's wording (zora/generate/steps/hint_text.py) and the owner's flag
+# field names (zora/flags/form.py; docs/flag-names.csv).
+"zora.generate.steps" = ["hint_pool.txt"]
+"zora.flags" = ["names.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+# The flag-combination suites are slow; run them in parallel with `pytest -m slow -n auto`.
+addopts = "-m 'not slow'"
+markers = ["slow: flag-combination suites and the cross-version check (tests/test_flag_invariants.py, tests/test_cross_version.py)"]
+
+[tool.mypy]
+files = ["zora", "tests", "scripts/compare_corpus.py", "scripts/metrics.py", "scripts/output_hash.py",
+         "scripts/flag_names.py"]
+python_version = "3.11"
+strict = true
+
+# Legacy data-layer modules predate strict typing; they parse clean with these
+# two flags relaxed and will be tightened as they get rewritten.
+[[tool.mypy.overrides]]
+module = ["zora.rom.parse", "zora.rom.serialize", "zora.model.*"]
+warn_return_any = false
+warn_unused_ignores = false
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+strict = false
+check_untyped_defs = true
+disallow_incomplete_defs = true
+warn_return_any = true
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+
+# Ruff: Archipelago's ruff.toml copied exactly (Archipelago commit 54803be0; its style guide is
+# docs/style.md there; notes in docs/style-archipelago.md). scripts/verify.sh runs `ruff check zora`.
+[tool.ruff]
+line-length = 120
+indent-width = 4
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["B", "C", "E", "F", "W", "I", "N", "Q", "UP", "RET", "RSE", "RUF", "ISC", "PLC", "PLE", "PLW", "T20", "PERF"]
+ignore = [
+    "B011",  # In AP, the use of assert False is essential because we optimise out these statements for release builds.
+    "C901",  # Author disagrees with limiting branch complexity
+    "N818",  # Author agrees with this rule, but Core AP violates this and changing it would be a hassle.
+    "PLC0415",  # In AP, we consider local imports totally fine & necessary
+    "PLC1802",  # Author agrees with this rule, but it literally changes the functionality of the code, which is unsafe.
+    "PLC1901",  # This is just not equivalent
+    "PLE1141",  # Gives false positives when the dict keys are tuples, but does not mention this in the suggested fix.
+    "UP015",  # Explicit is better than implicit, so we'd prefer to keep "r" in open() calls.
+]

@@ -1,0 +1,30 @@
+# ZORA Progressive items, caves and shops (docs/progressive-patches.md): wares at their line's next level, one-time wares sold once.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_PROG_01_SHOP"
+bank = 1
+start = 0xBE40
+
+[[segment]]
+name = "ZORA_FP_PROG_01_RESOLVE"
+bank = 1
+start = 0xBEE0
+
+[[hook]]
+name = "cave-flags"
+offset = 0x04658
+length = 3
+note = "The cave's flags are stored through StoreCaveFlagsAndFixUpWares, which also shows each ware at its line's next level and hides a one-time ware already bought."
+code = """
+    JSR StoreCaveFlagsAndFixUpWares
+"""
+
+[[hook]]
+name = "take-ware"
+offset = 0x0491F
+length = 3
+note = "Taking a ware also goes through TakeWareAndMarkBought, which marks a one-time shop ware bought."
+code = """
+    JSR TakeWareAndMarkBought
+"""

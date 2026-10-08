@@ -1,0 +1,256 @@
+# ZORA's random hint pool (hints-behavior.md HT-TEXT-02), with each quote's
+# routing class.
+#
+# Provenance: owner-authored quotes and their routing (owner-quotes-routed.tsv,
+# after review 37, with the owner's rulings applied at afb5732); sha256 in
+# docs/ui-provenance.md. Converted mechanically: one row per TSV row, in
+# file order, class and wording unchanged. A quote the ROM cannot show as
+# written (a character the text encoder has no tile for, more than three
+# lines, or a line over 24 characters) is left out; docs/ui-provenance.md
+# lists it. The comma and the double quote mark are shown, by owner ruling
+# (2026-10-02), a departure from HT-TEXT-01 for ZORA's own wording.
+#
+# Format: one quote per line, three tab-separated columns:
+#   class   the routing class: "unrouted", "slot N", "slot A or B",
+#           "slots A-B", "slot 8, 16 or 14/15", or an owner-ruling class
+#           ("slot 0 (owner ruling)", "slot 9 (owner ruling)")
+#   quote   "|" breaks a line; spaces are kept as written
+#   note    empty, or one of: "white sword N hearts" / "magical sword N
+#           hearts" (shown only when that cave asks for N hearts),
+#           "reserved" (slots 27 and 34: kept for a future toll-room option,
+#           never drawn), "placeholder" (padding; see the end of the file)
+# Lines starting with "#" are comments.
+slot 0 (owner ruling)	DID SOMEBODY SAY| ... WOOD?
+slot 0 (owner ruling)	YAY! A POINTY STICK!
+slot 0 (owner ruling)	SPEAK SOFTLY AND|CARRY A BIG STICK
+slot 0 (owner ruling)	I'LL TAKE|"S WORDS"|FOR 100!
+slot 0 (owner ruling)	FINDING THE WOOD|SWORD FILLS YOU|WITH DETERMINATION
+slot 0 (owner ruling)	GET EQUIPPED|WITH THIS
+slot 0 (owner ruling)	TAKE THE CANDLE|YOU COWARD!
+slot 16	RED, RED, WINE
+slot 16	AH YES, THE|TWO GENDERS ...
+slot 16	PERRIER OR CHOCOLATES?
+slot 16	EVERYWHERE YOU LOOK|EVERYWHERE YOU GO|THERE'S A HEART
+slot 16	YOU GOTTA HAVE HEART
+slot 16	TAKE NEITHER ITEM.|JUST LEAVE.
+slot 16	CAKE OR DEATH?
+slot 16	EENIE, MEENIE,|MINEY, MO
+slot 16	LIMIT ONE|PER CUSTOMER
+slot 16	DA NA NA NA|NAAAAAAAAA
+slot 17	BANANA. TAKE A BUCK!|BANANA. TAKE A BUCK!
+slot 17	HERE'S SOME MONEY|GO SEE A STAR WAR
+slot 17	SWEET, SWEET MONEY
+slot 17	IF YOU GET A LOT OF|THESE, SOMETHING GOOD|IS BOUND TO HAPPEN
+slot 17	I'D SHELL OUT|GOOD RUPEES|FOR A CONCH.
+slot 17	THERE'S ALWAYS|MONEY IN THE|BANANA STAND
+slot 17	TAKE YOUR BLOOD|MONEY AND GO.
+slot 17	I'M AN ATM!|AN AUTOMATED|TELLER MOBLIN
+slot 17	CHA-CHING!
+slot 17	CASH IT!
+slot 17	GANON WANTS RANSOM|TAKE THIS!
+slot 17	IF YOU PICK THIS UP|YOU'LL LOSE IT AT|THE NEXT DOOR REPAIR
+slot 6	THIS LETTER WILL|SELF-DESTRUCT|IN 5 SECONDS
+slot 6	YOU'VE GOT MAIL!
+slot 6	PLEASE ALLOW 5-7|BUSINESS DAYS|FOR DELIVERY
+slot 6	HEY EVERYONE|I'VE GOT PAPER!
+slot 6	FILL THIS AT|YOUR LOCAL PHARMACY
+slot 8	TAKE TWO POTIONS|AND CALL ME|IN THE MORNING
+slot 8	YOUR PRESCRIPTION|IS READY
+slot 8	INSURANCE MAY NOT|COVER THIS
+slot 8	SHAKE WELL|BEFORE USE
+slot 8	WOULD YOU LIKE TO|OPT INTO AUTO-REFILLS?
+slot 8	MY POTIONS ARE TOO|STRONG FOR YOU|TRAVELER
+slot 8	I'VE GOT A FEVER AND|THE ONLY PRESCRIPTION|IS MORE COWBELL
+slot 8	WE ONLY SERVE|BEPIS PRODUCTS|SORRY
+slot 5	PLEASE LEAVE A TIP|FOR YOUR DOOR REPAIRER
+slot 5	THANK YOU FOR USING|CASHLESS TOLLING
+slot 5	EZ|PASS|PAID
+slot 5	DON'T AWOO.|350 RUPEE PENALTY.
+slot 5	STAND CLEAR OF|THE CLOSING DOORS|PLEASE
+slot 5	HELP TEMMIE PAY|FOR COOL LEG
+slot 5	QUICK, PRESS UP|AND A BEFORE I|TAKE YOUR MONEY!
+slot 5	YOU ARE THE|WEAKEST LINK|GOODBYE!
+slot 5	YOUR HEAD A SPLODE
+slot 5	BAGU OWES ME|20 RUPEES
+slot 5	HERE'S A RUPOOR|FOR YOUR TROUBLES
+slot 5	TAX FOR TRIFORCE
+slot 5	NOW I HAVE TO GO BACK|TO HOME DEPOT
+slot 5	DO THEY SELL DOORS|AT WAL-MART, OR|JUST WALLS?
+slot 5	I BET YOU THOUGHT|THIS WAS GOING TO BE|A LARGE SECRET
+slot 5	IT'S ME, HI|I'M THE PROBLEM|IT'S ME
+slot 5	NOIDS NOIDS NOIDS
+slot 5	YOU HAVE BEEN|RECRUITED BY|THE STAR LEAGUE
+slot 5	SKIP ROOM
+slot 5	I BET YOU WISHED|YOU HAD MORE MONEY
+slot 14 or 15	NOW OFFERING|CURBSIDE PICKUP
+slot 14 or 15	SHOP TIL YOU DROP!
+slot 14 or 15	FRESH IMPORTS FROM|KOHOLINT ISLAND
+slot 14 or 15	COME BACK TOMORROW|FOR A TWO FOR ONE|SALE
+slot 14 or 15	WOAH THERE|I'VE GOT SOME NEAT|JUNK FOR SALE
+slot 14 or 15	YOU CAN PROBABLY|FIND THIS CHEAPER|ONLINE
+slot 14 or 15	VISIT OUR OTHER|LOCATION IN THE|WESTLAKE MALL
+slot 14 or 15	DOWNLOAD OUR APP TO|EARN DISCOUNTS ON|FUTURE PURCHASES!
+slot 14 or 15	I'M NOT LIKE THOSE|OTHER MERCHANTS!
+slot 14 or 15	MATH IS HARD.|LET'S GO SHOPPING!
+slot 14 or 15	CAN I OFFER YOU|A NICE EGG IN|THIS TRYING TIME?
+slot 14 or 15	USE DISCOUNT CODE|'ZORA' FOR 10 PERCENT|OFF YOUR NEXT ORDER
+slot 14 or 15	SHOP LOCAL, SUPPORT|SMALL BUSINESSES
+slot 14 or 15	HELLO TRAVELLER!|HOW CAN I HELP YOU?
+slot 14 or 15	I HAVE GREAT DEALS|IN STORE FOR YOU
+slot 14 or 15	THE MIDDLE ITEM IS|MY FAMILY HEIRLOOM
+slot 14 or 15	GET IN, LOSER,|WE'RE GOING SHOPPING
+slot 14 or 15	SIGN UP FOR THE STORE|CARD TO GET 10 PERCENT|OFF YOUR 1ST PURCHASE
+slot 14 or 15	SEE BACK OF RECEIPT|FOR THE RETURN POLICY
+slot 14 or 15	SHOP SMART!|SHOP S-MART!
+slot 14 or 15	MERCHANDIZING!|WHERE THE REAL MONEY|FROM THE MOVIE IS MADE
+slot 2	I CHALLENGE YOU TO|A STAIRING CONTEST!
+slot 2	BE CAREFUL, STAIRS|ARE ALWAYS UP TO|SOMETHING
+slot 2	MY ADVICE? TAKE THE|ROAD LESS TRAVELLED
+slot 2	IN CASE OF EMERGENCY|PLEASE USE STAIRWAYS
+slot 2	THIS IS A|LOST WOODS-BOUND|EXPRESS TRAIN
+slot 18	OM NOM NOM NOM TIME?
+slot 18	ARE YOU GOING|TO EAT THAT?
+slot 18	MUMBLE MUMBLE|SOMETHING ABOUT FOOD
+slot 18	BUT YOU'RE|STILL HUNGRY ...
+slot 18	DO YOU HAVE|A VEGAN OPTION?
+slot 18	ARE YOU MY UBER EATS|DELIVERY CARRIER?
+slot 18	IF YOU FIND|MY LUNCH,|DON'T EAT IT.
+slot 18	IF YOU WERE A BURRITO,|WHAT KIND OF A|BURRITO WOULD YOU BE?
+slot 18	I AM ON A SEAFOOD|DIET. EVERY TIME|I SEE FOOD, I EAT IT.
+slot 18	THE SOUP IS|FOR MY FAMILY.
+slot 18	I'M A VEGETARIAN.|DON'T BRING MEAT IN|HERE OR I'M LEAVING!
+slot 18	I ONLY CAME FOR CAKE
+slot 18	THE CAKE IS A LIE
+slot 25	BADA BING|BADA BANG|BADA BOOM
+slot 25	HI, I'M BOMB BARKER|PLEASE HAVE YOUR PETS|SPAYED OR NEUTERED!
+slot 25	SPLOOSH!|KABOOM!
+slot 25	SOMEONE SET UP US|THE BOMB UPGRADE
+slot 25	KEEP TALKING AND|NOBODY EXPLODES
+slot 25	YEAH, YOU AND|EVERYONE ELSE WANTS|TO HOARD BOMBS
+slot 25	COOL GUYS DON'T|LOOK AT EXPLOSIONS
+slot 25	SELLS FOR 255 RUPEES|ON EBAY
+slot 25	PLEASE DON'T JOKE|ABOUT THESE AT|AIRPORT SECURITY
+slot 4	WHAT HAPPENS IN VEGAS|STAYS IN VEGAS!
+slot 4	THE HOUSE ALWAYS WINS
+slot 4	THE CURRENT LOTTO|JACKPOT IS|255 RUPEES
+slot 4	BONUS CHANCE||PRESS 'A' BUTTON
+slot 34	MASK OR FACE COVERING|REQUIRED FOR ENTRY	reserved
+slot 34	COME BACK AS|ADULT LINK	reserved
+slot 34	QUIT WASTING|MY TIME	reserved
+slot 34	IS THIS A|DOKI DOKI PANIC|REMAKE?	reserved
+slot 34	COME BACK LATER	reserved
+slot 34	NO SOUP FOR YOU!|COME BACK ONE YEAR|NEXT!	reserved
+slot 27	GENDER ISN'T BINARY|BUT THIS CHOICE IS	reserved
+slot 27	I'M SORRY,|WE DON'T|TAKE DISCOVER	reserved
+slot 27	USE E-Z PASS TO|SAVE TIME PAYING TOLLS	reserved
+slot 27	FOR YOUR CONVENIENCE|WE ACCEPT MULTIPLE|PAYMENT METHODS	reserved
+slot 27	GOTTA PAY TO PLAY!	reserved
+slot 27	I KNOW ...|I DON'T LIKE IN-APP|PURCHASES EITHER	reserved
+slot 9 (owner ruling)	THIS IS NOT|LEGAL ADVICE
+slot 9 (owner ruling)	TIME TO SPILL THE TEA
+slot 9 (owner ruling)	YOU'RE GONNA NEED|A BIGGER BOAT
+unrouted	HONK!
+unrouted	HEJ
+unrouted	!LFG
+unrouted	THIS COULD|BE YOU!
+unrouted	ARE YOU IN THE|CATBIRD SEAT?
+unrouted	MEOW MEOW MEOW MEOW
+unrouted	READ THE|WIKI ALREADY!
+unrouted	GO LOCAL|SPORTS TEAM!
+unrouted	YOU TEACH ME|A SPELL
+unrouted	YOU ARE THE|WEAKEST LINK
+slots 20-31	A WILD LINK|APPEARS
+unrouted	PRAISE THE SUN
+unrouted	LINK.EXE HAS|STOPPED WORKING
+unrouted	DOES SPEC ROCK|WEAR GLASSES?
+unrouted	IF YOU CAN READ THIS|YOU DON'T NEED|NEW GLASSES
+slots 20-31	ZZZZZZZZ ... |ZZZZZZZZ... |ARE THEY GONE YET?
+unrouted	THIS LINE HERE|IS MOSTLY|FILLER
+unrouted	WHAT THE FORK|IS A CHIDI?
+slot 19	FOUR SQUARE	white sword 4 hearts
+slot 19	FANTASTIC FOUR	white sword 4 hearts
+slot 19	SOMETHING ABOUT FOUR	white sword 4 hearts
+slot 19	FOUR SWORDS ADVENTURE	white sword 4 hearts
+slot 19	FIVE IS RIGHT OUT	white sword 5 hearts
+slot 19	FIVE PIXELS|FROM THE EDGE	white sword 5 hearts
+slot 19	GIVE ME FIVE	white sword 5 hearts
+slot 19	HIGH FIVE	white sword 5 hearts
+slot 19	TAKE FIVE	white sword 5 hearts
+slot 19	HOW IT FEELS TO|CHEW FIVE GUM	white sword 5 hearts
+slot 19	SIX SEVEN	white sword 6 hearts
+slot 19	WHY WAS SIX|AFRAID OF SEVEN?	white sword 6 hearts
+slot 19	SIXTH SENSE	white sword 6 hearts
+slot 19	DEEP SIX	white sword 6 hearts
+slot 1 or 19	AM I A TEN OR WHAT?	magical sword 10 hearts
+slot 1 or 19	TENTEN	magical sword 10 hearts
+slot 1 or 19	HANG TEN	magical sword 10 hearts
+slot 1 or 19	TEN OUT OF TEN	magical sword 10 hearts
+slot 1 or 19	POWER OF TEN	magical sword 10 hearts
+slot 1 or 19	THESE GO TO ELEVEN	magical sword 11 hearts
+slot 1 or 19	ELEVENSIES!	magical sword 11 hearts
+slot 1 or 19	OCEAN'S ELEVEN	magical sword 11 hearts
+slot 1 or 19	11!!!!!	magical sword 11 hearts
+slot 1 or 19	THE DIRTY DOZEN	magical sword 12 hearts
+slot 1 or 19	A DOZEN HEARTS	magical sword 12 hearts
+slot 1 or 19	TWELVE LABORS	magical sword 12 hearts
+slot 1 or 19	TWELVE IS SO VANILLA	magical sword 12 hearts
+
+# ---- Placeholders: replace each INSERT COMMUNITY HINT line's quote with a
+# ---- real one of the same class (docs/ui-provenance.md).
+slot 20	INSERT COMMUNITY HINT 1	placeholder
+slot 21	INSERT COMMUNITY HINT 2	placeholder
+slot 24	INSERT COMMUNITY HINT 3	placeholder
+slot 1 or 19	INSERT COMMUNITY HINT 4	placeholder
+slot 1 or 19	INSERT COMMUNITY HINT 5	placeholder
+slots 10-13	INSERT COMMUNITY HINT 6	placeholder
+slots 10-13	INSERT COMMUNITY HINT 7	placeholder
+slots 10-13	INSERT COMMUNITY HINT 8	placeholder
+slots 10-13	INSERT COMMUNITY HINT 9	placeholder
+slots 20-31	INSERT COMMUNITY HINT 10	placeholder
+slots 20-31	INSERT COMMUNITY HINT 11	placeholder
+slots 20-31	INSERT COMMUNITY HINT 12	placeholder
+slots 20-31	INSERT COMMUNITY HINT 13	placeholder
+slots 20-31	INSERT COMMUNITY HINT 14	placeholder
+slots 20-31	INSERT COMMUNITY HINT 15	placeholder
+slots 20-31	INSERT COMMUNITY HINT 16	placeholder
+slots 20-31	INSERT COMMUNITY HINT 17	placeholder
+slots 20-31	INSERT COMMUNITY HINT 18	placeholder
+slots 34-37	INSERT COMMUNITY HINT 19	placeholder
+slots 34-37	INSERT COMMUNITY HINT 20	placeholder
+slots 34-37	INSERT COMMUNITY HINT 21	placeholder
+unrouted	INSERT COMMUNITY HINT 22	placeholder
+unrouted	INSERT COMMUNITY HINT 23	placeholder
+unrouted	INSERT COMMUNITY HINT 24	placeholder
+unrouted	INSERT COMMUNITY HINT 25	placeholder
+unrouted	INSERT COMMUNITY HINT 26	placeholder
+unrouted	INSERT COMMUNITY HINT 27	placeholder
+unrouted	INSERT COMMUNITY HINT 28	placeholder
+unrouted	INSERT COMMUNITY HINT 29	placeholder
+unrouted	INSERT COMMUNITY HINT 30	placeholder
+unrouted	INSERT COMMUNITY HINT 31	placeholder
+unrouted	INSERT COMMUNITY HINT 32	placeholder
+unrouted	INSERT COMMUNITY HINT 33	placeholder
+unrouted	INSERT COMMUNITY HINT 34	placeholder
+unrouted	INSERT COMMUNITY HINT 35	placeholder
+unrouted	INSERT COMMUNITY HINT 36	placeholder
+unrouted	INSERT COMMUNITY HINT 37	placeholder
+unrouted	INSERT COMMUNITY HINT 38	placeholder
+unrouted	INSERT COMMUNITY HINT 39	placeholder
+unrouted	INSERT COMMUNITY HINT 40	placeholder
+unrouted	INSERT COMMUNITY HINT 41	placeholder
+unrouted	INSERT COMMUNITY HINT 42	placeholder
+unrouted	INSERT COMMUNITY HINT 43	placeholder
+unrouted	INSERT COMMUNITY HINT 44	placeholder
+unrouted	INSERT COMMUNITY HINT 45	placeholder
+unrouted	INSERT COMMUNITY HINT 46	placeholder
+unrouted	INSERT COMMUNITY HINT 47	placeholder
+# Slot 19: eight more (48-55), so the white-sword item hint competes with
+# as many candidates as in the spec's pool (docs/ui-provenance.md).
+slot 19	INSERT COMMUNITY HINT 48	placeholder
+slot 19	INSERT COMMUNITY HINT 49	placeholder
+slot 19	INSERT COMMUNITY HINT 50	placeholder
+slot 19	INSERT COMMUNITY HINT 51	placeholder
+slot 19	INSERT COMMUNITY HINT 52	placeholder
+slot 19	INSERT COMMUNITY HINT 53	placeholder
+slot 19	INSERT COMMUNITY HINT 54	placeholder
+slot 19	INSERT COMMUNITY HINT 55	placeholder

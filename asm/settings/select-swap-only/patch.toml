@@ -1,0 +1,10 @@
+# ZORA FP-HOT-01, swap-only choice (a player setting, FP-SET-01): Select always cycles the
+# B item and never pauses; no mode, label or item-screen toggle.
+# asm/README.md describes this file.
+
+[series]
+# The item screen keeps PRG0's drawing and heading.
+leave_out = ["fp-hot-01.item-screen", "fp-hot-01.item-screen-heading"]
+
+[series.routines]
+"fp-hot-01/bank_02.s" = "replaces-fp-hot-01-bank_02.s"

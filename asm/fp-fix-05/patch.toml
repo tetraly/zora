@@ -1,0 +1,18 @@
+# ZORA FP-FIX-05: CheckShutters returns at once while a door command is pending, keeping the shutter trigger set.
+# asm/README.md describes this file.
+
+[[hook]]
+name = "pending-check"
+offset = 0x14AC2
+length = 0
+note = "Inserted before the shutter loop: with a door command pending, return at once (to the final RTS) and keep the shutter trigger set."
+code = """
+    LDA a:TriggeredDoorCmd
+    BNE :++
+"""
+
+[[hook]]
+name = "old-pending-check"
+offset = 0x14AE3
+length = 5
+note = "Removed: the pending-command check PRG0 made only on finding an unopened shutter (it moved to the top). The code between moves down by the five bytes."

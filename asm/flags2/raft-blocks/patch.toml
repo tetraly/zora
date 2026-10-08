@@ -1,0 +1,46 @@
+# ZORA 2.0 Extra Raft Blocks (docs/design/zora-flags-2.0.md section 3): water and docks in
+# the overworld's screen layouts, so Westlake Mall and Casino Corner need the raft. These
+# bytes are column descriptors in RoomLayoutsOW (bank 5 $9418, file 0x15428; 16 a layout),
+# which the pinned disassembly includes as a binary, so they are data edits, not hooks
+# (asm/flags2/build.py). A layout may serve more than one screen: the build reports the
+# screens each edit reaches. asm/README.md describes the rest of this file.
+
+[[data]]
+offset = 0x154F8
+bytes = "0C"
+note = "Layout 13 (screen $0E), column 0."
+
+[[data]]
+offset = 0x155F7
+bytes = "0C 0C"
+note = "Layout 28 (screen $1D), column 15, and layout 29 (screen $1E), column 0."
+
+[[data]]
+offset = 0x15613
+bytes = "EB"
+note = "Layout 30 (screen $1F), column 11."
+
+[[data]]
+offset = 0x15615
+bytes = "AF"
+note = "Layout 30 (screen $1F), column 13."
+
+[[data]]
+offset = 0x15715
+bytes = "B6"
+note = "Layout 46 (screen $2F), column 13."
+
+[[data]]
+offset = 0x15765
+bytes = "91 78"
+note = "Layout 51 (screen $34), columns 13 and 14."
+
+[[data]]
+offset = 0x1582F
+bytes = "02 08 0B 0B 0B 0B 0B 0B 0B 0B 01"
+note = "Layout 64 (screen $44), columns 7 to 15, and layout 65 (screen $45), columns 0 and 1."
+
+[[data]]
+offset = 0x1592F
+bytes = "17 17"
+note = "Layout 80 (screen $54), columns 7 and 8."

@@ -1,0 +1,24 @@
+# ZORA 2.0 Speed Up Heart Fill (docs/design/zora-flags-2.0.md section 6). Feature credit:
+# snarfblam. ZORA's own edit, written from the disassembly: World_FillHearts adds $18 to
+# HeartPartial a frame instead of 6 (four times as fast) and completes a heart from $E8 up
+# instead of $F8 up, so the sum never passes $FF; filling still stops exactly at the heart
+# containers (the routine's end is unchanged). asm/README.md and asm/flags2/build.py
+# describe this file.
+
+[[hook]]
+name = "complete-at"
+offset = 0x17202
+length = 2
+note = "World_FillHearts completes a heart once HeartPartial is $E8 or more (one step of $18 short of overflowing)."
+code = """
+    CMP #$E8
+"""
+
+[[hook]]
+name = "fill-step"
+offset = 0x17207
+length = 2
+note = "World_FillHearts adds $18 to HeartPartial a frame, four times PRG0's 6."
+code = """
+    ADC #$18
+"""

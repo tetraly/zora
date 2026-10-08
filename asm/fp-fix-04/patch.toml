@@ -1,0 +1,35 @@
+# ZORA FP-FIX-04: taking the Triforce of Power signals the last boss defeated and counts the kill.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_FIX_04"
+bank = 7
+start = 0xFFD0
+
+[imports]
+bank_01 = ["TakePowerTriforceSignals"]
+
+[exports]
+bank_07 = ["TakePowerTriforceSignals"]
+
+[[hook]]
+name = "power-triforce-tune"
+offset = 0x06BF9
+length = 5
+note = "Taking the Triforce of Power calls TakePowerTriforceSignals for its tune request."
+code = """
+    JSR TakePowerTriforceSignals
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "ganon-kill-count"
+offset = 0x12DA1
+length = 3
+note = "Ganon's ashes no longer count the kill; TakePowerTriforceSignals does."
+code = """
+    NOP
+    NOP
+    NOP
+"""

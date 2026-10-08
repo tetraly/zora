@@ -1,0 +1,476 @@
+{
+ "C01": {
+  "tab": "Overworld",
+  "help": "Chooses which overworld the player explores: the first quest's, the second quest's, a mix of the two, or one picked for each seed."
+ },
+ "C02": {
+  "tab": "Dungeons",
+  "help": "Chooses where the dungeon layouts come from: the first quest, the second quest, a mix, newly generated shapes, a mix with shapes, or one picked for each seed."
+ },
+ "C03": {
+  "tab": "Misc",
+  "help": "Chooses what the people in caves and dungeons say: the original lines, helpful hints, community lines, misleading hints, a mix, nothing at all, or one picked for each seed."
+ },
+ "C04": {
+  "tab": "Overworld",
+  "help": "Chooses the screen the player starts on: the usual one, a shuffled one (easy or full shuffle), or the wooden-sword cave's screen."
+ },
+ "C05": {
+  "tab": "Overworld",
+  "help": "Chooses which entrances lead somewhere new: none, only the dungeon doors, only the other caves, all of them, or one picked for each seed."
+ },
+ "C06": {
+  "tab": "Items",
+  "help": "Chooses how widely items are shuffled: not at all, among dungeon items only, within each dungeon, or across dungeons, caves and the overworld together."
+ },
+ "C07": {
+  "tab": "Items",
+  "help": "Chooses how the wooden sword works: as usual, as the only sword, never given, no swords at all, or one picked for each seed."
+ },
+ "C08": {
+  "tab": "Dungeons",
+  "help": "Chooses what opens level 9: 1 to 8 Triforce pieces, nothing (it is open), a random count in a range, specific pieces, an item instead of pieces, or one picked for each seed."
+ },
+ "C09": {
+  "tab": "Monsters",
+  "help": "Chooses how enemies' hit points change: not at all, by up to 2 or up to 4 for each kind of enemy, all to zero, or one picked for each seed."
+ },
+ "C10": {
+  "tab": "Monsters",
+  "help": "Chooses how bosses' hit points change: not at all, by up to 2 or up to 4 for each boss, all to zero, or one picked for each seed."
+ },
+ "C11": {
+  "tab": "Items",
+  "help": "Chooses an item that is always found at the secret Armos spot, or none."
+ },
+ "C12": {
+  "tab": "Items",
+  "help": "Chooses an item that is always found in the coast cave, or none; the Ladder is not allowed there."
+ },
+ "C13": {
+  "tab": "Items",
+  "help": "Chooses an item that is always found in the white-sword cave, or none."
+ },
+ "C14": {
+  "tab": "Dungeons",
+  "help": "Chooses how dungeon rooms are shuffled: not at all, within each dungeon, between dungeons, or one picked for each seed."
+ },
+ "C15": {
+  "tab": "Items",
+  "help": "Chooses how items and characters look: as usual, a fun percentage, shuffled sprites, or one picked for each seed."
+ },
+ "C16": {
+  "tab": "Items",
+  "help": "Chooses how many hearts the player starts with: 1 to 16, or a random number from 1 to 5."
+ },
+ "C17": {
+  "tab": "Items",
+  "help": "Limits how many of the chosen starting items the player really gets: all of them, at most 0 to 20, or a random limit from 0 to 20."
+ },
+ "C18": {
+  "tab": "Items",
+  "help": "Chooses how many Triforce pieces the player starts with: 0 to 8, or a random number."
+ },
+ "C19": {
+  "tab": "Monsters",
+  "help": "Chooses what a red bubble does to the player: takes the sword away as in the original game, reverses the controls, slows the player down, or one picked for each seed."
+ },
+ "C20": {
+  "tab": "Items",
+  "help": "Sets the fewest hearts the white-sword cave can ask for (4 to 6)."
+ },
+ "C21": {
+  "tab": "Items",
+  "help": "Sets the most hearts the white-sword cave can ask for (4 to 6)."
+ },
+ "C22": {
+  "tab": "Items",
+  "help": "Sets the fewest hearts the magical-sword cave can ask for (10 to 14)."
+ },
+ "C23": {
+  "tab": "Items",
+  "help": "Sets the most hearts the magical-sword cave can ask for (10 to 14)."
+ },
+ "C24": {
+  "tab": "Dungeons",
+  "help": "Sets the fewest Triforce pieces level 9 can ask for when it asks for a random count or for specific pieces."
+ },
+ "C25": {
+  "tab": "Dungeons",
+  "help": "Sets the most Triforce pieces level 9 can ask for when it asks for a random count or for specific pieces."
+ },
+ "C26": {
+  "tab": "Dungeons",
+  "help": "Chooses an item that is always found inside level 9 (the first of two), or none."
+ },
+ "C27": {
+  "tab": "Dungeons",
+  "help": "Chooses an item that is always found inside level 9 (the second of two), or none."
+ },
+ "B01": {
+  "tab": "Overworld",
+  "help": "With it on, the recorder takes the player to the dungeons' new entrances; with it off, it works as usual."
+ },
+ "B02": {
+  "tab": "Overworld",
+  "help": "With it on, the wooden-sword cave can be at any hidden cave spot; with it off, it is not moved to one."
+ },
+ "B03": {
+  "tab": "Overworld",
+  "help": "With it on, the wooden-sword cave can be hidden behind blocks; with it off, it never is."
+ },
+ "B04": {
+  "tab": "Overworld",
+  "help": "With it on, the take-any-road caves trade places; with it off, they stay where they are."
+ },
+ "B05": {
+  "tab": "Overworld",
+  "help": "With it on, the tiles that hide secret entrances move; with it off, they stay where they are."
+ },
+ "B06": {
+  "tab": "Overworld",
+  "help": "With it on, the overworld is mirrored; with it off, it is laid out as usual."
+ },
+ "B07": {
+  "tab": "Overworld",
+  "help": "With it on, the recorder takes the player to dungeons not yet beaten; with it off, it works as usual."
+ },
+ "B08": {
+  "tab": "Items",
+  "help": "With it on, shop wares move between shops and their prices vary; with it off, each shop sells its usual wares."
+ },
+ "B09": {
+  "tab": "Items",
+  "help": "With it on, shops can also sell extra candles; with it off, they don't."
+ },
+ "B10": {
+  "tab": "Items",
+  "help": "With it on, the number of hearts the white-sword and magical-sword caves ask for changes with each seed; with it off, they ask for the usual number."
+ },
+ "B11": {
+  "tab": "Misc",
+  "help": "With it on, the money-making game's amounts change with each seed; with it off, they are the usual ones."
+ },
+ "B12": {
+  "tab": "Items",
+  "help": "With it on, the bomb-upgrade person's price and number of extra bombs change with each seed; with it off, they are the usual ones."
+ },
+ "B13": {
+  "tab": "Items",
+  "help": "With it on, the item under the secret Armos is shuffled with the others; with it off, it is the usual item."
+ },
+ "B14": {
+  "tab": "Misc",
+  "help": "Changes nothing in the game: it is shown and kept in the flag string only.",
+  "hidden": true
+ },
+ "B15": {
+  "tab": "Dungeons",
+  "help": "With it on, the items in dungeon rooms are shuffled within each level; with it off, they stay in their rooms."
+ },
+ "B16": {
+  "tab": "Misc",
+  "help": "Changes nothing in the game: it is shown and kept in the flag string only (heart containers are shuffled by the item shuffle setting instead).",
+  "hidden": true
+ },
+ "B17": {
+  "tab": "Dungeons",
+  "help": "With it on, bombs, rupees and keys are shuffled along with the other items; with it off, they are not."
+ },
+ "B18": {
+  "tab": "Misc",
+  "help": "With it on, the player has to beat Ganon to finish; with it off, the game ends as usual."
+ },
+ "B19": {
+  "tab": "Misc",
+  "help": "With it on, the hints given by people in dungeons are swapped around between them; with it off, each person keeps their hint."
+ },
+ "B20": {
+  "tab": "Dungeons",
+  "help": "With it on, generated dungeons can also use second-quest rooms; with it off, they use only first-quest rooms."
+ },
+ "B21": {
+  "tab": "Dungeons",
+  "help": "With it on, generated dungeons also use the second quest's mix of doors; with it off, they don't."
+ },
+ "B22": {
+  "tab": "Dungeons",
+  "help": "With it on, some people in dungeon rooms become merchants who ask for life or money; with it off, they are as usual."
+ },
+ "B23": {
+  "tab": "Dungeons",
+  "help": "With it on, what those merchants ask for changes with each seed; with it off, it is the usual amount."
+ },
+ "B24": {
+  "tab": "Dungeons",
+  "help": "With it on, the dungeon numbers are hidden; with it off, they are shown."
+ },
+ "B25": {
+  "tab": "Items",
+  "help": "With it on, important items can be inside level 9; with it off, they can't."
+ },
+ "B26": {
+  "tab": "Dungeons",
+  "help": "With it on, a dungeon can start in a different room; with it off, each dungeon starts in its usual room."
+ },
+ "B27": {
+  "tab": "Dungeons",
+  "help": "With it on, the dungeons get different colours; with it off, they keep their usual colours."
+ },
+ "B28": {
+  "tab": "Dungeons",
+  "help": "With it on, the hungry goriya that wants food can be in a different dungeon room; with it off, it stays in its usual room."
+ },
+ "B29": {
+  "tab": "Dungeons",
+  "help": "With it on, the people who sell bomb upgrades in dungeons are moved around; with it off, they stay where they are."
+ },
+ "B30": {
+  "tab": "Dungeons",
+  "help": "With it on, most open staircases are removed; with it off, they stay."
+ },
+ "B31": {
+  "tab": "Monsters",
+  "help": "With it on, the monsters on the overworld screens are shuffled; with it off, each screen has its usual monsters."
+ },
+ "B32": {
+  "tab": "Monsters",
+  "help": "With it on, each dungeon's monsters are shuffled between its rooms; with it off, they stay in their rooms."
+ },
+ "B33": {
+  "tab": "Monsters",
+  "help": "With it on, Ganon and Zelda are moved by those shuffles too; with it off, they stay where they are."
+ },
+ "B34": {
+  "tab": "Monsters",
+  "help": "With it on, the bosses are shuffled; with it off, each boss is in its usual place."
+ },
+ "B35": {
+  "tab": "Monsters",
+  "help": "With it on, level 9's monsters also move between levels; with it off, they stay in level 9."
+ },
+ "B36": {
+  "tab": "Monsters",
+  "help": "With it on, monsters can move from one dungeon to another; with it off, each dungeon keeps its own monsters."
+ },
+ "B37": {
+  "tab": "Monsters",
+  "help": "With it on, second-quest monsters can appear in generated dungeons; with it off, they don't."
+ },
+ "B38": {
+  "tab": "Monsters",
+  "help": "With it on, the groups that decide what enemies drop are shuffled; with it off, they are as usual."
+ },
+ "B39": {
+  "tab": "Items",
+  "help": "With it on, enemies can drop important items; with it off, they don't."
+ },
+ "B40": {
+  "tab": "Monsters",
+  "help": "With it on, the groups of bosses are mixed up; with it off, they are as usual."
+ },
+ "B41": {
+  "tab": "Monsters",
+  "help": "With it on, Ganon has no hit points; with it off, Ganon's hit points are as usual."
+ },
+ "B42": {
+  "tab": "Monsters",
+  "help": "With it on, the groups of enemies are shuffled; with it off, they are as usual."
+ },
+ "B43": {
+  "tab": "Monsters",
+  "help": "With it on, the overworld screens' monsters are redrawn from the overworld group; with it off, they are as usual."
+ },
+ "B44": {
+  "tab": "Monsters",
+  "help": "With it on, how often items drop is random; with it off, it is the usual rate."
+ },
+ "B45": {
+  "tab": "Monsters",
+  "help": "With it on, every enemy has the most health possible; with it off, enemy health is as usual."
+ },
+ "B46": {
+  "tab": "Monsters",
+  "help": "With it on, every boss has the most health possible; with it off, boss health is as usual."
+ },
+ "B47": {
+  "tab": "Items",
+  "help": "With it on, the Book of Magic turns the wand's fire into an explosion; with it off, it makes fire as usual."
+ },
+ "B48": {
+  "tab": "Items",
+  "help": "With it on, carrying the Book of Magic lets the player understand old men; with it off, it doesn't."
+ },
+ "B49": {
+  "tab": "Items",
+  "help": "With it on, holding the Book of Magic counts as having every dungeon's map; with it off, each map has to be found."
+ },
+ "B50": {
+  "tab": "Misc",
+  "help": "With it on, the game plays in blackout mode; with it off, it doesn't."
+ },
+ "B51": {
+  "tab": "Misc",
+  "help": "With it on, the game prints quest information; with it off, it doesn't."
+ },
+ "B52": {
+  "tab": "Misc",
+  "help": "With it on, the sword always shoots a beam; with it off, the beam works as usual."
+ },
+ "B53": {
+  "tab": "Misc",
+  "help": "With it on, any hit knocks the player out; with it off, damage is as usual."
+ },
+ "B54": {
+  "tab": "Misc",
+  "help": "With it on, people's text appears faster; with it off, it appears at the usual speed."
+ },
+ "B55": {
+  "tab": "Misc",
+  "help": "With it on, the player's health is hidden; with it off, it is shown."
+ },
+ "B56": {
+  "tab": "Items",
+  "help": "With it on, items that enemies drop can be destroyed; with it off, they can't."
+ },
+ "B57": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Raft (within the limit on starting items); with it off, it has to be found."
+ },
+ "B58": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Bow (within the limit on starting items); with it off, it has to be found."
+ },
+ "B59": {
+  "tab": "Items",
+  "help": "With it on, the player starts with 8 bombs; with it off, bombs have to be found."
+ },
+ "B60": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Recorder (within the limit on starting items); with it off, it has to be found."
+ },
+ "B61": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Bait (within the limit on starting items); with it off, it has to be found."
+ },
+ "B62": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Magical Key (within the limit on starting items); with it off, it has to be found."
+ },
+ "B63": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Letter (within the limit on starting items); with it off, it has to be found."
+ },
+ "B64": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Power Bracelet (within the limit on starting items); with it off, it has to be found."
+ },
+ "B65": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Ladder (within the limit on starting items); with it off, it has to be found."
+ },
+ "B66": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Wand (within the limit on starting items); with it off, it has to be found."
+ },
+ "B67": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Book of Magic (within the limit on starting items); with it off, it has to be found."
+ },
+ "B68": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the wooden sword (within the limit on starting items); with it off, it has to be found."
+ },
+ "B69": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the white sword (within the limit on starting items); with it off, it has to be found."
+ },
+ "B70": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the magical sword (within the limit on starting items); with it off, it has to be found."
+ },
+ "B71": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the wooden arrow (within the limit on starting items); with it off, it has to be found."
+ },
+ "B72": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Silver Arrow (within the limit on starting items); with it off, it has to be found."
+ },
+ "B73": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the blue candle (within the limit on starting items); with it off, it has to be found."
+ },
+ "B74": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the red candle (within the limit on starting items); with it off, it has to be found."
+ },
+ "B75": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the blue ring (within the limit on starting items); with it off, it has to be found."
+ },
+ "B76": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the red ring (within the limit on starting items); with it off, it has to be found."
+ },
+ "B77": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the wooden Boomerang (within the limit on starting items); with it off, it has to be found."
+ },
+ "B78": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the Magical Boomerang (within the limit on starting items); with it off, it has to be found."
+ },
+ "B79": {
+  "tab": "Monsters",
+  "help": "With it on, extra bosses are added; with it off, there are the usual bosses."
+ },
+ "B80": {
+  "tab": "Misc",
+  "help": "With it on, the rupees the player carries change their speed; with it off, they don't."
+ },
+ "B81": {
+  "tab": "Overworld",
+  "help": "With it on, the game forces an overworld block for an item; with it off, it doesn't."
+ },
+ "B82": {
+  "tab": "Misc",
+  "help": "Encodes most dungeon and overworld data so ROM editors and map viewers (like the Z1R Visualizer) can't read it. Gameplay is exactly the same. This isn't cheat-proof: a determined person can still decode the data."
+ },
+ "B83": {
+  "tab": "Misc",
+  "help": "With it on, numbers are hidden; with it off, they are shown."
+ },
+ "B84": {
+  "tab": "Misc",
+  "help": "With it on, the game prevents slipping through walls while the screen scrolls; with it off, it doesn't."
+ },
+ "B85": {
+  "tab": "Items",
+  "help": "With it on, the player starts with the magical shield (within the limit on starting items); with it off, it has to be found."
+ },
+ "B86": {
+  "tab": "Dungeons",
+  "help": "With it on, generated dungeon shapes are not sorted by size; with it off, they are."
+ },
+ "B87": {
+  "tab": "Overworld",
+  "help": "With it on, bridges are added over the river; with it off, the river is as usual."
+ },
+ "B88": {
+  "tab": "Overworld",
+  "help": "With it on, there is a shortcut through the Lost Woods; with it off, there isn't."
+ },
+ "B89": {
+  "tab": "Overworld",
+  "help": "With it on, the hidden tiles on the overworld change; with it off, they are as usual."
+ },
+ "B90": {
+  "tab": "Items",
+  "help": "With it on, the bomb upgrade adds more bombs; with it off, it adds the usual number."
+ },
+ "B91": {
+  "tab": "Dungeons",
+  "help": "With it on, generated dungeons can use universal drops; with it off, they don't."
+ }
+}

@@ -1,0 +1,411 @@
+{
+ "B01": {
+  "name": "Recorder To New Dungeons"
+ },
+ "B02": {
+  "name": "Shuffle Wood Sword Cave"
+ },
+ "B03": {
+  "name": "Allow OW Blocks of Wood Sword"
+ },
+ "B04": {
+  "name": "Shuffle \"Take Any Road\" Caves"
+ },
+ "B05": {
+  "name": "Change Secret Spots"
+ },
+ "B06": {
+  "name": "Mirror Overworld"
+ },
+ "B07": {
+  "name": "Recorder to Unbeaten Dungeons"
+ },
+ "B08": {
+  "name": "Shuffle Shop Items"
+ },
+ "B09": {
+  "name": "Extra Candles"
+ },
+ "B10": {
+  "name": "Change Sword Hearts"
+ },
+ "B11": {
+  "name": "Change MMG"
+ },
+ "B12": {
+  "name": "Change Bomb Upgrades"
+ },
+ "B13": {
+  "name": "Shuffle Armos"
+ },
+ "B15": {
+  "name": "Shuffle Dungeon Drops"
+ },
+ "B17": {
+  "name": "Shuffle Minor Dungeon Drops"
+ },
+ "B18": {
+  "name": "Force Gannon Fight"
+ },
+ "B19": {
+  "name": "Shuffle Dungeon Text"
+ },
+ "B20": {
+  "name": "Add 2nd Quest Rooms"
+ },
+ "B21": {
+  "name": "Add 2nd Quest Doors"
+ },
+ "B22": {
+  "name": "Add Money or Life Rooms"
+ },
+ "B23": {
+  "name": "Change \"Leave your...\" Rooms"
+ },
+ "B24": {
+  "name": "Hide Dungeon Numbers"
+ },
+ "B25": {
+  "name": "Allow Important Items in 9"
+ },
+ "B26": {
+  "name": "Shuffle Dungeon Start Room"
+ },
+ "B27": {
+  "name": "Shuffle Dungeon Palettes"
+ },
+ "B28": {
+  "name": "Shuffle Hungry Goriya"
+ },
+ "B29": {
+  "name": "Shuffle Bomb Upgrade Men"
+ },
+ "B30": {
+  "name": "Remove Most Open Stairs"
+ },
+ "B31": {
+  "name": "Shuffle Overworld Monsters"
+ },
+ "B32": {
+  "name": "Shuffle Dungeon Monsters"
+ },
+ "B33": {
+  "name": "Shuffle Gannon and Zelda"
+ },
+ "B34": {
+  "name": "Shuffle Bosses"
+ },
+ "B35": {
+  "name": "Shuffle Level 9 Monsters"
+ },
+ "B36": {
+  "name": "Shuffle Monsters Between Levels"
+ },
+ "B37": {
+  "name": "Add 2nd Quest Monsters"
+ },
+ "B38": {
+  "name": "Shuffle Enemy Drop Groups"
+ },
+ "B39": {
+  "name": "Make Important Items Drops"
+ },
+ "B40": {
+  "name": "Randomize Boss Groups"
+ },
+ "B41": {
+  "name": "Set Gannon HP to 0"
+ },
+ "B42": {
+  "name": "Shuffle Enemy Groups"
+ },
+ "B43": {
+  "name": "Shuffle Overworld Group"
+ },
+ "B44": {
+  "name": "Randomize Item Drop Rate"
+ },
+ "B45": {
+  "name": "Maximum Enemy Health"
+ },
+ "B46": {
+  "name": "Maximum Boss Health"
+ },
+ "B47": {
+  "name": "Replace Book Fire with Explosion"
+ },
+ "B48": {
+  "name": "Book To Understand Old Men"
+ },
+ "B49": {
+  "name": "Book is an Atlas"
+ },
+ "B50": {
+  "name": "Blackout"
+ },
+ "B51": {
+  "name": "Print Quest Info"
+ },
+ "B52": {
+  "name": "Permanent Sword Beam"
+ },
+ "B53": {
+  "name": "OHKO"
+ },
+ "B54": {
+  "name": "Speed Up Text"
+ },
+ "B55": {
+  "name": "Hidden Health"
+ },
+ "B56": {
+  "name": "Killable Drop Items"
+ },
+ "B57": {
+  "name": "Start with Raft"
+ },
+ "B58": {
+  "name": "Start with Bow"
+ },
+ "B59": {
+  "name": "Start with 8 Bombs"
+ },
+ "B60": {
+  "name": "Start with Recorder"
+ },
+ "B61": {
+  "name": "Start with Bait"
+ },
+ "B62": {
+  "name": "Start with Magical Key"
+ },
+ "B63": {
+  "name": "Start with Letter"
+ },
+ "B64": {
+  "name": "Start with Power Bracelet"
+ },
+ "B65": {
+  "name": "Start with Ladder"
+ },
+ "B66": {
+  "name": "Start with Wand"
+ },
+ "B67": {
+  "name": "Start with Book"
+ },
+ "B68": {
+  "name": "Start with Wood Sword"
+ },
+ "B69": {
+  "name": "Start with White Sword"
+ },
+ "B70": {
+  "name": "Start with Magical Sword"
+ },
+ "B71": {
+  "name": "Start with Wood Arrow"
+ },
+ "B72": {
+  "name": "Start with Silver Arrow"
+ },
+ "B73": {
+  "name": "Start with Blue Candle"
+ },
+ "B74": {
+  "name": "Start with Red Candle"
+ },
+ "B75": {
+  "name": "Start with Blue Ring"
+ },
+ "B76": {
+  "name": "Start with Red Ring"
+ },
+ "B77": {
+  "name": "Start with Wood Boomerang"
+ },
+ "B78": {
+  "name": "Start with Magical Boomerang"
+ },
+ "B79": {
+  "name": "Add extra bosses"
+ },
+ "B80": {
+  "name": "Rupees Affect Speed"
+ },
+ "B81": {
+  "name": "Force Overworld Block"
+ },
+ "B83": {
+  "name": "Hidden Numbers"
+ },
+ "B84": {
+  "name": "Prevent Clipping"
+ },
+ "B86": {
+  "name": "Do Not Sort Shapes"
+ },
+ "B87": {
+  "name": "Add Bridges to the River"
+ },
+ "B88": {
+  "name": "Add Lost Woods Shortcut"
+ },
+ "B89": {
+  "name": "Change Hidden OW Tiles"
+ },
+ "B90": {
+  "name": "Increase Bomb Capacity Upgrade"
+ },
+ "C01": {
+  "name": "Overworld Quest"
+ },
+ "C02": {
+  "name": "Dungeon Quest",
+  "values": [
+   "1st Quest",
+   "2nd Quest",
+   "Mixed Quest",
+   "Shapes",
+   "Mixed + Shapes",
+   "Random No Shapes",
+   "Random"
+  ]
+ },
+ "C03": {
+  "name": "Hint Type",
+  "values": [
+   "Normal",
+   "Helpful",
+   "Community",
+   "Deception",
+   "Mixed",
+   "Blank",
+   "Random"
+  ]
+ },
+ "C04": {
+  "name": "Start Screen",
+  "values": [
+   "Normal",
+   "Easy start shuffle",
+   "Full Start Shuffle",
+   "Wood Sword Screen"
+  ]
+ },
+ "C05": {
+  "name": "Cave Shuffle",
+  "values": [
+   "Vanilla",
+   "Dungeons Only",
+   "Non-Dungeons Only",
+   "All Cave",
+   "Random"
+  ]
+ },
+ "C06": {
+  "name": "Item Shuffle"
+ },
+ "C07": {
+  "name": "Swords",
+  "values": [
+   "Normal",
+   "Wood Sword Only",
+   "No Wood Sword",
+   "Swordless",
+   "Random"
+  ]
+ },
+ "C08": {
+  "name": "Level 9 Entry"
+ },
+ "C09": {
+  "name": "\"Most\" Enemy HP",
+  "values": [
+   "Normal",
+   "+/- 2 HP",
+   "+/- 4 HP",
+   "0 HP",
+   "Random"
+  ]
+ },
+ "C10": {
+  "name": "Boss HP",
+  "values": [
+   "Normal",
+   "+/- 2 HP",
+   "+/- 4 HP",
+   "0 HP",
+   "Random"
+  ]
+ },
+ "C11": {
+  "name": "Armos Item"
+ },
+ "C12": {
+  "name": "Coast Item"
+ },
+ "C13": {
+  "name": "White Sword Item"
+ },
+ "C14": {
+  "name": "Dungeon Room Shuffle",
+  "values": [
+   "Vanilla",
+   "In-dungeon Shuffle",
+   "Full Shuffle",
+   "Random"
+  ]
+ },
+ "C15": {
+  "name": "Item Sprites",
+  "values": [
+   "Normal",
+   "Fun%",
+   "Sprite Shuffle",
+   "Random"
+  ]
+ },
+ "C16": {
+  "name": "Starting Hearts"
+ },
+ "C17": {
+  "name": "Max Start Items"
+ },
+ "C18": {
+  "name": "Triforce Pieces"
+ },
+ "C19": {
+  "name": "Red Bubble Curse",
+  "values": [
+   "Swordless",
+   "Inverted Control",
+   "Slow Speed",
+   "Random"
+  ]
+ },
+ "C20": {
+  "name": "White Sword Hearts (min)"
+ },
+ "C21": {
+  "name": "White Sword Hearts (max)"
+ },
+ "C22": {
+  "name": "Magical Sword Hearts (min)"
+ },
+ "C23": {
+  "name": "Magical Sword Hearts (max)"
+ },
+ "C24": {
+  "name": "Triforce Range (min)"
+ },
+ "C25": {
+  "name": "Triforce Range (max)"
+ },
+ "C26": {
+  "name": "Level 9 Item 1"
+ },
+ "C27": {
+  "name": "Level 9 Item 2"
+ }
+}

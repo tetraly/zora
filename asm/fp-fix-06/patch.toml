@@ -1,0 +1,16 @@
+# ZORA FP-FIX-06: the overworld maze check is skipped while a whirlwind carries Link.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_FIX_06"
+bank = 5
+start = 0xB8A0
+
+[[hook]]
+name = "maze-check"
+offset = 0x17550
+length = 3
+note = "CalculateNextRoomForDoor calls CheckMazesUnlessWhirlwind for its overworld maze check."
+code = """
+    JSR CheckMazesUnlessWhirlwind
+"""

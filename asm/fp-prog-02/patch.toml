@@ -1,0 +1,48 @@
+# ZORA Progressive items, room, coast and Armos items (docs/progressive-patches.md): each item at its line's next level.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_PROG_02_ARMOS"
+bank = 4
+start = 0xB480
+
+[[segment]]
+name = "ZORA_FP_PROG_02_ROOM"
+bank = 5
+start = 0xBA40
+
+[imports]
+bank_04 = ["ItemIdToDescriptor", "ItemIdToSlot"]
+bank_05 = ["ItemIdToDescriptor", "ItemIdToSlot"]
+
+[[hook]]
+name = "armos-item"
+offset = 0x10D06
+length = 5
+note = "The Armos item's store and its taken check go through StoreArmosItemAtNextLevel."
+code = """
+    JSR StoreArmosItemAtNextLevel
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "room-item"
+offset = 0x17864
+length = 5
+note = "The room item's store and the secret-trigger load go through StoreRoomItemAtNextLevel."
+code = """
+    JSR StoreRoomItemAtNextLevel
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "coast-item"
+offset = 0x1789B
+length = 4
+note = "The coast item's store and its Y go through StoreCoastItemAtNextLevel."
+code = """
+    JSR StoreCoastItemAtNextLevel
+    NOP
+"""

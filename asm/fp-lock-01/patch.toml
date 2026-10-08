@@ -1,0 +1,42 @@
+# ZORA FP-LOCK-01: the first quest only. A new file never reaches the second quest, and the name ZELDA starts none.
+# asm/README.md describes this file.
+
+[[hook]]
+name = "copy-quest-number"
+offset = 0x0909A
+length = 3
+note = "The file-select copy of a slot: the quest number is not copied, so every slot stays in the first quest."
+code = """
+    NOP
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "zelda-string"
+offset = 0x09EFB
+length = 5
+note = "The name compared with ZELDA becomes blanks, so no name matches it."
+code = """
+    .BYTE $24, $24, $24, $24, $24
+"""
+
+[[hook]]
+name = "compare-to-zelda"
+offset = 0x09F6A
+length = 3
+note = "The name comparison goes straight to its mismatch path."
+code = """
+    JMP @FlagBReady
+"""
+
+[[hook]]
+name = "store-second-quest"
+offset = 0x0AF9C
+length = 3
+note = "Finishing the first quest does not store the second-quest number."
+code = """
+    NOP
+    NOP
+    NOP
+"""

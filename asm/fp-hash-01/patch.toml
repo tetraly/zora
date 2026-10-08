@@ -1,0 +1,36 @@
+# ZORA FP-HASH-01: the seed's code, four item icons on the file-select screen under the heading CODE.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_HASH_01"
+bank = 2
+start = 0xAFA0
+
+[imports]
+bank_02 = ["DrawItemBySlot", "ItemIdToDescriptor", "ItemIdToSlot"]
+
+[exports]
+bank_07 = ["DrawItemBySlot"]
+
+[[hook]]
+name = "file-select"
+offset = 0x0A4CD
+length = 7
+note = "The file-select menu's second step goes to InitMode1_Sub2AndCodeIcons, which does it and draws the code icons."
+code = """
+    JMP InitMode1_Sub2AndCodeIcons
+    NOP
+    NOP
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "code-heading"
+offset = 0x1A128
+length = 16
+note = "The file-select heading's 16 tiles read CODE, then blanks; the code icons are drawn after it."
+code = """
+    .BYTE $0F, $0C, $18, $0D, $0E, $24, $24, $24
+    .BYTE $24, $24, $24, $24, $24, $24, $24, $24
+"""

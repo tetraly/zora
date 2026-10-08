@@ -1,0 +1,23 @@
+# ZORA 2.0 Recorder Kills Dungeon Pols Voice (docs/design/zora-flags-2.0.md section 7).
+# Feature credit: Stratoform. ZORA's own routine, written from the disassembly: once the
+# recorder has been played in a dungeon room (WieldFlute sets UsedFlute there, and only
+# there), each Pols Voice dies at its next update, through DealDamage as a kill by the sword
+# (WorldKillCount, help drops and the dying metastate as usual). The recorder's own effect is
+# unchanged; the overworld never sets UsedFlute. Object updates wait for the recorder's tune,
+# so the Pols Voices die when it ends. asm/README.md and asm/flags2/build.py describe this
+# file.
+
+[[segment]]
+name = "ZORA_F2_POLS_VOICE"
+bank = 4
+start = 0xB500              # bank 4 free space, after fp-prog-02's Armos routine (docs/rom-map.md)
+
+[[hook]]
+name = "pols-voice-update"
+offset = 0x11BB2
+length = 4
+note = "UpdatePolsVoice starts by calling KillPolsVoiceAfterRecorder, in place of PRG0's CPX/BNE pair that branches to the next line either way."
+code = """
+    JSR KillPolsVoiceAfterRecorder
+    NOP
+"""

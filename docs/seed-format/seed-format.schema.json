@@ -1,0 +1,221 @@
+{
+  "$comment": "Copied from the z1r-visualizer repo (github.com/tetraly/z1r-visualizer), docs/seed-format.schema.json at commit 4a1239a760390b42ebc397451dbf4f5613820ed7, with only this comment added. That repo's docs/seed-format.md explains every field; ZORA's writer is zora/export/seed_document.py.",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tetraly.github.io/z1r-visualizer/seed-format.schema.json",
+  "title": "Z1R seed, format 1",
+  "description": "A Legend of Zelda seed as a player sees it: dungeons, overworld caves, shops, items and hint texts. docs/seed-format.md explains every field. Unknown properties are allowed everywhere, so that later 1.x versions can add fields.",
+  "type": "object",
+  "required": ["format", "formatVersion", "producer", "levels", "overworld", "caves", "hints"],
+  "properties": {
+    "format": { "const": "z1r-seed" },
+    "formatVersion": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+$" },
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "version": { "type": "string", "maxLength": 100 }
+      }
+    },
+    "seed": {
+      "type": "object",
+      "properties": {
+        "number": { "type": "string", "maxLength": 40 },
+        "flags": { "type": "string", "maxLength": 200 },
+        "zoraFlags": { "type": "string", "maxLength": 200 },
+        "code": { "type": "array", "maxItems": 8, "items": { "type": "string", "maxLength": 40 } }
+      }
+    },
+    "progressiveItems": { "type": "boolean" },
+    "levels": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 9,
+      "items": { "$ref": "#/$defs/level" }
+    },
+    "overworld": {
+      "type": "object",
+      "required": ["screens", "armos", "coast"],
+      "properties": {
+        "screens": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/screen" } },
+        "armos": { "$ref": "#/$defs/itemOrNone" },
+        "coast": { "$ref": "#/$defs/itemOrNone" }
+      }
+    },
+    "caves": { "type": "array", "maxItems": 64, "items": { "$ref": "#/$defs/cave" } },
+    "hints": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/hint" } },
+    "recorder": {
+      "type": "object",
+      "required": ["text", "notes"],
+      "properties": {
+        "text": { "$ref": "#/$defs/text" },
+        "notes": { "type": "array", "maxItems": 64, "items": { "type": "integer", "minimum": 0, "maximum": 255 } }
+      }
+    },
+    "requirements": {
+      "type": "object",
+      "properties": {
+        "whiteSwordHearts": { "type": "integer", "minimum": 0, "maximum": 16 },
+        "magicalSwordHearts": { "type": "integer", "minimum": 0, "maximum": 16 },
+        "level9Triforces": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "doorRepairCost": { "type": "integer", "minimum": 0, "maximum": 255 }
+      }
+    },
+    "settings": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "required": ["name", "chosen", "resolved"],
+        "properties": {
+          "id": { "type": "string", "maxLength": 20 },
+          "name": { "type": "string", "maxLength": 200 },
+          "chosen": { "type": "string", "maxLength": 100 },
+          "resolved": { "type": "string", "maxLength": 100 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "text": { "type": "string", "maxLength": 200 },
+    "itemName": {
+      "anyOf": [
+        {
+          "enum": ["Bombs", "Wood Sword", "White Sword", "Magical Sword", "Bait", "Recorder", "Blue Candle",
+                   "Red Candle", "Wooden Arrow", "Silver Arrow", "Bow", "Magical Key", "Raft", "Ladder",
+                   "Triforce of Power", "5 Rupees", "Wand", "Book", "Blue Ring", "Red Ring", "Power Bracelet",
+                   "Letter", "Compass", "Map", "Rupee", "Key", "Heart Container", "Triforce", "Shield",
+                   "Boomerang", "Magical Boomerang", "Blue Potion", "Red Potion", "Clock", "Heart", "Fairy"]
+        },
+        { "type": "string", "pattern": "^Unknown Item [0-9A-F]{2}$" }
+      ]
+    },
+    "itemOrNone": {
+      "anyOf": [{ "$ref": "#/$defs/itemName" }, { "type": "null" }]
+    },
+    "door": { "enum": ["open", "solid", "bombable", "locked", "walk-through", "shutter"] },
+    "level": {
+      "type": "object",
+      "required": ["number", "color", "rooms"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 1, "maximum": 9 },
+        "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+        "rooms": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/room" } }
+      }
+    },
+    "room": {
+      "type": "object",
+      "required": ["number", "column", "row", "type", "enemies", "item", "staircase", "doors"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 0, "maximum": 127 },
+        "column": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "row": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "type": { "type": "string", "maxLength": 60 },
+        "enemies": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["name"],
+              "properties": {
+                "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+                "count": { "type": "integer", "minimum": 1, "maximum": 99 }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "item": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["name", "drop"],
+              "properties": {
+                "name": { "$ref": "#/$defs/itemName" },
+                "drop": { "type": "boolean" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "staircase": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["kind", "item"],
+              "properties": {
+                "kind": { "const": "item" },
+                "item": { "$ref": "#/$defs/itemOrNone" }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "number", "to"],
+              "properties": {
+                "kind": { "const": "transport" },
+                "number": { "type": "integer", "minimum": 1, "maximum": 64 },
+                "to": { "type": "integer", "minimum": 0, "maximum": 127 }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "doors": {
+          "type": "object",
+          "required": ["north", "east", "south", "west"],
+          "properties": {
+            "north": { "$ref": "#/$defs/door" },
+            "east": { "$ref": "#/$defs/door" },
+            "south": { "$ref": "#/$defs/door" },
+            "west": { "$ref": "#/$defs/door" }
+          }
+        }
+      }
+    },
+    "screen": {
+      "type": "object",
+      "required": ["number", "column", "row", "cave"],
+      "properties": {
+        "number": { "type": "integer", "minimum": 0, "maximum": 127 },
+        "column": { "type": "integer", "minimum": 1, "maximum": 16 },
+        "row": { "type": "integer", "minimum": 1, "maximum": 8 },
+        "cave": {
+          "type": "object",
+          "required": ["name", "shortName"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+            "shortName": { "type": "string", "minLength": 1, "maxLength": 20 }
+          }
+        }
+      }
+    },
+    "cave": {
+      "type": "object",
+      "required": ["name", "kind", "wares"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "kind": { "enum": ["item", "take-any", "shop", "potion-shop"] },
+        "wares": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["item"],
+            "properties": {
+              "item": { "$ref": "#/$defs/itemName" },
+              "price": { "type": "integer", "minimum": 0, "maximum": 255 },
+              "sellsOnce": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "hint": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "text": { "$ref": "#/$defs/text" },
+        "speaker": { "type": "string", "maxLength": 100 }
+      }
+    }
+  }
+}

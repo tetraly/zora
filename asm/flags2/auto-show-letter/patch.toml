@@ -1,0 +1,14 @@
+# ZORA 2.0 Auto Show Letter (docs/design/zora-flags-2.0.md section 9): in the potion shop
+# the old woman takes the letter as soon as Link holds it (InvLetter 1), without the player
+# selecting and using it. asm/README.md and asm/flags2/build.py describe this file.
+
+[[hook]]
+name = "letter-test"
+offset = 0x04708
+length = 13
+note = "The cave update's potion-shop test, with InvLetter in A and not yet 2 (shown): a held letter (1) goes straight to the use-letter code instead of waiting for B with the letter selected."
+code = """
+    CMP #$01
+    BEQ @UseLetter
+    .RES 9, $EA
+"""
