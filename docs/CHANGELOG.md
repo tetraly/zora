@@ -3,8 +3,6 @@
 What changed in each release of ZORA. The same version, flags and seed always make the same game,
 apart from the Cosmetic settings.
 
-## Unreleased
-
 ## 2.0 beta 2 (2026-10-09)
 
 ### New features
