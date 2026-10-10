@@ -27,7 +27,7 @@ $6E-$7A, other than $71 and $72, forget their state (InitCave's
 from dataclasses import dataclass
 from enum import IntFlag
 
-from zora.rom.vanilla_overworld.tables import (
+from .tables import (
     ATTRIBUTE_TABLE_SIZE,
     CAVE_COUNT,
     LEVEL_BLOCK_OW,

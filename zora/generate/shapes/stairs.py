@@ -4,21 +4,21 @@ Cells were already freed by number_with_frees (SH-GRID-08). This step
 consumes a level's freed cells: item cellars first, then transports, joining
 spatial pieces first so the level ends up connected (SH-GRID-07/09).
 """
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import Rng
-from zora.generate.shapes.numbering import spatial_pieces
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.t5_positions import item_slots_for
-from zora.generate.shapes.tables import (
-    CELLAR_ITEMS,
-    STAIR_BUDGET,
+from ...model.enums import Item, RoomAction
+from ...model.rooms import DIAMOND_STAIRS_PUSH, LAYOUT_ID_MASK, SPIRAL_STAIRS_PUSH
+from ..errors import GenerationFailure
+from ..rng import Rng
+from .numbering import spatial_pieces
+from .options import ShapeOptions
+from .t5_positions import item_slots_for
+from .tables import (
     T2_FIRST_QUEST_WEIGHTS,
     T2_LAYOUTS,
     T2_SECOND_QUEST_WEIGHTS,
+    cellar_items,
+    stair_budget,
 )
-from zora.generate.shapes.world import SetWorld, StairKind, StairPlan, StairRole
-from zora.model.enums import Item, RoomAction
-from zora.model.rooms import DIAMOND_STAIRS_PUSH, LAYOUT_ID_MASK, SPIRAL_STAIRS_PUSH
+from .world import SetWorld, StairKind, StairPlan, StairRole
 
 # SH-STAIR-08: the triggers a stair room with an item may trade for kill-for-item (0 and 1)
 ITEM_TRIGGER_REPLACEABLE = (RoomAction.NONE, RoomAction.ALL_DEAD)
@@ -115,7 +115,7 @@ def place_stairs(world: SetWorld, rng: Rng, opts: ShapeOptions) -> None:
         blob = next(b for b in range(world.blob_count)
                     if world.levels[b] == level)
         pieces = len(spatial_pieces(world, blob))
-        budget = STAIR_BUDGET[level] + pieces - 1
+        budget = stair_budget(level, opts.level_2_sword_cellar) + pieces - 1
         if budget > 9:
             # SH-STAIR-02: more than nine stairs restarts generation.
             raise GenerationFailure(
@@ -127,7 +127,7 @@ def place_stairs(world: SetWorld, rng: Rng, opts: ShapeOptions) -> None:
             raise GenerationFailure(
                 f"level {level}: pool exhausted (budget {budget})"
             )
-        cellars = CELLAR_ITEMS.get(level, [])
+        cellars = cellar_items(level, opts.level_2_sword_cellar)
         if len(cellars) > budget:
             raise GenerationFailure(f"level {level}: cellars exceed budget")
         transports = budget - len(cellars)

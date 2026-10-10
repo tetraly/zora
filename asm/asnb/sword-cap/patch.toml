@@ -1,0 +1,76 @@
+# ASNB, the sword line tops out at level 4 (docs/design/asnb.md 3b; Add L4 Sword not Off): in
+# each copy of ResolveProgressive (fp-prog-01 bank 1, fp-prog-02 banks 4 and 5), at sword level
+# 3 a sword item shows the magical sword ($03) but not as the line's top, so a shop still sells
+# the 4th upgrade and a cave or room gives it (take-l4 turns it into level 4); at sword level 4
+# it shows $03 as the top (a shop hides it; taken elsewhere it changes nothing). Other lines are
+# unchanged.
+#
+# The switch is one per-seed byte, written to three places: the operand ZORA_B<bank>_SwordLineToL4
+# in each copy, $01 for a sword line to level 4 and $00 (this build) for the line as it is. It is
+# not Progressive Items' on/off byte: that byte is in bank 1, which is not switched in when the
+# bank 4 and 5 copies run, and those copies do not read it. The three copies stay byte-identical
+# when the three operands hold the same value.
+#
+# The operands' labels are defined in bank_01.s, bank_04.s and bank_05.s, outside the routines
+# (a symbol defined inside one would end its @ label scope), as the body's start plus the
+# hook's place; the build checks that each lands on its CMP's operand.
+#
+# Each hook replaces the copy's LDA $00 / STA $01 at @Fits, where [00] holds the steps taken back
+# from past the line's top and [01] the line's slot (the sword's is 0), with code that takes one
+# step off a sword line's count when the byte is $01: CMP #$01 leaves the carry clear for slot 0
+# only, and CMP #$00 never, so SBC #$00 subtracts one exactly then; a count of 0 stays 0. The
+# hooks lengthen the copies by 10 bytes, inside their slots; the code after them moves with them.
+# Their offsets are in the ZORA build (asm/series.txt), so a change to fp-prog-01 or fp-prog-02
+# moves them: the build stops if a hook no longer lands on whole instructions. asm/README.md and
+# asm/asnb/build.py describe this file.
+
+[exports]
+bank_01 = ["ZORA_B1_SwordLineToL4"]
+bank_04 = ["ZORA_B4_SwordLineToL4"]
+bank_05 = ["ZORA_B5_SwordLineToL4"]
+
+[[hook]]
+name = "sword-top-b1"
+offset = 0x07F30
+length = 4
+note = "At @Fits in bank 1's ResolveProgressiveBody (fp-prog-01): the at-top flag stored in [01] is one step less for the sword line when ZORA_B1_SwordLineToL4 is $01."
+code = """
+    LDA $01                     ; the line's slot: the sword's is 0
+    CMP #$00                    ; per seed: $01, the sword line to level 4 (carry clear for slot 0)
+    LDA $00                     ; steps taken back
+    SBC #$00                    ; one less for a sword line to level 4
+    BCS :+
+    LDA #$00                    ; no step back: below the top
+:
+    STA $01                     ; Nonzero: the player has the line's top level.
+"""
+[[hook]]
+name = "sword-top-b4"
+offset = 0x13949
+length = 4
+note = "At @Fits in bank 4's copy (fp-prog-02, ZORA_FP_PROG_02_ARMOS): the at-top flag stored in [01] is one step less for the sword line when ZORA_B4_SwordLineToL4 is $01."
+code = """
+    LDA $01                     ; the line's slot: the sword's is 0
+    CMP #$00                    ; per seed: $01, the sword line to level 4 (carry clear for slot 0)
+    LDA $00                     ; steps taken back
+    SBC #$00                    ; one less for a sword line to level 4
+    BCS :+
+    LDA #$00                    ; no step back: below the top
+:
+    STA $01                     ; Nonzero: the player has the line's top level.
+"""
+[[hook]]
+name = "sword-top-b5"
+offset = 0x17B49
+length = 4
+note = "At @Fits in bank 5's copy (fp-prog-02, ZORA_FP_PROG_02_ROOM): the at-top flag stored in [01] is one step less for the sword line when ZORA_B5_SwordLineToL4 is $01."
+code = """
+    LDA $01                     ; the line's slot: the sword's is 0
+    CMP #$00                    ; per seed: $01, the sword line to level 4 (carry clear for slot 0)
+    LDA $00                     ; steps taken back
+    SBC #$00                    ; one less for a sword line to level 4
+    BCS :+
+    LDA #$00                    ; no step back: below the top
+:
+    STA $01                     ; Nonzero: the player has the line's top level.
+"""

@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
-from zora.measure.checkpoints.acceptance import long_items_outside_level9
+from zora.rom.game_config import GameConfig, HintMode
+from zora_measure.checkpoints.acceptance import long_items_outside_level9
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
@@ -20,6 +21,10 @@ from zora.model.rooms import MONSTER_BIT_CODE, LayoutInfo, Room
 from zora.model.levels import ZELDA_LIST
 from zora.model.enums import Enemy, Item, RoomAction, RoomType, Side
 
+
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 def test_arrival_rule() -> None:
@@ -105,7 +110,7 @@ def test_accepted_output_keeps_long_items_out_of_level9() -> None:
     for seed in range(3):
         gw = parse_rom(rom)
         result = generate_shapes(gw, Rng(seed), ShapeOptions())
-        assert long_items_outside_level9(parse_rom(serialize_to_rom(gw, rom)))
+        assert long_items_outside_level9(parse_rom(serialize_to_rom(gw, rom, config=GENERATED_HINTS)))
         assert set(result.acceptance_rejections) <= {"E1", "E3", "E4", "E5"}
 
 
@@ -224,3 +229,4 @@ def test_pi_logic_05_front_doors_are_skipped_with_the_shop_items_in_the_pool(
     assert acceptance.acceptance_check(*args) == "E4"
     assert acceptance.acceptance_check(*args, replace(DEFAULT_RULES, checks_front_doors=False)) is None
     assert not SHOP_POOL.checks_front_doors and PROGRESSIVE.checks_front_doors
+

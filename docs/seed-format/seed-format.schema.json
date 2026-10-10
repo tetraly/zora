@@ -1,5 +1,5 @@
 {
-  "$comment": "Copied from the z1r-visualizer repo (github.com/tetraly/z1r-visualizer), docs/seed-format.schema.json at commit 4a1239a760390b42ebc397451dbf4f5613820ed7, with only this comment added. That repo's docs/seed-format.md explains every field; ZORA's writer is zora/export/seed_document.py.",
+  "$comment": "Copied from the z1r-visualizer repo (github.com/tetraly/z1r-visualizer), docs/seed-format.schema.json at commit 4a1239a760390b42ebc397451dbf4f5613820ed7, with only this comment added. That repo's docs/seed-format.md explains every field; ZORA's writer is zora_export/seed_document.py.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tetraly.github.io/z1r-visualizer/seed-format.schema.json",
   "title": "Z1R seed, format 1",

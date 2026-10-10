@@ -10,7 +10,7 @@ once instead of inside the generation's retry loop.
 """
 from dataclasses import dataclass
 
-from zora.rom.game_config import reject_blocked_options
+from ...rom.game_config import reject_blocked_options
 
 # option name -> what it waits on
 BLOCKED_OPTIONS = {
@@ -52,6 +52,9 @@ class ShapeOptions:
     # SH-GRID-06 seed-cell placement. Blocked: nothing reads it; gridgen
     # always uses the SH-GRID-06 draw (QUESTIONS #29-33).
     seed_placement: str = "reference"
+    # ASNB (docs/design/asnb.md section 4; ZORA's Add L4 Sword = Level 2): level 2's stair budget
+    # is 1, an item cellar holding one sword upgrade (SH-STAIR-02/03 give it none).
+    level_2_sword_cellar: bool = False
 
     def __post_init__(self) -> None:
         reject_blocked_options(self, BLOCKED_OPTIONS)

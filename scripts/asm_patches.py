@@ -572,7 +572,8 @@ def render(patches: Patches, symbols: dict[str, int]) -> str:
              "(source, length): bytes of the original game that the patch keeps or moves,",
              "read from the player's ROM when it is written (never stored here).",
              '"""',
-             "from zora.rom.base_rom import Original, Piece",
+             # zora/ imports itself relatively (scripts/check_imports.py)
+             "from .base_rom import Original, Piece",
              "",
              "PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {"]
     for name, pieces in patches.items():

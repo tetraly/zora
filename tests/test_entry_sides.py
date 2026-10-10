@@ -7,17 +7,22 @@ from pathlib import Path
 
 import pytest
 
-from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
-from zora.measure.checkpoints.dungeon_room_shuffle import LEVEL9_PERSON_SIDE_KEYS, level9_person_sides
-from zora.rom.parse.rom_file import load_rom, parse_rom
-from zora.rom.serialize.rom_file import serialize_to_rom
-from zora.generate.rng import Rng
-from zora.model.enums import Item, Side
-from zora.model.levels import Level
 from zora.generate.dungeon_walk import STAIRS, walk_level
 from zora.generate.generation_pass import generate_shapes
-from zora.generate.steps.hint_text import INSIDE_MEANS, inside_dungeon_needs, item_place, sword_enters
+from zora.generate.rng import Rng
 from zora.generate.shapes.options import ShapeOptions
+from zora.generate.steps.hint_text import INSIDE_MEANS, inside_dungeon_needs, item_place, sword_enters
+from zora.model.enums import Item, Side
+from zora.model.levels import Level
+from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.game_config import GameConfig, HintMode
+from zora.rom.parse.rom_file import load_rom, parse_rom
+from zora.rom.serialize.rom_file import serialize_to_rom
+from zora_measure.checkpoints.dungeon_room_shuffle import LEVEL9_PERSON_SIDE_KEYS, level9_person_sides
+
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 # The finished corpus ROMs: the folder ZORA_CORPUS names (scripts/verify.sh sets it); the tests
@@ -160,4 +165,4 @@ def test_level9_person_room_sides() -> None:
     for seed in range(3):
         gw = parse_rom(rom)
         generate_shapes(gw, Rng(seed), ShapeOptions())
-        assert level9_person_sides(parse_rom(serialize_to_rom(gw, rom))) in LEVEL9_PERSON_SIDE_KEYS[:-1]
+        assert level9_person_sides(parse_rom(serialize_to_rom(gw, rom, config=GENERATED_HINTS))) in LEVEL9_PERSON_SIDE_KEYS[:-1]

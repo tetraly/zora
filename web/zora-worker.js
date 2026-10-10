@@ -13,13 +13,13 @@
 // supported"), and importScripts hides that behind a NetworkError.
 // pyodide.mjs exists for 0.28.3 too, so one loader serves both lines.
 
-// The glue, run inside Pyodide. The flag form comes from zora.flag_form
+// The glue, run inside Pyodide. The flag form comes from zora_web.api.flag_form
 // (fields, option labels, rules, support matrix, presets), so the page has
 // no field list of its own; generation calls the same entry point as the
 // native scripts (zora.generate). Results cross to JavaScript as JSON.
 const GLUE = `
 import hashlib, json, sys, zlib
-from zora.api import flag_form, generate_rom, player_settings_from_page, seed_report, EXPECTED_CRC32, EXPECTED_MD5, EXPECTED_SHA1
+from zora_web.api import flag_form, generate_rom, player_settings_from_page, seed_report, EXPECTED_CRC32, EXPECTED_MD5, EXPECTED_SHA1
 
 def check_rom(data):
     data = bytes(data.to_py())
@@ -104,7 +104,7 @@ function zoraChange({ id, flags, zoraValues }) {
   postMessage({ type: "result", id, state: JSON.parse(call("zora_form_change", flags, JSON.stringify(zoraValues))) });
 }
 
-// playerSettings (the Cosmetic tab) go to Python as JSON; zora.api maps them
+// playerSettings (the Cosmetic tab) go to Python as JSON; zora_web.api maps them
 // to PlayerSettings, applied after generation (FP-SET-01).
 function generate({ id, bytes, seed, flags, zoraFlags, playerSettings }) {
   const t0 = performance.now();

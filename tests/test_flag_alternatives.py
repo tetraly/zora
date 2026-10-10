@@ -16,7 +16,7 @@ from zora.flags.support import ALTERNATIVE_OPTIONS
 from zora.generate.pipeline import extra_options, generate_rom, plan
 from zora.generate.rng import ScriptedRng
 from zora.generate.steps.change_sword_hearts import change_sword_hearts, change_sword_hearts_from_five_hearts
-from zora.measure.alternative_values import (
+from zora_measure.alternative_values import (
     HELPFUL_TEXT_SLOTS,
     community_hints,
     starting_hearts_4,

@@ -23,7 +23,8 @@ def flags(**values: ThreeState | bool) -> ZoraFlags:
 # --- the string -------------------------------------------------------------------------------
 
 def test_version_3_holds_thirteen_three_state_fields() -> None:
-    assert zora_flags.CURRENT_VERSION == 3 and len(OWNER_2_0_FIELDS) == 13
+    assert len(OWNER_2_0_FIELDS) == 13
+    assert all(field.version == 3 for field in zora_flags.FIELDS if field.name in OWNER_2_0_FIELDS)
     for name in OWNER_2_0_FIELDS:
         for value in (ON, MAYBE):
             one = flags(**{name: value})
@@ -73,6 +74,7 @@ def test_add_l4_sword_on_without_progressive_items_is_refused() -> None:
 
 
 def test_add_l4_sword_question_mark_without_progressive_items_resolves_off() -> None:
+    """A released string's "?" keeps beta 1's meaning (owner ruling, 2026-10-08)."""
     asked = flags(add_l4_sword=MAYBE)
     z1r = decode_z1r(WITHOUT_EXTRA_CANDLES)
     assert zora_flags.conflicts(asked, z1r) == []
@@ -80,6 +82,16 @@ def test_add_l4_sword_question_mark_without_progressive_items_resolves_off() -> 
         resolved = zora_flags.resolve_question_marks(asked, seed, "z", encode(asked))
         zora, _ = zora_flags.resolve_owner_dependencies(resolved, asked, z1r, z1r)
         assert zora.add_l4_sword is OFF
+
+
+def test_add_l4_sword_question_mark_with_asnb_is_refused() -> None:
+    """The "?" means Off or Level 9 only: with the Level 2 field or the level-4-sword entrance it
+    is refused (docs/design/asnb.md section 1: neither has a random option)."""
+    z1r = decode_z1r(WITHOUT_EXTRA_CANDLES)
+    for asnb in ({"l4_sword_in_level_2": True}, {"level_9_entrance_sword": True},
+                 {"l4_sword_in_level_2": True, "level_9_entrance_sword": True}):
+        asked = flags(add_l4_sword=MAYBE, progressive_items=True, **asnb)
+        assert zora_flags.validate(asked, z1r) == [zora_flags.L4_SWORD_RANDOM_WITH_ASNB], asnb
 
 
 def test_bracelet_blocks_on_with_b04_on_is_refused() -> None:

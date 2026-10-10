@@ -5,11 +5,11 @@ displaces into the letter cave is judged by that cave's screen needs
 (extra_pool_items.is_extra_slot_collected)."""
 from __future__ import annotations
 
-from zora.generate.rng import IntRng
-from zora.generate.steps.extra_pool_items import ExtraPoolItems, PoolPlace, join_pool
-from zora.generate.steps.item_shuffle_result import LETTER_SLOT, ItemShuffleOptions, ItemShuffleResult
-from zora.model.levels import Level
-from zora.model.overworld import Overworld
+from ...model.levels import Level
+from ...model.overworld import Overworld
+from ..rng import IntRng
+from .extra_pool_items import ExtraPoolItems, PoolPlace, join_pool
+from .item_shuffle_result import LETTER_SLOT, ItemShuffleOptions, ItemShuffleResult
 
 
 def randomize_letter(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,

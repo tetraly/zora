@@ -1,9 +1,9 @@
 """Quotes and hint texts."""
 
-from zora.model.game_world import GameWorld
-from zora.model.overworld import Quote
-from zora.rom.game_config import HintMode
-from zora.rom.layout import (
+from ...model.game_world import GameWorld
+from ...model.overworld import Quote
+from ..game_config import HintMode
+from ..layout import (
     CONSTERNATION_HINT_SLOTS,
     EXT_HINT_DATA_ROM_END,
     EXT_HINT_DATA_ROM_START,
@@ -19,16 +19,16 @@ from zora.rom.layout import (
     place_hint_texts,
     write_le16,
 )
-from zora.rom.serialize.patch import Patch, log
-from zora.rom.text_encoding import (
+from ..text_encoding import (
     CHAR_TO_BYTE as _CHAR_TO_BYTE,
 )
-from zora.rom.text_encoding import (
+from ..text_encoding import (
     QUOTE_BLANK,
     QUOTE_END_BITS,
     QUOTE_LINE1_BIT,
     QUOTE_LINE2_BIT,
 )
+from .patch import Patch, log
 
 # ---------------------------------------------------------------------------
 # Quotes serialization

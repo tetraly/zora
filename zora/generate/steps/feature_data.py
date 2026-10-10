@@ -7,9 +7,13 @@ change_money_making_game, speed_up_text) are generation steps of their own
 CODE patches are zora/rom/code_patches.py; FP-PERSON-01's draw is
 zora/generate/steps/person_appearances.py, which runs before the hint text.
 """
-from zora.model.game_world import GameWorld
-from zora.rom.layout import CREDITS_COPYRIGHT_POINTER, CREDITS_RECORD_CPU_ADDRESSES
-from zora.version import PLAYER_NAME, PLAYER_VERSION
+from ...model.game_world import GameWorld
+from ...rom.layout import CREDITS_COPYRIGHT_POINTER, CREDITS_RECORD_CPU_ADDRESSES
+from ...version import PLAYER_NAME, PLAYER_VERSION
+
+# ASNB 3c (docs/design/asnb.md): with Level 9 Entrance = Level 4 sword, the refusal text (lines of
+# at most 24 characters), written where FP-TRIF-01's goes.
+LEVEL_9_SWORD_REFUSAL_TEXT = "ONES WHO DOES NOT HAVE\nFOUR SWORD UPGRADES\nCAN'T GO IN."
 
 
 def write_fixed_feature_data(gw: GameWorld, seed: int) -> None:

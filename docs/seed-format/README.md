@@ -1,7 +1,7 @@
 # The seed document and the spoiler log
 
 Two owner features (2026-10-06), offered only for seeds made with "Encode level data" **off**.
-For an encoded seed the page shows neither button, and `zora.api.seed_report` refuses with
+For an encoded seed the page shows neither button, and `zora_web.api.seed_report` refuses with
 `EncodedSeedRefused`.
 
 - **View in Visualizer** hands the seed to the owner's Z1R Visualizer
@@ -16,7 +16,7 @@ unchanged from github.com/tetraly/z1r-visualizer (`docs/seed-format.schema.json`
 `$comment` names the commit). That repo's `docs/seed-format.md` explains each field and the
 hand-off. No visualizer code is copied into ZORA.
 
-## ZORA's writer: `zora/export/seed_document.py`
+## ZORA's writer: `zora_export/seed_document.py`
 
 - **What it describes.** The document describes the **finished ROM**. Dungeons, caves, shops,
   prices and texts come from the data layer's parse of the ROM's bytes (`parse_rom` with the
@@ -62,7 +62,7 @@ hand-off. No visualizer code is copied into ZORA.
   - Row: the grid row + 1.
 - **Level colour.** The level's wall colour (palette group 2), one NES brightness step up. The
   RGB comes from the cynes palette table that `web/zora-web.js` also uses, in
-  `zora/export/nes_palette.py` with cynes' MIT licence text.
+  `zora_export/nes_palette.py` with cynes' MIT licence text.
 - **Who says a text.**
   - Each overworld cave's person, and each hint shop's hints.
   - In a dungeon:
@@ -74,7 +74,7 @@ hand-off. No visualizer code is copied into ZORA.
     `HintShopItem.quote_id` keeps only a selector's low six bits, which misreads the generated
     hint style's selectors of $40 and up.
 
-## The spoiler log: `zora/export/spoiler_log.py`
+## The spoiler log: `zora_export/spoiler_log.py`
 
 The log is written from the document alone, so the log and the hand-off cannot disagree. Its
 sections:

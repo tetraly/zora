@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng
-from zora.model.enums import Enemy
-from zora.model.game_world import GameWorld
-from zora.model.overworld import Overworld
-from zora.model.rooms import COUNT_INDEX_SHIFT, MONSTER_LIST_BITS, EnemySpec
+from ...model.enums import Enemy
+from ...model.game_world import GameWorld
+from ...model.overworld import Overworld
+from ...model.rooms import COUNT_INDEX_SHIFT, MONSTER_LIST_BITS, EnemySpec
+from ..rng import IntRng
 
 E = Enemy
 

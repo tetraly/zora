@@ -148,7 +148,11 @@ ResolveProgressive:
 ; The shared body: banks 4 and 5 hold the same bytes (fp-prog-02; a test
 ; compares the three copies). A graded line's IDs are consecutive and the
 ; ID after its top level is in another slot, so the line's first ID plus
-; the level owned is the next level, or one past the top. Every
+; the level owned is the next level, or past the top: then step back until
+; the ID is in the line's slot again, which gives the top level. The level
+; owned can be more than one past the top (Add L4 Sword's sword level 4:
+; $01 + 4 is the recorder, $05, and one step back would be the bait), and
+; the loop always stops, since the line's first ID is in its slot. Every
 ; upgrade-line ID is below $1F (graded lines $01-$13, boomerangs $1D-$1E);
 ; $1F-$23 are potions, the clock, a heart and a fairy. Quirk: the red
 ; potion's descriptor ($22) reads as graded, so the limit keeps the potion
@@ -177,12 +181,18 @@ ResolveProgressiveBody:
     SEC
     ADC Items, Y                ; + 1 + level owned
     TAY
+    LDA #$00
+    STA $00                     ; [00]: steps taken back
+@Fit:
     LDA ItemIdToSlot, Y
-    EOR $01
-    STA $01                     ; Nonzero: one past the top level,
-    BEQ :+
-    DEY                         ; so show the top level.
-:
+    CMP $01                     ; [01]: the line's slot
+    BEQ @Fits
+    DEY                         ; Past the top level: step back.
+    INC $00
+    BNE @Fit                    ; always
+@Fits:
+    LDA $00
+    STA $01                     ; Nonzero: the player has the line's top level.
     TYA
     SEC
     RTS

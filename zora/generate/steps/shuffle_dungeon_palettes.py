@@ -10,8 +10,8 @@ base ROM's own sets.
 """
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng, discard
-from zora.model.game_world import GameWorld
+from ...model.game_world import GameWorld
+from ..rng import IntRng, discard
 
 ColorPair = tuple[bytes, bytes]                  # (set 1: 32 bytes, set 2: 96 bytes)
 

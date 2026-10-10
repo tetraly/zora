@@ -1,7 +1,7 @@
 """The flag string's base-63 encoding (FL-ENC-01 to FL-ENC-03): decode, encode, canonicalize."""
 from __future__ import annotations
 
-from zora.flags.fields import OPTION_FIELDS, TOGGLE_FIELDS, Settings, ThreeState
+from .fields import OPTION_FIELDS, TOGGLE_FIELDS, Settings, ThreeState
 
 # ---------------------------------------------------------------------------
 # FL-ENC-01: the base-63 alphabet

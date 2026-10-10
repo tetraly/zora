@@ -39,7 +39,8 @@ def test_the_vanilla_names_are_todays() -> None:
         assert VANILLA_NAMES.label(code) == item_name(code)
         assert VANILLA_NAMES.phrase(code) == f"THE {item_name(code)}"
     candidate = Requirement(Form.BOSS, Item.MAGICAL_BOOMERANG, 8)
-    assert requirement_text(candidate) == ["THE LURKING MANHANDLA", "HOLDS THE MAGICAL BOOMERANG"]
+    # ZORA's wording (owner, 2026-10-09): the boss form names the item and its level
+    assert requirement_text(candidate) == ["THE MAGICAL BOOMERANG", "WHIRLS IN LEVEL-8."]
 
 
 def test_progressive_names_name_each_line() -> None:

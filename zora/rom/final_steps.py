@@ -8,26 +8,28 @@ ROM image in FINAL_STEPS order, each switched by its own setting:
   code_patches           ZORA's 6502 patches and the per-level data they read
                          (B10's feature switch; Book is an Atlas, B49, inside it)
   encode_level_data      Encode level data (B82; zora/rom/level_encoding.py)
+  slot_identity          Archipelago's slot name (External mode only; zora/rom/slot_identity.py)
   stamp_seed_code        the seed's code (FP-HASH-01), hashing the finished ROM
   player_settings        the player's settings (FP-SET-01), never part of the seed
 
 The order matters: the level encoding comes after every write to the level
-data, the seed's code hashes the encoded ROM, and the player settings come
-after the code, which they never change.
+data, the seed's code hashes the encoded ROM and the slot name (each player's
+code differs), and the player settings come after the code, which they never
+change.
 """
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from zora.model.game_world import GameWorld
-from zora.rom import code_patches, owner_patches
-from zora.rom.game_config import DungeonNothingCode, GameConfig
-from zora.rom.layout import (
+from ..model.game_world import GameWorld
+from . import code_patches, owner_patches, slot_identity
+from .game_config import DungeonNothingCode, GameConfig
+from .layout import (
     ASM_NOTHING_CODE_PATCH_OFFSET,
     ASM_NOTHING_CODE_PATCH_VALUE,
     LEVEL_INFO_ADDRESS,
     LEVEL_INFO_SIZE,
 )
-from zora.rom.player_settings import PlayerSettings, apply_player_settings
+from .player_settings import PlayerSettings, apply_player_settings
 
 
 @dataclass(frozen=True)
@@ -71,17 +73,23 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     config = settings.config
     left_out = code_patches.left_out_patches(config.book_is_an_atlas, config.progressive_items,
                                              config.shop_items_in_pool, config.potion_shop_in_pool)
-    for address, data in code_patches.code_patch_writes(world, left_out, config.progressive_items):
+    for address, data in code_patches.code_patch_writes(world, left_out, config.progressive_items,
+                                                        config.one_time_places):
         rom[address:address + len(data)] = data
-    for address, data in owner_patches.owner_patch_writes(config.owner_flags):
+    for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword):
         rom[address:address + len(data)] = data
 
 
 def encode_level_data(rom: bytearray, _world: GameWorld, settings: FinalSettings) -> None:
     """After every write to the level data, before the seed's code hashes the ROM."""
-    from zora.rom.level_encoding import encode_rom
+    from .level_encoding import encode_rom
     assert settings.config.level_encoding is not None
     rom[:] = encode_rom(bytes(rom), settings.config.level_encoding)
+
+
+def write_slot_identity(rom: bytearray, _world: GameWorld, settings: FinalSettings) -> None:
+    """Archipelago's slot identity record, before the seed's code hashes the ROM."""
+    slot_identity.write_slot_identity(rom, settings.config.slot_identity)
 
 
 def stamp_seed_code(rom: bytearray, _world: GameWorld, _settings: FinalSettings) -> None:
@@ -101,6 +109,7 @@ FINAL_STEPS: tuple[FinalStep, ...] = (
     FinalStep("code_patches", "B10 feature switch (B49 inside)", write_code_patches,
               lambda s: s.config.features_b10),
     FinalStep("encode_level_data", "B82", encode_level_data, lambda s: s.config.level_encoding is not None),
+    FinalStep("slot_identity", "Archipelago slot name", write_slot_identity, lambda s: bool(s.config.slot_identity)),
     FinalStep("stamp_seed_code", "B10 feature switch", stamp_seed_code, lambda s: s.config.features_b10),
     FinalStep("player_settings", "player settings", player_settings, lambda s: s.player_settings is not None),
 )

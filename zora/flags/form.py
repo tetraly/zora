@@ -15,9 +15,25 @@ from collections.abc import Mapping
 from functools import cache
 from typing import Any
 
-from zora.flags.codec import ALPHABET, FlagStringError, canonicalize, decode, encode
-from zora.flags.dependencies import apply_dependencies, check_dependencies, correct_merchant_toll
-from zora.flags.fields import (
+from ..generate.pipeline import NOT_PRODUCED_PREFIX, FlagsRefused, plan
+from ..rom import level_encoding
+from ..rom.player_settings import (
+    BOSS_SOUND_WORD_CHARACTERS,
+    BOSS_SOUND_WORD_LENGTH,
+    BOSS_SOUND_WORDS,
+    DEFAULT_BOSS_SOUND_WORD,
+    DEFAULT_LEVEL_WORD,
+    LEVEL_WORD_CHARACTERS,
+    LEVEL_WORD_CHOICES,
+    LEVEL_WORD_DASH_MAX_LENGTH,
+    LEVEL_WORD_MAX_LENGTH,
+    MARKER_HIDING_COLOURS,
+    RANDOM_BOSS_SOUND_WORD,
+)
+from ..version import PLAYER_VERSION
+from .codec import ALPHABET, FlagStringError, canonicalize, decode, encode
+from .dependencies import apply_dependencies, check_dependencies, correct_merchant_toll
+from .fields import (
     BOMB_UPGRADE_PERSON_SHUFFLE,
     ENCODE_LEVEL_DATA,
     HUNGRY_GORIYA_SHUFFLE,
@@ -36,12 +52,9 @@ from zora.flags.fields import (
     ThreeState,
     ToggleField,
 )
-from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS
-from zora.flags.support import ENCODE_LEVEL_DATA_NOT_RANDOM, Support, mvp_baseline_settings, support
-from zora.flags.zora_form import zora_flags_from_values, zora_metadata, zora_state
-from zora.generate.pipeline import NOT_PRODUCED_PREFIX, FlagsRefused, plan
-from zora.rom import level_encoding
-from zora.version import PLAYER_VERSION
+from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, ZORA_PRESETS
+from .support import ENCODE_LEVEL_DATA_NOT_RANDOM, Support, mvp_baseline_settings, support
+from .zora_form import zora_flags_from_values, zora_metadata, zora_state
 
 NOT_PRODUCED_TEXT = "Not produced by ZORA yet"
 NOT_AVAILABLE_TEXT = "Not available in this build"
@@ -145,7 +158,9 @@ OWNER_NAMES_FILE = "names.json"
 def owner_names() -> dict[str, dict[str, Any]]:
     from importlib.resources import files
     names: dict[str, dict[str, Any]] = json.loads(
-        files("zora.flags").joinpath(OWNER_NAMES_FILE).read_text(encoding="utf-8")
+        # This package by its own name: copied in under another one (Archipelago's worlds.zora.zora,
+        # perhaps from a zip), "zora.flags" would not be importable.
+        files(__package__).joinpath(OWNER_NAMES_FILE).read_text(encoding="utf-8")
     )
     return names
 
@@ -216,13 +231,16 @@ def generation_refusals(flag_string: str, zora_flag_string: str = "") -> list[st
 
 
 def presets() -> list[dict[str, Any]]:
-    """FL-PRE-01 to FL-PRE-04, plus CP-5; each disabled with its reasons when ZORA cannot produce it."""
-    entries = [(name, PRESET_LABELS.get(name, name), string) for name, string in PRESETS.items()]
-    entries.append(LEVEL_ENCODING_OFF_PRESET)
+    """FL-PRE-01 to FL-PRE-04, plus CP-5, then ZORA's own presets (ZORA_PRESETS: All Swords No
+    Boards), each with its ZORA string (`zoraFlags`, empty for the Z1R presets); each disabled with
+    its reasons when ZORA cannot produce it."""
+    entries = [(name, PRESET_LABELS.get(name, name), string, "") for name, string in PRESETS.items()]
+    entries.append((*LEVEL_ENCODING_OFF_PRESET, ""))
+    entries += [(name, name, string, zora) for name, (string, zora) in ZORA_PRESETS.items()]
     out = []
-    for name, label, string in entries:
-        reasons = generation_refusals(string)
-        out.append({"name": name, "label": label, "flags": canonicalize(string),
+    for name, label, string, zora in entries:
+        reasons = generation_refusals(string, zora)
+        out.append({"name": name, "label": label, "flags": canonicalize(string), "zoraFlags": zora,
                     "available": not reasons, "reasons": reasons, "reason": _short_reason(reasons)})
     return out
 
@@ -270,6 +288,16 @@ def metadata() -> dict[str, Any]:
         "alphabet": ALPHABET,
         "zora": zora_metadata(),
         "version": PLAYER_VERSION,
+        # The tunic colours that switch the map marker to Link's skin colour (the page's note).
+        "markerHidingColours": sorted(MARKER_HIDING_COLOURS),
+        # The level label's word (FP-LEVEL-01): the page's list and its custom-word rule.
+        "levelWord": {"default": DEFAULT_LEVEL_WORD, "choices": list(LEVEL_WORD_CHOICES),
+                      "maxLength": LEVEL_WORD_MAX_LENGTH, "dashMaxLength": LEVEL_WORD_DASH_MAX_LENGTH,
+                      "characters": LEVEL_WORD_CHARACTERS},
+        # The boss-sound label's word (FP-ROAR-01): the default, Random's value and list, the rule.
+        "bossSoundWord": {"default": DEFAULT_BOSS_SOUND_WORD, "random": RANDOM_BOSS_SOUND_WORD,
+                          "choices": list(BOSS_SOUND_WORDS), "length": BOSS_SOUND_WORD_LENGTH,
+                          "characters": BOSS_SOUND_WORD_CHARACTERS},
     }
 
 
@@ -344,7 +372,8 @@ def form_state(flag_string: str, zora_flag_string: str = "") -> dict[str, Any]:
         "refusals": sorted(refused),
         "adjustments": adjustments,
         "generateRefusals": generation_refusals(canonical, zora["flags"] if zora["ok"] else zora_flag_string),
-        "preset": next((p["name"] for p in presets() if p["flags"] == canonical), None),
+        "preset": next((p["name"] for p in presets() if p["flags"] == canonical
+                        and p["zoraFlags"] == (zora["flags"] if zora["ok"] else zora_flag_string)), None),
         "zora": zora,
     }
 

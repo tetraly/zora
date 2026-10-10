@@ -3,9 +3,9 @@ values (RoomLists) and the result staged outside the room blocks."""
 
 from dataclasses import dataclass, field
 
-from zora.generate.shapes.world import SetWorld
-from zora.model.levels import LevelBlock
-from zora.model.rooms import MONSTER_LIST_BITS, MONSTER_VALUE_BIT, Room, RoomPlace
+from ...model.levels import LevelBlock
+from ...model.rooms import MONSTER_LIST_BITS, MONSTER_VALUE_BIT, Room, RoomPlace
+from ..shapes.world import SetWorld
 
 # --- monster values ------------------------------------------------------------
 

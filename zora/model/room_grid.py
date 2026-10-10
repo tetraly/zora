@@ -1,6 +1,6 @@
 """The level block's room grid (SH-GRID-01): 16 columns by 8 rows, row 7
 at the bottom; a room's number is row * 16 + column."""
-from zora.model.enums import ROOMS_PER_ROW, Side
+from .enums import ROOMS_PER_ROW, Side
 
 COLUMNS = ROOMS_PER_ROW
 ROWS = 8

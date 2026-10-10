@@ -7,7 +7,7 @@ the first public release (ZORA 1.x was the owner's earlier, separate project).""
 
 import re
 
-ZORA_VERSION = "2.0.0b1"            # PEP 440: the wheel, the seed document, file names
+ZORA_VERSION = "2.0.0b2"            # PEP 440: the wheel, the seed document, file names
 # The name players see: the title screen, the page, the spoiler log.
 PLAYER_NAME = "ZORA"
 _PRE_RELEASE = re.compile(r"^(\d+\.\d+)\.\d+b(\d+)$")

@@ -425,7 +425,7 @@ function currentZoraFlags() {
 // They are not part of the flag string, so two players can race the same
 // flags with different settings; the page remembers them per browser, and
 // they are not part of a preset. The page sends them with each generate
-// request; zora.api maps them to PlayerSettings, written into the finished
+// request; zora_web.api maps them to PlayerSettings, written into the finished
 // ROM (FP-SET-01).
 
 // The NES (2C02) palette, entries $00 to $3F as RGB, emphasis bits off. Source:
@@ -508,6 +508,8 @@ function defaultPlayerSettings() {
   const settings = {};
   for (const choice of PLAYER_CHOICES) settings[choice.key] = choice.default;
   for (const slot of COLOUR_SLOTS) settings[slot.key] = slot.default;
+  settings.levelWord = "LEVEL";        // metadata.levelWord.default
+  settings.bossSoundWord = "ROAR";     // metadata.bossSoundWord.default
   return settings;
 }
 
@@ -527,6 +529,9 @@ function loadPlayerSettings() {
   for (const slot of COLOUR_SLOTS) {
     if (isPickableColour(saved[slot.key])) settings[slot.key] = saved[slot.key];
   }
+  // Checked against metadata.levelWord when the panel is built (the worker sends the rule).
+  if (typeof saved.levelWord === "string") settings.levelWord = saved.levelWord;
+  if (typeof saved.bossSoundWord === "string") settings.bossSoundWord = saved.bossSoundWord;
   return settings;
 }
 
@@ -556,6 +561,9 @@ function buildLookPanel(panel) {
     select.value = playerSettings[choice.key];
     grid.append(settingRow(choice.label, choice.help, select).row);
   }
+  grid.append(levelWordRow());
+  grid.append(bossSoundWordRow());
+  const markerNote = element("p", { id: "marker-note", className: "panel-note colour-note", textContent: MARKER_NOTE });
   for (const group of PLAYER_COLOURS) {
     grid.append(element("h3", { className: "colour-heading", textContent: group.heading }));
     for (const slot of group.slots) {
@@ -563,13 +571,129 @@ function buildLookPanel(panel) {
       initColorPicker(host, {
         palette: NES_PALETTE, excluded: EXCLUDED_COLOURS, value: playerSettings[slot.key],
         label: `${group.heading}: ${slot.label}`,
-        onChange: (index) => { playerSettings[slot.key] = index; savePlayerSettings(); },
+        onChange: (index) => {
+          playerSettings[slot.key] = index;
+          savePlayerSettings();
+          showMarkerNote(markerNote);
+        },
       });
       host.querySelector(".color-picker-toggle").id = `player-${slot.key}`;
       grid.append(settingRow(slot.label, slot.help, host).row);
     }
+    if (group.slots.some((slot) => TUNIC_SLOTS.includes(slot.key))) grid.append(markerNote);
   }
+  showMarkerNote(markerNote);
   panel.append(grid);
+}
+
+// The level label's word (FP-LEVEL-01): a listed word or the player's own. The rule is
+// metadata.levelWord, zora/rom/player_settings.py's (tests/test_level_word.py runs this function
+// in Node against Python's level_word_problem).
+const LEVEL_WORD_HELP = "The word the status bar and the hints show before a level's number in place of LEVEL. " +
+                        "Words of up to five characters keep the dash (LAIR-1); six-character words drop it to " +
+                        "fit (PALACE1).";
+
+function normalizedLevelWord(text) {
+  return text.trim().toUpperCase();
+}
+
+function levelWordProblem(word, rule) {
+  if (!word) return "type a word";
+  if (word.length > rule.maxLength) return `at most ${rule.maxLength} characters`;
+  const unknown = [...new Set([...word].filter((char) => !rule.characters.includes(char)))].sort();
+  if (unknown.length) return `the game's font has no ${unknown.join(" ")}`;
+  return null;
+}
+
+function levelLabel(word, rule) {
+  return `${word}${word.length <= rule.dashMaxLength ? "-" : ""}1`;
+}
+
+function levelWordRow() {
+  const rule = metadata.levelWord;
+  return wordChoiceRow({
+    key: "levelWord", name: "Level name", help: LEVEL_WORD_HELP, maxLength: rule.maxLength,
+    defaultWord: rule.default, options: rule.choices.map((word) => ({ value: word, label: word })),
+    problem: (word) => levelWordProblem(word, rule),
+    shows: (word) => `Shows as ${levelLabel(word, rule)}` +
+                     (word.length > rule.dashMaxLength ? " (six characters: no room for the dash)." : "."),
+    keeps: (word) => levelLabel(word, rule),
+  });
+}
+
+// The boss-sound label's word (FP-ROAR-01): " -ROAR-  " in -LIFE-'s place while a dungeon room's
+// boss sound plays. ROAR, Random (a listed word chosen by the seed number), a listed word or the
+// player's own four characters; the rule is metadata.bossSoundWord (tests/test_boss_sound_word.py
+// runs bossSoundWordProblem in Node against Python's).
+const BOSS_SOUND_WORD_HELP = "In a dungeon room where you hear a boss, the status bar's -LIFE- label changes to " +
+                             "-ROAR-. Choose another four-letter word, your own, or Random: one of the listed " +
+                             "words, picked by the seed number (the same seed always shows the same word).";
+
+function bossSoundWordProblem(word, rule) {
+  if (word === rule.random) return null;
+  if (word.length !== rule.length) return `exactly ${rule.length} characters`;
+  const unknown = [...new Set([...word].filter((char) => !rule.characters.includes(char)))].sort();
+  if (unknown.length) return `the game's font has no ${unknown.join(" ")}`;
+  return null;
+}
+
+function bossSoundWordRow() {
+  const rule = metadata.bossSoundWord;
+  const label = (word) => (word === rule.random ? "a listed word, picked by the seed number" : `-${word}-`);
+  return wordChoiceRow({
+    key: "bossSoundWord", name: "Boss-sound label", help: BOSS_SOUND_WORD_HELP, maxLength: rule.length,
+    defaultWord: rule.default,
+    options: [{ value: rule.default, label: rule.default }, { value: rule.random, label: "Random" },
+              ...rule.choices.map((word) => ({ value: word, label: word }))],
+    problem: (word) => bossSoundWordProblem(word, rule),
+    shows: (word) => `Shows ${label(word)}.`,
+    keeps: label,
+  });
+}
+
+// A word setting's row: a list of choices plus "Custom…", whose text box is checked as typed;
+// a word that breaks the rule is not used (the setting keeps its last good word).
+const CUSTOM_WORD = "custom";
+
+function wordChoiceRow({ key, name, help, maxLength, defaultWord, options, problem, shows, keeps }) {
+  if (typeof playerSettings[key] !== "string" || problem(playerSettings[key])) playerSettings[key] = defaultWord;
+  const listed = options.some((option) => option.value === playerSettings[key]);
+  const select = selectControl(`player-${key}`, name, [...options, { value: CUSTOM_WORD, label: "Custom…" }],
+                               () => update());
+  select.value = listed ? playerSettings[key] : CUSTOM_WORD;
+  const input = element("input", { type: "text", id: `player-${key}-custom`, className: "select level-word-input",
+                                   maxLength, spellcheck: false, autocomplete: "off",
+                                   ariaLabel: `${name}: your own word`, value: listed ? "" : playerSettings[key] });
+  input.addEventListener("input", () => update());
+  const control = element("span", { className: "level-word-control" }, select, input);
+  const { row, reason } = settingRow(name, help, control);
+  function update() {
+    const custom = select.value === CUSTOM_WORD;
+    input.hidden = !custom;
+    const word = custom ? normalizedLevelWord(input.value) : select.value;
+    const wrong = problem(word);
+    row.classList.toggle("setting--problem", Boolean(wrong));
+    input.classList.toggle("level-word-input--error", Boolean(wrong));
+    if (wrong) {
+      reason.textContent = `Not used: ${wrong}. The game keeps ${keeps(playerSettings[key])}.`;
+      return;
+    }
+    playerSettings[key] = word;
+    savePlayerSettings();
+    reason.textContent = shows(word);
+  }
+  update();
+  return row;
+}
+
+// The map marker note (docs/reports/minimap-marker.md): shown while any tunic colour is one
+// zora/ draws the marker in Link's skin colour for (metadata.markerHidingColours, the same set).
+const MARKER_NOTE = "Note: Because one of the selected tunic colors is dark, the player's minimap color " +
+                    "will be lighter to ensure it stays visible.";
+const TUNIC_SLOTS = ["greenTunic", "blueRingTunic", "redRingTunic"];
+
+function showMarkerNote(note) {
+  note.hidden = !TUNIC_SLOTS.some((key) => metadata.markerHidingColours.includes(playerSettings[key]));
 }
 
 // ---------------------------------------------------------------------------
@@ -588,7 +712,7 @@ function presetRow(name, preview, load, extraClass = "") {
 function buildPresets() {
   for (const preset of metadata.presets) {
     const { row, info, button } = presetRow(preset.label, preset.flags,
-                                            () => loadPreset(preset.label, preset.flags, ""));
+                                            () => loadPreset(preset.label, preset.flags, preset.zoraFlags || ""));
     button.disabled = !preset.available;
     button.title = preset.reasons.map(plainText).join("\n");
     if (!preset.available) info.append(element("span", { className: "preset-reason", textContent: plainText(preset.reason) }));
@@ -925,7 +1049,7 @@ window.zoraGenerateSeed = generateSeed;
 // ---------------------------------------------------------------------------
 // After a seed: "View in visualizer" and "Spoiler log" (encoding off only).
 // Both come from one report the worker builds from the finished ROM
-// (zora.api.seed_report): the seed document and the spoiler log, which
+// (zora_web.api.seed_report): the seed document and the spoiler log, which
 // therefore cannot disagree. Making it changes nothing in the ROM.
 // ---------------------------------------------------------------------------
 

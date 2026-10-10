@@ -45,5 +45,10 @@ FormatBombCountAndRoomLabel:
 RoomLabelRecords:
     ; PRG0's word with dash tiles $2F, padded with blanks.
     .BYTE $20, $76, $09, $24, $2F, $15, $12, $0F, $0E, $2F, $24, $24, $FF
-    ; ZORA's own: BOSS NEAR.
-    .BYTE $20, $76, $09, $0B, $18, $1C, $1C, $24, $17, $0E, $0A, $1B, $FF
+    ; ZORA's own: the usual label's layout with a four-letter word, ROAR by default; the player
+    ; setting writes another word into ZORA_B5_BossSoundWord (zora/rom/player_settings.py).
+    .BYTE $20, $76, $09, $24, $2F
+.EXPORT ZORA_B5_BossSoundWord
+ZORA_B5_BossSoundWord:
+    .BYTE $1B, $18, $0A, $1B
+    .BYTE $2F, $24, $24, $FF

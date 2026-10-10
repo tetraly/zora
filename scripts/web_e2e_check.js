@@ -7,7 +7,7 @@
 //   python3 -m http.server 8765 --bind 127.0.0.1 --directory temp/site
 // Open http://127.0.0.1:8765/, wait for "Ready", paste this file into the
 // console, and compare `download.sha1` with Python's output:
-//   python3 -c "from zora.api import generate_rom; import hashlib; \
+//   python3 -c "from zora_web.api import generate_rom; import hashlib; \
 //     print(hashlib.sha1(generate_rom('008hq4BeR1JXo89BJ2!TFpTP02u8UJ3A', 12345, \
 //     open('Legend of Zelda, The (USA).nes','rb').read()).rom).hexdigest())"
 // Delete temp/site/e2e-base.nes afterwards.

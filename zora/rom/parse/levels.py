@@ -1,6 +1,6 @@
 """Levels: level information, rooms, staircases and the two level blocks."""
 
-from zora.model.enums import (
+from ...model.enums import (
     BossSound,
     BossSpriteSet,
     Direction,
@@ -12,9 +12,9 @@ from zora.model.enums import (
     RoomType,
     WallType,
 )
-from zora.model.levels import VANILLA_BOSS_SPRITE_SETS, VANILLA_ENEMY_SPRITE_SETS, Cell, Level, LevelBlock
-from zora.model.room_grid import neighbour
-from zora.model.rooms import (
+from ...model.levels import VANILLA_BOSS_SPRITE_SETS, VANILLA_ENEMY_SPRITE_SETS, Cell, Level, LevelBlock
+from ...model.room_grid import neighbour
+from ...model.rooms import (
     EnemyInfo,
     EnemySpec,
     ItemInfo,
@@ -24,8 +24,8 @@ from zora.model.rooms import (
     StaircaseRoom,
     WallSet,
 )
-from zora.rom.layout import DUNGEON_NOTHING_CODE, LEVEL_INFO_SIZE, LEVEL_TABLE_SIZE, NUM_TABLES, read_le16
-from zora.rom.parse.bin_files import RawBinFiles
+from ..layout import DUNGEON_NOTHING_CODE, LEVEL_INFO_SIZE, LEVEL_TABLE_SIZE, NUM_TABLES, read_le16
+from .bin_files import RawBinFiles
 
 # ---------------------------------------------------------------------------
 # Level info helpers

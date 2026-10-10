@@ -2,10 +2,11 @@
 
 from typing import Any
 
-from zora.rom.heart_values import PRG0_START_HEART_VALUES, heart_counts
-from zora.rom.layout import (
+from ..heart_values import PRG0_START_HEART_VALUES, heart_counts
+from ..layout import (
     BANK_2_FILE_START,
     CAVE_PERSON_ANIMATION_SLOTS,
+    CREDITS_BANK_2_CPU_TO_FILE,
     CREDITS_LINE_12_INDEX,
     CREDITS_POINTERS_HI_ADDRESS,
     CREDITS_POINTERS_LO_ADDRESS,
@@ -21,7 +22,7 @@ from zora.rom.layout import (
     TITLE_SEED_ROW_ADDRESS,
     TITLE_VERSION_ROW_ADDRESS,
 )
-from zora.rom.text_encoding import BYTE_TO_CHAR as _BYTE_TO_CHAR
+from ..text_encoding import BYTE_TO_CHAR as _BYTE_TO_CHAR
 
 ITEMS_BLOCK_SIZE = 40                # Items, RAM $0657-$067E
 HEART_VALUES_INDEX = 0x18            # HeartValues, RAM $066F
@@ -70,7 +71,7 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
     """Read back the B10 DATA fields that checkpoints need from a finished ROM."""
     if rom_bytes is None:
         return {
-            "credits_pointers": (0xAD33, 0xAD4D, 0xAD59, 0xAC72),
+            "credits_pointers": (0xAD33, 0xAD4D, 0xAD59, 0xAD72),
             "title_seed_number": 0,
             "title_version_line": "",
             "cave_person_animations": (),
@@ -93,6 +94,10 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
         rom_bytes[lo_start + i] | (rom_bytes[hi_start + i] << 8)
         for i in range(4)
     )
+
+    # FP-LOCK-02's Check: the record line 15 addresses (its length byte, column byte and tiles)
+    line_15 = CREDITS_BANK_2_CPU_TO_FILE + credits_pointers[3]
+    line_15_record = bytes(rom_bytes[line_15:line_15 + 2 + rom_bytes[line_15]])
 
     cave_person_animations = tuple(
         tile_mapping_pointers[slot] for slot in CAVE_PERSON_ANIMATION_SLOTS
@@ -126,6 +131,7 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
 
     return {
         "credits_pointers": credits_pointers,
+        "credits_line_15_record": line_15_record,
         "title_seed_number": seed_num,
         "title_version_line": version_line,
         "cave_person_animations": cave_person_animations,

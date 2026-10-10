@@ -7,7 +7,7 @@ selects it whatever the ROM held. Apply after ZORA's code patches. A piece
 is ZORA's own bytes or an Original (source, length): the original game's
 bytes, read from the player's ROM when written (never stored here).
 """
-from zora.rom.base_rom import Original, Piece
+from .base_rom import Original, Piece
 
 DEFAULTS: dict[str, str] = {
     "select_swap": "toggle",  # FP-HOT-01

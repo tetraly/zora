@@ -3,8 +3,8 @@ and the writes staged outside the room blocks."""
 
 from dataclasses import dataclass, field
 
-from zora.model.enums import Enemy
-from zora.model.sprites import PatternBlock
+from ...model.enums import Enemy
+from ...model.sprites import PatternBlock
 
 E = Enemy
 DISCARDED_DRAWS = 2

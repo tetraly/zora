@@ -1,6 +1,6 @@
 """Speed Up Text (B54; FP-TEXT-01)."""
 
-from zora.model.game_world import GameWorld
+from ...model.game_world import GameWorld
 
 
 def speed_up_text(gw: GameWorld) -> None:

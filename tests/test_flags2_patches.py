@@ -40,7 +40,7 @@ def _module(name: str, path: Path) -> ModuleType:
 
 build = _module("flags2_build", REPO / "asm" / "flags2" / "build.py")
 data = build.load_data()
-settings = _module("player_settings_data", REPO / "asm" / "settings" / "player_settings_data.py")
+settings = _module("zora.rom._asm_player_settings_data", REPO / "asm" / "settings" / "player_settings_data.py")
 
 # RoomLayoutsOW (bank 5 $9418): headered file offset of layout 0's first column descriptor.
 ROOM_LAYOUTS_OW_FILE = 0x15428

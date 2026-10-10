@@ -6,7 +6,7 @@ patches before it applied: a piece is ZORA's own bytes, or an Original
 (source, length): bytes of the original game that the patch keeps or moves,
 read from the player's ROM when it is written (never stored here).
 """
-from zora.rom.base_rom import Original, Piece
+from .base_rom import Original, Piece
 
 PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
     "fp-lock-01": (
@@ -58,20 +58,20 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x1A137, bytes.fromhex("24")),
     ),
     "fp-entr-01": (
-        (0x17054, bytes.fromhex("4c01b9eaeaeaeaeaeaeaeaeaeaeaeaea")),
-        (0x17910, bytes.fromhex("8da9788570adbb6bf00fc902d017a9088598a9dd85844c906ca9008598ad00b985844c906ca9088598"
+        (0x17054, bytes.fromhex("4cc1baeaeaeaeaeaeaeaeaeaeaeaeaea")),
+        (0x17AD0, bytes.fromhex("8da9788570adbb6bf00fc902d017a9088598a9dd85844c906ca9008598adc0ba85844c906ca9088598"
                                 "ada66b85844c906c")),
     ),
     "fp-fix-04": (
-        (0x06BF9, bytes.fromhex("20d0ffeaea")),
+        (0x06BF9, bytes.fromhex("2094edeaea")),
         (0x12DA1, bytes.fromhex("eaeaea")),
-        (0x1FFE0, bytes.fromhex("a2028e02068e7206ee4f0360")),
+        (0x1EDA4, bytes.fromhex("a2028e02068e7206ee4f0360")),
     ),
     "fp-roar-01": (
         (0x065CE, bytes.fromhex("53b9")),
         (0x15359, bytes.fromhex("4c40b9ea4c49b9eaea")),
         (0x17950, bytes.fromhex("8d0106a9018d7e6c60a9008d7e6ca9804c806d20506da000a510f007ad7e6cf002a00da200b972b99d"
-                                "2a03c8e8e00dd0f460207609242f15120f0e2f2424ff2076090b181c1c24170e0a1b")),
+                                "2a03c8e8e00dd0f460207609242f15120f0e2f2424ff207609242f1b180a1b2f2424")),
     ),
     "fp-hot-01": (
         (0x0B010, bytes.fromhex("298405121d0e161cff298405190a1e1c0effa000ad7a06f002a009a200b900b09d7f6cc8e8e009d0f4"
@@ -90,20 +90,21 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "a4023008b9bee63d7706d014bd2204293f20e0be901d8503a402300da501f009a9009d3004a93f8503"
                                 "bd220429c005039d2204ca10ca68aaad130460200c73204bbe300eb9bee63d41bef0061d77069d7706"
                                 "60")),
-        (0x07EF0, bytes.fromhex("ac40bed00218608500c91fb03de91cc902902aa400b9a4728501b9c87238e920c910b02649ff386500"
-                                "a40138795706a8b9a47245018501f00188983860ad75068501ad740618691d3860a5001860")),
+        (0x07EF0, bytes.fromhex("ac40bed00218608500c91fb047e91cc9029034a400b9a4728501b9c87238e920c910b03049ff386500"
+                                "a40138795706a8a9008500b9a472c501f00588e600d0f4a5008501983860ad75068501ad740618691d"
+                                "3860a5001860")),
     ),
     "fp-prog-02": (
-        (0x10D06, bytes.fromhex("20c7b4eaea")),
-        (0x13490, bytes.fromhex("8500c91fb03de91cc902902aa400b9a4728501b9c87238e920c910b02649ff386500a40138795706a8"
-                                "b9a47245018501f00188983860ad75068501ad740618691d3860a5001860a8a50148a50048982080b4"
-                                "85ab6885006885014c1473")),
-        (0x17864, bytes.fromhex("2087baeaea")),
-        (0x1789B, bytes.fromhex("20a7baea")),
-        (0x17A50, bytes.fromhex("8500c91fb03de91cc902902aa400b9a4728501b9c87238e920c910b02649ff386500a40138795706a8"
-                                "b9a47245018501f00188983860ad75068501ad740618691d3860a5001860cd4fb8f015a8a50148a500"
-                                "48982040baa868850068850198a4eb85abb9fe6a60a8a50148a50048982040ba85ab688500688501a9"
-                                "c060")),
+        (0x10D06, bytes.fromhex("2051b9eaea")),
+        (0x13910, bytes.fromhex("8500c91fb047e91cc9029034a400b9a4728501b9c87238e920c910b03049ff386500a40138795706a8"
+                                "a9008500b9a472c501f00588e600d0f4a5008501983860ad75068501ad740618691d3860a5001860a8"
+                                "a50148a50048982000b985ab6885006885014c1473")),
+        (0x17864, bytes.fromhex("2051bbeaea")),
+        (0x1789B, bytes.fromhex("2071bbea")),
+        (0x17B10, bytes.fromhex("8500c91fb047e91cc9029034a400b9a4728501b9c87238e920c910b03049ff386500a40138795706a8"
+                                "a9008500b9a472c501f00588e600d0f4a5008501983860ad75068501ad740618691d3860a5001860cd"
+                                "4fb8f015a8a50148a50048982000bba868850068850198a4eb85abb9fe6a60a8a50148a50048982000"
+                                "bb85ab688500688501a9c060")),
     ),
 }
 
@@ -112,5 +113,6 @@ SYMBOLS: dict[str, int] = {
     "ZORA_B1_OneTimeWares": 0x07E51,
     "ZORA_B1_ProgressiveItems": 0x07E50,
     "ZORA_B2_CodeIcons": 0x0AFB0,
-    "ZORA_B5_OverworldStartY": 0x17910,
+    "ZORA_B5_BossSoundWord": 0x17994,
+    "ZORA_B5_OverworldStartY": 0x17AD0,
 }

@@ -1,16 +1,16 @@
 """Enemies: the mixed groups, tile mappings and hit points."""
 
-from zora.model.enums import Enemy
-from zora.model.rooms import EnemySpec
-from zora.model.sprites import EnemyData
-from zora.rom.layout import (
+from ...model.enums import Enemy
+from ...model.rooms import EnemySpec
+from ...model.sprites import EnemyData
+from ..layout import (
     BOSS_HP_FIRST_ENEMY_VALUE,
     BOSS_HP_NIBBLE_COUNT,
     ENEMY_HP_NIBBLE_COUNT,
     FIRST_MIXED_GROUP_CODE,
     POINTER_COUNT,
 )
-from zora.rom.parse.bin_files import RawBinFiles
+from .bin_files import RawBinFiles
 
 # ---------------------------------------------------------------------------
 # Mixed enemy group parsing

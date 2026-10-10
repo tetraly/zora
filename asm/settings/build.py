@@ -164,7 +164,7 @@ def render(writes: dict[str, dict[str, Writes]]) -> str:
              "is ZORA's own bytes or an Original (source, length): the original game's",
              "bytes, read from the player's ROM when written (never stored here).",
              '"""',
-             "from zora.rom.base_rom import Original, Piece",
+             "from .base_rom import Original, Piece",
              "",
              "DEFAULTS: dict[str, str] = {"]
     lines.extend(f'    "{setting.name}": "{setting.default}",  # {setting.entry}' for setting in SETTINGS)
@@ -258,7 +258,11 @@ def music_off_space_is_blank(rom: bytes, settings: dict[str, dict[str, Writes]])
 
 
 def load_data() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("player_settings_data", OUTPUT)
+    """OUTPUT as a module. It imports `.base_rom` relatively (it is copied into zora/rom/, whose
+    imports are all relative so Archipelago can install zora/ under another name), so it is
+    loaded as a submodule of zora.rom."""
+    import zora.rom  # noqa: F401
+    spec = importlib.util.spec_from_file_location("zora.rom._asm_player_settings_data", OUTPUT)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

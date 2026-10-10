@@ -54,15 +54,18 @@ from typing import Any
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from zora.api import PAGE_CHOICES, PAGE_HEART_SLOT, PAGE_TUNIC_SLOTS, player_settings_from_page  # noqa: E402
+from zora_web.api import (  # noqa: E402
+    PAGE_BOSS_SOUND_WORD, PAGE_CHOICES, PAGE_HEART_SLOT, PAGE_LEVEL_WORD, PAGE_TUNIC_SLOTS, player_settings_from_page,
+)
 from zora.flags import zora_flags  # noqa: E402
 from zora.flags.codec import decode, encode  # noqa: E402
 from zora.flags.dependencies import check_dependencies, correct_merchant_toll  # noqa: E402
 from zora.flags.fields import (  # noqa: E402
     ENCODE_LEVEL_DATA, MONEY_OR_LIFE_ROOMS, MONEY_OR_LIFE_TOLL, OPTION_FIELDS, OPTIONS_BY_ID, TOGGLE_FIELDS,
-    Settings, ThreeState,
+    Settings, ThreeState, WoodenSwordState,
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF  # noqa: E402
+from zora.flags.zora_flags import L4Sword  # noqa: E402
 from zora.flags.support import (  # noqa: E402
     ALTERNATIVE_OPTIONS, TURN_OFF_OPTIONS, TURN_OFF_TOGGLES, Support, mvp_baseline_settings, support,
 )
@@ -74,9 +77,9 @@ from zora.generate.pipeline import (  # noqa: E402
     overworld_gates, plan,
 )
 from zora.generate.steps.cave_entries import OverworldResult  # noqa: E402
-from zora.measure.alternative_values import HELPFUL_TEXT_SLOTS, alternative_value_figures  # noqa: E402
-from zora.measure.checks import finished_rom_checks, run_checks  # noqa: E402
-from zora.measure.owner_flags import owner_flag_problems  # noqa: E402
+from zora_measure.alternative_values import HELPFUL_TEXT_SLOTS, alternative_value_figures  # noqa: E402
+from zora_measure.checks import finished_rom_checks, run_checks  # noqa: E402
+from zora_measure.owner_flags import owner_flag_problems  # noqa: E402
 from zora.model.game_world import GameWorld  # noqa: E402
 from zora.rom import level_encoding  # noqa: E402
 from zora.rom.base_rom import verify_base_rom  # noqa: E402
@@ -84,7 +87,8 @@ from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_ITEMS, SEED_CODE_
 from zora.rom.game_config import GameConfig  # noqa: E402
 from zora.rom.parse.rom_file import parse_rom  # noqa: E402
 from zora.rom.player_settings import (  # noqa: E402
-    BLACKER_THAN_BLACK, PALETTE_SIZE, PlayerSettingError, apply_player_settings,
+    BLACKER_THAN_BLACK, BOSS_SOUND_WORDS, LEVEL_WORD_CHOICES, PALETTE_SIZE, RANDOM_BOSS_SOUND_WORD,
+    PlayerSettingError, apply_player_settings,
 )
 from zora.rom.serialize.rom_file import serialize_to_rom  # noqa: E402
 
@@ -154,10 +158,12 @@ def draw_settings(rng: random.Random) -> Settings:
 
 
 def draw_page_settings(rng: random.Random) -> dict[str, Any]:
-    """Player settings as the page sends them: every choice key and colour slot."""
+    """Player settings as the page sends them: every choice key, colour slot and both words."""
     values: dict[str, Any] = {key: rng.choice(sorted(choices)) for key, (_, choices) in PAGE_CHOICES.items()}
     for slot in (*PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT):
         values[slot] = rng.choice(PALETTE_COLOURS)
+    values[PAGE_LEVEL_WORD] = rng.choice(LEVEL_WORD_CHOICES)
+    values[PAGE_BOSS_SOUND_WORD] = rng.choice([RANDOM_BOSS_SOUND_WORD, *BOSS_SOUND_WORDS])
     return values
 
 
@@ -175,7 +181,8 @@ def draw_zora_string(rng: random.Random, settings: Settings | None = None) -> st
     coin (version 2; Progressive Items with B09 on is refused, PI-FLAG-03), then each produced
     version-3 flag (the owner's 2.0 flags) off, on or "?" by thirds. Extra Power Bracelet Blocks
     is not drawn on with B04 on, which refuses it (a "?" with B04 on is drawn: it resolves off), nor
-    Add L4 Sword on without Progressive Items (likewise)."""
+    Add L4 Sword on without Progressive Items (likewise); Add L4 Sword on draws its place
+    (draw_l4_sword_place)."""
     flags = zora_flags.decode(rng.choice(ZORA_STRINGS))
     flags = replace(flags, progressive_items=rng.random() < 0.5, shop_items_in_pool=rng.random() < 0.5)
     owner = {name: rng.choice(list(ThreeState)) for name in zora_flags.OWNER_2_0_FIELDS
@@ -185,7 +192,25 @@ def draw_zora_string(rng: random.Random, settings: Settings | None = None) -> st
         owner["extra_power_bracelet_blocks"] = ThreeState.POSSIBLE
     if not flags.progressive_items and owner.get("add_l4_sword") is ThreeState.ON:
         owner["add_l4_sword"] = ThreeState.POSSIBLE         # needs Progressive Items; a "?" resolves off
-    return zora_flags.encode(replace(flags, **owner))  # type: ignore[arg-type]
+    asnb: dict[str, bool] = {}
+    if owner.get("add_l4_sword") is ThreeState.ON:
+        asnb = draw_l4_sword_place(rng, settings)
+    return zora_flags.encode(replace(flags, **owner, **asnb))  # type: ignore[arg-type]
+
+
+def draw_l4_sword_place(rng: random.Random, settings: Settings | None) -> dict[str, bool]:
+    """Add L4 Sword drawn on (ASNB, docs/design/asnb.md section 1): Level 9 or Level 2 by a coin
+    (Level 9 without generated shapes), and Level 2 takes the level-4-sword entrance by a coin when
+    the wooden sword is in its cave. A "?" keeps the released meaning (Off or Level 9, decided per
+    seed), which the Level 2 field and the entrance never take. Drawn after every other draw of the
+    string, so a configuration without Add L4 Sword on is unchanged."""
+    level_2 = rng.random() < 0.5
+    if not level_2 or settings is None \
+            or settings.option(zora_flags.DUNGEON_LAYOUT_SOURCE) != zora_flags.SHAPES_ONLY:
+        return {}
+    entrance = (settings.option(zora_flags.WOODEN_SWORD_STATE) == WoodenSwordState.NORMAL
+                and rng.random() < 0.5)
+    return {"l4_sword_in_level_2": True, "level_9_entrance_sword": entrance}
 
 
 def random_config(index: int) -> Config:
@@ -316,7 +341,8 @@ def _check(config: Config, outcome: Outcome, keep_rom: bool) -> None:
     world, result = generate_world(chosen, base_rom())
     check_acceptance(chosen, world, result, fail)
     for problem in owner_flag_problems(world, overworld_gates(chosen.zora_resolved),
-                                       chosen.zora_resolved.is_on("add_l4_sword")):
+                                       chosen.zora_resolved.l4_sword is L4Sword.LEVEL_9,
+                                       chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2):
         fail(f"owner flags: {problem}")
     before_settings = serialize_to_rom(world, base_rom(), config=chosen.config)
     finished = generate_rom(config.flag_string, config.seed, base_rom(),
@@ -384,7 +410,8 @@ def check_round_trip(chosen: GenerationPlan, world: GameWorld, rom: bytes, fail:
     reading = reading_config(chosen.config)
     if not round_trips(rom, reading):
         fail("parse and re-serialize changed the ROM")
-    for check in run_checks(parse_rom(rom, reading), finished_rom_checks()):
+    level_2_sword = chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2
+    for check in run_checks(parse_rom(rom, reading), finished_rom_checks(level_2_sword=level_2_sword)):
         if not check.passed:
             fail(f"finished-ROM check {check.check_id}: {check.message}")
 

@@ -14,7 +14,7 @@ Each position byte packs X in its high nibble and Y in its low nibble
 """
 from dataclasses import dataclass
 
-from zora.rom.vanilla_overworld.tables import LEVEL_INFO_OW
+from .tables import LEVEL_INFO_OW
 
 FOE_COUNTS = slice(0x24, 0x28)
 START_Y = 0x28

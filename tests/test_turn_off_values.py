@@ -27,7 +27,7 @@ from zora.generate.steps.shuffle_bosses import BOSSES_BEATEN_BY, bosses_beaten_b
 from zora.generate.steps.change_enemy_hp import BOSS_HP_TYPES, BOSS_MIRRORS, ENEMY_HP_TYPES
 from zora.generate.steps.item_shuffle_result import TrackedPlace
 from zora.generate.steps.shuffle_shop_items import SECRET_AMOUNTS, SHOPS, TAKE_ANY_CANDLE_SLOT
-from zora.measure.checkpoints.groups_and_palettes import goriya_tile
+from zora_measure.checkpoints.groups_and_palettes import goriya_tile
 from zora.model.enums import Destination, Enemy, Item, RoomType
 from zora.model.game_world import GameWorld
 from zora.model.levels import MERCHANT_LIST

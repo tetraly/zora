@@ -1,12 +1,12 @@
 """The ROM-file entry point: a GameWorld written over its base ROM."""
 
-from zora.model.game_world import GameWorld
-from zora.rom.base_rom import remember_base_rom
-from zora.rom.code_patches import overworld_start_y
-from zora.rom.final_steps import FinalSettings, run_final_steps
-from zora.rom.game_config import GameConfig
-from zora.rom.parse.rom_file import original_bins_from_rom
-from zora.rom.player_settings import PlayerSettings
+from ...model.game_world import GameWorld
+from ..base_rom import remember_base_rom
+from ..code_patches import overworld_start_y
+from ..final_steps import FinalSettings, run_final_steps
+from ..game_config import GameConfig
+from ..parse.rom_file import original_bins_from_rom
+from ..player_settings import PlayerSettings
 
 
 def serialize_to_rom(
@@ -22,7 +22,7 @@ def serialize_to_rom(
     Vanilla hint mode: the quotes block passes through byte-identically when
     GameWorld.quotes_raw was captured at parse time.
     """
-    from zora.rom.serialize.game_world import serialize_game_world
+    from .game_world import serialize_game_world
     remember_base_rom(rom)              # PRG0: the source of the patches' original bytes
     cfg = config or GameConfig()
     # FP-ENTR-01: a ROM that already carries ZORA's code patches (a finished

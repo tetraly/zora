@@ -168,6 +168,10 @@ class CPU:
         elif opcode in STORES:
             register, mode = STORES[opcode]
             self.write(self._operand_address(mode), getattr(self, register))
+        elif opcode in INCREMENTS:
+            step, mode = INCREMENTS[opcode]
+            address = self._operand_address(mode)
+            self.write(address, self._set_nz(self.read(address) + step))
         elif opcode in BRANCHES:
             flag, taken_when = BRANCHES[opcode]
             offset = self._fetch()
@@ -214,6 +218,8 @@ STORES: dict[int, tuple[str, str]] = {
     0x85: ("a", "zp"), 0x8D: ("a", "abs"), 0x9D: ("a", "absx"), 0x99: ("a", "absy"),
     0x86: ("x", "zp"), 0x8E: ("x", "abs"), 0x84: ("y", "zp"), 0x8C: ("y", "abs"),
 }
+# INC and DEC: (step, addressing mode).
+INCREMENTS: dict[int, tuple[int, str]] = {0xE6: (1, "zp"), 0xEE: (1, "abs"), 0xC6: (-1, "zp"), 0xCE: (-1, "abs")}
 BRANCHES: dict[int, tuple[int, bool]] = {
     0x10: (N_FLAG, False), 0x30: (N_FLAG, True), 0x90: (C_FLAG, False), 0xB0: (C_FLAG, True),
     0xD0: (Z_FLAG, False), 0xF0: (Z_FLAG, True),

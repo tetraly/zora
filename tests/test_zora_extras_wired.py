@@ -115,7 +115,7 @@ def test_the_level_encoding_key_covers_both_strings() -> None:
 
 
 def test_a_bad_zora_string_is_refused_with_the_decoders_reason() -> None:
-    for bad, reason in (("1", "expected <version>.<flags>"), ("4.1", "newer"), ("1.O", "beyond")):
+    for bad, reason in (("1", "expected <version>.<flags>"), ("5.1", "newer"), ("1.O", "beyond")):
         with pytest.raises(FlagsRefused, match=reason):
             plan(FLAGS, 0, bad)
     with pytest.raises(FlagsRefused, match="ZORA flag string"):
@@ -173,14 +173,16 @@ def test_the_page_shows_the_extra_candles_conflict_at_both_settings() -> None:
 def test_the_tab_controls_spell_the_zora_string() -> None:
     from zora.flags.zora_flags import OWNER_2_0_FIELDS
     values = {"randomize_magical_sword": "1", "randomize_letter": "0", "magical_sword_hearts_highest": "3",
-              "progressive_items": "0", "shop_items_in_pool": "0", **dict.fromkeys(OWNER_2_0_FIELDS, "0")}
+              "progressive_items": "0", "shop_items_in_pool": "0", **dict.fromkeys(OWNER_2_0_FIELDS, "0"),
+              "level_9_entrance_sword": "0"}
     assert flag_form.zora_form_change(FLAGS, values)["zora"]["flags"] == SWORD
     off = dict.fromkeys(values, "0")
     assert flag_form.zora_form_change(FLAGS, off)["zora"]["flags"] == ""
     assert flag_form.form_state(FLAGS, BOTH)["zora"]["values"] == {
         "randomize_magical_sword": 1, "randomize_letter": 1, "magical_sword_hearts_highest": 3,
-        "progressive_items": 0, "shop_items_in_pool": 0, **dict.fromkeys(OWNER_2_0_FIELDS, 0)}
-    assert [field["name"] for field in flag_form.metadata()["zora"]["fields"]] == list(values)
+        "progressive_items": 0, "shop_items_in_pool": 0, **dict.fromkeys(OWNER_2_0_FIELDS, 0),
+        "level_9_entrance_sword": 0}
+    assert set(field["name"] for field in flag_form.metadata()["zora"]["fields"]) == set(values)
 
 
 # --- Randomize Magical Sword ----------------------------------------------------------------

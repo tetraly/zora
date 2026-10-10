@@ -11,9 +11,9 @@ exhausted, variant-position search exhausted, boss search exhausted, major
 item placement). Levels with unreachable rooms are counted in
 world.unreachable_levels for reporting.
 """
-from zora.generate.shapes.world import SetWorld, StairKind, StairPlan
-from zora.model.enums import Side
-from zora.model.room_grid import neighbour
+from ...model.enums import Side
+from ...model.room_grid import neighbour
+from .world import SetWorld, StairKind, StairPlan
 
 
 def _blob_stairs(world: SetWorld, blob: int) -> dict[int, StairPlan]:

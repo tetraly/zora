@@ -2,15 +2,15 @@
 
 Step 7 of the generation flow.
 """
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.t4_tables import T4_FIRST_QUEST, T4_SECOND_QUEST_ADDITION
-from zora.generate.shapes.t5_positions import item_slots_for
-from zora.generate.shapes.tables import T3_WEIGHTS
-from zora.generate.shapes.world import SetWorld
-from zora.model.enums import Item, RoomAction
-from zora.model.rooms import NO_ITEM_CODE
+from ...model.enums import Item, RoomAction
+from ...model.rooms import NO_ITEM_CODE
+from ..errors import GenerationFailure
+from ..rng import Rng
+from .options import ShapeOptions
+from .t4_tables import T4_FIRST_QUEST, T4_SECOND_QUEST_ADDITION
+from .t5_positions import item_slots_for
+from .tables import T3_WEIGHTS
+from .world import SetWorld
 
 # zora.model item codes used in room data bytes
 

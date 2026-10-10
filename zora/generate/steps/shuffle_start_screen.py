@@ -9,8 +9,8 @@ stands after PS-OWM and PS-EGRP-05 (post-shapes-b8.md PS-OWM-03).
 """
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng, discard
-from zora.model.overworld import Overworld
+from ...model.overworld import Overworld
+from ..rng import IntRng, discard
 
 PRG0_START_SCREEN = 119
 # OW-START-01: the 51 screens the draw accepts (normative as written; 119,

@@ -3,10 +3,10 @@
 from dataclasses import dataclass, field
 from typing import cast
 
-from zora.generate.shapes.world import blocks_of
-from zora.model.enums import BossSound, Item, ItemPosition, RoomAction
-from zora.model.levels import LEVEL_9, Level, LevelBlock
-from zora.model.rooms import ItemInfo, LayoutInfo, Room, SecretInfo, StaircaseRoom
+from ...model.enums import BossSound, Item, ItemPosition, RoomAction
+from ...model.levels import LEVEL_9, Level, LevelBlock
+from ...model.rooms import ItemInfo, LayoutInfo, Room, SecretInfo, StaircaseRoom
+from ..shapes.world import blocks_of
 
 LEVELS_7_TO_9 = (7, 8, 9)
 

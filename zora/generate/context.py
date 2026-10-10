@@ -11,28 +11,28 @@ from collections import Counter
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from zora.generate.alternative_values import MVP_VALUES, AlternativeValues
-from zora.generate.extra_options import NO_EXTRAS, ExtraOptions
-from zora.generate.flag_steps import ALL_STEPS_ON, FlagSteps
-from zora.generate.rng import Rng
-from zora.generate.shapes.enemies import EnemyPools
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.world import SetWorld
-from zora.generate.ship import StagedSets
-from zora.generate.steps.assign_hints_for_hint_type import HintAssignmentResult
-from zora.generate.steps.cave_entries import CaveShuffle, Entry
-from zora.generate.steps.change_enemy_hp import EnemyHpResult
-from zora.generate.steps.dungeon_room_shuffle import DungeonRoomShuffleResult
-from zora.generate.steps.extra_pool_items import ExtraPoolItems
-from zora.generate.steps.hint_text import HintTextResult
-from zora.generate.steps.item_shuffle_result import ItemShuffleResult
-from zora.generate.steps.monster_lists import MonsterShuffleResult, RoomLists
-from zora.generate.steps.shuffle_dungeon_drops import ShapeSnapshot
-from zora.generate.steps.shuffle_dungeon_palettes import DungeonPaletteResult
-from zora.generate.steps.shuffle_groups import GroupShuffleResult
-from zora.generate.steps.shuffle_start_screen import StartScreen
-from zora.model.game_world import GameWorld
-from zora.model.overworld import Overworld
+from ..model.game_world import GameWorld
+from ..model.overworld import Overworld
+from .alternative_values import MVP_VALUES, AlternativeValues
+from .extra_options import NO_EXTRAS, ExtraOptions
+from .flag_steps import ALL_STEPS_ON, FlagSteps
+from .rng import Rng
+from .shapes.enemies import EnemyPools
+from .shapes.options import ShapeOptions
+from .shapes.world import SetWorld
+from .ship import StagedSets
+from .steps.assign_hints_for_hint_type import HintAssignmentResult
+from .steps.cave_entries import CaveShuffle, Entry
+from .steps.change_enemy_hp import EnemyHpResult
+from .steps.dungeon_room_shuffle import DungeonRoomShuffleResult
+from .steps.extra_pool_items import ExtraPoolItems
+from .steps.hint_text import HintTextResult
+from .steps.item_shuffle_result import ItemShuffleResult
+from .steps.monster_lists import MonsterShuffleResult, RoomLists
+from .steps.shuffle_dungeon_drops import ShapeSnapshot
+from .steps.shuffle_dungeon_palettes import DungeonPaletteResult
+from .steps.shuffle_groups import GroupShuffleResult
+from .steps.shuffle_start_screen import StartScreen
 
 
 @dataclass
@@ -66,6 +66,10 @@ class GenerationResult:
     # level-1 census at gate entry of the shipped pass: (person rooms,
     # rooms whose layout restricts movement)
     l1_gate_entry: tuple[int, int] | None = None
+    # What the hint text step read besides the world: B2.5's hint assignment and the mazes' offers
+    # (Archipelago Phase 2: FINISH composes the hint text again for an assigned world).
+    hint_assignment: HintAssignmentResult | None = None
+    maze_offers: dict[int, list[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

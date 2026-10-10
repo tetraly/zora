@@ -22,10 +22,13 @@ site).
 from __future__ import annotations
 
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Protocol
 
-from zora.generate.acceptance_check import (
+from ...model.enums import Destination, Item
+from ...model.levels import LEVEL_9, Level
+from ...model.overworld import Overworld, TakeAnyCave
+from ..acceptance_check import (
     DEFAULT_RULES,
     FAMILY_EXEMPT_LAYOUT,
     LADDER_LAYOUTS,
@@ -34,10 +37,10 @@ from zora.generate.acceptance_check import (
     AcceptanceCheck,
     LogicRules,
 )
-from zora.generate.dungeon_walk import Walk, is_family_blocked, walk_level
-from zora.generate.rng import IntRng
-from zora.generate.steps.cave_entries import CaveShuffle
-from zora.generate.steps.extra_pool_items import (
+from ..dungeon_walk import Walk, is_family_blocked, walk_level
+from ..rng import IntRng
+from .cave_entries import CaveShuffle
+from .extra_pool_items import (
     CaveSlotPlace,
     ExtraPoolItems,
     ExtraSlotPlace,
@@ -50,11 +53,8 @@ from zora.generate.steps.extra_pool_items import (
     join_pool,
     with_tracked,
 )
-from zora.generate.steps.item_shuffle_result import MAGICAL_SWORD_SLOT, ItemShuffleOptions, ItemShuffleResult
-from zora.generate.steps.shuffle_items import CAVE_SLOTS
-from zora.model.enums import Destination, Item
-from zora.model.levels import LEVEL_9, Level
-from zora.model.overworld import Overworld, TakeAnyCave
+from .item_shuffle_result import MAGICAL_SWORD_SLOT, ItemShuffleOptions, ItemShuffleResult
+from .shuffle_items import CAVE_SLOTS
 
 # The take-any caves the heart check lets the player spend on another choice.
 TAKE_ANY_CAVES_SPENT_ELSEWHERE = 2
@@ -116,15 +116,19 @@ def has_enough_heart_containers(hearts_required: int, starting_hearts: int, reac
     return reachable >= hearts_required - starting_hearts
 
 
-def reachable_take_any_hearts(overworld: Overworld, held: frozenset[int], rules: LogicRules = DEFAULT_RULES) -> int:
-    """k: the take-any caves whose screen needs are held (VA-REJ-07's rule for a cave screen)
-    and that offer a heart container. Every code-17 screen opens the same cave, so either all
-    of them offer one or none does."""
+def take_any_heart_screens(overworld: Overworld) -> list[int]:
+    """The take-any caves' screens, when the take-any cave offers a heart container. Every
+    code-17 screen opens the same cave, so either all of them offer one or none does."""
     cave = overworld.get_cave(Destination.TAKE_ANY, TakeAnyCave)
     if cave is None or Item.HEART_CONTAINER not in cave.items:
-        return 0
-    return sum(rules.needs(screen.screen_num) <= held
-               for screen in overworld.screens if screen.destination == Destination.TAKE_ANY)
+        return []
+    return [screen.screen_num for screen in overworld.screens if screen.destination == Destination.TAKE_ANY]
+
+
+def reachable_take_any_hearts(overworld: Overworld, held: frozenset[int], rules: LogicRules = DEFAULT_RULES) -> int:
+    """k: the take-any caves whose screen needs are held (VA-REJ-07's rule for a cave screen)
+    and that offer a heart container."""
+    return sum(rules.needs(screen) <= held for screen in take_any_heart_screens(overworld))
 
 
 def take_any_heart_allowance(take_any_caves: int) -> int:
@@ -141,9 +145,8 @@ class AcceptanceHeartReach:
     is entered when its entry door's screen needs are held (level 9 also
     needs the long items), a room is reached by the inventory walk with the
     family and ladder rules, and an item cellar when the walk enters it.
-    One stricter rule than E1: a level-9 place also needs level-9 entry
-    (eight dungeons completed), since a heart container behind the
-    magical-sword cave's item must not unlock that cave."""
+    A level-9 place also needs level-9 entry (eight dungeons completed), as
+    E1 now asks too (AcceptanceCheck.can_enter)."""
     levels: list[Level]
     state: ItemShuffleResult
     extras: ExtraPoolItems
@@ -155,8 +158,10 @@ class AcceptanceHeartReach:
 
     def __post_init__(self) -> None:
         without_sword_cave = [place for place in self.state.tracked if place.slot != MAGICAL_SWORD_SLOT]
+        # ASNB: nor does the magical-sword cave's own sword count toward level 9's four swords
+        rules = replace(self.rules, magical_sword_cave_counts=False)
         check = AcceptanceCheck(self.levels, with_tracked(self.state, without_sword_cave), self.overworld,
-                                self.caves, self.rules)
+                                self.caves, rules)
         self.held = frozenset(check.closure()[0])
 
     def _walk(self, level: Level, target: int | None) -> Walk:

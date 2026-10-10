@@ -3,17 +3,17 @@ dungeon hearts."""
 
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng
-from zora.generate.shapes.world import blocks_of
-from zora.generate.steps.item_shuffle_result import (
+from ...model.enums import Item, RoomType
+from ...model.levels import Level
+from ...model.rooms import ITEM_MASK, NO_ITEM_CODE, ItemInfo, Room, StaircaseRoom
+from ..rng import IntRng
+from ..shapes.world import blocks_of
+from .item_shuffle_result import (
     ItemShuffleOptions,
     ItemShuffleResult,
     TrackedPlace,
     _level_rooms,
 )
-from zora.model.enums import Item, RoomType
-from zora.model.levels import Level
-from zora.model.rooms import ITEM_MASK, NO_ITEM_CODE, ItemInfo, Room, StaircaseRoom
 
 # --- PS-ITEM ---------------------------------------------------------------
 

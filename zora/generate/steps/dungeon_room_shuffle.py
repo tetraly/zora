@@ -16,21 +16,9 @@ would store never survives.
 """
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng, discard
-from zora.generate.shapes.tables import (
-    BLADE_TRAP_BAD_LAYOUTS,
-    DODONGO_BAD_LAYOUTS,
-    GLEEOK4_EXTRA_BAD,
-    GLEEOK_BAD_LAYOUTS,
-    GOHMA_BAD_LAYOUTS,
-    LANMOLA_BAD_LAYOUTS,
-    RUPEE_STASH_BAD_LAYOUTS,
-)
-from zora.generate.shapes.world import blocks_of
-from zora.generate.steps.shuffle_dungeon_monsters import GANON_BAD_LAYOUTS
-from zora.model.enums import Enemy, Item, ItemPosition, RoomAction, RoomType
-from zora.model.levels import GANON_LIST, ZELDA_LIST, Level
-from zora.model.rooms import (
+from ...model.enums import Enemy, Item, ItemPosition, RoomAction, RoomType
+from ...model.levels import GANON_LIST, ZELDA_LIST, Level
+from ...model.rooms import (
     DIAMOND_STAIRS_PUSH,
     NO_ITEM_CODE,
     SPIRAL_STAIRS_PUSH,
@@ -40,6 +28,18 @@ from zora.model.rooms import (
     Room,
     SecretInfo,
 )
+from ..rng import IntRng, discard
+from ..shapes.tables import (
+    BLADE_TRAP_BAD_LAYOUTS,
+    DODONGO_BAD_LAYOUTS,
+    GLEEOK4_EXTRA_BAD,
+    GLEEOK_BAD_LAYOUTS,
+    GOHMA_BAD_LAYOUTS,
+    LANMOLA_BAD_LAYOUTS,
+    RUPEE_STASH_BAD_LAYOUTS,
+)
+from ..shapes.world import blocks_of
+from .shuffle_dungeon_monsters import GANON_BAD_LAYOUTS
 
 # --- PS-XCHG-01: the pool ---------------------------------------------------------
 

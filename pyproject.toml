@@ -28,7 +28,9 @@ site = ["python-minifier==3.4.0"]
 version = {attr = "zora.version.ZORA_VERSION"}
 
 [tool.setuptools.packages.find]
-include = ["zora*"]
+# zora/ (generation only, what Archipelago ships) and its siblings, which the page needs:
+# the seed report (zora_export), measurement (zora_measure) and the worker's front door (zora_web).
+include = ["zora", "zora.*", "zora_export*", "zora_measure*", "zora_web*"]
 
 [tool.setuptools.package-data]
 # The hint pool's wording (zora/generate/steps/hint_text.py) and the owner's flag
@@ -41,10 +43,11 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # The flag-combination suites are slow; run them in parallel with `pytest -m slow -n auto`.
 addopts = "-m 'not slow'"
-markers = ["slow: flag-combination suites and the cross-version check (tests/test_flag_invariants.py, tests/test_cross_version.py)"]
+markers = ["slow: flag-combination suites, many-seed and exhaustive sweeps, and the cross-version check (tests/test_flag_invariants.py, tests/test_cross_version.py)"]
 
 [tool.mypy]
-files = ["zora", "tests", "scripts/compare_corpus.py", "scripts/metrics.py", "scripts/output_hash.py",
+files = ["zora", "zora_export", "zora_measure", "zora_web", "tests", "scripts/check_imports.py",
+         "scripts/compare_corpus.py", "scripts/metrics.py", "scripts/output_hash.py",
          "scripts/flag_names.py"]
 python_version = "3.11"
 strict = true
@@ -67,7 +70,7 @@ disallow_untyped_calls = false
 disallow_any_generics = false
 
 # Ruff: Archipelago's ruff.toml copied exactly (Archipelago commit 54803be0; its style guide is
-# docs/style.md there; notes in docs/style-archipelago.md). scripts/verify.sh runs `ruff check zora`.
+# docs/style.md there; notes in docs/style-archipelago.md). scripts/verify.sh runs it on zora/ and its siblings.
 [tool.ruff]
 line-length = 120
 indent-width = 4

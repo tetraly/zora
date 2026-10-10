@@ -1,8 +1,13 @@
 """Cross-version reproducibility (slow): the same seeds must give
 byte-identical ROMs on every CPython found locally, and under different
-hash seeds. Each interpreter runs scripts/output_hash.py (seeds 0..N-1,
-post-shapes passes on and off) and writes per-seed SHA-1s; any difference
-fails. The Pyodide half of the check is manual: docs/packaging.md.
+hash seeds. Each interpreter hashes seeds 0..N-1 with scripts/output_hash.py's
+seed_hash (post-shapes passes on and off; tests/cross_version_hashes.py) and
+writes per-seed SHA-1s; any difference fails. The Pyodide half of the check
+is manual: docs/packaging.md.
+
+The runs go in chunks of seeds, PROCESSES at a time, rather than through
+output_hash.py's own pool of one process per core for each interpreter in
+turn: beside the xdist workers that pool would oversubscribe the machine.
 
 Interpreters: python3.11 / python3.12 / python3.13 / python3.14 on PATH, every pyenv
 version, and the paths in ZORA_PYTHONS (colon-separated). Duplicates of the
@@ -13,6 +18,7 @@ import os
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -22,11 +28,13 @@ from zora.rom.base_rom import BASE_ROM_PATH
 pytestmark = pytest.mark.slow
 
 REPO = Path(__file__).resolve().parent.parent
-OUTPUT_HASH = REPO / "scripts" / "output_hash.py"
+CHUNK_HASHES = REPO / "tests" / "cross_version_hashes.py"
 SCRATCH = REPO / "temp" / "cross_version"
 SEEDS = 50
 MINORS = ("3.11", "3.12", "3.13", "3.14")
 HASH_SEEDS = ("0", "12345")
+PROCESSES = 4                        # interpreter runs at once, beside the xdist workers
+CHUNK = 10                           # seeds per run
 
 
 def _version(python: str) -> str | None:
@@ -58,12 +66,26 @@ def interpreters() -> dict[str, str]:
     return found
 
 
-def _hashes(python: str, label: str, hash_seed: str) -> dict[str, list[str]]:
-    out = SCRATCH / f"{label}-h{hash_seed}.json"
+def _chunk(python: str, label: str, hash_seed: str, first: int) -> dict[str, list[str]]:
+    end = min(first + CHUNK, SEEDS)
+    out = SCRATCH / f"{label}-h{hash_seed}-{first}.json"
     env = {**os.environ, "PYTHONHASHSEED": hash_seed, "ZORA_CODE_DIR": str(REPO)}
-    subprocess.run([python, str(OUTPUT_HASH), "--seeds", str(SEEDS), "--json", str(out)],
+    subprocess.run([python, str(CHUNK_HASHES), str(first), str(end), str(out)],
                    cwd=REPO, env=env, check=True, capture_output=True, timeout=1800)
     hashes: dict[str, list[str]] = json.loads(out.read_text())
+    return hashes
+
+
+def _all_hashes(runs: dict[str, tuple[str, str, str]]) -> dict[str, dict[str, list[str]]]:
+    """Run label -> mode -> per-seed hashes, for runs given as label -> (interpreter, its
+    version label, hash seed); each run's seeds in chunks, PROCESSES chunks at a time."""
+    jobs = [(name, first) for name in runs for first in range(0, SEEDS, CHUNK)]
+    with ThreadPoolExecutor(PROCESSES) as pool:
+        chunks = list(pool.map(lambda job: _chunk(*runs[job[0]], job[1]), jobs))
+    hashes: dict[str, dict[str, list[str]]] = {name: {} for name in runs}
+    for (name, _), chunk in zip(jobs, chunks, strict=True):
+        for mode, per_seed in chunk.items():
+            hashes[name].setdefault(mode, []).extend(per_seed)
     return hashes
 
 
@@ -72,11 +94,11 @@ def test_outputs_identical_across_interpreters_and_hash_seeds() -> None:
         pytest.skip("vanilla ROM missing")
     SCRATCH.mkdir(parents=True, exist_ok=True)
     found = interpreters()
-    runs: dict[str, dict[str, list[str]]] = {}
-    for version, python in sorted(found.items()):
-        runs[f"{version} h{HASH_SEEDS[0]}"] = _hashes(python, version, HASH_SEEDS[0])
+    wanted = {f"{version} h{HASH_SEEDS[0]}": (python, version, HASH_SEEDS[0])
+              for version, python in sorted(found.items())}
     running = sys.version.split()[0]
-    runs[f"{running} h{HASH_SEEDS[1]}"] = _hashes(sys.executable, running, HASH_SEEDS[1])
+    wanted[f"{running} h{HASH_SEEDS[1]}"] = (sys.executable, running, HASH_SEEDS[1])
+    runs = _all_hashes(wanted)
     reference_label, reference = next(iter(runs.items()))
     for label, hashes in runs.items():
         for mode, per_seed in reference.items():

@@ -22,8 +22,8 @@ from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from zora.rom.vanilla_overworld.layouts import read_layout, square_tiles
-from zora.rom.vanilla_overworld.tables import ATTRIBUTE_TABLE_SIZE, LEVEL_BLOCK_OW, SCREEN_COUNT
+from .layouts import read_layout, square_tiles
+from .tables import ATTRIBUTE_TABLE_SIZE, LEVEL_BLOCK_OW, SCREEN_COUNT
 
 FIRST_UNWALKABLE_TILE = 0x89          # ObjectFirstUnwalkableTile on the overworld
 WALKABLE_TILES = frozenset({0x8D, 0x91, 0x9C, 0xAC, 0xAD, 0xCC, 0xD2, 0xD5, 0xDF})   # WalkableTiles

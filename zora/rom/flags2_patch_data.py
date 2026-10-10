@@ -6,7 +6,7 @@ patches (asm/series.txt); each patch stands alone. A piece is ZORA's own bytes
 or an Original (source, length): the original game's bytes, read from the
 player's ROM when written (never stored here). Not wired into the serializer.
 """
-from zora.rom.base_rom import Original, Piece
+from .base_rom import Original, Piece
 
 # Community members who wrote a feature (docs/credits.md).
 CREDITS: dict[str, str] = {
@@ -56,8 +56,8 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x17208, bytes.fromhex("18")),
     ),
     "recorder-pols-voice": (
-        (0x11BB2, bytes.fromhex("2000b5ea")),
-        (0x13510, bytes.fromhex("ad1b05f00ebd85048507a901850920547c686860")),
+        (0x11BB2, bytes.fromhex("2000baea")),
+        (0x13A10, bytes.fromhex("ad1b05f00ebd85048507a901850920547c686860")),
     ),
     "four-potions": (
         (0x06C70, bytes.fromhex("05")),

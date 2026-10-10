@@ -16,20 +16,21 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "a4023008b9bee63d7706d014bd2204293f20e0be901d8503a402300da501f009a9009d3004a93f8503"
                                 "bd220429c005039d2204ca10ca68aaad130460200c73204bbe300eb9bee63d41bef0061d77069d7706"
                                 "60")),
-        (0x07EF0, bytes.fromhex("ac40bed00218608500c91fb03de91cc902902aa400b9a4728501b9c87238e920c910b02649ff386500"
-                                "a40138795706a8b9a47245018501f00188983860ad75068501ad740618691d3860a5001860")),
+        (0x07EF0, bytes.fromhex("ac40bed00218608500c91fb047e91cc9029034a400b9a4728501b9c87238e920c910b03049ff386500"
+                                "a40138795706a8a9008500b9a472c501f00588e600d0f4a5008501983860ad75068501ad740618691d"
+                                "3860a5001860")),
     ),
     "fp-prog-02": (
-        (0x10D06, bytes.fromhex("20c7b4eaea")),
-        (0x13490, bytes.fromhex("8500c91fb03de91cc902902aa400b9a4728501b9c87238e920c910b02649ff386500a40138795706a8"
-                                "b9a47245018501f00188983860ad75068501ad740618691d3860a5001860a8a50148a50048982080b4"
-                                "85ab6885006885014c1473")),
-        (0x17864, bytes.fromhex("2087baeaea")),
-        (0x1789B, bytes.fromhex("20a7baea")),
-        (0x17A50, bytes.fromhex("8500c91fb03de91cc902902aa400b9a4728501b9c87238e920c910b02649ff386500a40138795706a8"
-                                "b9a47245018501f00188983860ad75068501ad740618691d3860a5001860cd4fb8f015a8a50148a500"
-                                "48982040baa868850068850198a4eb85abb9fe6a60a8a50148a50048982040ba85ab688500688501a9"
-                                "c060")),
+        (0x10D06, bytes.fromhex("2051b9eaea")),
+        (0x13910, bytes.fromhex("8500c91fb047e91cc9029034a400b9a4728501b9c87238e920c910b03049ff386500a40138795706a8"
+                                "a9008500b9a472c501f00588e600d0f4a5008501983860ad75068501ad740618691d3860a5001860a8"
+                                "a50148a50048982000b985ab6885006885014c1473")),
+        (0x17864, bytes.fromhex("2051bbeaea")),
+        (0x1789B, bytes.fromhex("2071bbea")),
+        (0x17B10, bytes.fromhex("8500c91fb047e91cc9029034a400b9a4728501b9c87238e920c910b03049ff386500a40138795706a8"
+                                "a9008500b9a472c501f00588e600d0f4a5008501983860ad75068501ad740618691d3860a5001860cd"
+                                "4fb8f015a8a50148a50048982000bba868850068850198a4eb85abb9fe6a60a8a50148a50048982000"
+                                "bb85ab688500688501a9c060")),
     ),
 }
 
@@ -41,9 +42,9 @@ SYMBOLS: dict[str, int] = {
 
 # ResolveProgressive's shared body in each bank: (first file offset, end), end exclusive.
 RESOLVE_COPIES: dict[int, tuple[int, int]] = {
-    1: (0x07EF7, 0x07F3E),
-    4: (0x13490, 0x134D7),
-    5: (0x17A50, 0x17A97),
+    1: (0x07EF7, 0x07F48),
+    4: (0x13910, 0x13961),
+    5: (0x17B10, 0x17B61),
 }
 
 # The operand bank 5's room hook reads as the "no item" code (CreateRoomObjects + 21).

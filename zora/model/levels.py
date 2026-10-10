@@ -2,8 +2,8 @@
 
 from dataclasses import dataclass, field
 
-from zora.model.enums import BossSpriteSet, Direction, Enemy, EnemySpriteSet
-from zora.model.rooms import MONSTER_BIT_CODE, PALETTE_SELECTOR_MASK, Room, StaircaseRoom
+from .enums import BossSpriteSet, Direction, Enemy, EnemySpriteSet
+from .rooms import MONSTER_BIT_CODE, PALETTE_SELECTOR_MASK, Room, StaircaseRoom
 
 # --- Levels and the monster codes the passes name -----------------------------
 LEVEL_9 = 9

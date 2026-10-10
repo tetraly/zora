@@ -2,9 +2,10 @@
 
 ROM patches for the owner's ZORA 2.0 flags (docs/design/zora-flags-2.0.md), one folder each,
 in asm/'s format (asm/README.md) plus data edits for the overworld's screen layouts, which the
-pinned disassembly includes as a binary. They are not wired: no flag writes them yet, and
-ZORA's output does not change. `build.py` applies each one on its own on top of asm/series.txt
-and writes `flags2_data.py`; the flags' generator steps (pools, logic, hints) are separate work.
+pinned disassembly includes as a binary. The version-3 ZORA flags write them
+(zora/rom/owner_patches.py, from zora/rom/flags2_patch_data.py, a verbatim copy of
+`flags2_data.py`). `build.py` applies each one on its own on top of asm/series.txt and writes
+`flags2_data.py`.
 
 | Patch | Flag (document section) | Sites (headered file offsets) |
 |---|---|---|
@@ -14,7 +15,7 @@ and writes `flags2_data.py`; the flags' generator steps (pools, logic, hints) ar
 | `bracelet-blocks` | Extra Power Bracelet Blocks (4) | 10 bytes of RoomLayoutsOW: layouts 18, 19, 34, 50 (screens $13, $14, $23, $33) |
 | `fast-dungeon-scroll` | Speed Up Dungeon Transitions (5) | 0x141F3, 0x1426B, 0x1446B, 0x14478, 0x144AD (2 bytes each) |
 | `fast-heart-fill` | Speed Up Heart Fill (6), credit snarfblam | 0x17203 and 0x17208 (1 byte each): World_FillHearts' threshold and step |
-| `recorder-pols-voice` | Recorder Kills Dungeon Pols Voice (7), credit Stratoform | 0x11BB2 (4 bytes): the call in UpdatePolsVoice; bank 4 $B500-$B513 (0x13510, 20 bytes): `KillPolsVoiceAfterRecorder` |
+| `recorder-pols-voice` | Recorder Kills Dungeon Pols Voice (7), credit Stratoform | 0x11BB2 (4 bytes): the call in UpdatePolsVoice; bank 4 $BA00-$BA13 (0x13A10, 20 bytes): `KillPolsVoiceAfterRecorder` |
 | `four-potions` | Four Potion Inventory (8) | 0x6C70 and 0x6C74 (1 byte each) |
 | `auto-show-letter` | Auto Show Letter (9) | 0x4708 (13 bytes) |
 | `like-like-rupees` | Like-Like Eats Rupees (10) | 0x11D45 and 0x11D47 (1 byte each) |
@@ -26,11 +27,11 @@ RoomLayoutsOW is bank 5 $9418, file 0x15428-0x15BB7: 16 column descriptors per l
 layout may serve several screens (layout 10 serves $0B and $3C). The maze sequences
 (ForestMazeDirs 0x6DA7, MountainMazeDirs 0x6DAB) are per-seed data for the generator.
 
-Free space (docs/rom-map.md gets the rows when the patches are wired):
+Free space (docs/rom-map.md has the rows):
 
 | Segment | Bank | Slot | Used |
 |---|---|---|---|
-| `ZORA_F2_POLS_VOICE` (recorder-pols-voice) | 4 | $B500-$B53F, after fp-prog-02's Armos routine and before the overworld Wizzrobe routine ($BF00) | 20 bytes |
+| `ZORA_F2_POLS_VOICE` (recorder-pols-voice) | 4 | $BA00-$BA3F, after fp-prog-02's Armos slot and before the overworld Wizzrobe routine ($BF00); was $B500 up to 2.0 beta 1, moved off z1rr-coop's reserved $B46F-$B882 | 20 bytes |
 | `ZORA_F2_L4_TAKE_FIXED` (l4-sword-take) | 7 | $FF43-$FF4F, bank 7's last free gap | 10 of 13 bytes |
 | `ZORA_F2_L4_TAKE` (l4-sword-take) | 1 | $BFC0-$BFDF, between the ISR copy's code and its vectors | 15 bytes |
 

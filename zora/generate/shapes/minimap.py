@@ -18,7 +18,7 @@ Full synthesis from the level's cells, per the spec's SH-MAP-01 format
 Stair/freed cells are excluded (rooms only). Width must be ≤ 8 (validated
 upstream; SPEC-GAP 28: inferred from the eight-column display).
 """
-from zora.generate.shapes.world import SetWorld
+from .world import SetWorld
 
 COMMAND_BLOCK_SIZE = 45          # LevelInfo +$4F..+$7B
 COMMANDS_END = 0xFF              # the terminator the generator writes

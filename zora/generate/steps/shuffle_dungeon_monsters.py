@@ -3,10 +3,13 @@ re-deal, which writes the room lists into the rooms."""
 
 from dataclasses import dataclass
 
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import IntRng
-from zora.generate.shapes.enemies import LANMOLA_VALUES, RUPEE_VALUE, TRAP_LISTS
-from zora.generate.shapes.tables import (
+from ...model.enums import BossSound, Enemy, ItemPosition, RoomAction, RoomType, Side
+from ...model.levels import GANON_ITEM_BYTE, GANON_LIST, ZELDA_LIST, Level, LevelBlock
+from ...model.rooms import EnemyInfo, ItemInfo, RoomPlace, SecretInfo
+from ..errors import GenerationFailure
+from ..rng import IntRng
+from ..shapes.enemies import LANMOLA_VALUES, RUPEE_VALUE, TRAP_LISTS
+from ..shapes.tables import (
     BLADE_TRAP_BAD_LAYOUTS,
     DODONGO_BAD_LAYOUTS,
     GLEEOK4_EXTRA_BAD,
@@ -15,17 +18,14 @@ from zora.generate.shapes.tables import (
     LANMOLA_BAD_LAYOUTS,
     RUPEE_STASH_BAD_LAYOUTS,
 )
-from zora.generate.shapes.world import BOSS_CODES, D_BOMB, D_SHUTTER, D_WALL, GRID_COLS, set_side, side_of
-from zora.generate.steps.monster_lists import (
+from ..shapes.world import BOSS_CODES, D_BOMB, D_SHUTTER, D_WALL, GRID_COLS, set_side, side_of
+from .monster_lists import (
     MonsterShuffleResult,
     RoomLists,
     _byte,
     _has_monster_bit,
     _low_six,
 )
-from zora.model.enums import BossSound, Enemy, ItemPosition, RoomAction, RoomType, Side
-from zora.model.levels import GANON_ITEM_BYTE, GANON_LIST, ZELDA_LIST, Level, LevelBlock
-from zora.model.rooms import EnemyInfo, ItemInfo, RoomPlace, SecretInfo
 
 # --- PS-MONRD ------------------------------------------------------------------
 

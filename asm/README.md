@@ -40,6 +40,8 @@ asm/
     build.py              builds asm/progressive/progressive_data.py
   flags2/                 the ZORA 2.0 flag patches, not wired (asm/flags2/README.md)
     build.py              builds asm/flags2/flags2_data.py
+  asnb/                   All Swords No Boards' ROM side, not wired (asm/asnb/README.md)
+    build.py              builds asm/asnb/asnb_data.py
 ```
 
 `scripts/asm_patches.py` builds the series into `zora/rom/code_patch_data.py`.
@@ -131,6 +133,7 @@ python3 scripts/asm_patches.py locate Z_05.asm 7514   # a source line's file off
 python3 asm/settings/build.py build|check|edit CHOICE|refresh CHOICE
 python3 asm/progressive/build.py build|check
 python3 asm/flags2/build.py build|check|edit NAME|refresh NAME
+python3 asm/asnb/build.py build|check|edit NAME|refresh NAME
 ```
 
 To change a patch, edit its folder, run `build`, and run the tests. `edit` writes the

@@ -1,5 +1,5 @@
-"""The seed document (zora/export/seed_document.py) and the spoiler log built from it
-(zora/export/spoiler_log.py): the visualizer's schema, the "no ROM change" rule (FP-SPOIL-01),
+"""The seed document (zora_export/seed_document.py) and the spoiler log built from it
+(zora_export/spoiler_log.py): the visualizer's schema, the "no ROM change" rule (FP-SPOIL-01),
 the refusal for encoded seeds, the log's layout, and a cross-check against the z1r-visualizer's
 own reading of the same ROMs (skipped without ../z1r-visualizer)."""
 import json
@@ -10,9 +10,9 @@ from typing import Any
 import pytest
 
 from tests import visualizer_crosscheck
-from zora.api import seed_report
-from zora.export.seed_document import EncodedSeedRefused, seed_document, seed_document_for
-from zora.export.spoiler_log import MAJOR_ITEMS, WIDTH, spoiler_file_name, spoiler_log
+from zora_web.api import seed_report
+from zora_export.seed_document import EncodedSeedRefused, seed_document, seed_document_for
+from zora_export.spoiler_log import MAJOR_ITEMS, WIDTH, spoiler_file_name, spoiler_log
 from zora.flags.codec import decode, encode
 from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF
@@ -172,7 +172,7 @@ def test_the_log_fits_80_columns_and_lists_what_the_document_holds(flags: str, z
     doc = document(flags, 1, zora)
     log = spoiler_log(doc)
     assert all(len(line) <= WIDTH for line in log.splitlines())
-    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 1"
+    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 2"
     words = " ".join(log.split())          # wrapping may break a line anywhere between words
     assert f"Seed: {doc['seed']['number']}" in log and doc["seed"]["flags"] in log
     for cave in doc["caves"]:

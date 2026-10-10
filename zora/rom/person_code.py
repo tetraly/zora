@@ -4,9 +4,9 @@ change, decoded into GameWorld fields and encoded back. Data layer: this module 
 the only place these byte patterns live. Headered file offsets; aldonunez
 labels where the pinned disassembly has one.
 """
-from zora.model.enums import TollOption, UnderworldPersonInit
-from zora.model.rooms import LifeOrMoneyToll
-from zora.rom.layout import (
+from ..model.enums import TollOption, UnderworldPersonInit
+from ..model.rooms import LifeOrMoneyToll
+from .layout import (
     LIFE_OR_MONEY_COST_TEXT_ADDRESS,
     LIFE_OR_MONEY_ITEM_TYPES_ADDRESS,
     LIFE_OR_MONEY_PAYMENT_ADDRESS,
@@ -16,7 +16,7 @@ from zora.rom.layout import (
     TOLL_TEXT_POINTER,
     TOLL_TEXT_POINTER_ADDRESS,
 )
-from zora.rom.text_encoding import CHAR_TO_BYTE, QUOTE_END_BITS, QUOTE_LINE1_BIT
+from .text_encoding import CHAR_TO_BYTE, QUOTE_END_BITS, QUOTE_LINE1_BIT
 
 # --- UpdateUnderworldPerson_Full (PS-BOMB-03) --------------------------------
 BOMB_BRANCH_NOPS = bytes([0xEA, 0xEA])        # replaces the vanilla BCC $90 $08

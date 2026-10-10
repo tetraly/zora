@@ -4,7 +4,7 @@
 [[segment]]
 name = "ZORA_FP_ENTR_01"
 bank = 5
-start = 0xB900
+start = 0xBAC0              # after fp-prog-02's room slot; z1rr-coop reserves $B8F0-$B901 (docs/rom-map.md)
 
 [[hook]]
 name = "place-link"

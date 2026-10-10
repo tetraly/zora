@@ -196,7 +196,7 @@ def test_nothing_code_config_vanilla_is_default() -> None:
     assert tfop == [(9, 0x42)]
     # the whole-block check passes under both encodings (each ROM read with
     # its own config)
-    from zora.measure.checks import check_triforce_of_power
+    from zora_measure.checks import check_triforce_of_power
     assert check_triforce_of_power(gw2).passed
     assert check_triforce_of_power(parse_rom(rom)).passed
     # with the DEFAULT config that same ROM reads every $0E byte as the
@@ -210,7 +210,7 @@ def test_nothing_code_config_vanilla_is_default() -> None:
 def test_triforce_of_power_rule_units() -> None:
     """$0E is the TFoP only in a Ganon ($3E) room under ZORA_REMAP; a
     no-item room with trigger 7 is flagged; boss_sound round-trips."""
-    from zora.measure.checks import check_triforce_of_power
+    from zora_measure.checks import check_triforce_of_power
     from zora.model.enums import BossSound, Enemy, RoomAction
     from zora.rom.parse.levels import _parse_room
     ganon = _parse_room(0x42, 0, 0, 0x3E, 0x28, 0x8E, 0x03, nothing_code=0x0E)

@@ -5,29 +5,32 @@ item and map passes).  It composes 45 person-text slots, shuffles the dungeon
 hint pointers, writes the selector tables, and records everything the
 serializer needs for HintMode.CONSTERNATION.
 """
+import copy
 import re
 import textwrap
 from collections import Counter, defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import cache
+from typing import TypeVar
 
-from zora.generate.dungeon_walk import item_cellar, item_room, walk_level
-from zora.generate.rng import Rng
-from zora.generate.steps.assign_hints_for_hint_type import HintAssignmentResult
-from zora.generate.steps.change_sword_hearts import MAGICAL_SWORD_HEARTS, WHITE_SWORD_HEARTS
-from zora.generate.steps.item_shuffle_result import ItemShuffleResult
-from zora.generate.steps.person_appearances import person_appearance
-from zora.generate.steps.randomize_mazes import MAZE_HINT_PRICE
-from zora.model.enums import Destination, Enemy, Item, RoomAction
-from zora.model.game_world import GameWorld
-from zora.model.levels import Level
-from zora.model.overworld import HintShop, ItemCave, Quote, Screen
-from zora.model.rooms import Room
-from zora.rom.layout import CONSTERNATION_HINT_SLOTS, TOLL_TEXT_POINTER, cpu_address_in_bank1, place_hint_texts
-from zora.rom.text_encoding import CHAR_TO_BYTE, QUOTE_BLANK, QUOTE_END_BITS, QUOTE_LINE1_BIT, QUOTE_LINE2_BIT
+from ...model.enums import Destination, Enemy, Item, RoomAction
+from ...model.game_world import GameWorld
+from ...model.levels import Level
+from ...model.overworld import HintShop, ItemCave, Quote, Screen
+from ...model.rooms import Room
+from ...rom.layout import CONSTERNATION_HINT_SLOTS, TOLL_TEXT_POINTER, cpu_address_in_bank1, place_hint_texts
+from ...rom.text_encoding import CHAR_TO_BYTE, QUOTE_BLANK, QUOTE_END_BITS, QUOTE_LINE1_BIT, QUOTE_LINE2_BIT
+from ..dungeon_walk import item_cellar, item_room, walk_level
+from ..rng import Rng
+from .assign_hints_for_hint_type import HintAssignmentResult
+from .change_sword_hearts import MAGICAL_SWORD_HEARTS, WHITE_SWORD_HEARTS
+from .item_shuffle_result import ItemShuffleResult
+from .person_appearances import person_appearance
+from .randomize_mazes import MAZE_HINT_PRICE
 
 LINE_WIDTH = 24
+T = TypeVar("T")
 PAD_TILE = CHAR_TO_BYTE["~"]
 
 SLOT_COUNT = 45
@@ -187,7 +190,9 @@ def load_pool() -> tuple[PoolEntry, ...]:
     """The quotes of zora/generate/steps/hint_pool.txt in file order; refuses one it cannot
     show, an unknown class or note, and a repeated quote."""
     from importlib.resources import files
-    rows = files("zora.generate.steps").joinpath(POOL_FILE).read_text(encoding="utf-8").splitlines()
+    # This package by its own name, which is not "zora.generate.steps" when zora/ is copied in
+    # under another one (Archipelago, perhaps from a zip).
+    rows = files(__package__).joinpath(POOL_FILE).read_text(encoding="utf-8").splitlines()
     entries = tuple(_pool_entry(row) for row in rows if row and not row.startswith(POOL_COMMENT))
     repeated = [lines for lines, count in Counter(entry.lines for entry in entries).items() if count > 1]
     if repeated:
@@ -254,22 +259,45 @@ UPGRADE_LINES: dict[int, str] = {
 ARROW_LINE = frozenset(item for item, line in UPGRADE_LINES.items() if line == "ARROW")
 
 
+# Archipelago (docs/archipelago.md, owner decisions 2026-10-08): how hint text names a place
+# holding another player's item, never by the code the ROM shows there. The apostrophe is the
+# font's $2A tile, as in vanilla's "IT'S DANGEROUS TO GO ALONE!".
+FOREIGN_NAME = "ANOTHER PLAYER'S ITEM"
+
+
+def wrapped(line: str) -> list[str]:
+    """A text wrapped at the line width, in at most three lines."""
+    lines = textwrap.wrap(line, LINE_WIDTH)
+    assert len(lines) <= MAX_LINES, line
+    return lines
+
+
 @dataclass(frozen=True)
 class ItemNames:
     """How hint text names an item: by its own name (HT-HINT-01), or with Progressive Items on
-    an upgrade-line item by its line (PI-TEXT-01). The vanilla names give today's texts."""
+    an upgrade-line item by its line (PI-TEXT-01). The vanilla names give today's texts.
+    foreign_code (Archipelago's FINISH only; None in ZORA): the code another player's item is
+    written as; a place holding it is named FOREIGN_NAME, as noun and phrase alike."""
     progressive_items: bool = False
+    foreign_code: int | None = None
+
+    def is_foreign(self, code: int) -> bool:
+        return self.foreign_code is not None and code == self.foreign_code
 
     def _line(self, code: int) -> str | None:
         return UPGRADE_LINES.get(code) if self.progressive_items else None
 
     def label(self, code: int) -> str:
         """The item as a noun: SILVER ARROWS, or ARROW UPGRADE."""
+        if self.is_foreign(code):
+            return FOREIGN_NAME
         line = self._line(code)
         return item_name(code) if line is None else f"{line} UPGRADE"
 
     def phrase(self, code: int) -> str:
         """The item with its article: THE SILVER ARROWS, or AN ARROW UPGRADE."""
+        if self.is_foreign(code):
+            return FOREIGN_NAME
         line = self._line(code)
         if line is None:
             return f"THE {item_name(code)}"
@@ -277,16 +305,117 @@ class ItemNames:
 
     def fit(self, line: str, first: str, second: str) -> list[str]:
         """A text on one line, else on two (_fit). The progressive wording is wrapped at the
-        line width instead, in at most three lines."""
-        if not self.progressive_items:
-            return _fit(line, first, second)
-        lines = textwrap.wrap(line, LINE_WIDTH)
-        assert len(lines) <= 3, line
-        return lines
+        line width instead, in at most three lines; so is a two-line split that would not fit,
+        which only another player's item (foreign_code) makes."""
+        if self.progressive_items:
+            return wrapped(line)
+        if self.foreign_code is not None and max(len(first), len(second)) > LINE_WIDTH:
+            return wrapped(line)
+        return _fit(line, first, second)
 
 
 VANILLA_NAMES = ItemNames()
 PROGRESSIVE_NAMES = ItemNames(progressive_items=True)
+
+
+# -----------------------------------------------------------------------------
+# ZORA's hint wording (owner, 2026-10-09): the item-location and level-location hints. Which
+# hints appear and what they point to are HT-HINT-01's; only the words are ZORA's own (the spec
+# gives no reference text; HT-APP-A1 numbers the regions).
+# -----------------------------------------------------------------------------
+
+# An item-location hint: "THE <ITEM> <VERB> IN LEVEL-N.", by ZORA's item names (ITEM_NAMES), one
+# fixed verb per item, agreeing with the name in number (owner, 2026-10-09).
+ITEM_VERBS: dict[int, str] = {
+    Item.RAFT: "RESTS", Item.LADDER: "LIES", Item.BOW: "BIDES", Item.SILVER_ARROWS: "POINT",
+    Item.WOOD_ARROWS: "AWAIT", Item.RECORDER: "RESOUNDS", Item.WAND: "WAITS", Item.BOOK: "IS BOUND",
+    Item.BLUE_CANDLE: "FLICKERS", Item.RED_CANDLE: "SMOULDERS", Item.MAGICAL_KEY: "IS KEPT",
+    Item.POWER_BRACELET: "PERSISTS", Item.WOOD_BOOMERANG: "BECKONS", Item.MAGICAL_BOOMERANG: "WHIRLS",
+    Item.LETTER: "LINGERS", Item.WHITE_SWORD: "SHINES", Item.MAGICAL_SWORD: "SLUMBERS", Item.BLUE_RING: "BIDES",
+    Item.RED_RING: "RADIATES", Item.HEART_CONTAINER: "HIDES", Item.BAIT: "BECKONS",
+}
+# With Progressive Items on, an upgrade-line item is named by its line (PI-TEXT-01), with its
+# article: "A SWORD UPGRADE SLUMBERS".
+LINE_VERBS: dict[str, str] = {"SWORD": "SLUMBERS", "ARROW": "AWAITS", "CANDLE": "FLICKERS", "RING": "RADIATES",
+                              "BOOMERANG": "BECKONS"}
+FOREIGN_VERB = "AWAITS"                  # ANOTHER PLAYER'S ITEM AWAITS (no "THE")
+FALLBACK_VERB = "WAITS"                  # an item the owner's list does not name
+
+# A level-location hint: "LEVEL-N LIES <PHRASE>." by the region of the level's door screen.
+REGION_PHRASES: dict[int, str] = {
+    1: "HIGH IN DEATH MOUNTAIN", 2: "BY THE GRAVEYARD", 3: "IN THE DEAD WOODS", 4: "NEAR START",
+    5: "AROUND A LAKE", 6: "ALONG A RIVER", 7: "BY THE SHORE", 8: "HIDDEN IN A FOREST",
+    9: "UP IN THE LOST HILLS", 10: "IN THE DRY DESERT",
+}
+
+# The openers a reworded hint may start with, when it still fits the box with one more line. The
+# owner's ten, with "THAT" where it joins naturally. The font has no colon, so the two colon
+# forms end with a comma, and "TRAVELERS SPEAK OF" (which cannot take a full sentence) says
+# "TRAVELERS SAY THAT".
+OPENERS = (
+    "IT IS SAID THAT", "LEGEND TELLS THAT", "AN OLD TALE SAYS THAT", "I HAVE HEARD THAT",
+    "AN ELDER ONCE SAID THAT", "MARK MY WORDS,", "HEED THIS, YOUNG ONE,", "THE WIND WHISPERS THAT",
+    "THE STONES REMEMBER THAT", "TRAVELERS SAY THAT",
+)
+
+
+def item_location_sentence(code: int, level: int, names: ItemNames = VANILLA_NAMES) -> str:
+    """An item-location hint: the item, its verb, and its level."""
+    if names.is_foreign(code):
+        return f"{FOREIGN_NAME} {FOREIGN_VERB} IN LEVEL-{level}."
+    line = names._line(code)
+    if line is not None:
+        return f"{names.phrase(code)} {LINE_VERBS.get(line, FALLBACK_VERB)} IN LEVEL-{level}."
+    if code in ITEM_VERBS:
+        return f"THE {item_name(code)} {ITEM_VERBS[code]} IN LEVEL-{level}."
+    return f"{names.phrase(code)} {FALLBACK_VERB} IN LEVEL-{level}."
+
+
+def level_location_sentence(level: int, region: int) -> str:
+    """A level-location hint: the level and the region of its door screen."""
+    return f"LEVEL-{level} LIES {REGION_PHRASES[region]}."
+
+
+def region_phrase(region: int) -> str:
+    """A people hint's place: its region's phrase (region 0, no such screen, as before)."""
+    return REGION_PHRASES.get(region, f"IN REGION {region}")
+
+
+def hint_lines(sentence: str) -> list[str]:
+    """A sentence broken at word boundaries within the box's width, in at most three lines (a
+    hyphen never breaks a line: "LEVEL-3" stays whole)."""
+    lines = textwrap.wrap(sentence, LINE_WIDTH, break_on_hyphens=False)
+    assert len(lines) <= MAX_LINES, sentence
+    return lines
+
+
+def with_opener(opener: str, sentence: str) -> list[str] | None:
+    """The sentence with an opener before it, when the sentence alone leaves the box one more
+    line and both together still fit; else None."""
+    if len(hint_lines(sentence)) >= MAX_LINES:
+        return None
+    lines = textwrap.wrap(f"{opener} {sentence}", LINE_WIDTH, break_on_hyphens=False)
+    return lines if len(lines) <= MAX_LINES else None
+
+
+def add_openers(final_texts: list[list[str]], overlay_flags: list[bool], sentences: list[str | None],
+                rng: Rng) -> None:
+    """Openers for the reworded hints that are shown, in slot order: the openers in an order drawn
+    from `rng` (a copy of the hint step's stream, so no other draw moves), each used at most once;
+    a hint that cannot take one leaves it for the next, and hints past the tenth go without."""
+    openers = list(OPENERS)
+    for position in range(len(openers)):
+        other = position + rng.below(len(openers) - position)
+        openers[position], openers[other] = openers[other], openers[position]
+    for slot, sentence in enumerate(sentences):
+        if not openers:
+            return
+        if sentence is None or not overlay_flags[slot]:
+            continue
+        lines = with_opener(openers[0], sentence)
+        if lines is not None:
+            final_texts[slot] = lines
+            openers.pop(0)
 
 
 # HT-HINT-01: a fixed label per level 1-8, whichever boss the level holds.
@@ -369,7 +498,7 @@ def compass_family_name(monster_id: int, gw: GameWorld) -> str:
     if monster_id >= FIRST_MIXED_LIST:
         # the shipped list (the group passes redraw it, PS-EGRP-04), read
         # through ObjListAddrs as the game does
-        from zora.generate.steps.shuffle_overworld_monsters import mixed_list
+        from .shuffle_overworld_monsters import mixed_list
         monster_id = next((member for member in mixed_list(gw, monster_id)
                            if member not in MIXED_LIST_SKIPPED), monster_id)
     for family_ids, name in COMPASS_FAMILIES:
@@ -396,7 +525,7 @@ REQUIREMENT_SLOTS = (24, 29, 38, 39, 40, 41, 42, 43, 26, 30)
 
 
 def _hidden_flag(screen: Screen) -> bool:
-    from zora.model.enums import QuestVisibility
+    from ...model.enums import QuestVisibility
     return screen.quest_visibility in (QuestVisibility.SECOND_QUEST, QuestVisibility.NEITHER_QUEST)
 
 
@@ -522,7 +651,7 @@ def sword_enters(place: ItemPlace) -> bool:
 
 def coast_item(gw: GameWorld) -> int:
     """The item given at the coast (the immediate operand at 0x1789A)."""
-    from zora.model.overworld import OverworldItem
+    from ...model.overworld import OverworldItem
     coast = gw.overworld.get_cave(Destination.COAST_ITEM, OverworldItem)
     assert coast is not None
     return int(coast.item)
@@ -588,9 +717,10 @@ def requirement_text(candidate: Requirement, names: ItemNames = VANILLA_NAMES) -
     item, phrase = names.label(candidate.item), names.phrase(candidate.item)
     if candidate.form == Form.BOSS:
         assert candidate.level is not None
-        label = BOSS_LABELS[candidate.level]
-        return names.fit(f"THE {label} HOLDS {phrase}", f"THE {label}", f"HOLDS {phrase}")
+        return hint_lines(item_location_sentence(candidate.item, candidate.level, names))
     means = candidate.form.upper()
+    if candidate.white_sword_cave and names.is_foreign(candidate.item):
+        return ["THE CAVE WITH", phrase, f"NEEDS THE {means}"]
     if candidate.white_sword_cave:
         return names.fit(f"THE {item} CAVE NEEDS THE {means}", f"THE {item} CAVE", f"NEEDS THE {means}")
     return names.fit(f"{phrase} NEEDS THE {means}", phrase, f"NEEDS THE {means}")
@@ -710,8 +840,8 @@ TEXT_PAD = "~"
 def magical_sword_cave_words() -> tuple[str, str]:
     """PRG0's magical-sword cave text up to its last word: the first line, and the second
     line without its last word. Read from the player's ROM, not stored here."""
-    from zora.rom.base_rom import player_rom
-    from zora.rom.parse.rom_file import parse_rom
+    from ...rom.base_rom import player_rom
+    from ...rom.parse.rom_file import parse_rom
     text = parse_rom(player_rom()).quotes[MAGICAL_SWORD_TEXT_SLOT].text
     first, second = (line.strip(TEXT_PAD) for line in text.split("|")[:2])
     return first, second.rsplit(" ", 1)[0]
@@ -719,7 +849,8 @@ def magical_sword_cave_words() -> tuple[str, str]:
 
 def magical_sword_cave_text(gw: GameWorld, names: ItemNames = VANILLA_NAMES) -> list[str]:
     """Randomize Magical Sword (ZORA; docs/zora-extras.md): the magical-sword cave's text names
-    the item the cave actually offers (its line with Progressive Items on, PI-TEXT-01)."""
+    the item the cave actually offers (its line with Progressive Items on, PI-TEXT-01; another
+    player's item by FOREIGN_NAME, on the third line likewise)."""
     cave = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
     assert cave is not None
     code = cave.item & ITEM_CODE_MASK
@@ -746,6 +877,13 @@ WHITE_SWORD_SELECTOR = 0x66
 HINT_SHOP_OFFER_SELECTORS = (0x18, 0x4E, 0x50, 0x52, 0x54, 0x56)
 
 
+def relocate(texts: list[T | None]) -> None:
+    """HT-HINT-02's relocation before the overlay: 38 -> 12, 19 -> 38, 19 emptied."""
+    texts[12] = texts[RELOCATED_TO_12]
+    texts[38] = texts[RELOCATED_TO_38]
+    texts[EMPTIED_SLOT] = None
+
+
 def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
                        rng: Rng, cave_text_for_magical_sword: list[str] | None = None,
                        names: ItemNames = VANILLA_NAMES,
@@ -757,13 +895,16 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     The random draws, in order: the hint-shop prices, the level-9 trio's
     dropped text, the requirement texts, the pool routing, and per slot the
     overlay coin and the pool pick."""
+    opener_rng = copy.deepcopy(rng)          # the openers' order, from a copy: no other draw moves
     hint_prices = draw_hint_shop_prices(gw, rng)
 
     # Owner ruling: slot 0 (the wood sword cave) shows only its own pool
     # quotes; HT-HINT-01's greeting (entry 0) and HT-TEXT-02's greeting
     # candidate are never written (docs/ui-provenance.md).
     slot_texts: list[list[str] | None] = [None] * SLOT_COUNT
-    write_level_location_texts(gw, slot_texts)
+    # the reworded hints' sentences (item and level location), for their openers
+    sentences: list[str | None] = [None] * SLOT_COUNT
+    write_level_location_texts(gw, slot_texts, sentences)
     write_person_name_texts(gw, slot_texts, names)
 
     trio = level9_trio_texts(gw, item_shuffle_result, names)
@@ -777,14 +918,17 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     # fewer than ten candidates fill fewer slots (draw_requirements takes at most ten)
     for slot, candidate in zip(REQUIREMENT_SLOTS, requirements, strict=False):
         slot_texts[slot] = requirement_text(candidate, names)
+        if candidate.form == Form.BOSS:
+            assert candidate.item is not None and candidate.level is not None
+            sentences[slot] = item_location_sentence(candidate.item, candidate.level, names)
 
-    # Relocation before overlay (HT-HINT-02).
-    slot_texts[12] = slot_texts[RELOCATED_TO_12]
-    slot_texts[38] = slot_texts[RELOCATED_TO_38]
-    slot_texts[EMPTIED_SLOT] = None
+    # Relocation before overlay (HT-HINT-02), the sentences with their texts.
+    relocate(slot_texts)
+    relocate(sentences)
 
     pool_candidates = route_pool_candidates(gw, rng, names)
     final_texts, overlay_flags = select_final_texts(slot_texts, pool_candidates, rng)
+    add_openers(final_texts, overlay_flags, sentences, opener_rng)
     if cave_text_for_magical_sword is not None:
         final_texts[MAGICAL_SWORD_TEXT_SLOT] = cave_text_for_magical_sword
 
@@ -871,22 +1015,15 @@ def draw_hint_shop_prices(gw: GameWorld, rng: Rng) -> list[int]:
     return hint_prices
 
 
-def _level_location_text(level: int, region: int) -> list[str]:
-    if level == 9:
-        return [f"REGION {region} IS THE", "ENTRANCE TO DEATH"]
-    boss = BOSS_LABELS.get(level, "BEAST")
-    line = f"THE {boss} IS IN REGION {region}"
-    if len(line) <= LINE_WIDTH:
-        return [line]
-    return [f"THE {boss} IS IN", f"REGION {region}"]
-
-
-def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None]) -> None:
-    """HT-HINT-01's level-location entries: each level's region (no draws)."""
+def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None],
+                               sentences: list[str | None]) -> None:
+    """HT-HINT-01's level-location entries: each level's region, in ZORA's wording (no draws)."""
     for level, slot in enumerate(LEVEL_LOCATION_SLOTS, start=1):
         screen = _door_screen(gw, level)
-        region = region_of_screen(screen) if screen is not None else 0
-        slot_texts[slot] = _level_location_text(level, region)
+        assert screen is not None, f"level {level} has no door screen"
+        sentence = level_location_sentence(level, region_of_screen(screen))
+        sentences[slot] = sentence
+        slot_texts[slot] = hint_lines(sentence)
 
 
 def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
@@ -903,7 +1040,7 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
                         if screen_info.destination == Destination.MAGICAL_SWORD_CAVE
                         and not _hidden_flag(screen_info)), None)
     meet_region = region_of_screen(meet_screen) if meet_screen is not None else 0
-    slot_texts[MEET_SLOT] = [f"MEET {person_name(*pair11)}", f"IN REGION {meet_region}"]
+    slot_texts[MEET_SLOT] = [f"MEET {person_name(*pair11)}", region_phrase(meet_region)]
 
     white_sword_cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
     white_sword_item = (names.phrase(white_sword_cave.item & ITEM_CODE_MASK) if white_sword_cave is not None
@@ -912,13 +1049,14 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
     white_sword_region = region_of_screen(white_sword_screen) if white_sword_screen is not None else 0
     # the same form speaks of the giver itself: "I HAVE", not "ME HAS"
     holder_text = "I HAVE" if name_form(*pair12) == SAME_FORM else f"{person_name(*pair12)} HAS"
-    line = f"{holder_text} {white_sword_item} IN REGION {white_sword_region}"
+    place = region_phrase(white_sword_region)
+    line = f"{holder_text} {white_sword_item} {place}"
     if len(line) <= LINE_WIDTH:
         slot_texts[HOLDER_SLOT] = [line]
     else:
-        second_line = f"{white_sword_item} IN REGION {white_sword_region}"
+        second_line = f"{white_sword_item} {place}"
         slot_texts[HOLDER_SLOT] = ([holder_text, second_line] if len(second_line) <= LINE_WIDTH
-                                   else [holder_text, white_sword_item, f"REGION {white_sword_region}"])
+                                   else [holder_text, white_sword_item, place])
 
 
 def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,

@@ -3,8 +3,8 @@ cave shuffle, the Armos shuffle and the recorder."""
 
 from dataclasses import dataclass
 
-from zora.model.enums import Destination
-from zora.model.overworld import Overworld
+from ...model.enums import Destination
+from ...model.overworld import Overworld
 
 # OW-APP-A1: the 72 enrolled screens, in list order (after OW-CAVE-02 step
 # 2's exchange put the wooden-sword screen 119 last and 123 in its place).

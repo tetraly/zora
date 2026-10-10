@@ -9,6 +9,7 @@ count. RAM names are the pinned disassembly's labels (src/Variables.inc).
 import hashlib
 import os
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import IntEnum, IntFlag
 from pathlib import Path
 
@@ -126,23 +127,43 @@ BLANK_TILE = 0x24
 REGISTER_END_CHOICE = 3
 
 
+@dataclass(frozen=True)
+class _Booted:
+    """A console just after new_game from power-on: its state, frame count and last frame."""
+    state: bytes
+    frames: int
+    last_frame: np.ndarray
+
+
+# new_game's result per ROM (SHA-1), in this process (tasks/test-speed-2.md): booting takes
+# about 300 frames, and many tests boot the same ROM. A reloaded state plays on exactly as the
+# console it was saved from (RAM, save RAM, the whole state and the screen, checked through
+# level entry), so a console that has done nothing yet loads the earlier boot instead.
+_BOOTED: dict[str, _Booted] = {}
+
+
 class Emulator:
     """One running console. `frames` counts the frames stepped so far."""
 
     def __init__(self, rom: bytes | Path) -> None:
-        self.nes = cynes.NES(str(_rom_file(rom)))
+        path = _rom_file(rom)
+        self.nes = cynes.NES(str(path))
+        self.rom_hash = hashlib.sha1(path.read_bytes()).hexdigest()
         self.frames = 0
         self.last_frame = np.zeros((SCREEN_HEIGHT, SCREEN_WIDTH, 3), dtype=np.uint8)
+        self.untouched = True                # no frame, write, load or reset since power-on
 
     def __getitem__(self, address: int) -> int:
         """CPU RAM byte."""
         return int(self.nes[address])
 
     def __setitem__(self, address: int, value: int) -> None:
+        self.untouched = False
         self.nes[address] = value
 
     def run(self, frames: int, buttons: Button = Button(0)) -> None:
         """Step `frames` frames holding `buttons`, then release them."""
+        self.untouched = False
         self.nes.controller = int(buttons)
         for _ in range(frames):
             self.last_frame = self.nes.step(1)
@@ -196,10 +217,12 @@ class Emulator:
         """Restore a state. The state holds RAM, save RAM and the CPU and
         PPU, not the ROM, so a state saved under one ROM loads under
         another (a save file carried across builds)."""
+        self.untouched = False
         self.nes.load(np.frombuffer(bytearray(state), dtype=np.uint8))
 
     def reset(self) -> None:
         """Press the console's reset button."""
+        self.untouched = False
         self.nes.reset()
 
     # Scripted menus
@@ -238,10 +261,20 @@ class Emulator:
         self.run_until(lambda: self.mode == Mode.PLAY)
 
     def new_game(self) -> None:
-        """Boot, register one file and start it."""
+        """Boot, register one file and start it; from power-on, a ROM this process has booted
+        before loads that boot (_BOOTED)."""
+        from_power_on = self.untouched and self.frames == 0
+        booted = _BOOTED.get(self.rom_hash) if from_power_on else None
+        if booted is not None:
+            self.load(booted.state)
+            self.frames = booted.frames
+            self.last_frame = booted.last_frame.copy()
+            return
         self.boot_to_file_select()
         self.register_file()
         self.start_game()
+        if from_power_on:
+            _BOOTED[self.rom_hash] = _Booted(self.save(), self.frames, self.last_frame.copy())
 
     def play_recorder(self, triforce_pieces: int) -> None:
         """Give Link the recorder and these triforce pieces (InvTriforce

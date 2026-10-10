@@ -56,7 +56,7 @@ you're welcome here.
 
 *It's dangerous to go alone. Take this.*
 
-## Known limitations (2.0 beta 1)
+## Known limitations (2.0 beta 2)
 
 - Some flag values are not made yet: the page shows them greyed out as "Not yet implemented".
 - "Encode level data" is not available in the public build.
@@ -78,5 +78,4 @@ features, fonts, the NES palette) is credited in `docs/credits.md`.
 
 ## Credits
 
-See `docs/credits.md`. In short: Speed Up Heart Fill is by snarfblam, and Recorder Kills Dungeon
-Pols Voice is by Stratoform.
+See `docs/credits.md` for details.

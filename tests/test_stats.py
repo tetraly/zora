@@ -1,10 +1,10 @@
-"""Tests for zora/measure/statistics.py on synthetic levels."""
+"""Tests for zora_measure/statistics.py on synthetic levels."""
 from zora.model.enums import (
     BossSpriteSet, Direction, Enemy, EnemySpriteSet, Item, RoomAction, RoomType, WallType,
 )
 from zora.model.rooms import EnemyInfo, ItemInfo, LayoutInfo, Room, SecretInfo, StaircaseRoom, WallSet
 from zora.model.levels import Level, LevelBlock
-from zora.measure.statistics import level_stats
+from zora_measure.statistics import level_stats
 
 W = WallType.SOLID_WALL
 O = WallType.OPEN_DOOR
@@ -104,7 +104,7 @@ def test_one_way_shutter() -> None:
 def test_grid_stats_membership_free() -> None:
     """grid_stats counts every cell of the block, owned by a level or not;
     door sides and pairs are counted over ordinary rooms only."""
-    from zora.measure.statistics import grid_stats
+    from zora_measure.statistics import grid_stats
     block = LevelBlock.blank()                     # all-wall rooms, item bombs
     entrance = block.room(0x00)
     entrance.walls = WallSet(north=W, east=WallType.SHUTTER_DOOR, south=O, west=W)
@@ -130,7 +130,7 @@ def test_grid_stats_membership_free() -> None:
 def test_grid_stats_trigger_tally() -> None:
     """Triggers: 0 → trigger_none, 1 → kill_all, 7 → kill_for_item,
     4 → push_door, 5 → push_stairs, 2/3/6 → other."""
-    from zora.measure.statistics import grid_stats
+    from zora_measure.statistics import grid_stats
     block = LevelBlock.blank()                     # blank rooms: trigger 1
     for room_num, act in enumerate([0, 1, 1, 2, 3, 4, 5, 6, 7, 7, 7]):
         block.room(room_num).room_action = RoomAction(act)

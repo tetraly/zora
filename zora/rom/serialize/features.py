@@ -1,8 +1,9 @@
 """The feature data: B10 constants, credits, the refusal text and the title."""
 
-from zora.model.game_world import GameWorld
-from zora.rom.heart_values import PRG0_START_HEART_VALUES, heart_values
-from zora.rom.layout import (
+from ...model.game_world import GameWorld
+from ...version import PLAYER_NAME
+from ..heart_values import PRG0_START_HEART_VALUES, heart_values
+from ..layout import (
     CREDITS_BLANK_TILE,
     CREDITS_FREE_SPACE_ADDRESS,
     CREDITS_LINE_12_INDEX,
@@ -24,10 +25,9 @@ from zora.rom.layout import (
     TITLE_SEED_ROW_ADDRESS,
     TITLE_VERSION_ROW_ADDRESS,
 )
-from zora.rom.serialize.patch import Patch
-from zora.rom.serialize.text import QUOTE_PAD_CHARS, _encode_quote
-from zora.rom.text_encoding import CHAR_TO_BYTE as _CHAR_TO_BYTE
-from zora.version import PLAYER_NAME
+from ..text_encoding import CHAR_TO_BYTE as _CHAR_TO_BYTE
+from .patch import Patch
+from .text import QUOTE_PAD_CHARS, _encode_quote
 
 # ---------------------------------------------------------------------------
 # B10 DATA serialization
@@ -70,7 +70,9 @@ def _serialize_credits(game_world: GameWorld, patch: Patch) -> None:
     # Write the three replacement records in bank-2 free space.
     base = CREDITS_FREE_SPACE_ADDRESS
     records = (
-        bytes([0x1E, 0x24]) + bytes([CREDITS_BLANK_TILE] * 30),  # line 12: col 36, length 30
+        # line 12: one blank tile at column 0, inside the 32-tile row (30 tiles from column 36
+        # overran DynTileBuf; docs/reports/ending-text.md); the slot keeps its 32 bytes
+        bytes([0x01, 0x00]) + bytes([CREDITS_BLANK_TILE] * 30),
         bytes([0x06, 0x0D]) + bytes([CREDITS_BLANK_TILE] * 6),   # line 13: col 13, length 6
         bytes([0x17, 0x04]) + bytes([CREDITS_BLANK_TILE] * 23),  # line 14: col 4, length 23
     )

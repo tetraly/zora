@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TypeVar
 
-from zora.model.enums import Destination, EnemySpriteSet, Item, OverworldDirection, QuestVisibility, ShopType
-from zora.model.rooms import EnemySpec
+from .enums import Destination, EnemySpriteSet, Item, OverworldDirection, QuestVisibility, ShopType
+from .rooms import EnemySpec
 
 T = TypeVar("T")
 
@@ -148,9 +148,23 @@ class Shop:
     shop_type: ShopType
     letter_requirement: bool
     items: list[ShopItem]  # 2 or 3 items (potion shop has 2)
-    # The potion shop's middle ware, empty in PRG0 (None): Add L4 Sword sells the fourth sword
-    # there (the owner's 2.0 flags).
+    # The potion shop's middle ware, empty in PRG0 (None): Shuffle Blue Potion's place (the
+    # owner's 2.0 flags), sold once.
     middle: ShopItem | None = None
+
+    def ware(self, position: int) -> ShopItem:
+        """The ware at its position (0-2) in the ware table: the potion shop's two sit at 0 and 2,
+        its middle ware (which must be set) at 1."""
+        if self.destination != Destination.POTION_SHOP:
+            return self.items[position]
+        if position == POTION_SHOP_MIDDLE:
+            assert self.middle is not None, "the potion shop's middle ware is empty"
+            return self.middle
+        return self.items[POTION_SHOP_WARES.index(position)]
+
+
+POTION_SHOP_WARES = (0, 2)      # the positions of the potion shop's `items` in the ware table
+POTION_SHOP_MIDDLE = 1          # its middle ware's position, between them
 
 @dataclass
 class HintShop:

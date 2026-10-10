@@ -1,16 +1,16 @@
 """Special rooms: triforce, people, Grumble, L9 entry person, Zelda/Ganon
 (SH-ROOM-01..06). SH-ROOM-07/08 affect the random tables and live in rooms.py.
 """
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.t5_positions import item_slots_for
-from zora.generate.shapes.tables import EXTRA_PERSON_5_7, L9_PERSON_LISTS, PERSON_LIST_DEFAULT, PERSON_ROOMS
-from zora.generate.shapes.world import GRID_COLS, GRID_ROWS, PERSON_ROOM_INNER, ZELDA_ROOM_INNER, CellPlan, SetWorld
-from zora.model import room_grid
-from zora.model.enums import Enemy, Item, RoomAction, RoomType
-from zora.model.levels import GANON_LIST, L9_ENTRY_PERSON, LEVEL_9, ZELDA_LIST
-from zora.model.rooms import NO_ITEM_CODE
+from ...model import room_grid
+from ...model.enums import Enemy, Item, RoomAction, RoomType
+from ...model.levels import GANON_LIST, L9_ENTRY_PERSON, LEVEL_9, ZELDA_LIST
+from ...model.rooms import NO_ITEM_CODE
+from ..errors import GenerationFailure
+from ..rng import Rng
+from .options import ShapeOptions
+from .t5_positions import item_slots_for
+from .tables import EXTRA_PERSON_5_7, L9_PERSON_LISTS, PERSON_LIST_DEFAULT, PERSON_ROOMS
+from .world import GRID_COLS, GRID_ROWS, PERSON_ROOM_INNER, ZELDA_ROOM_INNER, CellPlan, SetWorld
 
 
 def _pick(world: SetWorld, rng: Rng, blob: int, *, not_bottom: bool = False,

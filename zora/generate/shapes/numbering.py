@@ -11,13 +11,13 @@ SH-GRID-08 constraints honored in the free step: rows 0-5 only (never the
 bottom two rows), removal never splits the level. Restores happen LIFO by
 cell order (deterministic).
 """
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.world import GRID_COLS, GRID_ROWS, SetWorld
-from zora.model import room_grid
-from zora.model.enums import Side
-from zora.model.room_grid import neighbour
+from ...model import room_grid
+from ...model.enums import Side
+from ...model.room_grid import neighbour
+from ..errors import GenerationFailure
+from ..rng import Rng
+from .options import ShapeOptions
+from .world import GRID_COLS, GRID_ROWS, SetWorld
 
 
 def spatial_pieces(world: SetWorld, blob: int) -> list[list[int]]:
@@ -96,8 +96,8 @@ def number_with_frees(world: SetWorld, rng: Rng, opts: ShapeOptions) -> None:
         early[blob] = base + 1 + blob
         world.levels[blob] = early[blob]
 
-    from zora.generate.shapes.tables import CELLAR_ITEMS
-    cellars = sum(len(CELLAR_ITEMS.get(early[b], []))
+    from .tables import cellar_items
+    cellars = sum(len(cellar_items(early[b], opts.level_2_sword_cellar))
                   for b in range(world.blob_count))
     const = 2 if world.blob_count == 6 else 9
 

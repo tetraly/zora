@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import ClassVar
 
-from zora.model.enums import Enemy, EnemySpriteSet
+from .enums import Enemy, EnemySpriteSet
 
 TILE_BYTES = 16                 # one 8x8 pattern tile
 

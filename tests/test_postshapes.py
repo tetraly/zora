@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.game_config import GameConfig, HintMode
 from zora.model.enums import (
     BossSound, BossSpriteSet, Direction, Enemy, EnemySpriteSet, Item, RoomAction, RoomType, TollOption,
     WallType,
@@ -23,7 +24,12 @@ from zora.generate.steps.shuffle_bomb_upgrade_men import shuffle_bomb_upgrade_me
 from zora.generate.steps.shuffle_dungeon_drops import shuffle_dungeon_drops, snapshot_shapes
 from zora.generate.steps.shuffle_items import shuffle_items
 from zora.generate.steps.change_money_or_life_toll import change_money_or_life_toll
-from zora.measure.statistics import b1_checkpoint
+from zora_measure.statistics import b1_checkpoint
+
+
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 def _vanilla_rom() -> bytes:
@@ -40,7 +46,7 @@ def test_checkpoint_invariants_on_output() -> None:
     for seed in range(4):
         gw = parse_rom(rom)
         res = generate_shapes(gw, Rng(900 + seed), ShapeOptions())
-        out = serialize_to_rom(gw, rom)
+        out = serialize_to_rom(gw, rom, config=GENERATED_HINTS)
         cp = b1_checkpoint(parse_rom(out))
         assert cp.goriya == 1
         assert cp.ganon_8e == 1

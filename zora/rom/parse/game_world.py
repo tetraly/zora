@@ -51,12 +51,12 @@ MMG win/lose values: 5 independent patchable ROM locations.
 """
 from typing import Any
 
-from zora.model.game_world import GameWorld
-from zora.model.levels import Level, LevelBlock
-from zora.model.sprites import SpriteData
-from zora.rom import person_code
-from zora.rom.game_config import GameConfig
-from zora.rom.layout import (
+from ...model.game_world import GameWorld
+from ...model.levels import Level, LevelBlock
+from ...model.sprites import SpriteData
+from .. import person_code
+from ..game_config import GameConfig
+from ..layout import (
     BOSS_SET_EXPANSION_SPRITES_SIZE,
     DUNGEON_NOTHING_CODE,
     FIRST_MIXED_GROUP_CODE,
@@ -66,12 +66,12 @@ from zora.rom.layout import (
     QUOTE_DATA_ADDRESS,
     TOLL_TEXT_POINTER_ADDRESS,
 )
-from zora.rom.parse.bin_files import RawBinFiles
-from zora.rom.parse.enemies import _parse_enemy_hp, _parse_enemy_tile_data, _parse_mixed_enemy_groups
-from zora.rom.parse.features import _parse_b10_data
-from zora.rom.parse.levels import _parse_block, _parse_level
-from zora.rom.parse.overworld import _parse_overworld
-from zora.rom.parse.text import REFUSAL_SLOT, _parse_person_text, _slot_text
+from .bin_files import RawBinFiles
+from .enemies import _parse_enemy_hp, _parse_enemy_tile_data, _parse_mixed_enemy_groups
+from .features import _parse_b10_data
+from .levels import _parse_block, _parse_level
+from .overworld import _parse_overworld
+from .text import REFUSAL_SLOT, _parse_person_text, _slot_text
 
 # ---------------------------------------------------------------------------
 # Top-level parse

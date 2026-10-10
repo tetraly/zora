@@ -4,23 +4,23 @@ restarted attempt never reaches here, so the GameWorld keeps the base's values."
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from zora.generate.shapes.world import SetWorld
-from zora.generate.shapes.writeback import build_block, build_level
-from zora.generate.steps.assign_hints_for_hint_type import HintAssignmentResult
-from zora.generate.steps.cave_entries import OverworldResult
-from zora.generate.steps.change_enemy_hp import EnemyHpResult, apply_enemy_hp
-from zora.generate.steps.extra_pool_items import ExtraPoolItems, apply_extra_pool_items
-from zora.generate.steps.hint_text import HintTextResult
-from zora.generate.steps.item_shuffle_result import ItemShuffleResult
-from zora.generate.steps.monster_lists import MonsterShuffleResult
-from zora.generate.steps.shuffle_dungeon_palettes import DungeonPaletteResult, apply_dungeon_palettes
-from zora.generate.steps.shuffle_groups import GroupShuffleResult, apply_groups
-from zora.generate.steps.shuffle_hungry_goriya import GORIYA_TILE_INDEX
-from zora.generate.steps.shuffle_start_screen import StartScreen, apply_start_screen
-from zora.model.enums import BossSpriteSet, Destination, EnemySpriteSet, Item
-from zora.model.game_world import GameWorld
-from zora.model.levels import Level, LevelBlock
-from zora.model.overworld import HintShop, ItemCave, OverworldItem, Quote
+from ..model.enums import BossSpriteSet, Destination, EnemySpriteSet, Item
+from ..model.game_world import GameWorld
+from ..model.levels import Level, LevelBlock
+from ..model.overworld import HintShop, ItemCave, OverworldItem, Quote
+from .shapes.world import SetWorld
+from .shapes.writeback import build_block, build_level
+from .steps.assign_hints_for_hint_type import HintAssignmentResult
+from .steps.cave_entries import OverworldResult
+from .steps.change_enemy_hp import EnemyHpResult, apply_enemy_hp
+from .steps.extra_pool_items import ExtraPoolItems, apply_extra_pool_items
+from .steps.hint_text import HintTextResult
+from .steps.item_shuffle_result import ItemShuffleResult
+from .steps.monster_lists import MonsterShuffleResult
+from .steps.shuffle_dungeon_palettes import DungeonPaletteResult, apply_dungeon_palettes
+from .steps.shuffle_groups import GroupShuffleResult, apply_groups
+from .steps.shuffle_hungry_goriya import GORIYA_TILE_INDEX
+from .steps.shuffle_start_screen import StartScreen, apply_start_screen
 
 
 @dataclass
@@ -80,7 +80,7 @@ def _displayed_quotes(hint_text: HintTextResult) -> list[Quote]:
     order; hint_text.pointers permutes them. Build the inverse map so
     gw.quotes matches what parse_rom produces for the same ROM.
     """
-    from zora.rom.layout import CONSTERNATION_HINT_SLOTS, cpu_address_in_bank1, place_hint_texts
+    from ..rom.layout import CONSTERNATION_HINT_SLOTS, cpu_address_in_bank1, place_hint_texts
     offsets = place_hint_texts([len(body) for body in hint_text.text_bytes], CONSTERNATION_HINT_SLOTS)
     original_addresses = [cpu_address_in_bank1(offset) for offset in offsets]
     original_slot_of = {cpu_address: slot for slot, cpu_address in enumerate(original_addresses)}

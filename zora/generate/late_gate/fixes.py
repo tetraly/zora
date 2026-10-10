@@ -1,18 +1,26 @@
 """VA-REJ-03 steps 4-8 (the special-room fixes, placement, Zelda's room), level
 9's extras (VA-REJ-01.3) and the tail that runs once all levels are accepted."""
 
-from zora.generate.late_gate.blocks import (
-    GANON_ITEM,
-    LAST_BOSS_SECRET,
-    LEVELS_7_TO_9,
-    NO_ITEM,
-    GateBlock,
-    _clear_push_block,
-    _room_table,
-    _rooms,
-    _set_trigger,
+from ...model import room_grid
+from ...model.enums import BossSound, Enemy, Item, RoomAction, RoomType, Side, WallType
+from ...model.levels import (
+    GANON_LIST,
+    L9_ENTRY_PERSON,
+    L9_ENTRY_PERSON_LIST,
+    LEVEL_9,
+    ZELDA_LIST,
+    Level,
+    LevelBlock,
 )
-from zora.generate.shapes.world import (
+from ...model.rooms import (
+    DIAMOND_STAIRS_PUSH,
+    PUSH_BLOCK_VARIANT,
+    TURNSTILE_PUSH,
+    DoorPair,
+    Room,
+    StaircaseRoom,
+)
+from ..shapes.world import (
     D_BOMB,
     D_KEY1,
     D_KEY2,
@@ -25,24 +33,16 @@ from zora.generate.shapes.world import (
     side_of,
     sides_of,
 )
-from zora.model import room_grid
-from zora.model.enums import BossSound, Enemy, Item, RoomAction, RoomType, Side, WallType
-from zora.model.levels import (
-    GANON_LIST,
-    L9_ENTRY_PERSON,
-    L9_ENTRY_PERSON_LIST,
-    LEVEL_9,
-    ZELDA_LIST,
-    Level,
-    LevelBlock,
-)
-from zora.model.rooms import (
-    DIAMOND_STAIRS_PUSH,
-    PUSH_BLOCK_VARIANT,
-    TURNSTILE_PUSH,
-    DoorPair,
-    Room,
-    StaircaseRoom,
+from .blocks import (
+    GANON_ITEM,
+    LAST_BOSS_SECRET,
+    LEVELS_7_TO_9,
+    NO_ITEM,
+    GateBlock,
+    _clear_push_block,
+    _room_table,
+    _rooms,
+    _set_trigger,
 )
 
 # A43: the facing side's door-field bits in a room's A (0) / B (1) byte.
@@ -478,7 +478,7 @@ def _level9_extras(gate_block: GateBlock, level: Level) -> bool:
     and Ganon's room — the FIRST room in block order whose monster byte is
     $3E (trigger-byte bit 7 is always clear in this model) — is entered by
     the boss-alive walk from level 9's start."""
-    from zora.generate.late_gate.walk import is_ganon_reachable
+    from .walk import is_ganon_reachable
     block_rooms = gate_block.owned_rooms
     zelda_number = zelda_cell(block_rooms)
     if zelda_number is not None:

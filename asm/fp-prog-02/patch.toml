@@ -4,12 +4,12 @@
 [[segment]]
 name = "ZORA_FP_PROG_02_ARMOS"
 bank = 4
-start = 0xB480
+start = 0xB900              # after z1rr-coop's reserved $B46F-$B882 (docs/rom-map.md)
 
 [[segment]]
 name = "ZORA_FP_PROG_02_ROOM"
 bank = 5
-start = 0xBA40
+start = 0xBB00              # after fp-entr-01's slot; its old slot $BA40-$BABF was too small (docs/rom-map.md)
 
 [imports]
 bank_04 = ["ItemIdToDescriptor", "ItemIdToSlot"]

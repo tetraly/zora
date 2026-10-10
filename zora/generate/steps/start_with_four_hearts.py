@@ -1,6 +1,6 @@
 """Starting hearts 4 (C16 = 3; flags-behavior.md FL-ALT-02)."""
 
-from zora.model.game_world import GameWorld
+from ...model.game_world import GameWorld
 
 FOUR_HEART_CONTAINERS = 4
 # Quirk (FL-ALT-02): the full hearts stay three, so the fourth heart starts empty.

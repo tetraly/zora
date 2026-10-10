@@ -10,7 +10,7 @@
 [[segment]]
 name = "ZORA_F2_POLS_VOICE"
 bank = 4
-start = 0xB500              # bank 4 free space, after fp-prog-02's Armos routine (docs/rom-map.md)
+start = 0xBA00              # bank 4 free space, after fp-prog-02's Armos slot (docs/rom-map.md)
 
 [[hook]]
 name = "pols-voice-update"

@@ -1,9 +1,9 @@
 """Shuffle Bomb Upgrade Men (B29; PS-BOMB-01 to -03)."""
 
-from zora.generate.rng import IntRng, discard
-from zora.generate.steps.item_shuffle_result import ItemShuffleResult, LevelRoom, _level_rooms
-from zora.model.levels import LEVEL_9, Level
-from zora.model.rooms import PERSON_LISTS, EnemyInfo, Room
+from ...model.levels import LEVEL_9, Level
+from ...model.rooms import PERSON_LISTS, EnemyInfo, Room
+from ..rng import IntRng, discard
+from .item_shuffle_result import ItemShuffleResult, LevelRoom, _level_rooms
 
 LEADING_DISCARDS = 2           # the bomb-upgrade move and PS-MERCH-04 each start with two discarded draws
 

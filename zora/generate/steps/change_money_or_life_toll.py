@@ -1,10 +1,10 @@
 """Change "Leave your..." Rooms (B23; PS-MERCH-04): the life-or-money toll."""
 
-from zora.generate.rng import IntRng, discard
-from zora.generate.steps.item_shuffle_result import ItemShuffleResult
-from zora.generate.steps.shuffle_bomb_upgrade_men import LEADING_DISCARDS
-from zora.model.enums import TollOption
-from zora.model.rooms import LifeOrMoneyToll
+from ...model.enums import TollOption
+from ...model.rooms import LifeOrMoneyToll
+from ..rng import IntRng, discard
+from .item_shuffle_result import ItemShuffleResult
+from .shuffle_bomb_upgrade_men import LEADING_DISCARDS
 
 # PS-MERCH-02's draw order; ordering a pair by it puts life or max bombs first
 TOLL_OPTIONS = (TollOption.LIFE, TollOption.MAX_BOMBS, TollOption.KEYS, TollOption.MONEY)

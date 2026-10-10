@@ -8,11 +8,17 @@ from zora.model.game_world import GameWorld
 from zora.model.enums import Item, RoomType
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.parse.rom_file import load_rom, parse_rom
+from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.generate.generation_pass import generate_shapes
 from zora.generate.shapes.options import ShapeOptions
 from zora.rom.serialize.game_world import serialize_game_world
+
+
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 def _vanilla_rom() -> bytes:
@@ -24,13 +30,12 @@ def _vanilla_rom() -> bytes:
     return load_rom(cand)
 
 
-
 def test_generated_world_serializes_and_reparses() -> None:
     rom = _vanilla_rom()
     gw = parse_rom(rom)
     res = generate_shapes(gw, Rng(31), ShapeOptions())
     assert res.attempts >= 1
-    out = serialize_to_rom(gw, rom)
+    out = serialize_to_rom(gw, rom, config=GENERATED_HINTS)
     assert len(out) == len(rom)
     gw2 = parse_rom(out)
     # every level: entrance room has layout $21 and south side open
@@ -51,7 +56,7 @@ def test_generated_dungeons_are_connected() -> None:
     rom = _vanilla_rom()
     gw = parse_rom(rom)
     generate_shapes(gw, Rng(32), ShapeOptions())
-    out = serialize_to_rom(gw, rom)
+    out = serialize_to_rom(gw, rom, config=GENERATED_HINTS)
     gw2 = parse_rom(out)
     for lvl in gw2.levels:
         # Under reference numbering (free under early numbers, renumber once)
@@ -66,7 +71,7 @@ def test_determinism_end_to_end() -> None:
     for _ in range(2):
         gw = parse_rom(rom)
         generate_shapes(gw, Rng(33), ShapeOptions())
-        outs.append(serialize_to_rom(gw, rom))
+        outs.append(serialize_to_rom(gw, rom, config=GENERATED_HINTS))
     assert outs[0] == outs[1]
 
 
@@ -111,7 +116,7 @@ def test_items_use_t5_usable_positions() -> None:
 
 
 def test_minimap_check_in_suite_and_passes() -> None:
-    from zora.measure.checks import finished_rom_checks, run_checks
+    from zora_measure.checks import finished_rom_checks, run_checks
     checks = finished_rom_checks(post_shapes=False)
     assert any(c.__name__ == "check_minimap_synthesis" for c in checks)
     rom = _vanilla_rom()

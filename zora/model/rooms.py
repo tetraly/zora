@@ -4,7 +4,7 @@ their masks, and the records that name rooms and door pairs."""
 from dataclasses import dataclass, replace
 from typing import ClassVar, NamedTuple
 
-from zora.model.enums import (
+from .enums import (
     BossSound,
     Direction,
     Enemy,

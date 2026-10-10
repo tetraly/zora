@@ -2,18 +2,18 @@
 
 from pathlib import Path
 
-from zora.model.game_world import GameWorld
-from zora.rom.base_rom import remember_base_rom
-from zora.rom.game_config import GameConfig
-from zora.rom.layout import (
+from ...model.game_world import GameWorld
+from ..base_rom import remember_base_rom
+from ..game_config import GameConfig
+from ..layout import (
     LEVEL_1_6_DATA_ADDRESS,
     LEVEL_7_9_DATA_ADDRESS,
     LEVEL_INFO_ADDRESS,
     NES_HEADER_SIZE,
     OVERWORLD_DATA_ADDRESS,
 )
-from zora.rom.parse.bin_files import load_bin_files_from_rom
-from zora.rom.parse.game_world import parse_game_world
+from .bin_files import load_bin_files_from_rom
+from .game_world import parse_game_world
 
 # ---------------------------------------------------------------------------
 # ROM-level entry points

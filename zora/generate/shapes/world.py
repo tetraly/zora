@@ -10,10 +10,9 @@ sorted accessors below.
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from zora.generate.shapes.tables import LEVEL_BOSS_POOL
-from zora.model.enums import RoomAction, Side, WallType
-from zora.model.levels import Level, LevelBlock
-from zora.model.rooms import (
+from ...model.enums import RoomAction, Side, WallType
+from ...model.levels import Level, LevelBlock
+from ...model.rooms import (
     BOSS_SOUND_SHIFT,
     COUNT_INDEX_MASK,
     COUNT_INDEX_SHIFT,
@@ -28,6 +27,7 @@ from zora.model.rooms import (
     PUSH_BLOCK_VARIANT,
     Room,
 )
+from .tables import LEVEL_BOSS_POOL
 
 GRID_COLS = 16
 GRID_ROWS = 8

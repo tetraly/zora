@@ -2,20 +2,20 @@
 
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng, discard
-from zora.generate.shapes.tables import (
+from ...model.enums import Enemy
+from ...model.game_world import GameWorld
+from ...model.levels import LevelBlock
+from ...model.rooms import EnemyInfo
+from ...model.sprites import TILE_BYTES, PatternBlock
+from ..rng import IntRng, discard
+from ..shapes.tables import (
     DODONGO_BAD_LAYOUTS,
     GLEEOK4_EXTRA_BAD,
     GLEEOK_BAD_LAYOUTS,
     GOHMA_BAD_LAYOUTS,
 )
-from zora.generate.steps.group_banks import DISCARDED_DRAWS, GROUPS, OVERWORLD, E, SpriteObject, Staged
-from zora.generate.steps.shuffle_enemy_groups import _block_rooms, _renumber
-from zora.model.enums import Enemy
-from zora.model.game_world import GameWorld
-from zora.model.levels import LevelBlock
-from zora.model.rooms import EnemyInfo
-from zora.model.sprites import TILE_BYTES, PatternBlock
+from .group_banks import DISCARDED_DRAWS, GROUPS, OVERWORLD, E, SpriteObject, Staged
+from .shuffle_enemy_groups import _block_rooms, _renumber
 
 # --- PS-BGRP: bosses ----------------------------------------------------------
 

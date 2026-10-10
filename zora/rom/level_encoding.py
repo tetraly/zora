@@ -13,7 +13,7 @@ from __future__ import annotations
 import importlib
 from types import ModuleType
 
-from zora.rom.game_config import LevelEncodingKey
+from .game_config import LevelEncodingKey
 
 PRIVATE_MODULE = "private.level_encoding.encoder"
 

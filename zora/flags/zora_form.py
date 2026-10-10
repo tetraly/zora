@@ -12,10 +12,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from zora.flags.fields import Settings, ThreeState
-from zora.flags.zora_flags import (
+from .fields import Settings, ThreeState
+from .zora_flags import (
     HEARTS_CAP_CHOICES,
     OWNER_2_0_FIELDS,
+    L4Sword,
     ZoraFlags,
     ZoraFlagStringError,
     conflicts,
@@ -56,13 +57,9 @@ FIELDS: tuple[dict[str, Any], ...] = (
     # The owner's 2.0 flags (docs/design/zora-flags-2.0.md): each On / Off / ?, "?" decided per seed.
     *({"name": name, "kind": THREE_STATE_KIND, "label": label, "help": help_text} for name, label, help_text in (
         ("shuffle_blue_potion", "Shuffle Blue Potion",
-         "The potion shop's blue potion joins the shuffled major items, and the potion shop may sell any "
-         "major item in its place (never the letter, which opens the shop). With a needed item there, the "
-         "logic needs the letter too."),
-        ("add_l4_sword", "Add L4 Sword",
-         "Level 9 holds one more sword on the floor of one of its rooms. Picked up with the magical "
-         "sword, it gives sword level 4; picked up earlier, it is your next sword. Never needed to win. "
-         "Needs Progressive Items."),
+         "A blue potion joins the shuffled major items from the potion shop's middle slot, which sells "
+         "any major item once in its place (never the letter, which opens the shop). The shop's own blue "
+         "and red potions stay. With a needed item there, the logic needs the letter too."),
         ("extra_raft_blocks", "Extra Raft Blocks",
          "Six more cave screens near Westlake Mall and Casino Corner can only be reached by raft."),
         ("extra_power_bracelet_blocks", "Extra Power Bracelet Blocks",
@@ -92,13 +89,43 @@ FIELDS: tuple[dict[str, Any], ...] = (
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
+# All Swords No Boards (docs/design/asnb.md section 1). Add L4 Sword is one three-way control over
+# two encoded fields (the released three-state add_l4_sword and version 4's l4_sword_in_level_2),
+# placed where its old switch was; Level 9 Entrance follows it. Neither has a random option.
+L4_SWORD_FIELD = "add_l4_sword"
+LEVEL_9_ENTRANCE_FIELD = "level_9_entrance_sword"
+L4_SWORD_CHOICES = (L4Sword.OFF, L4Sword.LEVEL_2, L4Sword.LEVEL_9)        # control values 0, 1, 2
+L4_SWORD_HELP = (
+    "Off: no level-4 sword. Level 2: a new item staircase is added to level 2, holding one more sword "
+    "upgrade. That sword joins the item shuffle, so it can end up anywhere. Collect all four sword "
+    "upgrades, in any order, for a level-4 sword. Needs generated dungeon shapes. Level 9: one more sword "
+    "upgrade is added to level 9 as a floor item (a room item). Taken with the magical sword, it gives a "
+    "level-4 sword. Needs Progressive Items.")
+LEVEL_9_ENTRANCE_HELP = (
+    "Triforce pieces: the old man at level 9's entrance lets you in with the triforce pieces, as always. "
+    "Level 4 sword: level 9 opens for a level-4 sword only; no triforce pieces are needed. Needs Add L4 "
+    "Sword = Level 2 and the wooden sword in its cave.")
+_L4_SWORD_FIELDS = (
+    {"name": L4_SWORD_FIELD, "kind": "option", "label": "Add L4 Sword", "help": L4_SWORD_HELP,
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Level 2"}, {"value": 2, "label": "Level 9"}]},
+    {"name": LEVEL_9_ENTRANCE_FIELD, "kind": "option", "label": "Level 9 Entrance", "help": LEVEL_9_ENTRANCE_HELP,
+     "values": [{"value": 0, "label": "Triforce pieces"}, {"value": 1, "label": "Level 4 sword"}]},
+)
+_AFTER = FIELD_NAMES.index("shuffle_blue_potion") + 1
+FIELDS = (*FIELDS[:_AFTER], *_L4_SWORD_FIELDS, *FIELDS[_AFTER:])
+FIELD_NAMES = tuple(field["name"] for field in FIELDS)
+
 
 def zora_metadata() -> dict[str, Any]:
     return {"tab": TAB_NAME, "fields": list(FIELDS)}
 
 
-def _control_value(flags: ZoraFlags, name: str) -> int:
-    """A field as the page's control holds it: 0/1 for a switch, the option's index for the cap."""
+def control_value(flags: ZoraFlags, name: str) -> int:
+    """A field as the page's control holds it: 0/1 for a switch, the option's index for the cap
+    and for Add L4 Sword's three-way control (a released string's "?" there, which the control does
+    not offer, shows Off; the string itself keeps it until a control is changed)."""
+    if name == L4_SWORD_FIELD:
+        return L4_SWORD_CHOICES.index(flags.l4_sword)
     value = getattr(flags, name)
     if name == "magical_sword_hearts_highest":
         return 0 if value is None else HEARTS_CAP_CHOICES.index(value) + 1
@@ -125,7 +152,7 @@ def zora_state(zora_flag_string: str, z1r: Settings | None) -> dict[str, Any]:
     return {
         "ok": True,
         "flags": encode(flags),
-        "values": {name: _control_value(flags, name) for name in FIELD_NAMES},
+        "values": {name: control_value(flags, name) for name in FIELD_NAMES},
         "conflicts": [{"message": message, "fields": list(names)} for message, names in found],
     }
 
@@ -135,5 +162,10 @@ def zora_flags_from_values(values: Mapping[str, int | str]) -> str:
     unknown = set(values) - set(FIELD_NAMES)
     if unknown:
         raise ValueError(f"unknown ZORA fields {sorted(unknown)}")
-    chosen: dict[str, Any] = {name: _field_value(name, int(control)) for name, control in values.items()}
+    chosen: dict[str, Any] = {name: _field_value(name, int(control)) for name, control in values.items()
+                              if name != L4_SWORD_FIELD}
+    if L4_SWORD_FIELD in values:
+        setting = L4_SWORD_CHOICES[int(values[L4_SWORD_FIELD])]
+        chosen["add_l4_sword"] = ThreeState.OFF if setting is L4Sword.OFF else ThreeState.ON
+        chosen["l4_sword_in_level_2"] = setting is L4Sword.LEVEL_2
     return encode(ZoraFlags(**chosen))

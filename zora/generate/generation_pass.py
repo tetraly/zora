@@ -23,83 +23,86 @@ and the enabled steps' random draws stay where they are. Each attempt runs on
 a fresh GenerationContext, so a failed attempt leaves nothing behind.
 """
 import copy
+from dataclasses import replace
 
-from zora.generate.acceptance_check import acceptance_check
-from zora.generate.alternative_values import MVP_VALUES, AlternativeValues
-from zora.generate.context import GenerationContext, GenerationResult, GenerationSettings, Step
-from zora.generate.errors import GenerationFailure
-from zora.generate.extra_options import NO_EXTRAS, ExtraOptions
-from zora.generate.flag_steps import ALL_STEPS_ON, FlagSteps
-from zora.generate.late_gate.gate import GateStats, late_gate
-from zora.generate.rng import Rng
-from zora.generate.shapes.bosses import place_bosses
-from zora.generate.shapes.doors import place_doors
-from zora.generate.shapes.enemies import EnemyPools, harvest_pools, place_enemies
-from zora.generate.shapes.entrances import place_entrances
-from zora.generate.shapes.gridgen import grow_set
-from zora.generate.shapes.items import place_progression_items
-from zora.generate.shapes.minimap import level9_left_edge
-from zora.generate.shapes.numbering import number_with_frees
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.rooms import place_rooms
-from zora.generate.shapes.special_rooms import place_special_rooms
-from zora.generate.shapes.stairs import place_stairs
-from zora.generate.shapes.world import D_WALL, CellPlan, SetWorld
-from zora.generate.shapes.writeback import level9_records
-from zora.generate.ship import Staged, build_sets, cave_item_bytes, ship, ship_hint_text
-from zora.generate.steps.add_l4_sword import add_l4_sword
-from zora.generate.steps.add_money_or_life_rooms import add_money_or_life_rooms
-from zora.generate.steps.assign_hints_for_hint_type import assign_hints_for_hint_type
-from zora.generate.steps.cave_entries import OverworldResult
-from zora.generate.steps.change_bomb_upgrades import change_bomb_upgrades
-from zora.generate.steps.change_enemy_hp import EnemyHpResult, change_boss_hp, change_most_enemy_hp
-from zora.generate.steps.change_money_making_game import change_money_making_game
-from zora.generate.steps.change_money_or_life_toll import change_money_or_life_toll
-from zora.generate.steps.change_sword_hearts import change_sword_hearts, change_sword_hearts_from_five_hearts
-from zora.generate.steps.dungeon_room_shuffle import exchange_rooms, second_drop_shuffle
-from zora.generate.steps.extra_pool_items import ExtraPoolItems
-from zora.generate.steps.feature_data import write_fixed_feature_data
-from zora.generate.steps.hint_text import (
+from ..model.enums import Destination, Enemy
+from ..model.game_world import GameWorld
+from ..model.levels import LEVEL_9, LEVEL_BLOCK_ROOMS, Level
+from ..model.overworld import ItemCave, Overworld
+from .acceptance_check import acceptance_check
+from .alternative_values import MVP_VALUES, AlternativeValues
+from .context import GenerationContext, GenerationResult, GenerationSettings, Step
+from .errors import GenerationFailure
+from .extra_options import NO_EXTRAS, ExtraOptions
+from .flag_steps import ALL_STEPS_ON, FlagSteps
+from .late_gate.gate import GateStats, late_gate
+from .rng import Rng
+from .shapes.bosses import place_bosses
+from .shapes.doors import place_doors
+from .shapes.enemies import EnemyPools, harvest_pools, place_enemies
+from .shapes.entrances import place_entrances
+from .shapes.gridgen import grow_set
+from .shapes.items import place_progression_items
+from .shapes.minimap import level9_left_edge
+from .shapes.numbering import number_with_frees
+from .shapes.options import ShapeOptions
+from .shapes.rooms import place_rooms
+from .shapes.special_rooms import place_special_rooms
+from .shapes.stairs import place_stairs
+from .shapes.world import D_WALL, CellPlan, SetWorld
+from .shapes.writeback import level9_records
+from .ship import Staged, build_sets, cave_item_bytes, ship, ship_hint_text
+from .steps.add_l4_sword import add_l4_sword
+from .steps.add_money_or_life_rooms import add_money_or_life_rooms
+from .steps.assign_hints_for_hint_type import HintAssignmentResult, assign_hints_for_hint_type
+from .steps.cave_entries import OverworldResult
+from .steps.change_bomb_upgrades import change_bomb_upgrades
+from .steps.change_enemy_hp import EnemyHpResult, change_boss_hp, change_most_enemy_hp
+from .steps.change_money_making_game import change_money_making_game
+from .steps.change_money_or_life_toll import change_money_or_life_toll
+from .steps.change_sword_hearts import change_sword_hearts, change_sword_hearts_from_five_hearts
+from .steps.dungeon_room_shuffle import exchange_rooms, second_drop_shuffle
+from .steps.extra_pool_items import ExtraPoolItems
+from .steps.feature_data import LEVEL_9_SWORD_REFUSAL_TEXT, write_fixed_feature_data
+from .steps.hint_text import (
     PROGRESSIVE_NAMES,
     VANILLA_NAMES,
+    HintTextResult,
     generate_community_hint_text,
     generate_hint_text,
     magical_sword_cave_text,
 )
-from zora.generate.steps.item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
-from zora.generate.steps.monster_lists import MonsterShuffleResult, build_room_lists
-from zora.generate.steps.move_last_boss_room_items import move_last_boss_room_items
-from zora.generate.steps.move_map_near_entrance import move_map_near_entrance
-from zora.generate.steps.person_appearances import draw_person_appearances
-from zora.generate.steps.potion_shop import shuffle_blue_potion
-from zora.generate.steps.randomize_boss_groups import randomize_boss_groups
-from zora.generate.steps.randomize_letter import randomize_letter
-from zora.generate.steps.randomize_magical_sword import check_magical_sword_hearts, randomize_magical_sword
-from zora.generate.steps.randomize_mazes import randomize_mazes
-from zora.generate.steps.recorder_to_new_dungeons import recorder_to_new_dungeons
-from zora.generate.steps.shop_items_in_pool import shop_items_in_pool
-from zora.generate.steps.shuffle_armos import shuffle_armos
-from zora.generate.steps.shuffle_bomb_upgrade_men import shuffle_bomb_upgrade_men
-from zora.generate.steps.shuffle_bosses import bosses_beaten_by_planted_items, shuffle_bosses
-from zora.generate.steps.shuffle_caves import enrolled_entries, prg0_armos_screen, shuffle_caves
-from zora.generate.steps.shuffle_dungeon_drops import shuffle_dungeon_drops, snapshot_shapes
-from zora.generate.steps.shuffle_dungeon_monsters import shuffle_dungeon_monsters
-from zora.generate.steps.shuffle_dungeon_palettes import shuffle_dungeon_palettes
-from zora.generate.steps.shuffle_dungeon_text import shuffle_dungeon_text
-from zora.generate.steps.shuffle_enemy_groups import shuffle_enemy_groups
-from zora.generate.steps.shuffle_groups import GroupShuffleResult
-from zora.generate.steps.shuffle_hungry_goriya import PRE_SHAPES_TILES, shuffle_hungry_goriya
-from zora.generate.steps.shuffle_items import shuffle_items
-from zora.generate.steps.shuffle_monsters_between_levels import VANILLA_ENEMY_TIER, shuffle_monsters_between_levels
-from zora.generate.steps.shuffle_overworld_monsters import shuffle_overworld_monsters
-from zora.generate.steps.shuffle_shop_items import extra_candles, shuffle_shop_items
-from zora.generate.steps.shuffle_start_screen import shuffle_start_screen
-from zora.generate.steps.speed_up_text import speed_up_text
-from zora.generate.steps.start_with_four_hearts import start_with_four_hearts
-from zora.model.enums import Destination, Enemy
-from zora.model.game_world import GameWorld
-from zora.model.levels import LEVEL_9, LEVEL_BLOCK_ROOMS, Level
-from zora.model.overworld import ItemCave, Overworld
+from .steps.item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
+from .steps.level_2_sword import join_level_2_sword
+from .steps.monster_lists import MonsterShuffleResult, build_room_lists
+from .steps.move_last_boss_room_items import move_last_boss_room_items
+from .steps.move_map_near_entrance import move_map_near_entrance
+from .steps.person_appearances import draw_person_appearances
+from .steps.potion_shop import shuffle_blue_potion
+from .steps.randomize_boss_groups import randomize_boss_groups
+from .steps.randomize_letter import randomize_letter
+from .steps.randomize_magical_sword import check_magical_sword_hearts, randomize_magical_sword
+from .steps.randomize_mazes import randomize_mazes
+from .steps.recorder_to_new_dungeons import recorder_to_new_dungeons
+from .steps.shop_items_in_pool import shop_items_in_pool
+from .steps.shuffle_armos import shuffle_armos
+from .steps.shuffle_bomb_upgrade_men import shuffle_bomb_upgrade_men
+from .steps.shuffle_bosses import bosses_beaten_by_planted_items, shuffle_bosses
+from .steps.shuffle_caves import enrolled_entries, prg0_armos_screen, shuffle_caves
+from .steps.shuffle_dungeon_drops import shuffle_dungeon_drops, snapshot_shapes
+from .steps.shuffle_dungeon_monsters import shuffle_dungeon_monsters
+from .steps.shuffle_dungeon_palettes import shuffle_dungeon_palettes
+from .steps.shuffle_dungeon_text import shuffle_dungeon_text
+from .steps.shuffle_enemy_groups import shuffle_enemy_groups
+from .steps.shuffle_groups import GroupShuffleResult
+from .steps.shuffle_hungry_goriya import PRE_SHAPES_TILES, shuffle_hungry_goriya
+from .steps.shuffle_items import shuffle_items
+from .steps.shuffle_monsters_between_levels import VANILLA_ENEMY_TIER, shuffle_monsters_between_levels
+from .steps.shuffle_overworld_monsters import shuffle_overworld_monsters
+from .steps.shuffle_shop_items import extra_candles, shuffle_shop_items
+from .steps.shuffle_start_screen import shuffle_start_screen
+from .steps.speed_up_text import speed_up_text
+from .steps.start_with_four_hearts import start_with_four_hearts
 
 # The attempt cap: SH-FLOW-03 (revised spec) says a rebuild must retry, then
 # fail visibly, never ship a half-built dungeon; the cap keeps a
@@ -470,7 +473,7 @@ def late_gate_step(context: GenerationContext) -> None:
 def _l1_census(levels: list[Level]) -> tuple[int, int]:
     """Level 1 at gate entry: person rooms, and rooms whose in-room move
     table restricts the walk (walk.py's table)."""
-    from zora.generate.late_gate.walk import _FREE_MOVES, _moves
+    from .late_gate.walk import _FREE_MOVES, _moves
     rooms = levels[0].rooms
     persons = sum(room.is_person for room in rooms)
     restrict = sum(_moves(room, None) is not _FREE_MOVES for room in rooms)
@@ -531,6 +534,13 @@ def shuffle_blue_potion_step(context: GenerationContext) -> None:
     assert context.overworld is not None
     shuffle_blue_potion(context.sets.levels, context.item_shuffle_result, context.extra_pool_items,
                         context.overworld, context.rng)
+
+
+def join_level_2_sword_step(context: GenerationContext) -> None:
+    """Add L4 Sword = Level 2 (docs/design/asnb.md section 4): level 2's cellar sword joins the
+    pool, after the other joins; tracked with Level 9 Entrance = Level 4 sword."""
+    join_level_2_sword(context.sets.levels, context.item_shuffle_result, context.extra_pool_items, context.rng,
+                       tracked=context.settings.extras.level_9_entrance_sword)
 
 
 def add_l4_sword_step(context: GenerationContext) -> None:
@@ -648,18 +658,31 @@ def randomize_mazes_step(context: GenerationContext) -> None:
 
 def generate_hint_text_step(context: GenerationContext) -> None:
     """HT-TEXT, or FL-ALT-04's community hints with C03 at 2; with Randomize Magical Sword on,
-    the cave's own text names the item it offers."""
+    the cave's own text names the item it offers. What it reads besides the world is kept in the
+    result, for FINISH (no draws)."""
     assert context.hint_assignment is not None
-    gw = context.world
+    context.result.hint_assignment = context.hint_assignment
+    context.result.maze_offers = context.maze_offers
+    context.hint_text = compose_hint_text(context.world, context.item_shuffle_result, context.hint_assignment,
+                                          context.rng, context.settings.extras, context.settings.alternatives,
+                                          context.maze_offers)
+
+
+def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
+                      rng: Rng, extras: ExtraOptions, alternatives: AlternativeValues,
+                      maze_offers: dict[int, list[str]], foreign_code: int | None = None) -> HintTextResult:
+    """The hint text step's work on a shipped world: also FINISH's, on an assigned world
+    (Archipelago Phase 2), which passes foreign_code, the code another player's item is written
+    as, so that a hint naming such a place says so (ItemNames.foreign_code)."""
     # PI-TEXT-01: with Progressive Items on, the texts name upgrade-line items by their line
-    names = PROGRESSIVE_NAMES if context.settings.extras.progressive_items else VANILLA_NAMES
-    cave_text = magical_sword_cave_text(gw, names) if context.settings.extras.randomize_magical_sword else None
-    if context.settings.alternatives.generate_community_hint_text:
-        context.hint_text = generate_community_hint_text(gw, context.item_shuffle_result, context.hint_assignment,
-                                                         context.rng, cave_text, names, context.maze_offers)
-    else:
-        context.hint_text = generate_hint_text(gw, context.item_shuffle_result, context.hint_assignment,
-                                               context.rng, cave_text, names, context.maze_offers)
+    names = PROGRESSIVE_NAMES if extras.progressive_items else VANILLA_NAMES
+    if foreign_code is not None:
+        names = replace(names, foreign_code=foreign_code)
+    cave_text = magical_sword_cave_text(gw, names) if extras.randomize_magical_sword else None
+    if alternatives.generate_community_hint_text:
+        return generate_community_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names,
+                                            maze_offers)
+    return generate_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names, maze_offers)
 
 
 def shuffle_dungeon_text_step(context: GenerationContext) -> None:
@@ -692,6 +715,11 @@ def speed_up_text_step(context: GenerationContext) -> None:
 
 def write_fixed_feature_data_step(context: GenerationContext) -> None:
     write_fixed_feature_data(context.world, context.settings.seed)
+
+
+def level_9_entrance_text_step(context: GenerationContext) -> None:
+    """ASNB 3c: the level-9 refusal text (person text 34) asks for four sword upgrades."""
+    context.world.level9_refusal_text = LEVEL_9_SWORD_REFUSAL_TEXT
 
 
 def start_with_four_hearts_step(context: GenerationContext) -> None:
@@ -777,19 +805,24 @@ STEPS: tuple[Step, ...] = (
          lambda s: s.post_shapes and s.extras.shop_items_in_pool),
     Step("shuffle_blue_potion", "ZORA shuffle_blue_potion", shuffle_blue_potion_step,
          lambda s: s.post_shapes and s.extras.shuffle_blue_potion),
-    Step("add_l4_sword", "ZORA add_l4_sword", add_l4_sword_step, lambda s: s.post_shapes and s.extras.add_l4_sword),
-    Step("change_sword_hearts", "B10 + ZORA randomize_magical_sword", change_sword_hearts_before_check,
-         lambda s: (s.post_shapes and s.extras.randomize_magical_sword and s.feature_data
+    Step("join_level_2_sword", "ZORA add_l4_sword = Level 2", join_level_2_sword_step,
+         lambda s: s.post_shapes and s.extras.l4_sword_in_level_2),
+    Step("add_l4_sword", "ZORA add_l4_sword = Level 9", add_l4_sword_step,
+         lambda s: s.post_shapes and s.extras.l4_sword_in_level_9),
+    Step("change_sword_hearts", "B10 + ZORA randomize_magical_sword or level 9 entrance",
+         change_sword_hearts_before_check,
+         lambda s: (s.post_shapes and s.extras.checks_magical_sword_hearts and s.feature_data
                     and s.steps.change_sword_hearts)),
     Step("acceptance_check", "", acceptance_check_step, post_shapes, restart_label="acceptance: "),
-    Step("check_magical_sword_hearts", "ZORA randomize_magical_sword", check_magical_sword_hearts_step,
-         lambda s: s.post_shapes and s.extras.randomize_magical_sword, restart_label="acceptance: "),
+    Step("check_magical_sword_hearts", "ZORA randomize_magical_sword or level 9 entrance",
+         check_magical_sword_hearts_step,
+         lambda s: s.post_shapes and s.extras.checks_magical_sword_hearts, restart_label="acceptance: "),
     Step("ship", "", ship_step),
     # On the shipped world
     Step("draw_person_appearances", "", draw_person_appearances_step, post_shapes),
     Step("change_sword_hearts", "B10", change_sword_hearts_after_ship,
          lambda s: (s.post_shapes and s.feature_data and s.steps.change_sword_hearts
-                    and not s.extras.randomize_magical_sword)),
+                    and not s.extras.checks_magical_sword_hearts)),
     Step("randomize_mazes", "ZORA randomize_lost_hills + randomize_dead_woods", randomize_mazes_step,
          lambda s: s.post_shapes and (s.extras.gates.lost_hills or s.extras.gates.dead_woods)),
     Step("generate_hint_text", "C03", generate_hint_text_step, post_shapes),
@@ -802,6 +835,8 @@ STEPS: tuple[Step, ...] = (
          lambda s: feature_data(s) and s.steps.change_money_making_game),
     Step("speed_up_text", "B54", speed_up_text_step, lambda s: feature_data(s) and s.steps.speed_up_text),
     Step("write_fixed_feature_data", "", write_fixed_feature_data_step, feature_data),
+    Step("level_9_entrance_text", "ZORA level 9 entrance", level_9_entrance_text_step,
+         lambda s: feature_data(s) and s.extras.level_9_entrance_sword),
     Step("start_with_four_hearts", "C16 = 3", start_with_four_hearts_step,
          lambda s: s.alternatives.start_with_four_hearts),
 )

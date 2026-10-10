@@ -1,11 +1,11 @@
 """The overworld screens, with their caves and monsters."""
 
-from zora.model.enums import Destination, Enemy, OverworldDirection, QuestVisibility
-from zora.model.overworld import SCREEN_ENTRANCE_TYPES, BombUpgrade, EntranceType, Overworld, Screen
-from zora.model.rooms import EnemySpec
-from zora.rom.parse.bin_files import RawBinFiles
-from zora.rom.parse.caves import _parse_cave_data
-from zora.rom.parse.levels import _level_info_block_by_index, _parse_enemy_sprite_set
+from ...model.enums import Destination, Enemy, OverworldDirection, QuestVisibility
+from ...model.overworld import SCREEN_ENTRANCE_TYPES, BombUpgrade, EntranceType, Overworld, Screen
+from ...model.rooms import EnemySpec
+from .bin_files import RawBinFiles
+from .caves import _parse_cave_data
+from .levels import _level_info_block_by_index, _parse_enemy_sprite_set
 
 # ---------------------------------------------------------------------------
 # Overworld parsing

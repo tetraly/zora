@@ -430,6 +430,7 @@ def walk(name: str, sequence: tuple[Button, ...]) -> list[int]:
     return [take_step(emu, MAZES[name], step) for step in sequence]
 
 
+@pytest.mark.slow                    # 27 emulator walks; test_a_wrong_step_starts_the_maze_over runs by default
 @pytest.mark.parametrize("first", [0, 1, 2])
 @pytest.mark.parametrize("name", list(MAZES))
 def test_every_maze_sequence_can_be_walked(name: str, first: int) -> None:

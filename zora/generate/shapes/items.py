@@ -1,10 +1,10 @@
 """Compass, map, boomerangs (SH-ITEM-01..03; shapes-answers.md update 10)."""
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.world import SetWorld
-from zora.model.enums import Item
-from zora.model.rooms import NO_ITEM_CODE
+from ...model.enums import Item
+from ...model.rooms import NO_ITEM_CODE
+from ..errors import GenerationFailure
+from ..rng import Rng
+from .options import ShapeOptions
+from .world import SetWorld
 
 # update 10: a room counts unless the low seven bits of its item byte (item
 # plus the two boss-sound bits) are one of these reserved items.

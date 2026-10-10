@@ -6,8 +6,10 @@ Works on a GameWorld's Overworld model (not raw bytes): a screen's
 `stairs_position_code` LevelBlockAttrsF bits 5-4 and `quest_visibility`
 bits 7-6. The flow stages a copy of the model and ships it with the seed.
 """
-from zora.generate.rng import IntRng
-from zora.generate.steps.cave_entries import (
+from ...model.enums import Destination
+from ...model.overworld import Overworld
+from ..rng import IntRng
+from .cave_entries import (
     BRACELET_SCREENS,
     DUNGEONS,
     ENROLLED_SCREENS,
@@ -16,9 +18,7 @@ from zora.generate.steps.cave_entries import (
     CaveShuffle,
     Entry,
 )
-from zora.generate.steps.overworld_gates import NO_GATES, OverworldGates
-from zora.model.enums import Destination
-from zora.model.overworld import Overworld
+from .overworld_gates import NO_GATES, OverworldGates
 
 
 def _is_illegal_exchange(first: Entry, second: Entry, start_rooms: dict[int, int]) -> bool:

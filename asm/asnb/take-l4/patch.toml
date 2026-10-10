@@ -1,0 +1,54 @@
+# ASNB, level 4 from any pickup (docs/design/asnb.md 3a): a magical sword (grade 3) taken at
+# sword level 3 gives level 4, wherever it is taken. Every pickup path ends in TakeItem's graded
+# store (HandleClass2), which here goes through TakeGradeWithL4. TakeItem is part of the common
+# code CopyCommonCodeToRam copies to work RAM, and runs there with any of banks 0-6 switched in,
+# so each of those banks holds the routine at $BFE0, in the $FF gap between the ISR copy's code
+# ($BF50-$BFBF) and the vectors ($BFFA). Not $BFC0: bank 1's $BFC0-$BFCE is l4-sword-take's
+# (asm/flags2/), which this patch replaces once it is wired (asm/asnb/README.md). The design's
+# section 3a; asm/README.md and asm/asnb/build.py describe this file.
+
+[[segment]]
+name = "ZORA_ASNB_TAKE_B0"
+bank = 0
+start = 0xBFE0              # bank 0, $BFE0-$BFF9 (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_TAKE_B1"
+bank = 1
+start = 0xBFE0              # bank 1, $BFE0-$BFF9 (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_TAKE_B2"
+bank = 2
+start = 0xBFE0              # bank 2, $BFE0-$BFF9 (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_TAKE_B3"
+bank = 3
+start = 0xBFE0              # bank 3, $BFE0-$BFF9 (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_TAKE_B4"
+bank = 4
+start = 0xBFE0              # bank 4, $BFE0-$BFF9 (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_TAKE_B5"
+bank = 5
+start = 0xBFE0              # bank 5, $BFE0-$BFF9 (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_TAKE_B6"
+bank = 6
+start = 0xBFE0              # bank 6, $BFE0-$BFF9 (docs/rom-map.md)
+
+[[hook]]
+name = "graded-take"
+offset = 0x06D04
+length = 5
+note = "HandleClass2's LDA $0A / CMP Items, Y goes through TakeGradeWithL4, which gives level 4 for the magical sword taken at sword level 3."
+code = """
+    JSR TakeGradeWithL4
+    NOP
+    NOP
+"""

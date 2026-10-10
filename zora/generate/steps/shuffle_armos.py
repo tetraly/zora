@@ -1,9 +1,9 @@
 """Shuffle Armos (B13; OW-CAVE-05): the secret Armos and its screen."""
 
-from zora.generate.rng import IntRng
-from zora.generate.steps.cave_entries import Entry
-from zora.model.enums import QuestVisibility
-from zora.model.overworld import Overworld
+from ...model.enums import QuestVisibility
+from ...model.overworld import Overworld
+from ..rng import IntRng
+from .cave_entries import Entry
 
 # OW-APP-A5: the secret Armos formation screens, in table order, and the Xs
 # each may draw.

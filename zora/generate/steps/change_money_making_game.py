@@ -1,9 +1,9 @@
 """Change MMG (B11; FP-MMG-01): the money-making game's amounts."""
 
-from zora.generate.rng import Rng
-from zora.model.enums import Destination
-from zora.model.game_world import GameWorld
-from zora.model.overworld import MoneyMakingGameCave
+from ...model.enums import Destination
+from ...model.game_world import GameWorld
+from ...model.overworld import MoneyMakingGameCave
+from ..rng import Rng
 
 
 def change_money_making_game(gw: GameWorld, rng: Rng) -> None:

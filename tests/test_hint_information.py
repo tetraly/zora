@@ -1,6 +1,6 @@
-"""Wording-free hint-information measures (zora/generate/steps/hint_information.py) and the
+"""Wording-free hint-information measures (zora_measure/hint_information.py) and the
 HT-HINT-01 rules they rebuild (zora/generate/steps/hint_text.py)."""
-from zora.generate.steps.hint_information import Shown, classify
+from zora_measure.hint_information import Shown, classify
 from zora.generate.steps.person_appearances import (
     CAVE_PERSON_TYPES, draw_person_appearances, person_appearance,
 )

@@ -1,10 +1,10 @@
 """Levels: the room bytes, level blocks, level information and sprite-set pointers."""
 
-from zora.model.enums import BossSpriteSet, Enemy, EnemySpriteSet, Item, RoomType
-from zora.model.game_world import GameWorld
-from zora.model.levels import Level, LevelBlock
-from zora.model.rooms import Room, StaircaseRoom
-from zora.rom.layout import DUNGEON_NOTHING_CODE, LEVEL_TABLE_SIZE, NUM_TABLES
+from ...model.enums import BossSpriteSet, Enemy, EnemySpriteSet, Item, RoomType
+from ...model.game_world import GameWorld
+from ...model.levels import Level, LevelBlock
+from ...model.rooms import Room, StaircaseRoom
+from ..layout import DUNGEON_NOTHING_CODE, LEVEL_TABLE_SIZE, NUM_TABLES
 
 # ---------------------------------------------------------------------------
 # Level serialization

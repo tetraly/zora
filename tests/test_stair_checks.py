@@ -1,12 +1,12 @@
 """The finished-ROM staircase checks (SH-STAIR-02, -03, -09) count a level's own staircases: a
 cell another level of the block also lists, and whose staircase leads into that level, is that
-level's (zora.measure.checks.own_staircases; the final corpus lists cell $02 in both level 9's
+level's (zora_measure.checks.own_staircases; the final corpus lists cell $02 in both level 9's
 and level 7's or 8's stairway list in 4 of 1,000 ROMs)."""
 import pytest
 
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
-from zora.measure.checks import check_cellar_counts, check_stair_budget, check_transport_same_level, own_staircases
+from zora_measure.checks import check_cellar_counts, check_stair_budget, check_transport_same_level, own_staircases
 from zora.model.enums import RoomType
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.parse.rom_file import parse_rom

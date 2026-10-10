@@ -6,13 +6,18 @@ from pathlib import Path
 import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
-from zora.measure.checkpoints.registry import CHECKPOINTS, measure_rom
-from zora.measure.checkpoints.comparison import Difference, Estimate, compare, estimate, summarize
+from zora.rom.game_config import GameConfig, HintMode
+from zora_measure.checkpoints.registry import CHECKPOINTS, measure_rom
+from zora_measure.checkpoints.comparison import Difference, Estimate, compare, estimate, summarize
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.generate.generation_pass import generate_shapes
 from zora.generate.shapes.options import ShapeOptions
+
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 def _vanilla_rom() -> bytes:
@@ -28,7 +33,7 @@ def test_registry_measures_and_summarizes() -> None:
     rom = _vanilla_rom()
     world = parse_rom(rom)
     generate_shapes(world, Rng(5), ShapeOptions())
-    generated = parse_rom(serialize_to_rom(world, rom))
+    generated = parse_rom(serialize_to_rom(world, rom, config=GENERATED_HINTS))
     rows = summarize([measure_rom(parse_rom(rom)), measure_rom(generated)])
     assert len(rows) == len(CHECKPOINTS) and all(isinstance(r, str) and r for r in rows)
     values = dict(zip((cp.measure for cp in CHECKPOINTS), measure_rom(generated)))
@@ -60,7 +65,7 @@ def test_every_checkpoint_has_components() -> None:
     rom = _vanilla_rom()
     world = parse_rom(rom)
     generate_shapes(world, Rng(6), ShapeOptions())
-    values = measure_rom(parse_rom(serialize_to_rom(world, rom)))
+    values = measure_rom(parse_rom(serialize_to_rom(world, rom, config=GENERATED_HINTS)))
     diffs = compare([values, values], [values, values])
     assert {d.checkpoint.spec_id for d in diffs} == {cp.spec_id for cp in CHECKPOINTS}
     assert not any(d.beyond_noise(3) for d in diffs)
@@ -70,7 +75,7 @@ def test_refusal_count_check_reads_the_meaning() -> None:
     """FP-TRIF-01: the count eight crosses as the digit or the word; other
     numbers and words that merely contain it do not count."""
     from types import SimpleNamespace
-    from zora.measure.checkpoints.features import b10_level9_refusal
+    from zora_measure.checkpoints.features import b10_level9_refusal
 
     def states_eight(text: str) -> bool:
         return b10_level9_refusal(SimpleNamespace(level9_refusal_text=text))  # type: ignore[arg-type]

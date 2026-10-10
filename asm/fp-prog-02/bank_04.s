@@ -39,12 +39,18 @@ ResolveProgressive:
     SEC
     ADC Items, Y
     TAY
+    LDA #$00
+    STA $00
+@Fit:
     LDA ItemIdToSlot, Y
-    EOR $01
-    STA $01
-    BEQ :+
+    CMP $01
+    BEQ @Fits
     DEY
-:
+    INC $00
+    BNE @Fit
+@Fits:
+    LDA $00
+    STA $01
     TYA
     SEC
     RTS

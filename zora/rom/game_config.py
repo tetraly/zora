@@ -77,12 +77,23 @@ class GameConfig:
     # choose which of fp-prog-01 / fp-prog-02 are written, and fp-prog-01's on/off byte.
     progressive_items: bool = False
     shop_items_in_pool: bool = False
-    # Shuffle Blue Potion (the owner's 2.0 flags): the potion shop sells a pool item, so
+    # Shuffle Blue Potion (the owner's 2.0 flags): the potion shop's middle ware sells a pool item, so
     # fp-prog-01's one-time wares are written with it on too.
     potion_shop_in_pool: bool = False
     # The owner's 2.0 flags resolved on (zora_flags.OWNER_2_0_FIELDS names): their patches are
     # written after the code patches (zora/rom/owner_patches.py).
     owner_flags: tuple[str, ...] = ()
+    # ASNB's Level 9 Entrance = Level 4 sword (docs/design/asnb.md 3c): level-9-gate is written.
+    level_9_entrance_sword: bool = False
+    # Archipelago's ware places (External mode only; docs/archipelago.md "Interface"): (shop number
+    # in code_patches.SHOPS_BY_NUMBER order, ware position) pairs sold once whatever they hold, a
+    # re-buyable blue potion too, so that buying one is a location check ZORA_B1_OneTimeWares
+    # records. Empty in ZORA mode, which keeps the table as the wares alone decide it.
+    one_time_places: tuple[tuple[int, int], ...] = ()
+    # Archipelago's slot identity record (External mode with a slot name only; zora/rom/
+    # slot_identity.py): written into bank 0's free space before the seed's code hashes the ROM.
+    # Empty (ZORA mode) writes nothing there.
+    slot_identity: bytes = b""
     # Encode level data (FP-TOURNEY-01; zora/rom/level_encoding.py): None leaves
     # the level data plain, byte-identical to the unencoded output.
     level_encoding: LevelEncodingKey | None = None

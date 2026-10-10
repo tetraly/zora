@@ -99,11 +99,11 @@ class FreeSpace:
         return range(tool.file_offset(self.first, self.bank), tool.file_offset(self.last, self.bank) + 1)
 
 
-# Bank 4's gap runs $B46F-$BF4F; fp-prog-02's Armos routine takes $B480-$B4DC and the
-# overworld red Wizzrobe routine (PS-EGRP-05) starts at $BF00. Bank 7's $FF43-$FF4F is its last
+# Bank 4's gap runs $B46F-$BF4F: z1rr-coop reserves $B46F-$B882, fp-prog-02's Armos slot is
+# $B900-$B9FF and the overworld red Wizzrobe routine (PS-EGRP-05) starts at $BF00. Bank 7's $FF43-$FF4F is its last
 # free gap; bank 1's $BFC0-$BFF9 lies between the ISR copy's code and its vectors.
 FREE_SPACE = {
-    "ZORA_F2_POLS_VOICE": FreeSpace(4, 0xB500, 0xB53F),
+    "ZORA_F2_POLS_VOICE": FreeSpace(4, 0xBA00, 0xBA3F),
     "ZORA_F2_L4_TAKE_FIXED": FreeSpace(7, 0xFF43, 0xFF4F),
     "ZORA_F2_L4_TAKE": FreeSpace(1, 0xBFC0, 0xBFDF),
 }
@@ -217,7 +217,7 @@ def render(writes: dict[str, list[tuple[int, Piece]]]) -> str:
              "or an Original (source, length): the original game's bytes, read from the",
              "player's ROM when written (never stored here). Not wired into the serializer.",
              '"""',
-             "from zora.rom.base_rom import Original, Piece",
+             "from .base_rom import Original, Piece",
              "",
              "# Community members who wrote a feature (docs/credits.md).",
              "CREDITS: dict[str, str] = {"]
@@ -259,7 +259,11 @@ def apply_patches(rom: bytes, names: list[str], patches: dict[str, Any]) -> byte
 
 
 def load_data() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("flags2_data", OUTPUT)
+    """OUTPUT as a module. It imports `.base_rom` relatively (it is copied into zora/rom/, whose
+    imports are all relative so Archipelago can install zora/ under another name), so it is
+    loaded as a submodule of zora.rom."""
+    import zora.rom  # noqa: F401
+    spec = importlib.util.spec_from_file_location("zora.rom._asm_flags2_data", OUTPUT)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

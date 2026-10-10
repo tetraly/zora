@@ -1,11 +1,11 @@
 """Shuffle Hungry Goriya (B28; PS-GRUM-01 to -03)."""
 
-from zora.generate.rng import IntRng
-from zora.generate.shapes.world import GRID_COLS, blocks_of
-from zora.generate.steps.item_shuffle_result import ItemShuffleResult, LevelRoom, _level_rooms
-from zora.model.enums import Enemy
-from zora.model.levels import LEVEL_9, Level
-from zora.model.rooms import RoomPlace
+from ...model.enums import Enemy
+from ...model.levels import LEVEL_9, Level
+from ...model.rooms import RoomPlace
+from ..rng import IntRng
+from ..shapes.world import GRID_COLS, blocks_of
+from .item_shuffle_result import ItemShuffleResult, LevelRoom, _level_rooms
 
 # --- PS-GRUM ---------------------------------------------------------------
 

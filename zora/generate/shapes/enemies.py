@@ -11,19 +11,19 @@ and a separate count: every ordinary value it holds is a vanilla value of
 the level's group, count bits included, drawn about evenly over the
 distinct values (QUESTIONS #58.1).
 """
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.tables import (
+from ...model.enums import RoomType
+from ...model.levels import Level
+from ...model.rooms import MONSTER_BIT_CODE, MONSTER_LIST_BITS, MONSTER_VALUE_BIT
+from ..rng import Rng
+from .options import ShapeOptions
+from .tables import (
     BLADE_TRAP_BAD_LAYOUTS,
     LANMOLA_BAD_LAYOUTS,
     LEVEL_ENEMY_BANK,
     POOL_EXCLUSIONS,
     RUPEE_STASH_BAD_LAYOUTS,
 )
-from zora.generate.shapes.world import SetWorld
-from zora.model.enums import RoomType
-from zora.model.levels import Level
-from zora.model.rooms import MONSTER_BIT_CODE, MONSTER_LIST_BITS, MONSTER_VALUE_BIT
+from .world import SetWorld
 
 GROUP_BY_BANK = {"A": (1, 2, 7), "B": (3, 5, 8), "C": (4, 6, 9)}
 

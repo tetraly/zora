@@ -27,8 +27,8 @@ from typing import Any
 import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
-from zora.measure.checkpoints.summaries import POOL_ITEMS
-from zora.measure.checks import Check, CheckResult, finished_rom_checks
+from zora_measure.checkpoints.summaries import POOL_ITEMS
+from zora_measure.checks import Check, CheckResult, finished_rom_checks
 from zora.model.enums import Destination, Enemy, Item
 from zora.model.overworld import ItemCave, Shop
 from zora.model.game_world import GameWorld
@@ -42,7 +42,7 @@ from zora.generate.extra_options import ExtraOptions
 from zora.generate.flag_steps import FlagSteps
 from zora.generate.generation_pass import generate_shapes
 from zora.generate.shapes.options import BLOCKED_OPTIONS, ShapeOptions
-from zora.measure.statistics import special_cave_items
+from zora_measure.statistics import special_cave_items
 
 SEEDS = (101, 202, 303)
 
@@ -239,7 +239,7 @@ def generate_cached(flags: Flags, seed: int) -> bytes:
 # --- invariants ----------------------------------------------------------------------
 
 def level_checks(flags: Flags) -> tuple[Check, ...]:
-    """The zora.measure.checks checks a finished ROM must pass under these flags
+    """The zora_measure.checks checks a finished ROM must pass under these flags
     (sorted numbering only with sort_shapes; the rules B1 moves only
     without B1)."""
     return finished_rom_checks(sort_shapes=flags.shapes.sort_shapes, post_shapes=flags.post_shapes)
@@ -363,10 +363,14 @@ def test_blocked_option_raises(name: str) -> None:
         options(**{name: BLOCKED_VALUES[name]})
 
 
+# The config "unset" stands for: GameConfig's defaults, but the generated hint texts written as
+# generated seeds write them (GameConfig's own vanilla bank cannot hold ZORA's wording; Flags.config
+# above does the same).
+UNSET_CONFIG = GameConfig(hint_mode=HintMode.CONSTERNATION)
 # Every option ZORA accepts, implemented or not, with its default.
 DEFAULTS: dict[str, Any] = {
     **{f.name: getattr(ShapeOptions(), f.name) for f in fields(ShapeOptions)},
-    **{f.name: getattr(GameConfig(), f.name) for f in fields(GameConfig)},
+    **{f.name: getattr(UNSET_CONFIG, f.name) for f in fields(GameConfig)},
     "post_shapes": True,
 }
 
@@ -381,8 +385,8 @@ def generate_explicit(name: str, value: Any, seed: int) -> bytes:
     else:
         generate_shapes(world, Rng(seed), shapes)
     if name in CONFIG_FIELDS:
-        return serialize_to_rom(world, rom, config=GameConfig(**{name: value}))
-    return serialize_to_rom(world, rom)
+        return serialize_to_rom(world, rom, config=replace(UNSET_CONFIG, **{name: value}))
+    return serialize_to_rom(world, rom, config=UNSET_CONFIG)
 
 
 @cache
@@ -391,7 +395,7 @@ def generate_unset(seed: int) -> bytes:
     rom = vanilla_rom()
     world = parse_rom(rom)
     generate_shapes(world, Rng(seed), ShapeOptions())
-    return serialize_to_rom(world, rom)
+    return serialize_to_rom(world, rom, config=UNSET_CONFIG)
 
 
 @pytest.mark.slow

@@ -5,8 +5,10 @@ OW-SHOP-01..06), on a GameWorld's Overworld model.
 The slot flags (the third ware of each shop carries $C0) belong to the
 slot; the serializer writes them, so only (item, price) pairs move here.
 """
-from zora.generate.rng import IntRng
-from zora.generate.steps.cave_entries import (
+from ...model.enums import Destination, Item
+from ...model.overworld import DoorRepairCave, ItemCave, Overworld, SecretCave, Shop, ShopItem, TakeAnyCave
+from ..rng import IntRng
+from .cave_entries import (
     BRACELET_SCREENS,
     BURNABLE_SCREENS,
     LADDER_SCREENS,
@@ -14,8 +16,6 @@ from zora.generate.steps.cave_entries import (
     RECORDER_SCREENS,
     CaveShuffle,
 )
-from zora.model.enums import Destination, Item
-from zora.model.overworld import DoorRepairCave, ItemCave, Overworld, SecretCave, Shop, ShopItem, TakeAnyCave
 
 SHOPS = (Destination.SHOP_1, Destination.SHOP_2, Destination.SHOP_3, Destination.SHOP_4)
 WARES_PER_SHOP = 3

@@ -24,9 +24,9 @@ def _generated_world(base_rom: bytes, seed: int = 12345) -> "GameWorld":
 
 def test_fp_lock_02_credits_pointers_differ_from_vanilla(base_rom):
     gw = _generated_world(base_rom)
-    assert gw.credits_pointers != (0xAD33, 0xAD4D, 0xAD59, 0xAC72)
-    # Line 15 still points to PRG0's copyright record.
-    assert gw.credits_pointers[3] == 0xAC72
+    assert gw.credits_pointers[:3] != (0xAD33, 0xAD4D, 0xAD59)
+    # Line 15 still points to PRG0's copyright record (docs/reports/ending-text.md).
+    assert gw.credits_pointers[3] == 0xAD72
 
 
 def test_fp_mmg_01_amounts_in_ranges(base_rom):

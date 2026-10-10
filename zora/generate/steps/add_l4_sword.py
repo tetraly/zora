@@ -23,13 +23,13 @@ wooden sword is never tracked, so the acceptance check's item lookups never meet
 """
 from __future__ import annotations
 
-from zora.generate.dungeon_walk import walk_level
-from zora.generate.errors import GenerationFailure
-from zora.generate.late_gate.walk import level9_entry_room
-from zora.generate.rng import IntRng
-from zora.model.enums import Enemy, Item, ItemPosition, RoomAction, RoomType
-from zora.model.levels import LEVEL_9, Level
-from zora.model.rooms import Room
+from ...model.enums import Enemy, Item, ItemPosition, RoomAction, RoomType
+from ...model.levels import LEVEL_9, Level
+from ...model.rooms import Room
+from ..dungeon_walk import walk_level
+from ..errors import GenerationFailure
+from ..late_gate.walk import level9_entry_room
+from ..rng import IntRng
 
 L4_SWORD_ITEM = Item.WOOD_SWORD       # $01: one sword upgrade, with Progressive Items
 HIDING_TRIGGERS = frozenset({RoomAction.LAST_BOSS, RoomAction.ALL_DEAD_ITEM})

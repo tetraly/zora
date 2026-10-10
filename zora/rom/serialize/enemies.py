@@ -1,8 +1,8 @@
 """Enemies: tile mappings and hit points."""
 
-from zora.model.enums import Enemy
-from zora.model.game_world import GameWorld
-from zora.rom.layout import (
+from ...model.enums import Enemy
+from ...model.game_world import GameWorld
+from ..layout import (
     AQUAMENTUS_SPRITE_PTR_ADDRESS,
     AQUAMENTUS_TILE_LAYOUT_TABLE_ADDRESS,
     BOSS_HP_FIRST_ENEMY_VALUE,
@@ -23,7 +23,7 @@ from zora.rom.layout import (
     MOLDORM_SEGMENT_HP_ADDRESS,
     ROPE_HP_OPERAND_ADDRESSES,
 )
-from zora.rom.serialize.patch import Patch
+from .patch import Patch
 
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------

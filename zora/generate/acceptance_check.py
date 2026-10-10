@@ -27,7 +27,10 @@ today's.
 """
 from dataclasses import dataclass, field, replace
 
-from zora.generate.dungeon_walk import (
+from ..model.enums import Destination, Item, RoomType
+from ..model.levels import LEVEL_9, ZELDA_LIST, Level
+from ..model.overworld import Overworld, Shop
+from .dungeon_walk import (
     FAMILY_LISTS,
     FamilyLists,
     Walk,
@@ -37,7 +40,7 @@ from zora.generate.dungeon_walk import (
     item_room,
     walk_level,
 )
-from zora.generate.steps.cave_entries import (
+from .steps.cave_entries import (
     BRACELET_SCREENS,
     BURNABLE_SCREENS,
     LADDER_SCREENS,
@@ -45,12 +48,9 @@ from zora.generate.steps.cave_entries import (
     RECORDER_SCREENS,
     CaveShuffle,
 )
-from zora.generate.steps.item_shuffle_result import EXTRA_SLOT_CAVES, ItemShuffleResult, shop_of_slot
-from zora.generate.steps.overworld_gates import NO_GATES, OverworldGates
-from zora.generate.steps.shuffle_shop_items import front_door_failure
-from zora.model.enums import Destination, Item, RoomType
-from zora.model.levels import LEVEL_9, ZELDA_LIST, Level
-from zora.model.overworld import Overworld, Shop
+from .steps.item_shuffle_result import EXTRA_SLOT_CAVES, ItemShuffleResult, TrackedPlace, shop_of_slot
+from .steps.overworld_gates import NO_GATES, OverworldGates
+from .steps.shuffle_shop_items import front_door_failure
 
 LONG_ITEMS = frozenset({Item.RECORDER, Item.BOW, Item.RAFT, Item.LADDER, Item.POWER_BRACELET})     # VA-REJ-08
 LEVEL9_ENTRY = -1                  # the held set's pseudo-item for level-9 entry
@@ -73,6 +73,13 @@ CANDLE_LINE = frozenset({Item.BLUE_CANDLE, Item.RED_CANDLE})
 ONE_ARROW = -2                     # an arrow count of at least 1
 TWO_ARROWS = -3                    # an arrow count of at least 2
 ONE_CANDLE = -4                    # a candle count of at least 1
+# ASNB (docs/design/asnb.md section 5): with Level 9 Entrance = Level 4 sword, level-9 entry is a
+# sword count of at least 4 by the same counting rule, each sword record collected once: the
+# wooden-sword cave's sword (always held), the magical-sword cave's while its cave keeps it (reached),
+# and every tracked sword (the white sword, a randomized magical sword, the level-2 sword).
+SWORD_LINE = frozenset({Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD})
+SWORDS_FOR_LEVEL_9 = 4
+HELD_FROM_START_SWORDS = 1                 # the wooden-sword cave's (C07 = normal; VA-REJ-07's start)
 # The vanilla shop ware each line's count may take (PI-LOGIC-01, Shop Items in the Item Pool off).
 LINE_SHOP_WARES = ((ARROW_LINE, Item.WOOD_ARROWS, (ONE_ARROW, TWO_ARROWS)),
                    (CANDLE_LINE, Item.BLUE_CANDLE, (ONE_CANDLE,)))
@@ -92,6 +99,11 @@ class LogicRules:
     # shops' front doors must avoid as well (E4/E5).
     maze_hints: tuple[tuple[int, Destination], ...] = ()
     front_door_barred: frozenset[int] = frozenset()
+    # ASNB: level-9 entry by SWORDS_FOR_LEVEL_9 swords instead of the eight triforces; and whether
+    # the magical-sword cave's own sword counts once its cave is reached (Randomize Magical Sword
+    # off; the heart check leaves it out, AcceptanceHeartReach)
+    level_9_by_swords: bool = False
+    magical_sword_cave_counts: bool = False
 
     def needs(self, screen: int) -> frozenset[int]:
         """The items a screen's entrance needs."""
@@ -106,9 +118,13 @@ def _family(family_lists: FamilyLists, name: str, *unblocked_by: frozenset[int])
                  for family_list in family_lists)
 
 
-def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: OverworldGates = NO_GATES) -> LogicRules:
-    """Plan section 5, and the owner's 2.0 overworld gates: each rule only when its flag is on."""
+def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: OverworldGates = NO_GATES,
+                level_9_by_swords: bool = False, magical_sword_cave_counts: bool = False) -> LogicRules:
+    """Plan section 5, the owner's 2.0 overworld gates and ASNB's level-9 entrance: each rule only
+    when its flag is on."""
     rules = DEFAULT_RULES
+    if level_9_by_swords:
+        rules = replace(rules, level_9_by_swords=True, magical_sword_cave_counts=magical_sword_cave_counts)
     if gates.any:
         rules = replace(rules, screen_needs=(*rules.screen_needs, *gates.screen_needs()),
                         maze_hints=gates.maze_hints(), front_door_barred=gates.gated_screens())
@@ -137,6 +153,9 @@ class AcceptanceCheck:
     overworld: Overworld
     caves: CaveShuffle
     rules: LogicRules = DEFAULT_RULES
+    # Items held from the start besides the wooden sword: none in ZORA. Archipelago's FINISH grants
+    # the items this player receives from other worlds (docs/archipelago.md, R4's second walk).
+    granted: frozenset[int] = frozenset()
     _walks: dict[tuple[int, int | None, frozenset[int]], Walk] = field(default_factory=dict)
 
     def _level(self, level_num: int) -> Level:
@@ -151,13 +170,28 @@ class AcceptanceCheck:
                                           uses_families=True, target=target, family_lists=self.rules.family_lists)
         return self._walks[key]
 
-    def _can_enter(self, level: int, held: frozenset[int]) -> bool:
+    # The public checks below are the closure's own tests, each on one target and a held set;
+    # Archipelago's access rules are derived from them (logic.py, docs/archipelago.md "Logic").
+
+    def reaches_screen(self, screen: int, held: frozenset[int]) -> bool:
+        """VA-REJ-07 (i): a screen's entrance needs are held."""
+        return self.rules.needs(screen) <= held
+
+    def can_enter(self, level: int, held: frozenset[int]) -> bool:
+        """VA-REJ-07 (i), VA-REJ-08: the level's entry door is reached (level 9: and the long
+        items held, and level-9 entry: the eight triforces, or with ASNB four swords)."""
         needs = self.rules.needs(self.caves.entry_door(level))
         if level == LEVEL_9:
-            needs |= LONG_ITEMS
+            # Bug fix (owner decision 2026-10-08, beta 2): a level-9 item is collected only once
+            # level 9 can be entered. VA-REJ-07 asked level-9 entry only as E1's target, so an
+            # item a triforce needs could sit in level 9 alone and the seed was accepted though
+            # unbeatable. Only Shop Items in the Item Pool can make that happen (the arrow Gohma
+            # needs, the candle burnable screens need); every other need is a long item, which
+            # level 9's own door needs already.
+            needs |= LONG_ITEMS | {LEVEL9_ENTRY}
         return needs <= held
 
-    def _can_reach_room(self, level: int, room: int, held: frozenset[int]) -> bool:
+    def can_reach_room(self, level: int, room: int, held: frozenset[int]) -> bool:
         """VA-REJ-07 (ii)-(iv) for a target room."""
         target = self._level(level).block.room(room)
         layout = target.room_type
@@ -165,18 +199,49 @@ class AcceptanceCheck:
                 and (not is_family_blocked(target, held, self.rules.family_lists) or layout > FAMILY_EXEMPT_LAYOUT)
                 and (Item.LADDER in held or layout not in LADDER_LAYOUTS))
 
+    def reaches_cellar(self, level: int, cellar: int, held: frozenset[int]) -> bool:
+        """An item cellar (by its own room number) is one the level's walk enters."""
+        return cellar in self._walk(level, None, held).cellars
+
     def _can_reach_item(self, level: int, item: int, held: frozenset[int]) -> bool:
         """A level item: located as the level's room (then item cellar)
         holding it; none found is unreachable."""
         place = item_room(self._level(level), item)
         if place is not None:
-            return self._can_reach_room(level, place, held)
+            return self.can_reach_room(level, place, held)
         cellar = item_cellar(self._level(level), item)
-        return cellar is not None and cellar in self._walk(level, None, held).cellars
+        return cellar is not None and self.reaches_cellar(level, cellar, held)
 
-    def _completes(self, level: int, held: frozenset[int]) -> bool:
+    def completes(self, level: int, held: frozenset[int]) -> bool:
+        """The level's triforce room is reached (entry aside)."""
         boss = item_room(self._level(level), Item.TRIFORCE)
-        return boss is not None and self._can_reach_room(level, boss, held)
+        return boss is not None and self.can_reach_room(level, boss, held)
+
+    def reaches_cave(self, cave: Destination, held: frozenset[int]) -> bool:
+        """A one-item cave (the white-sword cave, a ZORA extra's): its first screen's needs are
+        held (hearts aside: the heart check's)."""
+        screens = self.caves.movable_screens(cave)
+        return bool(screens) and self.reaches_screen(screens[0], held)
+
+    def collects(self, place: TrackedPlace, held: frozenset[int]) -> bool:
+        """VA-REJ-07: whether the closure collects a tracked item's place with this held set."""
+        if place.slot == "armos":
+            return True                    # held from the start
+        if place.slot == "white_sword":
+            return self.reaches_cave(Destination.WHITE_SWORD_CAVE, held)
+        if place.slot == "coast":
+            return Item.LADDER in held
+        if (shop := shop_of_slot(place.slot)) is not None:
+            # a joined shop ware (SI-JOIN-01): collected once a door of its shop is reached,
+            # and the letter held for the potion shop (Shuffle Blue Potion)
+            return self.shop_door_reached(shop, held) and (shop != Destination.POTION_SHOP or Item.LETTER in held)
+        if place.slot in EXTRA_SLOT_CAVES:
+            # a ZORA extra's cave (docs/zora-extras.md): as the white-sword slot, by its
+            # screen needs; the magical-sword cave's hearts are the heart check's
+            return self.reaches_cave(EXTRA_SLOT_CAVES[place.slot], held)
+        if place.level is not None:
+            return self.can_enter(place.level, held) and self._can_reach_item(place.level, place.item, held)
+        return False
 
     def collects_everything(self) -> bool:
         """E1 (VA-REJ-07): the closure reaches every tracked item type and
@@ -189,44 +254,30 @@ class AcceptanceCheck:
         the armos slot (0x10D05), if one is there: the held set and the
         completed dungeons when nothing more changes."""
         tracked = self.item_shuffle_result.tracked
-        white_sword = self.caves.movable_screens(Destination.WHITE_SWORD_CAVE)
-        held = {Item.WOOD_SWORD} | {place.item for place in tracked if place.slot == "armos"}
+        held = {Item.WOOD_SWORD} | {place.item for place in tracked if place.slot == "armos"} | self.granted
         completed: set[int] = set()
+        swords: set[int] = set()          # ASNB: the tracked sword records collected, by index
         changed = True
         while changed:
             changed = False
             frozen = frozenset(held)
-            for place in tracked:
-                if place.item in held:
-                    continue
-                if place.slot == "white_sword":
-                    is_collected = bool(white_sword) and self.rules.needs(white_sword[0]) <= frozen
-                elif place.slot == "coast":
-                    is_collected = Item.LADDER in frozen
-                elif (shop := shop_of_slot(place.slot)) is not None:
-                    # a joined shop ware (SI-JOIN-01): collected once a door of its shop is reached,
-                    # and the letter held for the potion shop (Shuffle Blue Potion)
-                    is_collected = self.shop_door_reached(shop, frozen) and (
-                        shop != Destination.POTION_SHOP or Item.LETTER in frozen)
-                elif place.slot in EXTRA_SLOT_CAVES:
-                    # a ZORA extra's cave (docs/zora-extras.md): as the white-sword slot, by its
-                    # screen needs; the magical-sword cave's hearts are the heart check's
-                    extra_cave = self.caves.movable_screens(EXTRA_SLOT_CAVES[place.slot])
-                    is_collected = bool(extra_cave) and self.rules.needs(extra_cave[0]) <= frozen
-                elif place.level is not None:
-                    is_collected = self._can_enter(place.level, frozen) \
-                        and self._can_reach_item(place.level, place.item, frozen)
-                else:
-                    is_collected = False
-                if is_collected:
+            for index, place in enumerate(tracked):
+                if self.rules.level_9_by_swords and place.item in SWORD_LINE:
+                    if index not in swords and self.collects(place, frozen):
+                        swords.add(index)
+                        held.add(place.item)
+                        changed = True
+                elif place.item not in held and self.collects(place, frozen):
                     held.add(place.item)
                     changed = True
             for level in DUNGEONS:
-                if level not in completed and self._can_enter(level, frozen) \
-                        and self._completes(level, frozen):
+                if level not in completed and self.can_enter(level, frozen) \
+                        and self.completes(level, frozen):
                     completed.add(level)
                     changed = True
-            if len(completed) >= TRIFORCES_NEEDED and LEVEL9_ENTRY not in held:
+            if LEVEL9_ENTRY not in held and (self.sword_count(swords, frozen) >= SWORDS_FOR_LEVEL_9
+                                             if self.rules.level_9_by_swords
+                                             else len(completed) >= TRIFORCES_NEEDED):
                 held.add(LEVEL9_ENTRY)
                 changed = True
             for hint, hint_shop in self.rules.maze_hints:
@@ -239,6 +290,15 @@ class AcceptanceCheck:
                 held |= counts
         return held, completed
 
+    def sword_count(self, swords: set[int], held: frozenset[int]) -> int:
+        """ASNB: the swords held, counted as PI-LOGIC-01 counts a line: the wooden-sword cave's,
+        the tracked sword records collected (`swords`), the magical-sword cave's own sword once its
+        cave is reached (hearts aside: the heart check's), and the swords granted."""
+        cave = self.rules.magical_sword_cave_counts and self.reaches_cave(Destination.MAGICAL_SWORD_CAVE, held)
+        # Archipelago's FINISH: the swords this player receives (one of each code at most)
+        received = len(self.granted & SWORD_LINE)
+        return HELD_FROM_START_SWORDS + len(swords) + cave + received
+
     def line_counts(self, held: frozenset[int]) -> set[int]:
         """PI-LOGIC-01: the line-count pseudo-items a held set gives: the line's held items,
         plus (Shop Items in the Item Pool off) its vanilla shop ware once a door of a shop
@@ -246,18 +306,19 @@ class AcceptanceCheck:
         counts: set[int] = set()
         for line, ware, at_least in LINE_SHOP_WARES:
             count = len(held & line)
-            if self.rules.counts_shop_wares and self._shop_door_reached(ware, held):
+            if self.rules.counts_shop_wares and self.ware_door_reached(ware, held):
                 count += 1
             counts.update(at_least[:count])
         return counts
 
-    def _shop_door_reached(self, ware: Item, held: frozenset[int]) -> bool:
+    def ware_door_reached(self, ware: Item, held: frozenset[int]) -> bool:
+        """A door of a shop selling the ware is reached."""
         return any(self.shop_door_reached(cave.destination, held) for cave in self.overworld.caves
                    if isinstance(cave, Shop) and any(item.item == ware for item in cave.items))
 
     def shop_door_reached(self, shop: Destination, held: frozenset[int]) -> bool:
         """A shop's front door is reached: one of its screens' needs are held."""
-        return any(self.rules.needs(screen) <= held for screen in self.caves.movable_screens(shop))
+        return any(self.reaches_screen(screen, held) for screen in self.caves.movable_screens(shop))
 
     def is_zelda_reachable(self) -> bool:
         """E3 (VA-REJ-09): the first $37 room of level 9's block, accepted
@@ -274,11 +335,13 @@ class AcceptanceCheck:
 
 
 def acceptance_check(levels: list[Level], item_shuffle_result: ItemShuffleResult, overworld: Overworld,
-                     caves: CaveShuffle, rules: LogicRules = DEFAULT_RULES) -> str | None:
+                     caves: CaveShuffle, rules: LogicRules = DEFAULT_RULES,
+                     granted: frozenset[int] = frozenset()) -> str | None:
     """VA-REJ-12: E1, E3, E4, E5 in order; the first failure's label, or
     None when the pass is accepted. levels: the pass's nine staged levels.
-    E4/E5 are skipped under Shop Items in the Item Pool (PI-LOGIC-05)."""
-    checks = AcceptanceCheck(levels, item_shuffle_result, overworld, caves, rules)
+    E4/E5 are skipped under Shop Items in the Item Pool (PI-LOGIC-05).
+    granted: items held from the start (AcceptanceCheck.granted; none in ZORA)."""
+    checks = AcceptanceCheck(levels, item_shuffle_result, overworld, caves, rules, granted)
     if not checks.collects_everything():
         return "E1"
     if not checks.is_zelda_reachable():

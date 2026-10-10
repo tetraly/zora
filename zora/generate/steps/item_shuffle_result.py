@@ -3,10 +3,10 @@ the level rooms they walk."""
 
 from dataclasses import dataclass, field
 
-from zora.generate.shapes.world import blocks_of
-from zora.model.enums import Destination
-from zora.model.levels import Level
-from zora.model.rooms import LifeOrMoneyToll, Room, RoomPlace
+from ...model.enums import Destination
+from ...model.levels import Level
+from ...model.rooms import LifeOrMoneyToll, Room, RoomPlace
+from ..shapes.world import blocks_of
 
 
 @dataclass

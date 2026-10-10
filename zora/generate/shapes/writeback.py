@@ -5,10 +5,7 @@ Preserved per level (untouched): palette_raw, fade_palette_raw, start_y,
 item_position_table, map_start, map_cursor_offset, map_ppu_commands,
 qty_table, rom_level_num, screen_status_ram_offset.
 """
-from zora.generate.late_gate.fixes import exit_position
-from zora.generate.shapes.tables import LEVEL_BOSS_SET, LEVEL_ENEMY_BANK
-from zora.generate.shapes.world import BOSS_CODES, DOOR_PASS_SELECTOR, SetWorld, StairKind, StairPlan
-from zora.model.enums import (
+from ...model.enums import (
     BossSound,
     BossSpriteSet,
     Direction,
@@ -20,8 +17,8 @@ from zora.model.enums import (
     RoomType,
     WallType,
 )
-from zora.model.levels import GANON_LIST, LEVEL_9, LEVEL_BLOCK_ROOMS, ZELDA_LIST, Cell, Level, LevelBlock
-from zora.model.rooms import (
+from ...model.levels import GANON_LIST, LEVEL_9, LEVEL_BLOCK_ROOMS, ZELDA_LIST, Cell, Level, LevelBlock
+from ...model.rooms import (
     ITEM_POSITION_SHIFT,
     NO_ITEM_CODE,
     EnemyInfo,
@@ -32,6 +29,9 @@ from zora.model.rooms import (
     StaircaseRoom,
     WallSet,
 )
+from ..late_gate.fixes import exit_position
+from .tables import LEVEL_BOSS_SET, LEVEL_ENEMY_BANK
+from .world import BOSS_CODES, DOOR_PASS_SELECTOR, SetWorld, StairKind, StairPlan
 
 # SH-STAIR-16: an item cellar shows its item at screen position $89 (X $80,
 # Y $90: the middle of the upper ledge).
@@ -150,7 +150,7 @@ def build_level(old: Level, world: SetWorld, blob: int, block: LevelBlock) -> Le
     # off the end without a terminator.
     assert len(pool) <= 9, f"stair pool too large: {len(pool)}"
     stairway = bytes(pool) + b"\xFF" * (10 - len(pool))
-    from zora.generate.shapes.minimap import command_block, synthesize_minimap
+    from .minimap import command_block, synthesize_minimap
     map_data, commands, map_start, map_cursor = synthesize_minimap(
         set(world.cells_by_blob[blob])
     )

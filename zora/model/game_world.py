@@ -2,11 +2,11 @@
 
 from dataclasses import dataclass, field
 
-from zora.model.enums import VANILLA_PERSON_INITS, UnderworldPersonInit
-from zora.model.levels import Level, LevelBlock
-from zora.model.overworld import Overworld, Quote
-from zora.model.rooms import LifeOrMoneyToll
-from zora.model.sprites import EnemyData, SpriteData
+from .enums import VANILLA_PERSON_INITS, UnderworldPersonInit
+from .levels import Level, LevelBlock
+from .overworld import Overworld, Quote
+from .rooms import LifeOrMoneyToll
+from .sprites import EnemyData, SpriteData
 
 
 @dataclass
@@ -76,7 +76,10 @@ class GameWorld:
 
     # B10 DATA-item state (docs/spec/features-behavior.md).
     # Credits text pointers for lines 12-15 (CPU addresses in bank 2).
-    credits_pointers: tuple[int, int, int, int] = (0xAD33, 0xAD4D, 0xAD59, 0xAC72)
+    credits_pointers: tuple[int, int, int, int] = (0xAD33, 0xAD4D, 0xAD59, 0xAD72)
+    # The record line 15 addresses (length, first column, tiles), as read from a ROM; measured
+    # only (FP-LOCK-02's Check), never written: the serializer writes the pointers.
+    credits_line_15_record: bytes = b""
     # Title-screen seed number (right-aligned in the first replaced row).
     title_seed_number: int = 0
     # Title-screen version line (ZORA-authored; empty means leave PRG0 row blank).

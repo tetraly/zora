@@ -5,12 +5,10 @@ hint text both use it."""
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
-from zora.generate.late_gate.walk import level9_entry_room
-from zora.generate.shapes.world import D_SHUTTER, D_WALL
-from zora.model.enums import Item, RoomAction, RoomType, Side
-from zora.model.levels import GANON_LIST, L9_ENTRY_PERSON_LIST, MERCHANT_LIST, ZELDA_LIST, Level
-from zora.model.room_grid import neighbour
-from zora.model.rooms import (
+from ..model.enums import Item, RoomAction, RoomType, Side
+from ..model.levels import GANON_LIST, L9_ENTRY_PERSON_LIST, MERCHANT_LIST, ZELDA_LIST, Level
+from ..model.room_grid import neighbour
+from ..model.rooms import (
     DIAMOND_STAIRS_PUSH,
     ITEM_MASK,
     NO_ITEM_CODE,
@@ -20,6 +18,8 @@ from zora.model.rooms import (
     Room,
     StaircaseRoom,
 )
+from .late_gate.walk import level9_entry_room
+from .shapes.world import D_SHUTTER, D_WALL
 
 SHUTTERS_OPEN_TRIGGERS = frozenset({RoomAction.ALL_DEAD, RoomAction.ALL_DEAD_ITEM, RoomAction.BLOCK_DOOR,
                                     RoomAction.MONEY_OR_LIFE})                    # VA-WALK-03

@@ -19,7 +19,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from zora.measure.checks import run_checks  # noqa: E402
+from zora_measure.checks import run_checks  # noqa: E402
 from zora.model.enums import Enemy, Item, RoomType, Side, WallType  # noqa: E402
 from zora.model.game_world import GameWorld
 from zora.model.levels import Level

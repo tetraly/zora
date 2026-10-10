@@ -2,8 +2,8 @@
 texts exchange pointers, not room codes."""
 from dataclasses import replace
 
-from zora.generate.rng import IntRng, discard
-from zora.generate.steps.hint_text import HintTextResult
+from ..rng import IntRng, discard
+from .hint_text import HintTextResult
 
 # HT-TEXT-04: the slots whose pointers are exchanged, in walk order (slot 38
 # first, not slot 19, which belongs to the white-sword cave)

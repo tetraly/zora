@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from zora.flags.fields import (
+from .fields import (
     BOSS_HIT_POINTS,
     CAVE_SHUFFLE,
     DUNGEON_LAYOUT_SOURCE,

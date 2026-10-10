@@ -4,12 +4,12 @@ Numbering + freeing for stairs is numbering.number_with_frees (runs next);
 SH-GRID-08's "never the bottom two rows" protection also keeps entrance
 candidates (bottom row) and the L9 entry-person room (row 6) intact.
 """
-from zora.generate.rng import IntRng, Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.world import GRID_COLS, GRID_ROWS, SetWorld
-from zora.model import room_grid
-from zora.model.enums import Side
-from zora.model.room_grid import neighbour
+from ...model import room_grid
+from ...model.enums import Side
+from ...model.room_grid import neighbour
+from ..rng import IntRng, Rng
+from .options import ShapeOptions
+from .world import GRID_COLS, GRID_ROWS, SetWorld
 
 # In-grid neighbours of every cell, in N/E/S/W order (precomputed: growth
 # reads them for every frontier push and weight).

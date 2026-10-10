@@ -243,6 +243,10 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .help-wrap:hover .tip, .help:focus-visible + .tip { display: block; }
 
 /* Look and feel: the colour pickers */
+.level-word-control { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.level-word-input { width: 7.5em; text-transform: uppercase; font-family: inherit; }
+.level-word-input--error { border-color: var(--error); box-shadow: 0 0 0 1px var(--error); }
+.colour-note { grid-column: 1 / -1; margin: 0; padding: 0 14px; }
 .colour-heading { grid-column: 1 / -1; margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
 .flag-color-picker { position: relative; display: inline-flex; }
 .color-picker-toggle {

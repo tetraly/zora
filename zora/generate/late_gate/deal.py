@@ -1,13 +1,13 @@
 """VA-REJ-03 steps 1-3: re-deal a level's room contents, its staircase exits and
 its internal door pairs."""
 
-from zora.generate.late_gate.blocks import _room_table, _rooms
-from zora.generate.rng import Rng
-from zora.generate.shapes.world import D_WALL, GRID_COLS, GRID_ROWS, WITHOUT_HIGH_COUNT_BIT
-from zora.model import room_grid
-from zora.model.enums import RoomAction, RoomType, Side
-from zora.model.levels import L9_ENTRY_PERSON, L9_ENTRY_PERSON_LIST, LEVEL_9, MERCHANT_LIST, ZELDA_LIST, Level
-from zora.model.rooms import DoorPair, Room, StaircaseRoom
+from ...model import room_grid
+from ...model.enums import RoomAction, RoomType, Side
+from ...model.levels import L9_ENTRY_PERSON, L9_ENTRY_PERSON_LIST, LEVEL_9, MERCHANT_LIST, ZELDA_LIST, Level
+from ...model.rooms import DoorPair, Room, StaircaseRoom
+from ..rng import Rng
+from ..shapes.world import D_WALL, GRID_COLS, GRID_ROWS, WITHOUT_HIGH_COUNT_BIT
+from .blocks import _room_table, _rooms
 
 _SEAT_RULED = frozenset({RoomType.T_ROOM, RoomType.ZELDA_ROOM, RoomType.HORIZONTAL_CHUTE_ROOM,
                          RoomType.VERTICAL_CHUTE_ROOM})   # whole layout bytes

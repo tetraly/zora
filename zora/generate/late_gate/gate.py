@@ -25,10 +25,16 @@ changelog amendments (Axx).
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from zora.generate.errors import GenerationFailure
-from zora.generate.late_gate.blocks import GateBlock, _rooms, _set_trigger, gate_blocks
-from zora.generate.late_gate.deal import _deal_level
-from zora.generate.late_gate.fixes import (
+from ...model.enums import RoomAction, Side
+from ...model.levels import GANON_LIST, LEVEL_9, Level
+from ...model.rooms import DoorPair
+from ..errors import GenerationFailure
+from ..rng import Rng
+from ..shapes.numbering import spatial_pieces_of
+from ..shapes.world import D_BOMB, D_OPEN, D_SHUTTER, set_side
+from .blocks import GateBlock, _rooms, _set_trigger, gate_blocks
+from .deal import _deal_level
+from .fixes import (
     _first_special_room_fix,
     _level9_extras,
     _placement_check,
@@ -39,15 +45,9 @@ from zora.generate.late_gate.fixes import (
     _zelda_rewrite,
     zelda_cell,
 )
-from zora.generate.rng import Rng
-from zora.generate.shapes.numbering import spatial_pieces_of
-from zora.generate.shapes.world import D_BOMB, D_OPEN, D_SHUTTER, set_side
-from zora.model.enums import RoomAction, Side
-from zora.model.levels import GANON_LIST, LEVEL_9, Level
-from zora.model.rooms import DoorPair
 
 if TYPE_CHECKING:
-    from zora.generate.late_gate.walk import WalkResult
+    from .walk import WalkResult
 
 
 GATE_BUDGET = 1000
@@ -89,7 +89,7 @@ def _connectivity_repair(level: Level, recorded: list[DoorPair], rng: Rng,
     Ganon's room becomes a shutter; rooms with trigger 0/2 get trigger 1.
     A pair the repair opened is marked used for the attempt (A37); step 6's
     and placement's openings never change the recorded list."""
-    from zora.generate.late_gate.walk import connectivity_walk
+    from .walk import connectivity_walk
     zelda = zelda_cell(_rooms(level))
     opened = 0
     remaining = list(recorded)
@@ -144,7 +144,7 @@ def _restore(gate_block: GateBlock, snapshot: _Snap) -> None:
 
 def _connectivity_verdict(level: Level) -> str | None:
     """None when the level walks through; else a kind label."""
-    from zora.generate.late_gate.walk import gate_walk
+    from .walk import gate_walk
     return gate_walk(level)
 
 
@@ -206,7 +206,7 @@ def _attempt(gate_block: GateBlock, level: Level,
     if level.level_num == LEVEL_9 and not _zelda_rewrite(gate_block, level):
         return "l9door", None, False, 0
     # step 9: connectivity (walk, then repair), then level 9's extras
-    from zora.generate.late_gate.walk import connectivity_walk
+    from .walk import connectivity_walk
     walk = connectivity_walk(level)
     plain_walk_passed = walk.passed
     repair_ran, pairs_opened = False, 0

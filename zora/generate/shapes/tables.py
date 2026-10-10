@@ -2,7 +2,7 @@
 
 All weights are integers (Rng.weighted contract).
 """
-from zora.model.enums import Item, RoomType
+from ...model.enums import Item, RoomType
 
 # --- T1 door weights (first quest) -----------------------------------------
 # Order: open, wall, walk-through, walk-through-2, bombable, key, key-2, shutter
@@ -62,6 +62,25 @@ CELLAR_ITEMS: dict[int, list[int]] = {
     8: [0x11, 0x0B],  # book, magic key
     9: [0x09, 0x13],  # silver arrows, red ring
 }
+
+# ASNB (docs/design/asnb.md section 4): with Add L4 Sword = Level 2, level 2 gets one item cellar,
+# holding one sword upgrade (item $01, the wooden sword's code: with Progressive Items, the next
+# sword), and a stair budget of 1 for it.
+LEVEL_2_SWORD_LEVEL = 2
+LEVEL_2_SWORD_ITEM = 0x01
+
+
+def stair_budget(level: int, level_2_sword_cellar: bool = False) -> int:
+    """SH-STAIR-02's budget, with ASNB's level-2 cellar."""
+    return STAIR_BUDGET[level] + (level_2_sword_cellar and level == LEVEL_2_SWORD_LEVEL)
+
+
+def cellar_items(level: int, level_2_sword_cellar: bool = False) -> list[int]:
+    """SH-STAIR-03's cellar contents, with ASNB's level-2 sword."""
+    if level_2_sword_cellar and level == LEVEL_2_SWORD_LEVEL:
+        return [LEVEL_2_SWORD_ITEM]
+    return CELLAR_ITEMS.get(level, [])
+
 
 # --- SH-ROOM-02/03: person rooms ----------------------------------------------
 # U13 (2026-09-28): 1/1/1/1/2/2/1/2/3 for levels 1-9 (#44.4).

@@ -89,8 +89,8 @@ class FreeSpace:
 FREE_SPACE = {
     "ZORA_FP_PROG_01_SHOP": FreeSpace(1, 0xBE40, 0xBEBF),      # up to fp-fix-02's slot at $BEC0
     "ZORA_FP_PROG_01_RESOLVE": FreeSpace(1, 0xBEE0, 0xBF4F),   # fp-fix-02's slot ends at $BEDF
-    "ZORA_FP_PROG_02_ROOM": FreeSpace(5, 0xBA40, 0xBF4F),      # fp-hot-01's slot ends at $BA3F
-    "ZORA_FP_PROG_02_ARMOS": FreeSpace(4, 0xB480, 0xBEFF),     # the Wizzrobe routine starts at $BF00
+    "ZORA_FP_PROG_02_ROOM": FreeSpace(5, 0xBB00, 0xBBFF),      # fp-entr-01's slot ends at $BAFF
+    "ZORA_FP_PROG_02_ARMOS": FreeSpace(4, 0xB900, 0xB9FF),     # z1rr-coop reserves $B46F-$B882; Pols Voice's slot is at $BA00
 }
 
 # Exported labels the build records (bank in the name, as in scripts/asm_patches.py):

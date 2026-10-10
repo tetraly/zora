@@ -1,11 +1,11 @@
 """Quotes and hint texts."""
 
-from zora.model.overworld import Quote
-from zora.rom.layout import EXT_BANK1_ROM_START, NUM_QUOTES
-from zora.rom.text_encoding import (
+from ...model.overworld import Quote
+from ..layout import EXT_BANK1_ROM_START, NUM_QUOTES
+from ..text_encoding import (
     BYTE_TO_CHAR as _BYTE_TO_CHAR,
 )
-from zora.rom.text_encoding import (
+from ..text_encoding import (
     QUOTE_BLANK,
     QUOTE_CHAR_MASK,
     QUOTE_END_BITS,
@@ -48,7 +48,7 @@ def _parse_hint_text_bytes(rom_bytes: bytes) -> tuple[bytes, ...]:
     the blank sentinel 0xFF.  ZORA's generated hint text has 45 bodies, in slot
     order (HT-TEXT-03).
     """
-    from zora.rom.layout import CONSTERNATION_HINT_SLOTS, hint_text_regions
+    from ..layout import CONSTERNATION_HINT_SLOTS, hint_text_regions
     bodies: list[bytes] = []
     # The bank first, then (when the serializer spilled, filling the bank's
     # tail with a byte that ends no text) the overflow region (PI-HINT-02).
@@ -81,7 +81,7 @@ def _parse_person_text(quotes_data: bytes, rom_bytes: bytes | None = None
     the logical CPU pointer for each slot, and (for generated hint text) the
     encoded bodies in slot order.
     """
-    from zora.rom.layout import EXT_HINT_CPU_BASE
+    from ..layout import EXT_HINT_CPU_BASE
     count = NUM_QUOTES
     # Generated hint text has a 45-entry pointer table (HT-TEXT-03).  PRG0
     # keeps the 38-entry table; bytes after it are text, not pointers.  Only

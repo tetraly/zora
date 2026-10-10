@@ -1,8 +1,8 @@
 """Change Bomb Upgrades (B12; FP-BOMB-01)."""
 
-from zora.generate.rng import Rng
-from zora.model.game_world import GameWorld
-from zora.model.overworld import BombUpgrade
+from ...model.game_world import GameWorld
+from ...model.overworld import BombUpgrade
+from ..rng import Rng
 
 
 def change_bomb_upgrades(gw: GameWorld, rng: Rng) -> None:

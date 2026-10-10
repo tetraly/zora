@@ -2,13 +2,13 @@
 
 Runs after numbering so weights can key off the level number.
 """
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.tables import T1_FIRST_QUEST, T1_SECOND_QUEST
-from zora.generate.shapes.world import DOOR_PASS_SELECTOR, GRID_COLS, GRID_ROWS, SetWorld
-from zora.model import room_grid
-from zora.model.enums import Side
-from zora.model.room_grid import neighbour
+from ...model import room_grid
+from ...model.enums import Side
+from ...model.room_grid import neighbour
+from ..rng import Rng
+from .options import ShapeOptions
+from .tables import T1_FIRST_QUEST, T1_SECOND_QUEST
+from .world import DOOR_PASS_SELECTOR, GRID_COLS, GRID_ROWS, SetWorld
 
 # WallType values (zora.model.enums.WallType): open, wall, walk1, walk2, bomb,
 # key1, key2, shutter — same order as T1 columns.

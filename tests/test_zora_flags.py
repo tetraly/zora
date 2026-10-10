@@ -80,7 +80,7 @@ def test_canonical_form_drops_leading_zeros_and_all_default_payloads() -> None:
     assert canonicalize("1.0") == ""
 
 
-@pytest.mark.parametrize("string", ["D", "1D", "0.1", "01.1", "1.", ".1", "4.1", "1.?", "1.1 ", "1.O"])
+@pytest.mark.parametrize("string", ["D", "1D", "0.1", "01.1", "1.", ".1", "5.1", "1.?", "1.1 ", "1.O"])
 def test_malformed_strings_are_refused(string: str) -> None:
     with pytest.raises(ZoraFlagStringError):
         decode(string)
@@ -182,7 +182,8 @@ def test_the_derived_seed_depends_on_every_input() -> None:
 def test_the_module_lists_one_field_per_flag() -> None:
     assert [field.name for field in zora_flags.FIELDS] == [
         "randomize_magical_sword", "randomize_letter", "magical_sword_hearts_highest",
-        "progressive_items", "shop_items_in_pool", *zora_flags.OWNER_2_0_FIELDS]
+        "progressive_items", "shop_items_in_pool", *zora_flags.OWNER_2_0_FIELDS,
+        "l4_sword_in_level_2", "level_9_entrance_sword"]
 
 
 # --- PI-FLAG-03: Progressive Items refuses Extra Candles ----------------------

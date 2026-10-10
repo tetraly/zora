@@ -1,7 +1,7 @@
 """Caves: the cave definitions (items, prices, quotes) of each destination."""
 
-from zora.model.enums import Destination, Item, ShopType
-from zora.model.overworld import (
+from ...model.enums import Destination, Item, ShopType
+from ...model.overworld import (
     CaveDefinition,
     DoorRepairCave,
     HintCave,
@@ -15,8 +15,8 @@ from zora.model.overworld import (
     ShopItem,
     TakeAnyCave,
 )
-from zora.rom.layout import CAVE_NOTHING_CODE
-from zora.rom.parse.bin_files import RawBinFiles
+from ..layout import CAVE_NOTHING_CODE
+from .bin_files import RawBinFiles
 
 # ---------------------------------------------------------------------------
 # Cave data parsing

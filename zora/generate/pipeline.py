@@ -20,13 +20,15 @@ strings into the generation seed, and the level-encoding key covers both.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
-from dataclasses import dataclass
+from collections.abc import Collection
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from zora.flags import zora_flags
-from zora.flags.codec import FlagStringError, decode, encode
-from zora.flags.dependencies import (
+from ..flags import zora_flags
+from ..flags.codec import FlagStringError, decode, encode
+from ..flags.dependencies import (
     apply_dependencies,
     check_dependencies,
     correct_merchant_toll,
@@ -34,7 +36,7 @@ from zora.flags.dependencies import (
     is_resolved,
     resolve,
 )
-from zora.flags.fields import (
+from ..flags.fields import (
     BOSS_HIT_POINTS,
     DUNGEON_LAYOUT_SOURCE,
     DUNGEON_ROOM_SHUFFLE,
@@ -56,21 +58,24 @@ from zora.flags.fields import (
     StartScreen,
     ThreeState,
 )
-from zora.flags.support import ENCODE_LEVEL_DATA_NOT_RANDOM, encode_level_data_is_random, unsupported_fields
-from zora.flags.zora_flags import ZoraFlags, ZoraFlagStringError
-from zora.generate.alternative_values import AlternativeValues
-from zora.generate.extra_options import ExtraOptions
-from zora.generate.flag_steps import FlagSteps
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.steps.overworld_gates import OverworldGates
-from zora.rom import level_encoding
-from zora.rom.game_config import DungeonNothingCode, GameConfig, HintMode, LevelEncodingKey
-from zora.rom.player_settings import DEFAULT_PLAYER_SETTINGS, PlayerSettings
+from ..flags.support import ENCODE_LEVEL_DATA_NOT_RANDOM, encode_level_data_is_random, unsupported_fields
+from ..flags.zora_flags import ZoraFlags, ZoraFlagStringError
+from ..rom import level_encoding
+from ..rom.game_config import DungeonNothingCode, GameConfig, HintMode, LevelEncodingKey
+from ..rom.player_settings import DEFAULT_PLAYER_SETTINGS, PlayerSettings
+from .alternative_values import AlternativeValues
+from .extra_options import ExtraOptions
+from .flag_steps import FlagSteps
+from .rng import Rng
+from .shapes.options import ShapeOptions
+from .steps.overworld_gates import OverworldGates
 
 if TYPE_CHECKING:
-    from zora.generate.context import GenerationResult
-    from zora.model.game_world import GameWorld
+    from ..model.enums import Item
+    from ..model.game_world import GameWorld
+    from .context import GenerationResult
+    from .finish import Assignment, Finished
+    from .places import Place
 
 # C03 (hint style): mixed (index 4) and community (index 2, FL-ALT-04) both write the generated
 # 45-slot block; only its generation differs (generate_community_hint_text). The level-9 and
@@ -227,7 +232,9 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
         seed=seed,
         flag_string=canonical,
         settings=settings,
-        shape_options=shape_options(settings),
+        # ASNB (docs/design/asnb.md section 4): Add L4 Sword = Level 2 adds level 2's item cellar
+        shape_options=replace(shape_options(settings),
+                              level_2_sword_cellar=zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2),
         steps=flag_steps(settings),
         alternatives=alternative_values(settings),
         post_shapes=settings.option(DUNGEON_LAYOUT_SOURCE) == DungeonLayoutSource.GENERATED_SHAPES,
@@ -244,6 +251,7 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             shop_items_in_pool=zora.shop_items_in_pool,
             potion_shop_in_pool=zora_resolved.is_on("shuffle_blue_potion"),
             owner_flags=tuple(name for name in zora_flags.OWNER_2_0_FIELDS if zora_resolved.is_on(name)),
+            level_9_entrance_sword=zora_resolved.level_9_entrance_sword,
         ),
         zora_flag_string=zora_canonical,
         zora=zora,
@@ -323,9 +331,12 @@ def shape_options(settings: Settings) -> ShapeOptions:
 
 def generate_world(chosen: GenerationPlan, base_rom: bytes) -> tuple[GameWorld, GenerationResult]:
     """The generated world for a plan, on the PRG0 base (not yet serialized)."""
-    from zora.generate.generation_pass import generate_shapes
-    from zora.generate.rng import Rng
-    from zora.rom.parse.rom_file import parse_rom
+    from ..rom.base_rom import remember_base_rom
+    from ..rom.parse.rom_file import parse_rom
+    from .generation_pass import generate_shapes
+    from .rng import Rng
+    # Before any read: the patches' original bytes come from this ROM (base_rom.player_rom).
+    remember_base_rom(base_rom)
     world = parse_rom(base_rom)
     result = generate_shapes(world, Rng(chosen.generation_seed), chosen.shape_options, post_shapes=chosen.post_shapes,
                              feature_data=chosen.config.features_b10, seed=chosen.seed, steps=chosen.steps,
@@ -345,6 +356,8 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         gates=overworld_gates(chosen.zora_resolved),
         shuffle_blue_potion=chosen.zora_resolved.is_on("shuffle_blue_potion"),
         add_l4_sword=chosen.zora_resolved.is_on("add_l4_sword"),
+        l4_sword_in_level_2=chosen.zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2,
+        level_9_entrance_sword=chosen.zora_resolved.level_9_entrance_sword,
     )
 
 
@@ -356,15 +369,60 @@ def overworld_gates(zora: ZoraFlags) -> OverworldGates:
                           dead_woods=zora.is_on("randomize_dead_woods"))
 
 
+@dataclass
+class Built:
+    """BUILD's output (Archipelago Phase 2; docs/archipelago.md): a whole ZORA generation, every
+    step run and the attempt shipped, before serialization; with the places its items sit in,
+    read from the finished world (places.all_item_places)."""
+    plan: GenerationPlan
+    world: GameWorld
+    result: GenerationResult
+    places: list[Place]
+
+
+def build(chosen: GenerationPlan, base_rom: bytes) -> Built:
+    """BUILD: generate_world, unchanged, and the item places of the world it made."""
+    from .places import all_item_places
+    world, result = generate_world(chosen, base_rom)
+    return Built(chosen, world, result, all_item_places(world, extra_options(chosen)))
+
+
+def finish(built: Built, base_rom: bytes, assignment: Assignment | None = None,
+           player_settings: PlayerSettings = DEFAULT_PLAYER_SETTINGS, recompute: bool = True,
+           received: Collection[Item] = (), check: bool = True, slot_identity: bytes = b"") -> bytes:
+    """FINISH: the built world as a ROM. With no assignment (ZORA mode) it is serialize_to_rom on
+    the built world, which only reads it, so one build can be finished more than once. With one
+    (External mode) the items go into a copy of the world first (finish_world); `slot_identity`
+    is Archipelago's record for the slot (zora/rom/slot_identity.py), written only with one."""
+    from ..rom.serialize.rom_file import serialize_to_rom
+    if assignment is None:
+        assert not slot_identity, "a slot identity is External mode's"
+        return serialize_to_rom(built.world, base_rom, config=built.plan.config, player_settings=player_settings)
+    world, finished = finish_world(built, assignment, recompute, received, check)
+    config = replace(finished.config, slot_identity=slot_identity)
+    return serialize_to_rom(world, base_rom, config=config, player_settings=player_settings)
+
+
+def finish_world(built: Built, assignment: Assignment, recompute: bool = True, received: Collection[Item] = (),
+                 check: bool = True) -> tuple[GameWorld, Finished]:
+    """External mode before serialization: a deep copy of the built world with the assignment
+    applied (finish.apply_assignment, which also takes `received` and `check`), on FINISH's own
+    stream; the built world is left as it is."""
+    from .finish import apply_assignment, finish_rng
+    world = copy.deepcopy(built.world)
+    finished = apply_assignment(world, built, assignment, finish_rng(built.plan.generation_seed), recompute,
+                                received, check)
+    return world, finished
+
+
 def generate_rom(flag_string: str, seed: int, base_rom: bytes,
                  player_settings: PlayerSettings = DEFAULT_PLAYER_SETTINGS, zora_flag_string: str = "") -> GeneratedRom:
     """One finished ROM for a flag string, a ZORA flag string and a seed, on
     the PRG0 base, with the player settings applied last (FP-SET-01: after
-    the level encoding and the seed's code, which they never change)."""
-    from zora.rom.code_patches import seed_code
-    from zora.rom.serialize.rom_file import serialize_to_rom
+    the level encoding and the seed's code, which they never change):
+    BUILD, then FINISH with no assignment (ZORA mode)."""
+    from ..rom.code_patches import seed_code
     chosen = plan(flag_string, seed, zora_flag_string)
-    world, _ = generate_world(chosen, base_rom)
-    rom = serialize_to_rom(world, base_rom, config=chosen.config, player_settings=player_settings)
+    rom = finish(build(chosen, base_rom), base_rom, None, player_settings)
     return GeneratedRom(rom, seed, chosen.flag_string, chosen.encode_level_data, seed_code(rom),
                         chosen.zora_flag_string)

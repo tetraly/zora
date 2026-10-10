@@ -2,14 +2,14 @@
 
 Runs after doors so the entrance's south side can be forced open.
 """
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.world import GRID_ROWS, SetWorld
-from zora.model import room_grid
-from zora.model.enums import RoomAction, RoomType, Side
-from zora.model.room_grid import neighbour
-from zora.model.rooms import NO_ITEM_CODE
+from ...model import room_grid
+from ...model.enums import RoomAction, RoomType, Side
+from ...model.room_grid import neighbour
+from ...model.rooms import NO_ITEM_CODE
+from ..errors import GenerationFailure
+from ..rng import Rng
+from .options import ShapeOptions
+from .world import GRID_ROWS, SetWorld
 
 W_OPEN = 0
 W_WALL = 1

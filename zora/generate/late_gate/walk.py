@@ -33,11 +33,11 @@ walk's rulebook (stated since 23d15d0).
 from dataclasses import dataclass
 from typing import cast
 
-from zora.generate.shapes.world import D_SHUTTER, D_WALL, GRID_COLS, side_of, sides_of
-from zora.model import room_grid
-from zora.model.enums import RoomAction, RoomType, Side
-from zora.model.levels import L9_ENTRY_PERSON, LEVEL_9, MERCHANT_LIST, Level
-from zora.model.rooms import DIAMOND_STAIRS_PUSH, PERSON_LAYOUT_BYTE, PUSH_BLOCK_VARIANT, Room
+from ...model import room_grid
+from ...model.enums import RoomAction, RoomType, Side
+from ...model.levels import L9_ENTRY_PERSON, LEVEL_9, MERCHANT_LIST, Level
+from ...model.rooms import DIAMOND_STAIRS_PUSH, PERSON_LAYOUT_BYTE, PUSH_BLOCK_VARIANT, Room
+from ..shapes.world import D_SHUTTER, D_WALL, GRID_COLS, side_of, sides_of
 
 STAIR_SIDE = 4
 ALL_SIDES = (Side.NORTH, Side.EAST, Side.SOUTH, Side.WEST, STAIR_SIDE)

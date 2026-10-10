@@ -8,10 +8,10 @@ and the tables selecting it belong to a later pass and are not written.
 """
 from dataclasses import dataclass, field
 
-from zora.generate.shapes.world import blocks_of
-from zora.model.enums import UnderworldPersonInit
-from zora.model.levels import HINT_LEVELS, MERCHANT_LIST, Level
-from zora.model.rooms import MONSTER_VALUE_BIT, EnemyInfo, Room
+from ...model.enums import UnderworldPersonInit
+from ...model.levels import HINT_LEVELS, MERCHANT_LIST, Level
+from ...model.rooms import MONSTER_VALUE_BIT, EnemyInfo, Room
+from ..shapes.world import blocks_of
 
 BOMB_UPGRADE_CODE = 0x0F
 INITIAL_HELPFUL = frozenset({3, 4, 6, 8})        # PS-HINT-03, no draw

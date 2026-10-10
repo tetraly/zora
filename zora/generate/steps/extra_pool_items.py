@@ -26,10 +26,15 @@ from __future__ import annotations
 from collections.abc import Iterator
 from dataclasses import dataclass, field, replace
 
-from zora.generate.acceptance_check import DEFAULT_RULES, LogicRules
-from zora.generate.rng import IntRng
-from zora.generate.steps.cave_entries import CaveShuffle
-from zora.generate.steps.item_shuffle_result import (
+from ...model.enums import Item, RoomType
+from ...model.game_world import GameWorld
+from ...model.levels import Level
+from ...model.overworld import ItemCave, Overworld, Shop
+from ...model.rooms import ITEM_MASK, Room, StaircaseRoom
+from ..acceptance_check import DEFAULT_RULES, LogicRules
+from ..rng import IntRng
+from .cave_entries import CaveShuffle
+from .item_shuffle_result import (
     EXTRA_SLOT_CAVES,
     LETTER_SLOT,
     MAGICAL_SWORD_SLOT,
@@ -38,12 +43,7 @@ from zora.generate.steps.item_shuffle_result import (
     TrackedPlace,
     shop_ware_slot,
 )
-from zora.generate.steps.shuffle_items import CAVE_SLOTS, FORCED_ITEM_OPTIONS, RANDOM_ITEM
-from zora.model.enums import Item, RoomType
-from zora.model.game_world import GameWorld
-from zora.model.levels import Level
-from zora.model.overworld import ItemCave, Overworld, Shop
-from zora.model.rooms import ITEM_MASK, Room, StaircaseRoom
+from .shuffle_items import CAVE_SLOTS, FORCED_ITEM_OPTIONS, RANDOM_ITEM
 
 # The item each extra brings into the pool (its cave's vanilla item).
 JOINED_ITEMS: dict[str, Item] = {MAGICAL_SWORD_SLOT: Item.MAGICAL_SWORD, LETTER_SLOT: Item.LETTER}
@@ -58,6 +58,10 @@ class ExtraPoolItems:
     caves: dict[str, Item] = field(default_factory=dict)
     shop_wares: list[ShopWarePlace] = field(default_factory=list)
     shop_items: list[Item] = field(default_factory=list)
+    # Each joined ware's price when it joined, before SI-PRICE-01 (B08's jitter included): the
+    # price a ware keeps when it holds its own item or an unpriced one. Recorded only, for FINISH
+    # (Archipelago Phase 2), which prices the wares again for an assigned world.
+    slot_prices: list[int] = field(default_factory=list)
 
 
 def extra_cave(overworld: Overworld, slot: str) -> ItemCave:
@@ -162,10 +166,10 @@ class ShopWarePlace(PoolPlace):
     position: int
 
     def get(self) -> Item:
-        return self.shop.items[self.position].item
+        return self.shop.ware(self.position).item
 
     def put(self, item: Item) -> None:
-        self.shop.items[self.position].item = item
+        self.shop.ware(self.position).item = item
 
     def tracked(self, item: Item) -> TrackedPlace:
         return TrackedPlace(item & ITEM_MASK, slot=shop_ware_slot(self.shop.destination, self.position))

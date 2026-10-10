@@ -52,13 +52,25 @@ def is_prg0(data: bytes) -> bool:
 
 
 # The original game's bytes are never shipped: what ZORA keeps or moves of them is read from
-# the player's own PRG0 ROM when it is needed. generate_rom and serialize_to_rom remember the
-# ROM they are given (once verified); without one, the verified repo-root ROM is read.
+# the player's own PRG0 ROM when it is needed. generate_rom/generate_world, parse_rom and
+# serialize_to_rom remember the ROM they are given (once verified) before reading anything.
+# Without one, player_rom() refuses: generation never falls back to a file on disk, which
+# Archipelago (zora/ copied in as worlds.zora.zora, perhaps from a zip) does not have.
+#
+# The remembered ROM is process-global, not per call: Archipelago generates several players'
+# worlds in one process, one after another, and every player's base is the same PRG0 ROM
+# (refused otherwise), so whichever call remembered it last leaves the same bytes. Scripts and
+# tests that parse finished or corpus ROMs before any generation call
+# remember_repo_base_rom() first (it is never called on the generation path).
 class _PlayerRom:
     data: bytes | None = None
 
 
 _player = _PlayerRom()
+
+
+class NoPlayerRom(RuntimeError):
+    pass
 
 
 def remember_base_rom(data: bytes) -> None:
@@ -68,10 +80,18 @@ def remember_base_rom(data: bytes) -> None:
         _player.data = bytes(data)
 
 
+def remember_repo_base_rom() -> bytes:
+    """For scripts and tests only: remember the verified repo-root PRG0 ROM and return its bytes."""
+    data = verify_base_rom().read_bytes()
+    remember_base_rom(data)
+    return data
+
+
 def player_rom() -> bytes:
-    """The player's verified PRG0 ROM: the one last remembered, else the repo-root file."""
+    """The player's verified PRG0 ROM, the one last remembered; NoPlayerRom if none was."""
     if _player.data is None:
-        _player.data = verify_base_rom().read_bytes()
+        raise NoPlayerRom("no PRG0 base ROM remembered: pass it to generate_rom (or parse_rom) first; "
+                          "scripts and tests call base_rom.remember_repo_base_rom()")
     return _player.data
 
 

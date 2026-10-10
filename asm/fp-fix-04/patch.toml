@@ -1,16 +1,31 @@
 # ZORA FP-FIX-04: taking the Triforce of Power signals the last boss defeated and counts the kill.
 # asm/README.md describes this file.
+#
+# TakePowerTriforceSignals fills bank 7's unused 12-byte $FF run at $ED94 (after
+# UpdateHeartsAndRupees' closing JMP; nothing branches, jumps or reads there) in place, so
+# bank 7's $FFD0-$FFDB stays free for z1rr-coop's NMI entry (docs/rom-map.md). It must stay
+# exactly 12 bytes: a longer routine would shift UpdatePlayer.
 
-[[segment]]
-name = "ZORA_FP_FIX_04"
-bank = 7
-start = 0xFFD0
+[exports]
+bank_07 = ["TakePowerTriforceSignals"]
 
 [imports]
 bank_01 = ["TakePowerTriforceSignals"]
 
-[exports]
-bank_07 = ["TakePowerTriforceSignals"]
+[[hook]]
+name = "power-triforce-signals"
+offset = 0x1EDA4
+length = 12
+note = "Bank 7's unused $FF run at $ED94 holds TakePowerTriforceSignals: the item-appears tune request ($02, as PRG0), $02 in LastBossDefeated (opens a last-boss room's shutters) and the kill count (INC ObjType slot 0), which Ganon's ashes no longer do. TakeItem runs from RAM with any bank in, so it lives in the fixed bank. Keeps A (the item ID)."
+code = """
+TUNE_ITEM_APPEARS = $02
+TakePowerTriforceSignals:
+    LDX #TUNE_ITEM_APPEARS
+    STX Tune1Request
+    STX LastBossDefeated
+    INC ObjType
+    RTS
+"""
 
 [[hook]]
 name = "power-triforce-tune"

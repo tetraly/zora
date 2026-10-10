@@ -1,7 +1,7 @@
 """Caves: the cave definitions, the money-making game's prizes and the bomb upgrade."""
 
-from zora.model.enums import Destination, Item
-from zora.model.overworld import (
+from ...model.enums import Destination, Item
+from ...model.overworld import (
     CaveDefinition,
     DoorRepairCave,
     HintShop,
@@ -13,7 +13,7 @@ from zora.model.overworld import (
     Shop,
     TakeAnyCave,
 )
-from zora.rom.layout import (
+from ..layout import (
     ARMOS_ITEM_ADDRESS,
     BOMB_COST_OFFSET,
     BOMB_COUNT_OFFSET,
@@ -38,7 +38,7 @@ from zora.rom.layout import (
     MMG_WIN_SMALL_OFFSET_C,
     WHITE_SWORD_REQUIREMENT_ADDRESS,
 )
-from zora.rom.serialize.patch import Patch
+from .patch import Patch
 
 # ---------------------------------------------------------------------------
 # Cave data serialization
@@ -161,7 +161,7 @@ def cave_ware_tables(cave_by_dest: dict[Destination, CaveDefinition]) -> tuple[b
     if c := get(Destination.LETTER_CAVE):
         assert isinstance(c, ItemCave)
         _write_wares(items, LETTER_CAVE_INDEX, _NOTHING, _item_code(c.item), ITEMS_DISPLAYED | EXTERNAL_MARKER)
-    # Potion Shop (SHOP_E) — slots 0,2 = items; slot 1 empty unless Add L4 Sword sells there;
+    # Potion Shop (SHOP_E) — slots 0,2 = items; slot 1 empty unless Shuffle Blue Potion fills it;
     # letter required
     if c := get(Destination.POTION_SHOP):
         assert isinstance(c, Shop)

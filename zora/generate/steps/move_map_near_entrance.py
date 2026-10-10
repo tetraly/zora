@@ -14,16 +14,16 @@ whatever the trigger.
 """
 from collections import deque
 
-from zora.generate.rng import Rng
-from zora.generate.shapes.tables import (
+from ...model import room_grid
+from ...model.enums import Item, RoomAction, RoomType, Side, WallType
+from ...model.levels import Level
+from ..rng import Rng
+from ..shapes.tables import (
     MAP_MOVE_TRIGGER_CODES,
     MAP_MOVE_TRIGGER_PROB_DEN,
     MAP_MOVE_TRIGGER_PROB_NUM,
     T3_REPLACEABLE,
 )
-from zora.model import room_grid
-from zora.model.enums import Item, RoomAction, RoomType, Side, WallType
-from zora.model.levels import Level
 
 BOMBABLE_OR_WALK = frozenset({WallType.WALK_THROUGH_WALL_1, WallType.WALK_THROUGH_WALL_2,
                               WallType.BOMB_HOLE})

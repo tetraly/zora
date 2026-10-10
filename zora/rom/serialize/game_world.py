@@ -19,12 +19,12 @@ Covers all parsed ROM regions:
 - Bomb upgrade cost, count, and display tiles
 - Quotes (38 hints): pointer table + encoded text
 """
-from zora.model.game_world import GameWorld
-from zora.rom import person_code
-from zora.rom.base_rom import piece_bytes
-from zora.rom.code_patches import OVERWORLD_START_Y
-from zora.rom.game_config import GameConfig, HintMode
-from zora.rom.layout import (
+from ...model.game_world import GameWorld
+from .. import person_code
+from ..base_rom import piece_bytes
+from ..code_patches import OVERWORLD_START_Y
+from ..game_config import GameConfig, HintMode
+from ..layout import (
     ANY_ROAD_SCREENS_ADDRESS,
     ARMOS_TABLES_ADDRESS,
     BOSS_SET_A_SPRITES_ADDRESS,
@@ -57,23 +57,23 @@ from zora.rom.layout import (
     TILE_MAPPING_DATA_ADDRESS,
     TILE_MAPPING_POINTERS_ADDRESS,
 )
-from zora.rom.serialize.caves import _serialize_bomb_upgrade, _serialize_cave_data, _serialize_mmg_prizes
-from zora.rom.serialize.enemies import _serialize_enemy_hp, _serialize_enemy_tile_data
-from zora.rom.serialize.features import (
+from .caves import _serialize_bomb_upgrade, _serialize_cave_data, _serialize_mmg_prizes
+from .enemies import _serialize_enemy_hp, _serialize_enemy_tile_data
+from .features import (
     _serialize_b10_constants,
     _serialize_credits,
     _serialize_new_file_hearts,
     _serialize_refusal_text,
     _serialize_title,
 )
-from zora.rom.serialize.levels import (
+from .levels import (
     _serialize_level_info,
     _serialize_sprite_set_pointers,
     encode_level_block,
 )
-from zora.rom.serialize.overworld import _serialize_overworld
-from zora.rom.serialize.patch import Patch
-from zora.rom.serialize.text import _serialize_hints
+from .overworld import _serialize_overworld
+from .patch import Patch
+from .text import _serialize_hints
 
 # ---------------------------------------------------------------------------
 # Top-level serialize

@@ -1,9 +1,9 @@
-ZORA 2.0 beta 1 spoiler log
+ZORA 2.0 beta 2 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Blue Potion, Magical Key, Letter, Bait
+Seed code: Bow, Book, Power Bracelet, Power Bracelet
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -238,7 +238,7 @@ Texts: the game's texts in its order, with who says them
      said by Door Repair
  6.  SHOW THE OLD WOMAN SOMETHING
      said by Letter Cave
- 7.  MEET THE MERCHANT IN REGION 4
+ 7.  MEET THE MERCHANT NEAR START
      said by Dead Woods Hint
  8.  YOUR PRESCRIPTION IS READY
      said by Potion Shop
@@ -246,7 +246,7 @@ Texts: the game's texts in its order, with who says them
      said by Hint Shop 1; Hint Shop 2
 10.  INSERT COMMUNITY HINT 8
 11.  YOU TEACH ME A SPELL
-12.  THE MANHANDLA HOLDS A BOOMERANG UPGRADE
+12.  HEED THIS, YOUNG ONE, A BOOMERANG UPGRADE BECKONS IN LEVEL-4.
      said by Hint Shop 1, hint 1
 13.  INSERT COMMUNITY HINT 22
 14.  GET IN, LOSER, WE'RE GOING SHOPPING
@@ -261,11 +261,11 @@ Texts: the game's texts in its order, with who says them
      said by Level 5, room 3C
 19.  INSERT COMMUNITY HINT 4
      said by White Sword Cave
-20.  THE GLEEOK IS IN REGION 1
-21.  THE AQUAMENTUS IS IN REGION 7
+20.  AN ELDER ONCE SAID THAT LEVEL-6 LIES HIGH IN DEATH MOUNTAIN.
+21.  THE WIND WHISPERS THAT LEVEL-1 LIES BY THE SHORE.
 22.  !LFG
      said by Level 4, room 09
-23.  THE DIGDOGGER IS IN REGION 2
+23.  I HAVE HEARD THAT LEVEL-5 LIES BY THE GRAVEYARD.
      said by Level 5, room 3E
 24.  INSERT COMMUNITY HINT 12
      said by Level 5, room 5E
@@ -277,14 +277,14 @@ Texts: the game's texts in its order, with who says them
      said by Level 2, room 65
 28.  READ THE WIKI ALREADY!
      said by Level 6, room 71
-29.  THE GOHMA IS IN REGION 5
+29.  LEGEND TELLS THAT LEVEL-3 LIES AROUND A LAKE.
      said by Level 6, room 53
 30.  INSERT COMMUNITY HINT 16
-31.  THE LURKING MANHANDLA IS IN REGION 5
+31.  THE STONES REMEMBER THAT LEVEL-8 LIES AROUND A LAKE.
      said by Level 7, room 19
-32.  THE MOLDORM IS IN REGION 5
+32.  AN OLD TALE SAYS THAT LEVEL-7 LIES AROUND A LAKE.
      said by Level 7, room 45
-33.  THE LURKING MANHANDLA HOLDS THE POWER BRACELET
+33.  TRAVELERS SAY THAT THE POWER BRACELET PERSISTS IN LEVEL-8.
      said by Level 8, room 2C
 34.  YOU NEED EIGHT TRIFORCE PIECES.
      said by Level 9, room 64
@@ -300,9 +300,9 @@ Texts: the game's texts in its order, with who says them
      said by Hint Shop 1, hint 2
 40.  THE LETTER NEEDS THE LADDER
      said by Hint Shop 1, hint 3
-41.  THE GLEEOK HOLDS A RING UPGRADE
+41.  MARK MY WORDS, A RING UPGRADE RADIATES IN LEVEL-6.
      said by Hint Shop 2, hint 1
-42.  THE MANHANDLA HOLDS THE LADDER
+42.  IT IS SAID THAT THE LADDER LIES IN LEVEL-4.
      said by Hint Shop 2, hint 2
 43.  INSERT COMMUNITY HINT 47
      said by Hint Shop 2, hint 3

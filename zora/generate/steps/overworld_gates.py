@@ -12,7 +12,7 @@ screens gated, so the sets hold for every start.
 """
 from dataclasses import dataclass
 
-from zora.model.enums import Destination, Item
+from ...model.enums import Destination, Item
 
 # Extra Raft Blocks (§3): open to raft, and $1E bomb to raft-and-bomb (the wooden sword is always
 # held, so raft-and-bomb needs the raft alone).

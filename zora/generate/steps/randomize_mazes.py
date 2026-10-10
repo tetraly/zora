@@ -18,9 +18,9 @@ of the map needs the ladder in the logic (overworld_gates.py).
 """
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng
-from zora.model.enums import OverworldDirection
-from zora.model.overworld import Overworld
+from ...model.enums import OverworldDirection
+from ...model.overworld import Overworld
+from ..rng import IntRng
 
 UP, DOWN, LEFT, RIGHT = (OverworldDirection.UP_NORTH, OverworldDirection.DOWN_SOUTH,
                          OverworldDirection.LEFT_WEST, OverworldDirection.RIGHT_EAST)

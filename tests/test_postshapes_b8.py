@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
-from zora.measure.checkpoints.overworld_monsters_and_hp import (
+from zora.rom.game_config import GameConfig, HintMode
+from zora_measure.checkpoints.overworld_monsters_and_hp import (
     boss_hp_walk, enemy_hp_walk, level9_records_match, owm_no_barred_placement, owm_non_candidates_kept,
 )
 from zora.model.enums import Enemy
@@ -19,6 +20,10 @@ from zora.generate.shapes.options import ShapeOptions
 from zora.generate.steps.change_enemy_hp import (
     BOSS_HP_TYPES, BOSS_MIRRORS, ENEMY_HP_TYPES, HP_UP_BIT, EnemyHpResult, _step, visiting_order, change_boss_hp,
 )
+
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 def _vanilla() -> bytes:
@@ -37,7 +42,7 @@ def finished() -> list[GameWorld]:
     for seed in range(4):
         gw = parse_rom(rom)
         generate_shapes(gw, Rng(seed), ShapeOptions())
-        worlds.append(parse_rom(serialize_to_rom(gw, rom)))
+        worlds.append(parse_rom(serialize_to_rom(gw, rom, config=GENERATED_HINTS)))
     return worlds
 
 

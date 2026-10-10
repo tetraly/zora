@@ -1,5 +1,6 @@
 """Finished-ROM invariants for Consternation hint text (hints-behavior.md)."""
 import os
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ from zora.generate.steps.hint_text import POOL
 from zora.generate.shapes.options import ShapeOptions
 
 SLOT_COUNT = 45
+OVERLAY_WORKERS = 4                 # test_overlay_rate_about_half's processes, beside xdist's
 SHUFFLED_SLOTS = [38, 20, 21, 22, 23, 24, 28, 29, 31, 32, 33]
 EXPECTED_OFFER_SELECTORS = bytes([0x18, 0x4E, 0x50, 0x52, 0x54, 0x56])
 HINT_SELECTOR_VALUES = frozenset({
@@ -138,17 +140,27 @@ def test_overlay_flags_match_final_text(seed: int) -> None:
         # coincidentally match the empty fallback; the flag is authoritative.
 
 
+def _overlay_flags(seed: int) -> tuple[bool, ...]:
+    """The hint overlay flags of one generation, in a pool worker."""
+    rom = _vanilla_rom()
+    gw = parse_rom(rom)
+    generate_shapes(gw, Rng(seed), ShapeOptions())
+    return tuple(gw.hint_overlay_flags)
+
+
+@pytest.mark.slow                    # 100 generations; the per-seed checks above run by default
 def test_overlay_rate_about_half() -> None:
     """HT-HINT-02: over many seeds each helpful slot wins the overlay ~1/2."""
     wins: dict[int, int] = {slot: 0 for slot in HELPFUL_SLOTS}
     n = 100
-    for seed in range(n):
-        rom = _vanilla_rom()
-        gw = parse_rom(rom)
-        generate_shapes(gw, Rng(2000 + seed), ShapeOptions())
-        for slot in HELPFUL_SLOTS:
-            if gw.hint_overlay_flags[slot]:
-                wins[slot] += 1
+    _vanilla_rom()                      # skips here, not in a worker, when the ROM is missing
+    # The 100 generations are independent: a few processes keep this one test from setting the
+    # suite's wall time (tasks/test-speed-2.md).
+    with ProcessPoolExecutor(OVERLAY_WORKERS) as pool:
+        for flags in pool.map(_overlay_flags, [2000 + seed for seed in range(n)]):
+            for slot in HELPFUL_SLOTS:
+                if flags[slot]:
+                    wins[slot] += 1
     for slot, win in wins.items():
         # Binomial 1/2, n=100: 99% interval is roughly [37, 63].
         assert 30 <= win <= 70, f"slot {slot} win rate {win}/{n} far from 1/2"

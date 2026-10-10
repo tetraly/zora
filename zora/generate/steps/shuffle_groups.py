@@ -32,11 +32,11 @@ quest-2 room bytes, which a whole-ROM comparison shows.
 """
 from dataclasses import dataclass, field
 
-from zora.generate.steps.group_banks import Staged
-from zora.generate.steps.randomize_boss_groups import GLEEOK_HEAP_OFFSET, BossDeal
-from zora.generate.steps.shuffle_enemy_groups import OBJECT_TYPE_OPERAND, EnemyDeal
-from zora.model.game_world import GameWorld
-from zora.model.rooms import EnemySpec
+from ...model.game_world import GameWorld
+from ...model.rooms import EnemySpec
+from .group_banks import Staged
+from .randomize_boss_groups import GLEEOK_HEAP_OFFSET, BossDeal
+from .shuffle_enemy_groups import OBJECT_TYPE_OPERAND, EnemyDeal
 
 # --- the passes ------------------------------------------------------------------
 

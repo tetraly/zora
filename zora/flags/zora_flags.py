@@ -28,10 +28,19 @@ import hashlib
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, fields, replace
+from enum import Enum
 
-from zora.flags.codec import ALPHABET, DIGIT_VALUE, RADIX
-from zora.flags.dependencies import UnresolvedError, magical_sword_hearts, starting_hearts
-from zora.flags.fields import STARTING_HEARTS_RANDOM_CHOICES, TOGGLES_BY_ID, Settings, ThreeState
+from .codec import ALPHABET, DIGIT_VALUE, RADIX
+from .dependencies import UnresolvedError, magical_sword_hearts, starting_hearts
+from .fields import (
+    OPTIONS_BY_ID,
+    STARTING_HEARTS_RANDOM_CHOICES,
+    TOGGLES_BY_ID,
+    DungeonLayoutSource,
+    Settings,
+    ThreeState,
+    WoodenSwordState,
+)
 
 # ---------------------------------------------------------------------------
 # The fields, by version
@@ -58,7 +67,7 @@ HEARTS_CAP_CHOICES = range(10, 15)
 THREE_STATE_SLOTS = 3
 OWNER_2_0_FIELDS = (
     "shuffle_blue_potion",                 # §1, merged with plan §13's Phase 2B
-    "add_l4_sword",                        # §2 (owner design: sold in the potion shop)
+    "add_l4_sword",                        # §2 (owner design: a level-9 room)
     "extra_raft_blocks",                   # §3
     "extra_power_bracelet_blocks",         # §4
     "speed_up_dungeon_transitions",        # §5
@@ -83,6 +92,13 @@ FIELDS: tuple[ZoraField, ...] = (
     ZoraField("progressive_items", 2, version=2),
     ZoraField("shop_items_in_pool", 2, version=2),
     *(ZoraField(name, THREE_STATE_SLOTS, version=3) for name in OWNER_2_0_FIELDS),
+    # Version 4: All Swords No Boards (docs/design/asnb.md section 1). Add L4 Sword's released
+    # three-state field keeps its radix; this one moves its sword to level 2 (the two shown as one
+    # Off / Level 2 / Level 9 control). And the level-9 entrance: triforce pieces, or a level-4
+    # sword. Neither has a random option. Both off by default, so every older string keeps its
+    # meaning and its spelling.
+    ZoraField("l4_sword_in_level_2", 2, version=4),
+    ZoraField("level_9_entrance_sword", 2, version=4),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -119,6 +135,10 @@ class ZoraFlags:
     magical_boomerang_damage: ThreeState = ThreeState.OFF
     randomize_lost_hills: ThreeState = ThreeState.OFF
     randomize_dead_woods: ThreeState = ThreeState.OFF
+    # Version 4 (ASNB): Add L4 Sword's sword in a new level-2 item cellar instead of level 9; and
+    # level 9 opening for a level-4 sword instead of the triforce pieces.
+    l4_sword_in_level_2: bool = False
+    level_9_entrance_sword: bool = False
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -137,6 +157,21 @@ class ZoraFlags:
     @property
     def is_resolved(self) -> bool:
         return all(getattr(self, name) is not ThreeState.POSSIBLE for name in OWNER_2_0_FIELDS)
+
+    @property
+    def l4_sword(self) -> L4Sword:
+        """Add L4 Sword's three-way setting (call on resolved flags: a released "?" shows as Off)."""
+        if self.add_l4_sword is not ThreeState.ON:
+            return L4Sword.OFF
+        return L4Sword.LEVEL_2 if self.l4_sword_in_level_2 else L4Sword.LEVEL_9
+
+
+class L4Sword(Enum):
+    """Add L4 Sword's setting (docs/design/asnb.md section 1): the page's one three-way control
+    over the released field add_l4_sword and the version-4 field l4_sword_in_level_2."""
+    OFF = "off"
+    LEVEL_2 = "level 2"
+    LEVEL_9 = "level 9"
 
 
 DEFAULT = ZoraFlags()
@@ -331,6 +366,51 @@ def l4_sword_conflict(flags: ZoraFlags) -> str | None:
     return None
 
 
+# All Swords No Boards (docs/design/asnb.md section 2): each refused, never changed for the player.
+SHAPES_ONLY = DungeonLayoutSource.GENERATED_SHAPES
+DUNGEON_LAYOUT_SOURCE = OPTIONS_BY_ID["C02"]
+WOODEN_SWORD_STATE = OPTIONS_BY_ID["C07"]
+# Owner ruling (2026-10-08): released strings keep working. Beta 1's "?" on Add L4 Sword's released
+# field keeps its meaning, Off or Level 9 decided per seed by its coin (resolve_question_marks), and
+# the page does not offer it; only with Level 2 or the level-4-sword entrance is it refused.
+L4_SWORD_RANDOM_WITH_ASNB = ("Add L4 Sword's random setting (Off or Level 9, from released flag strings) cannot "
+                             "be combined with Level 2 or Level 9 Entrance = Level 4 sword: choose Off, Level 2 "
+                             "or Level 9.")
+L4_SWORD_RANDOM_WITH_ASNB_FIELDS = ("add_l4_sword", "level_9_entrance_sword")
+LEVEL_2_WITHOUT_L4_SWORD = ("The ZORA string asks for Add L4 Sword's level-2 sword with Add L4 Sword off: "
+                            "choose Off, Level 2 or Level 9.")
+LEVEL_2_WITHOUT_L4_SWORD_FIELDS = ("add_l4_sword",)
+ENTRANCE_NEEDS_LEVEL_2 = ("Level 9 Entrance = Level 4 sword needs Add L4 Sword = Level 2: a level-9 sword "
+                          "would sit behind its own gate.")
+ENTRANCE_NEEDS_LEVEL_2_FIELDS = ("level_9_entrance_sword", "add_l4_sword")
+LEVEL_2_NEEDS_SHAPES = ("Add L4 Sword = Level 2 needs generated dungeon shapes (Dungeon layout source = "
+                        "Generated shapes): only a generated level 2 can get a new item staircase.")
+LEVEL_2_NEEDS_SHAPES_FIELDS = ("add_l4_sword", DUNGEON_LAYOUT_SOURCE.id)
+ENTRANCE_NEEDS_NORMAL_SWORD = ("Level 9 Entrance = Level 4 sword needs the wooden sword in its cave (Wooden-sword "
+                               "state = Normal): the other states remove swords.")
+ENTRANCE_NEEDS_NORMAL_SWORD_FIELDS = ("level_9_entrance_sword", WOODEN_SWORD_STATE.id)
+
+
+def asnb_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """Section 2's refusals, and the two the encoding allows but the control cannot show: the
+    released "?" on Add L4 Sword with Level 2 or the level-4-sword entrance, and its level-2 field
+    set with it off. (Add L4 Sword without Progressive Items is l4_sword_conflict; Progressive
+    Items with B09 extra_candles_conflict.)"""
+    found: list[tuple[str, tuple[str, ...]]] = []
+    random_l4 = flags.add_l4_sword is ThreeState.POSSIBLE
+    if random_l4 and (flags.l4_sword_in_level_2 or flags.level_9_entrance_sword):
+        found.append((L4_SWORD_RANDOM_WITH_ASNB, L4_SWORD_RANDOM_WITH_ASNB_FIELDS))
+    elif flags.l4_sword_in_level_2 and flags.add_l4_sword is ThreeState.OFF:
+        found.append((LEVEL_2_WITHOUT_L4_SWORD, LEVEL_2_WITHOUT_L4_SWORD_FIELDS))
+    if flags.level_9_entrance_sword and not random_l4 and flags.l4_sword is not L4Sword.LEVEL_2:
+        found.append((ENTRANCE_NEEDS_LEVEL_2, ENTRANCE_NEEDS_LEVEL_2_FIELDS))
+    if flags.l4_sword is L4Sword.LEVEL_2 and z1r.option(DUNGEON_LAYOUT_SOURCE) != SHAPES_ONLY:
+        found.append((LEVEL_2_NEEDS_SHAPES, LEVEL_2_NEEDS_SHAPES_FIELDS))
+    if flags.level_9_entrance_sword and z1r.option(WOODEN_SWORD_STATE) != WoodenSwordState.NORMAL:
+        found.append((ENTRANCE_NEEDS_NORMAL_SWORD, ENTRANCE_NEEDS_NORMAL_SWORD_FIELDS))
+    return found
+
+
 def bracelet_blocks_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
     if flags.extra_power_bracelet_blocks is ThreeState.ON and z1r.toggle(TAKE_ANY_ROAD_CAVES) is ThreeState.ON:
         return BRACELET_BLOCKS_CONFLICT
@@ -344,7 +424,7 @@ def conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...
              (extra_candles_conflict(flags, z1r), EXTRA_CANDLES_CONFLICT_FIELDS),
              (l4_sword_conflict(flags), L4_SWORD_CONFLICT_FIELDS),
              (bracelet_blocks_conflict(flags, z1r), BRACELET_BLOCKS_CONFLICT_FIELDS)]
-    return [(message, names) for message, names in found if message is not None]
+    return [(message, names) for message, names in found if message is not None] + asnb_conflicts(flags, z1r)
 
 
 def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
@@ -360,6 +440,7 @@ def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
         reasons.append(candles)
     reasons.extend(owner_conflict for owner_conflict in (l4_sword_conflict(flags), bracelet_blocks_conflict(flags, z1r))
                    if owner_conflict is not None)
+    reasons.extend(message for message, _names in asnb_conflicts(flags, z1r))
     return reasons
 
 

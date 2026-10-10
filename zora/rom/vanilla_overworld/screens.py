@@ -35,7 +35,7 @@ the disassembly.
 from dataclasses import dataclass
 from enum import Enum
 
-from zora.rom.vanilla_overworld.tables import (
+from .tables import (
     ATTRIBUTE_TABLE_SIZE,
     LEVEL_BLOCK_OW,
     Q2_B_REPLACEMENT_OFFSETS,

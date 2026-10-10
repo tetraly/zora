@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.game_config import GameConfig, HintMode
 from zora.model.game_world import GameWorld
 from zora.model.enums import Item
 from zora.rom.parse.rom_file import load_rom, parse_rom
@@ -22,6 +23,9 @@ from zora.rom.vanilla_overworld.screens import EntranceKind, QuestSecret
 
 REPO = Path(__file__).resolve().parents[1]
 SHOP_FLAGS = CaveFlags.CHOOSE | CaveFlags.PAY | CaveFlags.SHOW_ITEMS | CaveFlags.SHOW_PRICES
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 @pytest.fixture(scope="module")
@@ -163,7 +167,7 @@ def finished(rom: bytes) -> list[tuple[bytes, GameWorld]]:
     for seed in range(4):
         gw = parse_rom(rom)
         generate_shapes(gw, Rng(seed), ShapeOptions())
-        outs.append((serialize_to_rom(gw, rom), gw))
+        outs.append((serialize_to_rom(gw, rom, config=GENERATED_HINTS), gw))
     return outs
 
 

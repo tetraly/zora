@@ -5,7 +5,7 @@ import pytest
 
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
-from zora.measure.checks import check_grid_tiled
+from zora_measure.checks import check_grid_tiled
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.parse.rom_file import parse_rom
 

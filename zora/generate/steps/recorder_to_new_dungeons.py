@@ -1,7 +1,7 @@
 """Recorder To New Dungeons (B01; OW-WARP-01): each dungeon's recorder warp."""
 
-from zora.generate.steps.cave_entries import CaveShuffle
-from zora.model.overworld import Overworld
+from ...model.overworld import Overworld
+from .cave_entries import CaveShuffle
 
 RECORDER_DUNGEONS = range(1, 9)
 # OW-WARP-01's exceptions

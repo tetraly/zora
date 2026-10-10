@@ -15,7 +15,7 @@ which this reader does not: once a room's secret is found, a tree ($E7)
 or armos ($EA) square becomes stairs and a rock wall ($E6) a cave entrance;
 CheckTileObject turns tile-object squares into their objects.
 """
-from zora.rom.vanilla_overworld.tables import (
+from .tables import (
     CAVE_LAYOUT_COUNT,
     COLUMN_DIRECTORY_OW,
     COLUMN_HEAP_BANK,

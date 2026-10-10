@@ -1,8 +1,10 @@
 """Boss placement (SH-BOSS-01..07)."""
-from zora.generate.errors import GenerationFailure
-from zora.generate.rng import Rng
-from zora.generate.shapes.options import ShapeOptions
-from zora.generate.shapes.tables import (
+from ...model.enums import Item, RoomType
+from ...model.rooms import NO_ITEM_CODE
+from ..errors import GenerationFailure
+from ..rng import Rng
+from .options import ShapeOptions
+from .tables import (
     BOSS_COUNTS,
     DODONGO_BAD_LAYOUTS,
     GLEEOK4_EXTRA_BAD,
@@ -10,9 +12,7 @@ from zora.generate.shapes.tables import (
     GOHMA_BAD_LAYOUTS,
     LEVEL_BOSS_POOL,
 )
-from zora.generate.shapes.world import SetWorld
-from zora.model.enums import Item, RoomType
-from zora.model.rooms import NO_ITEM_CODE
+from .world import SetWorld
 
 
 # SH-BOSS-05 (PS-BOSS-04 states the same bars): is this boss barred here?

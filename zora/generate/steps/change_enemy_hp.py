@@ -10,10 +10,10 @@ staged in an EnemyHpResult and written into the GameWorld when the pass ships.
 """
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng, discard
-from zora.model.enums import Enemy
-from zora.model.game_world import GameWorld
-from zora.model.sprites import EnemyData
+from ...model.enums import Enemy
+from ...model.game_world import GameWorld
+from ...model.sprites import EnemyData
+from ..rng import IntRng, discard
 
 E = Enemy
 

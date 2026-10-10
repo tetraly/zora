@@ -101,8 +101,15 @@ class Inventory:
         return self.levels[GRADED_LINES.index(line)]
 
 
+# Add L4 Sword (docs/design/l4-sword.md) raises InvSword to 4, two past the line's top: $01 + 4
+# is the recorder's ID, $05, so ResolveProgressive must step back more than once.
+L4_SWORD_LEVEL = 4
+
+
 def inventories() -> Iterator[Inventory]:
-    ranges = [range(len(line.items) + 1) for line in GRADED_LINES]
+    """Every level of every graded line up to one past its top, the sword also at level 4, and
+    every boomerang state."""
+    ranges = [range(L4_SWORD_LEVEL + 1 if line is SWORD else len(line.items) + 1) for line in GRADED_LINES]
     for levels in product(*ranges):
         yield Inventory(levels)
     for wooden, magical in product((0, 1), repeat=2):
@@ -213,8 +220,7 @@ def test_data_matches_a_fresh_build() -> None:
 
 def test_new_bytes_sit_in_the_planned_free_space_which_zora_output_leaves_blank() -> None:
     """Every patch byte outside the five hook sites lies in one of the four
-    planned ranges (bank 1 $BE40 and $BEE0, bank 5 $BA40, bank 4 $B480 within
-    $B46F-$BEFF), and finished ZORA ROMs are $FF there (three seeds, and a
+    planned ranges (bank 1 $BE40 and $BEE0, bank 5 $BA40, bank 4 $B900), and finished ZORA ROMs are $FF there (three seeds, and a
     ROM with Randomize Magical Sword, the $0E "no item" code)."""
     hook_bytes = {hook.offset + i for hook in HOOKS.values() for i in range(hook.length)}
     spaces = [space.file_range() for space in build.FREE_SPACE.values()]
@@ -338,6 +344,28 @@ def test_resolve_progressive_gives_each_lines_next_level_in_every_bank() -> None
             assert (cpu.a, cpu.carry, cpu.x) == (shown, in_line, 0x5A), (bank, hex(item), inventory)
             if in_line:
                 assert bool(cpu[0x01]) == at_top, (bank, hex(item), inventory)
+
+
+ZERO_PAGE = range(0x100)
+ZERO_PAGE_PATTERN = 0xC7
+
+
+@pytest.mark.parametrize("bank", [1, 4, 5])
+def test_resolve_progressive_at_sword_level_4_shows_the_top_and_uses_only_00_and_01(bank: int) -> None:
+    """At sword level 4 every sword item resolves to the magical sword ($03) with the "at top"
+    flag set (a shop hides it; taking it changes nothing, since grade 3 is below 4), never the
+    bait ($04) one step back from $05. The routine writes no zero-page byte but [00] and [01]:
+    bank 1's cave loop keeps the shop number in [02]."""
+    rom = patched()
+    for item in SWORD.items:
+        cpu = cpu_for(rom, bank, Inventory((L4_SWORD_LEVEL, 0, 0, 0)))
+        for address in ZERO_PAGE:
+            cpu[address] = ZERO_PAGE_PATTERN
+        cpu.a, cpu.x, cpu.y = item, 0x5A, 0xC3
+        cpu.call(resolve_entries(rom)[bank])
+        assert (cpu.a, cpu.carry, cpu.x) == (SWORD.items[-1], True, 0x5A), hex(item)
+        assert cpu[0x01], hex(item)
+        assert [address for address in ZERO_PAGE[2:] if cpu[address] != ZERO_PAGE_PATTERN] == [], hex(item)
 
 
 def test_resolve_progressive_with_the_off_byte_changes_nothing() -> None:
@@ -544,7 +572,7 @@ def test_routines_run_in_their_own_bank() -> None:
 def test_the_patches_share_no_byte_with_the_player_settings() -> None:
     """The progressive patches and the player-setting patches
     (asm/settings/) write different bytes, so both can go on one ROM."""
-    settings = _module("player_settings_data", REPO / "asm" / "settings" / "player_settings_data.py")
+    settings = _module("zora.rom._asm_player_settings_data", REPO / "asm" / "settings" / "player_settings_data.py")
     setting_bytes = {offset + i for choices in settings.SETTINGS.values() for runs in choices.values()
                      for offset, run in runs for i in range(piece_length(run))}
     progressive_bytes = {offset + i for runs in data.PATCHES.values() for offset, piece in runs

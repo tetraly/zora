@@ -9,13 +9,14 @@ the patched code reads per seed is written here too.
 import hashlib
 from collections.abc import Collection
 
-from zora.model.enums import Destination, Item
-from zora.model.game_world import GameWorld
-from zora.model.levels import Level
-from zora.rom.base_rom import piece_bytes
-from zora.rom.code_patch_data import PATCHES, SYMBOLS
-from zora.rom.layout import CAVE_NOTHING_CODE
-from zora.rom.serialize.caves import CAVE_ITEM_CODE_MASK, WARES_PER_CAVE, cave_ware_tables
+from ..model.enums import Destination, Item
+from ..model.game_world import GameWorld
+from ..model.levels import Level
+from ..model.overworld import POTION_SHOP_MIDDLE
+from .base_rom import piece_bytes
+from .code_patch_data import PATCHES, SYMBOLS
+from .layout import CAVE_NOTHING_CODE
+from .serialize.caves import CAVE_ITEM_CODE_MASK, WARES_PER_CAVE, cave_ware_tables
 
 ROOMS_PER_BLOCK = 128
 # FP-ENTR-02: level information +$23, the last byte of the palette transfer
@@ -71,6 +72,9 @@ SHOPS_BY_NUMBER = (Destination.POTION_SHOP, Destination.SHOP_1, Destination.SHOP
 # as consumables; any other ware is sold once per shop (default-deny).
 REBUYABLE_ITEMS = frozenset({Item.BOMBS, Item.BAIT, Item.MAGICAL_SHIELD, Item.KEY, Item.BLUE_POTION,
                              Item.RED_POTION, Item.SINGLE_HEART, Item.FAIRY})
+# Shuffle Blue Potion's place, the potion shop's middle ware (empty in PRG0 and without the flag):
+# sold once whatever it holds, its blue potion included (owner design, 2026-10-08).
+ONE_TIME_POTION_SHOP_WARE = (SHOPS_BY_NUMBER.index(Destination.POTION_SHOP), POTION_SHOP_MIDDLE)
 
 
 def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items_in_pool: bool,
@@ -87,9 +91,11 @@ def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items
     return tuple(left_out)
 
 
-def one_time_wares(world: GameWorld) -> bytes:
+def one_time_wares(world: GameWorld, one_time_places: Collection[tuple[int, int]] = ()) -> bytes:
     """PI-CODE-04's ZORA_B1_OneTimeWares from the final shop stock: per ware position (0-2),
-    bit 1 << shop number for each ware that holds an item and is not re-buyable."""
+    bit 1 << shop number for each ware that holds an item and is not re-buyable or is the potion
+    shop's middle ware (ONE_TIME_POTION_SHOP_WARE), and for each
+    (shop number, position) of one_time_places (GameConfig.one_time_places)."""
     caves = {cave.destination: cave for cave in world.overworld.caves}
     items, _ = cave_ware_tables(caves)
     wares = bytearray(WARES_PER_CAVE)
@@ -97,17 +103,21 @@ def one_time_wares(world: GameWorld) -> bytes:
         start = (destination - Destination.WOOD_SWORD_CAVE) * WARES_PER_CAVE   # caves $10 + index
         for position, byte in enumerate(items[start:start + WARES_PER_CAVE]):
             item = byte & CAVE_ITEM_CODE_MASK
-            if item != CAVE_NOTHING_CODE and item not in REBUYABLE_ITEMS:
+            sold_once = item not in REBUYABLE_ITEMS or (shop_number, position) == ONE_TIME_POTION_SHOP_WARE
+            if item != CAVE_NOTHING_CODE and sold_once:
                 wares[position] |= 1 << shop_number
+    for shop_number, position in one_time_places:
+        wares[position] |= 1 << shop_number
     return bytes(wares)
 
 
 def code_patch_writes(world: GameWorld | None = None, left_out: Collection[str] = (),
-                      progressive_items: bool = False) -> list[tuple[int, bytes]]:
+                      progressive_items: bool = False,
+                      one_time_places: Collection[tuple[int, int]] = ()) -> list[tuple[int, bytes]]:
     """Every patch's changed bytes as (file offset, bytes), in build order,
     with `world`'s per-seed data in place (without it, the placeholders).
     The patches named in left_out are not written."""
-    data = seed_data(world, progressive_items) if world is not None else {}
+    data = seed_data(world, progressive_items, one_time_places) if world is not None else {}
     writes = []
     for name, pieces in PATCHES.items():
         if name in left_out:
@@ -121,11 +131,12 @@ def code_patch_writes(world: GameWorld | None = None, left_out: Collection[str] 
     return writes
 
 
-def seed_data(world: GameWorld, progressive_items: bool = False) -> dict[int, int]:
+def seed_data(world: GameWorld, progressive_items: bool = False,
+              one_time_places: Collection[tuple[int, int]] = ()) -> dict[int, int]:
     """The bytes inside the patches that a seed sets: file offset -> value. fp-prog-01's
     on/off byte is 1 with Progressive Items on (0 keeps only the buy-once rule, PI-CODE-01)."""
     data = {OVERWORLD_START_Y: world.overworld.start_position_y, PROGRESSIVE_ITEMS_BYTE: int(progressive_items)}
-    data.update(enumerate(one_time_wares(world), start=ONE_TIME_WARES))
+    data.update(enumerate(one_time_wares(world, one_time_places), start=ONE_TIME_WARES))
     return data
 
 

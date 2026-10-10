@@ -1,4 +1,5 @@
-"""The four published presets (FL-PRE-01 to FL-PRE-04) and CP-5's baseline with level encoding off."""
+"""The four published presets (FL-PRE-01 to FL-PRE-04), CP-5's baseline with level encoding off, and
+ZORA's own presets, which set the ZORA flag string too (ZORA_PRESETS)."""
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
@@ -17,4 +18,18 @@ PRESETS: dict[str, str] = {
     "Published variant A": PUBLISHED_VARIANT_A,
     "Published variant B": PUBLISHED_VARIANT_B,
     "Published variant C": PUBLISHED_VARIANT_C,
+}
+
+
+# ---------------------------------------------------------------------------
+# ZORA's presets: a Z1R string and a ZORA string
+# ---------------------------------------------------------------------------
+
+# All Swords No Boards (docs/design/asnb.md section 1): Progressive Items on, Add L4 Sword = Level 2,
+# Level 9 Entrance = Level 4 sword, on CP-5 (C02 = 3, generated shapes; C07 = 0, normal) with B09
+# Extra Candles off, which Progressive Items refuses (PI-FLAG-03).
+ASNB_FLAGS = "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A"
+ASNB_ZORA_FLAGS = "4.T9Jvg"
+ZORA_PRESETS: dict[str, tuple[str, str]] = {
+    "All Swords No Boards": (ASNB_FLAGS, ASNB_ZORA_FLAGS),
 }

@@ -1,10 +1,9 @@
-"""The ROM's raw tables, sliced out of a ROM file or a folder of bin files (RawBinFiles)."""
+"""The ROM's raw tables, sliced out of a ROM file (RawBinFiles)."""
 
 from dataclasses import dataclass
-from pathlib import Path
 
-from zora.rom.base_rom import piece_bytes
-from zora.rom.layout import (
+from ..base_rom import piece_bytes
+from ..layout import (
     ANY_ROAD_SCREENS_ADDRESS,
     AQUAMENTUS_SPRITE_PTR_ADDRESS,
     AQUAMENTUS_TILE_LAYOUT_TABLE_ADDRESS,
@@ -190,112 +189,22 @@ class RawBinFiles:
     player_small_shield_sprites:      bytes  # 0x40 bytes at 0x860F
     player_large_shield_sprites:      bytes  # 0x20 bytes at 0x868F
     # Life-or-money toll / bomb-upgrade person code bytes (PS-MERCH-04,
-    # PS-BOMB-03); empty when loaded from .bin files.
+    # PS-BOMB-03).
     person_update_branch:     bytes = b""   # 8 bytes at 0x04AED
     person_init_jump_table:   bytes = b""   # 20 bytes at 0x04A17
     life_or_money_payment:    bytes = b""   # 0x21 bytes at 0x04C1C
     start_hearts:             bytes = b""   # 1 byte at 0x0A868
     continue_hearts_operand:  bytes = b""   # 1 byte at 0x14B83
-    # Hint-text selector tables (hints-behavior.md HT-SEL-01); empty when
-    # loaded from .bin files.
+    # Hint-text selector tables (hints-behavior.md HT-SEL-01).
     underworld_text_selectors_a: bytes = b""  # 8 bytes at 0x4A2B
     underworld_text_selectors_b: bytes = b""  # 8 bytes at 0x4A71
-    # Group-pass bytes (post-shapes-b4/b5.md); empty when loaded from .bin files.
+    # Group-pass bytes (post-shapes-b4/b5.md).
     aquamentus_tiles:         bytes = b""   # 12 bytes at 0x11844 (AquamentusTiles)
     gleeok_body_tiles:        bytes = b""   # 18 bytes at 0x12819 (GleeokBodyTiles0-2)
     item_carrier_operands:    bytes = b""   # 0x1E70F, 0x1E713, 0x1E717
     rope_hp_operands:         bytes = b""   # 0x112D3, 0x112DF (InitRope)
     overworld_wizzrobe_patch: bool = False  # all four PS-EGRP-05 runs present
     object_type_operand_873d: bytes = b""   # 1 byte at 0x0474D
-
-
-def load_bin_files(test_data_dir: Path) -> RawBinFiles:
-    def read(name: str) -> bytes:
-        return (test_data_dir / name).read_bytes()
-    def read_optional(name: str) -> bytes:
-        p = test_data_dir / name
-        return p.read_bytes() if p.exists() else b""
-    return RawBinFiles(
-        level_1_6_data       = read("level_1_6_data.bin"),
-        level_7_9_data       = read("level_7_9_data.bin"),
-        level_info           = read("level_info.bin"),
-        level_1_6_data_q2    = read("level_1_6_data_q2.bin"),
-        level_7_9_data_q2    = read("level_7_9_data_q2.bin"),
-        level_info_q2        = read("level_info_q2.bin"),
-        level_pointers       = b"",  # placeholder
-        overworld_data       = read("overworld_data.bin"),
-        mixed_enemy_data     = read("mixed_enemy_data.bin"),
-        mixed_enemy_pointers = read("mixed_enemy_pointers.bin"),
-        armos_tables              = read("armos_tables.bin"),
-        armos_item                = read("armos_item.bin"),
-        coast_item                = read("coast_item.bin"),
-        white_sword_requirement   = read("white_sword_requirement.bin"),
-        magical_sword_requirement = read("magical_sword_requirement.bin"),
-        cave_item_data            = read("cave_item_data.bin"),
-        cave_price_data           = read("cave_price_data.bin"),
-        cave_quotes_data          = read("cave_quotes_data.bin"),
-        hint_shop_quotes          = read("hint_shop_quotes.bin"),
-        bomb_cost                 = read("bomb_cost.bin"),
-        bomb_count                = read("bomb_count.bin"),
-        door_repair_charge        = read("door_repair_charge.bin"),
-        mmg_lose_small            = read("mmg_lose_small.bin"),
-        mmg_lose_small_2          = read("mmg_lose_small_2.bin"),
-        mmg_lose_large            = read("mmg_lose_large.bin"),
-        mmg_win_small             = read("mmg_win_small.bin"),
-        mmg_win_large             = read("mmg_win_large.bin"),
-        recorder_warp_destinations      = read("recorder_warp_destinations.bin"),
-        recorder_warp_y_coordinates     = read("recorder_warp_y_coordinates.bin"),
-        any_road_screens                = read("any_road_screens.bin"),
-        start_screen                    = read("start_screen.bin"),
-        start_position_y                = read("start_position_y.bin"),
-        level_sprite_set_pointers       = read("level_sprite_set_pointers.bin"),
-        boss_sprite_set_pointers        = read("boss_sprite_set_pointers.bin"),
-        quotes_data                     = read_optional("quotes_data.bin"),
-        maze_directions                 = read("maze_directions.bin"),
-        ow_sprites                      = read("ow_sprites.bin"),
-        enemy_set_b_sprites             = read("enemy_set_b_sprites.bin"),
-        enemy_set_c_sprites             = read("enemy_set_c_sprites.bin"),
-        dungeon_common_sprites          = read("dungeon_common_sprites.bin"),
-        enemy_set_a_sprites             = read("enemy_set_a_sprites.bin"),
-        boss_set_a_sprites              = read("boss_set_a_sprites.bin"),
-        boss_set_b_sprites              = read("boss_set_b_sprites.bin"),
-        boss_set_c_sprites              = read("boss_set_c_sprites.bin"),
-        boss_set_expansion_sprites      = read_optional("boss_set_expansion_sprites.bin"),
-        tile_mapping_pointers           = read("tile_mapping_pointers.bin"),
-        tile_mapping_data               = read("tile_mapping_data.bin"),
-        enemy_hp_table                  = read("enemy_hp_table.bin"),
-        boss_hp_table                   = read("boss_hp_table.bin"),
-        # (bin file names kept: external rom_data/ contract, see ../zora2)
-        gleeok_neck_hp                  = read("aquamentus_hp.bin"),
-        gleeok_head_hp                  = read("aquamentus_sp.bin"),
-        ganon_hp                        = read("ganon_hp.bin"),
-        moldorm_segment_hp              = read("gleeok_hp.bin"),
-        lamnola_segment_hp              = read("patra_hp.bin"),
-        aquamentus_sprite_ptr           = read("aquamentus_sprite_ptr.bin"),
-        gleeok_head_sprite_ptr_a        = read("gleeok_head_sprite_ptr_a.bin"),
-        gleeok_head_sprite_ptr_b        = read("gleeok_head_sprite_ptr_b.bin"),
-        gleeok_head_sprite_ptr_c        = read("gleeok_head_sprite_ptr_c.bin"),
-        player_main_sprites              = read("player_main_sprites.bin"),
-        player_cheer_sprites             = read("player_cheer_sprites.bin"),
-        player_big_shield_profile_sprites = read("player_big_shield_profile_sprites.bin"),
-        player_profile_no_shield_sprites = read("player_profile_no_shield_sprites.bin"),
-        player_small_shield_sprites      = read("player_small_shield_sprites.bin"),
-        player_large_shield_sprites      = read("player_large_shield_sprites.bin"),
-    )
-
-
-def load_bin_files_q2(test_data_dir: Path) -> RawBinFiles:
-    """Load bin files for the second quest, swapping in Q2 grids and level info."""
-    bins = load_bin_files(test_data_dir)
-    def read(name: str) -> bytes:
-        return (test_data_dir / name).read_bytes()
-    return RawBinFiles(
-        **{**bins.__dict__,
-           "level_1_6_data": read("level_1_6_data_q2.bin"),
-           "level_7_9_data": read("level_7_9_data_q2.bin"),
-           "level_info":     read("level_info_q2.bin"),
-        }
-    )
 
 
 # iNES header (16 bytes) + 128 KB PRG ROM = 131088 bytes exactly.
@@ -347,8 +256,7 @@ def _build_level_info_q2_from_rom(rom_bytes: bytes) -> bytes:
 def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
     """Build a RawBinFiles by slicing a full .nes ROM file in memory.
 
-    Equivalent to load_bin_files() but reads from a bytes object instead of
-    individual .bin files on disk.  The caller is responsible for validating
+    The caller is responsible for validating
     the ROM with is_randomizer_rom() before calling this.
     """
     def s(addr: int, size: int) -> bytes:
@@ -356,7 +264,7 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
 
     # FP-ENTR-01: with ZORA's code patches, the overworld start Y lives in
     # the patch's own byte (LevelInfo_StartY keeps PRG0's value).
-    from zora.rom.code_patches import overworld_start_y
+    from ..code_patches import overworld_start_y
     patched_start_y = overworld_start_y(rom_bytes)
     start_position_y = (s(START_POSITION_Y_ADDRESS, 1) if patched_start_y is None
                         else bytes([patched_start_y]))

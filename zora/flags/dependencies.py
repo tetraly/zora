@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import combinations
 
-from zora.flags.fields import (
+from ..generate.rng import IntRng
+from .fields import (
     BOMB_UPGRADE_PERSON_SHUFFLE,
     BOSS_HIT_POINTS,
     CAVE_SHUFFLE,
@@ -59,7 +60,6 @@ from zora.flags.fields import (
     ToggleField,
     WoodenSwordState,
 )
-from zora.generate.rng import IntRng
 
 # ---------------------------------------------------------------------------
 # FL-DEP-01 and FL-DEP-02: refusals and prerequisites

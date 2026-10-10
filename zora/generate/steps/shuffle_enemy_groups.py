@@ -2,15 +2,15 @@
 
 from dataclasses import dataclass
 
-from zora.generate.rng import IntRng, discard
-from zora.generate.shapes.tables import LANMOLA_BAD_LAYOUTS
-from zora.generate.steps.group_banks import DISCARDED_DRAWS, GROUPS, OVERWORLD, E, SpriteObject, Staged
-from zora.model.enums import Enemy
-from zora.model.game_world import GameWorld
-from zora.model.levels import LevelBlock
-from zora.model.overworld import Overworld
-from zora.model.rooms import EnemyInfo, Room
-from zora.model.sprites import TILE_BYTES, PatternBlock
+from ...model.enums import Enemy
+from ...model.game_world import GameWorld
+from ...model.levels import LevelBlock
+from ...model.overworld import Overworld
+from ...model.rooms import EnemyInfo, Room
+from ...model.sprites import TILE_BYTES, PatternBlock
+from ..rng import IntRng, discard
+from ..shapes.tables import LANMOLA_BAD_LAYOUTS
+from .group_banks import DISCARDED_DRAWS, GROUPS, OVERWORLD, E, SpriteObject, Staged
 
 ENEMY_OBJECTS: dict[Enemy, SpriteObject] = {
     E.ZOL: SpriteObject(4, (PatternBlock.UWSP358, 160), (116, 2)),

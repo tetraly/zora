@@ -1,8 +1,8 @@
 """Change Sword Hearts (B10; FP-SWORD-01): the hearts the sword caves ask for."""
 
-from zora.generate.rng import IntRng
-from zora.model.enums import Destination
-from zora.model.overworld import ItemCave, Overworld
+from ...model.enums import Destination
+from ...model.overworld import ItemCave, Overworld
+from ..rng import IntRng
 
 # FP-SWORD-01: the heart counts the sword caves ask for.
 WHITE_SWORD_HEARTS = range(4, 7)

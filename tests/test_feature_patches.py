@@ -330,7 +330,7 @@ CODE_HEADING = (0x20A8, bytes([0x0C, 0x18, 0x0D, 0x0E]))    # "CODE" at PPU row 
 def _finished(seed: int) -> bytes:
     world = parse_rom(vanilla())
     generate_shapes(world, Rng(seed), ShapeOptions())
-    return serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=True))
+    return serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=True, hint_mode=HintMode.CONSTERNATION))
 
 
 def _file_select_code(rom: bytes) -> tuple[bytes, bytes]:
@@ -490,7 +490,7 @@ ROOM_LABEL = 0x2076, 9                                   # PPU address, tiles
 LABEL_DASH_TILE = 0x62
 PRG0_LABEL = tiles(" -LIFE-  ", dash=LABEL_DASH_TILE)
 USUAL_LABEL = tiles(" -LIFE-  ")
-BOSS_SOUND_LABEL = tiles("BOSS NEAR")                  # ZORA's own
+BOSS_SOUND_LABEL = tiles(" -ROAR-  ")                  # ZORA's own (the word is a player setting)
 LABEL_PIXELS = (slice(0, 40), slice(160, 256))           # the label's corner of the frame
 
 

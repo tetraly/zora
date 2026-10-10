@@ -18,7 +18,7 @@ import pytest
 from tests.emulator import Button, Emulator
 from tests.test_feature_patches import BOOMERANG_SLOT, HOT_KEY_LABEL, INVENTORY_HEADING
 from tests.test_player_settings import _armed_start, _select_presses
-from zora.api import player_settings_from_page
+from zora_web.api import player_settings_from_page
 from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom, generate_world, plan
 from zora.rom import level_encoding
@@ -44,6 +44,8 @@ NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "tunic_colours": ((VIVID, 0x32, 0x16), (0x29, VIVID, 0x16), (0x29, 0x32, VIVID)),
     "heart_colour": (VIVID,),
     "music": (Music.OFF,),
+    "level_word": ("DEN", "PALACE"),
+    "boss_sound_word": ("MEOW", "RANDOM", "HI !"),
 }
 CASES = [(name, value) for name, values in NON_DEFAULTS.items() for value in values]
 CASE_IDS = [f"{name}={getattr(value, 'value', value)}" for name, value in CASES]
@@ -142,16 +144,18 @@ def test_palette_values_outside_the_choices_are_refused(value: int) -> None:
 
 def test_the_pages_settings_map_to_player_settings() -> None:
     page = {"selectButton": "swap", "lowHealthBeep": "kept", "deathWarp": "p1-up-select", "reduceFlashing": "on",
-            "music": "off", "greenTunic": 0x21, "blueRingTunic": 0x22, "redRingTunic": 0x23, "heart": 0x24}
+            "music": "off", "greenTunic": 0x21, "blueRingTunic": 0x22, "redRingTunic": 0x23, "heart": 0x24,
+            "levelWord": " palace ", "bossSoundWord": "meow"}
     assert player_settings_from_page(page) == PlayerSettings(
         SelectSwap.SWAP_ONLY, LowHealthBeep.KEPT, DeathWarp.CONTROLLER1_UP_SELECT, True, (0x21, 0x22, 0x23),
-        0x24, Music.OFF)
+        0x24, Music.OFF, "PALACE", "MEOW")
     defaults = {"selectButton": "toggle", "lowHealthBeep": "removed", "deathWarp": "p1-up-a",
                 "reduceFlashing": "off", "music": "on", "greenTunic": 0x29, "blueRingTunic": 0x32,
                 "redRingTunic": 0x16, "heart": 0x16}
     assert player_settings_from_page(defaults) == PlayerSettings() == player_settings_from_page({})
     assert player_settings_from_page({"selectButton": "off"}).select_swap is SelectSwap.OFF
-    for bad in ({"music": "loud"}, {"heart": 0x0D}, {"deathWarp": 3}):
+    for bad in ({"music": "loud"}, {"heart": 0x0D}, {"deathWarp": 3}, {"levelWord": "DUNGEON"},
+                {"levelWord": 7}, {"levelWord": ""}, {"bossSoundWord": "MOO"}, {"bossSoundWord": "A~BC"}):
         with pytest.raises(PlayerSettingError):
             player_settings_from_page(bad)
 
@@ -207,9 +211,11 @@ def test_command_line_settings() -> None:
     from zora.rom.player_settings import parse_player_settings
     assert parse_player_settings([]) == PlayerSettings()
     assert parse_player_settings(["select_swap=off", "music=off", "reduce_flashing=on", "heart_colour=0x21",
-                                  "tunic_colours=0x24,0x32,0x16", "death_warp=controller2_up_a"]) == \
+                                  "tunic_colours=0x24,0x32,0x16", "death_warp=controller2_up_a", "level_word=lair",
+                                  "boss_sound_word=random"]) == \
         PlayerSettings(SelectSwap.OFF, LowHealthBeep.REMOVED, DeathWarp.CONTROLLER2_UP_A, True,
-                       (0x24, 0x32, 0x16), 0x21, Music.OFF)
-    for bad in (["music=loud"], ["heart_colour=0x0D"], ["volume=11"], ["reduce_flashing=maybe"]):
+                       (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM")
+    for bad in (["music=loud"], ["heart_colour=0x0D"], ["volume=11"], ["reduce_flashing=maybe"],
+                ["level_word=FORTRESS"], ["level_word=A~B"], ["boss_sound_word=GROWL"]):
         with pytest.raises(PlayerSettingError):
             parse_player_settings(bad)

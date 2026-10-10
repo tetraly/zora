@@ -15,18 +15,18 @@ the game 200-240, heart containers and the letter 20-40 (the letter: owner decis
 """
 from __future__ import annotations
 
-from zora.generate.rng import IntRng
-from zora.generate.steps.extra_pool_items import (
+from ...model.enums import Item
+from ...model.levels import Level
+from ...model.overworld import Overworld, Shop
+from ..rng import IntRng
+from .extra_pool_items import (
     ExtraPoolItems,
     ShopWarePlace,
     exchange_with_drawn,
     pool_places,
 )
-from zora.generate.steps.item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
-from zora.generate.steps.shuffle_shop_items import SHOPS
-from zora.model.enums import Item
-from zora.model.levels import Level
-from zora.model.overworld import Overworld, Shop
+from .item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
+from .shuffle_shop_items import SHOPS
 
 # SI-JOIN-01: the joining items, in join order.
 JOINED_SHOP_ITEMS = (Item.WOOD_ARROWS, Item.BLUE_CANDLE, Item.BLUE_RING)
@@ -77,6 +77,7 @@ def shop_items_in_pool(levels: list[Level], state: ItemShuffleResult, extras: Ex
             state.tracked.append(own.tracked(item))
         extras.shop_wares.append(own)
         extras.shop_items.append(item)
+        extras.slot_prices.append(own.shop.ware(own.position).price)
         exchange_with_drawn(own, places, state, rng)
     price_displaced_wares(extras, rng)
 
@@ -90,4 +91,4 @@ def price_displaced_wares(extras: ExtraPoolItems, rng: IntRng) -> None:
         if item == own_item or item not in PRICES_BY_ITEM:
             continue
         low, high = PRICES_BY_ITEM[item]
-        ware.shop.items[ware.position].price = low + rng.below(high - low + 1)
+        ware.shop.ware(ware.position).price = low + rng.below(high - low + 1)

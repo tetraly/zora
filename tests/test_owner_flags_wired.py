@@ -15,6 +15,7 @@ from zora.flags.zora_flags import OWNER_2_0_FIELDS, ZoraFlags
 from zora.generate.pipeline import generate_rom, generate_world, plan
 from zora.generate.steps import overworld_gates as gates
 from zora.model.enums import Destination, Item
+from zora.model.overworld import POTION_SHOP_MIDDLE
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.layout import MAZE_DIRECTIONS_ADDRESS
 from zora.rom.owner_patches import PATCHES_BY_FLAG, owner_patch_writes
@@ -84,6 +85,7 @@ def test_each_flag_ships_beatable_seeds(flag: str) -> None:
 
 
 def test_every_question_mark_comes_up_both_ways() -> None:
+    """Add L4 Sword's too: a released string's "?" (Off or Level 9; owner ruling, 2026-10-08)."""
     asked = zora(**dict.fromkeys(PRODUCED, MAYBE), progressive_items=True)
     outcomes: dict[str, set[ThreeState]] = {name: set() for name in PRODUCED}
     for seed in range(24):
@@ -115,12 +117,18 @@ def test_no_gate_leaves_the_rules_as_they_were() -> None:
 # --- Shuffle Blue Potion --------------------------------------------------------------------------
 
 def test_the_blue_potion_adds_one_item_and_one_place() -> None:
+    """The place is the potion shop's middle ware; its left blue potion and red potion stay."""
+    from zora.generate.steps.potion_shop import potion_shop
     chosen = plan(BASELINE, 2, zora(shuffle_blue_potion=ON))
-    _, result = generate_world(chosen, base())
+    world, result = generate_world(chosen, base())
     assert result.extra_pool_items is not None
     assert result.extra_pool_items.shop_items.count(Item.BLUE_POTION) == 1
     assert [(ware.shop.destination, ware.position) for ware in result.extra_pool_items.shop_wares] == \
-        [(Destination.POTION_SHOP, 0)]
+        [(Destination.POTION_SHOP, POTION_SHOP_MIDDLE)]
+    shop, prg0 = potion_shop(world.overworld), potion_shop(parse_rom(base()).overworld)
+    assert [ware.item for ware in shop.items] == [ware.item for ware in prg0.items] == \
+        [Item.BLUE_POTION, Item.RED_POTION]
+    assert shop.middle is not None and prg0.middle is None
 
 
 def test_the_letter_never_lands_in_the_potion_shop_and_is_tracked_when_needed() -> None:
@@ -130,10 +138,11 @@ def test_the_letter_never_lands_in_the_potion_shop_and_is_tracked_when_needed() 
         chosen = plan(BASELINE, seed, zora(shuffle_blue_potion=ON, randomize_letter=True))
         world, result = generate_world(chosen, base())
         shop = potion_shop(world.overworld)
-        assert shop.items[0].item != Item.LETTER
+        assert shop.middle is not None and Item.LETTER not in {shop.middle.item, *(ware.item for ware in shop.items)}
         state = result.item_shuffle_result
         assert state is not None
-        holds_tracked = any(place.slot == f"shop {Destination.POTION_SHOP.name} 0" for place in state.tracked)
+        middle = f"shop {Destination.POTION_SHOP.name} {POTION_SHOP_MIDDLE}"
+        holds_tracked = any(place.slot == middle for place in state.tracked)
         letter = any(place.item == Item.LETTER for place in state.tracked)
         assert letter == holds_tracked, seed
         tracked_letter += letter
@@ -145,17 +154,24 @@ def test_the_letter_never_lands_in_the_potion_shop_and_is_tracked_when_needed() 
 L4_FLAGS = {"add_l4_sword": ON, "progressive_items": True}
 
 
-def test_with_add_l4_sword_on_both_its_patches_are_written() -> None:
+def test_with_add_l4_sword_on_its_patches_are_written() -> None:
+    """The beam test, and ASNB's take-l4 and sword-cap, which retire l4-sword-take (asnb.md 3a)."""
+    from zora.rom.owner_patches import ASNB_PATCHES_BY_FLAG, RETIRED_PATCHES
     rom = generate_rom(WITHOUT_CANDLES, 1, base(), zora_flag_string=zora(**L4_FLAGS)).rom
     writes = owner_patch_writes(["add_l4_sword"])
-    assert set(PATCHES_BY_FLAG["add_l4_sword"]) == {"l4-sword-beam", "l4-sword-take"}
+    assert set(PATCHES_BY_FLAG["add_l4_sword"]) == {"l4-sword-beam"} and RETIRED_PATCHES == {"l4-sword-take"}
+    assert set(ASNB_PATCHES_BY_FLAG["add_l4_sword"]) == {"take-l4", "sword-cap"}
     for offset, data in writes:
         assert rom[offset:offset + len(data)] == data, hex(offset)
 
 
-def test_t7_without_progressive_items_it_resolves_off() -> None:
+def test_t7_without_progressive_items_its_question_mark_resolves_off() -> None:
+    """A released "?" without Progressive Items resolves off (beta 1's rule); on is refused."""
+    from zora.generate.pipeline import FlagsRefused
     for seed in range(8):
         assert plan(B04_OFF, seed, zora(add_l4_sword=MAYBE)).zora_resolved.add_l4_sword is OFF
+    with pytest.raises(FlagsRefused):
+        plan(B04_OFF, 1, zora(add_l4_sword=ON))
 
 
 def level9_swords(world: object) -> list[int]:
@@ -167,7 +183,7 @@ def level9_swords(world: object) -> list[int]:
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_t8_t9_one_sword_in_a_qualifying_level_9_room_outside_pool_and_logic(seed: int) -> None:
     from zora.generate.steps.add_l4_sword import L4_SWORD_ITEM, collectible_rooms, qualifies
-    from zora.measure.owner_flags import owner_flag_problems
+    from zora_measure.owner_flags import owner_flag_problems
     chosen = plan(WITHOUT_CANDLES, seed, zora(**L4_FLAGS))
     world, result = generate_world(chosen, base())
     level9 = next(level for level in world.levels if level.level_num == 9)
@@ -195,8 +211,8 @@ def test_t11_seeds_with_the_sword_are_beatable() -> None:
 
 
 def test_t12_the_spoiler_log_lists_the_sword() -> None:
-    from zora.export.seed_document import seed_document_for
-    from zora.export.spoiler_log import L4_SWORD_LABEL, spoiler_log
+    from zora_export.seed_document import seed_document_for
+    from zora_export.spoiler_log import L4_SWORD_LABEL, spoiler_log
     flags = zora(**L4_FLAGS)
     rom = generate_rom(WITHOUT_CANDLES, 6, base(), zora_flag_string=flags).rom
     document = seed_document_for(rom, WITHOUT_CANDLES, 6, flags)
@@ -214,8 +230,8 @@ def test_every_flag_is_mapped_to_its_patches() -> None:
 def test_the_document_and_log_carry_the_mazes_gates_and_potion_shop() -> None:
     import json
 
-    from zora.export.seed_document import seed_document_for
-    from zora.export.spoiler_log import WIDTH, spoiler_log
+    from zora_export.seed_document import seed_document_for
+    from zora_export.spoiler_log import WIDTH, spoiler_log
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads((REPO / "docs/seed-format/seed-format.schema.json").read_text())
     flags = zora(**dict.fromkeys(PRODUCED, ON), progressive_items=True)

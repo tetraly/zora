@@ -29,7 +29,7 @@ def _code_lines(path: Path) -> list[tuple[int, str]]:
 
 def test_only_the_data_layer_reads_raw_rom_bytes() -> None:
     offenders = []
-    for folder in ("zora", "scripts", "tests"):
+    for folder in ("zora", "zora_export", "zora_measure", "zora_web", "scripts", "tests"):
         for path in sorted((REPO / folder).rglob("*.py")):
             rel = path.relative_to(REPO).as_posix()
             if rel.startswith(DATA_LAYER) or rel in DATA_LAYER_TESTS:

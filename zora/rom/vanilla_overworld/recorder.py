@@ -10,7 +10,7 @@ pieces held, through LevelMasks (index i is level i + 1).
 """
 from dataclasses import dataclass
 
-from zora.rom.vanilla_overworld.tables import RECORDER_LEVELS, TELEPORT_YS, WHIRLWIND_PREV_ROOM_ID_LIST
+from .tables import RECORDER_LEVELS, TELEPORT_YS, WHIRLWIND_PREV_ROOM_ID_LIST
 
 SCROLL_RIGHT_STEP = 1             # the destination is one room right of the "previous" room
 

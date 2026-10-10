@@ -1,7 +1,7 @@
 """The overworld screens."""
 
-from zora.model.enums import QuestVisibility
-from zora.model.overworld import Overworld
+from ...model.enums import QuestVisibility
+from ...model.overworld import Overworld
 
 # ---------------------------------------------------------------------------
 # Overworld serialization

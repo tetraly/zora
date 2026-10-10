@@ -6,7 +6,7 @@ All file offsets include the 0x10-byte iNES header unless noted otherwise
 This module imports only zora.rom.base_rom (which imports nothing from zora), so it
 is safe to import from parser, serializer, and tests without circular dependencies.
 """
-from zora.rom.base_rom import Original, Piece
+from .base_rom import Original, Piece
 
 # ---------------------------------------------------------------------------
 # iNES header
@@ -502,7 +502,8 @@ CREDITS_COPYRIGHT_SYMBOL_TILE = 0xFC
 # bank-2 free space, after FP-HOT-01's slot (docs/rom-map.md, slot $B080-$B0DF).
 CREDITS_RECORD_CPU_ADDRESSES = (0xB080, 0xB0A0, 0xB0A8)
 CREDITS_FREE_SPACE_ADDRESS = 0xB090  # file offset of CPU $B080 in bank 2
-CREDITS_COPYRIGHT_POINTER = 0xAC72   # line 15 keeps PRG0's copyright record
+CREDITS_BANK_2_CPU_TO_FILE = 0x10 + 2 * 0x4000 - 0x8000   # a bank-2 CPU address + this = its file offset
+CREDITS_COPYRIGHT_POINTER = 0xAD72   # line 15 keeps PRG0's copyright record (beta 1 had $AC72)
 
 # FP-RESET-01
 RESET_BUTTON_OPERAND_ADDRESS = 0x140EB

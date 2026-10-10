@@ -4,17 +4,18 @@ The generator's acceptance check runs on its staged model. This replays it on wh
 seed is generated, serialized and parsed back; every tracked item must sit in the parsed ROM where
 the generator's records put it; then the acceptance check's E1 (VA-REJ-07 with the seed's logic
 rules: the overworld gates, the maze hints, the potion shop's letter) and E3 run on the parsed
-levels and overworld. The flags' own invariants are checked too (zora/measure/owner_flags.py).
+levels and overworld. The flags' own invariants are checked too (zora_measure/owner_flags.py).
 Shared by tests/test_owner_flags_wired.py and scripts/qa_sweep.py-style runs in temp/.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
+from zora.flags.zora_flags import L4Sword
 from zora.generate.acceptance_check import AcceptanceCheck
 from zora.generate.pipeline import extra_options, generate_world, overworld_gates, plan
 from zora.generate.steps.item_shuffle_result import EXTRA_SLOT_CAVES, shop_of_slot
-from zora.measure.owner_flags import owner_flag_problems
+from zora_measure.owner_flags import owner_flag_problems
 from zora.model.enums import Destination, Item
 from zora.model.game_world import GameWorld
 from zora.model.overworld import ItemCave, OverworldItem, Shop
@@ -58,7 +59,7 @@ def _holds(world: GameWorld, place_item: int, level: int | None, slot: str | Non
     assert shop_destination is not None, slot
     shop = overworld.get_cave(shop_destination, Shop)
     position = int(slot.split()[-1])
-    return isinstance(shop, Shop) and int(shop.items[position].item) & ITEM_CODE == item
+    return isinstance(shop, Shop) and int(shop.ware(position).item) & ITEM_CODE == item
 
 
 def replay(flags: str, seed: int, zora: str, base: bytes) -> Replay:
@@ -78,5 +79,6 @@ def replay(flags: str, seed: int, zora: str, base: bytes) -> Replay:
     if not check.is_zelda_reachable():
         problems.append("E3 fails on the finished ROM")
     problems += owner_flag_problems(world, overworld_gates(chosen.zora_resolved),
-                                    chosen.zora_resolved.is_on("add_l4_sword"))
+                                    chosen.zora_resolved.l4_sword is L4Sword.LEVEL_9,
+                                    chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2)
     return Replay(rom, problems)

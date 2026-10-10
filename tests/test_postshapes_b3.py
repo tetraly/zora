@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.game_config import GameConfig, HintMode
 from zora.model.enums import (
     BossSound, BossSpriteSet, Direction, Enemy, EnemySpriteSet, Item, ItemPosition, RoomAction, RoomType,
 )
@@ -25,6 +26,11 @@ from zora.generate.steps.dungeon_room_shuffle import (
 
 NO_ITEM = 0x03
 POSITIONS = {1: [0x10, 0x20, 0x30, 0x40], 2: [0x40, 0x50, 0x60, 0x10]}
+
+
+# Generated hint text is written as generated seeds write it (the extended bank), not into the
+# vanilla bank, which ZORA's wording outgrows.
+GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
 def _contents(layout: int, movable: bool = False, item: int = NO_ITEM,
@@ -192,7 +198,7 @@ def test_b3_invariants_on_output() -> None:
     for seed in range(3):
         gw = parse_rom(rom)
         generate_shapes(gw, Rng(900 + seed), ShapeOptions())
-        finished = parse_rom(serialize_to_rom(gw, rom))
+        finished = parse_rom(serialize_to_rom(gw, rom, config=GENERATED_HINTS))
         level9 = finished.levels[8]
         for room in level9.rooms:
             assert room.item.value & 0x1F not in PROGRESSION_ITEMS, (seed, room.room_num)
