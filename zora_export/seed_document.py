@@ -14,7 +14,7 @@ refused with EncodedSeedRefused.
 from __future__ import annotations
 
 import re
-from dataclasses import fields
+from dataclasses import dataclass, fields
 from typing import Any
 
 from zora.flags import form as flag_form
@@ -25,6 +25,7 @@ from zora.flags.form import ALL_FIELDS
 from zora.flags.zora_form import FIELDS as ZORA_FIELDS
 from zora.generate.pipeline import GenerationPlan, overworld_gates, resolve_question_marks
 from zora.generate.steps.add_l4_sword import L4_SWORD_ITEM
+from zora.generate.steps.mixed_overworld_quest import SECOND_QUEST_LEFTOVER_SCREENS, is_second_quest_overworld
 from zora.generate.steps.overworld_gates import DEAD_WOODS_HINT, LOST_HILLS_HINT
 from zora.generate.steps.randomize_mazes import DEAD_WOODS, LOST_HILLS
 from zora.model import room_grid
@@ -194,7 +195,8 @@ def level_entry(level: Level, selling: frozenset[int]) -> dict[str, Any]:
         "staircase": stairs.get(room.room_num),
         "doors": {side: DOORS[getattr(room.walls, side)] for side in ("north", "east", "south", "west")},
     } for room in level.rooms]
-    return {"number": level.level_num, "color": level_colour(level), "rooms": rooms}
+    return {"number": level.level_num, "shownNumber": level.rom_level_num, "color": level_colour(level),
+            "rooms": rooms}
 
 
 # --- the overworld and its caves ----------------------------------------------------------
@@ -214,8 +216,9 @@ FIRST_QUEST = frozenset({QuestVisibility.BOTH_QUESTS, QuestVisibility.FIRST_QUES
 
 
 def place_name(destination: Destination) -> str:
+    """A place's name; a dungeon door by its data number (the door code, `Level.level_num`)."""
     if destination in LEVELS:
-        return f"Level {int(destination)}"
+        return level_name(int(destination))
     return display_name(destination.name)
 
 
@@ -225,14 +228,42 @@ def short_name(destination: Destination) -> str:
     return SHORT_NAMES.get(destination, display_name(destination.name))
 
 
+# Level numbering (owner ruling 2026-10-11): `number`, the screens' level-door names and the
+# hints' `speaker` keep the data number (the door code, `Level.level_num`), which the visualizer
+# reads; beside each, a `shown...` field holds the number the status bar shows on entry
+# (`Level.rom_level_num`). The two differ only for a second-quest set's paired levels (2 and 3,
+# 4 and 5, 7 and 8).
+def level_name(number: int) -> str:
+    return f"Level {number}"
+
+
+def shown_numbers(world: GameWorld) -> dict[int, int]:
+    """Each level's shown number by its data number."""
+    return {level.level_num: level.rom_level_num for level in world.levels}
+
+
+def level_door(destination: Destination, shown: dict[int, int]) -> dict[str, str]:
+    """A screen's cave entry; a level door's also names the level by its shown number."""
+    entry = {"name": place_name(destination), "shortName": short_name(destination)}
+    if destination in LEVELS:
+        number = shown[int(destination)]
+        entry |= {"shownName": level_name(number), "shownShortName": f"L{number}"}
+    return entry
+
+
 def overworld_entry(world: GameWorld) -> dict[str, Any]:
+    # 2nd Quest's leftover dungeon codes on 11 and 66 are shown but cannot be entered (OW-QST-05;
+    # the recorder reveals neither): not entrances
+    leftovers = SECOND_QUEST_LEFTOVER_SCREENS if is_second_quest_overworld(world.overworld) else frozenset()
+    shown = shown_numbers(world)
     screens = [{
         "number": screen.screen_num,
         "column": room_grid.column(screen.screen_num) + 1,
         "row": room_grid.row(screen.screen_num) + 1,
-        "cave": {"name": place_name(screen.destination), "shortName": short_name(screen.destination)},
+        "cave": level_door(screen.destination, shown),
     } for screen in world.overworld.screens
-        if screen.destination != Destination.NONE and screen.quest_visibility in FIRST_QUEST]
+        if screen.destination != Destination.NONE and screen.quest_visibility in FIRST_QUEST
+        and screen.screen_num not in leftovers]
     spots = {cave.destination: cave.item for cave in world.overworld.caves if isinstance(cave, OverworldItem)}
     return {"screens": screens,
             "armos": item_name(spots.get(Destination.ARMOS_ITEM, Item.OVERWORLD_NO_ITEM)),
@@ -327,22 +358,35 @@ def hint_shop_slots(world: GameWorld, shop: HintShop) -> list[int]:
     return [selectors[offer] // SELECTOR_TO_SLOT for offer in HINT_SHOP_OFFERS[shop.destination]]
 
 
-def speakers(world: GameWorld) -> dict[int, list[str]]:
+@dataclass(frozen=True)
+class Speaker:
+    """Who shows a text: `name` names a dungeon person's level by its data number, `shown_name`
+    by its shown number (the same for the caves' people and the hint shops)."""
+    name: str
+    shown_name: str
+    in_level: bool = False
+
+
+def speakers(world: GameWorld) -> dict[int, list[Speaker]]:
     """Who shows each text slot: the overworld caves' people, the hint shops' hints, and the
     dungeon people."""
-    said: dict[int, list[str]] = {}
+    said: dict[int, list[Speaker]] = {}
     for cave in world.overworld.caves:
         quote = getattr(cave, "quote_id", None)
         if quote is not None:
-            said.setdefault(quote, []).append(place_name(cave.destination))
+            name = place_name(cave.destination)
+            said.setdefault(quote, []).append(Speaker(name, name))
         if isinstance(cave, HintShop):
             for number, offer_slot in enumerate(hint_shop_slots(world, cave), start=1):
-                said.setdefault(offer_slot, []).append(f"{place_name(cave.destination)}, hint {number}")
+                name = f"{place_name(cave.destination)}, hint {number}"
+                said.setdefault(offer_slot, []).append(Speaker(name, name))
     for level in world.levels:
         for room in level.rooms:
             slot = person_slot(world, level, room)
             if slot is not None:
-                said.setdefault(slot, []).append(f"Level {level.level_num}, room {room.room_num:02X}")
+                room_text = f", room {room.room_num:02X}"
+                said.setdefault(slot, []).append(Speaker(level_name(level.level_num) + room_text,
+                                                         level_name(level.rom_level_num) + room_text, in_level=True))
     return said
 
 
@@ -357,7 +401,10 @@ def hint_entries(world: GameWorld) -> list[dict[str, Any]]:
     for slot, quote in enumerate(world.quotes):
         entry: dict[str, Any] = {"text": shown_text(quote.text)}
         if slot in said:
-            entry["speaker"] = shorten("; ".join(said[slot]), SPEAKER_LENGTH)
+            entry["speaker"] = shorten("; ".join(speaker.name for speaker in said[slot]), SPEAKER_LENGTH)
+            if any(speaker.in_level for speaker in said[slot]):
+                entry["shownSpeaker"] = shorten("; ".join(speaker.shown_name for speaker in said[slot]),
+                                                SPEAKER_LENGTH)
         hints.append(entry)
     return hints
 

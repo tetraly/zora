@@ -317,15 +317,18 @@ def add_segments(config: str, segments: tuple[Segment, ...]) -> str:
     lines = config.splitlines(keepends=True)
     for segment in segments:
         bank = f"load = ROM_{segment.bank:02d},"
-        after = None
+        first, after = None, None
         for index, line in enumerate(lines):
             if bank in line:
+                first = index if first is None else first
                 start = re.search(r"start = \$([0-9A-Fa-f]+)", line)
                 if not start or int(start[1], 16) < segment.start:
                     after = index
-        if after is None:
+        if first is None:
             raise SystemExit(f"{segment.name}: Z.cfg has no segment of bank {segment.bank}")
-        lines.insert(after + 1, segment.config_line() + "\n")
+        # Before every segment of the bank when it starts lower than all of them (bank 0's code
+        # starts at $8D60, after a free gap).
+        lines.insert(first if after is None else after + 1, segment.config_line() + "\n")
     return "".join(lines)
 
 

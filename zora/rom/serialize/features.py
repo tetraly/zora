@@ -41,16 +41,20 @@ def _serialize_b10_constants(game_world: GameWorld, patch: Patch) -> None:
     patch.add(TEXT_SPEED_OPERAND_ADDRESS, bytes([game_world.text_speed_value]))
     patch.add(LOW_HEALTH_BEEP_OPERAND_ADDRESS, bytes([game_world.low_health_beep_value]))
     patch.add(DMC_LEVEL_OPERAND_ADDRESS, bytes([game_world.dmc_level_value]))
-    patch.add(Q2_ROOM_3E_TRIGGER_ADDRESS, bytes([game_world.q2_room_trigger_value]))
+    if game_world.levels[0].block is not game_world.blocks_2q[0]:
+        # FP-Q2R-01; with levels 1-6 second quest (Dungeon Quest) the room is a level-5 room
+        # whose trigger the passes set (PS-VAN-02 starts it at $01)
+        patch.add(Q2_ROOM_3E_TRIGGER_ADDRESS, bytes([game_world.q2_room_trigger_value]))
     patch.add(LEVEL_NAME_DASH_OFFSET, bytes([game_world.level_dash_tile]))
 
 
 def _serialize_new_file_hearts(game_world: GameWorld, patch: Patch) -> None:
     """FP-START-01 and FL-ALT-02: the HeartValues a new save file and the second-quest switch
     store. PRG0's routines are left alone at PRG0's $22 (FP-START-01 allows it); another value
-    replaces the immediate in both, so every start sets the same hearts."""
+    replaces the immediate in both, so every start sets the same hearts. With start items the
+    routines jump to fp-start-02's table instead, whose hearts byte holds the value (final_steps)."""
     value = heart_values(game_world.new_file_heart_containers, game_world.new_file_full_hearts)
-    if value == PRG0_START_HEART_VALUES:
+    if value == PRG0_START_HEART_VALUES or game_world.start_items:
         return
     patch.add(NEW_FILE_HEART_VALUES_OPERAND_ADDRESS, bytes([value]))
     patch.add(SECOND_QUEST_HEART_VALUES_OPERAND_ADDRESS, bytes([value]))

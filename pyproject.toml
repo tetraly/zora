@@ -47,7 +47,7 @@ markers = ["slow: flag-combination suites, many-seed and exhaustive sweeps, and 
 
 [tool.mypy]
 files = ["zora", "zora_export", "zora_measure", "zora_web", "tests", "scripts/check_imports.py",
-         "scripts/compare_corpus.py", "scripts/metrics.py", "scripts/output_hash.py",
+         "scripts/compare_corpus.py", "scripts/compare_revision.py", "scripts/metrics.py", "scripts/output_hash.py",
          "scripts/flag_names.py"]
 python_version = "3.11"
 strict = true
@@ -71,6 +71,7 @@ disallow_any_generics = false
 
 # Ruff: Archipelago's ruff.toml copied exactly (Archipelago commit 54803be0; its style guide is
 # docs/style.md there; notes in docs/style-archipelago.md). scripts/verify.sh runs it on zora/ and its siblings.
+# Ruff version: 0.17.0 (the release that checks ISC004; scripts/verify.sh warns when the installed one differs).
 [tool.ruff]
 line-length = 120
 indent-width = 4

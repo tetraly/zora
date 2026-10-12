@@ -12,7 +12,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .fields import Settings, ThreeState
+from .fields import THREE_STATE_LABELS, Settings, ThreeState
 from .zora_flags import (
     HEARTS_CAP_CHOICES,
     OWNER_2_0_FIELDS,
@@ -57,14 +57,14 @@ FIELDS: tuple[dict[str, Any], ...] = (
     # The owner's 2.0 flags (docs/design/zora-flags-2.0.md): each On / Off / ?, "?" decided per seed.
     *({"name": name, "kind": THREE_STATE_KIND, "label": label, "help": help_text} for name, label, help_text in (
         ("shuffle_blue_potion", "Shuffle Blue Potion",
-         "A blue potion joins the shuffled major items from the potion shop's middle slot, which sells "
-         "any major item once in its place (never the letter, which opens the shop). The shop's own blue "
-         "and red potions stay. With a needed item there, the logic needs the letter too."),
+         ("A blue potion joins the shuffled major items from the potion shop's middle slot, which sells "
+          "any major item once in its place (never the letter, which opens the shop). The shop's own blue "
+          "and red potions stay. With a needed item there, the logic needs the letter too.")),
         ("extra_raft_blocks", "Extra Raft Blocks",
          "Six more cave screens near Westlake Mall and Casino Corner can only be reached by raft."),
         ("extra_power_bracelet_blocks", "Extra Power Bracelet Blocks",
-         "Seven more cave screens on West Death Mountain sit behind power-bracelet boulders. Needs "
-         'Shuffle "Take Any Road" Caves off.'),
+         ("Seven more cave screens on West Death Mountain sit behind power-bracelet boulders. Needs "
+          'Shuffle "Take Any Road" Caves off.')),
         ("speed_up_dungeon_transitions", "Speed Up Dungeon Transitions",
          "No scroll delay between dungeon rooms."),
         ("speed_up_heart_fill", "Speed Up Heart Fill",
@@ -80,11 +80,11 @@ FIELDS: tuple[dict[str, Any], ...] = (
         ("magical_boomerang_damage", "Magical Boomerang Does 1 HP Damage",
          "The magical boomerang deals 1 HP of damage as well as stunning."),
         ("randomize_lost_hills", "Randomize Lost Hills",
-         "The Lost Hills' path is new. The hint shop that sells the path in the original game sells the new "
-         "one, for 1 rupee; the screens beyond the maze need it in the logic."),
+         ("The Lost Hills' path is new. The hint shop that sells the path in the original game sells the new "
+          "one, for 1 rupee; the screens beyond the maze need it in the logic.")),
         ("randomize_dead_woods", "Randomize Dead Woods",
-         "The Dead Woods' path is new. The hint shop that sells the path in the original game sells the new "
-         "one, for 1 rupee; the screens beyond the maze need it in the logic."),
+         ("The Dead Woods' path is new. The hint shop that sells the path in the original game sells the new "
+          "one, for 1 rupee; the screens beyond the maze need it in the logic.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
@@ -116,8 +116,16 @@ FIELDS = (*FIELDS[:_AFTER], *_L4_SWORD_FIELDS, *FIELDS[_AFTER:])
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 
+def _with_switch_values(field: dict[str, Any]) -> dict[str, Any]:
+    """A switch with its states and their names, as an option field carries its values."""
+    if field["kind"] == "option":
+        return field
+    states = list(ThreeState) if field["kind"] == THREE_STATE_KIND else [ThreeState.OFF, ThreeState.ON]
+    return {**field, "values": [{"value": int(state), "label": THREE_STATE_LABELS[state]} for state in states]}
+
+
 def zora_metadata() -> dict[str, Any]:
-    return {"tab": TAB_NAME, "fields": list(FIELDS)}
+    return {"tab": TAB_NAME, "fields": [_with_switch_values(field) for field in FIELDS]}
 
 
 def control_value(flags: ZoraFlags, name: str) -> int:

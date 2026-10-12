@@ -21,7 +21,7 @@ from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from ..model.enums import Destination, Item
-from ..model.levels import GANON_LIST, LEVEL_9
+from ..model.levels import LEVEL_9
 from ..model.overworld import ItemCave
 from .acceptance_check import (
     ARROW_LINE,
@@ -39,8 +39,9 @@ from .acceptance_check import (
     TWO_ARROWS,
     AcceptanceCheck,
     LogicRules,
+    logic_walk_rules,
 )
-from .dungeon_walk import family_items, is_family_blocked
+from .dungeon_walk import family_items
 from .finish import tracked_place
 from .places import Place, PlaceKind, major_pool
 from .steps.item_shuffle_result import LETTER_SLOT, TrackedPlace
@@ -57,6 +58,10 @@ CANDLE = "Candle"
 SWORD = "Sword"                   # ASNB: level-9 entry is Sword 4 (docs/design/asnb.md section 5)
 MAGICAL_SWORD_CAVE_EVENT = "Magical Sword Cave"
 LEVEL9_ENTRY_EVENT = "Level 9 Entry"
+# Ganon's fixed drop ($0E): never shuffled, never a place, never in the pool. Taking it opens the
+# last-boss shutters (CheckSecretTriggerLastBoss reads LastBossDefeated, which the Triforce of
+# Power's fanfare sets); the places past them require it, and so does Zelda.
+TRIFORCE_OF_POWER_EVENT = "Triforce of Power"
 
 
 @dataclass(frozen=True)
@@ -101,6 +106,7 @@ PSEUDO_TERMS: dict[int, Term] = {
     LEVEL9_ENTRY: EventTerm(LEVEL9_ENTRY_EVENT),
     LOST_HILLS_HINT: EventTerm("Lost Hills Hint"),
     DEAD_WOODS_HINT: EventTerm("Dead Woods Hint"),
+    Item.TRIFORCE_OF_POWER: EventTerm(TRIFORCE_OF_POWER_EVENT),
 }
 # A pseudo-item that implies another: a count of two is a count of one. The subsets derive
 # evaluates are closed under these, as every held set the closure builds is.
@@ -211,7 +217,6 @@ def derive(predicate: Callable[[frozenset[int]], bool], universe: Collection[int
 # --- the model (spec "Design" 3) ----------------------------------------------------------------
 
 TRIFORCE_LEVELS = range(1, TRIFORCES_NEEDED + 1)
-GANON_EVENT = "Ganon"
 LETTER_EVENT = "Letter"
 ZELDA_EVENT = "Zelda"
 LINE_NAMES = {ARROW_LINE: ARROW, CANDLE_LINE: CANDLE}
@@ -272,13 +277,19 @@ class Universes:
                    inside=family_items(rules.family_lists) | {Item.LADDER},
                    cave=screen | {Item.LADDER, Item.LETTER})
 
+    def inside_level(self, level: int) -> frozenset[int]:
+        """A level's dungeon walk; level 9's also opens its last-boss shutters with the Triforce
+        of Power (the logic walk)."""
+        return self.inside | {Item.TRIFORCE_OF_POWER} if level == LEVEL_9 else self.inside
+
 
 def logic_model(built: Built) -> LogicModel:
     """Phase 3 spec, Design 3: every rule of a built seed, each derived from the acceptance
-    check's own predicate on the built layout (none depends on where ZORA put the items)."""
+    check's own predicate on the built layout (none depends on where ZORA put the items), on
+    the logic walk (docs/archipelago.md "The two walks")."""
     from .pipeline import extra_options
     extras = extra_options(built.plan)
-    rules = extras.logic_rules
+    rules = logic_walk_rules(extras.logic_rules)
     world = built.world
     assert built.result.item_shuffle_result is not None and built.result.overworld is not None
     check = AcceptanceCheck(world.levels, built.result.item_shuffle_result, world.overworld,
@@ -302,7 +313,8 @@ def logic_model(built: Built) -> LogicModel:
     def reach_rule(place: Place) -> Rule:
         if place.level is not None and place.room_num is not None:
             reaches = check.can_reach_room if place.kind == PlaceKind.ROOM else check.reaches_cellar
-            inside = derive(partial(reaches, place.level, place.room_num), universes.inside, place.name)
+            inside = derive(partial(reaches, place.level, place.room_num), universes.inside_level(place.level),
+                            place.name)
             return conjoin(entry[place.level], inside)
         # the item code is never read for a cave or shop slot
         return derive(partial(check.collects, tracked_place(place, Item.WOOD_SWORD)), universes.cave, place.name,
@@ -344,18 +356,14 @@ def logic_model(built: Built) -> LogicModel:
     take_any_events = tuple(take_any_event(screen) for screen in take_any_heart_screens(world.overworld))
     for screen, name in zip(take_any_heart_screens(world.overworld), take_any_events, strict=True):
         events[name] = derive(partial(check.reaches_screen, screen), universes.screen, name)
-    # Ganon: level 9 entered (its door, the long items and level-9 entry) and his family list
-    # unblocked (the bow and the silver arrows; two arrow upgrades under Progressive Items). His
-    # room's reachability is E3's walk, Zelda's: the closure's family walk is not asked to reach
-    # it, and in some accepted seeds it does not (its entry sides).
-    level9 = next(level for level in world.levels if level.level_num == LEVEL_9)
-    ganon_room = next(room for room in level9.rooms if room.enemy == GANON_LIST)
-
-    def defeats_ganon(held: frozenset[int]) -> bool:
-        return not is_family_blocked(ganon_room, held, rules.family_lists)
-    events[GANON_EVENT] = conjoin(entry[LEVEL_9], derive(defeats_ganon, universes.inside, GANON_EVENT))
-    # Zelda: E3 (VA-REJ-09), a walk on the layout alone, and Ganon.
-    events[ZELDA_EVENT] = conjoin(TRUE if check.is_zelda_reachable() else FALSE, rule_of(EventTerm(GANON_EVENT)))
+    # The Triforce of Power, Ganon's fixed drop: level 9 entered (its door, the long items and
+    # level-9 entry), Ganon's room reached on the logic walk and his family list unblocked (the bow
+    # and the silver arrows; two arrow upgrades under Progressive Items, PI-LOGIC-02).
+    events[TRIFORCE_OF_POWER_EVENT] = conjoin(entry[LEVEL_9], derive(check.reaches_ganon, universes.inside,
+                                                                    TRIFORCE_OF_POWER_EVENT))
+    # Zelda: E3 (VA-REJ-09), a walk on the layout alone, and the Triforce of Power (her shutters).
+    events[ZELDA_EVENT] = conjoin(TRUE if check.is_zelda_reachable() else FALSE,
+                                  rule_of(EventTerm(TRIFORCE_OF_POWER_EVENT)))
     places = {place.name: place_rule(place) for place in built.places}
     return LogicModel(places=places, events=events, goal=rule_of(EventTerm(ZELDA_EVENT)),
                       progression=progression(places, events, lines, major_pool(extras)),

@@ -50,7 +50,7 @@ def _block_levels(gw: GameWorld, block: int) -> list[Level]:
 
 def _unowned(gw: GameWorld, block: int) -> list[Room]:
     """Ordinary rooms of the block that no level owns."""
-    level_block = gw.blocks[block]
+    level_block = gw.level_blocks[block]
     return [room for room in level_block.rooms if level_block.owner_of(room.room_num) is None]
 
 
@@ -74,8 +74,8 @@ def _stair_exits(stair: StaircaseRoom) -> list[int]:
 
 def _dungeon_items(gw: GameWorld) -> set[Item]:
     """Items in both blocks' rooms and cellars."""
-    items = {room.item for block in gw.blocks for room in block.rooms}
-    items |= {s.item for block in gw.blocks for s in block.staircases if s.item is not None}
+    items = {room.item for block in gw.level_blocks for room in block.rooms}
+    items |= {s.item for block in gw.level_blocks for s in block.staircases if s.item is not None}
     return items
 
 

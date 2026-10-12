@@ -5,24 +5,30 @@ from __future__ import annotations
 from enum import Enum
 
 from .fields import (
+    BOMB_UPGRADE_PERSON_SHUFFLE,
     BOSS_HIT_POINTS,
     CAVE_SHUFFLE,
     DUNGEON_LAYOUT_SOURCE,
     DUNGEON_ROOM_SHUFFLE,
     ENCODE_LEVEL_DATA,
     ENEMY_HIT_POINTS,
+    FORCE_OVERWORLD_BLOCK,
     FOUR_STARTING_HEARTS,
     HINT_STYLE,
+    IMPORTANT_ITEMS_IN_LEVEL_9,
     ITEM_SHUFFLE_SCOPE,
     MONEY_OR_LIFE_ROOMS,
     MONEY_OR_LIFE_TOLL,
     OPTION_FIELDS,
+    OVERWORLD_QUEST,
     START_ITEM_LIMIT,
+    START_ROOM_MAY_MOVE,
     START_SCREEN,
     STARTING_HEARTS,
     TOGGLE_FIELDS,
     WHITE_SWORD_FROM_FIVE_HEARTS,
     WHITE_SWORD_LOWEST,
+    WOOD_SWORD_CAVE_BEHIND_BLOCKS,
     CaveShuffle,
     DungeonLayoutSource,
     DungeonRoomShuffle,
@@ -30,6 +36,7 @@ from .fields import (
     HitPointChange,
     ItemShuffleScope,
     OptionField,
+    OverworldQuest,
     Settings,
     StartScreen,
     ThreeState,
@@ -89,12 +96,44 @@ TURN_OFF_OPTIONS: dict[str, frozenset[int]] = {
     DUNGEON_ROOM_SHUFFLE.id: frozenset({DungeonRoomShuffle.WITHIN_EACH_DUNGEON}),
     START_ITEM_LIMIT.id: frozenset(range(START_ITEM_LIMIT.count)) - {MVP_BASELINE_OPTIONS[START_ITEM_LIMIT.id]},
 }
+# The start-item fields FL-SUP-03 supports on (FP-START-02, FP-START-05).
+START_ITEM_TOGGLES: tuple[str, ...] = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78")
+# FL-SUP-03's further three-state values (2026-10-10 export): Force Overworld Block (B81) on and
+# "?" (OW-CAVE-08; "?" is a coin per seed, FL-DEP-04), Allow OW Blocks of Wood Sword (B03) on.
+ALTERNATIVE_TOGGLES: dict[str, frozenset[ThreeState]] = {
+    FORCE_OVERWORLD_BLOCK.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    # Allow OW Blocks of Wood Sword (B03) on (OW-CAVE-07), and so "?" (owner ruling 2026-10-04)
+    WOOD_SWORD_CAVE_BEHIND_BLOCKS.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    # FL-SUP-03 (F12 export): Hopla's Start Raft, Start Recorder and Start Power Bracelet (B57, B60,
+    # B64; FP-START-02 to FP-START-04) and Random%'s six (B59, B61, B63, B73, B77, B78; FP-START-05)
+    # on, and so "?" (the owner's rule for every switch: a coin per seed between on and off)
+    **{field_id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}) for field_id in START_ITEM_TOGGLES},
+    # Allow Important Items in 9 (B25) on (VA-REJ-08), and so "?" (owner ruling 2026-10-11: Random
+    # is supported where on and off both are)
+    IMPORTANT_ITEMS_IN_LEVEL_9.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    # Shuffle Dungeon Start Room (B26) on (PS-START), and "?" (FL-SUP-03, L36)
+    START_ROOM_MAY_MOVE.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+}
+# FL-DEP-02 item 4: the dungeon quests that turn the hungry-goriya and bomb-upgrade moves off
+# (dependencies.LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES applies the rule)
+DUNGEON_QUESTS_WITHOUT_PERSON_MOVES = frozenset({DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED,
+                                                 DungeonLayoutSource.MIXED_WITH_SHAPES})
 # FL-ALT-02 to FL-ALT-04: the alternative values ZORA produces. Owner ruling (2026-10-05): supported
-# after the MVP, in place of FL-ALT-01's "not supported in MVP".
+# after the MVP, in place of FL-ALT-01's "not supported in MVP". FL-SUP-02's "Also supported" column
+# (spec change L15, 2026-10-09) adds C01 = 2 (OW-MIX) and C06 = 2 (PS-ITW).
 ALTERNATIVE_OPTIONS: dict[str, frozenset[int]] = {
     STARTING_HEARTS.id: frozenset({FOUR_STARTING_HEARTS}),             # FL-ALT-02: 4 hearts
     WHITE_SWORD_LOWEST.id: frozenset({WHITE_SWORD_FROM_FIVE_HEARTS}),  # FL-ALT-03: 5 hearts
-    HINT_STYLE.id: frozenset({HintStyle.COMMUNITY}),                   # FL-ALT-04
+    HINT_STYLE.id: frozenset({HintStyle.COMMUNITY, HintStyle.HELPFUL}),  # FL-ALT-04; HT-HINT-04
+    ITEM_SHUFFLE_SCOPE.id: frozenset({ItemShuffleScope.WITHIN_EACH_DUNGEON}),  # FL-SUP-02 (L15): PS-ITW
+    # FL-SUP-02 (L15 and the 2026-10-10 export): OW-QST-03 to -05, OW-MIX, OW-QST-01 and -02; the
+    # random index (OW-QST-06) then follows, all its outcomes being produced
+    OVERWORLD_QUEST.id: frozenset({OverworldQuest.SECOND_QUEST, OverworldQuest.MIXED_FIRST_QUEST_VARIANT,
+                                   OverworldQuest.MIXED_SECOND_QUEST_VARIANT}),
+    # FL-SUP-02 (2026-10-10 export): OW-START-02 and OW-START-03
+    START_SCREEN.id: frozenset({StartScreen.FULL_SHUFFLE, StartScreen.WOODEN_SWORD_SCREEN}),
+    # FL-SUP-02 (eca85cc export): Dungeon Quest's values (SH-SRC-07 to SH-SRC-10, PS-VAN)
+    DUNGEON_LAYOUT_SOURCE.id: frozenset({DungeonLayoutSource.FIRST_QUEST, DungeonLayoutSource.SECOND_QUEST}),
 }
 
 
@@ -136,6 +175,13 @@ def _toggle_supported(settings: Settings, toggle: ToggleField, baseline: ThreeSt
         return value is not ThreeState.POSSIBLE
     if value == baseline:
         return True
+    if value in ALTERNATIVE_TOGGLES.get(toggle.id, frozenset()):
+        return True
+    if (toggle == BOMB_UPGRADE_PERSON_SHUFFLE and value is ThreeState.OFF
+            and settings.option(DUNGEON_LAYOUT_SOURCE) in DUNGEON_QUESTS_WITHOUT_PERSON_MOVES):
+        # SH-SRC-08/09 and FL-DEP-02 item 4: these dungeon quests turn the bomb-upgrade moves off,
+        # and the bomb-upgrade path keeps PRG0's code (levels 5 and 7)
+        return True
     if toggle.id not in TURN_OFF_TOGGLES and toggle.id not in OWNER_TURN_OFF_TOGGLES:
         return False
     if toggle == MONEY_OR_LIFE_TOLL:
@@ -150,6 +196,23 @@ def _judge(supported: bool) -> Support:
 
 # Owner ruling (2026-10-06): Encode level data (B82) is a plain on/off setting and never takes "?".
 ENCODE_LEVEL_DATA_NOT_RANDOM = "Encode level data is on or off; it cannot be random"
+
+
+# Level encoding keeps its key material in the second-quest room blocks, which a second-quest set
+# of Dungeon Quest (C02 = 1, 2, 4, and 5 or 6 drawn to one) reads (SH-SRC-02). Until the encoding
+# protects those blocks too (FP-TOURNEY-01), the two are refused together.
+ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS = ("Encode level data cannot be combined yet with a Dungeon "
+                                                "Quest that can use second-quest dungeons")
+DUNGEON_QUESTS_WITH_SECOND_QUEST_SETS = frozenset({DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED,
+                                                   DungeonLayoutSource.MIXED_WITH_SHAPES,
+                                                   DungeonLayoutSource.RANDOM_WITHOUT_SHAPES,
+                                                   DungeonLayoutSource.RANDOM})
+
+
+def encodes_second_quest_dungeons(settings: Settings) -> bool:
+    """Level encoding on with a Dungeon Quest that may read a second-quest block."""
+    return (settings.toggle(ENCODE_LEVEL_DATA) is ThreeState.ON
+            and settings.option(DUNGEON_LAYOUT_SOURCE) in DUNGEON_QUESTS_WITH_SECOND_QUEST_SETS)
 
 
 def encode_level_data_is_random(settings: Settings) -> bool:

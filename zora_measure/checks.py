@@ -166,7 +166,7 @@ def check_grid_tiled(gw: GameWorld) -> CheckResult:
         for c in _stairs(level):
             stairs.add((_grid_of(level), c))
     missing = [(grid, c) for grid in (0, 1) for c in range(0x80)
-               if gw.blocks[grid].owner_of(c) is None and (grid, c) not in stairs]
+               if gw.level_blocks[grid].owner_of(c) is None and (grid, c) not in stairs]
     spare = [c for grid, c in missing if grid == 1]
     return CheckResult("SH-GRID-01", bool(spare),
                        f"{len(missing)} unowned cells, {len(spare)} on levels 7-9's grid (first 5: {missing[:5]})")
@@ -454,7 +454,7 @@ def check_triforce_of_power(gw: GameWorld) -> CheckResult:
          remap, a second triforce of power."""
     tfop: list[tuple[str, Room]] = []
     bad7: list[str] = []
-    for name, block in zip(BLOCK_NAMES, gw.blocks, strict=True):
+    for name, block in zip(BLOCK_NAMES, gw.level_blocks, strict=True):
         for room in block.rooms:
             if room.item == Item.TRIFORCE_OF_POWER:
                 tfop.append((name, room))
@@ -508,10 +508,23 @@ SHAPES_STAGE_CHECKS = (check_door_sync,)
 DISPUTED_CHECKS: tuple[Check, ...] = ()
 
 
+# The shape stage's own rules (SH-GRID-01/11, SH-STAIR-02/03, SH-MAP-01, SH-NUM-01): a set that keeps
+# a quest's own dungeons (Dungeon Quest, SH-SRC-01) has PRG0's grids, stairs, maps and numbering.
+SHAPED_DUNGEON_CHECKS = (check_grid_tiled, check_zelda_not_dark, check_cellar_counts, check_stair_budget,
+                         check_minimap_synthesis, check_numbering_sorted)
+
+
+# The bottom-row entrances that Shuffle Dungeon Start Room (B26, PS-START) moves on purpose
+BOTTOM_ROW_ENTRANCE_CHECKS = (check_entrances, check_level9_entrance)
+
+
 def finished_rom_checks(sort_shapes: bool = True, post_shapes: bool = True,
-                        level_2_sword: bool = False) -> tuple[Check, ...]:
+                        level_2_sword: bool = False, shaped: bool = True,
+                        start_rooms_moved: bool = False) -> tuple[Check, ...]:
     """The checks a finished ROM generated with these options must pass (level_2_sword: ASNB's
-    Add L4 Sword = Level 2, which gives level 2 an item cellar)."""
+    Add L4 Sword = Level 2, which gives level 2 an item cellar; shaped: False when a set keeps a
+    quest's own dungeons, which leaves out the shape stage's rules; start_rooms_moved: B26,
+    which leaves out the bottom-row entrance rules)."""
     checks: tuple[Check, ...] = FINISHED_CHECKS
     if level_2_sword:
         conditional: dict[Check, Check] = {check_cellar_counts: partial(check_cellar_counts, level_2_sword=True),
@@ -521,6 +534,10 @@ def finished_rom_checks(sort_shapes: bool = True, post_shapes: bool = True,
         checks += SORTED_SHAPES_CHECKS
     if not post_shapes:
         checks += POST_SHAPES_MOVED_CHECKS
+    if not shaped:
+        checks = tuple(check for check in checks if check not in SHAPED_DUNGEON_CHECKS)
+    if start_rooms_moved:
+        checks = tuple(check for check in checks if check not in BOTTOM_ROW_ENTRANCE_CHECKS)
     return checks
 
 

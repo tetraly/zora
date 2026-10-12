@@ -10,15 +10,25 @@ import pytest
 # The spec tables are left out of releases (release/allowlist.txt): this file skips there.
 spec = pytest.importorskip("tests.flags_spec_fixture", reason="the spec tables are not in this tree")
 from zora.flags.codec import decode, encode
-from zora.flags.fields import HINT_STYLE, STARTING_HEARTS, WHITE_SWORD_LOWEST
+from zora.flags.fields import (
+    DUNGEON_LAYOUT_SOURCE,
+    HINT_STYLE,
+    ITEM_SHUFFLE_SCOPE,
+    OVERWORLD_QUEST,
+    START_SCREEN,
+    STARTING_HEARTS,
+    WHITE_SWORD_LOWEST,
+)
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.support import ALTERNATIVE_OPTIONS
 from zora.generate.pipeline import extra_options, generate_rom, plan
 from zora.generate.rng import ScriptedRng
 from zora.generate.steps.change_sword_hearts import change_sword_hearts, change_sword_hearts_from_five_hearts
+from zora.generate.steps.hint_text import SLOT_COUNT, select_final_texts
 from zora_measure.alternative_values import (
     HELPFUL_TEXT_SLOTS,
     community_hints,
+    helpful_hints,
     starting_hearts_4,
     white_sword_hearts,
 )
@@ -46,6 +56,7 @@ CONTROL = MVP_BASELINE_LEVEL_ENCODING_OFF
 FOUR_HEARTS = _flags(C16=3)
 FROM_FIVE = _flags(C20=1)
 COMMUNITY = _flags(C03=2)
+HELPFUL = _flags(C03=1)
 ALL_THREE = _flags(C16=3, C20=1, C03=2)
 # The ZORA extras' string: Randomize Magical Sword (heart cap 12) and Randomize Letter.
 EXTRAS = "1.F"
@@ -70,7 +81,11 @@ def finished(flag_string: str, seed: int, zora: str = "") -> tuple[GameWorld, by
 def test_the_spec_names_the_three_values() -> None:
     """FL-ALT-01: "C16 = 3, C20 = 1 and C03 = 2", the values the support matrix produces."""
     assert spec.ALTERNATIVE_VALUES == "C16 = 3, C20 = 1 and C03 = 2"
-    assert ALTERNATIVE_OPTIONS == {STARTING_HEARTS.id: {3}, WHITE_SWORD_LOWEST.id: {1}, HINT_STYLE.id: {2}}
+    # and FL-SUP-02's specified C01 = 2 and C06 = 2 (spec change L15: OW-MIX, PS-ITW) and C03 = 1
+    # (HT-HINT-04), produced the same way
+    assert ALTERNATIVE_OPTIONS == {STARTING_HEARTS.id: {3}, WHITE_SWORD_LOWEST.id: {1}, HINT_STYLE.id: {1, 2},
+                                   ITEM_SHUFFLE_SCOPE.id: {2}, OVERWORLD_QUEST.id: {1, 2, 3}, START_SCREEN.id: {2, 3},
+                                   DUNGEON_LAYOUT_SOURCE.id: {0, 1}}
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +190,33 @@ def test_fl_alt_04_control_keeps_the_helpful_texts_and_drawn_shops() -> None:
     assert not any(f["hint-shop offers PRG0's"] or f["hint-shop prices PRG0's"] for f in figures)
     assert not all(f[f"slot {slot} a pool text"] for f in figures for slot in HELPFUL_TEXT_SLOTS)
     assert all(f["slot 0 an owner quote"] for f in figures)
+
+
+# ---------------------------------------------------------------------------
+# HT-HINT-04: helpful hints
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("zora", ["", EXTRAS])
+@pytest.mark.parametrize("seed", SEEDS)
+def test_ht_hint_04_check(seed: int, zora: str) -> None:
+    """The helpful text in slots 3, 6, 7 and 35 to 37 in every seed, the hint shops rewritten;
+    slot 0 an owner quote (owner ruling, in place of HT-HINT-04's period greeting)."""
+    figures = helpful_hints(finished(HELPFUL, seed, zora)[0])
+    assert all(figures.values()), [name for name, value in figures.items() if not value]
+
+
+def test_ht_hint_04_control_shows_the_helpful_texts_by_coin() -> None:
+    """Under mixed hints some of those slots show a pool text instead."""
+    figures = [helpful_hints(finished(CONTROL, seed)[0]) for seed in range(1, 7)]
+    assert not all(f[f"slot {slot} a helpful text"] for f in figures for slot in HELPFUL_TEXT_SLOTS)
+
+
+def test_ht_hint_04_draws_no_coin() -> None:
+    """HT-HINT-04: "with no draw": a slot with a helpful text takes no draw at all."""
+    helpful = [["HELPFUL"]] + [None] * (SLOT_COUNT - 1)
+    pools: dict[int, list[list[str]]] = {slot: [["POOL"]] for slot in range(SLOT_COUNT)}
+    texts, won = select_final_texts(helpful, pools, ScriptedRng([0] * (SLOT_COUNT - 1)), every_helpful_hint=True)
+    assert texts[0] == ["HELPFUL"] and won[0] and not any(won[1:])
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,7 @@ and the enabled steps' random draws stay where they are. Each attempt runs on
 a fresh GenerationContext, so a failed attempt leaves nothing behind.
 """
 import copy
+from collections import Counter
 from dataclasses import replace
 
 from ..model.enums import Destination, Enemy
@@ -54,16 +55,25 @@ from .shapes.writeback import level9_records
 from .ship import Staged, build_sets, cave_item_bytes, ship, ship_hint_text
 from .steps.add_l4_sword import add_l4_sword
 from .steps.add_money_or_life_rooms import add_money_or_life_rooms
-from .steps.assign_hints_for_hint_type import HintAssignmentResult, assign_hints_for_hint_type
+from .steps.assign_hints_for_hint_type import PRG0_RECORDED_LEVELS, HintAssignmentResult, assign_hints_for_hint_type
 from .steps.cave_entries import OverworldResult
 from .steps.change_bomb_upgrades import change_bomb_upgrades
 from .steps.change_enemy_hp import EnemyHpResult, change_boss_hp, change_most_enemy_hp
 from .steps.change_money_making_game import change_money_making_game
 from .steps.change_money_or_life_toll import change_money_or_life_toll
 from .steps.change_sword_hearts import change_sword_hearts, change_sword_hearts_from_five_hearts
+from .steps.dungeon_quest import (
+    SET_LEVELS,
+    SetSource,
+    draw_attempt_set_sources,
+    draw_seed_set_sources,
+    monsters_take_second_quest_path,
+    vanilla_set,
+)
 from .steps.dungeon_room_shuffle import exchange_rooms, second_drop_shuffle
 from .steps.extra_pool_items import ExtraPoolItems
 from .steps.feature_data import LEVEL_9_SWORD_REFUSAL_TEXT, write_fixed_feature_data
+from .steps.force_overworld_block import force_overworld_block
 from .steps.hint_text import (
     PROGRESSIVE_NAMES,
     VANILLA_NAMES,
@@ -74,6 +84,12 @@ from .steps.hint_text import (
 )
 from .steps.item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
 from .steps.level_2_sword import join_level_2_sword
+from .steps.mixed_overworld_quest import (
+    SECOND_QUEST_DEALT_POSITIONS,
+    mix_overworld_quest,
+    prepare_second_quest_screen_11,
+    second_quest_overworld,
+)
 from .steps.monster_lists import MonsterShuffleResult, build_room_lists
 from .steps.move_last_boss_room_items import move_last_boss_room_items
 from .steps.move_map_near_entrance import move_map_near_entrance
@@ -96,13 +112,15 @@ from .steps.shuffle_dungeon_text import shuffle_dungeon_text
 from .steps.shuffle_enemy_groups import shuffle_enemy_groups
 from .steps.shuffle_groups import GroupShuffleResult
 from .steps.shuffle_hungry_goriya import PRE_SHAPES_TILES, shuffle_hungry_goriya
-from .steps.shuffle_items import shuffle_items
-from .steps.shuffle_monsters_between_levels import VANILLA_ENEMY_TIER, shuffle_monsters_between_levels
+from .steps.shuffle_items import shuffle_items, shuffle_items_within_levels
+from .steps.shuffle_monsters_between_levels import VANILLA_ENEMY_TIER, level_quests, shuffle_monsters_between_levels
 from .steps.shuffle_overworld_monsters import shuffle_overworld_monsters
 from .steps.shuffle_shop_items import extra_candles, shuffle_shop_items
-from .steps.shuffle_start_screen import shuffle_start_screen
+from .steps.shuffle_start_screen import FULL_START_SCREENS, shuffle_start_screen, start_on_wood_sword_screen
 from .steps.speed_up_text import speed_up_text
 from .steps.start_with_four_hearts import start_with_four_hearts
+from .steps.swap_start_rooms import swap_start_rooms
+from .steps.wood_sword_behind_blocks import wood_sword_extra_screens
 
 # The attempt cap: SH-FLOW-03 (revised spec) says a rebuild must retry, then
 # fail visibly, never ship a half-built dungeon; the cap keeps a
@@ -137,6 +155,7 @@ def generate_shapes(gw: GameWorld, rng: Rng, opts: ShapeOptions,
     # PS-GRUM-03: before the shapes stage, one value of the shapes stage's
     # stream, mod 4, sets the goriya tile ($AC/$A0/$A8/$B0).
     pre_tile = PRE_SHAPES_TILES[rng.below(4)] if post_shapes else None
+    result.seed_set_sources = draw_seed_set_sources(alternatives.dungeon_quest, rng)
     for _ in range(MAX_ATTEMPTS):
         result.attempts += 1
         context = GenerationContext(gw, settings, rng, result, pools, pre_tile)
@@ -145,10 +164,40 @@ def generate_shapes(gw: GameWorld, rng: Rng, opts: ShapeOptions,
             return result
         result.restart_reasons.append(restart_reason)
     raise RuntimeError(
-        f"shapes generation failed after {result.attempts} attempts / "
-        f"{result.gate_attempts} late-gate retries (SH-FLOW-03: failing "
-        "visibly rather than shipping a half-built dungeon)"
+        f"generation failed after {result.attempts} attempts, none accepted (VA-REJ-06); "
+        f"restarts: {describe_restarts(result.restart_reasons)}"
     )
+
+
+# Who restarted an attempt, by its step's restart label; a reason with none
+# of these labels comes from the shape stage, whose label is empty
+RESTART_STAGES = {
+    "acceptance: ": "the acceptance check",
+    "late gate: ": "the late gate",
+    "B81: ": "Force Overworld Block (B81)",
+    "B2: ": "the monster shuffles (B2)",
+    "last-boss rooms: ": "the last-boss room items",
+}
+SHAPE_STAGE = "the shape stage"
+# The most common reasons named for each stage in the attempt-cap error
+REASONS_NAMED = 2
+
+
+def describe_restarts(restart_reasons: list[str]) -> str:
+    """The attempt-cap error's account of what kept failing: each stage that restarted an
+    attempt, most restarts first, with its count and its most common reasons (an acceptance
+    rejection's code, such as E1)."""
+    by_stage: dict[str, Counter[str]] = {}
+    for reason in restart_reasons:
+        label = next((label for label in RESTART_STAGES if reason.startswith(label)), "")
+        stage = RESTART_STAGES.get(label, SHAPE_STAGE)
+        by_stage.setdefault(stage, Counter())[reason.removeprefix(label)] += 1
+    stages = sorted(by_stage.items(), key=lambda item: -item[1].total())
+    return "; ".join(
+        f"{stage} {reasons.total()} ("
+        + ", ".join(f"{reason} {count}" for reason, count in reasons.most_common(REASONS_NAMED))
+        + (", ..." if len(reasons) > REASONS_NAMED else "") + ")"
+        for stage, reasons in stages)
 
 
 def run_attempt(context: GenerationContext) -> str | None:
@@ -193,7 +242,12 @@ def shape_stage(context: GenerationContext) -> None:
     rooms, bosses, enemies, compass/map/boomerangs, for both sets in spec
     order, on SetWorld plans."""
     gw = context.world
-    for base, count in ((0, 6), (6, 3)):
+    # SH-SRC-01/09: the sources of this attempt's two sets (Mixed Quest's coin is drawn again)
+    context.set_sources = draw_attempt_set_sources(context.result.seed_set_sources, context.rng)
+    for source, (base, count) in zip(context.set_sources, ((0, 6), (6, 3)), strict=True):
+        if source.is_vanilla:
+            context.plans.append(None)       # a vanilla set keeps its quest's levels (SH-SRC-02)
+            continue
         world = SetWorld(base_level=base, blob_count=count)
         world.base_inner_palettes = [
             gw.blocks[len(context.plans)].palette_bits(room_num)[1]
@@ -215,15 +269,17 @@ def build_levels(context: GenerationContext) -> None:
     _blank_unowned_plans(context.plans)
     context.item_shuffle_result = ItemShuffleResult(caves=cave_item_bytes(context.world),
                                                     goriya_tile=context.pre_shapes_goriya_tile)
-    context.sets = build_sets(context.world, context.plans)
+    context.sets = build_sets(context.world, context.plans, context.set_sources)
 
 
-def _blank_unowned_plans(worlds: list[SetWorld]) -> None:
+def _blank_unowned_plans(worlds: list[SetWorld | None]) -> None:
     """SH-GRID-17: the shapes stage's own blank of every cell no level owns
     and no stair uses — walls on all four sides (monster/layout/item 0 and
     trigger $01 are written at serialization) — BEFORE the gate, so a tail
     write that lands there (A43) is the cell's last write."""
     for world in worlds:
+        if world is None:
+            continue
         for room_number in range(len(world.blob_of)):
             if world.blob_of[room_number] < 0 and room_number not in world.stairs:
                 world.plans[room_number] = CellPlan(walls=[D_WALL] * 4)
@@ -242,14 +298,27 @@ def start_post_shapes(context: GenerationContext) -> None:
     """What the post-shapes passes read of the shape stage as it ends: B2's
     room lists (build_room_lists) and PS-DROP's snapshot of the levels. B2's
     staged result starts with PRG0's enemy banks (PS-MONLV off keeps them)."""
-    context.room_lists = build_room_lists(context.plans)
+    context.room_lists = build_room_lists(context.plans, context.sets.levels, context.set_sources)
     context.shapes_snapshot = snapshot_shapes(context.sets.levels)
     context.monster_shuffle = MonsterShuffleResult(enemy_tiers=dict(VANILLA_ENEMY_TIER))
 
 
+def item_shuffle_options(context: GenerationContext) -> ItemShuffleOptions:
+    """The pool's options: within each dungeon (C06 = 2) the dungeon hearts are not pool items
+    (PS-ITW-01), for the deal and for the ZORA extras that join the pool later."""
+    return ItemShuffleOptions(dungeon_hearts=not context.settings.alternatives.shuffle_items_within_levels,
+                              set_sources=context.set_sources)
+
+
 def shuffle_items_step(context: GenerationContext) -> None:
-    """PS-ITEM: the big item shuffle (fifteen fixed places + dungeon hearts)."""
-    shuffle_items(context.sets.levels, context.item_shuffle_result, context.rng, ItemShuffleOptions())
+    """PS-ITEM: the big item shuffle (fifteen fixed places + dungeon hearts); within each
+    dungeon (C06 = 2), PS-ITW's two deals."""
+    if context.settings.alternatives.shuffle_items_within_levels:
+        shuffle_items_within_levels(context.sets.levels, context.item_shuffle_result, context.rng,
+                                    item_shuffle_options(context))
+    else:
+        shuffle_items(context.sets.levels, context.item_shuffle_result, context.rng,
+                      ItemShuffleOptions(set_sources=context.set_sources))
 
 
 def shuffle_dungeon_drops_step(context: GenerationContext) -> None:
@@ -268,15 +337,33 @@ def shuffle_bomb_upgrade_men_step(context: GenerationContext) -> None:
     shuffle_bomb_upgrade_men(context.sets.levels, context.item_shuffle_result, context.rng)
 
 
+def _first_quest_block_levels(context: GenerationContext) -> list[Level]:
+    """The levels the passes that scan the two first-quest blocks read (PS-MERCH-01, PS-HINT-01;
+    PS-VAN-07): a second-quest set's are its first-quest block's, which no level points at (a
+    copy of PRG0's, made once per attempt, so their writes never ship)."""
+    if context.first_quest_block_levels is None:
+        levels: list[Level] = []
+        for set_index, source in enumerate(context.set_sources):
+            if source is SetSource.SECOND_QUEST:
+                levels += vanilla_set(context.world, set_index, SetSource.FIRST_QUEST)[1]
+            else:
+                levels += [level for level in context.sets.levels if level.level_num in SET_LEVELS[set_index]]
+        context.first_quest_block_levels = levels
+    return context.first_quest_block_levels
+
+
 def add_money_or_life_rooms_step(context: GenerationContext) -> None:
     """PS-MERCH-01: adding life-or-money merchants."""
-    add_money_or_life_rooms(context.sets.levels, context.item_shuffle_result, context.rng)
+    add_money_or_life_rooms(_first_quest_block_levels(context), context.item_shuffle_result, context.rng)
 
 
 def assign_hints_for_hint_type_step(context: GenerationContext) -> None:
-    """post-shapes-b25.md (no draws)."""
-    context.hint_assignment = assign_hints_for_hint_type(context.sets.levels,
-                                                         context.item_shuffle_result.bomb_levels)
+    """post-shapes-b25.md (no draws), over the two first-quest blocks (PS-VAN-07). PS-HINT-02's
+    record is the person-kind table as the bomb-upgrade move left it; with the move off (Dungeon
+    Quest, SH-SRC-08) that is PRG0's, which marks levels 1, 2, 5 and 7."""
+    recorded = (context.item_shuffle_result.bomb_levels if context.settings.steps.shuffle_bomb_upgrade_men
+                else PRG0_RECORDED_LEVELS)
+    context.hint_assignment = assign_hints_for_hint_type(_first_quest_block_levels(context), recorded)
 
 
 def shuffle_dungeon_palettes_step(context: GenerationContext) -> None:
@@ -316,8 +403,23 @@ def shuffle_bosses_step(context: GenerationContext) -> None:
 def shuffle_monsters_between_levels_step(context: GenerationContext) -> None:
     """PS-MONLV: enemy banks and monster redraws."""
     assert context.room_lists is not None and context.monster_shuffle is not None
+    quests = None
+    if any(source.is_vanilla for source in context.set_sources):
+        # PS-VAN-01/04, PS-MONLV-05: each level's quest, its other quest's PRG0 list, the mixed groups
+        second_quest_sets = {set_index for set_index, source in enumerate(context.set_sources)
+                             if source is SetSource.SECOND_QUEST}
+        quests = level_quests(context.sets.levels, second_quest_sets, context.world.levels,
+                              context.world.levels_2q, context.world.enemies.mixed_groups)
     shuffle_monsters_between_levels(context.sets.blocks, context.sets.levels, context.room_lists,
-                                    context.monster_shuffle, context.rng)
+                                    context.monster_shuffle, context.rng, quests)
+
+
+def swap_start_rooms_step(context: GenerationContext) -> None:
+    """PS-START (B26): each level's start room moves to an edge of the level, after the monster
+    moves between levels and before the per-level re-deal, which reads the room lists the swap
+    exchanges."""
+    assert context.room_lists is not None
+    swap_start_rooms(context.sets.blocks, context.sets.levels, context.room_lists, context.rng)
 
 
 def shuffle_dungeon_monsters_step(context: GenerationContext) -> None:
@@ -335,6 +437,9 @@ def stage_overworld(context: GenerationContext) -> None:
     """The staged copy of the overworld that the later passes share, and the
     staged hit points and group results, from the base's (no draws)."""
     context.overworld = copy.deepcopy(context.world.overworld)
+    if context.settings.alternatives.second_quest_overworld:
+        # OW-QST-04 step 3: before the overworld monster pass, which then leaves screen 11
+        prepare_second_quest_screen_11(context.overworld)
     context.hit_points = EnemyHpResult.unchanged(context.world.enemies)
     context.groups = GroupShuffleResult()
 
@@ -395,9 +500,21 @@ def second_drop_shuffle_step(context: GenerationContext) -> None:
 # ---------------------------------------------------------------------------
 
 def enroll_caves(context: GenerationContext) -> None:
-    """OW-CAVE-02 step 1 (no draws); the armos screen is PRG0's unless Shuffle Armos moves it."""
+    """OW-CAVE-02 step 1 (no draws); the armos screen is PRG0's unless Shuffle Armos moves it.
+    A mixed overworld quest (C01 = 2) deals the first-quest secret caves first (OW-MIX-02 to
+    OW-MIX-04, eleven draws), and the list is the dealt one; Mixed Quest - 2nd (C01 = 3) deals the
+    eighteen second-quest codes (OW-QST-01, OW-QST-02); 2nd Quest (C01 = 1) takes the second
+    quest's list (OW-QST-03, OW-QST-04; no draws)."""
     assert context.overworld is not None
-    context.cave_entries = enrolled_entries(context.overworld)
+    alternatives = context.settings.alternatives
+    if alternatives.mix_overworld_quest:
+        context.cave_entries = mix_overworld_quest(context.overworld, context.rng)
+    elif alternatives.mix_overworld_quest_second_variant:
+        context.cave_entries = mix_overworld_quest(context.overworld, context.rng, SECOND_QUEST_DEALT_POSITIONS)
+    elif alternatives.second_quest_overworld:
+        context.cave_entries = second_quest_overworld(context.overworld)
+    else:
+        context.cave_entries = enrolled_entries(context.overworld)
     context.armos_screen = prg0_armos_screen(context.overworld)
 
 
@@ -408,17 +525,40 @@ def shuffle_armos_step(context: GenerationContext) -> None:
 
 
 def shuffle_caves_step(context: GenerationContext) -> None:
-    """OW-CAVE-02 step 3 and OW-CAVE-04's write-back."""
+    """OW-CAVE-02 step 3 and OW-CAVE-04's write-back; with Allow OW Blocks of Wood Sword (B03) the
+    wooden-sword cave's partner set widens by the item gates the free item opens (OW-CAVE-07)."""
     assert context.overworld is not None and context.armos_screen is not None
+    extra = frozenset[int]()
+    if context.settings.alternatives.wood_sword_cave_behind_blocks:
+        caves = context.item_shuffle_result.caves
+        # OW-CAVE-07 reads the starting inventory (FP-START-04)
+        extra = wood_sword_extra_screens(context.overworld, caves["armos"], caves["coast"],
+                                         frozenset(context.settings.alternatives.start_items))
     context.caves = shuffle_caves(context.overworld, context.cave_entries, context.armos_screen,
-                                  _start_rooms(context.plans), context.rng,
+                                  _start_rooms(context.plans, context.sets.levels), context.rng,
                                   context.settings.steps.shuffle_take_any_road_caves,
-                                  context.settings.extras.gates)
+                                  context.settings.extras.gates,
+                                  context.settings.alternatives.second_quest_secrets, extra)
 
 
-def _start_rooms(worlds: list[SetWorld]) -> dict[int, int]:
-    """Each dungeon's start room (LevelInfo_StartRoomId): its entrance cell."""
-    return {level: room_number for world in worlds for level, room_number in world.entrance.items()}
+def _start_rooms(worlds: list[SetWorld | None], levels: list[Level]) -> dict[int, int]:
+    """Each dungeon's start room (LevelInfo_StartRoomId) as it stands when the cave pass runs
+    (OW-CAVE-03: "already final"): its entrance cell, or a vanilla level's own start room
+    (SH-SRC-03), or where the start-room swap moved it (B26, PS-START)."""
+    start_rooms = {level.level_num: level.entrance_room for level in levels}
+    start_rooms.update({level: room_number for world in worlds if world is not None
+                        for level, room_number in world.entrance.items()})
+    start_rooms.update({level.level_num: level.entrance_room for level in levels if level.arrival_code is not None})
+    return start_rooms
+
+
+def force_overworld_block_step(context: GenerationContext) -> None:
+    """Force Overworld Block (B81; OW-CAVE-08): at the end of the cave pass, a result without a
+    dungeon door or the white-sword cave behind an item gate restarts the whole seed."""
+    assert context.overworld is not None and context.caves is not None
+    failure = force_overworld_block(context.overworld, context.caves)
+    if failure is not None:
+        raise GenerationFailure(failure)
 
 
 def recorder_to_new_dungeons_step(context: GenerationContext) -> None:
@@ -488,8 +628,17 @@ def level9_records_step(context: GenerationContext) -> None:
 
 def shuffle_start_screen_step(context: GenerationContext) -> None:
     """OW-START-01: after the gate and level 9's record step, before map
-    relocation; the exchange itself is written when the attempt ships."""
-    context.start = shuffle_start_screen(context.rng)
+    relocation; the exchange itself is written when the attempt ships. Full Start Shuffle
+    (C04 = 2) draws over OW-START-02's 90 screens; Wood Sword Screen (C04 = 3) starts on the
+    wooden-sword cave's screen (OW-START-03)."""
+    alternatives = context.settings.alternatives
+    if alternatives.start_on_wood_sword_screen:
+        assert context.overworld is not None
+        context.start = start_on_wood_sword_screen(context.overworld, context.rng)
+    elif alternatives.full_start_shuffle:
+        context.start = shuffle_start_screen(context.rng, FULL_START_SCREENS)
+    else:
+        context.start = shuffle_start_screen(context.rng)
 
 
 def move_last_boss_room_items_step(context: GenerationContext) -> None:
@@ -499,7 +648,10 @@ def move_last_boss_room_items_step(context: GenerationContext) -> None:
 
 
 def move_map_near_entrance_step(context: GenerationContext) -> None:
-    """SH-MAP-03..07, after the gate: map relocation (best-effort; never rejects)."""
+    """SH-MAP-03..07, after the gate: map relocation (best-effort; never rejects). It runs when
+    at least one set is shapes, then over all nine levels (SH-SRC-06 item 2, PS-VAN-05)."""
+    if all(source.is_vanilla for source in context.set_sources):
+        return
     for level in context.sets.generation_order:
         move_map_near_entrance(level, context.rng)
 
@@ -515,32 +667,33 @@ def change_money_or_life_toll_step(context: GenerationContext) -> None:
 def randomize_magical_sword_step(context: GenerationContext) -> None:
     assert context.overworld is not None
     randomize_magical_sword(context.sets.levels, context.item_shuffle_result, context.extra_pool_items,
-                            context.overworld, context.rng)
+                            context.overworld, context.rng, item_shuffle_options(context),
+                            tracked=context.settings.extras.level_9_entrance_sword)
 
 
 def randomize_letter_step(context: GenerationContext) -> None:
     assert context.overworld is not None
     randomize_letter(context.sets.levels, context.item_shuffle_result, context.extra_pool_items,
-                     context.overworld, context.rng)
+                     context.overworld, context.rng, item_shuffle_options(context))
 
 
 def shop_items_in_pool_step(context: GenerationContext) -> None:
     assert context.overworld is not None
     shop_items_in_pool(context.sets.levels, context.item_shuffle_result, context.extra_pool_items,
-                       context.overworld, context.rng)
+                       context.overworld, context.rng, item_shuffle_options(context))
 
 
 def shuffle_blue_potion_step(context: GenerationContext) -> None:
     assert context.overworld is not None
     shuffle_blue_potion(context.sets.levels, context.item_shuffle_result, context.extra_pool_items,
-                        context.overworld, context.rng)
+                        context.overworld, context.rng, item_shuffle_options(context))
 
 
 def join_level_2_sword_step(context: GenerationContext) -> None:
     """Add L4 Sword = Level 2 (docs/design/asnb.md section 4): level 2's cellar sword joins the
     pool, after the other joins; tracked with Level 9 Entrance = Level 4 sword."""
     join_level_2_sword(context.sets.levels, context.item_shuffle_result, context.extra_pool_items, context.rng,
-                       tracked=context.settings.extras.level_9_entrance_sword)
+                       tracked=context.settings.extras.level_9_entrance_sword, opts=item_shuffle_options(context))
 
 
 def add_l4_sword_step(context: GenerationContext) -> None:
@@ -607,15 +760,18 @@ def ship_step(context: GenerationContext) -> None:
     result.groups = context.groups
     result.extra_pool_items = context.extra_pool_items
     result.l1_gate_entry = context.l1_gate_entry
-    result.sets = context.plans
-    result.hint_level9_left_column = level9_left_edge(context.plans[1])
+    result.set_plans = context.plans
+    levels_7_to_9 = context.plans[1]
+    result.hint_level9_left_column = level9_left_edge(levels_7_to_9) if levels_7_to_9 is not None else None
     overworld_state = None
     if context.overworld is not None and context.caves is not None:
         overworld_state = OverworldResult(context.overworld, context.caves)
         result.overworld = context.caves
     ship(context.world, Staged(context.sets, context.item_shuffle_result, overworld_state,
                                context.hint_assignment, context.monster_shuffle, context.hit_points,
-                               context.groups, context.palettes, context.start, context.extra_pool_items))
+                               context.groups, context.palettes, context.start, context.extra_pool_items,
+                               monsters_take_second_quest_path(context.settings.alternatives.dungeon_quest,
+                                                               context.set_sources)))
 
 
 # ---------------------------------------------------------------------------
@@ -657,9 +813,9 @@ def randomize_mazes_step(context: GenerationContext) -> None:
 
 
 def generate_hint_text_step(context: GenerationContext) -> None:
-    """HT-TEXT, or FL-ALT-04's community hints with C03 at 2; with Randomize Magical Sword on,
-    the cave's own text names the item it offers. What it reads besides the world is kept in the
-    result, for FINISH (no draws)."""
+    """HT-TEXT (HT-HINT-04's helpful hints with C03 at 1), or FL-ALT-04's community hints with
+    C03 at 2; with Randomize Magical Sword on, the cave's own text names the item it offers. What it
+    reads besides the world is kept in the result, for FINISH (no draws)."""
     assert context.hint_assignment is not None
     context.result.hint_assignment = context.hint_assignment
     context.result.maze_offers = context.maze_offers
@@ -682,7 +838,8 @@ def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hin
     if alternatives.generate_community_hint_text:
         return generate_community_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names,
                                             maze_offers)
-    return generate_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names, maze_offers)
+    return generate_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names, maze_offers,
+                              extras.gates, every_helpful_hint=alternatives.show_every_helpful_hint)
 
 
 def shuffle_dungeon_text_step(context: GenerationContext) -> None:
@@ -726,6 +883,13 @@ def start_with_four_hearts_step(context: GenerationContext) -> None:
     start_with_four_hearts(context.world)
 
 
+def start_items_step(context: GenerationContext) -> None:
+    """FP-START-02 and FP-START-03: the kept start items (drawn with the plan, apart from the
+    generation's stream) go into the starting table; nothing else in generation reads them but
+    the wooden-sword cave pass (FP-START-04)."""
+    context.world.start_items = context.settings.alternatives.start_items
+
+
 # ---------------------------------------------------------------------------
 # The step list
 # ---------------------------------------------------------------------------
@@ -749,7 +913,8 @@ STEPS: tuple[Step, ...] = (
          lambda s: s.post_shapes and s.steps.shuffle_dungeon_drops),
     Step("shuffle_hungry_goriya", "B28", shuffle_hungry_goriya_step,
          lambda s: s.post_shapes and s.steps.shuffle_hungry_goriya),
-    Step("shuffle_bomb_upgrade_men", "B29", shuffle_bomb_upgrade_men_step, post_shapes),
+    Step("shuffle_bomb_upgrade_men", "B29", shuffle_bomb_upgrade_men_step,
+         lambda s: s.post_shapes and s.steps.shuffle_bomb_upgrade_men),
     Step("add_money_or_life_rooms", "B22", add_money_or_life_rooms_step,
          lambda s: s.post_shapes and s.steps.add_money_or_life_rooms),
     # B2.5 and B5
@@ -761,6 +926,8 @@ STEPS: tuple[Step, ...] = (
          lambda s: s.post_shapes and s.steps.shuffle_bosses, restart_label="B2: "),
     Step("shuffle_monsters_between_levels", "B36", shuffle_monsters_between_levels_step,
          lambda s: s.post_shapes and s.steps.shuffle_monsters_between_levels, restart_label="B2: "),
+    Step("swap_start_rooms", "B26", swap_start_rooms_step,
+         lambda s: s.post_shapes and s.shape_options.start_room_swap),
     Step("shuffle_dungeon_monsters", "B32", shuffle_dungeon_monsters_step, post_shapes, restart_label="B2: "),
     # B8
     Step("stage_overworld", "", stage_overworld, post_shapes),
@@ -782,6 +949,8 @@ STEPS: tuple[Step, ...] = (
     Step("enroll_caves", "", enroll_caves, post_shapes),
     Step("shuffle_armos", "B13", shuffle_armos_step, lambda s: s.post_shapes and s.steps.shuffle_armos),
     Step("shuffle_caves", "", shuffle_caves_step, post_shapes),
+    Step("force_overworld_block", "B81", force_overworld_block_step,
+         lambda s: s.post_shapes and s.alternatives.force_overworld_block, restart_label="B81: "),
     Step("recorder_to_new_dungeons", "B01", recorder_to_new_dungeons_step,
          lambda s: s.post_shapes and s.steps.recorder_to_new_dungeons),
     Step("shuffle_shop_items", "B08", shuffle_shop_items_step,
@@ -839,4 +1008,5 @@ STEPS: tuple[Step, ...] = (
          lambda s: feature_data(s) and s.extras.level_9_entrance_sword),
     Step("start_with_four_hearts", "C16 = 3", start_with_four_hearts_step,
          lambda s: s.alternatives.start_with_four_hearts),
+    Step("start_items", "B57-B78, B85 with C17", start_items_step, lambda s: bool(s.alternatives.start_items)),
 )

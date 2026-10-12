@@ -1,0 +1,67 @@
+# ZORA FP-STATS-01: the end-of-game statistics screen (times per area, completion and key-item
+# times, deaths, hearts, stabs, bombs, the inventory). A player setting ("Statistics screen", on by
+# default): asm/settings/build.py builds it on top of asm/series.txt like a setting's choice, so it
+# is not in asm/series.txt (docs/player-settings-patches.md). The stats block is SRAM $7F00-$7F3F
+# (docs/rom-map.md "RAM"). The idea is Z2Randomizer's (docs/credits.md); the code is ZORA's.
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_STATS_TICK"
+bank = 0
+start = 0x8000
+
+[[segment]]
+name = "ZORA_FP_STATS_SCREEN"
+bank = 2
+start = 0xB100
+
+[[segment]]
+name = "ZORA_FP_STATS_STAB"
+bank = 5
+start = 0xBC00
+
+[imports]
+bank_07 = ["StatsTick"]
+
+[exports]
+bank_00 = ["StatsTick"]
+
+[[hook]]
+name = "tick"
+offset = 0x1E571
+length = 3
+note = "IsrNmi: JSR DriveAudio (bank 0 is in) calls StatsTick, which ends by jumping to DriveAudio."
+code = """
+    JSR StatsTick
+"""
+
+[[hook]]
+name = "stab"
+offset = 0x14E25
+length = 5
+note = "WieldSword, once a swing starts: LDA #$01 / JMP PlayEffect becomes JMP CountStab + 2 NOPs."
+code = """
+    JMP CountStab
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "screen"
+offset = 0x0AB8F
+length = 3
+note = "UpdateMode13WinGame_Sub4: JSR HideAllSprites calls StatsFrame, which shows the screen on Start."
+code = """
+    JSR StatsFrame
+"""
+
+[[hook]]
+name = "register"
+offset = 0x09F80
+length = 5
+note = "UpdateModeERegister's @FlagBReady, for a new file: LDA #$01 / STA $0426 becomes JSR ClearStatsOnRegister + 2 NOPs (after FP-START-01's starting values, which ZORA reads back)."
+code = """
+    JSR ClearStatsOnRegister
+    NOP
+    NOP
+"""

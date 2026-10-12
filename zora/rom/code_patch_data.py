@@ -106,6 +106,17 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "4fb8f015a8a50148a50048982000bba868850068850198a4eb85abb9fe6a60a8a50148a50048982000"
                                 "bb85ab688500688501a9c060")),
     ),
+    "fp-start-02": (
+        (0x09F4E, bytes.fromhex("4c28b7eaeaeaeaeaeaeaeaeaeaeaeaeaea")),
+        (0x0AF8B, bytes.fromhex("4c35b7eaeaeaeaeaeaeaeaeaea")),
+        (0x0B710, bytes.fromhex("00000000000000000000000000000000000000000000000022ff0000000000000000000000080000a0"
+                                "27b900b791c08810f84c4f9fa027b900b79957068810f74c88af")),
+    ),
+    "fp-entr-01-sides": (
+        (0x17055, bytes.fromhex("40bc")),
+        (0x17C50, bytes.fromhex("adbb6bc901f00bc903f013c904f01b4cc1baa9788570a93d8584a904d016a9008570a98d8584a901d0"
+                                "0aa9f08570a98d8584a90285984c906c")),
+    ),
 }
 
 # Data the passes fill per seed: exported label -> file offset.
@@ -113,6 +124,7 @@ SYMBOLS: dict[str, int] = {
     "ZORA_B1_OneTimeWares": 0x07E51,
     "ZORA_B1_ProgressiveItems": 0x07E50,
     "ZORA_B2_CodeIcons": 0x0AFB0,
+    "ZORA_B2_StartItems": 0x0B710,
     "ZORA_B5_BossSoundWord": 0x17994,
     "ZORA_B5_OverworldStartY": 0x17AD0,
 }

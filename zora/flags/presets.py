@@ -1,5 +1,5 @@
-"""The four published presets (FL-PRE-01 to FL-PRE-04), CP-5's baseline with level encoding off, and
-ZORA's own presets, which set the ZORA flag string too (ZORA_PRESETS)."""
+"""The four published presets (FL-PRE-01 to FL-PRE-04), CP-5's baseline and published variant A with
+level encoding off, and ZORA's own presets, which set the ZORA flag string too (ZORA_PRESETS)."""
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
@@ -12,6 +12,9 @@ PUBLISHED_VARIANT_B = "24hJoDaoq92qaumIfio4Qq8LtfU0Xt8tpG3Iafo"
 PUBLISHED_VARIANT_C = "oIbnRjuMUKqwdnOXzOMO7PuDtwAvU3boJnaXW"
 # CP-5: the MVP baseline with level encoding (B82) off, the string the 1,000-ROM corpus was built from.
 MVP_BASELINE_LEVEL_ENCODING_OFF = "8hq4BeR1JXo89BJ2!TFpTP02u8UJ3A"
+# Published variant A with level encoding (B82) off: the spec's string for it (PS-ITW-07's second
+# Check), which decodes as variant A in every other field.
+PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF = "8hq4BeR1JXhpMPc6s5bu0bWYCiP4MD"
 
 PRESETS: dict[str, str] = {
     "MVP baseline": MVP_BASELINE,

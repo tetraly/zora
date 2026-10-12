@@ -3,26 +3,35 @@
 What changed in each release of ZORA. The same version, flags and seed always make the same game,
 apart from the Cosmetic settings.
 
-## Unreleased
+## 2.0 beta 3 (2026-10-12)
 
-## 2.0 beta 2 (2026-10-09)
+### New Features 
 
-### New features
+A new ZORA feature has been added: 
+ 
+- **Statistics screen:** A new Look and feel setting. When enabled, pressing START after the end-game credits will bring up a screen with the time spent in the overworld and each level, when each level was completed and when the sword, ladder, bracelet, raft, recorder and silver arrows were found, in the order they happened, plus deaths, heart containers, sword stabs, bombs used, the inventory, and the seed's code. The stats are kept on the cartridge and start over when a new file is registered. Note that the times do not currently account for lag frames. Shoutouts to the Z2Randomizer team for the idea.
 
-- **All Swords No Boards:** Add L4 Sword is now Off / Level 2 / Level 9. Level 2 adds an item staircase to level 2 with one more sword upgrade in the item shuffle, so four sword upgrades found in any order give a level-4 sword (needs Progressive Items and shapes turned on). A new Level 9 Entrance setting requires a level-4 sword (four sword upgrades) for entry instead of the triforce pieces. There is also a new "All Swords No Boards" preset.
-- **New hint wording:** a hint that places an item reads "THE RAFT RESTS IN LEVEL-3." (each item by its usual name, with its own verb), and a hint that places a level reads "LEVEL-3 LIES IN THE DEAD WOODS." Up to ten start with an opener such as "IT IS SAID THAT", and people's hints name places the same way ("MEET THE MERCHANT NEAR START"). The same hints appear and point to the same places; only their words change.
-- **Level name (player setting):** the word the status bar shows before a level's number in place of LEVEL. Pick one of 28 or type up to six of the game's characters (six-letter words drop the dash, as in PALACE1). Hints that name a level use the same word.
-- **Boss-sound label (player setting):** in a dungeon room with a boss sound, the status bar now reads -ROAR-. Its word can be ROAR, one of 22 listed words, your own four letters, or Random (picked by the seed number).
+The following features from Zelda Randomizer have been re-implemented using AI-assisted clean room development:
+
+- **Dungeon Quest "1st Quest" and "2nd Quest":** 
+- **Overworld Quest: "2nd Quest", "Mixed Quest - 1st", "Mixed Quest - 2nd", and "Random":**
+- **Start Screen: "Full start shuffle" and "Wood Sword Screen":** 
+- **Item Shuffle: "Intra-Dungeon":**
+- **Allow OW Blocks of Wood Sword:**
+- **Force Overworld Block:**
+- **Hint Type: "Helpful":** 
+- **Allow Important Items in 9:**
+- **Shuffle Dungeon Start Room:** 
+- **Start items:** Nine start-item settings now work: Start with Raft, Start with 8 Bombs, Start with Recorder, Start with Bait, Start with Letter, Start with Power Bracelet, Start with Blue Candle, Start with Wood Boomerang and Start with Magical Boomerang. 
 
 ### Changes
 
-- **Add L4 Sword:** the level-4 sword now comes from any sword pickup taken at sword level 3 (caves, shops, dungeon rooms and stairs, the coast and the Armos), not only from a dungeon room, and a shop still sells the fourth upgrade at level 3.
-- **Shuffle Blue Potion:** the potion shop's own blue potion now stays, sold again and again as usual. The shuffled place is the shop's empty middle slot: it starts with a blue potion in the item pool, sells whatever item lands there once, and needs the letter as before.
-- **Map marker with dark tunics:** a very dark tunic colour (black, dark blue, or another close to a map's background) no longer blends in with a dark minimap. With such a colour, the marker is drawn in his skin colour, and the page says so beside the colour pickers (from a beta report).
-- **Refactoring:** Various under-the-hood changes to lay the foundation for future Archipelago multi-world features.
+- **Starting Items tab:** Starting Hearts, Max Start Items and the Start settings now have their own tab on the page, which explains how Max Start Items limits the chosen items and warns when a Start setting is on while Max Start Items is 0 (the default, which keeps none). Flag strings and defaults are unchanged.
+- **Flag names:** The UI now uses the Z1R community's names for the flags and their values.
 
 ### Bug Fixes
 
-- **Ending:** Fixed a bug causing the ending screen's copyright to be garbled and missing text.
-- **Progressive Items with Add L4 Sword:** Fixed a bug where, at sword level 4, taking a sword item in a shop, under an Armos statue or on the coast could give bait instead.
-- **Shop Items in the Item Pool:** The randomizer was sometimes placing both arrows or both candles in level 9, which caused circular item dependencies making the seeds unbeatable. ZORA now automatically detects such seeds, rejects them as invalid, and rerolls before generation.
+- **Hints with Extra Raft Blocks, Extra Power Bracelet Blocks or the randomized mazes:** Fixed a bug where a hint could incorrectly say THE PRINCESS NEEDS NO RAFT (or NO BRACELET) even though a level's entrance was blocked by that item. Shoutouts to Custom for reporting this.
+- **Hints about the graveyard:** Fixed a bug where hints for a level whose entrance is under a gravestone could incorrectly say that its item NEEDS THE BRACELET. It now says THE PATH TO THE ITEM LIES BENEATH A GRAVESTONE (with the item's name).
+- **Random boss-sound word with long seed numbers:** Fixed a bug where Random could not pick a word, and the game could not be made, for seed numbers of 20 digits (10000000000000000000 and up), whose title screen shows SEED and the number with no space between them.
+- **Randomize Magical Sword with Level 9 Entrance "Level 4 sword":** Fixed a bug where the game could never be made with both settings on (in beta 2 it always failed after 2000 attempts): the magical sword, once it was among the shuffled items, was not counted towards the level-4 sword that opens level 9.

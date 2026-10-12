@@ -46,6 +46,7 @@ NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "music": (Music.OFF,),
     "level_word": ("DEN", "PALACE"),
     "boss_sound_word": ("MEOW", "RANDOM", "HI !"),
+    "statistics_screen": (True,),
 }
 CASES = [(name, value) for name, values in NON_DEFAULTS.items() for value in values]
 CASE_IDS = [f"{name}={getattr(value, 'value', value)}" for name, value in CASES]
@@ -85,17 +86,28 @@ def test_every_setting_has_its_defaults_and_one_function() -> None:
     assert {field.name for field in fields(PlayerSettings)} == set(NON_DEFAULTS)
 
 
+# The defaults (the statistics screen, FP-STATS-01, off by default since beta 3): a finished ROM
+# as serialized, before any setting is written.
+UNSET = PlayerSettings()
+
+
 @pytest.mark.parametrize("seed", SEEDS)
 def test_defaults_leave_finished_roms_byte_identical(seed: int) -> None:
+    """The defaults (the statistics screen off) change no byte; the screen on only its own."""
     for flags in (MVP_BASELINE_LEVEL_ENCODING_OFF, *((MVP_BASELINE,) if level_encoding.is_available() else ())):
         rom = unset(flags, seed)
-        assert apply_player_settings(rom, PlayerSettings()) == rom
+        assert apply_player_settings(rom, UNSET) == rom
+        assert generate_rom(flags, seed, base(), UNSET).rom == rom
         assert generate_rom(flags, seed, base()).rom == rom
+        styled = generate_rom(flags, seed, base(), PlayerSettings(statistics_screen=True)).rom
+        assert styled == apply_player_settings(rom, PlayerSettings(statistics_screen=True))
+        differing = {i for i, (a, b) in enumerate(zip(rom, styled, strict=True)) if a != b}
+        assert differing and differing <= written_offsets("statistics_screen")
 
 
 @pytest.mark.parametrize(("name", "value"), CASES, ids=CASE_IDS)
 def test_each_setting_changes_only_its_own_bytes(name: str, value: Any) -> None:
-    rom = unset(MVP_BASELINE_LEVEL_ENCODING_OFF, SEEDS[0])
+    rom = apply_player_settings(unset(MVP_BASELINE_LEVEL_ENCODING_OFF, SEEDS[0]), PlayerSettings())
     changed = apply_player_settings(rom, replace(PlayerSettings(), **{name: value}))
     differing = {i for i, (a, b) in enumerate(zip(rom, changed, strict=True)) if a != b}
     assert differing and differing <= written_offsets(name)
@@ -145,13 +157,13 @@ def test_palette_values_outside_the_choices_are_refused(value: int) -> None:
 def test_the_pages_settings_map_to_player_settings() -> None:
     page = {"selectButton": "swap", "lowHealthBeep": "kept", "deathWarp": "p1-up-select", "reduceFlashing": "on",
             "music": "off", "greenTunic": 0x21, "blueRingTunic": 0x22, "redRingTunic": 0x23, "heart": 0x24,
-            "levelWord": " palace ", "bossSoundWord": "meow"}
+            "levelWord": " palace ", "bossSoundWord": "meow", "statisticsScreen": "on"}
     assert player_settings_from_page(page) == PlayerSettings(
         SelectSwap.SWAP_ONLY, LowHealthBeep.KEPT, DeathWarp.CONTROLLER1_UP_SELECT, True, (0x21, 0x22, 0x23),
-        0x24, Music.OFF, "PALACE", "MEOW")
+        0x24, Music.OFF, "PALACE", "MEOW", True)
     defaults = {"selectButton": "toggle", "lowHealthBeep": "removed", "deathWarp": "p1-up-a",
                 "reduceFlashing": "off", "music": "on", "greenTunic": 0x29, "blueRingTunic": 0x32,
-                "redRingTunic": 0x16, "heart": 0x16}
+                "redRingTunic": 0x16, "heart": 0x16, "statisticsScreen": "off"}
     assert player_settings_from_page(defaults) == PlayerSettings() == player_settings_from_page({})
     assert player_settings_from_page({"selectButton": "off"}).select_swap is SelectSwap.OFF
     for bad in ({"music": "loud"}, {"heart": 0x0D}, {"deathWarp": 3}, {"levelWord": "DUNGEON"},
@@ -171,8 +183,9 @@ def test_wired_path_writes_the_assembled_bytes(seed: int) -> None:
         "select_swap": SelectSwap, "death_warp": DeathWarp, "music": Music}
     for name, choices in data.SETTINGS.items():
         for choice in choices:
-            value: Any = (choice == "on") if name == "reduce_flashing" else fields_of[name](choice)
-            wired = apply_player_settings(rom, replace(PlayerSettings(), **{name: value}))
+            value: Any = (choice == "on") if name in ("reduce_flashing", "statistics_screen") \
+                else fields_of[name](choice)
+            wired = apply_player_settings(rom, replace(UNSET, **{name: value}))
             assert wired == bytes(build.apply_settings(rom, {name: choice}, data.SETTINGS)), (name, choice)
 
 
@@ -212,10 +225,11 @@ def test_command_line_settings() -> None:
     assert parse_player_settings([]) == PlayerSettings()
     assert parse_player_settings(["select_swap=off", "music=off", "reduce_flashing=on", "heart_colour=0x21",
                                   "tunic_colours=0x24,0x32,0x16", "death_warp=controller2_up_a", "level_word=lair",
-                                  "boss_sound_word=random"]) == \
+                                  "boss_sound_word=random", "statistics_screen=on"]) == \
         PlayerSettings(SelectSwap.OFF, LowHealthBeep.REMOVED, DeathWarp.CONTROLLER2_UP_A, True,
-                       (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM")
+                       (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM", True)
     for bad in (["music=loud"], ["heart_colour=0x0D"], ["volume=11"], ["reduce_flashing=maybe"],
+                ["statistics_screen=yes"],
                 ["level_word=FORTRESS"], ["level_word=A~B"], ["boss_sound_word=GROWL"]):
         with pytest.raises(PlayerSettingError):
             parse_player_settings(bad)

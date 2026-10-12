@@ -91,9 +91,11 @@ ZOL_COUNT_BIT_7 = 0b10
 
 
 def zol_rooms_with_bit_7(gw: GameWorld) -> tuple[int, int]:
-    """PS-EGRP-03: Zol rooms (monster bit clear, low six 19) of all four
-    room blocks whose monster byte keeps bit 7."""
-    rooms = [room for block in (*gw.blocks, *gw.blocks_2q) for room in block.rooms
+    """PS-EGRP-03: Zol rooms (monster bit clear, low six 19) whose monster
+    byte keeps bit 7, in the two room blocks the levels read. A block no
+    level reads keeps its base bytes in ZORA (owner ruling 2026-10-11,
+    docs/deviations.md), so it is left out on both sides."""
+    rooms = [room for block in gw.level_blocks for room in block.rooms
              if not room.has_monster_bit and room.monster_list == Enemy.ZOL]
     return sum(bool(room.count_index & ZOL_COUNT_BIT_7) for room in rooms), len(rooms)
 

@@ -91,9 +91,12 @@ def test_metadata_support_matrix_matches_flags_module() -> None:
         elif entry["kind"] == "option":
             expected = ({baseline.option(field_id)} | support.TURN_OFF_OPTIONS.get(field_id, frozenset())
                         | support.ALTERNATIVE_OPTIONS.get(field_id, frozenset()))
+            # a random index whose every outcome is produced (C01 = 4, OW-QST-06)
+            expected |= {index for index, outcomes in flags_fields.OPTIONS_BY_ID[field_id].random_choices.items()
+                         if set(outcomes) <= expected}
             assert entry["supportedValues"] == sorted(expected)
-        elif (field_id in support.TURN_OFF_TOGGLES or field_id in support.OWNER_TURN_OFF_TOGGLES) \
-                and field_id != "B23":
+        elif (field_id in support.TURN_OFF_TOGGLES or field_id in support.OWNER_TURN_OFF_TOGGLES
+              or field_id in support.ALTERNATIVE_TOGGLES) and field_id != "B23":
             assert entry["supportedValues"] == both
         else:
             assert entry["supportedValues"] == [baseline.toggle(field_id)]
@@ -114,13 +117,19 @@ def test_metadata_presets_are_the_spec_presets(build: str) -> None:
     assert [p["flags"] for p in presets[:4]] == [codec.canonicalize(s) for s in flags_presets.PRESETS.values()]
     assert presets[0]["label"] == "Consternation"
     assert presets[4]["flags"] == flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF and presets[4]["available"]
-    for preset in presets[1:4]:          # the published variants have fields the MVP does not produce
+    # variant A without level encoding: every build produces it (owner approval, 2026-10-10)
+    assert presets[5]["flags"] == flags_presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF and presets[5]["available"]
+    variant_a = presets[1]
+    for preset in presets[2:4]:          # variants B and C have fields ZORA does not produce
         assert not preset["available"] and preset["reasons"][0].startswith("not produced: ")
         assert preset["reason"] == "Not produced by ZORA yet"
+    # variant A is produced (C01 = 2 and C06 = 2) and encodes its level data, as Consternation does
     if build == "installed":
         assert presets[0]["available"] and presets[0]["reason"] is None
+        assert variant_a["available"] and variant_a["reason"] is None
     else:
         assert presets[0]["reason"] == "Encode level data: not available in this build"
+        assert not variant_a["available"] and variant_a["reason"] == presets[0]["reason"]
 
 
 def test_metadata_lists_every_rule_the_check_can_give() -> None:
@@ -160,13 +169,14 @@ def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> N
     state = worker_state(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)
     assert state["generateRefusals"] == []
     selectable = {*support.TURN_OFF_TOGGLES, *support.OWNER_TURN_OFF_TOGGLES, *support.TURN_OFF_OPTIONS,
-                  *support.ALTERNATIVE_OPTIONS} - {"B23"}
+                  *support.ALTERNATIVE_OPTIONS, *support.ALTERNATIVE_TOGGLES} - {"B23"}
     for field_id, field in state["fields"].items():
         if field_id == flags_fields.ENCODE_LEVEL_DATA.id:
             assert not field["disabled"] or not level_encoding.is_available()
         elif field_id in selectable:
             produced = (support.TURN_OFF_OPTIONS.get(field_id, frozenset())
-                        | support.ALTERNATIVE_OPTIONS.get(field_id, frozenset())) or {ThreeState.OFF}
+                        | support.ALTERNATIVE_OPTIONS.get(field_id, frozenset())
+                        | support.ALTERNATIVE_TOGGLES.get(field_id, frozenset())) or {ThreeState.OFF}
             assert not field["disabled"], field_id
             assert all(text != "Not produced by ZORA yet" for value, text in field["blocked"].items()
                        if int(value) in produced), field_id
@@ -188,13 +198,20 @@ def test_fl_dep_06_b23_is_greyed_while_b22_is_off_and_the_string_is_corrected() 
 
 
 def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused() -> None:
+    state = worker_state(flags_presets.PUBLISHED_VARIANT_C)
+    c02 = state["fields"]["C02"]
+    assert not c02["disabled"] and c02["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
+    assert "3" not in c02["blocked"]                 # the produced value (generated shapes) can be picked
+    assert state["generateRefusals"][0].startswith("not produced: C02 (Dungeon layout source), ")
+
+
+@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+def test_published_variant_a_is_produced() -> None:
+    """C01 = 2 and C06 = 2 (spec change L15) and the alternative values (FL-ALT-02 to FL-ALT-04,
+    owner ruling) are produced, so variant A generates."""
     state = worker_state(flags_presets.PUBLISHED_VARIANT_A)
-    c01 = state["fields"]["C01"]
-    assert not c01["disabled"] and c01["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
-    assert "0" not in c01["blocked"]                 # the produced value (first quest) can be picked
-    assert state["generateRefusals"][0] == "not produced: C01 (Overworld quest), C06 (Item shuffle scope)"
-    # its alternative values (FL-ALT-02 to FL-ALT-04) are produced (owner ruling)
-    for field_id in ("C03", "C16", "C20"):
+    assert state["generateRefusals"] == []
+    for field_id in ("C01", "C03", "C06", "C16", "C20"):
         assert state["fields"][field_id]["reason"] != flag_form.CURRENT_NOT_PRODUCED_TEXT, field_id
 
 

@@ -38,12 +38,21 @@ DUNGEON_VARIOUS_DATA_Q2_BANK6_FILE = 0x18000 + NES_HEADER_SIZE  # file base of b
 # Byte offset within the 0xFC-byte level_info block where the patch data begins.
 DUNGEON_VARIOUS_DATA_Q2_INFO_OFFSET = 0x29  # item_position_table[0]
 
+# LevelBlockAddrsQ1 ($8000 bank 6): the CPU address of the room block each
+# level loads in a first-quest game, overworld first then levels 1-9
+# (little-endian). SH-SRC-02: a level's high byte names its block.
+ROOM_BLOCK_ADDRESSES_Q1 = 0x18000 + NES_HEADER_SIZE
+ROOM_BLOCK_HIGH_BYTES = (0x87, 0x8A, 0x8D, 0x90)    # first quest 1-6, 7-9; second quest 1-6, 7-9
+
 # ---------------------------------------------------------------------------
 # Overworld / level info addresses
 # ---------------------------------------------------------------------------
 
 OVERWORLD_DATA_ADDRESS = 0x18400 + NES_HEADER_SIZE
 LEVEL_INFO_ADDRESS     = 0x19300 + NES_HEADER_SIZE
+# SH-SRC-03: LevelInfoUWQ2ReplacementSizes, one byte per level 1-9: how many level-information
+# bytes from $29 the second quest replaces
+Q2_REPLACEMENT_SIZES_ADDRESS = 0x183B6 + NES_HEADER_SIZE
 
 # ---------------------------------------------------------------------------
 # Cave data addresses
@@ -85,6 +94,14 @@ RECORDER_WARP_Y_COORDINATES_ADDRESS = 0x6119 + NES_HEADER_SIZE
 ANY_ROAD_SCREENS_ADDRESS            = 0x19334 + NES_HEADER_SIZE
 START_SCREEN_ADDRESS                = 0x1932F + NES_HEADER_SIZE
 START_POSITION_Y_ADDRESS            = 0x19328 + NES_HEADER_SIZE
+# FluteRoomSecretsOW (Z_07.asm, bank 7): the 11 screens where the recorder reveals a secret, and
+# WieldFlute's quest branch for every listed screen but the first (`PLA / BEQ @SummonWhirlwind`:
+# the first quest summons the whirlwind there). OW-MIX-04 (C01 = 2) turns the BEQ into a BNE.
+FLUTE_ROOM_SECRETS_OW_ADDRESS       = 0x1EF66 + NES_HEADER_SIZE
+FLUTE_ROOM_SECRETS_COUNT            = 11
+FLUTE_SECRET_QUEST_BRANCH_ADDRESS   = 0x1EFA2 + NES_HEADER_SIZE
+BEQ_OPCODE                          = 0xF0
+BNE_OPCODE                          = 0xD0
 
 # ---------------------------------------------------------------------------
 # Sprite set pointer table addresses
@@ -329,6 +346,10 @@ GLEEOK_BODY_TILES_SIZE    = 18
 ITEM_CARRIER_OPERAND_ADDRESSES = (0x1E70F, 0x1E713, 0x1E717)   # PS-EGRP-05: MoveAndDrawRoomItem CMP operands
 # PS-HP-01: InitRope's two LDA #imm hit-point operands (quest 1, quest 2)
 ROPE_HP_OPERAND_ADDRESSES = (0x112D3, 0x112DF)
+# SH-SRC-05: the three branches after a test of the save's quest number (InitRope,
+# the rope's palette cycle, the Stalfos' shot): BEQ ($F0) in PRG0; BNE ($D0) sends a
+# first-quest save down the second-quest path.
+QUEST_MONSTER_BRANCH_ADDRESSES = (0x112DC, 0x1135D, 0x1139D)
 # PS-EGRP-05 (post-shapes-b4.md S7): the four byte runs that make overworld
 # red Wizzrobes work, written when the red Wizzrobe joins the overworld group.
 OVERWORLD_WIZZROBE_PATCH: tuple[tuple[int, Piece], ...] = (

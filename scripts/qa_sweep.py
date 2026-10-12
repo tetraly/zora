@@ -642,8 +642,8 @@ def check_refusal(bad: BadInput) -> tuple[str, str | None]:
         return bad.kind, None
     except Exception as exc:
         return bad.kind, f"crash: {type(exc).__name__}: {exc}"
-    return bad.kind, f"accepted: flags {bad.flag_string!r} zora {bad.zora_flag_string!r} " \
-                     f"settings {bad.page_settings} seed {bad.seed}"
+    return bad.kind, (f"accepted: flags {bad.flag_string!r} zora {bad.zora_flag_string!r} "
+                      f"settings {bad.page_settings} seed {bad.seed}")
 
 
 # ---------------------------------------------------------------------------

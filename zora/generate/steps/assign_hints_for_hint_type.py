@@ -6,9 +6,10 @@ rewrites each listed person's whole monster byte with a hint id from one of
 two counters, and records each level's person init routine. The hint text
 and the tables selecting it belong to a later pass and are not written.
 """
+from collections.abc import Collection
 from dataclasses import dataclass, field
 
-from ...model.enums import UnderworldPersonInit
+from ...model.enums import VANILLA_PERSON_INITS, UnderworldPersonInit
 from ...model.levels import HINT_LEVELS, MERCHANT_LIST, Level
 from ...model.rooms import MONSTER_VALUE_BIT, EnemyInfo, Room
 from ..shapes.world import blocks_of
@@ -127,7 +128,13 @@ def write_hint_ids(hint_list: list[tuple[Room, int]], state: HintAssignmentResul
     state.listed = len(hint_list)
 
 
-def assign_hints_for_hint_type(levels: list[Level], bomb_levels: tuple[int, int] | None) -> HintAssignmentResult:
+# PS-HINT-02's record as PRG0 leaves it (the bomb-upgrade move off, SH-SRC-08): the levels whose
+# person-kind entry is $23 (UnderworldPersonInit.A)
+PRG0_RECORDED_LEVELS = frozenset(level for level, init in enumerate(VANILLA_PERSON_INITS, start=1)
+                                 if init == UnderworldPersonInit.A)
+
+
+def assign_hints_for_hint_type(levels: list[Level], bomb_levels: Collection[int] | None) -> HintAssignmentResult:
     """PS-HINT-01..06 (B2.5), on the pass's staged levels. bomb_levels:
     PS-BOMB-03's recorded levels (P24: the hint pass reads them)."""
     state = HintAssignmentResult(helpful=set(INITIAL_HELPFUL))

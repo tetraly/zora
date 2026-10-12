@@ -175,14 +175,17 @@ def _flood_fill_level_rooms(
     entrance_room: int,
     staircase_slots: set[int],
     t: list[bytes],
+    exit_room: int | None = None,
 ) -> set[int]:
     """Flood-fill from entrance_room to find all reachable room slots.
 
     The fill follows every non-wall side, the entrance room's south side
     included, as the vanilla engine does: it returns to the overworld only
-    when the next room ID is off the grid (Z_05 CalculateNextRoomForDoor).
-    An entrance above the bottom row, whose room below belongs to another
-    level (SH-ENT-01), therefore joins the two levels (QUESTIONS #54)."""
+    when the next room ID is off the grid (Z_05 CalculateNextRoomForDoor)
+    or, with FP-ENTR-02's patch, is the level's exit room (level information
+    +$23), which a moved start room's open side leads into (B26, PS-START-03).
+    Without it, an entrance above the bottom row whose room below belongs to
+    another level (SH-ENT-01) joins the two levels (QUESTIONS #54)."""
     def in_bounds(rn: int) -> bool:
         return 0x00 <= rn <= 0x7F
 
@@ -208,7 +211,7 @@ def _flood_fill_level_rooms(
             for direction in (Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST):
                 if wall_by_dir[direction] != WallType.SOLID_WALL:
                     other = neighbour(rn, direction.side)
-                    if other is not None and other not in visited:
+                    if other is not None and other not in visited and other != exit_room:
                         queue.append(other)
 
     visited: set[int] = set()
@@ -285,7 +288,8 @@ def _parse_single_level(
     entrance_room = info[0x2F]
     stairway_data_raw = bytes(info[0x34:0x3E])
     staircase_room_pool = _staircase_room_pool(level_num, stairway_data_raw)
-    room_nums, staircase_slots = _owned_cells(entrance_room, staircase_room_pool, block, _block_tables(grid_data))
+    room_nums, staircase_slots = _owned_cells(entrance_room, staircase_room_pool, block, _block_tables(grid_data),
+                                              _exit_room(info))
     level = Level(
         level_num=level_num,
         entrance_room=entrance_room,
@@ -310,6 +314,8 @@ def _parse_single_level(
         rom_level_num=info[0x33],
         screen_status_ram_offset=bytes(info[0x31:0x33]),
         triforce_room_ptr=info[0x30],
+        arrival_code=_arrival_code(info),
+        exit_room=_exit_room(info),
     )
     if level.entrance_room not in room_nums:
         raise RuntimeError(
@@ -341,8 +347,33 @@ def _entrance_direction(stairway_data_raw: bytes) -> Direction:
     return _DIR_BYTE_TO_DIRECTION.get(stairway_data_raw[-1], Direction.SOUTH)
 
 
+# FP-ENTR-02: level information +$23 holds the exit room with bit 7 set; PRG0 has $FF there.
+LEVEL_INFO_EXIT_ROOM = 0x23
+EXIT_ROOM_FLAG = 0x80
+# FP-ENTR-01: level information +$3D holds the arrival code; PRG0 has $FF there.
+LEVEL_INFO_ARRIVAL_CODE = 0x3D
+NO_ARRIVAL_CODE = 0xFF
+
+
+def _arrival_code(info: bytes) -> int | None:
+    """FP-ENTR-01's arrival code (level information +$3D), or None in a ROM without the patch."""
+    stored = info[LEVEL_INFO_ARRIVAL_CODE]
+    return None if stored == NO_ARRIVAL_CODE else stored
+
+
+def _exit_room(info: bytes) -> int | None:
+    """The room a door move leaves the level by (FP-ENTR-02), or None in a ROM without the patch.
+    The patches write +$23 and +$3D together, so the arrival code tells them apart: $FF at +$23
+    is PRG0's byte only where +$3D is PRG0's $FF too. With the patch it is room $7F (B26: a start
+    room at $7E opening right, PS-START-03), which the game reads masked like any other."""
+    stored = info[LEVEL_INFO_EXIT_ROOM]
+    if _arrival_code(info) is None or not stored & EXIT_ROOM_FLAG:
+        return None
+    return stored & ~EXIT_ROOM_FLAG
+
+
 def _owned_cells(entrance_room: int, staircase_room_pool: list[int], block: LevelBlock,
-                 t: list[bytes]) -> tuple[list[int], set[int]]:
+                 t: list[bytes], exit_room: int | None = None) -> tuple[list[int], set[int]]:
     """The level's rooms and staircases: the flood fill from its entrance.
 
     SH-STAIR-12/13: a stairway-pool cell is a real staircase only if its
@@ -352,7 +383,7 @@ def _owned_cells(entrance_room: int, staircase_room_pool: list[int], block: Leve
     counts."""
     staircase_slots = {rn for rn in staircase_room_pool if (t[3][rn] & 0x3F) in _STAIRCASE_LAYOUTS}
     stale_pool_cells = set(staircase_room_pool) - staircase_slots
-    reachable = _flood_fill_level_rooms(entrance_room, staircase_slots, t)
+    reachable = _flood_fill_level_rooms(entrance_room, staircase_slots, t, exit_room)
     regular_room_slots = (reachable - staircase_slots) | (stale_pool_cells & reachable)
     # A cell with a staircase layout is never an ordinary room, even when
     # the flood reaches it (another level's staircase).

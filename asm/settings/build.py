@@ -61,7 +61,8 @@ tool = _builder()
 @dataclass(frozen=True)
 class Setting:
     """A player setting: its choices (choice -> patch folder in asm/settings/, or None for
-    the ZORA build as it is) and the choice every corpus ROM carries."""
+    the ZORA build as it is) and the choice ZORA's output carries at the player-setting
+    defaults (every corpus ROM's, but the statistics screen's: the corpus has none)."""
     name: str
     entry: str
     choices: dict[str, str | None]
@@ -83,6 +84,11 @@ SETTINGS = (
     Setting("music", "FP-SET-04", {"on": None, "off": "music-off"}, default="on"),
     # FP-FIX-02.
     Setting("reduce_flashing", "FP-FIX-02", {"off": None, "on": "reduce-flashing"}, default="off"),
+    # FP-STATS-01, the statistics screen: its own patch folder asm/fp-stats-01/ (not in
+    # asm/series.txt). The corpus and the ZORA build have none ("off"); the player setting's
+    # default is "off" until the screen is better tested, "on" an option (zora/rom/player_settings.py;
+    # owner ruling, beta 3).
+    Setting("statistics_screen", "FP-STATS-01", {"off": None, "on": "../fp-stats-01"}, default="off"),
 )
 
 CHOICE_FOLDERS = [folder for setting in SETTINGS for folder in setting.choices.values() if folder]
@@ -94,10 +100,10 @@ Writes = tuple[tuple[int, Piece], ...]
 
 # --- building ---------------------------------------------------------------
 
-# Series patches a ZORA flag leaves out of most ROMs (PI-CODE-01): the settings are built
+# Series patches a ZORA flag leaves out of most ROMs (PI-CODE-01, FP-START-02): the settings are built
 # without them. They share no byte with the settings (tests/test_progressive_patches.py), so
 # a setting's bytes are the same with or without them.
-FLAG_PATCHES = ("fp-prog-01", "fp-prog-02")
+FLAG_PATCHES = ("fp-prog-01", "fp-prog-02", "fp-start-02")
 
 
 def zora_tree(work: Path, choice: Any = None) -> Any:
@@ -113,7 +119,8 @@ def zora_tree(work: Path, choice: Any = None) -> Any:
 
 
 def load_choice(folder: str) -> Any:
-    """asm/settings/CHOICE/ as a patch (scripts/asm_patches.py's Patch)."""
+    """asm/settings/CHOICE/ (or a folder beside asm/settings/, as ../fp-stats-01) as a patch
+    (scripts/asm_patches.py's Patch)."""
     return tool.load_patch(SETTINGS_DIR / folder)
 
 

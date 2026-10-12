@@ -13,7 +13,7 @@ from ..model.enums import Destination, Item
 from ..model.game_world import GameWorld
 from ..model.levels import Level
 from ..model.overworld import POTION_SHOP_MIDDLE
-from .base_rom import piece_bytes
+from .base_rom import piece_bytes, piece_length
 from .code_patch_data import PATCHES, SYMBOLS
 from .layout import CAVE_NOTHING_CODE
 from .serialize.caves import CAVE_ITEM_CODE_MASK, WARES_PER_CAVE, cave_ware_tables
@@ -50,6 +50,11 @@ ARRIVAL_OVERWORLD = 0
 ARRIVAL_DUNGEON = 2
 OVERWORLD_START_Y = SYMBOLS["ZORA_B5_OverworldStartY"]
 ENTR_01 = "fp-entr-01"
+# FP-ENTR-01's codes 1, 3 and 4 (B26, PS-START-03): written only when a start room moved, so a
+# ROM without B26 keeps fp-entr-01's bytes.
+ENTR_01_SIDES = "fp-entr-01-sides"
+# The codes only fp-entr-01-sides places Link by (from above, the left, the right)
+SIDE_ARRIVAL_CODES = frozenset({1, 3, 4})
 
 
 # FP-BOOK-01, the patch of Book is an Atlas (B49); with B49 off (FL-OFF-05)
@@ -64,6 +69,15 @@ BOOK_IS_AN_ATLAS = "fp-book-01"
 PROGRESSIVE_CAVES = "fp-prog-01"
 PROGRESSIVE_ROOM_ITEMS = "fp-prog-02"
 PROGRESSIVE_ITEMS_BYTE = SYMBOLS["ZORA_B1_ProgressiveItems"]
+# fp-start-02 (FP-START-02/03): a new file and the second quest take their Items block from a
+# 40-byte table (ZORA_B2_StartItems; the patch's own copy is PRG0's start, FP-START-01). Inert
+# by default: written only with start_items on, with the seed's table at START_ITEMS_TABLE.
+START_ITEMS = "fp-start-02"
+START_ITEMS_TABLE = SYMBOLS["ZORA_B2_StartItems"]
+START_ITEMS_SIZE = 40
+# PRG0's start as the table holds it (FP-START-01): 3 hearts and containers ($22) at HeartValues
+# (offset $18), a full HeartPartial ($19), 8 MaxBombs ($25), every other byte 0.
+PRG0_START_ITEMS = bytes(0x18) + bytes([0x22, 0xFF]) + bytes(0x0B) + bytes([0x08]) + bytes(2)
 ONE_TIME_WARES = SYMBOLS["ZORA_B1_OneTimeWares"]
 # The shops by the patch's shop number (ShopNumbers: object types $74, $77-$7A).
 SHOPS_BY_NUMBER = (Destination.POTION_SHOP, Destination.SHOP_1, Destination.SHOP_2, Destination.SHOP_3,
@@ -78,9 +92,11 @@ ONE_TIME_POTION_SHOP_WARE = (SHOPS_BY_NUMBER.index(Destination.POTION_SHOP), POT
 
 
 def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items_in_pool: bool,
-                     potion_shop_in_pool: bool = False) -> tuple[str, ...]:
+                     potion_shop_in_pool: bool = False, start_items: bool = False,
+                     start_rooms_moved: bool = False) -> tuple[str, ...]:
     """The code patches a seed's settings leave out (FL-OFF-05, PI-CODE-01; fp-prog-01's buy-once
-    rule also with Shuffle Blue Potion on)."""
+    rule also with Shuffle Blue Potion on; fp-start-02 unless a seed starts with other items than
+    PRG0's, FP-START-02; fp-entr-01-sides unless the start-room swap ran, PS-START)."""
     left_out = []
     if not book_is_an_atlas:
         left_out.append(BOOK_IS_AN_ATLAS)
@@ -88,7 +104,18 @@ def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items
         left_out.append(PROGRESSIVE_CAVES)
     if not progressive_items:
         left_out.append(PROGRESSIVE_ROOM_ITEMS)
+    if not start_items:
+        left_out.append(START_ITEMS)
+    if not start_rooms_moved:
+        left_out.append(ENTR_01_SIDES)
     return tuple(left_out)
+
+
+def start_items_writes(table: bytes) -> list[tuple[int, bytes]]:
+    """fp-start-02 with `table` as the seed's starting Items block: (file offset, bytes)."""
+    if len(table) != START_ITEMS_SIZE:
+        raise ValueError(f"a starting table is {START_ITEMS_SIZE} bytes, not {len(table)}")
+    return [*((offset, piece_bytes(piece)) for offset, piece in PATCHES[START_ITEMS]), (START_ITEMS_TABLE, table)]
 
 
 def one_time_wares(world: GameWorld, one_time_places: Collection[tuple[int, int]] = ()) -> bytes:
@@ -142,14 +169,15 @@ def seed_data(world: GameWorld, progressive_items: bool = False,
 
 def overworld_start_y(rom: bytes) -> int | None:
     """FP-ENTR-01: the overworld start Y from a ROM carrying ZORA's patch,
-    or None when it does not (PRG0, the corpus: LevelInfo_StartY holds it)."""
+    or None when it does not (PRG0, the corpus: LevelInfo_StartY holds it). The bytes
+    fp-entr-01-sides writes over fp-entr-01 (B26's re-pointed jump) are not compared: a ROM
+    whose start rooms moved carries both."""
     data_byte = OVERWORLD_START_Y
+    overlaid = {offset + i for offset, piece in PATCHES[ENTR_01_SIDES] for i in range(piece_length(piece))}
     for offset, piece in PATCHES[ENTR_01]:
         after = piece_bytes(piece)
-        run = bytearray(rom[offset:offset + len(after)])
-        if offset <= data_byte < offset + len(after):
-            run[data_byte - offset] = after[data_byte - offset]
-        if run != after:
+        if any(rom[address] != after[address - offset] for address in range(offset, offset + len(after))
+               if address != data_byte and address not in overlaid):
             return None
     return rom[data_byte]
 
@@ -167,8 +195,9 @@ def exit_room_count(world: GameWorld, level: Level) -> int:
 def write_level_info_data(world: GameWorld, level: Level, info: bytearray) -> None:
     """The per-level bytes the patched code reads, into the dungeon's
     level-information block `info`."""
-    info[LEVEL_INFO_EXIT_ROOM_COUNT] = exit_room_count(world, level) | EXIT_ROOM_COUNT_FLAG
-    info[LEVEL_INFO_ARRIVAL_CODE] = ARRIVAL_DUNGEON
+    exit_room = exit_room_count(world, level) if level.exit_room is None else level.exit_room
+    info[LEVEL_INFO_EXIT_ROOM_COUNT] = exit_room | EXIT_ROOM_COUNT_FLAG
+    info[LEVEL_INFO_ARRIVAL_CODE] = ARRIVAL_DUNGEON if level.arrival_code is None else level.arrival_code
 
 
 def write_overworld_level_info_data(info: bytearray) -> None:

@@ -270,13 +270,15 @@ class Sanity:
 
 def sanity_check(world: GameWorld, built: Built, tracking: Tracking, solo: bool,
                  received: Collection[Item]) -> Sanity:
-    """R4's two walks on the assigned world (Sanity)."""
-    from .acceptance_check import acceptance_check
+    """R4's two walks on the assigned world (Sanity), on the logic walk, as Archipelago's rules
+    are (docs/archipelago.md "The two walks"): a place the rules let Archipelago fill is one
+    these walks collect."""
+    from .acceptance_check import acceptance_check, logic_walk_rules
     from .pipeline import extra_options
     state = built.result.item_shuffle_result
     caves = built.result.overworld
     assert state is not None and caves is not None
-    rules = extra_options(built.plan).logic_rules
+    rules = logic_walk_rules(extra_options(built.plan).logic_rules)
     # strict: an item elsewhere is still to be collected, and no place holds it
     strict_state = replace(state, tracked=[*tracking.tracked, *(TrackedPlace(item) for item in tracking.elsewhere)])
     strict = acceptance_check(world.levels, strict_state, world.overworld, caves, rules)

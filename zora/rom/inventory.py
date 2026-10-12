@@ -157,6 +157,38 @@ def may_receive(ram: Mapping[int, int]) -> bool:
             and ram[LINK_STATE] & HALTED_MASK != HALTED)
 
 
+# When the pickup flags (WorldFlags, $067F-$07FE) hold the loaded save file (checks_readable).
+# Z_02.asm's UpdateMode1Menu_Sub1 copies a chosen file's Items and WorldFlags blocks into RAM,
+# and only then goes on to mode 2. Before that the flags are garbage at power-on (the reset code
+# waits two VBLANKs before ClearRam zeroes $0000-$00EF and $0300-$07FE: 8 frames in cynes),
+# zero after ClearRam, or the last file's on the title and file-select screens a save, Retry or
+# the ending return to; registering and eliminating (modes $0E, $0F) never load a file. From
+# mode 2 on, every mode a game passes through keeps them: loading a level (2), the scrolls and
+# room entries (3, 4, 6, 7), play (5), the continue screen (8), caves and cellars (9-$0C, $10),
+# death ($11), the triforce fanfare ($12) and the ending ($13). Saving ($0D) is left out: after the
+# ending, the frame that starts it also clears the flags for the second quest.
+# Two markers prove the reset code has run since power-on: ClearRam zeroes both, then the title
+# sets TransferredCommonPatterns ($F5) to $5A once its patterns are loaded, and Start on the
+# title sets SkippedDemo ($0528) to $5A; neither is written again, and no ZORA patch uses them.
+# Power-on garbage would have to hold both, a loaded-file mode, IsUpdatingMode 0 or 1 and a save
+# slot (0-2) at once.
+CUR_SAVE_SLOT = 0x16
+TRANSFERRED_COMMON_PATTERNS = 0xF5
+SKIPPED_DEMO = 0x0528
+SET_UP = 0x5A
+SAVE_SLOTS = 3
+UPDATING_STATES = (0, 1)
+LOADED_FILE_MODES = frozenset({*range(0x02, 0x0D), *range(0x10, 0x14)})
+CHECKS_STATE = (IS_UPDATING_MODE, GAME_MODE, CUR_SAVE_SLOT, TRANSFERRED_COMMON_PATTERNS, SKIPPED_DEMO)
+
+
+def checks_readable(ram: Mapping[int, int]) -> bool:
+    """Whether the pickup flags hold the loaded save file (`ram` holds CHECKS_STATE's addresses)."""
+    return (ram[GAME_MODE] in LOADED_FILE_MODES and ram[IS_UPDATING_MODE] in UPDATING_STATES
+            and ram[CUR_SAVE_SLOT] < SAVE_SLOTS
+            and ram[TRANSFERRED_COMMON_PATTERNS] == SET_UP and ram[SKIPPED_DEMO] == SET_UP)
+
+
 # When the player has won (goal_reached; Z_04.asm's UpdateZelda, Z_07.asm's mode table): Link
 # reaching Zelda puts her object (slot 1, type $37) in state 1 and halts him; $80 frames later
 # UpdateZelda switches to mode $13 (UpdateMode13WinGame), the ending, which runs until the credits

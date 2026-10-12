@@ -3,9 +3,10 @@ values (RoomLists) and the result staged outside the room blocks."""
 
 from dataclasses import dataclass, field
 
-from ...model.levels import LevelBlock
+from ...model.levels import Level, LevelBlock
 from ...model.rooms import MONSTER_LIST_BITS, MONSTER_VALUE_BIT, Room, RoomPlace
 from ..shapes.world import SetWorld
+from .dungeon_quest import ALL_SHAPES, SET_LEVELS, SetSources, vanilla_room_list
 
 # --- monster values ------------------------------------------------------------
 
@@ -51,18 +52,29 @@ class RoomLists:
     values: dict[RoomPlace, int] = field(default_factory=dict)
 
 
-def build_room_lists(worlds: list[SetWorld]) -> RoomLists:
+def build_room_lists(worlds: list[SetWorld | None], levels: list[Level] | None = None,
+                     sources: SetSources = ALL_SHAPES) -> RoomLists:
     """The lists as they stand at the end of the shape stage, rooms in cell
     order (QUESTIONS #45.3). Values are not refreshed from later B1 moves
     (QUESTIONS #58.3): the only B1 move of a listed monster is the goriya
     swap, and a refreshed list would shuffle the arriving person out of its
-    room, which no corpus person room shows."""
+    room, which no corpus person room shows. A vanilla set's levels take
+    PS-VAN-02's fixed lists, from the staged levels."""
     lists = RoomLists()
     for block_index, world in enumerate(worlds):
-        for blob, level in sorted(world.levels.items()):
+        if world is None:
+            for level in levels or []:
+                if level.level_num in SET_LEVELS[block_index]:
+                    places = [RoomPlace(block_index, room_number)
+                              for room_number in vanilla_room_list(level, sources[block_index])]
+                    lists.rooms[level.level_num] = places
+                    lists.values.update({place: level.block.room(place.room_number).monster_value
+                                         for place in places})
+            continue
+        for blob, level_num in sorted(world.levels.items()):
             places = [RoomPlace(block_index, room_number) for room_number in sorted(world.cells_by_blob[blob])
                       if not world.plans[room_number].is_person]
-            lists.rooms[level] = places
+            lists.rooms[level_num] = places
             lists.values.update({place: world.plans[place.room_number].monster_value for place in places})
     return lists
 

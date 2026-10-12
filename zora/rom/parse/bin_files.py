@@ -44,6 +44,9 @@ from ..layout import (
     ENEMY_SET_B_SPRITES_SIZE,
     ENEMY_SET_C_SPRITES_ADDRESS,
     ENEMY_SET_C_SPRITES_SIZE,
+    FLUTE_ROOM_SECRETS_COUNT,
+    FLUTE_ROOM_SECRETS_OW_ADDRESS,
+    FLUTE_SECRET_QUEST_BRANCH_ADDRESS,
     GANON_HP_ADDRESS,
     GLEEOK_BODY_TILES_ADDRESS,
     GLEEOK_BODY_TILES_SIZE,
@@ -98,10 +101,12 @@ from ..layout import (
     PLAYER_SMALL_SHIELD_SPRITES_ADDRESS,
     PLAYER_SMALL_SHIELD_SPRITES_SIZE,
     POINTER_COUNT,
+    QUEST_MONSTER_BRANCH_ADDRESSES,
     QUOTE_DATA_ADDRESS,
     RANDOMIZER_MAGIC,
     RECORDER_WARP_DESTINATIONS_ADDRESS,
     RECORDER_WARP_Y_COORDINATES_ADDRESS,
+    ROOM_BLOCK_ADDRESSES_Q1,
     ROPE_HP_OPERAND_ADDRESSES,
     START_HEARTS_ADDRESS,
     START_POSITION_Y_ADDRESS,
@@ -126,7 +131,7 @@ class RawBinFiles:
     level_1_6_data_q2:   bytes   # 0x300 bytes
     level_7_9_data_q2:   bytes   # 0x300 bytes
     level_info_q2:        bytes   # 0xA * 0xFC bytes, patched from 1Q
-    level_pointers:       bytes
+    level_pointers:       bytes   # 20 bytes: LevelBlockAddrsQ1 (SH-SRC-02)
     overworld_data:       bytes   # 0x500 bytes
     mixed_enemy_data:     bytes
     mixed_enemy_pointers: bytes
@@ -150,6 +155,8 @@ class RawBinFiles:
     recorder_warp_destinations:   bytes   # 8 bytes, one per level 1-8
     recorder_warp_y_coordinates:  bytes   # 8 bytes, one per level 1-8
     any_road_screens:             bytes   # 4 bytes: shortcut screen locations
+    flute_room_secrets:           bytes   # 11 bytes: FluteRoomSecretsOW
+    flute_secret_quest_branch:    bytes   # 1 byte: WieldFlute's BEQ/BNE opcode
     start_screen:                 bytes   # 1 byte: Link's starting overworld screen
     start_position_y:             bytes   # 1 byte: Link's starting Y position (ROM offset 0x19328+header)
     level_sprite_set_pointers:    bytes   # 10 x 2-byte CPU addrs (index 0=OW, 1-9=levels)
@@ -205,6 +212,7 @@ class RawBinFiles:
     rope_hp_operands:         bytes = b""   # 0x112D3, 0x112DF (InitRope)
     overworld_wizzrobe_patch: bool = False  # all four PS-EGRP-05 runs present
     object_type_operand_873d: bytes = b""   # 1 byte at 0x0474D
+    quest_monster_branches:   bytes = b""   # SH-SRC-05: 0x112DC, 0x1135D, 0x1139D
 
 
 # iNES header (16 bytes) + 128 KB PRG ROM = 131088 bytes exactly.
@@ -276,7 +284,7 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         level_1_6_data_q2           = s(LEVEL_1_6_DATA_ADDRESS_Q2,           0x300),
         level_7_9_data_q2           = s(LEVEL_7_9_DATA_ADDRESS_Q2,           0x300),
         level_info_q2               = _build_level_info_q2_from_rom(rom_bytes),
-        level_pointers              = b"",
+        level_pointers              = s(ROOM_BLOCK_ADDRESSES_Q1,             20),
         overworld_data              = s(OVERWORLD_DATA_ADDRESS,              0x300),
         mixed_enemy_data            = s(MIXED_ENEMY_DATA_ADDRESS,            MIXED_ENEMY_DATA_SIZE),
         mixed_enemy_pointers        = s(MIXED_ENEMY_POINTER_TABLE_ADDRESS,   POINTER_COUNT * 2),
@@ -300,6 +308,8 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         recorder_warp_destinations  = s(RECORDER_WARP_DESTINATIONS_ADDRESS,  8),
         recorder_warp_y_coordinates = s(RECORDER_WARP_Y_COORDINATES_ADDRESS, 8),
         any_road_screens            = s(ANY_ROAD_SCREENS_ADDRESS,            4),
+        flute_room_secrets          = s(FLUTE_ROOM_SECRETS_OW_ADDRESS,       FLUTE_ROOM_SECRETS_COUNT),
+        flute_secret_quest_branch   = s(FLUTE_SECRET_QUEST_BRANCH_ADDRESS,   1),
         start_screen                = s(START_SCREEN_ADDRESS,                1),
         start_position_y            = start_position_y,
         level_sprite_set_pointers   = s(LEVEL_SPRITE_SET_POINTERS_ADDRESS,   20),
@@ -354,4 +364,5 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         overworld_wizzrobe_patch = all(rom_bytes[a:a + len(run)] == run for a, run in
                                        ((a, piece_bytes(piece)) for a, piece in OVERWORLD_WIZZROBE_PATCH)),
         object_type_operand_873d = s(OBJECT_TYPE_OPERAND_873D_ADDRESS, 1),
+        quest_monster_branches   = bytes(rom_bytes[a] for a in QUEST_MONSTER_BRANCH_ADDRESSES),
     )

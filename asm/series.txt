@@ -13,3 +13,5 @@ fp-roar-01
 fp-hot-01
 fp-prog-01
 fp-prog-02
+fp-start-02
+fp-entr-01-sides

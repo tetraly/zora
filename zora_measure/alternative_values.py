@@ -110,6 +110,20 @@ def community_hints(gw: GameWorld) -> dict[str, bool]:
     return figures
 
 
+def helpful_hints(gw: GameWorld) -> dict[str, bool]:
+    """HT-HINT-04's Check: the helpful text in slots 3, 6, 7 and 35 to 37 (slot 36: the Ganon- or
+    the Zelda-room entry, whichever the omission draw left), the hint shops rewritten as for mixed
+    hints. Slot 0: the owner's ruling (one of the owner's seven quotes) in place of HT-HINT-04's
+    period greeting."""
+    figures = {f"slot {slot} a helpful text": _slot_text(gw, slot) not in POOL_TEXTS for slot in HELPFUL_TEXT_SLOTS}
+    selectors, _ = hint_shop_offers(gw)
+    figures |= {
+        "slot 0 an owner quote": _slot_text(gw, WOOD_SWORD_CAVE_SLOT) in OWNER_SLOT_0_TEXTS,
+        "hint-shop offers rewritten": selectors != prg0_hint_shop_offers()[0],
+    }
+    return figures
+
+
 def alternative_value_figures(gw: GameWorld, rom: bytes) -> dict[str, bool]:
     """Every FL-ALT figure of one ROM."""
     return {**starting_hearts_4(gw, rom), **white_sword_hearts(gw), **community_hints(gw)}

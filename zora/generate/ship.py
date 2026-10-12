@@ -1,7 +1,7 @@
 """Shipping an accepted generation attempt (SH-FLOW-02): its staged levels,
 blocks and results are written into the GameWorld in SHIP_STEPS order. A
 restarted attempt never reaches here, so the GameWorld keeps the base's values."""
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 
 from ..model.enums import BossSpriteSet, Destination, EnemySpriteSet, Item
@@ -13,6 +13,7 @@ from .shapes.writeback import build_block, build_level
 from .steps.assign_hints_for_hint_type import HintAssignmentResult
 from .steps.cave_entries import OverworldResult
 from .steps.change_enemy_hp import EnemyHpResult, apply_enemy_hp
+from .steps.dungeon_quest import ALL_SHAPES, SetSource, SetSources, vanilla_set
 from .steps.extra_pool_items import ExtraPoolItems, apply_extra_pool_items
 from .steps.hint_text import HintTextResult
 from .steps.item_shuffle_result import ItemShuffleResult
@@ -33,6 +34,9 @@ class StagedSets:
     # blob by blob). A pass that draws once per level walks them in this
     # order, which keeps the random stream as it was on the plans.
     generation_order: list[Level]
+    # SH-SRC: each set's source; a second-quest set's block ships as the
+    # second-quest block its levels point at (SH-SRC-02)
+    sources: SetSources = ALL_SHAPES
 
 
 @dataclass
@@ -49,10 +53,18 @@ class Staged:
     colors: DungeonPaletteResult | None
     start: StartScreen | None
     extras: ExtraPoolItems = field(default_factory=ExtraPoolItems)
+    # SH-SRC-05
+    monsters_take_second_quest_path: bool = False
 
 
 def _ship_sets(gw: GameWorld, staged: Staged) -> None:
-    gw.blocks, gw.levels = staged.sets.blocks, staged.sets.levels
+    """The staged blocks and levels. A second-quest set's block replaces the second-quest
+    block; the first-quest block of that set keeps the base's rooms, which no level reads."""
+    blocks, blocks_2q = list(gw.blocks), list(gw.blocks_2q)
+    for set_index, (block, source) in enumerate(zip(staged.sets.blocks, staged.sets.sources, strict=True)):
+        (blocks_2q if source is SetSource.SECOND_QUEST else blocks)[set_index] = block
+    gw.blocks, gw.blocks_2q, gw.levels = blocks, blocks_2q, staged.sets.levels
+    gw.monsters_take_second_quest_path = staged.monsters_take_second_quest_path
 
 
 def _ship_overworld(gw: GameWorld, staged: Staged) -> None:
@@ -173,19 +185,24 @@ def ship(gw: GameWorld, staged: Staged) -> None:
 
 
 
-def build_sets(gw: GameWorld, worlds: list[SetWorld]) -> StagedSets:
-    """Both quest-1 blocks and all nine levels built from the shape stage's
-    plans, on the base GameWorld's (its palettes, item positions and counts
-    are kept). The post-shapes passes, the late gate and the passes after
-    it work on the result; the GameWorld is not touched until the pass
-    ships it."""
-    blocks = [build_block(base, world) for base, world in zip(gw.blocks, worlds, strict=True)]
+def build_sets(gw: GameWorld, worlds: Sequence[SetWorld | None], sources: SetSources = ALL_SHAPES) -> StagedSets:
+    """Both sets' blocks and all nine levels: a shapes set built from the shape stage's
+    plans, on the base GameWorld's (its palettes, item positions and counts are kept); a
+    vanilla set a copy of its quest's PRG0 block and levels (SH-SRC-02/03). The post-shapes
+    passes, the late gate and the passes after it work on the result; the GameWorld is not
+    touched until the pass ships it."""
+    blocks: list[LevelBlock] = []
     new_levels: list[Level] = []
-    for block, world in zip(blocks, worlds, strict=True):
-        for blob in range(world.blob_count):
-            base = gw.levels[world.levels[blob] - 1]
-            new_levels.append(build_level(base, world, blob, block))
-    return StagedSets(blocks, sorted(new_levels, key=lambda level: level.level_num), new_levels)
+    for set_index, (world, source) in enumerate(zip(worlds, sources, strict=True)):
+        if world is None:
+            block, levels = vanilla_set(gw, set_index, source)
+        else:
+            block = build_block(gw.blocks[set_index], world)
+            levels = [build_level(gw.levels[world.levels[blob] - 1], world, blob, block)
+                      for blob in range(world.blob_count)]
+        blocks.append(block)
+        new_levels += levels
+    return StagedSets(blocks, sorted(new_levels, key=lambda level: level.level_num), new_levels, sources)
 
 
 def _cave_slot(gw: GameWorld, slot: str) -> OverworldItem | ItemCave:

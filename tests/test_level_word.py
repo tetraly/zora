@@ -152,9 +152,9 @@ def test_the_pages_check_agrees_with_pythons() -> None:
                         page_function("levelLabel"),
                         f"const rule = {json.dumps(rule)};",
                         f"const cases = {json.dumps(cases)};",
-                        "console.log(JSON.stringify(cases.map((typed) => { const word = normalizedLevelWord(typed);"
-                        " const problem = levelWordProblem(word, rule);"
-                        " return [word, problem, problem ? null : levelLabel(word, rule)]; })));"])
+                        ("console.log(JSON.stringify(cases.map((typed) => { const word = normalizedLevelWord(typed);"
+                         " const problem = levelWordProblem(word, rule);"
+                         " return [word, problem, problem ? null : levelLabel(word, rule)]; })));")])
     answers = json.loads(subprocess.run([node, "-e", script], capture_output=True, text=True, check=True).stdout)
     expected = []
     for typed in cases:

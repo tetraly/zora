@@ -190,7 +190,7 @@ def _dungeon_places(world: GameWorld, pool: frozenset[Item]) -> list[Place]:
     """Rooms and item cellars holding a pool item, block by block, in room-number order."""
     found: list[tuple[int, int, Place]] = []
     for level in world.levels:
-        block_index = next(index for index, block in enumerate(world.blocks) if block is level.block)
+        block_index = next(index for index, block in enumerate(world.level_blocks) if block is level.block)
         found.extend((block_index, room.room_num, Place(
             PlaceKind.ROOM, room_name(level.level_num, room.room_num), level=level.level_num,
             room_num=room.room_num, forbids=DUNGEON_FORBIDS))

@@ -15,6 +15,7 @@ from .cave_entries import (
     RAFT_SCREENS,
     RECORDER_SCREENS,
     CaveShuffle,
+    recorder_screens,
 )
 
 SHOPS = (Destination.SHOP_1, Destination.SHOP_2, Destination.SHOP_3, Destination.SHOP_4)
@@ -28,7 +29,8 @@ SECRET_AMOUNTS = ((Destination.MEDIUM_SECRET, (25, 40)),    # 0x18680, code 33
                   (Destination.SMALL_SECRET, (1, 20)))      # 0x18686, code 35
 DOOR_REPAIR_CHARGE = (15, 25)         # 0x048A0, bank 1 $8890
 TAKE_ANY_CANDLE_SLOT = 1              # OW-SHOP-05: cave index 1, ware 1
-# OW-SHOP-06: screens the candle and arrow shops' front doors must avoid
+# OW-SHOP-06: screens the candle and arrow shops' front doors must avoid (with the Recorder set,
+# which is eleven screens under a mixed overworld quest, OW-MIX-08)
 CANDLE_DOOR_BARRED = RAFT_SCREENS | RECORDER_SCREENS | LADDER_SCREENS | BRACELET_SCREENS \
     | BURNABLE_SCREENS
 ARROW_DOOR_BARRED = RAFT_SCREENS | RECORDER_SCREENS | LADDER_SCREENS | BRACELET_SCREENS
@@ -128,8 +130,9 @@ def front_door_failure(overworld: Overworld, caves: CaveShuffle,
     """OW-SHOP-06: the candle shop (a) and the arrow shop (b) each need a
     movable entrance off their barred screen sets. Returns the guarantee
     that fails, or None. also_barred: the owner's 2.0 gated screens, barred too."""
-    for label, item, barred in (("(a) candle", Item.BLUE_CANDLE, CANDLE_DOOR_BARRED | also_barred),
-                                ("(b) arrow", Item.WOOD_ARROWS, ARROW_DOOR_BARRED | also_barred)):
+    recorder = recorder_screens(overworld)
+    for label, item, barred in (("(a) candle", Item.BLUE_CANDLE, CANDLE_DOOR_BARRED | recorder | also_barred),
+                                ("(b) arrow", Item.WOOD_ARROWS, ARROW_DOOR_BARRED | recorder | also_barred)):
         doors = caves.movable_screens(_shop_selling(overworld, item))
         if not any(screen not in barred for screen in doors):
             return label

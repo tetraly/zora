@@ -13,8 +13,9 @@ from tests.test_feature_patches import vanilla
 from zora.rom.base_rom import Original, original_bytes, piece_bytes, piece_length
 from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import (
-    EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT, ONE_TIME_WARES, PROGRESSIVE_CAVES, PROGRESSIVE_ITEMS_BYTE,
-    PROGRESSIVE_ROOM_ITEMS, exit_room_count, left_out_patches, one_time_wares,
+    ENTR_01, ENTR_01_SIDES, EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT, ONE_TIME_WARES, PROGRESSIVE_CAVES,
+    PROGRESSIVE_ITEMS_BYTE,
+    PROGRESSIVE_ROOM_ITEMS, START_ITEMS, exit_room_count, left_out_patches, one_time_wares,
 )
 from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.parse.rom_file import original_bins_from_rom, parse_rom
@@ -105,13 +106,20 @@ def _patch_bytes(name: str) -> set[int]:
     return {offset + i for offset, piece in PATCHES[name] for i in range(piece_length(piece))}
 
 
+# A patch written over another's bytes, and only those: fp-entr-01-sides (B26) re-points
+# fp-entr-01's jump; left out, the ROM keeps fp-entr-01's bytes.
+OVERLAYS = {ENTR_01_SIDES: ENTR_01}
+
+
 def test_each_patch_applies_on_the_ones_before() -> None:
-    """No two patches write the same byte, so each one replaces PRG0's bytes only (whatever
-    the patches before it did), which the base ROM's hash check already guarantees; and every
-    original piece is read from PRG0 (a patch keeps or moves the original game's bytes)."""
+    """No two patches write the same byte (but an overlay, over its own patch's bytes), so each
+    one replaces PRG0's bytes only (whatever the patches before it did), which the base ROM's
+    hash check already guarantees; and every original piece is read from PRG0 (a patch keeps or
+    moves the original game's bytes)."""
     claimed: set[int] = set()
     for name in PATCHES:
-        assert not _patch_bytes(name) & claimed, name
+        overlaid = _patch_bytes(OVERLAYS[name]) if name in OVERLAYS else set()
+        assert not (_patch_bytes(name) - overlaid) & claimed, name
         claimed |= _patch_bytes(name)
     rom = vanilla()
     for name, pieces in PATCHES.items():
@@ -199,6 +207,8 @@ def test_the_progressive_patches_follow_their_flags(zora: str, caves: bool, room
 
 
 def test_left_out_patches() -> None:
-    assert left_out_patches(True, False, False) == (PROGRESSIVE_CAVES, PROGRESSIVE_ROOM_ITEMS)
-    assert left_out_patches(False, False, True) == ("fp-book-01", PROGRESSIVE_ROOM_ITEMS)
-    assert left_out_patches(True, True, False) == ()
+    assert left_out_patches(True, False, False) == (PROGRESSIVE_CAVES, PROGRESSIVE_ROOM_ITEMS, START_ITEMS,
+                                                    ENTR_01_SIDES)
+    assert left_out_patches(False, False, True) == ("fp-book-01", PROGRESSIVE_ROOM_ITEMS, START_ITEMS, ENTR_01_SIDES)
+    assert left_out_patches(True, True, False) == (START_ITEMS, ENTR_01_SIDES)
+    assert left_out_patches(True, True, False, start_items=True, start_rooms_moved=True) == ()

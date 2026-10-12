@@ -18,11 +18,15 @@ import pytest
 
 from tests.test_feature_patches import vanilla
 from tests.test_level_word import page_function
+from zora import archipelago
 from zora.flags import form as flag_form
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
+from zora.model.game_world import GameWorld
+from zora.rom.base_rom import remember_repo_base_rom
 from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import seed_code
+from zora.rom.layout import TITLE_ROW_LENGTH, TITLE_SEED_ROW_ADDRESS
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.player_settings import (
     BOSS_SOUND_WORD_ADDRESS,
@@ -41,6 +45,8 @@ from zora.rom.player_settings import (
     title_seed_number,
     written_offsets,
 )
+from zora.rom.serialize.features import _serialize_title
+from zora.rom.serialize.patch import Patch
 from zora.rom.text_encoding import BYTE_TO_CHAR, CHAR_TO_BYTE
 
 SEED = 1
@@ -99,12 +105,20 @@ def test_random_draws_only_listed_words_and_all_of_them() -> None:
     assert min(drawn.values()) > 5000 / len(BOSS_SOUND_WORDS) / 2
 
 
-@pytest.mark.parametrize("seed", [1, 2, 12345])
+# The title row is 24 tiles: SEED, blanks, then the number right-aligned. From 10^19 on, the number
+# has 20 digits and fills the row, so SEED and the digits touch (SEED10000000000000000000).
+LONGEST_SPACED_SEED = 10**19 - 1
+SHORTEST_UNSPACED_SEED = 10**19
+LARGEST_SEED = 2**64 - 1
+UNSPACED_SEED = 14089154938208861744          # the Archipelago planning session's report
+
+
+@pytest.mark.parametrize("seed", [1, 2, 12345, LONGEST_SPACED_SEED, SHORTEST_UNSPACED_SEED, LARGEST_SEED])
 def test_random_is_the_seeds_word(seed: int) -> None:
     """Random reads the title screen's seed number: the same seed gives the same word, and the word
-    depends on nothing else (generation never sees it)."""
+    depends on nothing else (generation never sees it). The parser reads the same number."""
     rom = zora_rom(seed)
-    assert title_seed_number(rom) == seed
+    assert title_seed_number(rom) == seed == parse_rom(rom).title_seed_number
     word = random_boss_sound_word(seed)
     for _ in range(2):
         random = apply_player_settings(rom, PlayerSettings(boss_sound_word=RANDOM_BOSS_SOUND_WORD))
@@ -115,6 +129,50 @@ def test_random_is_the_seeds_word(seed: int) -> None:
 def test_random_needs_a_seed_number() -> None:
     with pytest.raises(PlayerSettingError):
         apply_player_settings(vanilla(), PlayerSettings(boss_sound_word=RANDOM_BOSS_SOUND_WORD))
+
+
+@pytest.mark.parametrize("row", ["SEED", "SEEDS 12", "SEED 12 A", "ZORA 12345"])
+def test_a_title_row_without_a_seed_number_is_refused(row: str) -> None:
+    rom = bytearray(zora_rom())
+    tiles = bytes(CHAR_TO_BYTE[char] for char in row.ljust(TITLE_ROW_LENGTH))
+    rom[TITLE_SEED_ROW_ADDRESS:TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH] = tiles
+    with pytest.raises(PlayerSettingError, match="shows no seed number"):
+        title_seed_number(rom)
+
+
+def test_a_twenty_digit_seed_finishes_with_its_word() -> None:
+    """The reported failure: Archipelago's FINISH with Random raised "shows no seed number"."""
+    rom = archipelago.finish(archipelago.build({}, UNSPACED_SEED, remember_repo_base_rom()), {},
+                             player_settings={"bossSoundWord": RANDOM_BOSS_SOUND_WORD})
+    assert rom[BOSS_SOUND_WORD_ADDRESS:BOSS_SOUND_WORD_ADDRESS + BOSS_SOUND_WORD_LENGTH] == bytes(
+        CHAR_TO_BYTE[char] for char in random_boss_sound_word(UNSPACED_SEED))
+
+
+# Each seed's word before the 20-digit fix (HEAD 8444d58); the fix must keep every one.
+WORDS_BEFORE_THE_FIX = {
+    0: "AAAA", 1: "OHAI", 2: "WEEF", 7: "GRRR", 99: "AAAA", 12345: "AAAA", 4294967295: "HISS",
+    10**18: "YAAY", LONGEST_SPACED_SEED: "BAAA",
+}
+
+
+@cache
+def parsed_world() -> GameWorld:
+    return parse_rom(zora_rom())
+
+
+@pytest.mark.parametrize("seed", [*WORDS_BEFORE_THE_FIX, SHORTEST_UNSPACED_SEED, UNSPACED_SEED, LARGEST_SEED])
+def test_the_title_writers_row_reads_back(seed: int) -> None:
+    """The title writer's row for each seed number reads back as that number, and every seed that
+    worked before keeps its word."""
+    world = parsed_world()
+    world.title_seed_number = seed
+    patch = Patch()
+    _serialize_title(world, patch)
+    rom = bytearray(zora_rom())
+    patch.apply(rom)
+    assert title_seed_number(rom) == seed
+    if seed in WORDS_BEFORE_THE_FIX:
+        assert random_boss_sound_word(title_seed_number(rom)) == WORDS_BEFORE_THE_FIX[seed]
 
 
 # --- custom words and the page ----------------------------------------------------------------------
@@ -146,8 +204,8 @@ def test_the_pages_check_agrees_with_pythons() -> None:
     cases = [*CUSTOM_CASES, *BOSS_SOUND_WORDS, "ROAR", "AB C"]
     script = "\n".join([page_function("normalizedLevelWord"), page_function("bossSoundWordProblem"),
                         f"const rule = {json.dumps(rule)};", f"const cases = {json.dumps(cases)};",
-                        "console.log(JSON.stringify(cases.map((typed) => { const word = normalizedLevelWord(typed);"
-                        " return [word, bossSoundWordProblem(word, rule)]; })));"])
+                        ("console.log(JSON.stringify(cases.map((typed) => { const word = normalizedLevelWord(typed);"
+                         " return [word, bossSoundWordProblem(word, rule)]; })));")])
     answers = json.loads(subprocess.run([node, "-e", script], capture_output=True, text=True, check=True).stdout)
     assert answers == [[normalized_boss_sound_word(typed), boss_sound_word_problem(normalized_boss_sound_word(typed))]
                        for typed in cases]

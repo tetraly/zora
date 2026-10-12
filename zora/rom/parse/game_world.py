@@ -57,6 +57,7 @@ from ...model.sprites import SpriteData
 from .. import person_code
 from ..game_config import GameConfig
 from ..layout import (
+    BNE_OPCODE,
     BOSS_SET_EXPANSION_SPRITES_SIZE,
     DUNGEON_NOTHING_CODE,
     FIRST_MIXED_GROUP_CODE,
@@ -64,6 +65,7 @@ from ..layout import (
     OVERWORLD_PERSON_TEXT_SELECTORS_ADDRESS,
     POINTER_COUNT,
     QUOTE_DATA_ADDRESS,
+    ROOM_BLOCK_HIGH_BYTES,
     TOLL_TEXT_POINTER_ADDRESS,
 )
 from .bin_files import RawBinFiles
@@ -87,20 +89,33 @@ def parse_game_world(bins: RawBinFiles,
         else DUNGEON_NOTHING_CODE
     mixed_groups = _parse_mixed_enemy_groups(bins)
 
-    def parse_quest(grids: tuple[bytes, bytes], level_info: bytes
-                    ) -> tuple[list[LevelBlock], list[Level]]:
-        blocks = [_parse_block(g, mixed_groups, nothing_code) for g in grids]
-        levels = [_parse_level(level_num, grids[set_index], blocks[set_index],
-                               bins, level_info=level_info)
-                  for set_index, level_nums in enumerate((range(1, 7), range(7, 10)))
-                  for level_num in level_nums]
-        return blocks, levels
+    def parse_block(grid: bytes) -> LevelBlock:
+        return _parse_block(grid, mixed_groups, nothing_code)
 
-    blocks, levels = parse_quest((bins.level_1_6_data, bins.level_7_9_data),
-                                 bins.level_info)
-    blocks_2q, levels_2q = parse_quest(
-        (bins.level_1_6_data_q2, bins.level_7_9_data_q2), bins.level_info_q2
-    )
+    def parse_set(set_index: int, grid: bytes, block: LevelBlock, level_info: bytes) -> list[Level]:
+        return [_parse_level(level_num, grid, block, bins, level_info=level_info)
+                for level_num in SET_LEVELS[set_index]]
+
+    grids_1q = (bins.level_1_6_data, bins.level_7_9_data)
+    grids_2q = (bins.level_1_6_data_q2, bins.level_7_9_data_q2)
+    blocks = [parse_block(grid) for grid in grids_1q]
+    blocks_2q = [parse_block(grid) for grid in grids_2q]
+    # SH-SRC-02: a set whose levels point at its second-quest block reads its rooms
+    # there, with the level information as stored (the second-quest bytes already in
+    # place, SH-SRC-03). levels_2q are PRG0's second-quest levels, each on its own copy
+    # of the block when a set's levels use the block itself.
+    second_quest_sets = _second_quest_sets(bins.level_pointers)
+    levels: list[Level] = []
+    levels_2q: list[Level] = []
+    for set_index, (grid_1q, grid_2q) in enumerate(zip(grids_1q, grids_2q, strict=True)):
+        second_quest = set_index in second_quest_sets
+        levels += parse_set(set_index, *((grid_2q, blocks_2q[set_index]) if second_quest
+                                         else (grid_1q, blocks[set_index])), bins.level_info)
+        levels_2q += parse_set(set_index, grid_2q, parse_block(grid_2q) if second_quest else blocks_2q[set_index],
+                               bins.level_info_q2)
+        count = len(SET_LEVELS[set_index])
+        for level in (levels[-count:] if second_quest else []) + levels_2q[-count:]:
+            level.is_second_quest = True
 
     overworld = _parse_overworld(bins, mixed_groups)
     quotes, hint_pointers, hint_text_bytes = _parse_person_text(bins.quotes_data, rom_bytes=rom_bytes)
@@ -152,6 +167,26 @@ def parse_game_world(bins: RawBinFiles,
     )
 
 
+SET_LEVELS = (range(1, 7), range(7, 10))
+
+
+def _second_quest_sets(level_pointers: bytes) -> list[int]:
+    """SH-SRC-02: the sets (0 = levels 1-6, 1 = levels 7-9) whose levels point at their
+    second-quest block in LevelBlockAddrsQ1 (high bytes $8D, $90); a set's levels all
+    point at one block."""
+    if not level_pointers:
+        return []
+    sets = []
+    for set_index, level_nums in enumerate(SET_LEVELS):
+        high_bytes = {level_pointers[2 * level_num + 1] for level_num in level_nums}
+        if high_bytes == {ROOM_BLOCK_HIGH_BYTES[2 + set_index]}:
+            sets.append(set_index)
+        elif high_bytes != {ROOM_BLOCK_HIGH_BYTES[set_index]}:
+            raise ValueError(f"levels {level_nums.start}-{level_nums.stop - 1} point at room blocks "
+                             f"{sorted(f'${b:02X}' for b in high_bytes)}")
+    return sets
+
+
 def _parse_person_code(bins: RawBinFiles, rom_bytes: bytes | None = None) -> dict[str, Any]:
     """GameWorld's toll, bomb-upgrade levels and starting hearts (PS-MERCH-04,
     PS-BOMB-03); vanilla values when the bins carry no ROM image.  When a full
@@ -170,6 +205,7 @@ def _parse_person_code(bins: RawBinFiles, rom_bytes: bytes | None = None) -> dic
         "item_carrier_operands": (bins.item_carrier_operands[0], bins.item_carrier_operands[1],
                                   bins.item_carrier_operands[2]),
         "object_type_operand_873d": bins.object_type_operand_873d[0],
+        "monsters_take_second_quest_path": bins.quest_monster_branches == bytes([BNE_OPCODE] * 3),
         "overworld_wizzrobe_patch": bins.overworld_wizzrobe_patch,
         "underworld_text_selectors_a": bins.underworld_text_selectors_a,
         "underworld_text_selectors_b": bins.underworld_text_selectors_b,

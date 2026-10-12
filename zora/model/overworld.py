@@ -249,6 +249,12 @@ class Overworld:
     recorder_warp_y_coordinates: list[int]
     start_screen: int
     start_position_y: int  # ROM offset 0x19328+header; calculated as screen_widths[start_screen] * 16 + 13
+    # FluteRoomSecretsOW: the screens where the recorder reveals a secret (11; a screen number
+    # matching no screen, such as $80, removes an entry). In PRG0 the first quest reveals only the
+    # first entry's; with `recorder_reveals_listed_secrets_in_first_quest` (OW-MIX-04, C01 = 2)
+    # it reveals every entry's.
+    recorder_secret_screens: list[int] = field(default_factory=list)
+    recorder_reveals_listed_secrets_in_first_quest: bool = False
 
     # Raw cave data preserved for round-trip serialization
     #cave_item_data_raw: bytes = b''

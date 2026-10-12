@@ -9,7 +9,7 @@ Thank you for helping test ZORA! ZORA makes new, shuffled versions of the
 original Legend of Zelda for the NES. This beta is a single file that runs
 in your web browser. There is nothing to install.
 
-## Known limitations (2.0 beta 2)
+## Known limitations (2.0 beta 3)
 
 - Some flag values are not made yet: the page shows them greyed out as "Not yet implemented".
 - "Encode level data" is not available in the public build.
@@ -109,6 +109,9 @@ different ones. The page remembers your choices.
   you to the Continue screen.
 - Reduce flashing: turns off the game's bright flashes.
 - Music: on or off (sound effects stay on).
+- Statistics screen: off (the default, for now) or on. After the credits, Start shows
+  your times per level, when you found the key items, deaths, sword stabs and
+  bombs used.
 - Tunic colours and heart colour: pick any colour from the palette.
 
 ## The seed code

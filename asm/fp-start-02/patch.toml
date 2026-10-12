@@ -1,0 +1,29 @@
+# ZORA FP-START-02/03: a seed's starting items, a 40-byte table copied into the Items block of a
+# new file and of a slot switched to the second quest. Inert by default: zora/rom/code_patches.py
+# leaves it out unless a seed's starting table differs from PRG0's (FP-START-01).
+# asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_START_02"
+bank = 2
+start = 0xB700
+
+[[hook]]
+name = "new-file"
+offset = 0x09F4E
+length = 17
+note = "UpdateModeERegister, a new file's starting values: PRG0's three stores become JMP NewFileStartItems, which copies the table and jumps back."
+code = """
+    JMP NewFileStartItems
+    .RES 14, $EA
+"""
+
+[[hook]]
+name = "second-quest"
+offset = 0x0AF8B
+length = 13
+note = "SwitchProfileToSecondQuest: PRG0's three stores become JMP SecondQuestStartItems, which copies the table and jumps back."
+code = """
+    JMP SecondQuestStartItems
+    .RES 10, $EA
+"""

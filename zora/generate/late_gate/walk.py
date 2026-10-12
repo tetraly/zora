@@ -16,7 +16,11 @@ The walk moves between (room, side) states; sides are N, E, S, W and St
   matches exactly $A6 (A25).
 - A $1B or $9B room's east side is never an exit.
 - Staircases link their exit rooms' St sides. The link is one-way from a
-  usable end; both ends usable make it two-way.
+  usable end; both ends usable make it two-way. Item cellars ($3F) link
+  their two exit rooms (the A and B bytes, normally both the cellar's room)
+  the same way, so a usable stair room over a cellar has its St side as an
+  exit the walk must reach; the reverse walk has no reverse for a link into
+  an item cellar (A38).
 - Entering a room through a side puts the walker at that door, so the
   entry side counts as reached and can be left through again. This is
   ZORA's own design (W10).
@@ -25,18 +29,18 @@ Pass condition: in both directions, from the start state, every room is
 reached and every exit side of every room is reached.
 
 The level-9 Ganon walk (VA-REJ-01.3) is a different walk. The last boss is
-assumed alive, so trigger-3 shutters are closed. Cellars are dead ends, and
-our model has no cellar rooms in the walk. Row wraps are blocked. Only
+assumed alive, so trigger-3 shutters are closed. Cellars are dead ends, so
+its graph has no cellar links. Row wraps are blocked. Only
 entry into Ganon's room is needed. Everything else is the connectivity
 walk's rulebook (stated since 23d15d0).
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import cast
 
 from ...model import room_grid
 from ...model.enums import RoomAction, RoomType, Side
 from ...model.levels import L9_ENTRY_PERSON, LEVEL_9, MERCHANT_LIST, Level
-from ...model.rooms import DIAMOND_STAIRS_PUSH, PERSON_LAYOUT_BYTE, PUSH_BLOCK_VARIANT, Room
+from ...model.rooms import DIAMOND_STAIRS_PUSH, PERSON_LAYOUT_BYTE, PUSH_BLOCK_VARIANT, Room, StaircaseRoom
 from ..shapes.world import D_SHUTTER, D_WALL, GRID_COLS, side_of, sides_of
 
 STAIR_SIDE = 4
@@ -84,10 +88,19 @@ _MOVES: dict[int, dict[int, set[int]]] = {
 _PERSON_MOVES = _group((Side.SOUTH, Side.WEST, Side.EAST, STAIR_SIDE))
 
 
+# VA-WALK-08: a second-quest level 9's goriya room, a fixed cell
+SECOND_QUEST_LEVEL_9_GORIYA_ROOM = 0x64
+
+
 def level9_entry_room(level: Level) -> int | None:
     """Quest 1's level-9 room RECORDED one row north of the entrance
-    (VA-WALK-08): its shutters count as open."""
-    if level.level_num != LEVEL_9 or level.entrance_room < GRID_COLS:
+    (VA-WALK-08): its shutters count as open; a fixed cell for a
+    second-quest level 9 (Dungeon Quest, PS-VAN-06)."""
+    if level.level_num != LEVEL_9:
+        return None
+    if level.is_second_quest:
+        return SECOND_QUEST_LEVEL_9_GORIYA_ROOM
+    if level.entrance_room < GRID_COLS:
         return None
     return level.entrance_room - GRID_COLS
 
@@ -137,6 +150,9 @@ class Graph:
     # A38: the reverse walk uses the same graph with every link reversed;
     # a St side is an exit there when a REVERSED stair link leaves it.
     reverse_exit_states: list[State]
+    # The item-cellar links among `edges`: a link into an item cellar has no
+    # reverse (A38), so the reverse walk leaves each of these out once.
+    cellar_links: list[tuple[State, State]] = field(default_factory=list)
 
 
 def start_room(level: Level, level9_entry: int | None = None, boss_alive: bool = False) -> int | None:
@@ -151,8 +167,10 @@ def start_room(level: Level, level9_entry: int | None = None, boss_alive: bool =
 def build_graph(level: Level, boss_alive: bool = False) -> Graph:
     """The connectivity walk's graph; boss_alive=True builds the level-9
     Ganon test's graph (trigger-3 shutters closed, row wraps blocked).
-    Rooms off the level join only through stair links (the block's
-    transport staircases), so they never appear as states.
+    Rooms off the level join only through stair links, so they never appear
+    as states: a transport staircase ($3E) and, in the connectivity walk, an
+    item cellar ($3F) each join their two exit rooms' St sides (late-gate.md
+    "Rooms not on this level"); a cellar's link has no reverse.
 
     Fast-pathed: the late gate builds this once or more per attempt
     (thousands of times a seed), so the loop reads each room's four sides
@@ -194,22 +212,43 @@ def build_graph(level: Level, boss_alive: bool = False) -> Graph:
             else:
                 links.append((neighbour, side.opposite))
             exits.append(key)
+    cellar_links: list[tuple[State, State]] = []
     for stair in level.staircase_rooms:
-        if stair.room_type != RoomType.TRANSPORT_STAIRCASE:
+        is_cellar = stair.room_type == RoomType.ITEM_STAIRCASE
+        if is_cellar:
+            # The Ganon test's cellars are dead ends (VA-REJ-01.3)
+            if boss_alive:
+                continue
+            exit_rooms = _cellar_exit_rooms(stair)
+        elif stair.room_type == RoomType.TRANSPORT_STAIRCASE:
+            exit_rooms = (stair.left_exit, stair.right_exit)
+        else:
             continue
-        left_room, right_room = stair.left_exit, stair.right_exit
+        left_room, right_room = exit_rooms
         if (left_room is None or right_room is None
                 or left_room not in room_numbers or right_room not in room_numbers):
             continue
-        for from_room, to_room in ((left_room, right_room), (right_room, left_room)):
+        directions = ((left_room, right_room),) if left_room == right_room else \
+            ((left_room, right_room), (right_room, left_room))   # a cellar's room twice: one link
+        for from_room, to_room in directions:
             if is_stair_usable(level.block.room(from_room)):
-                edges.setdefault((from_room, STAIR_SIDE), []).append((to_room, STAIR_SIDE))
-                exits.append((from_room, STAIR_SIDE))
-                reverse_stair_exits.append((to_room, STAIR_SIDE))
+                link =((from_room, STAIR_SIDE), (to_room, STAIR_SIDE))
+                edges.setdefault(link[0], []).append(link[1])
+                exits.append(link[0])
+                if is_cellar:
+                    cellar_links.append(link)
+                else:
+                    reverse_stair_exits.append(link[1])
     start = start_room(level, level9_entry, boss_alive)
     reverse_exits = [state for state in exits if state[1] != STAIR_SIDE] + reverse_stair_exits
     return Graph(room_numbers, None if start is None else (start, Side.SOUTH), edges, exits,
-                 reverse_exits)
+                 reverse_exits, cellar_links)
+
+
+def _cellar_exit_rooms(stair: StaircaseRoom) -> tuple[int | None, int | None]:
+    """An item cellar's two exit rooms, its A and B bytes (SH-STAIR-14): the return room, and the
+    B byte where it differs (A43)."""
+    return stair.return_dest, stair.return_dest if stair.return_dest_b is None else stair.return_dest_b
 
 
 def _closure(start: State, edges: dict[State, list[State]]) -> set[State]:
@@ -247,6 +286,8 @@ class WalkResult:
                         reverse_edges[next_state] = [state]
                     else:
                         sources.append(state)
+            for from_state, to_state in graph.cellar_links:   # no reverse (A38)
+                reverse_edges[to_state].remove(from_state)
             reached = _closure(graph.start, reverse_edges)
             rooms = {room_number for room_number, _side in reached}
             passed = (rooms >= graph.room_numbers

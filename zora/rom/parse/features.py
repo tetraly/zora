@@ -22,6 +22,7 @@ from ..layout import (
     TITLE_SEED_ROW_ADDRESS,
     TITLE_VERSION_ROW_ADDRESS,
 )
+from ..start_items import items_in_table
 from ..text_encoding import BYTE_TO_CHAR as _BYTE_TO_CHAR
 
 ITEMS_BLOCK_SIZE = 40                # Items, RAM $0657-$067E
@@ -79,6 +80,7 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
             "starting_items_new_file": None,
             "new_file_heart_containers": 3,
             "new_file_full_hearts": 3,
+            "start_items": (),
             "starting_items_second_quest": None,
             "reset_controller1": 0xFB,
             "text_speed_value": 0x06,
@@ -139,6 +141,8 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
         "starting_items_new_file": new_file_items,
         "new_file_heart_containers": new_file_hearts[0],
         "new_file_full_hearts": new_file_hearts[1],
+        # FP-START-03: the start items the new-file table holds (PRG0's routine: none)
+        "start_items": () if new_file_items is None else items_in_table(new_file_items),
         "starting_items_second_quest": _starting_items(
             rom_bytes, SECOND_QUEST_START_STATE_ADDRESS, SECOND_QUEST_STORES, SECOND_QUEST_OPERANDS
         ),

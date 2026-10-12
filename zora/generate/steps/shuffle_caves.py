@@ -13,11 +13,13 @@ from .cave_entries import (
     BRACELET_SCREENS,
     DUNGEONS,
     ENROLLED_SCREENS,
+    LADDER_SCREENS,
     SHORTCUT_POSITION_INDEX,
     WOOD_SWORD_SCREENS,
     CaveShuffle,
     Entry,
 )
+from .mixed_overworld_quest import SCREEN_60
 from .overworld_gates import NO_GATES, OverworldGates
 
 
@@ -35,7 +37,8 @@ def _is_gated_exchange(first: Entry, second: Entry, gates: OverworldGates) -> bo
 
 def walk_destination_codes(entries: list[Entry], start_rooms: dict[int, int],
                            rng: IntRng, fixed: frozenset[Destination] = frozenset(),
-                           gates: OverworldGates = NO_GATES) -> None:
+                           gates: OverworldGates = NO_GATES,
+                           wood_sword_screens: frozenset[int] = WOOD_SWORD_SCREENS) -> None:
     """OW-CAVE-02 step 3 with OW-CAVE-03's rules: each entry exchanges its
     code with a drawn partner, redrawn until legal. Rule (a) bars a partner
     holding the wooden-sword code, but only on visits by other entries. On
@@ -53,10 +56,13 @@ def walk_destination_codes(entries: list[Entry], start_rooms: dict[int, int],
     gates: the owner's 2.0 overworld gates (owner decisions, 2026-10-07): the wooden-sword cave's
     partners leave out every gated screen, and an exchange that would put a hint shop behind its
     own maze is refused like the start-room ban (the whole visit repeats). With no gates the walk
-    is unchanged."""
+    is unchanged.
+
+    wood_sword_screens: OW-APP-A3, less screen 60 under a mixed overworld quest (OW-MIX-05 step 2:
+    its layout is no longer $0A)."""
     sword_barred = gates.wood_sword_barred()
     sword_partners = [index for index, entry in enumerate(entries)
-                      if entry.screen in WOOD_SWORD_SCREENS and entry.screen not in sword_barred]
+                      if entry.screen in wood_sword_screens and entry.screen not in sword_barred]
     for entry in entries:
         if entry.code in fixed:
             continue
@@ -74,16 +80,29 @@ def walk_destination_codes(entries: list[Entry], start_rooms: dict[int, int],
         entry.code, entries[partner].code = entries[partner].code, entry.code
 
 
+# OW-MIX-05 step 3: a take-any-road cave on a ladder screen (24 or 25, entries only under a mixed
+# overworld quest) takes cave-exit row 4 (2 when its shortcut index V is 0) and the cave-exit X
+# L(V) for V = 0, 1, 2, 3
+LADDER_ANY_ROAD_EXIT_ROW, LADDER_ANY_ROAD_EXIT_ROW_AT_0 = 4, 2
+LADDER_ANY_ROAD_EXIT_X = (5, 4, 9, 6)
+
+
 def write_back(overworld: Overworld, entries: list[Entry]) -> None:
     """OW-CAVE-04: each entry's cave byte at its screen; the code-20
     screens into the take-any-road array (list order), and their shortcut
-    position index from OW-APP-A6 unless on a Bracelet-set screen."""
+    position index from OW-APP-A6 unless on a Bracelet-set screen (on a
+    ladder screen, OW-MIX-05 step 3's exit first)."""
     any_road = []
     for entry in entries:
         screen = overworld.screens[entry.screen]
         screen.destination, screen.inner_palette = entry.code, entry.inner_palette
         if entry.code == Destination.ANY_ROAD:
             any_road.append(entry.screen)
+            if entry.screen in LADDER_SCREENS:
+                shortcut_index = SHORTCUT_POSITION_INDEX[entry.screen]
+                screen.exit_y_position = (LADDER_ANY_ROAD_EXIT_ROW if shortcut_index
+                                          else LADDER_ANY_ROAD_EXIT_ROW_AT_0)
+                screen.exit_x_position = LADDER_ANY_ROAD_EXIT_X[shortcut_index]
             if entry.screen not in BRACELET_SCREENS:
                 screen.stairs_position_code = SHORTCUT_POSITION_INDEX[entry.screen]
     overworld.any_road_screens = any_road
@@ -105,11 +124,17 @@ def prg0_armos_screen(overworld: Overworld) -> int:
 
 def shuffle_caves(overworld: Overworld, entries: list[Entry], armos: int, start_rooms: dict[int, int],
                   rng: IntRng, shuffle_take_any_road_caves: bool = True,
-                  gates: OverworldGates = NO_GATES) -> CaveShuffle:
+                  gates: OverworldGates = NO_GATES, screen_60_relaid: bool = False,
+                  wood_sword_extra: frozenset[int] = frozenset()) -> CaveShuffle:
     """OW-CAVE-02 step 3 and OW-CAVE-04's write-back, after Shuffle Armos
     (OW-CAVE-05) has re-pointed its entry. start_rooms: dungeon ->
-    LevelInfo_StartRoomId. With B04 off (ZORA's own value) the take-any-road caves stay."""
+    LevelInfo_StartRoomId. With B04 off (ZORA's own value) the take-any-road caves stay.
+    Every overworld quest but the first (C01 = 1, 2, 3) gives screen 60 its second-quest layout, so it
+    leaves the wooden-sword set (OW-MIX-05, OW-QST-02, OW-QST-04). wood_sword_extra: the screens
+    Allow OW Blocks of Wood Sword (B03) adds to the wooden-sword set (OW-CAVE-07)."""
     fixed = frozenset() if shuffle_take_any_road_caves else frozenset({Destination.ANY_ROAD})
-    walk_destination_codes(entries, start_rooms, rng, fixed, gates)
+    wood_sword_screens = WOOD_SWORD_SCREENS - {SCREEN_60} if screen_60_relaid else WOOD_SWORD_SCREENS
+    wood_sword_screens |= wood_sword_extra
+    walk_destination_codes(entries, start_rooms, rng, fixed, gates, wood_sword_screens)
     write_back(overworld, entries)
     return CaveShuffle(entries, armos)

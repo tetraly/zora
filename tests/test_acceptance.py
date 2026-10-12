@@ -8,6 +8,7 @@ import pytest
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.game_config import GameConfig, HintMode
 from zora_measure.checkpoints.acceptance import long_items_outside_level9
+from zora_measure.corpora import CLEAN, corpus
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
@@ -114,9 +115,9 @@ def test_accepted_output_keeps_long_items_out_of_level9() -> None:
         assert set(result.acceptance_rejections) <= {"E1", "E3", "E4", "E5"}
 
 
-# The finished corpus ROMs: the folder ZORA_CORPUS names (scripts/verify.sh sets it); the tests
+# The MVP baseline corpus's finished ROMs (zora_measure.corpora, under ZORA_CORPORA); the tests
 # that need them skip without it.
-CORPUS = Path(os.environ.get("ZORA_CORPUS", "temp/no-corpus"))
+CORPUS = corpus(CLEAN)
 TRIFORCE_LEVELS = range(1, 9)
 
 

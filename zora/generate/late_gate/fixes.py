@@ -202,7 +202,9 @@ def _force_level9_entry(gate_block: GateBlock) -> None:
     """Step 5's level-9 forcings: the $4B person room's south side open and
     its other sides shutter unless wall; the entrance's own north/south
     open, own east/west wall, and the east/west neighbours' facing sides
-    wall (written only on cells that are rooms of the set)."""
+    wall, only on a neighbour that is a level-9 room in the same row (A63): a
+    neighbour of another level keeps its door byte, so a data level 7 or 8
+    start room beside the entrance keeps its open side (B26, PS-START-02)."""
     level9 = gate_block.level9
     if level9 is None:
         return
@@ -219,7 +221,7 @@ def _force_level9_entry(gate_block: GateBlock) -> None:
     entrance.walls.east = entrance.walls.west = D_WALL
     for side in (Side.EAST, Side.WEST):
         neighbour = room_grid.neighbour(entrance.room_num, side)
-        if neighbour is not None and neighbour in gate_block.owned_set:
+        if neighbour is not None and neighbour in level9.room_nums:
             set_side(gate_block.room(neighbour), side.opposite, D_WALL)
 
 

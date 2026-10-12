@@ -13,17 +13,39 @@ from zora_measure.checkpoints.acceptance import (
     RECORDER_LIST,
     RECORDER_LIST_ITEMS,
     SPEC_B6,
+    SPEC_B25_ACCEPTANCE,
     SPEC_E1,
     SPLIT_SUMMARY,
     SWORD_LIST,
     SWORD_LIST_ITEMS,
     e1_replay,
     items_in_list_rooms,
+    long_item_kinds_in_level9_cellars,
     long_item_level,
     long_item_split,
+    long_items_in_level9_cellars,
     long_items_outside_level9,
     self_locks,
     tracked_in_level9,
+)
+from zora_measure.checkpoints.dungeon_quest import (
+    HUNGRY_GORIYA_COUNTS,
+    SOURCE_PAIR_SHARES,
+    SOURCE_PAIRS,
+    SPEC_ROOM16,
+    SPEC_SRC,
+    SPEC_VAN,
+    bomb_upgrade_moves,
+    hungry_goriya_rooms,
+    item_invariants,
+    level_2_bank,
+    level_3_guard,
+    level_9_rooms,
+    monster_branches,
+    second_quest_people,
+    set_sources,
+    start_rooms,
+    trigger_7_without_item,
 )
 from zora_measure.checkpoints.dungeon_room_shuffle import (
     GANON_LAYOUT,
@@ -103,15 +125,49 @@ from zora_measure.checkpoints.hint_text import (
     LOCATION_SUMMARY,
     NAME_SUMMARY,
     REQUIREMENT_SUMMARY,
+    SPEC_HELPFUL,
     SPEC_HINT,
+    SPEC_HINT_PAIRS,
     TRIO_SUMMARY,
     _hint_record,
     _inside_dungeon_summary,
+    _second_quest_candidates_summary,
     _text_kind_summary,
     _white_sword_hint_summary,
     hint_shop_offer_selectors,
     hint_shop_prices,
     underworld_selector_tables,
+)
+from zora_measure.checkpoints.items_within import (
+    HEARTS_PER_LEVEL,
+    SPEC_ITW,
+    boss_form_names_heart,
+    heart_in_cave_slot,
+    hearts_in_cellars,
+    hearts_per_level,
+    progression_in_cave_slots,
+    tracked_in_levels,
+)
+from zora_measure.checkpoints.mixed_overworld import (
+    MEDIAN_RANGE,
+    PER_POSITION,
+    SPEC_MIX,
+    SUMMED,
+    changed_screens,
+    door_on_recorder_screen,
+    eleven_shown,
+    first_quest_dealt,
+    hidden_dungeon_codes,
+    hidden_positions_kept,
+    ladder_any_road_exits,
+    live_second_quest_list_screens,
+    one_visible_door_each,
+    palette_bits_kept,
+    per_position,
+    recorder_bytes,
+    single_codes,
+    visible_code_multiset,
+    wood_sword_placement,
 )
 from zora_measure.checkpoints.monster_passes import (
     CENSUS_FLAGGED_SPEC,
@@ -180,6 +236,24 @@ from zora_measure.checkpoints.overworld_monsters_and_hp import (
     start_screen_takes_119s_pair,
     wizzrobe_overworld_patch,
 )
+from zora_measure.checkpoints.overworld_quests import (
+    GATED_DOORS,
+    RANGE,
+    SPEC_QST,
+    first_quest_among_dealt,
+    gated_doors,
+    leftovers_kept,
+    mixed_second_shown,
+    mixed_second_visible_caves,
+    quest_value,
+    random_quest_checks,
+    second_quest_doors,
+    second_quest_fields,
+    second_quest_screens,
+    second_quest_visible_caves,
+    seven_codes_palettes,
+    wood_sword_widened,
+)
 from zora_measure.checkpoints.shapes_and_gate import (
     ABSENT_SUMMARY,
     BOMB_SUMMARY,
@@ -240,6 +314,36 @@ from zora_measure.checkpoints.shapes_and_gate import (
     zelda_neighbour_push,
     zelda_on_own_layout,
     zelda_side_shuttered,
+)
+from zora_measure.checkpoints.start_items import (
+    HOPLA_ITEMS,
+    RP6_ITEMS,
+    SPEC_START_ITEMS,
+    START_COUNTS,
+    cave_by_start_item,
+    held,
+    table_bytes,
+)
+from zora_measure.checkpoints.start_rooms import (
+    ARRIVAL_KEYS,
+    SPEC_E9,
+    SPEC_PS_START,
+    arrival_codes,
+    exit_counts,
+    start_room_on_own_door,
+    start_rooms_open_on_their_side,
+)
+from zora_measure.checkpoints.start_screens import (
+    DISTINCT_STARTS,
+    PER_START_SCREEN,
+    SPEC_START,
+    monster_exchange,
+    per_start_screen,
+    start_carries,
+    start_in_full_list,
+    start_screen_of,
+    start_y_values,
+    wood_sword_start,
 )
 from zora_measure.checkpoints.summaries import (
     FLAG_COUNTS,
@@ -425,7 +529,8 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
                overworld_enemy_shares, PAIR_SUMMARY),
     Checkpoint("PS-EGRP-03", "ROMs with an overworld enemy in a dungeon room", "963/1000",
                SPEC_B4, any_overworld_enemy_in_dungeon, count_true),
-    Checkpoint("PS-EGRP-03", "Zol rooms with monster-byte bit 7, all four blocks", "0/10630",
+    Checkpoint("PS-EGRP-03", "Zol rooms with monster-byte bit 7, the blocks the levels read",
+               "0/10630 (all four blocks; unread ones left out here, docs/deviations.md)",
                SPEC_B4, zol_rooms_with_bit_7, ratio_total),
     Checkpoint("PS-EGRP-04", "mixed lists with a Lanmola byte / more than 4 Zols",
                "0/30000 / 0/30000", SPEC_B4, mixed_list_checks, PAIR_SUMMARY),
@@ -699,3 +804,260 @@ CHECKPOINTS = (
                "830/832/819/798/747/159/578/561/171 / 1000", SPEC_B10, exit_room_count_zero,
                FLAG_COUNTS),
 )
+
+
+# Items within each dungeon (C06 = 2): compare_corpus.py --set items-within measures these on
+# ZORA's output at ITEMS_WITHIN_FLAGS (their spec figures are the original randomizer's within finals).
+ITEMS_WITHIN_CHECKPOINTS = (
+    Checkpoint("PS-ITW-01", "ROMs with 9 heart containers", "1000/1000", SPEC_ITW,
+               lambda gw: hearts_total(gw) == 9, count_true),
+    Checkpoint("PS-ITW-01", "heart containers per level: ROMs with one / two (level 9: none / one)",
+               "L1 883/117, L2-L7 930-943 with one, L8 878/122, L9 792/208", SPEC_ITW,
+               hearts_per_level, HEARTS_PER_LEVEL),
+    Checkpoint("PS-ITW-01", "a special-cave slot holds a heart container", "182/1000 (CP-5: 767)", SPEC_ITW,
+               heart_in_cave_slot, count_true),
+    Checkpoint("PS-ITW-01", "progression classes in special-cave slots per ROM, mean",
+               "2.389 (2,389 in 1,000; each class 167-236)", SPEC_ITW, progression_in_cave_slots, mean_of()),
+    Checkpoint("PS-ITW-02", "tracked item types and heart containers in level rooms and cellars = 20",
+               "1000/1000", SPEC_ITW, lambda gw: tracked_in_levels(gw) == 20, count_true),
+    Checkpoint("PS-ITW-03", "heart containers in an item cellar of their level / in levels",
+               "3971/8818", SPEC_ITW, hearts_in_cellars, ratio_total),
+    Checkpoint("PS-ITW-05", "a boss-form requirement text names the heart container",
+               "214/1000 (CP-5: 0)", SPEC_ITW, boss_form_names_heart, count_true),
+)
+
+# Mixed overworld quest (C01 = 2): compare_corpus.py --set ow-mixed, at MIXED_OVERWORLD_FLAGS
+OW_MIXED_CHECKPOINTS = (
+    Checkpoint("OW-MIX-01", "exactly 11 of the 31 secret positions shown", "1000/1000", SPEC_MIX,
+               eleven_shown, count_true),
+    Checkpoint("OW-MIX-02", "each of the 31 positions dealt", "317 to 384 (expected 354.8)", SPEC_MIX,
+               per_position, PER_POSITION),
+    Checkpoint("OW-MIX-02", "first-quest positions among the eleven dealt", "0 to 8 (median 4)", SPEC_MIX,
+               first_quest_dealt, MEDIAN_RANGE),
+    Checkpoint("OW-MIX-02", "visible cave codes are PRG0's first-quest multiset", "1000/1000", SPEC_MIX,
+               visible_code_multiset, count_true),
+    Checkpoint("OW-MIX-02", "every screen's inner-palette bits PRG0's", "1000/1000 (128,000 of 128,000)",
+               SPEC_MIX, palette_bits_kept, count_true),
+    Checkpoint("OW-MIX-03", "hidden positions keep their PRG0 code and palette", "1000/1000 (20,000 of 20,000)",
+               SPEC_MIX, hidden_positions_kept, count_true),
+    Checkpoint("OW-MIX-03", "hidden positions holding dungeon code 5 / 6 / 7 / 8 / 9",
+               "679 / 626 / 630 / 1252 / 1268", SPEC_MIX, hidden_dungeon_codes, SUMMED),
+    Checkpoint("OW-MIX-04", "branch $D0 / list rule / screen 60's layout and exit", "1000 / 1000 / 1000",
+               SPEC_MIX, recorder_bytes, FLAG_COUNTS),
+    Checkpoint("OW-MIX-04", "live second-quest list screens per ROM", "0 to 7 (median 3)", SPEC_MIX,
+               live_second_quest_list_screens, MEDIAN_RANGE),
+    Checkpoint("OW-MIX-05", "code 16 in A3 without 60 / on 32 / on 33 / on 119", "1000 / 16 / 8 / 41",
+               SPEC_MIX, wood_sword_placement, FLAG_COUNTS),
+    Checkpoint("OW-MIX-05", "code-20 caves on 24/25 with exit row 4 and exit X L(V)", "40/40", SPEC_MIX,
+               ladder_any_road_exits, ratio_total),
+    Checkpoint("OW-MIX-05", "screens whose cave code differs from PRG0's", "61 to 72 (median 68)", SPEC_MIX,
+               changed_screens, MEDIAN_RANGE),
+    Checkpoint("OW-MIX-06", "one visible door per dungeon", "1000/1000", SPEC_MIX, one_visible_door_each,
+               count_true),
+    Checkpoint("OW-MIX-08", "a visible door or the white-sword cave on a recorder-set screen",
+               "495/1000 (CP-5: 110)", SPEC_MIX, door_on_recorder_screen, count_true),
+    Checkpoint("OW-MIX-10", "one shown code-19 screen / one code-18 screen", "1000 / 1000", SPEC_MIX,
+               single_codes, FLAG_COUNTS),
+)
+
+# Start Screen: Full Start Shuffle (C04 = 2) and Wood Sword Screen (C04 = 3): --set start-full and
+# --set start-wsword, at their corpora's strings
+START_COMMON_CHECKPOINTS = (
+    Checkpoint("OW-START-01/02", "Link's start Y by the formula from S: $8D / $7D / $AD / $5D",
+               "852 / 71 / 60 / 17 (start-full); 853 / 40 / 107 / 0 (start-wsword)", SPEC_START,
+               start_y_values, FLAG_COUNTS),
+    Checkpoint("OW-START-02/03", "S carries a cave / a dungeon door / code 16",
+               "980 / 143 / 15 (start-full); code 16 in 951 (start-wsword)", SPEC_START, start_carries, FLAG_COUNTS),
+    Checkpoint("OW-START-01", "S not 119 / S empty with bit 7 clear / 119's monsters differ / 119's bit 7 set / "
+               "119's layout PRG0's", "992 / 992 / 886 / 269 / 1000 (start-full); 963 / 963 / 864 / - / 1000 "
+               "(start-wsword)", SPEC_START, monster_exchange, FLAG_COUNTS),
+)
+START_FULL_CHECKPOINTS = (
+    Checkpoint("OW-START-02", "S is one of the 90 screens", "1000/1000", SPEC_START, start_in_full_list, count_true),
+    Checkpoint("OW-START-02", "the 90 screens as S", "all 90 occur, 4 to 18 times", SPEC_START,
+               per_start_screen, PER_START_SCREEN),
+    *START_COMMON_CHECKPOINTS,
+)
+START_WOOD_SWORD_CHECKPOINTS = (
+    Checkpoint("OW-START-03", "code 16 on one screen / S follows code 16 / S holds code 16 / 14 gives 30",
+               "1000 / 1000 / 951 / 49", SPEC_START, wood_sword_start, FLAG_COUNTS),
+    Checkpoint("OW-START-03", "different start screens", "28 different screens", SPEC_START,
+               start_screen_of, DISTINCT_STARTS),
+    *START_COMMON_CHECKPOINTS,
+)
+
+# Overworld Quest: 2nd Quest (C01 = 1), Mixed Quest - 2nd (C01 = 3), Random (C01 = 4): --set quest2,
+# mixed2 and quest-random, at their corpora's strings
+QUEST2_CHECKPOINTS = (
+    Checkpoint("OW-QST-03", "second-quest positions shown / first-quest never / 57 field 2 / others PRG0's",
+               "1000 / 1000 / 1000 / 1000", SPEC_QST, second_quest_fields, FLAG_COUNTS),
+    Checkpoint("OW-QST-03", "screens $0B and $42 keep their PRG0 cave bytes", "1000/1000", SPEC_QST,
+               leftovers_kept, count_true),
+    Checkpoint("OW-QST-02/03", "palette bits: the seven / elsewhere PRG0's / 52 vacated", "1000 / 1000 / 195",
+               SPEC_QST, seven_codes_palettes, FLAG_COUNTS),
+    Checkpoint("OW-QST-03", "visible caves are the second quest's with the seven codes (81)", "1000/1000",
+               SPEC_QST, second_quest_visible_caves, count_true),
+    Checkpoint("OW-QST-04", "recorder list / branch $D0 / screen $3C / screen $0B / screen $74",
+               "1000 / 1000 / 1000 / 1000 / 1000", SPEC_QST, second_quest_screens, FLAG_COUNTS),
+    Checkpoint("OW-QST-05", "door counts 1,1,1,1,2,1,2,1,1 / one each without $0B and $42 / code 16 on A3 less "
+               "$0B, $21, $3C", "1000 / 1000 / 1000", SPEC_QST, second_quest_doors, FLAG_COUNTS),
+    Checkpoint("OW-QST-04", "code-20 caves on $18/$19 with exit row 4 and exit X L(V)", "113/113", SPEC_QST,
+               ladder_any_road_exits, ratio_total),
+)
+MIXED2_CHECKPOINTS = (
+    Checkpoint("OW-QST-01", "exactly 18 of the 31 secret positions shown", "1000/1000", SPEC_QST,
+               mixed_second_shown, count_true),
+    Checkpoint("OW-QST-01", "each of the 31 positions dealt", "538 to 624 (expected 580.6)", SPEC_QST,
+               per_position, PER_POSITION),
+    Checkpoint("OW-QST-01", "first-quest positions among the 18 dealt", "3 to 10", SPEC_QST,
+               first_quest_among_dealt, RANGE),
+    Checkpoint("OW-QST-01", "hidden positions keep their PRG0 code and palette", "1000/1000", SPEC_QST,
+               hidden_positions_kept, count_true),
+    Checkpoint("OW-QST-02", "palette bits: the seven / elsewhere PRG0's / 52 vacated", "1000 / 1000 / 187",
+               SPEC_QST, seven_codes_palettes, FLAG_COUNTS),
+    Checkpoint("OW-QST-02", "branch $D0 / list rule / screen $3C's layout and exit", "1000 / 1000 / 1000",
+               SPEC_QST, recorder_bytes, FLAG_COUNTS),
+    Checkpoint("OW-QST-02", "one visible door per dungeon", "1000/1000", SPEC_QST, one_visible_door_each,
+               count_true),
+    Checkpoint("OW-QST-02", "code 16 in A3 without $3C / on $20 / on $21 / on $77", "1000 / - / - / -", SPEC_QST,
+               wood_sword_placement, FLAG_COUNTS),
+    Checkpoint("OW-QST-02", "visible caves: the second quest's less one code 5 and one code 7 (79)", "1000/1000",
+               SPEC_QST, mixed_second_visible_caves, count_true),
+)
+QUEST_RANDOM_CHECKPOINTS = (
+    Checkpoint("OW-QST-06", "resolved value 0 / 1 / 2 / 3", "225 / 257 / 261 / 257", SPEC_QST, quest_value,
+               distribution(("0", "1", "2", "3"))),
+    Checkpoint("OW-QST-06", "each group passes its value's checks: 0 / 1 / 2 / 3",
+               "225 / 257 / 261 / 257 (all of each group)", SPEC_QST, random_quest_checks, FLAG_COUNTS),
+)
+
+# SH-SRC-07's six corpora, one per value but 3
+DUNGEON_QUEST_SETS = ("c02-quest1", "c02-quest2", "c02-mixed", "c02-mixshapes", "c02-random-noshapes", "c02-random")
+DUNGEON_QUEST_CHECKPOINTS = (
+    Checkpoint("SH-SRC-01/07", "source pairs (levels 1-6 / 7-9), each of " + "; ".join(
+        f"{a.value}-{b.value}" for a, b in SOURCE_PAIRS), "per value (SH-SRC-07 to SH-SRC-10)", SPEC_SRC,
+               set_sources, SOURCE_PAIR_SHARES),
+    Checkpoint("SH-SRC-05/09", "branches $D0 / a second-quest set / $D0 with one",
+               "C02 = 1, 4: $D0 exactly with one; C02 = 2: $F0", SPEC_SRC, monster_branches, FLAG_COUNTS),
+    Checkpoint("PS-ROOM-16", "levels 1-6 first quest / level 3's $34 is $0F there", "every such ROM", SPEC_ROOM16,
+               level_3_guard, FLAG_COUNTS),
+    Checkpoint("SH-SRC-08", "bomb-upgrade move ran / PRG0's code", "C02 = 0: 1000 / 0; C02 = 1: 0 / 1000",
+               SPEC_SRC, bomb_upgrade_moves, FLAG_COUNTS),
+    Checkpoint("PS-VAN-04", "levels 1-6 second quest / level 2's bank = level 7's there / equal otherwise",
+               "330 / 330 / 200 (C02 = 4)", SPEC_VAN, level_2_bank, FLAG_COUNTS),
+    Checkpoint("PS-VAN-07", "second-quest levels 1-8 whose people are PRG0's", "8,000 of 8,000 (C02 = 1)",
+               SPEC_VAN, second_quest_people, ratio_total),
+    Checkpoint("PS-VAN-03", "twelve progression items once / nine heart containers", "1000 / 1000", SPEC_VAN,
+               item_invariants, FLAG_COUNTS),
+    Checkpoint("PS-VAN-01", "level 9's block: one Zelda room / one Ganon room", "1000 / 1000", SPEC_VAN,
+               level_9_rooms, FLAG_COUNTS),
+    Checkpoint("PS-VAN-01", "start rooms in their level with layout $21", "9,000 of 9,000", SPEC_VAN,
+               start_rooms, ratio_total),
+    Checkpoint("SH-SRC-08", "hungry-goriya rooms in the first-quest blocks the levels read",
+               "C02 = 0: one in 1000 of 1000", SPEC_SRC, hungry_goriya_rooms, HUNGRY_GORIYA_COUNTS),
+    Checkpoint("PS-VAN-02", "level rooms ending with trigger 7 and no item",
+               "0 (4,000 ROMs: C02 = 0, 1, 2, 5)", SPEC_VAN, trigger_7_without_item, ratio_total),
+    # HT-HINT-01 on second-quest levels: ZORA generated with --reference-paired-hints compares the
+    # first two rows with the corpus; the third is the owner-ruled walk on both sides
+    Checkpoint("HT-HINT-01", "level-location entry shown, naming the region of its player level's door "
+               "(wording-free), entries 1-9", "C02 = 1: pairs 2939, levels 1 and 6 1006, level 9 512",
+               SPEC_HINT_PAIRS, _hint_record("location_shown"), LOCATION_SUMMARY),
+    Checkpoint("HT-HINT-01", "requirement forms shown per 1,000 ROMs (wording-free), boss forms by player "
+               "level", "C02 = 1: boss forms 2855 in pairs, 856 other; inside-dungeon 0 in pairs, 205 levels "
+               "1, 6, 9", SPEC_HINT_PAIRS, _hint_record("requirement_shown"), REQUIREMENT_SUMMARY),
+    Checkpoint("HT-HINT-01", "inside-dungeon candidates of second-quest levels, each walking its own rooms "
+               "(owner-ruled deviation), by pair and means, per 1,000 ROMs",
+               "C02 = 1: 2/3 bow 16 ladder 127 recorder 25; 4/5 86/290/89; 7/8 123/581/112 (1449); 1/6/9 712. "
+               "C02 = 2: 19/109/6; 29/159/42; 84/266/66 (780); 400", SPEC_HINT_PAIRS,
+               _hint_record("second_quest_inside_candidates"), _second_quest_candidates_summary()),
+)
+
+
+# HT-HINT-04 (C03 = 1): the hint rows whose figures Helpful hints change, against its corpus
+# (wording-free rows: compare at --seeds 1000)
+HINTS_HELPFUL_CHECKPOINTS = (
+    Checkpoint("HT-HINT-04", "slot 0 shows a greeting / a pool quote, per 1,000 ROMs (wording-free); "
+               "DIFFERS BY OWNER RULING: ZORA's slot 0 shows only its own quotes",
+               "the period greeting 1000 (control 491)", SPEC_HELPFUL,
+               _hint_record("slot_texts"), _text_kind_summary((0,), (GREETING, POOL_TEXT))),
+    Checkpoint("HT-HINT-04", "entry 10's name form when shown (wording-free); entries 12 / 10 / 11 "
+               "shown (slots 3 / 6 / 7)", "shown 1000 / 1000 / 1000 (control 514 / 490 / 474)",
+               SPEC_HELPFUL, _hint_record("name_shown"), NAME_SUMMARY),
+    Checkpoint("HT-HINT-04", "level-9 trio shown by slot (wording-free)",
+               "35 silver 1000; 36 ganon 675 (control 351); 37 1000 (control 503)", SPEC_HELPFUL,
+               _hint_record("trio_shown"), TRIO_SUMMARY),
+    Checkpoint("HT-HINT-04", "hint-shop offer selectors in order $18/$4E/$50/$52/$54/$56",
+               "1000/1000", SPEC_HELPFUL,
+               lambda gw: hint_shop_offer_selectors(gw) == EXPECTED_OFFER_SELECTORS, count_true),
+)
+
+
+# FP-START-02 to FP-START-05: the start-items rows, against the start-items-all, start-items-rp6 and
+# hopla corpora (the last from Hopla's buildable values: start_items.HOPLA_BUILT_FLAGS)
+START_ITEMS_ALL_CHECKPOINTS = (
+    Checkpoint("FP-START-02", "Raft / Recorder / Power Bracelet held; all three", "1000 / 1000 / 1000; 1000",
+               SPEC_START_ITEMS, held(HOPLA_ITEMS), START_COUNTS),
+    Checkpoint("FP-START-03", "slots 5, 9, 14 raised; other 37 bytes FP-START-01's", "1000 each",
+               SPEC_START_ITEMS, table_bytes, START_COUNTS),
+)
+START_ITEMS_RP6_CHECKPOINTS = (
+    Checkpoint("FP-START-05", "the six items held; all six", "1000 each; 1000", SPEC_START_ITEMS,
+               held(RP6_ITEMS), START_COUNTS),
+    Checkpoint("FP-START-05", "slots 1, 4, 6, 15, 29, 30 raised; the rest FP-START-01's", "1000 each",
+               SPEC_START_ITEMS, table_bytes, START_COUNTS),
+)
+HOPLA_START_CHECKPOINTS = (
+    Checkpoint("FP-START-02", "Raft / Recorder / Power Bracelet held; exactly one", "334 / 332 / 334; 1000",
+               SPEC_START_ITEMS, held(HOPLA_ITEMS), START_COUNTS),
+    Checkpoint("FP-START-03", "one slot raised; the rest FP-START-01's with hearts $32", "1000",
+               SPEC_START_ITEMS, table_bytes, START_COUNTS),
+    Checkpoint("FP-START-04", "wooden-sword cave on a Bracelet / Raft screen, by start item",
+               "Bracelet 64, Raft 10, Recorder 16 / Raft 19, Recorder 2", SPEC_START_ITEMS,
+               cave_by_start_item, START_COUNTS),
+)
+
+
+# PS-START and VA-REJ-21 with Shuffle Dungeon Start Room (B26), against its corpus; then every CP-5
+# row, which the moved start rooms and SH-GRID-02's random start rows may change
+START_ROOM_CHECKPOINTS = (
+    Checkpoint("PS-START-01", "arrival codes of levels 1-8; level 9's; level 9's start row",
+               "1: 2008, 2: 2080, 3: 1948, 4: 1964; L9 code 2 1000; bottom 870, higher 130",
+               SPEC_PS_START, arrival_codes, per_thousand_by_key(ARRIVAL_KEYS)),
+    Checkpoint("PS-START-02", "start rooms in their level with the arrival side open", "9,000 of 9,000",
+               SPEC_PS_START, start_rooms_open_on_their_side, ratio_total),
+    Checkpoint("PS-START-03", "levels leaving by the open side / of / storing the fallback exit room",
+               "9000 of 9000; fallback 2558", SPEC_PS_START, exit_counts,
+               per_thousand_by_key(("leaves", "levels", "fallback"))),
+    Checkpoint("VA-REJ-21", "a start room on its own door's screen (E9)", "0 of 1000", SPEC_E9,
+               start_room_on_own_door, count_true),
+)
+
+
+# VA-REJ-08 with Allow Important Items in 9 (B25), against its corpus
+B25_CHECKPOINTS = (
+    Checkpoint("VA-REJ-08", "long items in a level-9 item cellar per ROM: none / one / two",
+               "734 / 254 / 12", SPEC_B25_ACCEPTANCE, long_items_in_level9_cellars, distribution((0, 1, 2))),
+    Checkpoint("VA-REJ-08", "bow / raft / power bracelet / recorder / ladder in a level-9 item cellar",
+               "75 / 77 / 66 / 56 / 4", SPEC_B25_ACCEPTANCE, long_item_kinds_in_level9_cellars, FLAG_COUNTS),
+)
+
+
+CHECKPOINT_SETS = {"cp5": CHECKPOINTS, "b25": B25_CHECKPOINTS,
+                   "b26": (*START_ROOM_CHECKPOINTS, *CHECKPOINTS), "hints-helpful": HINTS_HELPFUL_CHECKPOINTS,
+                   "items-within": ITEMS_WITHIN_CHECKPOINTS, "ow-mixed": OW_MIXED_CHECKPOINTS,
+                   "start-full": START_FULL_CHECKPOINTS, "start-wsword": START_WOOD_SWORD_CHECKPOINTS,
+                   "quest2": QUEST2_CHECKPOINTS, "mixed2": MIXED2_CHECKPOINTS, "quest-random": QUEST_RANDOM_CHECKPOINTS,
+                   "b81": (Checkpoint("OW-CAVE-08", "a visible dungeon door or the white-sword cave on $1D, $23, $2F, "
+                                      "$42, $45, $49 or $79", "1000/1000 (one 660, two 283, three to five 57)",
+                                      SPEC_QST, gated_doors, GATED_DOORS),),
+                   "b03": (Checkpoint("OW-CAVE-07", "code 16 on the widened set / outside OW-APP-A3",
+                                      "1000 / 24 (B03 run, as the spec reports)", SPEC_QST, wood_sword_widened,
+                                      FLAG_COUNTS),),
+                   **dict.fromkeys(DUNGEON_QUEST_SETS, DUNGEON_QUEST_CHECKPOINTS),
+                   "start-items-all": START_ITEMS_ALL_CHECKPOINTS, "start-items-rp6": START_ITEMS_RP6_CHECKPOINTS,
+                   "hopla-start": HOPLA_START_CHECKPOINTS}
+
+
+def measure_rom_for(set_name: str, gw: GameWorld) -> list[Any]:
+    """Every per-ROM value of one checkpoint set, in its order."""
+    return [cp.per_rom(gw) for cp in CHECKPOINT_SETS[set_name]]

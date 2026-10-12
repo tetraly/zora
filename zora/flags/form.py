@@ -37,22 +37,31 @@ from .fields import (
     BOMB_UPGRADE_PERSON_SHUFFLE,
     ENCODE_LEVEL_DATA,
     HUNGRY_GORIYA_SHUFFLE,
+    INERT_TOGGLES,
+    ITEM_SHUFFLE_SCOPE,
+    LEVEL_9_REQUIREMENT,
     MAGICAL_SWORD_HIGHEST_BASE,
     MAGICAL_SWORD_LOWEST_BASE,
     MAX_TRIFORCE_PIECES,
     MONEY_OR_LIFE_ROOMS,
     MONEY_OR_LIFE_TOLL,
     OPTION_FIELDS,
+    PIN_FIELDS,
+    STARTING_HEARTS,
+    STARTING_HEARTS_RANDOM,
+    THREE_STATE_LABELS,
     TOGGLE_FIELDS,
     WHITE_SWORD_HIGHEST_BASE,
     WHITE_SWORD_LOWEST_BASE,
+    ItemShuffleScope,
+    Level9Requirement,
     OptionField,
     PinnedItem,
     Settings,
     ThreeState,
     ToggleField,
 )
-from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, ZORA_PRESETS
+from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF, ZORA_PRESETS
 from .support import ENCODE_LEVEL_DATA_NOT_RANDOM, Support, mvp_baseline_settings, support
 from .zora_form import zora_flags_from_values, zora_metadata, zora_state
 
@@ -70,21 +79,24 @@ PRESET_LABELS = {"MVP baseline": "Consternation"}
 # a build without level encoding has a preset it can produce.
 LEVEL_ENCODING_OFF_PRESET = ("MVP baseline, level encoding off", "Consternation without level encoding",
                              MVP_BASELINE_LEVEL_ENCODING_OFF)
-
-THREE_STATE_LABELS = {ThreeState.OFF: "Off", ThreeState.ON: "On", ThreeState.POSSIBLE: "Possible (decided per seed)"}
+# Published variant A with level encoding off (owner approval, 2026-10-10: the page offers variant
+# A, which C01 = 2 and C06 = 2 made producible; a build without level encoding needs this form).
+VARIANT_A_LEVEL_ENCODING_OFF_PRESET = ("Published variant A, level encoding off",
+                                       "Published variant A without level encoding",
+                                       PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF)
 
 # The dependency rules as the page lists them; the check itself is flags.check_dependencies.
 DEPENDENCY_RULES = (
     ("FL-DEP-01 rule 1", "The Ladder cannot be pinned to the coast cave."),
     ("FL-DEP-01 rule 2", "No item may be pinned to two places."),
-    ("FL-DEP-02 rule 1", "Moving the wooden-sword cave (B02) or shuffling the take-any-road caves (B04) "
-                         "needs a cave shuffle that moves non-dungeon caves."),
-    ("FL-DEP-02 rule 2", "Shuffling the hungry goriya (B28), moving the start room (B26) and Ganon must be "
-                         "beaten (B18) need the dungeon room shuffle."),
-    ("FL-DEP-02 rule 3", "Moving monsters between levels (B36) and Ganon and Zelda in the shuffles (B33) "
-                         "need the dungeon monster shuffle."),
-    ("FL-DEP-02 rule 4", "Second-quest, mixed, and mixed-with-shapes dungeons turn the hungry-goriya and "
-                         "bomb-upgrade-person shuffles (B28, B29) off."),
+    ("FL-DEP-02 rule 1", ("Moving the wooden-sword cave (B02) or shuffling the take-any-road caves (B04) "
+                          "needs a cave shuffle that moves non-dungeon caves.")),
+    ("FL-DEP-02 rule 2", ("Shuffling the hungry goriya (B28), moving the start room (B26) and Ganon must be "
+                          "beaten (B18) need the dungeon room shuffle.")),
+    ("FL-DEP-02 rule 3", ("Moving monsters between levels (B36) and Ganon and Zelda in the shuffles (B33) "
+                          "need the dungeon monster shuffle.")),
+    ("FL-DEP-02 rule 4", ("Second-quest, mixed, and mixed-with-shapes dungeons turn the hungry-goriya and "
+                          "bomb-upgrade-person shuffles (B28, B29) off.")),
 )
 
 _PINNED_ITEM_LABELS = (
@@ -147,6 +159,20 @@ def field_values(field: FieldDef) -> tuple[int, ...]:
     return tuple(ThreeState)
 
 
+# FL-DEP-05's two fields keep the community's names, marked so a player knows they change nothing
+# (owner request, 2026-10-10).
+NO_EFFECT_SUFFIX = " (no effect in ZORA)"
+
+# A short note the page shows beside a value whose community name could mislead (owner request,
+# 2026-10-10): the original randomizer's labels stay, the note says what the value does.
+VALUE_NOTES: dict[tuple[str, int], str] = {
+    **{(field.id, PinnedItem.NONE_PINNED): "No item pinned" for field in PIN_FIELDS},
+    (ITEM_SHUFFLE_SCOPE.id, ItemShuffleScope.DUNGEON_ITEMS_ONLY): "Dungeon items only",
+    (STARTING_HEARTS.id, STARTING_HEARTS_RANDOM): "One random count from 1 to 5",
+    (LEVEL_9_REQUIREMENT.id, Level9Requirement.ITEM_INSTEAD_OF_PIECES):
+        "Level 9 opens for an item instead of Triforce pieces",
+}
+
 # The owner's names for the fields and option values (owner-authored; owner
 # decision 2026-10-03), edited in docs/flag-names.csv and imported into
 # zora/flags/names.json by scripts/flag_names.py. A field or value without
@@ -189,7 +215,18 @@ def field_label(field: FieldDef) -> str:
     """The owner's name for a field when there is one, else the spec label."""
     if field == ENCODE_LEVEL_DATA:
         return level_encoding.LABEL
-    return str(owner_names().get(field.id, {}).get("name") or spec_field_label(field))
+    label = str(owner_names().get(field.id, {}).get("name") or spec_field_label(field))
+    return label + NO_EFFECT_SUFFIX if field in INERT_TOGGLES else label
+
+
+def value_entry(field: FieldDef, value: int) -> dict[str, Any]:
+    """One value as the page offers it: its label, the spec's, and a note where VALUE_NOTES has one."""
+    entry: dict[str, Any] = {"value": value, "label": value_label(field, value),
+                             "specLabel": spec_value_label(field, value)}
+    note = VALUE_NOTES.get((field.id, int(value)))
+    if note:
+        entry["note"] = note
+    return entry
 
 
 def _with_value(settings: Settings, field: FieldDef, value: int) -> Settings:
@@ -231,11 +268,12 @@ def generation_refusals(flag_string: str, zora_flag_string: str = "") -> list[st
 
 
 def presets() -> list[dict[str, Any]]:
-    """FL-PRE-01 to FL-PRE-04, plus CP-5, then ZORA's own presets (ZORA_PRESETS: All Swords No
-    Boards), each with its ZORA string (`zoraFlags`, empty for the Z1R presets); each disabled with
-    its reasons when ZORA cannot produce it."""
+    """FL-PRE-01 to FL-PRE-04, plus CP-5 and variant A with level encoding off, then ZORA's own
+    presets (ZORA_PRESETS: All Swords No Boards), each with its ZORA string (`zoraFlags`, empty for
+    the Z1R presets); each disabled with its reasons when ZORA cannot produce it."""
     entries = [(name, PRESET_LABELS.get(name, name), string, "") for name, string in PRESETS.items()]
     entries.append((*LEVEL_ENCODING_OFF_PRESET, ""))
+    entries.append((*VARIANT_A_LEVEL_ENCODING_OFF_PRESET, ""))
     entries += [(name, name, string, zora) for name, (string, zora) in ZORA_PRESETS.items()]
     out = []
     for name, label, string, zora in entries:
@@ -263,8 +301,7 @@ def _field_metadata(field: FieldDef) -> dict[str, Any]:
         "setting": field.setting,
         "label": field_label(field),
         "specLabel": spec_field_label(field),
-        "values": [{"value": value, "label": value_label(field, value),
-                    "specLabel": spec_value_label(field, value)} for value in field_values(field)],
+        "values": [value_entry(field, value) for value in field_values(field)],
         "supportedValues": list(supported_values(field)),
     }
     if isinstance(field, OptionField):

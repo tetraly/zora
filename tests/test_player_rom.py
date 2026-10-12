@@ -3,6 +3,7 @@ any read, and player_rom() refuses when none was remembered (no fallback to a fi
 Each case runs in a fresh process, where nothing was remembered, with the repo-root path
 pointed at a file that does not exist."""
 import hashlib
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -56,3 +57,57 @@ def test_generation_remembers_the_rom_it_is_given(base: bytes, entry: str) -> No
     assert result.returncode == 0, result.stderr.decode()
     expected = hashlib.sha1(generate_rom(FLAGS, SEED, base).rom).hexdigest() if entry == "generate_rom" else "True"
     assert result.stdout.decode().strip() == expected
+
+
+# The Archipelago client (docs/archipelago.md "Interface"): a client process that never built a
+# ROM, started on its own or restarted mid-game, calls client_ready(rom) before receive().
+RECEIVED = ["Bow", "Heart Container", "Blue Potion", "Wood Sword"]
+RECEIVE = f"""
+import json
+from zora import archipelago
+from zora.rom import inventory
+ram = {{address: 0 for address in range(inventory.ITEMS, inventory.MAX_BOMBS + 1)}}
+ram[inventory.ITEMS + inventory.HEART_VALUES_SLOT] = 0x22
+given = []
+for name in {RECEIVED!r}:
+    writes = archipelago.receive(name, ram)
+    ram.update(writes)
+    given.append(sorted(writes.items()))
+print(json.dumps(given))
+"""
+
+
+def _received_in_this_process() -> list[list[list[int]]]:
+    from zora import archipelago
+    from zora.rom import inventory
+    ram = {address: 0 for address in range(inventory.ITEMS, inventory.MAX_BOMBS + 1)}
+    ram[inventory.ITEMS + inventory.HEART_VALUES_SLOT] = 0x22
+    given = []
+    for name in RECEIVED:
+        writes = archipelago.receive(name, ram)
+        ram.update(writes)
+        given.append([list(write) for write in sorted(writes.items())])
+    return given
+
+
+def test_a_fresh_client_receives_after_client_ready(base: bytes) -> None:
+    result = _fresh("from zora import archipelago\narchipelago.client_ready(rom)\n" + RECEIVE, base)
+    assert result.returncode == 0, result.stderr.decode()
+    given = json.loads(result.stdout.decode())
+    assert given == _received_in_this_process()
+    assert all(given), given                  # each item wrote something
+
+
+def test_a_fresh_client_without_client_ready_is_told_to_call_it() -> None:
+    result = _fresh("from zora import archipelago\n"
+                    "try:\n    archipelago.receive('Bow', {})\n"
+                    "except archipelago.ClientNotReady as refusal:\n    print(refusal)\n")
+    assert result.returncode == 0, result.stderr.decode()
+    assert "client_ready(rom)" in result.stdout.decode()
+
+
+def test_client_ready_refuses_a_rom_that_is_not_prg0(base: bytes) -> None:
+    from zora import archipelago
+    from zora.rom.base_rom import BaseRomMismatch
+    with pytest.raises(BaseRomMismatch):
+        archipelago.client_ready(base[:-1] + bytes([base[-1] ^ 1]))

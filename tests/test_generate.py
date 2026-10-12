@@ -14,6 +14,7 @@ from zora.flags.support import ENCODE_LEVEL_DATA_NOT_RANDOM
 from zora.rom.game_config import GameConfig, HintMode
 from zora.generate.pipeline import SEED_LIMIT, FlagsRefused, SeedRefused, generate_rom, plan
 from zora.rom.parse.rom_file import load_rom, parse_rom
+from zora.rom.player_settings import PlayerSettings
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.generate.generation_pass import generate_shapes
@@ -26,6 +27,12 @@ def _base() -> bytes:
     return load_rom(verify_base_rom())
 
 
+# The player-setting defaults, the statistics screen off (FP-STATS-01; off by default since beta 3,
+# named here so these tests keep it off): the defaults write nothing, so generate_rom gives the
+# serializer's ROM.
+NO_STATISTICS_SCREEN = PlayerSettings(statistics_screen=False)
+
+
 def test_baseline_flags_give_the_preset_output() -> None:
     """The MVP baseline with level encoding off is the settings every script
     used before flag strings: Consternation hints, B10 on, default shapes."""
@@ -35,7 +42,7 @@ def test_baseline_flags_give_the_preset_output() -> None:
     generate_shapes(world, Rng(seed), ShapeOptions(), feature_data=True, seed=seed)
     expected = serialize_to_rom(world, base, config=GameConfig(hint_mode=HintMode.CONSTERNATION,
                                                                features_b10=True))
-    result = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, seed, base)
+    result = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, seed, base, NO_STATISTICS_SCREEN)
     assert result.rom == expected
     assert result.flag_string == MVP_BASELINE_LEVEL_ENCODING_OFF and not result.encode_level_data
 
@@ -56,7 +63,7 @@ def test_canonical_string_in_the_result() -> None:
 def test_unsupported_fields_are_refused_by_name() -> None:
     with pytest.raises(FlagsRefused) as refused:
         plan("0", 0)
-    assert "not produced" in str(refused.value) and "C02 (Dungeon layout source)" in str(refused.value)
+    assert "not produced" in str(refused.value) and "C05 (Cave shuffle)" in str(refused.value)
     possible = decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={"B32": ThreeState.POSSIBLE})
     with pytest.raises(FlagsRefused, match="B32"):
         plan(encode(possible), 0)
@@ -115,7 +122,7 @@ def test_level_encoding_keeps_the_guarantees() -> None:
     off_config = GameConfig(hint_mode=HintMode.CONSTERNATION, features_b10=True)
     plain = serialize_to_rom(world, base, config=off_config)
     encoded = serialize_to_rom(world, base, config=on.config)
-    assert encoded == generate_rom(MVP_BASELINE, seed, base).rom
+    assert encoded == generate_rom(MVP_BASELINE, seed, base, NO_STATISTICS_SCREEN).rom
     assert len(encoded) == len(plain)
     allowed = level_encoding.changed_ranges_allowed()
     from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH
@@ -192,11 +199,11 @@ def test_a_question_mark_on_level_encoding_is_refused(flags: str) -> None:
 
 def test_level_encoding_question_mark_is_refused_beside_other_reasons() -> None:
     """With another unsupported field too, both reasons are given, B82's first."""
-    question = _cp5_with(B82=ThreeState.POSSIBLE, B03=ThreeState.ON)
+    question = _cp5_with(B82=ThreeState.POSSIBLE, B05=ThreeState.ON)        # Change Secret Spots: not produced
     with pytest.raises(FlagsRefused) as refused:
         plan(question, 1)
     first, second = refused.value.reasons
-    assert first == ENCODE_LEVEL_DATA_NOT_RANDOM and "B03" in second and "B82" not in second
+    assert first == ENCODE_LEVEL_DATA_NOT_RANDOM and "B05" in second and "B82" not in second
 
 
 def test_resolve_never_draws_for_level_encoding() -> None:

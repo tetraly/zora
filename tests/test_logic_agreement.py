@@ -2,9 +2,10 @@
 "Logic"), Archipelago Phase 3 tests 2, 6 and 7:
   2. on Phase 2's shuffled assignments, sweep (the heart terms set aside, as the closure has none)
      reaches the goal and collects every tracked item exactly when ZORA's strict acceptance (E1
-     and E3) passes. E1 asks for every tracked item, as Archipelago's full accessibility asks for
-     every location; reaching the goal alone is weaker (an item the goal never needs may lock
-     itself away). With the heart terms the model is never more lenient than E1 and E3;
+     and E3, on the logic walk, as FINISH's sanity check runs it) passes. E1 asks for every
+     tracked item, as Archipelago's full accessibility asks for every location; reaching the goal
+     alone is weaker (an item the goal never needs may lock itself away). With the heart terms
+     the model is never more lenient than E1 and E3;
   6. the same build gives the same model, and a JSON round trip gives an equal model;
   7. logic_model takes under 2 seconds on the slowest case.
 """
@@ -18,7 +19,7 @@ from tests.archipelago_cases import FLAG_CASES
 from tests.shared_builds import prebuild
 from tests.test_assignment import _built, permuted
 from tests.test_logic_model import without_hearts
-from zora.generate.acceptance_check import AcceptanceCheck
+from zora.generate.acceptance_check import AcceptanceCheck, logic_walk_rules
 from zora.generate.finish import Foreign, with_tracking
 from zora.generate.logic import (
     LETTER_EVENT,
@@ -52,12 +53,13 @@ def model(case: str, seed: int) -> LogicModel:
 
 
 def strict_acceptance(built: Built, assignment: dict[str, Item | Foreign]) -> bool:
-    """ZORA's E1 and E3 on the assigned world (FINISH's tracked records)."""
+    """ZORA's E1 and E3 on the assigned world (FINISH's tracked records), on the logic walk the
+    rules come from (docs/archipelago.md "The two walks")."""
     world, finished = finish_world(built, assignment, recompute=False, check=False)
     assert built.result.item_shuffle_result is not None and built.result.overworld is not None
     state = with_tracking(built.result.item_shuffle_result, finished.tracking, world, built.places)
     check = AcceptanceCheck(world.levels, state, world.overworld, built.result.overworld,
-                            extra_options(built.plan).logic_rules)
+                            logic_walk_rules(extra_options(built.plan).logic_rules))
     return check.collects_everything() and check.is_zelda_reachable()
 
 

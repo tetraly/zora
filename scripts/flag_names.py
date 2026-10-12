@@ -12,6 +12,15 @@
         (from Numbers, Excel or a text editor), checks it, and writes the
         owner's names to zora/flags/names.json, which the web page uses
         (zora/flags/form.py). Nothing else in the file is read back.
+    python3 scripts/flag_names.py reference
+        Fills the owner's columns of docs/flag-names.csv from the original
+        randomizer's names, docs/spec/flag-names-reference.csv (owner ruling
+        2026-10-10: ZORA adopts the community's names): each option field's
+        value names, and each on/off/random field's name. The option fields'
+        names stay (the original randomizer has none), and so does Encode level data's
+        label (the original randomizer's B82 is another field, Race ROM). Then run
+        import. A switch's states are named by zora/flags/fields.py
+        THREE_STATE_LABELS, not the table.
 
 The CSV is UTF-8 with a byte-order mark, so Excel and Numbers both open it
 with the right characters. The import also accepts the Windows-1252 that
@@ -37,6 +46,7 @@ from zora.flags.fields import OptionField  # noqa: E402
 from zora.flags.support import Support
 
 CSV_PATH = REPO / "docs" / "flag-names.csv"
+REFERENCE_PATH = REPO / "docs" / "spec" / "flag-names-reference.csv"
 JSON_PATH = REPO / "zora" / "flags" / "names.json"
 COLUMNS = ("page_section", "field_id", "spec_label", "what_it_does", "kind", "values", "baseline_value",
            "supported", "owner_name", "owner_value_names", "community_name", "community_source", "match")
@@ -330,6 +340,42 @@ def owner_names(rows: list[dict[str, str]]) -> dict[str, dict[str, object]]:
     return names
 
 
+def reference_names(path: Path = REFERENCE_PATH) -> dict[str, dict[str, str]]:
+    """The original randomizer's names by field id, as the owner's columns hold them: "values" for an option
+    field (in value order, joined by VALUE_SEPARATOR), "name" for an on/off/random field other than
+    Encode level data."""
+    with path.open(encoding="utf-8-sig", newline="") as source:
+        rows = list(csv.DictReader(source))
+    names: dict[str, dict[str, str]] = {}
+    for _section, field in page_fields():
+        field_rows = sorted((row for row in rows if row["code"] == field.id), key=lambda row: int(row["value"]))
+        if isinstance(field, OptionField):
+            if [int(row["value"]) for row in field_rows] != list(range(field.count)):
+                raise NamesError(f"{path.name}: {field.id} does not list values 0 to {field.count - 1}")
+            names[field.id] = {"values": VALUE_SEPARATOR.join(row["value_name"] for row in field_rows)}
+        elif field != ENCODE_LEVEL_DATA:
+            names[field.id] = {"name": field_rows[0]["field_name"]}
+    return names
+
+
+def adopt_reference(path: Path = CSV_PATH) -> int:
+    """docs/flag-names.csv with the original randomizer's names in the owner's columns; returns the fields changed."""
+    rows = read_rows(path)
+    reference = reference_names()
+    changed = 0
+    for row in rows:
+        entry = reference.get(row["field_id"], {})
+        before = (row["owner_name"], row["owner_value_names"])
+        row["owner_name"] = entry.get("name", row["owner_name"])
+        row["owner_value_names"] = entry.get("values", row["owner_value_names"])
+        changed += before != (row["owner_name"], row["owner_value_names"])
+    with path.open("w", encoding="utf-8-sig", newline="") as out:
+        writer = csv.DictWriter(out, fieldnames=COLUMNS, lineterminator="\r\n")
+        writer.writeheader()
+        writer.writerows(rows)
+    return changed
+
+
 # ---------------------------------------------------------------------------
 
 def generate(path: Path = CSV_PATH) -> int:
@@ -357,12 +403,16 @@ def import_names(path: Path = CSV_PATH, out: Path = JSON_PATH) -> dict[str, dict
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("action", choices=("generate", "import"))
+    parser.add_argument("action", choices=("generate", "import", "reference"))
     args = parser.parse_args()
     try:
         if args.action == "generate":
             count = generate()
             print(f"{CSV_PATH.relative_to(REPO)}: {count} fields")
+        elif args.action == "reference":
+            count = adopt_reference()
+            print(f"{CSV_PATH.relative_to(REPO)}: the original randomizer's names for {count} changed fields; "
+                  "now run import")
         else:
             names = import_names()
             values = sum(1 for entry in names.values() if "values" in entry)

@@ -107,7 +107,8 @@ class LevelRoomPlace(PoolPlace):
         self.room.item = item
 
     def tracked(self, item: Item) -> TrackedPlace:
-        return TrackedPlace(item & ITEM_MASK, level=self.level.level_num)
+        return TrackedPlace(item & ITEM_MASK, level=self.level.level_num, room=self.room.room_num,
+                            item_byte=self.room.item_byte)
 
 
 @dataclass
@@ -123,7 +124,7 @@ class ItemCellarPlace(PoolPlace):
         self.cellar.item = item
 
     def tracked(self, item: Item) -> TrackedPlace:
-        return TrackedPlace(item & ITEM_MASK, level=self.level.level_num)
+        return TrackedPlace(item & ITEM_MASK, level=self.level.level_num, cellar=self.cellar.room_num)
 
 
 @dataclass
@@ -218,8 +219,11 @@ def pool_places(levels: list[Level], state: ItemShuffleResult, extras: ExtraPool
     forced ones), the extras' caves in the order they joined, then the shop
     wares joined so far."""
     codes = pool_items(state, extras, opts)
+    # Within each dungeon (C06 = 2, PS-ITW-01) no heart container leaves its level: the coast
+    # heart's record names heart containers too, so they are left out of the dungeon places
+    dungeon_codes = codes if opts.dungeon_hearts else codes - {Item.HEART_CONTAINER}
     places: list[PoolPlace] = [place for place in dungeon_places(levels)
-                               if int(place.get()) & ITEM_MASK in codes and place.get() != Item.NOTHING]
+                               if int(place.get()) & ITEM_MASK in dungeon_codes and place.get() != Item.NOTHING]
     forced = _forced_slots(opts)
     places += [CaveSlotPlace(slot, state) for slot in CAVE_SLOTS if slot not in forced]
     places += [ExtraSlotPlace(slot, extras) for slot in extras.caves]
@@ -242,19 +246,24 @@ def _retrack(state: ItemShuffleResult, item: Item, before: TrackedPlace, after: 
 
 
 def join_pool(slot: str, levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,
-              overworld: Overworld, rng: IntRng, opts: ItemShuffleOptions | None = None) -> PoolPlace | None:
+              overworld: Overworld, rng: IntRng, opts: ItemShuffleOptions | None = None,
+              tracked: bool = False) -> PoolPlace | None:
     """An extra's cave joins the pool: one draw among the pool's places and
     the cave itself, then the two exchange items. Returns the place drawn,
     or None when the extra stayed in its own cave.
 
-    The extra itself is not a tracked item (it unlocks nothing VA-REJ-07's
-    walk models); the item it displaces keeps its tracked record, moved to
-    the extra's cave."""
+    The extra itself is not a tracked item unless `tracked` (it unlocks nothing VA-REJ-07's
+    walk models, but the magical sword counts towards level 9's four swords under Level 9
+    Entrance = Level 4 sword, docs/design/asnb.md section 5); the item it displaces keeps its
+    tracked record, moved to the extra's cave."""
     opts = opts or ItemShuffleOptions()
     assert slot not in extras.caves, f"{slot} joined twice"
     places = pool_places(levels, state, extras, opts)
     extras.caves[slot] = extra_cave(overworld, slot).item
-    return exchange_with_drawn(ExtraSlotPlace(slot, extras), places, state, rng)
+    own = ExtraSlotPlace(slot, extras)
+    if tracked:
+        state.tracked.append(own.tracked(own.get()))
+    return exchange_with_drawn(own, places, state, rng)
 
 
 def exchange_with_drawn(own: PoolPlace, places: list[PoolPlace], state: ItemShuffleResult,

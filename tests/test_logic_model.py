@@ -22,8 +22,8 @@ from zora.generate.acceptance_check import AcceptanceCheck
 from zora.generate.logic import (
     ARROW,
     CANDLE,
-    GANON_EVENT,
     LETTER_EVENT,
+    TRIFORCE_OF_POWER_EVENT,
     TRUE,
     CountTerm,
     EventTerm,
@@ -171,7 +171,7 @@ def test_progressive_items_count_arrows(base: bytes, case: str) -> None:
     for seed in SEEDS:
         built, logic = _built(case, seed), model(case, seed)
         extras = extra_options(built.plan)
-        ganon = logic.events[GANON_EVENT]
+        ganon = logic.events[TRIFORCE_OF_POWER_EVENT]
         if extras.progressive_items:
             assert requires(ganon, CountTerm(ARROW, 2)) and ItemTerm(Item.SILVER_ARROWS) not in every_term(logic)
         else:

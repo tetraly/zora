@@ -23,7 +23,7 @@ def level9_room_progression(gw: GameWorld) -> bool:
 
 def level9_cellar_progression(gw: GameWorld) -> int:
     """Progression items in level 9's staircase cellars."""
-    block = gw.blocks[LEVELS_7_9]
+    block = gw.level_blocks[LEVELS_7_9]
     return sum(block.staircase(n).item in POOL_ITEMS for n in gw.levels[8].staircase_nums)
 
 
@@ -112,7 +112,7 @@ def zelda_neighbours_trigger3(gw: GameWorld) -> tuple[int, int]:
         return 0, 0
     level9 = gw.levels[8]
     owned = set(level9.room_nums)
-    neighbours = [gw.blocks[LEVELS_7_9].room(n) for side in Side
+    neighbours = [gw.level_blocks[LEVELS_7_9].room(n) for side in Side
                   if (n := neighbour(zelda.room_num, side)) in owned]
     hits = sum(room.room_action == RoomAction.LAST_BOSS
                and room.item_position == 0 for room in neighbours)

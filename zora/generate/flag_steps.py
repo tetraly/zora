@@ -32,6 +32,9 @@ class FlagSteps:
     change_money_or_life_toll: bool = True       # B23, PS-MERCH-02 and PS-MERCH-04
     shuffle_dungeon_palettes: bool = True        # B27, PS-COLOR-01 to PS-COLOR-03
     shuffle_hungry_goriya: bool = True           # B28, PS-GRUM-01 to PS-GRUM-03
+    # B29, PS-BOMB-01 to PS-BOMB-03; off only where Dungeon Quest turns it off (FL-DEP-02 item 4,
+    # SH-SRC-08): the bomb-upgrade path keeps PRG0's code
+    shuffle_bomb_upgrade_men: bool = True
     shuffle_overworld_monsters: bool = True      # B31, PS-OWM-01 and PS-OWM-02
     shuffle_bosses: bool = True                  # B34, PS-BOSS-01 to PS-BOSS-06
     shuffle_monsters_between_levels: bool = True  # B36, PS-MONLV-01 to PS-MONLV-06

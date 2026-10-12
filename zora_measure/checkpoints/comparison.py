@@ -10,10 +10,10 @@ from zora_measure.checkpoints.registry import CHECKPOINTS
 from zora_measure.checkpoints.summaries import Checkpoint, Component
 
 
-def summarize(per_rom_values: list[list[Any]]) -> list[str]:
+def summarize(per_rom_values: list[list[Any]], checkpoints: tuple[Checkpoint, ...] = CHECKPOINTS) -> list[str]:
     """Every checkpoint's summary over the ROMs' values."""
     return [cp.summary.text(cp.summary.column([values[i] for values in per_rom_values]))
-            for i, cp in enumerate(CHECKPOINTS)]
+            for i, cp in enumerate(checkpoints)]
 
 
 
@@ -72,11 +72,12 @@ def estimate(components: list[Component]) -> Estimate | None:
     return Estimate(statistics.mean(values), spread)
 
 
-def compare(zora_values: list[list[Any]], corpus_values: list[list[Any]]) -> list[Difference]:
+def compare(zora_values: list[list[Any]], corpus_values: list[list[Any]],
+            checkpoints: tuple[Checkpoint, ...] = CHECKPOINTS) -> list[Difference]:
     """Every checkpoint component estimated on both samples (per-ROM value
     lists as measure_rom returns them)."""
     out = []
-    for i, cp in enumerate(CHECKPOINTS):
+    for i, cp in enumerate(checkpoints):
         zora_parts = [cp.summary.components(value)
                       for value in cp.summary.column([values[i] for values in zora_values])]
         corpus_parts = [cp.summary.components(value)

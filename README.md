@@ -56,7 +56,7 @@ you're welcome here.
 
 *It's dangerous to go alone. Take this.*
 
-## Known limitations (2.0 beta 2)
+## Known limitations (2.0 beta 3)
 
 - Some flag values are not made yet: the page shows them greyed out as "Not yet implemented".
 - "Encode level data" is not available in the public build.
@@ -79,3 +79,7 @@ features, fonts, the NES palette) is credited in `docs/credits.md`.
 ## Credits
 
 See `docs/credits.md` for details.
+
+## AI Disclosure
+
+ZORA is developed with extensive use of AI coding assistants, primarily Anthropic's Claude. They write most of its code, tests, and documentation under my direction. I make most design and behavior decisions, review each session's reports, and play-test. Code is checked by an extensive automated test suite, by statistical comparison against thousands of seeds from the original randomizer, and by separate AI review sessions. I don't review every line of code myself and instead rely on playtesting seeds to verify accuracy like I would non-AI randomizer code.

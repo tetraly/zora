@@ -6,9 +6,12 @@ full suite takes an exclusive lock on a file in temp/ and holds it until it ends
 for it and says so. The operating system releases the lock when its process ends, however it
 ends, so a crashed run never leaves it held.
 
-Who takes it: scripts/verify.sh for its whole run (through main() below), and any pytest run
-with xdist workers, such as `pytest -m slow -n auto` (tests/conftest.py); a run already inside
-a held lock (ZORA_SUITE_LOCK_HELD) does not take it again.
+Who takes it: scripts/verify.sh for its whole run (through main() below), any pytest run with
+more than LIGHT_WORKERS xdist workers, such as `pytest -n auto`, any pytest run that selects a
+slow test (tests/conftest.py), and scripts/compare_revision.py; a run already inside a held
+lock (ZORA_SUITE_LOCK_HELD) does not take it again. A clean copy's runs take this checkout's
+lock (lock_path). A light run (owner rule, 2026-10-11: at most LIGHT_WORKERS workers while
+any run holds the lock) takes no lock and runs beside the suite.
 
     python3 tests/suite_lock.py COMMAND [ARGS...]    run COMMAND holding the lock
 """
@@ -21,12 +24,44 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-LOCK_PATH = Path(os.environ.get("ZORA_SUITE_LOCK", Path(__file__).resolve().parent.parent / "temp" / "test-suite.lock"))
+REPO = Path(__file__).resolve().parent.parent
+LOCK_SETTING = "ZORA_SUITE_LOCK"
+LOCK_NAME = "test-suite.lock"
 HELD_ENV = "ZORA_SUITE_LOCK_HELD"
+LIGHT_WORKERS = 2                   # the most workers a test run may use while the lock is held
+
+
+def lock_path() -> Path:
+    """ZORA_SUITE_LOCK when set (scripts/clean_copy.py sets it for a copy's runs). Otherwise, in a
+    clean copy (temp/NAME-copy inside a checkout) the checkout's own lock, so a copy run without
+    its settings still waits for the checkout's suites, not a lock of its own nobody else takes;
+    otherwise this checkout's."""
+    if setting := os.environ.get(LOCK_SETTING):
+        return Path(setting)
+    if REPO.parent.name == "temp" and (REPO.parent.parent / "tests" / "suite_lock.py").is_file():
+        return REPO.parent / LOCK_NAME
+    return REPO / "temp" / LOCK_NAME
+
+
+LOCK_PATH = lock_path()
 
 
 def _say(message: str) -> None:
     print(f"suite lock: {message}", file=sys.stderr, flush=True)
+
+
+def holder() -> str | None:
+    """Who holds the lock now (its label), or None if nobody does; takes nothing."""
+    if not LOCK_PATH.exists():
+        return None
+    with LOCK_PATH.open("a+") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            lock.seek(0)
+            return lock.read().strip() or "another run"
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    return None
 
 
 @contextmanager

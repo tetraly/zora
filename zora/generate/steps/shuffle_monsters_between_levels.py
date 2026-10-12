@@ -1,11 +1,16 @@
-"""Shuffle Monsters Between Levels (B36; PS-MONLV-01 to -04, -06): enemy banks
+"""Shuffle Monsters Between Levels (B36; PS-MONLV-01 to -06): enemy banks
 and monster redraws."""
+from __future__ import annotations
+
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 from ...model.enums import Enemy
 from ...model.levels import GANON_LIST, ZELDA_LIST, Level, LevelBlock
-from ...model.rooms import MONSTER_VALUE_BIT
+from ...model.rooms import MONSTER_VALUE_BIT, RoomPlace
 from ..rng import IntRng, discard
 from ..shapes.enemies import monster_barred
+from .dungeon_quest import SET_LEVELS, SetSource, vanilla_room_list
 from .monster_lists import MonsterShuffleResult, RoomLists, _low_six, _room_at
 from .shuffle_bosses import LEADING_DISCARDS
 
@@ -50,15 +55,20 @@ def pool_excluded(value: int) -> bool:
             or value in POOL_EXCLUDED_SPECIAL or value in PEOPLE_AND_HINTS)
 
 
-def build_pools(lists: RoomLists) -> list[list[int]]:
+def build_pools(lists: RoomLists, quests: LevelQuests | None = None, second_quest: bool = False) -> list[list[int]]:
     """PS-MONLV-02: pool t holds each distinct value (once) of the lists of
     the levels whose VANILLA tier is t, after the boss shuffle, in ascending
-    order."""
+    order. The first-quest lists 1-9 and the second-quest lists 10-18 have
+    pools of their own (PS-VAN-01): a level's list of the other quest than
+    its own is PRG0's (`quests`)."""
     pools: list[set[int]] = [set() for _ in range(TIER_COUNT)]
     for level, places in lists.rooms.items():
         tier = VANILLA_ENEMY_TIER[level]
-        pools[tier].update(value for value in (lists.values[place] for place in places)
-                           if not pool_excluded(value))
+        if quests is None or quests.is_second_quest(level) == second_quest:
+            values: Iterable[int] = (lists.values[place] for place in places)
+        else:
+            values = quests.other_quest_values[level]
+        pools[tier].update(value for value in values if not pool_excluded(value))
     return [sorted(pool) for pool in pools]
 
 
@@ -75,28 +85,97 @@ def _goriya_level(blocks: list[LevelBlock], levels: list[Level]) -> int | None:
 
 
 def shuffle_monsters_between_levels(blocks: list[LevelBlock], levels: list[Level], lists: RoomLists,
-                                    state: MonsterShuffleResult, rng: IntRng) -> None:
-    """PS-MONLV-01..04 and -06: deal the enemy banks, then redraw every
-    ordinary monster room of levels 1-9 from its new tier's pool."""
+                                    state: MonsterShuffleResult, rng: IntRng,
+                                    quests: LevelQuests | None = None) -> None:
+    """PS-MONLV-01..06: deal the enemy banks, then redraw every ordinary monster room of levels
+    1-9 from its new tier's pool. `quests`: with a vanilla set (PS-VAN-01), each level's quest,
+    the second-quest pools and the mixed groups the bubble rule reads; None under the MVP
+    baseline, where every list is first quest and no bubble exists."""
     deal_enemy_banks(state, rng)
-    pools = build_pools(lists)
+    if quests is not None and quests.second_quest_level_2:
+        state.enemy_tiers[2] = state.enemy_tiers[7]      # PS-VAN-04, before any room is redrawn
+    pools = {False: build_pools(lists, quests, second_quest=False)}
+    if quests is not None:
+        pools[True] = build_pools(lists, quests, second_quest=True)
     goriya_level = _goriya_level(blocks, levels)
     for level in sorted(lists.rooms):
         tier = state.enemy_tiers[level]
         if level == goriya_level:
             tiles = GORIYA_TILES_BY_TIER[tier]
             state.goriya_tile = tiles[rng.below(len(tiles))]
-        pool = pools[tier]
-        for place in lists.rooms[level]:
-            if pool_excluded(lists.values[place]):
-                continue
-            if not pool:
-                discard(rng)             # an empty pool still consumes a draw
-                continue
-            layout = _room_at(blocks, place).room_type
-            while True:                  # no cap (PS-MONLV-04; SH-ENEMY-04's bars)
-                value = pool[rng.below(len(pool))]
-                if not monster_barred(value, layout):
-                    break
-            lists.values[place] = value
-            state.redrawn += 1
+        pool = pools[quests is not None and quests.is_second_quest(level)][tier]
+        start = {place: lists.values[place] for place in lists.rooms[level]}
+        while True:
+            drawn = _redraw_level(blocks, lists, lists.rooms[level], pool, state, rng)
+            if quests is None or not quests.red_without_blue(drawn):
+                break
+            lists.values.update(start)                   # PS-MONLV-05: the whole level again
+
+
+def _redraw_level(blocks: list[LevelBlock], lists: RoomLists, places: list[RoomPlace], pool: list[int],
+                  state: MonsterShuffleResult, rng: IntRng) -> list[int]:
+    """PS-MONLV-03/04: one pass over a level's rooms; returns the values drawn."""
+    drawn = []
+    for place in places:
+        if pool_excluded(lists.values[place]):
+            continue
+        if not pool:
+            discard(rng)             # an empty pool still consumes a draw
+            continue
+        layout = _room_at(blocks, place).room_type
+        while True:                  # no cap (PS-MONLV-04; SH-ENEMY-04's bars)
+            value = pool[rng.below(len(pool))]
+            if not monster_barred(value, layout):
+                break
+        lists.values[place] = value
+        drawn.append(value)
+        state.redrawn += 1
+    return drawn
+
+
+@dataclass(frozen=True)
+class LevelQuests:
+    """What the monster moves need of a seed with a vanilla set (PS-VAN-01): the second-quest
+    levels, the other quest's lists of each level (PRG0's, PS-VAN-02: a level's first-quest and
+    second-quest lists both join their quest's pools) and the mixed groups as the ROM stands
+    when the step starts (PS-MONLV-05)."""
+    second_quest_levels: frozenset[int]
+    other_quest_values: dict[int, tuple[int, ...]]
+    mixed_groups: dict[int, list[Enemy]]
+
+    @property
+    def second_quest_level_2(self) -> bool:
+        return 2 in self.second_quest_levels
+
+    def is_second_quest(self, level: int) -> bool:
+        return level in self.second_quest_levels
+
+    def _names(self, value: int, bubble: Enemy) -> bool:
+        if not value & MONSTER_VALUE_BIT:
+            return _low_six(value) == bubble
+        code = MIXED_GROUP_BASE + _low_six(value)
+        return _low_six(value) >= FIRST_MIXED_LOW_SIX and bubble in self.mixed_groups.get(code, [])
+
+    def red_without_blue(self, drawn: list[int]) -> bool:
+        """PS-MONLV-05: a drawn red bubble and no drawn blue one (count bits ignored)."""
+        return (any(self._names(value, Enemy.RED_BUBBLE) for value in drawn)
+                and not any(self._names(value, Enemy.BLUE_BUBBLE) for value in drawn))
+
+
+# PS-MONLV-05: a flagged value names mixed group $40 + its low six bits ($62-$7F: low six $22 up)
+MIXED_GROUP_BASE = 0x40
+FIRST_MIXED_LOW_SIX = 0x22
+
+
+def level_quests(levels: list[Level], second_quest_sets: set[int], base_levels: list[Level],
+                 base_levels_2q: list[Level], mixed_groups: dict[int, list[Enemy]]) -> LevelQuests:
+    """PS-VAN-01/02: each level's quest and its other quest's PRG0 list values."""
+    second = frozenset(level.level_num for level in levels
+                       if any(level.level_num in SET_LEVELS[s] for s in second_quest_sets))
+    other: dict[int, tuple[int, ...]] = {}
+    for level_num in range(1, 10):
+        is_second = level_num in second
+        base = (base_levels if is_second else base_levels_2q)[level_num - 1]
+        source = SetSource.FIRST_QUEST if is_second else SetSource.SECOND_QUEST
+        other[level_num] = tuple(base.block.room(room).monster_value for room in vanilla_room_list(base, source))
+    return LevelQuests(second, other, mixed_groups)

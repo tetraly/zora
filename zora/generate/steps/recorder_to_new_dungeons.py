@@ -8,6 +8,7 @@ RECORDER_DUNGEONS = range(1, 9)
 RECORDER_SCREEN_14 = 14
 RECORDER_SCREEN_14_STORED = 29       # (14 - 1) + 16
 TELEPORT_Y_DEFAULT = 0x8D
+BYTE_VALUES = 0x100
 TELEPORT_YS = ((frozenset({82, 92, 109, 114}), 0x5D),
                (frozenset({9, 16, 17, 110, 117, 118, 121}), 0x7D),
                (frozenset({10, 11, 44, 57, 60, 66, 67}), 0xAD))
@@ -15,7 +16,9 @@ TELEPORT_YS = ((frozenset({82, 92, 109, 114}), 0x5D),
 
 def recorder_bytes(entry_door: int) -> tuple[int, int]:
     """OW-WARP-01: (WhirlwindPrevRoomIdList byte, TeleportYs byte)."""
-    previous = RECORDER_SCREEN_14_STORED if entry_door == RECORDER_SCREEN_14 else entry_door - 1
+    # Quirk (OW-WARP-01's s - 1 is a byte): an entry door on screen 0, possible only under a mixed
+    # overworld quest (C01 = 2), stores $FF, as the mixed finals do
+    previous = RECORDER_SCREEN_14_STORED if entry_door == RECORDER_SCREEN_14 else (entry_door - 1) % BYTE_VALUES
     drop_y = next((drop_row for screens, drop_row in TELEPORT_YS if entry_door in screens), TELEPORT_Y_DEFAULT)
     return previous, drop_y
 

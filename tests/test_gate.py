@@ -7,7 +7,7 @@ import pytest
 
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.model.enums import (
-    BossSound, BossSpriteSet, Direction, Enemy, EnemySpriteSet, RoomAction, RoomType, Side,
+    BossSound, BossSpriteSet, Direction, Enemy, EnemySpriteSet, Item, RoomAction, RoomType, Side,
 )
 from zora.model.rooms import EnemyInfo, LayoutInfo, Room, StaircaseRoom, WallSet
 from zora.model.game_world import GameWorld
@@ -93,6 +93,41 @@ def test_walk_move_table_and_one_way_stairs() -> None:
     level.staircase_nums = level.staircase_room_pool = [0x7F]
     res = walk.connectivity_walk(level)
     assert res.forward_passed and not res.reverse_passed
+
+
+def _cellar_level(stair_room_layout: int) -> Level:
+    """The entrance (0x71) and, north of it, a block-stairs room (0x61) of the given layout
+    code entered from the south, with an item cellar (0x7E) returning to it."""
+    level = _row_level([0x61, 0x71], {0x71: 0x21})
+    stair_room = level.block.room(0x61)
+    stair_room.layout_info = LayoutInfo.from_layout_code(stair_room_layout)
+    stair_room.room_action = RoomAction.BLOCK_STAIRS
+    for cell, sides in ((0x71, (Side.SOUTH, Side.NORTH)), (0x61, (Side.SOUTH,))):
+        for side in sides:
+            set_side(level.block.room(cell), side, D_OPEN)
+    level.block[0x7E] = StaircaseRoom(room_num=0x7E, room_type=RoomType.ITEM_STAIRCASE, exit_x=6, exit_y=9,
+                                      item=Item.HEART_CONTAINER, return_dest=0x61)
+    level.staircase_nums = level.staircase_room_pool = [0x7E]
+    return level
+
+
+def test_an_item_cellar_links_its_room() -> None:
+    """late-gate.md "Rooms not on this level": an item cellar ($3F) joins its exit rooms like a
+    transport staircase, so its room's St side is an exit the walk must reach; a link into an item
+    cellar has no reverse (A38), and the Ganon test's cellars are dead ends."""
+    chute = _cellar_level(0x4E)              # Vertical Chute, push variant: N<->S, St->E only
+    graph = walk.build_graph(chute)
+    assert graph.cellar_links == [((0x61, walk.STAIR_SIDE), (0x61, walk.STAIR_SIDE))]
+    assert (0x61, walk.STAIR_SIDE) in graph.exit_states
+    assert (0x61, walk.STAIR_SIDE) not in graph.reverse_exit_states
+    result = walk.connectivity_walk(chute)
+    assert not result.forward_passed         # nothing in the room reaches its stairs
+    assert result.forward_rooms == {0x61, 0x71}
+    assert result.reverse_passed
+    open_room = walk.connectivity_walk(_cellar_level(0x4A))   # a push room joining every side
+    assert open_room.passed
+    ganon_graph = walk.build_graph(chute, boss_alive=True)
+    assert ganon_graph.cellar_links == [] and (0x61, walk.STAIR_SIDE) not in ganon_graph.exit_states
 
 
 def _level9(gw: GameWorld) -> Level:

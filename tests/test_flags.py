@@ -85,18 +85,73 @@ TURN_OFF_ROWS = spec.TURN_OFF_ROWS
 NO_TURN_OFF = "-"
 
 
-def turn_off_values(row: list[str]) -> set[int]:
-    """The last column of an FL-SUP-02 or FL-SUP-03 row ("Also supported") as values."""
+# FL-SUP-02's and FL-SUP-03's last column ("Also supported") holds entries separated by "; ", each
+# a value and what specifies it: a turn-off value names FL-OFF (FL-OFF-07), an alternative value
+# FL-ALT (FL-ALT-02 to FL-ALT-04: ALTERNATIVE_VALUES below), and since spec change L15 the column
+# also lists specified values, which name any other entry (OW-..., PS-..., HT-..., FP-..., VA-...).
+# One entry may list several values separated by ", " (C02 since the eca85cc export).
+NOT_SPECIFIED_ENTRY = re.compile(r"\(FL-(OFF|ALT)-\d+")
+STATE_WORDS = {"off": ThreeState.OFF, "on": ThreeState.ON, "possible": ThreeState.POSSIBLE}
+# Specified values ZORA does not produce yet (each leaves this table once it is implemented).
+# C05, C06 and B91 (6c6506b export, docs only) wait until after Hopla.
+NOT_YET_PRODUCED: dict[str, set[int]] = {
+    "C02": {2, 4, 5, 6}, "C05": {0, 1, 2, 4}, "C06": {0, 1, 4},
+    **{toggle: {ThreeState.ON, ThreeState.POSSIBLE} for toggle in ("B30", "B48", "B91")},
+    **{toggle: {ThreeState.OFF} for toggle in ("B02", "B04")},
+}
+
+
+def support_entries(row: list[str]) -> list[str]:
+    """The last column's entries: split at "; " outside parentheses."""
+    if row[4] == NO_TURN_OFF:
+        return []
+    entries, depth, start = [], 0, 0
     cell = row[4]
-    if cell == NO_TURN_OFF:
-        return set()
-    if cell.startswith("off"):
-        return {ThreeState.OFF}
-    if cell.startswith("every other index"):
-        return set(range(OPTIONS_BY_ID[row[0]].count)) - {_leading_int(row[2])}
-    return {_leading_int(cell)}
+    for i, char in enumerate(cell):
+        depth += {"(": 1, ")": -1}.get(char, 0)
+        if depth == 0 and cell.startswith("; ", i):
+            entries.append(cell[start:i])
+            start = i + 2
+    return [*entries, cell[start:]]
+
+
+def _entry_value(row: list[str], entry: str) -> int:
+    word = entry.split(" ", 1)[0]
+    return STATE_WORDS[word] if word in STATE_WORDS else int(word)
+
+
+def _split_values(entry: str) -> list[str]:
+    """One entry's values: split at ", " outside parentheses."""
+    values, depth, start = [], 0, 0
+    for i, char in enumerate(entry):
+        depth += {"(": 1, ")": -1}.get(char, 0)
+        if depth == 0 and entry.startswith(", ", i):
+            values.append(entry[start:i])
+            start = i + 2
+    return [*values, entry[start:]]
+
+
+def specified_values(row: list[str]) -> set[int]:
+    """The last column's specified values (not turn-off or alternative values)."""
+    return {_entry_value(row, value) for entry in support_entries(row)
+            if not NOT_SPECIFIED_ENTRY.search(entry) for value in _split_values(entry)}
+
+
+def turn_off_values(row: list[str]) -> set[int]:
+    """The last column's turn-off values (FL-OFF-07)."""
+    values: set[int] = set()
+    for entry in support_entries(row):
+        if "FL-OFF" not in entry:
+            continue
+        if entry.startswith("off"):
+            values.add(ThreeState.OFF)
+        elif entry.startswith("every other index"):
+            values |= set(range(OPTIONS_BY_ID[row[0]].count)) - {_leading_int(row[2])}
+        else:
+            values.add(_leading_int(entry))
+    return values
 # "A value of off means the feature is not produced" (FL-SUP-03); three option rows say so too.
-NOT_PRODUCED_TOGGLE_ROWS = [row[0] for row in SUPPORT_TOGGLE_ROWS if row[2] == "off"]
+NOT_PRODUCED_TOGGLE_ROWS = [row[0] for row in SUPPORT_TOGGLE_ROWS if row[2] == "off" and not specified_values(row)]
 NOT_PRODUCED_OPTION_ROWS = [row[0] for row in SUPPORT_OPTION_ROWS if "not produced" in row[3]]
 
 
@@ -449,10 +504,16 @@ def test_fl_sup_01_mvp_baseline_preset_is_fully_supported() -> None:
     assert Support.SUPPORTED.value == "supported" and Support.NOT_PRODUCED.value == "not produced"
 
 
-@pytest.mark.parametrize("preset", PRESET_NAMES[1:])
+@pytest.mark.parametrize("preset", PRESET_NAMES[2:])
 def test_fl_sup_01_other_presets_have_unsupported_fields(preset: str) -> None:
     assert unsupported_fields(decode(PRESETS[preset]))
     assert not is_fully_supported(decode(PRESETS[preset]))
+
+
+def test_fl_sup_01_published_variant_a_is_fully_supported() -> None:
+    """Variant A's values beyond the MVP baseline are C01 = 2, C06 = 2 (spec change L15) and the
+    alternative values, all produced."""
+    assert is_fully_supported(decode(PRESETS["Published variant A"]))
 
 
 def test_fl_sup_01_level_encoding_is_on_or_off_never_question_mark() -> None:
@@ -464,7 +525,10 @@ def test_fl_sup_01_level_encoding_is_on_or_off_never_question_mark() -> None:
 
 
 def test_not_produced_rows_cover_the_spec_tables() -> None:
-    assert len(NOT_PRODUCED_TOGGLE_ROWS) == 91 - 32
+    # 91 fields, 32 on at the baseline, and 16 off at the baseline with further values (FL-SUP-03):
+    # B03 and B81 (2026-10-10 export), B25, B26, B30, B48 and the nine start items (eca85cc
+    # export), B91 (6c6506b export)
+    assert len(NOT_PRODUCED_TOGGLE_ROWS) == 91 - 32 - 16
     assert NOT_PRODUCED_OPTION_ROWS == ["C07", "C15", "C19"]
 
 
@@ -489,11 +553,13 @@ def test_not_produced_option_row(field_id: str) -> None:
 
 @pytest.mark.parametrize("option", OPTION_FIELDS, ids=[option.id for option in OPTION_FIELDS])
 def test_fl_sup_02_supported_option_indices_are_the_baseline_and_the_turn_off_values(option: OptionField) -> None:
-    """FL-SUP-02: the baseline index, the "Also supported" column (FL-OFF-07) and the alternative
-    values (FL-ALT-02 to FL-ALT-04, owner ruling); every other index is not produced. A random index counts as a "?" and is supported only where all of
+    """FL-SUP-02: the baseline index, the "Also supported" column (FL-OFF-07's turn-off values and
+    L15's specified values, less those not produced yet) and the alternative values (FL-ALT-02 to
+    FL-ALT-04, owner ruling); every other index is not produced. A random index counts as a "?" and is supported only where all of
     its outcomes are (C17's index 22)."""
     row = next(row for row in SUPPORT_OPTION_ROWS if row[0] == option.id)
-    produced = {mvp_baseline_settings().option(option)} | turn_off_values(row) | ALTERNATIVE_VALUES.get(option.id, set())
+    produced = ({mvp_baseline_settings().option(option)} | turn_off_values(row) | ALTERNATIVE_VALUES.get(option.id, set())
+                | specified_values(row)) - NOT_YET_PRODUCED.get(option.id, set())
     for index in range(option.count):
         state = support(_settings(options={option.id: index}))[option.id]
         assert state is (Support.SUPPORTED if index in produced else Support.NOT_PRODUCED), index
@@ -503,6 +569,22 @@ def test_fl_sup_02_supported_option_indices_are_the_baseline_and_the_turn_off_va
 
 # FL-ALT-01: the alternative values specified, C16 = 3, C20 = 1 and C03 = 2.
 ALTERNATIVE_VALUES = {"C16": {3}, "C20": {1}, "C03": {2}}
+
+
+def test_fl_sup_02_03_specified_values() -> None:
+    """The specified values in FL-SUP-02's and FL-SUP-03's last columns (the further values of
+    FL-SUP-01: the 2026-10-10 export's, the eca85cc export's Hopla values, then the 6c6506b
+    export's C05, C06, B02, B04, B91 and the "?" values)."""
+    on_or_possible = {ThreeState.ON, ThreeState.POSSIBLE}
+    assert {row[0]: specified_values(row) for row in SUPPORT_OPTION_ROWS + SUPPORT_TOGGLE_ROWS
+            if specified_values(row)} == {
+        "C01": {1, 2, 3, 4}, "C02": {0, 1, 2, 4, 5, 6}, "C03": {1}, "C04": {2, 3}, "C05": {0, 1, 2, 4},
+        "C06": {0, 1, 2, 4},
+        **dict.fromkeys(("B01", "B08", "B09", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B19", "B27",
+                         "B31", "B34", "B36", "B40", "B42", "B49", "B54"), {ThreeState.POSSIBLE}),
+        "B02": {ThreeState.OFF}, "B04": {ThreeState.OFF},
+        **dict.fromkeys(("B03", "B25", "B26", "B30", "B48", "B57", "B59", "B60", "B61", "B63", "B64", "B73",
+                         "B77", "B78", "B81", "B91"), on_or_possible)}
 
 
 @pytest.mark.parametrize("field_id, index", [("C16", 3), ("C20", 1), ("C03", 2)])
@@ -541,7 +623,8 @@ def test_fl_sup_03_supported_three_state_values_are_the_baseline_and_the_turn_of
     values are. B23's off needs B22
     off (FL-DEP-06), so it is judged with B22 off."""
     row = next(row for row in SUPPORT_TOGGLE_ROWS if row[0] == toggle.id)
-    produced = {mvp_baseline_settings().toggle(toggle)} | turn_off_values(row)
+    produced = (({mvp_baseline_settings().toggle(toggle)} | turn_off_values(row) | specified_values(row))
+                - NOT_YET_PRODUCED.get(toggle.id, set()))
     if {ThreeState.OFF, ThreeState.ON} <= produced:
         produced.add(ThreeState.POSSIBLE)
     if toggle == ENCODE_LEVEL_DATA:

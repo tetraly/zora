@@ -32,6 +32,14 @@ hand-off. No visualizer code is copied into ZORA.
 - **ZORA's extras.** The format's optional fields: `seed`, `progressiveItems`, `settings`, the
   hints' `speaker` and the shop wares' `sellsOnce`. `sellsOnce` holds the ROM's one-time-ware
   bytes (`code_patches.one_time_wares`). It is set only when fp-prog-01 is in the ROM.
+- **Level numbers (owner ruling 2026-10-11).** The format's level `number`, a screen's level-door
+  `cave.name` and `shortName` ("Level 2", "L2") and a hint's `speaker` ("Level 2, room 4B") use
+  the data number: the door code, `Level.level_num`, which the visualizer reads. Beside them
+  ZORA adds the number the status bar shows on entry (`LevelInfo_LevelNumber`,
+  `Level.rom_level_num`): a level's `shownNumber`, a level door's `cave.shownName` and
+  `cave.shownShortName`, and `shownSpeaker` on a hint a dungeon person says. The two numbers
+  differ only for a second-quest set's paired levels (2 and 3, 4 and 5, 7 and 8). The spoiler
+  log prints only the shown numbers.
 - **One extra the format does not define.** `item.appears` on a room's item says when the item
   appears:
   - `floor`: at once;

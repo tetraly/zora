@@ -311,6 +311,20 @@ def test_archipelagos_model_counts_four_swords(seed: int) -> None:
     assert sweep(model, elsewhere, received=[Item.WOOD_SWORD]).reaches_goal
 
 
+# With Randomize Magical Sword too (cap 12 hearts, as the heart rule needs on this string): the
+# pool's magical sword counts towards the four (its cave no longer does), so seeds ship; before,
+# the closure stopped at three swords and E1 rejected every attempt until the 2,000-attempt cap.
+ASNB_RANDOM_SWORD = replace(ASNB, randomize_magical_sword=True, magical_sword_hearts_highest=12)
+
+
+@pytest.mark.parametrize("seed", SEEDS[:2])
+def test_a_randomized_magical_sword_counts_towards_level_9(seed: int) -> None:
+    result = built(ASNB_RANDOM_SWORD, seed)
+    assert result.result.attempts < 100
+    assert closure_holds_entry(result)
+    assert not closure_holds_entry(result, Item.MAGICAL_SWORD)
+
+
 def test_the_triforce_entry_is_unchanged_without_the_entrance() -> None:
     model = logic_model(built(LEVEL_2, 1))
     assert SWORD not in model.lines

@@ -33,6 +33,7 @@ asm/
     patch.toml            segments, imports/exports, hooks
     bank_05.s             ZORA's routines that join bank 5's source file (Z_05.asm)
   ...
+  fp-stats-01/            the statistics screen: a player setting's patch, built by asm/settings/build.py
   settings/               the player-setting choices (docs/player-settings-patches.md)
     build.py              builds asm/settings/player_settings_data.py
     music-off/            one folder per choice that differs from ZORA's code

@@ -1,4 +1,4 @@
-"""Consternation hint-text generation (hints-behavior.md @ 7dc964f).
+"""Consternation hint-text generation (hints-behavior.md @ 6c6506b).
 
 This pass runs after the late gate and the map move (HT-TEXT-04: after the
 item and map passes).  It composes 45 person-text slots, shuffles the dungeon
@@ -9,7 +9,7 @@ import copy
 import re
 import textwrap
 from collections import Counter, defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import cache
 from typing import TypeVar
@@ -18,14 +18,17 @@ from ...model.enums import Destination, Enemy, Item, RoomAction
 from ...model.game_world import GameWorld
 from ...model.levels import Level
 from ...model.overworld import HintShop, ItemCave, Quote, Screen
-from ...model.rooms import Room
+from ...model.rooms import DARK_BIT, Room
 from ...rom.layout import CONSTERNATION_HINT_SLOTS, TOLL_TEXT_POINTER, cpu_address_in_bank1, place_hint_texts
 from ...rom.text_encoding import CHAR_TO_BYTE, QUOTE_BLANK, QUOTE_END_BITS, QUOTE_LINE1_BIT, QUOTE_LINE2_BIT
 from ..dungeon_walk import item_cellar, item_room, walk_level
-from ..rng import Rng
+from ..rng import IntRng, Rng
 from .assign_hints_for_hint_type import HintAssignmentResult
+from .cave_entries import recorder_screens
 from .change_sword_hearts import MAGICAL_SWORD_HEARTS, WHITE_SWORD_HEARTS
-from .item_shuffle_result import ItemShuffleResult
+from .item_shuffle_result import ItemShuffleResult, TrackedPlace
+from .mixed_overworld_quest import door_screen
+from .overworld_gates import NO_GATES, OverworldGates
 from .person_appearances import person_appearance
 from .randomize_mazes import MAZE_HINT_PRICE
 
@@ -360,7 +363,7 @@ OPENERS = (
 
 
 def item_location_sentence(code: int, level: int, names: ItemNames = VANILLA_NAMES) -> str:
-    """An item-location hint: the item, its verb, and its level."""
+    """An item-location hint: the item, its verb, and its level (the player level, SH-NUM-03)."""
     if names.is_foreign(code):
         return f"{FOREIGN_NAME} {FOREIGN_VERB} IN LEVEL-{level}."
     line = names._line(code)
@@ -372,7 +375,8 @@ def item_location_sentence(code: int, level: int, names: ItemNames = VANILLA_NAM
 
 
 def level_location_sentence(level: int, region: int) -> str:
-    """A level-location hint: the level and the region of its door screen."""
+    """A level-location hint: the level (the player level, SH-NUM-03) and the region of its door
+    screen."""
     return f"LEVEL-{level} LIES {REGION_PHRASES[region]}."
 
 
@@ -512,7 +516,10 @@ def compass_family_name(monster_id: int, gw: GameWorld) -> str:
 # -----------------------------------------------------------------------------
 
 RAFT_SCREENS = frozenset({47, 69})
-RECORDER_SCREENS = frozenset({66})
+# The graveyard's two screens, in HT-HINT-01's bracelet door set: the original randomizer's "feat of
+# strength" there is pushing a gravestone, which needs no bracelet (owner ruling, 2026-10-10; emulator: a door
+# on $20 or $21 opens without it). Their door hints say so (GRAVESTONE_TEXT).
+GRAVESTONE_SCREENS = frozenset({0x20, 0x21})
 LADDER_SCREENS = frozenset({24, 25})
 BRACELET_SCREENS = frozenset({9, 17, 27, 29, 32, 33, 35, 73, 121})
 BRACELET_SCREENS_NO_32_33 = frozenset({9, 17, 27, 29, 35, 73, 121})
@@ -530,11 +537,9 @@ def _hidden_flag(screen: Screen) -> bool:
 
 
 def _door_screen(gw: GameWorld, level: int) -> int | None:
-    for screen in gw.overworld.screens:
-        if screen.destination.is_level and screen.destination.level_num == level \
-                and not _hidden_flag(screen):
-            return screen.screen_num
-    return None
+    """HT-HINT-01's door screen: the level's door (2nd Quest's leftover codes on 11 and 66 are
+    not doors, OW-QST-05)."""
+    return door_screen(gw.overworld, level)
 
 
 def _white_sword_screen(gw: GameWorld) -> int | None:
@@ -577,27 +582,98 @@ class Form:
 FORMS = (Form.BOSS, Form.LADDER, Form.BRACELET, Form.NO_BRACELET, Form.RAFT, Form.NO_RAFT,
          Form.RECORDER, Form.BOW)
 INSIDE_MEANS = ((Item.RECORDER, Form.RECORDER), (Item.BOW, Form.BOW), (Item.LADDER, Form.LADDER))
-DOOR_MEANS = ((RAFT_SCREENS, Form.RAFT), (RECORDER_SCREENS, Form.RECORDER),
-              (LADDER_SCREENS, Form.LADDER), (BRACELET_SCREENS, Form.BRACELET))
-# 3. the white-sword cave: the first means that holds, in this order
-WHITE_SWORD_MEANS = ((RAFT_SCREENS, Form.RAFT), (LADDER_SCREENS, Form.LADDER),
-                     (RECORDER_SCREENS, Form.RECORDER), (BRACELET_SCREENS_NO_32_33, Form.BRACELET))
+
+
+# The forms of the items the owner's overworld gates ask for (a maze's hint has none).
+GATE_FORMS = {Item.RAFT: Form.RAFT, Item.LADDER: Form.LADDER, Item.POWER_BRACELET: Form.BRACELET}
+ScreenMeans = tuple[tuple[frozenset[int], str], ...]
+
+
+def gated_screens(gates: OverworldGates) -> dict[str, frozenset[int]]:
+    """Bug fix (2.0 beta 2 report): the screens the owner's overworld gates put behind each
+    means (Extra Raft Blocks, Extra Power Bracelet Blocks, Randomize Dead Woods' west half;
+    overworld_gates.py, the acceptance check's own sets), empty for a means no gate asks for.
+    HT-HINT-01's screen sets are PRG0's; without these a door on a new raft block got "THE
+    PRINCESS NEEDS NO RAFT"."""
+    gated = dict.fromkeys(GATE_FORMS.values(), frozenset[int]())
+    for screens, need in gates.screen_needs():
+        if need in GATE_FORMS:
+            gated[GATE_FORMS[Item(need)]] |= screens
+    return gated
+
+
+def door_means(recorder: frozenset[int], gates: OverworldGates = NO_GATES) -> ScreenMeans:
+    """1. the door-screen means; `recorder`: the Recorder set (eleven screens under C01 = 2,
+    OW-MIX-08); with the overworld gates' screens added (gated_screens)."""
+    gated = gated_screens(gates)
+    return ((RAFT_SCREENS | gated[Form.RAFT], Form.RAFT), (recorder, Form.RECORDER),
+            (LADDER_SCREENS | gated[Form.LADDER], Form.LADDER),
+            (BRACELET_SCREENS | gated[Form.BRACELET], Form.BRACELET))
+
+
+def white_sword_means(recorder: frozenset[int], gates: OverworldGates = NO_GATES) -> ScreenMeans:
+    """3. the white-sword cave: the first means that holds, in this order (the overworld gates'
+    screens added, gated_screens)."""
+    gated = gated_screens(gates)
+    return ((RAFT_SCREENS | gated[Form.RAFT], Form.RAFT),
+            (LADDER_SCREENS | gated[Form.LADDER], Form.LADDER),
+            (recorder, Form.RECORDER), (BRACELET_SCREENS_NO_32_33 | gated[Form.BRACELET], Form.BRACELET))
+
+
+def door_needs(gw: GameWorld, gates: OverworldGates, door: int, screens: frozenset[int],
+               mazes_followed: frozenset[int] = frozenset()) -> bool:
+    """A door needs the means of `screens`: it is on one of them, or behind a gated maze whose
+    hint every door of the hint shop selling the maze's path needs in turn (the acceptance check
+    asks for the hint, held once its shop's door is reached; one maze's shop can sit behind the
+    other maze). Bug fix as gated_screens."""
+    if door in screens:
+        return True
+    hint_shops = dict(gates.maze_hints())
+    for maze_screens, hint in gates.screen_needs():
+        if hint in hint_shops and hint not in mazes_followed and door in maze_screens:
+            shop_doors = [screen.screen_num for screen in gw.overworld.screens
+                          if screen.destination == hint_shops[hint] and not _hidden_flag(screen)]
+            if shop_doors and all(door_needs(gw, gates, shop_door, screens, mazes_followed | {hint})
+                                  for shop_door in shop_doors):
+                return True
+    return False
 
 
 @dataclass(frozen=True)
 class Requirement:
     """One HT-HINT-01 requirement candidate: its form, the item it names
-    (None for the not-needed fallbacks), the boss form's level, and whether
-    it is the white-sword cave's (only the wording differs)."""
+    (None for the not-needed fallbacks), the boss form's player level (SH-NUM-03), whether
+    it is the white-sword cave's, and whether its door is under a gravestone
+    (a bracelet door on GRAVESTONE_SCREENS); only the wording differs."""
     form: str
     item: int | None = None
     level: int | None = None
     white_sword_cave: bool = False
+    gravestone: bool = False
 
     @property
     def key(self) -> tuple[str, int | None, int | None]:
         """What the text conveys: the form, the item and the boss level."""
         return self.form, self.item, self.level
+
+
+# Owner-ruled deviation (HT-HINT-01, owner ruling 2026-10-11; docs/deviations.md): a paired
+# second-quest data level's four inside-dungeon walks cover its own rooms from its own start room,
+# as an unpaired level's do, so it forms inside-dungeon candidates. The original randomizer's
+# walks form none. An internal measurement switch, not a setting: False gives the original
+# randomizer's walks, so the hint rows compare with the corpus (scripts/compare_corpus.py --reference-paired-hints).
+PAIRED_LEVELS_WALK_THEIR_OWN_ROOMS = True
+
+
+def is_paired(level: Level) -> bool:
+    """HT-HINT-01's second-quest level in a pair: data level d, shown to the player as its
+    partner's number (SH-NUM-03: data levels 2 and 3, 4 and 5, 7 and 8 of a second-quest set)."""
+    return level.rom_level_num != level.level_num
+
+
+def level_shown_as(levels: Sequence[Level], player_level: int) -> Level:
+    """The data level whose entry shows `player_level` (SH-NUM-03)."""
+    return next(level for level in levels if level.rom_level_num == player_level)
 
 
 @dataclass(frozen=True)
@@ -608,15 +684,50 @@ class ItemPlace:
     cellar: int | None = None
 
 
-def item_place(levels: list[Level], level_num: int, item: int) -> ItemPlace | None:
-    """The level's room holding the item, else its item cellar (by its
-    cell): HT-HINT-01 rule 2 tests both, with no special case for cellars."""
-    level = next(level for level in levels if level.level_num == level_num)
+def _level(levels: Sequence[Level], level_num: int) -> Level:
+    return next(level for level in levels if level.level_num == level_num)
+
+
+def item_place(levels: Sequence[Level], level_num: int, item: int) -> ItemPlace | None:
+    """A finished ROM's reading of the tested room, which has no item records: the level's room
+    holding the item, else its item cellar (by its cell). On the corpus the room the tested-room
+    rule finds is the only room of its level holding the item (HT-HINT-01's tested-room Check)."""
+    level = _level(levels, level_num)
     room = item_room(level, item)
     if room is not None:
         return ItemPlace(level, room=room)
     cellar = item_cellar(level, item)
     return None if cellar is None else ItemPlace(level, cellar=cellar)
+
+
+def _partner(levels: Sequence[Level], level: Level) -> Level:
+    """A paired level's partner: data level p, the level shown as data level d's number."""
+    return _level(levels, level.rom_level_num)
+
+
+def tested_place(levels: Sequence[Level], record: TrackedPlace,
+                 walk_own_rooms: bool = True) -> ItemPlace | None:
+    """HT-HINT-01 item 2's tested room, every level alike: an item cellar keeps its record (the
+    re-deal leaves cellars alone); otherwise the record's own room when its whole item byte still
+    equals the recorded byte, else the first of the walked level's own rooms, in room order
+    (no cellars, no rooms outside the level), whose whole item byte does; None when none does.
+    The walked level is the record's own, but a paired level's partner when not
+    `walk_own_rooms` (the original randomizer's walk). A record without its room (an assigned world's
+    rebuilt records, finish.rebuild_tracking) is read as a finished ROM is (item_place)."""
+    assert record.level is not None
+    level = _level(levels, record.level)
+    if record.cellar is not None:
+        return ItemPlace(level, cellar=record.cellar)
+    if record.room is None or record.item_byte is None:
+        return item_place(levels, record.level, record.item)
+    recorded = record.item_byte
+    if recorded >= DARK_BIT:              # "a recorded byte of $80 or more never counts as equal"
+        return None
+    if level.block.room(record.room).item_byte == recorded:
+        return ItemPlace(level, room=record.room)
+    walked = level if walk_own_rooms or not is_paired(level) else _partner(levels, level)
+    room = next((room.room_num for room in walked.rooms if room.item_byte == recorded), None)
+    return None if room is None else ItemPlace(level, room=room)
 
 
 SWORD_ONLY = frozenset({Item.WOOD_SWORD})
@@ -633,11 +744,18 @@ def _enterable(place: ItemPlace, carried: frozenset[int]) -> bool:
     return target in walk.reached
 
 
-def inside_dungeon_needs(place: ItemPlace, item: int) -> list[str]:
+def inside_dungeon_needs(place: ItemPlace, item: int, walk_own_rooms: bool = True) -> list[str]:
     """HT-HINT-01 rule 2: when the sword alone cannot enter the item's room,
     each of the recorder, bow and ladder that can (with the sword) forms a
     candidate; a means equal to the item itself is skipped. The candle plays
-    no part in the walk."""
+    no part in the walk. A paired level walks its own rooms (owner-ruled deviation) unless not
+    `walk_own_rooms`: then the original randomizer's walks, over its partner's rooms (sword only, from
+    the partner's start room; with one means, from the level's own start room, which is not one
+    of them), enter only a tested room that is the level's own start room."""
+    if not walk_own_rooms and is_paired(place.level):
+        if place.room != place.level.entrance_room:
+            return []
+        return [form for means, form in INSIDE_MEANS if means != item]
     if sword_enters(place):
         return []
     return [form for means, form in INSIDE_MEANS
@@ -657,50 +775,69 @@ def coast_item(gw: GameWorld) -> int:
     return int(coast.item)
 
 
-def requirement_candidates(gw: GameWorld, level_items: list[tuple[int, int]]) -> list[Requirement]:
+def requirement_candidates(gw: GameWorld, level_items: list[tuple[int, int]],
+                           names_hearts: bool = False, gates: OverworldGates = NO_GATES,
+                           records: Sequence[TrackedPlace] | None = None,
+                           walk_own_rooms: bool = True) -> list[Requirement]:
     """HT-HINT-01's requirement candidates 1-5, in order, before the
-    shuffle. level_items: (item, level) for each item the item shuffle
-    records in a level; heart containers are never named here."""
-    named = [(item, level) for item, level in level_items if item != Item.HEART_CONTAINER]
+    shuffle. level_items: (item, data level) for each item the item shuffle
+    records in a level; `records`: those records, in the same order, for the tested room
+    (tested_place), or None to read it from the world as a finished ROM is (item_place).
+    `walk_own_rooms`: PAIRED_LEVELS_WALK_THEIR_OWN_ROOMS. Heart containers are named only when `names_hearts`:
+    within each dungeon (C06 = 2, PS-ITW-05; HT-HINT-01 rules 1 and 5 except
+    them only under C06 = 3). Under C06 = 3 ZORA leaves them out of rule 2
+    as well, as before; the corpus shows no such text (PS-ITW-05: CP-5 0). `gates`: the owner's
+    overworld gates, whose screens count as their means' everywhere here (gated_screens)."""
+    level_records: Sequence[TrackedPlace | None] = [None] * len(level_items) if records is None else records
+    named_records = [(item, level, record) for (item, level), record in zip(level_items, level_records, strict=True)
+                     if names_hearts or item != Item.HEART_CONTAINER]
+    named = [(item, level) for item, level, _record in named_records]
+    recorder = recorder_screens(gw.overworld)
     candidates: list[Requirement] = []
     recorded: set[str] = set()
     # 1. door-screen requirements; a screen can satisfy more than one
     for item, level in named:
         screen = _door_screen(gw, level)
-        for screens, form in DOOR_MEANS:
+        for screens, form in door_means(recorder, gates):
             if screen in screens:
-                candidates.append(Requirement(form, item))
+                candidates.append(Requirement(form, item,
+                                              gravestone=form == Form.BRACELET and screen in GRAVESTONE_SCREENS))
                 recorded.add(form)
     # 2. inside-dungeon requirements
-    for item, level in named:
-        place = item_place(gw.levels, level, item)
+    for item, level, record in named_records:
+        place = (item_place(gw.levels, level, item) if record is None
+                 else tested_place(gw.levels, record, walk_own_rooms))
         if place is not None:
-            candidates.extend(Requirement(form, item) for form in inside_dungeon_needs(place, item))
+            candidates.extend(Requirement(form, item) for form in inside_dungeon_needs(place, item, walk_own_rooms))
     # 3. the white-sword cave
     white_sword_screen = _white_sword_screen(gw)
     cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
     if white_sword_screen is not None and cave is not None:
-        white_sword_form = next((means_form for screens, means_form in WHITE_SWORD_MEANS
+        white_sword_form = next((means_form for screens, means_form in white_sword_means(recorder, gates)
                                  if white_sword_screen in screens), None)
         if white_sword_form is not None:
             candidates.append(Requirement(white_sword_form, cave.item & ITEM_CODE_MASK, white_sword_cave=True))
             recorded.add(white_sword_form)
-    # 4. fallbacks; a means is also recorded when any door screen satisfies it
+    # 4. fallbacks; a means is also recorded when any door needs it (door_needs)
     doors = {_door_screen(gw, level) for level in range(1, 10)}
-    if doors & RAFT_SCREENS:
-        recorded.add(Form.RAFT)
-    if doors & BRACELET_SCREENS_NO_32_33:
-        recorded.add(Form.BRACELET)
+    gated = gated_screens(gates)
+    for screens, form in ((RAFT_SCREENS | gated[Form.RAFT], Form.RAFT),
+                          (BRACELET_SCREENS_NO_32_33 | gated[Form.BRACELET], Form.BRACELET)):
+        if any(door_needs(gw, gates, door, screens) for door in doors if door is not None):
+            recorded.add(form)
     if Form.BRACELET not in recorded:
         candidates.append(Requirement(Form.NO_BRACELET))
     if Form.RAFT not in recorded:
         candidates.append(Requirement(Form.NO_RAFT))
     candidates.append(Requirement(Form.LADDER, coast_item(gw)))
-    # 5. boss forms: levels 1-8 only
-    candidates.extend(Requirement(Form.BOSS, item, level) for item, level in named if level != 9)
+    # 5. boss forms: levels 1-8 only, each with the label of the player level the item is in
+    candidates.extend(Requirement(Form.BOSS, item, _level(gw.levels, level).rom_level_num)
+                      for item, level in named if level != 9)
     return candidates
 
 
+# A bracelet door on the graveyard (GRAVESTONE_SCREENS), with the item's own article.
+GRAVESTONE_TEXT = "THE PATH TO {item} LIES BENEATH A GRAVESTONE."
 NOT_NEEDED_TEXT = {Form.NO_BRACELET: ["THE PRINCESS", "NEEDS NO BRACELET"],
                    Form.NO_RAFT: ["THE PRINCESS", "NEEDS NO RAFT"]}
 
@@ -718,6 +855,8 @@ def requirement_text(candidate: Requirement, names: ItemNames = VANILLA_NAMES) -
     if candidate.form == Form.BOSS:
         assert candidate.level is not None
         return hint_lines(item_location_sentence(candidate.item, candidate.level, names))
+    if candidate.gravestone:
+        return hint_lines(GRAVESTONE_TEXT.format(item=phrase))
     means = candidate.form.upper()
     if candidate.white_sword_cave and names.is_foreign(candidate.item):
         return ["THE CAVE WITH", phrase, f"NEEDS THE {means}"]
@@ -887,10 +1026,15 @@ def relocate(texts: list[T | None]) -> None:
 def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
                        rng: Rng, cave_text_for_magical_sword: list[str] | None = None,
                        names: ItemNames = VANILLA_NAMES,
-                       maze_offers: dict[int, list[str]] | None = None) -> HintTextResult:
-    """HT-TEXT and HT-HINT. cave_text_for_magical_sword (Randomize Magical Sword) replaces the
-    text drawn for the magical-sword cave's slot after every draw, so the draws are unchanged.
+                       maze_offers: dict[int, list[str]] | None = None,
+                       gates: OverworldGates = NO_GATES,
+                       every_helpful_hint: bool = False) -> HintTextResult:
+    """HT-TEXT and HT-HINT. every_helpful_hint: Helpful hints (C03 = 1, HT-HINT-04), where every
+    slot with a helpful text shows it, with no overlay coin. cave_text_for_magical_sword
+    (Randomize Magical Sword) replaces the text drawn for the magical-sword cave's slot after every
+    draw, so the draws are unchanged.
     names: how the texts name items (PI-TEXT-01; the vanilla names give HT-HINT-01's).
+    gates: the owner's overworld gates, for the requirement candidates.
 
     The random draws, in order: the hint-shop prices, the level-9 trio's
     dropped text, the requirement texts, the pool routing, and per slot the
@@ -912,9 +1056,12 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     for slot, text in zip(LEVEL9_TRIO_SLOTS, trio, strict=True):
         slot_texts[slot] = text
 
-    level_items = [(place.item, place.level) for place in item_shuffle_result.tracked
-                   if place.level is not None]
-    requirements = draw_requirements(requirement_candidates(gw, level_items), rng)
+    records = [record for record in item_shuffle_result.tracked if record.level is not None]
+    level_items = [(record.item, record.level) for record in records if record.level is not None]
+    requirements = draw_requirements(
+        requirement_candidates(gw, level_items, names_hearts=item_shuffle_result.items_within_levels, gates=gates,
+                               records=records, walk_own_rooms=PAIRED_LEVELS_WALK_THEIR_OWN_ROOMS),
+        rng)
     # fewer than ten candidates fill fewer slots (draw_requirements takes at most ten)
     for slot, candidate in zip(REQUIREMENT_SLOTS, requirements, strict=False):
         slot_texts[slot] = requirement_text(candidate, names)
@@ -927,7 +1074,7 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     relocate(sentences)
 
     pool_candidates = route_pool_candidates(gw, rng, names)
-    final_texts, overlay_flags = select_final_texts(slot_texts, pool_candidates, rng)
+    final_texts, overlay_flags = select_final_texts(slot_texts, pool_candidates, rng, every_helpful_hint)
     add_openers(final_texts, overlay_flags, sentences, opener_rng)
     if cave_text_for_magical_sword is not None:
         final_texts[MAGICAL_SWORD_TEXT_SLOT] = cave_text_for_magical_sword
@@ -1017,11 +1164,13 @@ def draw_hint_shop_prices(gw: GameWorld, rng: Rng) -> list[int]:
 
 def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None],
                                sentences: list[str | None]) -> None:
-    """HT-HINT-01's level-location entries: each level's region, in ZORA's wording (no draws)."""
-    for level, slot in enumerate(LEVEL_LOCATION_SLOTS, start=1):
-        screen = _door_screen(gw, level)
-        assert screen is not None, f"level {level} has no door screen"
-        sentence = level_location_sentence(level, region_of_screen(screen))
+    """HT-HINT-01's level-location entries, in ZORA's wording (no draws): entry N names player
+    level N and the region of its door, the door of the data level shown as N (SH-NUM-03; for a
+    second-quest level in a pair, its partner's door)."""
+    for player_level, slot in enumerate(LEVEL_LOCATION_SLOTS, start=1):
+        screen = _door_screen(gw, level_shown_as(gw.levels, player_level).level_num)
+        assert screen is not None, f"player level {player_level} has no door screen"
+        sentence = level_location_sentence(player_level, region_of_screen(screen))
         sentences[slot] = sentence
         slot_texts[slot] = hint_lines(sentence)
 
@@ -1148,15 +1297,16 @@ def route_pool_candidates(gw: GameWorld, rng: Rng, names: ItemNames = VANILLA_NA
 
 
 def select_final_texts(slot_texts: list[list[str] | None], pool_candidates: dict[int, list[list[str]]],
-                       rng: Rng) -> tuple[list[list[str]], list[bool]]:
+                       rng: IntRng, every_helpful_hint: bool = False) -> tuple[list[list[str]], list[bool]]:
     """Each slot's final text and whether the helpful overlay won: a coin when
-    the slot has a helpful text, else (or on tails) a pool pick."""
+    the slot has a helpful text, else (or on tails) a pool pick. HT-HINT-04: with
+    every_helpful_hint the helpful text always wins, with no draw."""
     final_texts: list[list[str]] = []
     overlay_flags: list[bool] = []
     for slot in range(SLOT_COUNT):
         helpful_text = slot_texts[slot]
         pool = pool_candidates[slot]
-        use_helpful = helpful_text is not None and rng.below(2) == 0
+        use_helpful = helpful_text is not None and (every_helpful_hint or rng.below(2) == 0)
         overlay_flags.append(use_helpful)
         if use_helpful:
             assert helpful_text is not None

@@ -1,7 +1,7 @@
 """The seed document (zora_export/seed_document.py) and the spoiler log built from it
 (zora_export/spoiler_log.py): the visualizer's schema, the "no ROM change" rule (FP-SPOIL-01),
 the refusal for encoded seeds, the log's layout, and a cross-check against the z1r-visualizer's
-own reading of the same ROMs (skipped without ../z1r-visualizer)."""
+own reading of the same ROMs (skipped without the visualizer's checkout, ZORA_VISUALIZER)."""
 import json
 from functools import cache
 from pathlib import Path
@@ -172,7 +172,7 @@ def test_the_log_fits_80_columns_and_lists_what_the_document_holds(flags: str, z
     doc = document(flags, 1, zora)
     log = spoiler_log(doc)
     assert all(len(line) <= WIDTH for line in log.splitlines())
-    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 2"
+    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 3"
     words = " ".join(log.split())          # wrapping may break a line anywhere between words
     assert f"Seed: {doc['seed']['number']}" in log and doc["seed"]["flags"] in log
     for cave in doc["caves"]:
@@ -210,7 +210,8 @@ def visualizer_side(difference: str) -> bool:
 
 
 @pytest.mark.slow
-@pytest.mark.skipif(not visualizer_crosscheck.CLI.exists(), reason="../z1r-visualizer is not checked out")
+@pytest.mark.skipif(not visualizer_crosscheck.CLI.exists(),
+                    reason=f"{visualizer_crosscheck.VISUALIZER} is not checked out")
 @pytest.mark.parametrize(("flags", "zora"), CONFIGS)
 def test_the_visualizer_reads_the_same_seed(flags: str, zora: str, tmp_path: Path) -> None:
     """Seven seeds per combination (56 in all): ZORA's document and the visualizer's own

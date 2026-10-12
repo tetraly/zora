@@ -113,7 +113,7 @@ def level9_records_match(gw: GameWorld) -> dict[str, bool]:
     """PS-L9REC-01: one $37 room and one $3E room in level 9's block, and
     the records name them; level 9's boss record off vanilla; levels 1-8's
     boss records vanilla."""
-    rooms = gw.blocks[LEVELS_7_9].rooms
+    rooms = gw.level_blocks[LEVELS_7_9].rooms
     zelda = [r.room_num for r in rooms if r.monster_list | (r.count_index << 6) == ZELDA_LIST]
     ganon = [r.room_num for r in rooms if r.monster_list | (r.count_index << 6) == GANON_LIST]
     level9 = gw.levels[8]

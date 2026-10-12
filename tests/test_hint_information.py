@@ -1,13 +1,29 @@
 """Wording-free hint-information measures (zora_measure/hint_information.py) and the
 HT-HINT-01 rules they rebuild (zora/generate/steps/hint_text.py)."""
-from zora_measure.hint_information import Shown, classify
-from zora.generate.steps.person_appearances import (
-    CAVE_PERSON_TYPES, draw_person_appearances, person_appearance,
-)
+from collections.abc import Hashable
+from dataclasses import replace
+
+import pytest
+
 from zora.generate.rng import ScriptedRng
 from zora.generate.steps.hint_text import (
-    HUMAN_FORM, ITEM_NAMES, SAME_FORM, Form, Requirement, name_form, requirement_text,
+    HUMAN_FORM,
+    ITEM_NAMES,
+    SAME_FORM,
+    Form,
+    Requirement,
+    name_form,
+    requirement_text,
 )
+from zora.generate.steps.person_appearances import (
+    CAVE_PERSON_TYPES,
+    draw_person_appearances,
+    person_appearance,
+)
+from zora.model.game_world import GameWorld
+from zora.model.overworld import Quote
+from zora.rom.base_rom import BASE_ROM_PATH
+from zora_measure.hint_information import Shown, classify, hint_key
 
 OLD_MAN, OLD_WOMAN, MERCHANT, MOBLIN = 0x58, 0x59, 0x5A, 0x5B
 
@@ -36,7 +52,7 @@ def test_requirement_texts_render() -> None:
     assert len({tuple(t) for t in texts}) == 4
 
 
-def _rom(slot: int, text: str, fact: tuple) -> list[Shown]:
+def _rom(slot: int, text: str, fact: tuple[Hashable, ...]) -> list[Shown]:
     return [Shown(slot, text, frozenset({fact}))]
 
 
@@ -83,6 +99,43 @@ def test_classify_universal_fact_by_share() -> None:
     assert verdicts[0] == ("silver", "elsewhere") and verdicts[1] is None
 
 
+def test_classify_reads_an_opener_and_its_wrapping_as_the_same_hint() -> None:
+    """ZORA's openers are decoration added after the hint is chosen: one hint with and without an
+    opener, wrapped differently, is one text to the classifier."""
+    from zora.generate.steps.hint_text import OPENERS
+    plain = "~THE RAFT RESTS IN|~~~~LEVEL-3."
+    variants = [plain] + [f"{opener}|THE RAFT RESTS|IN LEVEL-3." for opener in OPENERS]
+    assert {hint_key(text) for text in variants} == {"THE RAFT RESTS IN LEVEL-3."}
+    roms = [_rom(24, variants[i % len(variants)], ("requirement", "boss", 0x0C, 3)) for i in range(22)]
+    roms += [_rom(24, f"pool {i % 9}", ("requirement", "boss", i % 14, 1 + i % 8)) for i in range(400)]
+    verdicts = [rom[0] for rom in classify(roms)]
+    assert all(verdict == ("requirement", "boss", 0x0C, 3) for verdict in verdicts[:22])
+
+
+def _prg0_world() -> GameWorld:
+    from zora.rom.base_rom import remember_repo_base_rom
+    from zora.rom.parse.rom_file import parse_rom
+    return parse_rom(remember_repo_base_rom())
+
+
+@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+def test_composed_texts_rank_the_extended_bank_before_the_overflow_region() -> None:
+    """ZORA lays the texts out in slot order, the extended bank first, then the overflow region
+    below it: an overflowed slot's text is still its own slot's."""
+    from zora.rom.layout import EXT_HINT_DATA_ROM_START, QUOTE_DATA_ADDRESS, cpu_address_in_bank1
+    from zora_measure.hint_information import OUTSIDE_BLOCK, SLOT_COUNT, composed_texts
+    bank = cpu_address_in_bank1(EXT_HINT_DATA_ROM_START)
+    overflow = cpu_address_in_bank1(QUOTE_DATA_ADDRESS + 2 * SLOT_COUNT)
+    inside = [slot for slot in range(SLOT_COUNT) if slot not in OUTSIDE_BLOCK]
+    pointers = [0] * SLOT_COUNT
+    for rank, slot in enumerate(inside):
+        pointers[slot] = bank + 10 * rank if rank < len(inside) - 2 else overflow + 10 * rank
+
+    world = replace(_prg0_world(), hint_pointers=tuple(pointers),
+                    quotes=[Quote(slot, f"text {slot}") for slot in range(SLOT_COUNT)])
+    assert composed_texts(world) == {slot: f"text {slot}" for slot in inside}
+
+
 class _World:
     """Just the cave person appearance table."""
     class enemies:
@@ -106,13 +159,14 @@ def test_b10_refusal_text_leaves_every_hint_slot_in_place() -> None:
     sword hearts before the hint text, which picks heart-count quotes by
     them.)"""
     import pytest
+
+    from zora.generate.generation_pass import generate_shapes
+    from zora.generate.rng import Rng
+    from zora.generate.shapes.options import ShapeOptions
     from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
     from zora.rom.game_config import GameConfig, HintMode
     from zora.rom.parse.rom_file import load_rom, parse_rom
     from zora.rom.serialize.rom_file import serialize_to_rom
-    from zora.generate.rng import Rng
-    from zora.generate.generation_pass import generate_shapes
-    from zora.generate.shapes.options import ShapeOptions
     if not BASE_ROM_PATH.exists():
         pytest.skip("vanilla ROM missing")
     base = load_rom(verify_base_rom())

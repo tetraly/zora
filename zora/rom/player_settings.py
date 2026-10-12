@@ -1,15 +1,16 @@
 """Player settings (features-behavior.md FP-SET-01 to FP-SET-04, FP-HOT-01,
-FP-RESET-01, FP-BEEP-01, FP-FIX-02; flags-behavior.md FL-SUP-05).
+FP-RESET-01, FP-BEEP-01, FP-FIX-02; flags-behavior.md FL-SUP-05; FP-STATS-01).
 
 A player setting is not part of the flag string and never changes generation,
 the seed, the seed's code (FP-HASH-01) or the level encoding (FP-TOURNEY-01).
 apply_player_settings writes them into a FINISHED ROM: after level encoding
 and after the seed's code is stamped, outside both. Each setting has one
-function, called from apply_player_settings; at the defaults (the value
-every corpus ROM carries) a finished ZORA ROM is unchanged.
+function, called from apply_player_settings; at the defaults a finished ZORA
+ROM is unchanged (the statistics screen, FP-STATS-01, is off by default until
+it is better tested; on writes only its own bytes).
 
-Select swap, the death-warp mapping, reduce flashing and music off use the
-patches assembled in asm/settings/ (docs/player-settings-patches.md);
+Select swap, the death-warp mapping, reduce flashing, music off and the
+statistics screen (asm/fp-stats-01/) use the patches assembled by asm/settings/ (docs/player-settings-patches.md);
 player_settings_data.py is a verbatim copy of its output, which
 tests/test_player_settings_wiring.py keeps equal. Select swap's off choice is
 not assembled there: it is PRG0's own code at FP-HOT-01's four sites.
@@ -180,7 +181,8 @@ class Music(Enum):
 @dataclass(frozen=True)
 class PlayerSettings:
     """The seven settings the MVP offers (FL-SUP-05), the level label's word (FP-LEVEL-01) and
-    the boss-sound label's word (FP-ROAR-01), testers' requests, at the spec's defaults."""
+    the boss-sound label's word (FP-ROAR-01), testers' requests, and the statistics screen
+    (FP-STATS-01), at their defaults."""
     select_swap: SelectSwap = SelectSwap.TOGGLE
     low_health_beep: LowHealthBeep = LowHealthBeep.REMOVED
     death_warp: DeathWarp = DeathWarp.CONTROLLER1_UP_A
@@ -191,6 +193,7 @@ class PlayerSettings:
     music: Music = Music.ON
     level_word: str = DEFAULT_LEVEL_WORD            # FP-LEVEL-01
     boss_sound_word: str = DEFAULT_BOSS_SOUND_WORD  # FP-ROAR-01's label: a word or RANDOM
+    statistics_screen: bool = False                 # FP-STATS-01 (owner ruling, beta 3: off by default for now)
 
     def __post_init__(self) -> None:
         check_level_word(self.level_word)
@@ -267,13 +270,15 @@ def random_boss_sound_word(seed: int) -> str:
 
 
 def title_seed_number(rom: bytes | bytearray) -> int:
-    """The seed number the title screen shows (FP-TITLE-01: SEED, then the number right-aligned)."""
+    """The seed number the title screen shows (FP-TITLE-01: SEED, then the number right-aligned).
+    The row is 24 tiles: up to 19 digits leave blanks after SEED, but a 20-digit number (10^19
+    and up) fills the row, so the label and the number touch (SEED14089154938208861744)."""
     row = "".join(BYTE_TO_CHAR.get(tile, "?") for tile in rom[TITLE_SEED_ROW_ADDRESS:
                                                                  TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH])
-    label, _, number = row.partition(" ")
-    if label != TITLE_SEED_LABEL or not number.strip().isdigit():
+    label, number = row[:len(TITLE_SEED_LABEL)], row[len(TITLE_SEED_LABEL):].strip()
+    if label != TITLE_SEED_LABEL or not number.isdigit():
         raise PlayerSettingError("Random boss-sound word: this ROM's title screen shows no seed number")
-    return int(number.strip())
+    return int(number)
 
 
 def level_label(word: str) -> str:
@@ -297,6 +302,7 @@ def apply_player_settings(rom: bytes, settings: PlayerSettings) -> bytes:
     music(out, settings.music)
     level_word(out, settings.level_word)
     boss_sound_word(out, settings.boss_sound_word)
+    statistics_screen(out, settings.statistics_screen)
     return bytes(out)
 
 
@@ -397,6 +403,12 @@ def boss_sound_word(rom: bytearray, word: str) -> None:
         CHAR_TO_BYTE[char] for char in word)
 
 
+def statistics_screen(rom: bytearray, on: bool) -> None:
+    """FP-STATS-01: the end-of-game statistics screen (asm/fp-stats-01/). Off writes the bytes the
+    ROM has without it (free space and the game's own instructions)."""
+    _write(rom, SETTINGS["statistics_screen"]["on" if on else "off"])
+
+
 def relabel_hint_line(line: str, word: str) -> str:
     """One hint line (its characters, centring pad included) with each level label in `word`'s
     form, centred again and padded at its end to the line's old length."""
@@ -490,7 +502,7 @@ SWITCH_WORDS = {"off": False, "on": True}
 
 def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     """Command-line settings, each `name=value` with PlayerSettings' field names: a choice by
-    its value (music=off), reduce_flashing=on, heart_colour=0x21, tunic_colours=0x29,0x32,0x16,
+    its value (music=off), reduce_flashing=on, statistics_screen=off, heart_colour=0x21, tunic_colours=0x29,0x32,0x16,
     level_word=PALACE (any case), boss_sound_word=MEOW or boss_sound_word=random."""
     chosen: dict[str, object] = {}
     for pair in pairs:
@@ -498,7 +510,7 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
         try:
             if name in SETTING_CHOICES:
                 chosen[name] = SETTING_CHOICES[name](text)
-            elif name == "reduce_flashing":
+            elif name in ("reduce_flashing", "statistics_screen"):
                 chosen[name] = SWITCH_WORDS[text]
             elif name == "heart_colour":
                 chosen[name] = int(text, 0)
@@ -528,6 +540,7 @@ PAGE_CHOICES: dict[str, tuple[str, dict[str, Any]]] = {
                                  "p1-up-select": DeathWarp.CONTROLLER1_UP_SELECT}),
     "reduceFlashing": ("reduce_flashing", {"off": False, "on": True}),
     "music": ("music", {"on": Music.ON, "off": Music.OFF}),
+    "statisticsScreen": ("statistics_screen", {"on": True, "off": False}),
 }
 PAGE_TUNIC_SLOTS = ("greenTunic", "blueRingTunic", "redRingTunic")
 PAGE_HEART_SLOT = "heart"

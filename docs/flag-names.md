@@ -82,6 +82,35 @@ generate` rewrites the other columns from `zora/flags/` and keeps the
 owner's columns. `tests/test_flag_names.py` fails if the CSV and the JSON
 disagree, that is, if an edit has not been imported.
 
+**The original randomizer's names (owner ruling, 2026-10-10).** The community uses
+the original randomizer's names for the flags and their values, and ZORA
+adopts them. `docs/spec/flag-names-reference.csv` lists them (code,
+field_name, value, value_name, note), and
+
+```bash
+python3 scripts/flag_names.py reference
+```
+
+writes them into the owner columns before the usual import:
+
+- every option field's value names (C01-C27), so the page reads "1st
+  Quest", "Intra-Dungeon", "8 triforces";
+- every on/off/random field's name (B01-B91), so "Start with Raft" is now
+  "Start Raft" and the 2026-10-03 ruling on those names no longer holds;
+- not the option fields' names: the original randomizer has none, and each keeps
+  the one above ("Overworld Quest");
+- not Encode level data: the original randomizer's B82 is a different field, Race
+  ROM.
+
+A switch's three states are Off, On and Random (owner ruling, 2026-10-10;
+the original randomizer says "Possible"). `zora/flags/fields.py` `THREE_STATE_LABELS`
+names them, `form.metadata()` gives every switch, Z1R and ZORA Extra
+alike, its values with these labels, and the page and
+`scripts/flag_labels.py` read them from there. A label never changes what
+is encoded: Starting Hearts' "1" is still value 0 (the original randomizer's numbers
+there are the value + 1), and `tests/test_flag_names_reference.py` checks
+both the names and that.
+
 **Pass names in the code (2026-10-04).** Each generation pass is named
 after its flag's name above, in snake_case, and its result type follows
 it. Where the flag's name would make an awkward identifier, the mapping is:

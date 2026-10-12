@@ -2,8 +2,6 @@
 inside-dungeon probe (hints-behavior.md HT-HINT-01 rule 2) against the
 spec's per-room and per-record checkpoints on the corpus finals of seeds 1
 and 2, and the level-9 $4B room's sides (late-gate.md VA-REJ-19)."""
-import os
-from pathlib import Path
 
 import pytest
 
@@ -19,15 +17,16 @@ from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora_measure.checkpoints.dungeon_room_shuffle import LEVEL9_PERSON_SIDE_KEYS, level9_person_sides
+from zora_measure.corpora import CLEAN, corpus
 
 # Generated hint text is written as generated seeds write it (the extended bank), not into the
 # vanilla bank, which ZORA's wording outgrows.
 GENERATED_HINTS = GameConfig(hint_mode=HintMode.CONSTERNATION)
 
 
-# The finished corpus ROMs: the folder ZORA_CORPUS names (scripts/verify.sh sets it); the tests
+# The MVP baseline corpus's finished ROMs (zora_measure.corpora, under ZORA_CORPORA); the tests
 # that need them skip without it.
-CORPUS = Path(os.environ.get("ZORA_CORPUS", "temp/no-corpus"))
+CORPUS = corpus(CLEAN)
 SIDE_LETTERS = ((Side.NORTH, "N"), (Side.SOUTH, "S"), (Side.WEST, "W"), (Side.EAST, "E"), (STAIRS, "X"))
 
 # VA-REJ-18's per-room checkpoint: seed, level, room, the sides it is

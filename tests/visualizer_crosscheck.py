@@ -6,17 +6,21 @@ Compared: what both read from the ROM. Not compared: names each side chooses for
 (room layouts, enemies, cave and screen names, level colours, transport staircase numbers);
 for those the check is that each side's names map one to one onto the other's, so the two
 sides at least tell the same things apart. ZORA's extras (settings, speakers, sellsOnce) the
-visualizer cannot read, so they are not compared."""
+visualizer cannot read, so they are not compared.
+
+The visualizer's checkout is the ZORA_VISUALIZER setting, default ../z1r-visualizer beside this
+checkout (a copy of the tree elsewhere can point it at the real one)."""
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-VISUALIZER = Path(__file__).resolve().parent.parent.parent / "z1r-visualizer"
+VISUALIZER = Path(os.environ.get("ZORA_VISUALIZER") or Path(__file__).resolve().parent.parent.parent / "z1r-visualizer")
 CLI = VISUALIZER / "cli.py"
 
 

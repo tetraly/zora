@@ -183,6 +183,12 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .tab:hover { color: var(--ink); background: var(--track); }
 .tab[aria-selected="true"] { background: var(--teal); color: var(--on-teal); }
 .panel-note { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
+/* A note the player should act on (Starting Items' Max Start Items at 0): the beta banner's amber. */
+.callout {
+  margin: 0 0 10px; padding: 8px 12px; border-radius: 10px; font-size: 14px;
+  background: var(--beta-bg); color: var(--beta-ink); border-left: 3px solid var(--beta-line);
+}
+.callout[hidden] { display: none; }
 
 .setting-grid {
   display: grid; gap: 6px;
@@ -201,6 +207,10 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 /* A forced field's or a refused value's reason, under the row's name. */
 .setting-reason { flex-basis: 100%; margin: 0 0 2px 20px; font-size: 12px; color: var(--muted); }
 .setting-reason:empty { display: none; }
+/* A note beside a select whose chosen value's community name could mislead ("No item pinned"). */
+.value-noted { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.value-note { font-size: 12px; color: var(--muted); text-align: right; }
+.value-note:empty { display: none; }
 .setting--problem .setting-reason { color: var(--error); }
 .setting--locked .setting-name > .setting-label { color: var(--muted); }
 .visually-hidden {

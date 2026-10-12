@@ -49,7 +49,6 @@ from .fields import (
     WOODEN_SWORD_CAVE_MOVES,
     WOODEN_SWORD_STATE,
     CaveShuffle,
-    DungeonLayoutSource,
     DungeonRoomShuffle,
     HitPointChange,
     Level9Requirement,
@@ -60,6 +59,7 @@ from .fields import (
     ToggleField,
     WoodenSwordState,
 )
+from .support import DUNGEON_QUESTS_WITHOUT_PERSON_MOVES
 
 # ---------------------------------------------------------------------------
 # FL-DEP-01 and FL-DEP-02: refusals and prerequisites
@@ -89,8 +89,7 @@ def refusals(settings: Settings) -> list[Refusal]:
 CAVE_SHUFFLE_MOVES_NON_DUNGEON_CAVES = (CaveShuffle.NON_DUNGEON_CAVES_ONLY, CaveShuffle.ALL_CAVES)
 CAVE_SHUFFLE_LEAVES_NON_DUNGEON_CAVES = (CaveShuffle.VANILLA, CaveShuffle.DUNGEON_DOORS_ONLY)
 # FL-DEP-02 rule 4: these layout sources turn the two person shuffles off; shapes (3) does not.
-LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES = (DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED,
-                                          DungeonLayoutSource.MIXED_WITH_SHAPES)
+LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES = DUNGEON_QUESTS_WITHOUT_PERSON_MOVES
 
 
 def missing_prerequisites(settings: Settings) -> list[Refusal]:

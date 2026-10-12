@@ -9,7 +9,7 @@
   "name": "Allow OW Blocks of Wood Sword"
  },
  "B04": {
-  "name": "Shuffle \"Take Any Road\" Caves"
+  "name": "Shuffle Take Any Road Caves"
  },
  "B05": {
   "name": "Change Secret Spots"
@@ -38,8 +38,14 @@
  "B13": {
   "name": "Shuffle Armos"
  },
+ "B14": {
+  "name": "Shuffle Dungeon Items"
+ },
  "B15": {
   "name": "Shuffle Dungeon Drops"
+ },
+ "B16": {
+  "name": "Shuffle Dungeon Hearts"
  },
  "B17": {
   "name": "Shuffle Minor Dungeon Drops"
@@ -60,7 +66,7 @@
   "name": "Add Money or Life Rooms"
  },
  "B23": {
-  "name": "Change \"Leave your...\" Rooms"
+  "name": "Change Leave Your Rooms"
  },
  "B24": {
   "name": "Hide Dungeon Numbers"
@@ -162,73 +168,73 @@
   "name": "Killable Drop Items"
  },
  "B57": {
-  "name": "Start with Raft"
+  "name": "Start Raft"
  },
  "B58": {
-  "name": "Start with Bow"
+  "name": "Start Bow"
  },
  "B59": {
-  "name": "Start with 8 Bombs"
+  "name": "Start 8 Bombs"
  },
  "B60": {
-  "name": "Start with Recorder"
+  "name": "Start Recorder"
  },
  "B61": {
-  "name": "Start with Bait"
+  "name": "Start Bait"
  },
  "B62": {
-  "name": "Start with Magical Key"
+  "name": "Start Magical Key"
  },
  "B63": {
-  "name": "Start with Letter"
+  "name": "Start Letter"
  },
  "B64": {
-  "name": "Start with Power Bracelet"
+  "name": "Start Power Bracelet"
  },
  "B65": {
-  "name": "Start with Ladder"
+  "name": "Start Ladder"
  },
  "B66": {
-  "name": "Start with Wand"
+  "name": "Start Wand"
  },
  "B67": {
-  "name": "Start with Book"
+  "name": "Start Book"
  },
  "B68": {
-  "name": "Start with Wood Sword"
+  "name": "Start Wood Sword"
  },
  "B69": {
-  "name": "Start with White Sword"
+  "name": "Start White Sword"
  },
  "B70": {
-  "name": "Start with Magical Sword"
+  "name": "Start Magical Sword"
  },
  "B71": {
-  "name": "Start with Wood Arrow"
+  "name": "Start Wood Arrow"
  },
  "B72": {
-  "name": "Start with Silver Arrow"
+  "name": "Start Silver Arrow"
  },
  "B73": {
-  "name": "Start with Blue Candle"
+  "name": "Start Blue Candle"
  },
  "B74": {
-  "name": "Start with Red Candle"
+  "name": "Start Red Candle"
  },
  "B75": {
-  "name": "Start with Blue Ring"
+  "name": "Start Blue Ring"
  },
  "B76": {
-  "name": "Start with Red Ring"
+  "name": "Start Red Ring"
  },
  "B77": {
-  "name": "Start with Wood Boomerang"
+  "name": "Start Wood Boomerang"
  },
  "B78": {
-  "name": "Start with Magical Boomerang"
+  "name": "Start Magical Boomerang"
  },
  "B79": {
-  "name": "Add extra bosses"
+  "name": "Add Extra Bosses"
  },
  "B80": {
   "name": "Rupees Affect Speed"
@@ -241,6 +247,9 @@
  },
  "B84": {
   "name": "Prevent Clipping"
+ },
+ "B85": {
+  "name": "Start Magical Shield"
  },
  "B86": {
   "name": "Do Not Sort Shapes"
@@ -257,8 +266,18 @@
  "B90": {
   "name": "Increase Bomb Capacity Upgrade"
  },
+ "B91": {
+  "name": "Allow Universal Drops in Shapes"
+ },
  "C01": {
-  "name": "Overworld Quest"
+  "name": "Overworld Quest",
+  "values": [
+   "1st Quest",
+   "2nd Quest",
+   "Mixed Quest - 1st",
+   "Mixed Quest - 2nd",
+   "Random"
+  ]
  },
  "C02": {
   "name": "Dungeon Quest",
@@ -289,7 +308,7 @@
   "values": [
    "Normal",
    "Easy start shuffle",
-   "Full Start Shuffle",
+   "Full start shuffle",
    "Wood Sword Screen"
   ]
  },
@@ -298,13 +317,20 @@
   "values": [
    "Vanilla",
    "Dungeons Only",
-   "Non-Dungeons Only",
-   "All Cave",
+   "Non-dungeons Only",
+   "All Caves",
    "Random"
   ]
  },
  "C06": {
-  "name": "Item Shuffle"
+  "name": "Item Shuffle",
+  "values": [
+   "None",
+   "Item Only",
+   "Intra-Dungeon",
+   "Full",
+   "Random"
+  ]
  },
  "C07": {
   "name": "Swords",
@@ -317,14 +343,29 @@
   ]
  },
  "C08": {
-  "name": "Level 9 Entry"
+  "name": "Level 9 Entry",
+  "values": [
+   "8 triforces",
+   "7 triforces",
+   "6 triforces",
+   "5 triforces",
+   "4 triforces",
+   "3 triforces",
+   "2 triforces",
+   "1 triforce",
+   "Open Level 9",
+   "Triforce Range",
+   "Specific Triforces",
+   "Other Item",
+   "Random"
+  ]
  },
  "C09": {
   "name": "\"Most\" Enemy HP",
   "values": [
    "Normal",
-   "+/- 2 HP",
-   "+/- 4 HP",
+   "+/- 2",
+   "+/- 4",
    "0 HP",
    "Random"
   ]
@@ -333,26 +374,83 @@
   "name": "Boss HP",
   "values": [
    "Normal",
-   "+/- 2 HP",
-   "+/- 4 HP",
+   "+/- 2",
+   "+/- 4",
    "0 HP",
    "Random"
   ]
  },
  "C11": {
-  "name": "Armos Item"
+  "name": "Armos Item",
+  "values": [
+   "Random",
+   "Book",
+   "Boomerang",
+   "Bow",
+   "Heart Container",
+   "Ladder",
+   "Magical Boomerang",
+   "Magical Key",
+   "Power Bracelet",
+   "Raft",
+   "Recorder",
+   "Red Candle",
+   "Red Ring",
+   "Silver Arrow",
+   "Wand",
+   "White Sword",
+   "Non-Heart"
+  ]
  },
  "C12": {
-  "name": "Coast Item"
+  "name": "Coast Item",
+  "values": [
+   "Random",
+   "Book",
+   "Boomerang",
+   "Bow",
+   "Heart Container",
+   "Ladder",
+   "Magical Boomerang",
+   "Magical Key",
+   "Power Bracelet",
+   "Raft",
+   "Recorder",
+   "Red Candle",
+   "Red Ring",
+   "Silver Arrow",
+   "Wand",
+   "White Sword",
+   "Non-Heart"
+  ]
  },
  "C13": {
-  "name": "White Sword Item"
+  "name": "White Sword Item",
+  "values": [
+   "Random",
+   "Book",
+   "Boomerang",
+   "Bow",
+   "Heart Container",
+   "Ladder",
+   "Magical Boomerang",
+   "Magical Key",
+   "Power Bracelet",
+   "Raft",
+   "Recorder",
+   "Red Candle",
+   "Red Ring",
+   "Silver Arrow",
+   "Wand",
+   "White Sword",
+   "Non-Heart"
+  ]
  },
  "C14": {
   "name": "Dungeon Room Shuffle",
   "values": [
    "Vanilla",
-   "In-dungeon Shuffle",
+   "In-Dungeon Shuffle",
    "Full Shuffle",
    "Random"
   ]
@@ -361,19 +459,75 @@
   "name": "Item Sprites",
   "values": [
    "Normal",
-   "Fun%",
+   "Fun %",
    "Sprite Shuffle",
    "Random"
   ]
  },
  "C16": {
-  "name": "Starting Hearts"
+  "name": "Starting Hearts",
+  "values": [
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "1-5 Hearts"
+  ]
  },
  "C17": {
-  "name": "Max Start Items"
+  "name": "Max Start Items",
+  "values": [
+   "All",
+   "0",
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "9",
+   "10",
+   "11",
+   "12",
+   "13",
+   "14",
+   "15",
+   "16",
+   "17",
+   "18",
+   "19",
+   "20",
+   "Random"
+  ]
  },
  "C18": {
-  "name": "Triforce Pieces"
+  "name": "Triforce Pieces",
+  "values": [
+   "0",
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8",
+   "Random"
+  ]
  },
  "C19": {
   "name": "Red Bubble Curse",
@@ -385,27 +539,111 @@
   ]
  },
  "C20": {
-  "name": "White Sword Hearts (min)"
+  "name": "White Sword Hearts (min)",
+  "values": [
+   "4",
+   "5",
+   "6"
+  ]
  },
  "C21": {
-  "name": "White Sword Hearts (max)"
+  "name": "White Sword Hearts (max)",
+  "values": [
+   "6",
+   "5",
+   "4"
+  ]
  },
  "C22": {
-  "name": "Magical Sword Hearts (min)"
+  "name": "Magical Sword Hearts (min)",
+  "values": [
+   "10",
+   "11",
+   "12",
+   "13",
+   "14"
+  ]
  },
  "C23": {
-  "name": "Magical Sword Hearts (max)"
+  "name": "Magical Sword Hearts (max)",
+  "values": [
+   "14",
+   "13",
+   "12",
+   "11",
+   "10"
+  ]
  },
  "C24": {
-  "name": "Triforce Range (min)"
+  "name": "Triforce Range (min)",
+  "values": [
+   "0",
+   "1",
+   "2",
+   "3",
+   "4",
+   "5",
+   "6",
+   "7",
+   "8"
+  ]
  },
  "C25": {
-  "name": "Triforce Range (max)"
+  "name": "Triforce Range (max)",
+  "values": [
+   "8",
+   "7",
+   "6",
+   "5",
+   "4",
+   "3",
+   "2",
+   "1",
+   "0"
+  ]
  },
  "C26": {
-  "name": "Level 9 Item 1"
+  "name": "Level 9 Item 1",
+  "values": [
+   "Random",
+   "Book",
+   "Boomerang",
+   "Bow",
+   "Heart Container",
+   "Ladder",
+   "Magical Boomerang",
+   "Magical Key",
+   "Power Bracelet",
+   "Raft",
+   "Recorder",
+   "Red Candle",
+   "Red Ring",
+   "Silver Arrow",
+   "Wand",
+   "White Sword",
+   "Non-Heart"
+  ]
  },
  "C27": {
-  "name": "Level 9 Item 2"
+  "name": "Level 9 Item 2",
+  "values": [
+   "Random",
+   "Book",
+   "Boomerang",
+   "Bow",
+   "Heart Container",
+   "Ladder",
+   "Magical Boomerang",
+   "Magical Key",
+   "Power Bracelet",
+   "Raft",
+   "Recorder",
+   "Red Candle",
+   "Red Ring",
+   "Silver Arrow",
+   "Wand",
+   "White Sword",
+   "Non-Heart"
+  ]
  }
 }

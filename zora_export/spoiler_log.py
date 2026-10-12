@@ -94,7 +94,9 @@ def major_items(document: dict[str, Any]) -> list[str]:
     progressive = bool(document.get("progressiveItems"))
     l4 = document.get("zoraExtras", {}).get("l4Sword")
     lines = heading("Major items by place")
-    for level in document["levels"]:
+    # A level by the number its status bar shows (owner ruling 2026-10-11): the document's
+    # `number` is the data number, which differs for a second-quest set's paired levels.
+    for level in sorted(document["levels"], key=lambda level: level["shownNumber"]):
         found = []
         for room in level["rooms"]:
             item = room["item"]
@@ -107,7 +109,7 @@ def major_items(document: dict[str, Any]) -> list[str]:
             stair = room["staircase"]
             if stair and stair["kind"] == "item" and stair["item"] in MAJOR_ITEMS:
                 found.append(f"{room_label(room)}, down the stairs: {item_label(stair['item'], progressive)}")
-        lines.append(f"Level {level['number']}")
+        lines.append(f"Level {level['shownNumber']}")
         lines += [line for entry in found for line in wrapped(entry, " " * 6, "    ")] or ["    (none)"]
     overworld = document["overworld"]
     lines.append("Overworld")
@@ -142,7 +144,8 @@ def hints(document: dict[str, Any]) -> list[str]:
     for slot, hint in enumerate(document["hints"]):
         lines += wrapped(hint["text"] or "(empty)", " " * 5, f"{slot:2}.  ")
         if "speaker" in hint:
-            lines += wrapped(f"said by {hint['speaker']}", " " * 7, " " * 5)
+            # a dungeon person's level by its shown number (the document's `shownSpeaker`)
+            lines += wrapped(f"said by {hint.get('shownSpeaker', hint['speaker'])}", " " * 7, " " * 5)
     return lines
 
 

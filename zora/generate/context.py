@@ -12,6 +12,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from ..model.game_world import GameWorld
+from ..model.levels import Level
 from ..model.overworld import Overworld
 from .alternative_values import MVP_VALUES, AlternativeValues
 from .extra_options import NO_EXTRAS, ExtraOptions
@@ -24,6 +25,7 @@ from .ship import StagedSets
 from .steps.assign_hints_for_hint_type import HintAssignmentResult
 from .steps.cave_entries import CaveShuffle, Entry
 from .steps.change_enemy_hp import EnemyHpResult
+from .steps.dungeon_quest import ALL_SHAPES, SetSources
 from .steps.dungeon_room_shuffle import DungeonRoomShuffleResult
 from .steps.extra_pool_items import ExtraPoolItems
 from .steps.hint_text import HintTextResult
@@ -41,9 +43,12 @@ class GenerationResult:
     # The shipped pass's plans as the shape stage left them. Every pass
     # after it runs on the staged levels built from them and is not
     # reflected here; read the GameWorld for the finished rooms.
-    sets: list[SetWorld] = field(default_factory=list)
+    # None for a set that keeps a quest's own dungeons (SH-SRC-01): it has no shape plan
+    set_plans: list[SetWorld | None] = field(default_factory=list)
     pools: EnemyPools | None = None
     hint_level9_left_column: int | None = None
+    # SH-SRC-01/07: the set sources drawn once per seed (None: Mixed Quest's coin per attempt)
+    seed_set_sources: SetSources | None = ALL_SHAPES
     restart_reasons: list[str] = field(default_factory=list)
     gate_attempts: int = 0       # passes lost to budget exhaustion (gen restarts)
     gate_rejections: int = 0     # total re-deal attempts that failed checks
@@ -71,6 +76,14 @@ class GenerationResult:
     hint_assignment: HintAssignmentResult | None = None
     maze_offers: dict[int, list[str]] = field(default_factory=dict)
 
+    @property
+    def sets(self) -> list[SetWorld]:
+        """The shape plans of a seed whose sets are all shaped (C02 = 3, the default)."""
+        shaped = [plan for plan in self.set_plans if plan is not None]
+        if len(shaped) != len(self.set_plans):
+            raise ValueError("a set keeps a quest's own dungeons and has no shape plan; read set_plans")
+        return shaped
+
 
 @dataclass(frozen=True)
 class GenerationSettings:
@@ -97,7 +110,11 @@ class GenerationContext:
     pools: EnemyPools                # SH-ENEMY-01, harvested once from the base levels
     pre_shapes_goriya_tile: int | None   # PS-GRUM-03's draw before the first attempt
     # This attempt: the shape stage's plans and the levels and blocks built from them
-    plans: list[SetWorld] = field(default_factory=list)
+    # SH-SRC: this attempt's set sources; a vanilla set has no plans (None)
+    set_sources: SetSources = ALL_SHAPES
+    plans: list[SetWorld | None] = field(default_factory=list)
+    # PS-VAN-07: the levels of the two first-quest blocks (a second-quest set's unread copy)
+    first_quest_block_levels: list[Level] | None = None
     sets: StagedSets = field(init=False)
     item_shuffle_result: ItemShuffleResult = field(init=False)
     extra_pool_items: ExtraPoolItems = field(default_factory=ExtraPoolItems)

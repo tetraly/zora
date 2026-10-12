@@ -9,6 +9,7 @@
     does, with the page's note."""
 import pytest
 
+from zora import archipelago
 from zora.archipelago import OptionsConflict, OptionSpec, flag_strings, option_corrections, option_fields
 from zora.flags import form as flag_form
 from zora.flags import zora_flags, zora_form
@@ -68,9 +69,40 @@ def test_encode_level_data_is_never_offered_and_always_off() -> None:
 def test_only_supported_values_are_offered() -> None:
     for spec in SPECS:
         if spec.id in flag_form.FIELDS_BY_ID:
-            assert spec.values == tuple(int(v) for v in flag_form.supported_values(flag_form.FIELDS_BY_ID[spec.id]))
-    assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} - {ENCODE_LEVEL_DATA.id}
+            held = archipelago.HELD_BACK.get(spec.id, frozenset())
+            assert spec.values == tuple(int(v) for v in flag_form.supported_values(flag_form.FIELDS_BY_ID[spec.id])
+                                        if v not in held)
+    assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} - archipelago.NOT_OFFERED
                                            | set(zora_form.FIELD_NAMES))
+    assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06"}
+
+
+def test_item_shuffle_is_never_offered_and_always_full() -> None:
+    """Owner ruling (2026-10-10): Archipelago places the items itself."""
+    assert decode(flag_strings({})[0]).option("C06") == 3
+    with pytest.raises(OptionsConflict, match="C06"):
+        flag_strings({"C06": 2})
+
+
+def test_values_wait_for_the_logic_scan() -> None:
+    """Owner ruling (2026-10-10): a value is offered once it passes C2's logic scan. C01 = 1 to 4,
+    C04 = 2 and 3, B81 and B03 (on and Random), Helpful hints (C03 = 1), and on 2026-10-11 Dungeon
+    Quest 1st Quest (C02 = 0), the nine start items, Allow Important Items in 9 (B25, on and
+    Random), Dungeon Quest 2nd Quest (C02 = 1) and Shuffle Dungeon Start Room (B26, on and Random)
+    have. Nothing waits now; a held value would be refused by name."""
+    start_items = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78")
+    assert archipelago.HELD_BACK == {}
+    offered = {spec.id: spec.values for spec in SPECS}
+    assert offered["C01"] == (0, 1, 2, 3, 4)
+    assert offered["C04"] == (0, 1, 2, 3)
+    assert offered["C02"] == (0, 1, 3)
+    assert 1 in offered["C03"]
+    assert all(offered[field_id] == tuple(int(state) for state in ThreeState)
+               for field_id in ("B81", "B03", "B25", "B26", *start_items))
+    for option, values in archipelago.HELD_BACK.items():
+        for value in values:
+            with pytest.raises(OptionsConflict, match=option):
+                flag_strings({option: value})
 
 
 @pytest.mark.parametrize(("option", "value"), SINGLE_VALUES)

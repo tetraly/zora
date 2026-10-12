@@ -14,6 +14,10 @@ from zora_measure.hint_information import BLANK, GREETING
 # --- Hint text (hints-behavior.md) ------------------------------------------------
 
 SPEC_HINT = "hints-behavior.md @ 1e0f219"
+SPEC_HELPFUL = "hints-behavior.md @ eca85cc"
+SPEC_HINT_PAIRS = "hints-behavior.md @ 6c6506b"
+# HT-HINT-04's corpus string: the MVP baseline's with Hint Type Helpful (C03 = 1)
+HELPFUL_HINTS_FLAGS = "8hq4BeR1JXo89BJ2!TFpTP02u8UI!M"
 
 # The primary/spare selector set after the $26 -> $4C replacement, plus the
 # PRG0-retained $32 value (HT-SEL-01).
@@ -96,6 +100,11 @@ def _inside_dungeon_summary() -> Summary:
     from zora_measure.hint_information import INSIDE_DUNGEON_KEYS
     return per_thousand_by_key(INSIDE_DUNGEON_KEYS)
 LOCATION_SUMMARY = _location_summary()
+
+
+def _second_quest_candidates_summary() -> Summary:
+    from zora_measure.hint_information import PAIRED_CANDIDATE_KEYS
+    return per_thousand_by_key(PAIRED_CANDIDATE_KEYS)
 
 
 def _text_kind_summary(slots: tuple[int, ...], kinds: tuple[str, ...]) -> Summary:

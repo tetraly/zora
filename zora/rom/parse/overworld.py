@@ -3,6 +3,7 @@
 from ...model.enums import Destination, Enemy, OverworldDirection, QuestVisibility
 from ...model.overworld import SCREEN_ENTRANCE_TYPES, BombUpgrade, EntranceType, Overworld, Screen
 from ...model.rooms import EnemySpec
+from ..layout import BNE_OPCODE
 from .bin_files import RawBinFiles
 from .caves import _parse_cave_data
 from .levels import _level_info_block_by_index, _parse_enemy_sprite_set
@@ -82,4 +83,6 @@ def _parse_overworld(bins: RawBinFiles, mixed_groups: dict[int, EnemySpec]) -> O
         recorder_warp_y_coordinates=list(bins.recorder_warp_y_coordinates),
         start_screen=bins.start_screen[0],
         start_position_y=bins.start_position_y[0],
+        recorder_secret_screens=list(bins.flute_room_secrets),
+        recorder_reveals_listed_secrets_in_first_quest=bins.flute_secret_quest_branch[0] == BNE_OPCODE,
     )

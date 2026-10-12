@@ -10,9 +10,13 @@ The generation path's own remembering is tested in fresh processes, where this d
 Every process of a session shares its builds through one folder (tests/shared_builds.py),
 made here before the xdist workers start and removed at the end.
 
-A run with xdist workers is a full suite: it waits for any other full suite on this checkout
-to finish (tests/suite_lock.py). Running alone, it is fastest with `-n auto` at one worker per
-core (AUTO_WORKER_SHARE; measured in tasks/test-speed-2.md: 7, 9 and 10 workers on 10 cores).
+A run with more than two xdist workers (suite_lock.LIGHT_WORKERS) is a full suite: it waits
+for any other full suite on this checkout to finish (tests/suite_lock.py), and warns when it
+has to (owner rule: while a run holds the lock, other test runs use at most two workers).
+Running alone, it is fastest with `-n auto` at one worker per core (AUTO_WORKER_SHARE; measured
+in tasks/test-speed-2.md: 7, 9 and 10 workers on 10 cores). A run that selects a slow test
+(`-m slow`, or one slow test) takes the lock whatever its workers; without xdist, once its
+tests are collected. A light run, serial or at most two workers, runs beside a suite.
 """
 import os
 import shutil
@@ -24,7 +28,7 @@ from pathlib import Path
 import pytest
 
 from tests import shared_builds
-from tests.suite_lock import suite_lock
+from tests.suite_lock import HELD_ENV, LIGHT_WORKERS, holder, suite_lock
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
 SHARED_BUILDS_ROOT = Path(__file__).resolve().parent.parent / "temp" / "test-builds"
@@ -46,24 +50,64 @@ def pytest_xdist_auto_num_workers(config: pytest.Config) -> int:
 
 def pytest_configure(config: pytest.Config) -> None:
     """The controller (or a run without xdist) makes the session's folder; workers inherit it.
-    The controller of an xdist run first takes the suite lock, held until the run ends."""
-    if not hasattr(config, "workerinput") and config.getoption("numprocesses", None):
-        held = ExitStack()
-        capture = config.pluginmanager.getplugin("capturemanager")
-
-        def say(message: str) -> None:
-            if capture is None:              # -p no:capture
-                print(f"suite lock: {message}", flush=True)
-                return
-            with capture.global_and_fixture_disabled():
-                print(f"suite lock: {message}", flush=True)
-        held.enter_context(suite_lock("pytest " + " ".join(config.invocation_params.args), say))
-        config.stash[_SUITE_LOCK] = held
+    The controller of a heavy xdist run first takes the suite lock, held until the run ends."""
+    workers = 0 if hasattr(config, "workerinput") else _requested_workers(config)
+    if workers > LIGHT_WORKERS or (workers and _selects_slow(config)):
+        # Inside a held lock (verify's own pytest) the holder is this run's parent: no warning
+        if workers > LIGHT_WORKERS and not os.environ.get(HELD_ENV) and (running := holder()):
+            _say(config, f"WARNING: {running} holds the lock; while it does, other test runs use at most "
+                         f"{LIGHT_WORKERS} workers (AGENTS.md), and this one asks for {workers}. Waiting for "
+                         f"it (use -n {LIGHT_WORKERS} to run beside it).")
+        _take_suite_lock(config)
     if not hasattr(config, "workerinput") and shared_builds.FOLDER_ENV not in os.environ:
         folder = SHARED_BUILDS_ROOT / uuid.uuid4().hex
         folder.mkdir(parents=True)
         os.environ[shared_builds.FOLDER_ENV] = str(folder)
         config.stash[_SHARED_BUILDS_FOLDER] = folder
+
+
+def _requested_workers(config: pytest.Config) -> int:
+    """The xdist workers this run asks for (0 without xdist)."""
+    requested = config.getoption("numprocesses", None)
+    if not requested:
+        return 0
+    if requested in ("auto", "logical"):
+        return pytest_xdist_auto_num_workers(config)
+    return int(requested)
+
+
+def _selects_slow(config: pytest.Config) -> bool:
+    """Whether the -m expression asks for slow tests (an xdist controller collects nothing)."""
+    expression = config.getoption("markexpr", "") or ""
+    return "slow" in expression and "not slow" not in expression
+
+
+def _say(config: pytest.Config, message: str) -> None:
+    """Print past pytest's output capture."""
+    capture = config.pluginmanager.getplugin("capturemanager")
+    if capture is None:                  # -p no:capture
+        print(f"suite lock: {message}", flush=True)
+        return
+    with capture.global_and_fixture_disabled():
+        print(f"suite lock: {message}", flush=True)
+
+
+def _take_suite_lock(config: pytest.Config) -> None:
+    """Wait for the suite lock and hold it until the run ends (pytest_unconfigure)."""
+    held = ExitStack()
+    held.enter_context(suite_lock("pytest " + " ".join(config.invocation_params.args),
+                                  lambda message: _say(config, message)))
+    config.stash[_SUITE_LOCK] = held
+
+
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """A run without xdist that selected a slow test takes the lock before running it: slow
+    suites run serially are the longest runs of all, and must not overlap a verify run."""
+    config = session.config
+    if hasattr(config, "workerinput") or _SUITE_LOCK in config.stash:
+        return
+    if any(item.get_closest_marker("slow") for item in session.items):
+        _take_suite_lock(config)
 
 
 def pytest_unconfigure(config: pytest.Config) -> None:

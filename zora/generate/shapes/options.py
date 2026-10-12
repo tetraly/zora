@@ -14,9 +14,6 @@ from ...rom.game_config import reject_blocked_options
 
 # option name -> what it waits on
 BLOCKED_OPTIONS = {
-    # the room below an off-bottom-row entrance belongs to another level, and
-    # the vanilla engine walks into it (Z_05 CalculateNextRoomForDoor)
-    "start_room_swap": "QUESTIONS #54",
     "second_quest_doors": "QUESTIONS #2",
     "mixed_quests": "implementation of SH-STAIR-03's mixed-quest cellar items",
     "seed_placement": "QUESTIONS #29-33",

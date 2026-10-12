@@ -1,6 +1,12 @@
 """The inventory walk of a level (VA-REJ-17/18): which rooms a player holding
 given items can enter and through which sides. The acceptance check and the
-hint text both use it."""
+hint text both use it.
+
+Two sets of rules (WalkRules): SPEC_WALK is VA-REJ-17/18 as written, which
+generation's acceptance check and the hint text keep (ZORA-mode output and the
+original randomizer's validator); LOGIC_WALK corrects three of its refusals, measured in the
+emulator (docs/reports/unreachable-places.md), for Archipelago's rules and FINISH's
+sanity check only."""
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -126,15 +132,18 @@ def item_code(item: Item) -> int:
 class Walk:
     """What a walk entered: each room with the sides it was entered by (a
     step, not a turn; STAIRS for a stair arrival), and the item cellars it
-    reached."""
+    reached. ladder_moats: the layouts whose arrival takes any side (the
+    logic walk's, with the ladder held)."""
     reached: dict[int, set[int]] = field(default_factory=dict)
     cellars: set[int] = field(default_factory=set)
+    ladder_moats: frozenset[int] = frozenset()
 
     def accepts(self, level: Level, room: int) -> bool:
         """VA-REJ-17's arrival rule for a target room."""
-        return room in self.reached and arrival_accepts(
-            level.block.room(room).room_type, True, self.reached[room]
-        )
+        if room not in self.reached:
+            return False
+        layout = level.block.room(room).room_type
+        return layout in self.ladder_moats or arrival_accepts(layout, True, self.reached[room])
 
 
 # --- VA-REJ-18: the entry-side rule --------------------------------------------
@@ -171,6 +180,10 @@ STRAIGHT_THROUGH_ROW = _row("N", "S", "W", "E", "-")           # $16; $14 with t
 HORIZONTAL_MOAT_ROW = _row("N", "SWEX", "SWEX", "SWEX", "SWEX")  # $18
 VERTICAL_MOAT_ROW = _row("NSWX", "NSWX", "NSWX", "E", "NSWX")  # $13
 DOUBLE_MOAT_ROW = _row("-", "-", "E", "W", "-")                # $19
+# The turnstile room as the emulator measured it (seed 2's level-9 $13, the block pushing
+# once): from N or S Link reaches the W and E doorways, from W or E the N and S ones, never
+# the opposite one. VA-REJ-18's row allows one of the two.
+MEASURED_TURNSTILE_ROW = _row("WE", "WE", "NS", "NS", "-")    # $60
 POINTLESS_MOAT_ROW = _row("NSWE", "NSWE", "-", "-", "-")       # $15 with traps
 ALWAYS_ROWS: dict[int, Row] = {
     RoomType.VERTICAL_CHUTE_ROOM: VERTICAL_CHUTE_ROW,
@@ -200,15 +213,19 @@ def has_trap_monsters(room: Room) -> bool:
                                      or room.monster_list in TRAP_MONSTER_LISTS)
 
 
-def entry_row(room: Room, is_level9_entry: bool, has_ladder: bool) -> Row | None:
+def entry_row(room: Room, is_level9_entry: bool, has_ladder: bool,
+              measured_turnstile: bool = False) -> Row | None:
     """VA-REJ-18: the room's table line, the first that fits; None is the
-    default row ("all" for every entry side)."""
+    default row ("all" for every entry side). measured_turnstile: the $60
+    room's measured line instead of VA-REJ-18's (WalkRules)."""
     code = room.layout_code                      # the layout byte's low seven bits
     if room.layout_byte == PERSON_LAYOUT_BYTE:
         unrestricted = (room.monster_byte == MERCHANT_LIST
                         or (room.monster_byte == L9_ENTRY_PERSON_LIST and is_level9_entry)
                         or room.monster_byte > PERSON_ROW_MONSTER_LIMIT)
         return None if unrestricted else PERSON_ROW
+    if code == TURNSTILE_PUSH and measured_turnstile:
+        return MEASURED_TURNSTILE_ROW
     if code in ALWAYS_ROWS:
         return ALWAYS_ROWS[code]
     if code == RoomType.LAVA_MOAT:
@@ -220,6 +237,36 @@ def entry_row(room: Room, is_level9_entry: bool, has_ladder: bool) -> Row | None
     if code in LADDERLESS_TRAP_ROWS and has_trap_monsters(room):
         return LADDERLESS_TRAP_ROWS[code]
     return None
+
+
+# --- the two walks' rules -----------------------------------------------------
+
+# Every floor tile of these layouts is one region with the ladder: each moat is one tile wide
+# (emulator: double moat by N and by S, horizontal moat by N, vertical moat by E at item
+# positions A, C and D).
+LADDER_MOAT_LAYOUTS = frozenset({RoomType.HORIZONTAL_MOAT_ROOM, RoomType.DOUBLE_MOAT_ROOM,
+                                 RoomType.VERTICAL_MOAT_ROOM})
+
+
+@dataclass(frozen=True)
+class WalkRules:
+    """Which walk: SPEC_WALK (VA-REJ-17/18 as written) or LOGIC_WALK, its three corrections
+    and the last-boss shutters, for Archipelago (docs/archipelago.md "The two walks").
+      ladder_moats: layouts whose arrival takes any side while the ladder is held
+      measured_turnstile: the $60 room's measured line (MEASURED_TURNSTILE_ROW), not VA-REJ-18's
+      through_target: a target room's arrival sides come from the walk without a target, so
+        the target may be walked through like any room (rule 4 lifted; acceptance_check)
+      triforce_of_power_opens: the last-boss shutters are open while the Triforce of Power is
+        held (CheckSecretTriggerLastBoss reads LastBossDefeated, which taking it sets)"""
+    ladder_moats: frozenset[int] = frozenset()
+    measured_turnstile: bool = False
+    through_target: bool = False
+    triforce_of_power_opens: bool = False
+
+
+SPEC_WALK = WalkRules()
+LOGIC_WALK = WalkRules(ladder_moats=LADDER_MOAT_LAYOUTS, measured_turnstile=True,
+                       through_target=True, triforce_of_power_opens=True)
 
 
 def are_stairs_usable(room: Room, is_blocked: bool) -> bool:
@@ -252,7 +299,7 @@ def stair_partners(level: Level, room: int, staircases: list[StaircaseRoom]) -> 
 
 def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
                uses_families: bool, target: int | None = None, uses_entry_sides: bool = True,
-               family_lists: FamilyLists = FAMILY_LISTS) -> Walk:
+               family_lists: FamilyLists = FAMILY_LISTS, walk_rules: WalkRules = SPEC_WALK) -> Walk:
     """VA-REJ-17/18's inventory walk over (room, side) pairs, from the start
     room entered by its south side. A pair steps out through its own side
     (rule 1) and turns to the sides its room's row allows (rule 2); item
@@ -262,14 +309,15 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
     shutters closed and its stairs unusable.
 
     uses_entry_sides=False is the plain walk of VA-WALK (E3): every row is
-    "all", and an accepted target is explored through."""
+    "all", and an accepted target is explored through. walk_rules: SPEC_WALK
+    or LOGIC_WALK's arrival and turnstile corrections."""
     room_numbers = set(level.room_nums)
     block = level.block
     staircases = block.staircases
     start = level.entrance_room
     level9_entry = level9_entry_room(level)         # VA-WALK-08, as the gate reads it
     has_ladder = Item.LADDER in held
-    result = Walk()
+    result = Walk(ladder_moats=walk_rules.ladder_moats if has_ladder else frozenset())
     exits_of: dict[int, dict[int, list[int]]] = {}
 
     def exits(room: int) -> dict[int, list[int]]:
@@ -317,7 +365,8 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
     while stack:
         room, side = stack.pop()
         room_exits = exits(room)
-        row = entry_row(block.room(room), room == level9_entry, has_ladder) if uses_entry_sides else None
+        row = (entry_row(block.room(room), room == level9_entry, has_ladder, walk_rules.measured_turnstile)
+               if uses_entry_sides else None)
         turns = room_exits.keys() if row is None else row[side] & room_exits.keys()
         for turn in turns:
             if (room, turn) not in seen:

@@ -14,6 +14,11 @@ class ThreeState(IntEnum):
     POSSIBLE = 2
 
 
+# The page's name for each state, for the Z1R switches and the ZORA Extras alike (owner ruling
+# 2026-10-10: the third state, the spec's "possible, decided per seed", is called Random).
+THREE_STATE_LABELS = {ThreeState.OFF: "Off", ThreeState.ON: "On", ThreeState.POSSIBLE: "Random"}
+
+
 # ---------------------------------------------------------------------------
 # FL-ENC-04: the 27 option fields
 # ---------------------------------------------------------------------------
@@ -366,6 +371,7 @@ OPTIONS_BY_ID = {option.id: option for option in OPTION_FIELDS}
 
 # The three-state fields the dependency rules and the support matrix name.
 WOODEN_SWORD_CAVE_MOVES = TOGGLES_BY_ID["B02"]
+WOOD_SWORD_CAVE_BEHIND_BLOCKS = TOGGLES_BY_ID["B03"]
 TAKE_ANY_ROAD_SHUFFLE = TOGGLES_BY_ID["B04"]
 SHUFFLE_DUNGEON_ITEMS_INERT = TOGGLES_BY_ID["B14"]
 SHUFFLE_DUNGEON_HEARTS_INERT = TOGGLES_BY_ID["B16"]
@@ -379,6 +385,7 @@ BOMB_UPGRADE_PERSON_SHUFFLE = TOGGLES_BY_ID["B29"]
 DUNGEON_MONSTER_SHUFFLE = TOGGLES_BY_ID["B32"]
 GANON_AND_ZELDA_SHUFFLE = TOGGLES_BY_ID["B33"]
 MONSTERS_BETWEEN_LEVELS = TOGGLES_BY_ID["B36"]
+FORCE_OVERWORLD_BLOCK = TOGGLES_BY_ID["B81"]
 ENCODE_LEVEL_DATA = TOGGLES_BY_ID["B82"]
 # FL-DEP-03: the chosen start items are B57 to B78 and B85.
 START_ITEM_FIELDS: tuple[ToggleField, ...] = (*(TOGGLES_BY_ID[f"B{n:02d}"] for n in range(57, 79)),

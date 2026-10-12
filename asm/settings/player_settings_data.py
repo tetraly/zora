@@ -14,6 +14,7 @@ DEFAULTS: dict[str, str] = {
     "death_warp": "controller1_up_a",  # FP-RESET-01
     "music": "on",  # FP-SET-04
     "reduce_flashing": "off",  # FP-FIX-02
+    "statistics_screen": "off",  # FP-STATS-01
 }
 
 SETTINGS: dict[str, dict[str, tuple[tuple[int, Piece], ...]]] = {
@@ -79,6 +80,106 @@ SETTINGS: dict[str, dict[str, tuple[tuple[int, Piece], ...]]] = {
             (0x07ED7, bytes.fromhex("eaea")),
             (0x0AA30, bytes.fromhex("0f0f0f")),
             (0x16895, bytes.fromhex("eaea")),
+        ),
+    },
+    "statistics_screen": {
+        "off": (
+            (0x00010, bytes.fromhex("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")),
+            (0x09F80, Original(0x09F80, 5)),
+            (0x0AB90, Original(0x0AB90, 2)),
+            (0x0B110, bytes.fromhex("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                    "ffffffffffffffffffffffffffffffffffffffffffffffffffffff")),
+            (0x14E25, Original(0x14E25, 5)),
+            (0x17C10, bytes.fromhex("ffffffffffffffffffffffffffffffffffff")),
+            (0x1E572, Original(0x1E572, 2)),
+        ),
+        "on": (
+            (0x00010, bytes.fromhex("000c0e090502010101010102ad007fc9a5f006206d804c2598a512c913f019a9008d3d7fa512c9"
+                                    "029008c90d901fc910b01b207c804c25982c017f302da02a20c280ad017f09808d017f4c25982c"
+                                    "017f3018208380a512c905b006207c804c259820e18020f9802012814c2598a900a03f99007f88"
+                                    "10faa9a58d007fad58068d3c7f60a23cad057fc909d001e8ee047fec047ff002b02aa9008d047f"
+                                    "ae057fe8e00a9002a2008e057fee027fd003ee037fa510c90ab00a0aaafe067fd003fe077f60b9"
+                                    "007f19017fd016ad027f99007fad037f99017f19007fd005a90199007f60ad7106a2004a900a48"
+                                    "8a0a691aa820c28068e8e00890ee60a205bc0080b95706dd068090088a0a692ca820c280ca10ea"
+                                    "60ad5806cd3c7fb013ad3c7f38ed5806186d3a7f8d3a7f9003ee3b7f4c7c80")),
+            (0x09F80, bytes.fromhex("202eb1eaea")),
+            (0x0AB90, bytes.fromhex("00b1")),
+            (0x0B110, bytes.fromhex("ad3d7fd018a528d011a5f82910f00b2049b1a9018d3d7f6868604cf7e56868a5f82910f008a900"
+                                    "8d3d7f4ca5ab60a900a03f99007f8810faa9a58d007fad58068d3c7fa9018d2604602025e620f7"
+                                    "e5a90085fc85fd855c8514a9ff8d0203a5ff29f885ff297f8d00202081b120d7b1206fb4a91e85"
+                                    "fe60ae02208d06208c062060a93fa0002077b1a200bd54b58d0720e8e010d0f5a90f8d0720a201"
+                                    "bd916b8d0720e8e010d0f560a9248d0720cad0fa60bd64b520bfb18d0720e888d0f360c9419003"
+                                    "e93760c9309003e93060c92ed003a92c60a92460a920a0002077b1a22220a8b1a616bd51b5aaa0"
+                                    "08bd38068d0720e888d0f6a24220a8b1a23fa00f20b1b1a20720a8b12076b2a22020a8b1a616bd"
+                                    "3006a000a24e2060b2ad6f064a4a4a4a186901a000a2542060b2ad387fac397fa25a2060b2ad3a"
+                                    "7fac3b7fa2602060b2a24520a8b1a266a01120b1b1a24820a8b1a200bde2b58d0720e8e040d0f5"
+                                    "6085088409a00620b1b1a20120a8b1202ab4a2144ca8b1a200a00920b1b1a20120a8b1ad067f85"
+                                    "08ad077f850920d1b3a20f20a8b1a9018503a90085008501a9ff8502a9ff850485058506a90e85"
+                                    "07a507203bb3f036a500c50ca501e50d9016a50cc500d026a50dc501d020a502c9fff004c507b0"
+                                    "16a504c50ca505e50d900ca50c8504a50d8505a5078506c60710bfa506c9fff0128502a5048500"
+                                    "a5058501a506204ab34ca2b2a9008507a507203bb3d011a5070aaabd087f1d097ff005a507204a"
+                                    "b3e607a507c90990e0a503c910b009a22020a8b1e603d0f1600aaabd1a7f850cbd1b7f850d050c"
+                                    "60850ee603c909b03fae1e68caf00ca000b91f688d0720c8cad0f6a50e1869018d0720a90938ed"
+                                    "1e68aaf00320a8b1a20120a8b1a50e0aaabd087f8508bd097f850920d1b34cadb338e908aaa900"
+                                    "ca3005186909d0f8186900aaa00920b1b1a20820a8b1a20120a8b1a50e203bb3d008a20720a8b1"
+                                    "4cccb3a50c8508a50d850920d1b3a2074ca8b1a000a508c910a509e90e900b8509a508e9108508"
+                                    "c8d0ebc00a9007a277a0074cb1b18c0720a000a508c93ca509e900900b8509a508e93c8508c8d0"
+                                    "eb982013b4a508a22c8e0720a200c90a9005e90ae8d0f78e07208d072060a900850aa200a000a5"
+                                    "08dd67b4a509fd6bb4900c8509a508fd67b48508c8d0e898050a850ad008a9248d07204c5cb48c"
+                                    "0720e8e00490cfa5088d07206010e8640a27030000a9008d410320f0b4a20c8a48bc2ab5b95706"
+                                    "f0118504bd37b58500bd44b5850198aa20e4b468aaca10e0ad5706f00fc9049002a9038504a970"
+                                    "a20020deb4a21ebd5706d007a21dbd5706f0078504a98020deb4a207bd5706d007a20fbd5706f0"
+                                    "0d8504a9b08500a9c785014ce4b4608500a9b785018aa8203ae7ee4103ee410360a203bda0afc9"
+                                    "24b02cca10f6a2038a48bd26b58500a9078501bca0afb9c872c930d002a9ff290f8504b9a472aa"
+                                    "20e4b468aaca10d960a8b8c8d80e0d0c0b0a0904030201080605ccc0b0a09480c8b4ac98c89880"
+                                    "a7a7a7a7a7a7b7b7b7b7c7c7c70008100f3030300f2727270f3030300f3030304f564552574f52"
+                                    "4c4453574f5244202020204c414444455220202042524143454c45542052414654202020202052"
+                                    "45434f5244455220532e4152524f57532054494d4520494e20434c454152454444454154485348"
+                                    "4541525453535441425320424f4d4253205055534820535441525420425554544f4e392e35392e"
+                                    "353900000050505050000000000000000000000000000000000000000000000000000000000000"
+                                    "000000445500000000000004050000000000000000000000000000")),
+            (0x14E25, bytes.fromhex("4c00bceaea")),
+            (0x17C10, bytes.fromhex("2c017f3008ee387fd003ee397fa9014c806d")),
+            (0x1E572, bytes.fromhex("0c80")),
         ),
     },
 }

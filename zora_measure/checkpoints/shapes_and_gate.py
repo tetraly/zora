@@ -217,7 +217,7 @@ def stair_exits_in_level(gw: GameWorld) -> tuple[int, int]:
                 listing.setdefault((block, stair_num), []).append(level)
     good = 0
     for (block, stair_num), levels in listing.items():
-        exits = _stair_exits(gw.blocks[block].staircase(stair_num))
+        exits = _stair_exits(gw.level_blocks[block].staircase(stair_num))
         good += any(all(e in level.room_nums and e != level.entrance_room for e in exits)
                     for level in levels)
     return good, len(listing)
@@ -250,7 +250,7 @@ def level9_staircases(gw: GameWorld) -> tuple[int, int, int]:
 
 
 def transport_exits_differ(gw: GameWorld) -> tuple[int, int]:
-    stairs = [s for block in gw.blocks for s in block.staircases
+    stairs = [s for block in gw.level_blocks for s in block.staircases
               if s.room_type == RoomType.TRANSPORT_STAIRCASE]
     return sum(s.left_exit != s.right_exit for s in stairs), len(stairs)
 
@@ -328,7 +328,7 @@ DOOR_MIX_SUMMARY = Summary(summarize_door_mix, lambda mix: {
 
 def layout_bytes(gw: GameWorld) -> Counter[int]:
     """Whole layout bytes of every ordinary room in both blocks."""
-    return Counter(layout_byte(room) for block in gw.blocks for room in block.rooms)
+    return Counter(layout_byte(room) for block in gw.level_blocks for room in block.rooms)
 
 
 def zelda_neighbour_push(gw: GameWorld) -> Counter[int]:
@@ -343,14 +343,14 @@ def _zelda_room(gw: GameWorld) -> Room | None:
     """Zelda's room: the last room of the levels-7-9 block holding her
     monster list, in any layout (VA-REJ-01.3). The whole block is scanned
     because a shapes-stage ROM's level 9 may not reach it yet."""
-    zelda = [room for room in gw.blocks[LEVELS_7_9].rooms
+    zelda = [room for room in gw.level_blocks[LEVELS_7_9].rooms
              if room.enemy == Enemy.THE_KIDNAPPED]
     return zelda[-1] if zelda else None
 
 
 def _ganon_room(gw: GameWorld) -> Room | None:
     """Ganon's room: the levels-7-9 block's room holding Ganon, any layout."""
-    return next((room for room in gw.blocks[LEVELS_7_9].rooms
+    return next((room for room in gw.level_blocks[LEVELS_7_9].rooms
                  if room.enemy == Enemy.THE_BEAST), None)
 
 
@@ -519,7 +519,7 @@ def cellar_items_on_the_ledge(gw: GameWorld) -> bool:
     byte is $00."""
     from zora.generate.shapes.writeback import CELLAR_ITEM_POSITION
     from zora.model.rooms import ITEM_POSITION_MASK, ITEM_POSITION_SHIFT
-    for block in gw.blocks:
+    for block in gw.level_blocks:
         for stair in block.staircases:
             if stair.room_type != RoomType.ITEM_STAIRCASE:
                 if stair.t5_raw != 0:

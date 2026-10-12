@@ -5,6 +5,7 @@ first failure restarts the whole seed (VA-REJ-06, VA-REJ-12).
   E1 (VA-REJ-07/08)  a cold-start player can collect every tracked item
   E3 (VA-REJ-09)     Zelda's room is reachable in level 9
   E4/E5 (VA-REJ-10/11, OW-SHOP-06)  the candle and arrow shops' front doors
+  E9 (VA-REJ-21)     no level's start-room number is the screen of its own door
 
 E1's walk is VA-WALK's (validation-behavior.md) with VA-REJ-17's
 differences and arrival rule and VA-REJ-18's entry-side rule, over a
@@ -28,12 +29,15 @@ today's.
 from dataclasses import dataclass, field, replace
 
 from ..model.enums import Destination, Item, RoomType
-from ..model.levels import LEVEL_9, ZELDA_LIST, Level
+from ..model.levels import GANON_LIST, LEVEL_9, ZELDA_LIST, Level
 from ..model.overworld import Overworld, Shop
 from .dungeon_walk import (
     FAMILY_LISTS,
+    LOGIC_WALK,
+    SPEC_WALK,
     FamilyLists,
     Walk,
+    WalkRules,
     family_items,
     is_family_blocked,
     item_cellar,
@@ -44,6 +48,7 @@ from .steps.cave_entries import (
     BRACELET_SCREENS,
     BURNABLE_SCREENS,
     LADDER_SCREENS,
+    MIXED_RECORDER_SCREENS,
     RAFT_SCREENS,
     RECORDER_SCREENS,
     CaveShuffle,
@@ -104,6 +109,19 @@ class LogicRules:
     # off; the heart check leaves it out, AcceptanceHeartReach)
     level_9_by_swords: bool = False
     magical_sword_cave_counts: bool = False
+    # VA-REJ-08: entering level 9 (its items) needs the five long items, but with Allow Important
+    # Items in 9 (B25)
+    level_9_needs_long_items: bool = True
+    # Which walk (dungeon_walk.WalkRules): VA-REJ-17/18's in generation (ZORA mode and the
+    # original randomizer's validator); the logic walk only for Archipelago's rules and FINISH's
+    # sanity check (logic_walk_rules)
+    walk: WalkRules = SPEC_WALK
+
+    @property
+    def level_9_entry_needs(self) -> frozenset[int]:
+        """VA-REJ-08: what level 9's items need besides its entrance screen: level-9 entry, and the
+        five long items unless B25 is on."""
+        return LONG_ITEMS | {LEVEL9_ENTRY} if self.level_9_needs_long_items else frozenset({LEVEL9_ENTRY})
 
     def needs(self, screen: int) -> frozenset[int]:
         """The items a screen's entrance needs."""
@@ -119,10 +137,19 @@ def _family(family_lists: FamilyLists, name: str, *unblocked_by: frozenset[int])
 
 
 def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: OverworldGates = NO_GATES,
-                level_9_by_swords: bool = False, magical_sword_cave_counts: bool = False) -> LogicRules:
+                level_9_by_swords: bool = False, magical_sword_cave_counts: bool = False,
+                eleven_screen_recorder_set: bool = False, important_items_in_level_9: bool = False) -> LogicRules:
     """Plan section 5, the owner's 2.0 overworld gates and ASNB's level-9 entrance: each rule only
-    when its flag is on."""
+    when its flag is on. Every overworld quest but the first (C01 = 1, 2, 3) reads the
+    eleven-screen recorder set (OW-MIX-08, OW-QST-02, OW-QST-04: an entry door or the white-sword
+    cave there needs the recorder; E4/E5 read the shops' own copy,
+    shuffle_shop_items.front_door_failure)."""
     rules = DEFAULT_RULES
+    if important_items_in_level_9:
+        rules = replace(rules, level_9_needs_long_items=False)
+    if eleven_screen_recorder_set:
+        rules = replace(rules, screen_needs=tuple((MIXED_RECORDER_SCREENS if screens == RECORDER_SCREENS else screens,
+                                                   need) for screens, need in rules.screen_needs))
     if level_9_by_swords:
         rules = replace(rules, level_9_by_swords=True, magical_sword_cave_counts=magical_sword_cave_counts)
     if gates.any:
@@ -140,6 +167,12 @@ def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: Overwo
                         family_lists=_family(rules.family_lists, "bow", frozenset({Item.BOW, ONE_ARROW})),
                         screen_needs=(*rules.screen_needs, (BURNABLE_SCREENS, ONE_CANDLE)))
     return rules
+
+
+def logic_walk_rules(rules: LogicRules) -> LogicRules:
+    """The same rules on the logic walk (docs/archipelago.md "The two walks"): Archipelago's
+    access rules and FINISH's sanity check. Generation never calls this."""
+    return replace(rules, walk=LOGIC_WALK)
 
 
 def _screen_needs(screen: int) -> frozenset[int]:
@@ -163,11 +196,14 @@ class AcceptanceCheck:
 
     def _walk(self, level: int, target: int | None, held: frozenset[int]) -> Walk:
         """The inventory walk toward a target. It depends on the held set
-        only through the family lists and the ladder (VA-REJ-18's rows)."""
-        key = (level, target, held & (family_items(self.rules.family_lists) | {Item.LADDER}))
+        only through the family lists and the ladder (VA-REJ-18's rows), and
+        on the logic walk through the Triforce of Power (the last-boss shutters)."""
+        walk = self.rules.walk
+        key = (level, target, held & (family_items(self.rules.family_lists) | {Item.LADDER, Item.TRIFORCE_OF_POWER}))
         if key not in self._walks:
-            self._walks[key] = walk_level(self._level(level), held, is_last_boss_open=False,
-                                          uses_families=True, target=target, family_lists=self.rules.family_lists)
+            is_open = walk.triforce_of_power_opens and Item.TRIFORCE_OF_POWER in held
+            self._walks[key] = walk_level(self._level(level), held, is_last_boss_open=is_open, uses_families=True,
+                                          target=target, family_lists=self.rules.family_lists, walk_rules=walk)
         return self._walks[key]
 
     # The public checks below are the closure's own tests, each on one target and a held set;
@@ -188,14 +224,16 @@ class AcceptanceCheck:
             # unbeatable. Only Shop Items in the Item Pool can make that happen (the arrow Gohma
             # needs, the candle burnable screens need); every other need is a long item, which
             # level 9's own door needs already.
-            needs |= LONG_ITEMS | {LEVEL9_ENTRY}
+            needs |= self.rules.level_9_entry_needs
         return needs <= held
 
     def can_reach_room(self, level: int, room: int, held: frozenset[int]) -> bool:
-        """VA-REJ-07 (ii)-(iv) for a target room."""
+        """VA-REJ-07 (ii)-(iv) for a target room. The logic walk judges arrival on the walk
+        without a target (WalkRules.through_target)."""
         target = self._level(level).block.room(room)
         layout = target.room_type
-        return (self._walk(level, room, held).accepts(self._level(level), room)
+        walk_target = None if self.rules.walk.through_target else room
+        return (self._walk(level, walk_target, held).accepts(self._level(level), room)
                 and (not is_family_blocked(target, held, self.rules.family_lists) or layout > FAMILY_EXEMPT_LAYOUT)
                 and (Item.LADDER in held or layout not in LADDER_LAYOUTS))
 
@@ -216,6 +254,18 @@ class AcceptanceCheck:
         """The level's triforce room is reached (entry aside)."""
         boss = item_room(self._level(level), Item.TRIFORCE)
         return boss is not None and self.can_reach_room(level, boss, held)
+
+    def reaches_ganon(self, held: frozenset[int]) -> bool:
+        """Ganon's room reached (entry aside) and his family list unblocked: the bow and the
+        silver arrows, PI-LOGIC-02's two arrow upgrades under Progressive Items."""
+        ganon = next(room for room in self._level(LEVEL_9).rooms if room.enemy == GANON_LIST)
+        return (self.can_reach_room(LEVEL_9, ganon.room_num, held)
+                and not is_family_blocked(ganon, held, self.rules.family_lists))
+
+    def takes_triforce_of_power(self, held: frozenset[int]) -> bool:
+        """The logic walk's Triforce of Power, Ganon's fixed drop: level 9 entered (its door, the
+        long items and level-9 entry) and Ganon reached."""
+        return self.can_enter(LEVEL_9, held) and self.reaches_ganon(held)
 
     def reaches_cave(self, cave: Destination, held: frozenset[int]) -> bool:
         """A one-item cave (the white-sword cave, a ZORA extra's): its first screen's needs are
@@ -284,6 +334,10 @@ class AcceptanceCheck:
                 if hint not in held and self.shop_door_reached(hint_shop, frozenset(held)):
                     held.add(hint)
                     changed = True
+            if (self.rules.walk.triforce_of_power_opens and Item.TRIFORCE_OF_POWER not in held
+                    and self.takes_triforce_of_power(frozenset(held))):
+                held.add(Item.TRIFORCE_OF_POWER)     # the logic walk's last-boss shutters open
+                changed = True
             if self.rules.counts_lines:
                 counts = self.line_counts(frozenset(held))
                 changed |= not counts <= held
@@ -337,8 +391,8 @@ class AcceptanceCheck:
 def acceptance_check(levels: list[Level], item_shuffle_result: ItemShuffleResult, overworld: Overworld,
                      caves: CaveShuffle, rules: LogicRules = DEFAULT_RULES,
                      granted: frozenset[int] = frozenset()) -> str | None:
-    """VA-REJ-12: E1, E3, E4, E5 in order; the first failure's label, or
-    None when the pass is accepted. levels: the pass's nine staged levels.
+    """VA-REJ-12: E1, E3, E4, E5 and, last, E9 (VA-REJ-21) in order; the first failure's label,
+    or None when the pass is accepted. levels: the pass's nine staged levels.
     E4/E5 are skipped under Shop Items in the Item Pool (PI-LOGIC-05).
     granted: items held from the start (AcceptanceCheck.granted; none in ZORA)."""
     checks = AcceptanceCheck(levels, item_shuffle_result, overworld, caves, rules, granted)
@@ -346,9 +400,19 @@ def acceptance_check(levels: list[Level], item_shuffle_result: ItemShuffleResult
         return "E1"
     if not checks.is_zelda_reachable():
         return "E3"
-    if not rules.checks_front_doors:
-        return None
-    door = front_door_failure(overworld, caves, rules.front_door_barred)
-    if door is not None:
-        return "E4" if door.startswith("(a)") else "E5"
+    if rules.checks_front_doors:
+        door = front_door_failure(overworld, caves, rules.front_door_barred)
+        if door is not None:
+            return "E4" if door.startswith("(a)") else "E5"
+    if start_room_is_own_door(levels, overworld):
+        return "E9"
     return None
+
+
+def start_room_is_own_door(levels: list[Level], overworld: Overworld) -> bool:
+    """VA-REJ-21 (E9), after the shop checks: some level's start-room number, read as an
+    overworld screen, holds that level's door. A coincidence of a dungeon room number with a
+    screen number (probable bug, kept: a rebuild MUST reject the same seeds); it fires only when
+    the start-room swap (B26) puts a start room on a fixed door's screen, or under C05 = 0 or 2."""
+    return any(overworld.screens[level.entrance_room].destination == level.level_num
+               for level in sorted(levels, key=lambda level: level.level_num))

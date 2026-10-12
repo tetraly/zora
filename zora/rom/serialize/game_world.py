@@ -27,6 +27,8 @@ from ..game_config import GameConfig, HintMode
 from ..layout import (
     ANY_ROAD_SCREENS_ADDRESS,
     ARMOS_TABLES_ADDRESS,
+    BEQ_OPCODE,
+    BNE_OPCODE,
     BOSS_SET_A_SPRITES_ADDRESS,
     BOSS_SET_B_SPRITES_ADDRESS,
     BOSS_SET_C_SPRITES_ADDRESS,
@@ -36,6 +38,8 @@ from ..layout import (
     ENEMY_SET_A_SPRITES_ADDRESS,
     ENEMY_SET_B_SPRITES_ADDRESS,
     ENEMY_SET_C_SPRITES_ADDRESS,
+    FLUTE_ROOM_SECRETS_OW_ADDRESS,
+    FLUTE_SECRET_QUEST_BRANCH_ADDRESS,
     ITEM_CARRIER_OPERAND_ADDRESSES,
     LEVEL_1_6_DATA_ADDRESS,
     LEVEL_1_6_DATA_ADDRESS_Q2,
@@ -50,8 +54,11 @@ from ..layout import (
     OVERWORLD_DATA_ADDRESS,
     OVERWORLD_WIZZROBE_PATCH,
     OW_SPRITES_ADDRESS,
+    QUEST_MONSTER_BRANCH_ADDRESSES,
     RECORDER_WARP_DESTINATIONS_ADDRESS,
     RECORDER_WARP_Y_COORDINATES_ADDRESS,
+    ROOM_BLOCK_ADDRESSES_Q1,
+    ROOM_BLOCK_HIGH_BYTES,
     START_POSITION_Y_ADDRESS,
     START_SCREEN_ADDRESS,
     TILE_MAPPING_DATA_ADDRESS,
@@ -113,10 +120,28 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
 
 def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, bytes], cfg: GameConfig,
                       patch: Patch) -> None:
-    """Every room of both quest-1 blocks, from the model, and the levels' level-information blocks."""
+    """Every room of the four room blocks, from the model, the block each level points at
+    (SH-SRC-02), the quest-number branches (SH-SRC-05) and the levels' level-information
+    blocks."""
     nothing_code = cfg.dungeon_nothing_code.value
     patch.add(LEVEL_1_6_DATA_ADDRESS, encode_level_block(game_world.blocks[0], nothing_code))
     patch.add(LEVEL_7_9_DATA_ADDRESS, encode_level_block(game_world.blocks[1], nothing_code))
+    # A second-quest block is written only when a level reads it: an unread one keeps the base
+    # ROM's bytes, PRG0's nothing code included (and the level encoding's key material).
+    for address, block in zip((LEVEL_1_6_DATA_ADDRESS_Q2, LEVEL_7_9_DATA_ADDRESS_Q2), game_world.blocks_2q,
+                              strict=True):
+        if any(lvl.block is block for lvl in game_world.levels):
+            patch.add(address, encode_level_block(block, nothing_code))
+    blocks = [*game_world.blocks, *game_world.blocks_2q]
+    for lvl in game_world.levels:
+        block_index = next(index for index, block in enumerate(blocks) if block is lvl.block)
+        if block_index >= len(game_world.blocks) and cfg.level_encoding is not None:
+            # The level encoding keeps its key material in the second-quest blocks.
+            raise ValueError(f"level {lvl.level_num} reads a second-quest block, which level encoding replaces")
+        patch.add(ROOM_BLOCK_ADDRESSES_Q1 + 2 * lvl.level_num + 1, bytes([ROOM_BLOCK_HIGH_BYTES[block_index]]))
+    branch = BNE_OPCODE if game_world.monsters_take_second_quest_path else BEQ_OPCODE
+    for address in QUEST_MONSTER_BRANCH_ADDRESSES:
+        patch.add(address, bytes([branch]))
     level_info = bytearray(original_bins_bytes["level_info.bin"])
     for lvl in game_world.levels:
         offset = lvl.level_num * LEVEL_INFO_SIZE
@@ -151,6 +176,9 @@ def _serialize_overworld_data(game_world: GameWorld, original_bins_bytes: dict[s
     patch.add(RECORDER_WARP_DESTINATIONS_ADDRESS,  bytes(ow.recorder_warp_destinations))
     patch.add(RECORDER_WARP_Y_COORDINATES_ADDRESS, bytes(ow.recorder_warp_y_coordinates))
     patch.add(ANY_ROAD_SCREENS_ADDRESS,            bytes(ow.any_road_screens))
+    patch.add(FLUTE_ROOM_SECRETS_OW_ADDRESS,       bytes(ow.recorder_secret_screens))
+    patch.add(FLUTE_SECRET_QUEST_BRANCH_ADDRESS,
+              bytes([BNE_OPCODE if ow.recorder_reveals_listed_secrets_in_first_quest else BEQ_OPCODE]))
     patch.add(START_SCREEN_ADDRESS,                bytes([ow.start_screen]))
     if start_y_in_patch:
         # With the code patches, FP-ENTR-01 reads the start Y from its own
@@ -206,29 +234,3 @@ def _serialize_person_code(game_world: GameWorld, cfg: GameConfig, hint_mode: Hi
     if game_world.overworld_wizzrobe_patch:
         for address, piece in OVERWORLD_WIZZROBE_PATCH:
             patch.add(address, piece_bytes(piece))
-
-
-def serialize_game_world_q2(game_world: GameWorld, original_bins_bytes: dict[str, bytes],
-                            config: GameConfig | None = None) -> Patch:
-    """Produce a Patch for the second-quest level grids only.
-
-    Note: the 2Q level_info block is not stored directly in the ROM (it is 1Q
-    level_info patched by the "various data" tables, rebuilt at parse time by
-    _build_level_info_q2_from_rom). There is therefore no valid ROM destination
-    for serialized 2Q level_info, and the previous version of this function
-    wrote it over the 1Q block — a latent bug. Grids use game_world.blocks_2q,
-    not levels. QUESTIONS.md #13.
-    """
-    patch = Patch()
-    cfg = config or GameConfig()
-    if cfg.level_encoding is not None:
-        # The second-quest blocks hold the level encoding's key material.
-        raise ValueError("second-quest level blocks cannot be written with level encoding on")
-    nothing_code = cfg.dungeon_nothing_code.value
-
-    patch.add(LEVEL_1_6_DATA_ADDRESS_Q2,
-              encode_level_block(game_world.blocks_2q[0], nothing_code))
-    patch.add(LEVEL_7_9_DATA_ADDRESS_Q2,
-              encode_level_block(game_world.blocks_2q[1], nothing_code))
-
-    return patch

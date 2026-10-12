@@ -489,7 +489,7 @@ def grid_stats(grid_name: str, block: LevelBlock) -> GridStats:
 
 def block_stats(gw: GameWorld) -> list[GridStats]:
     """grid_stats for both quest-1 blocks ("1-6", "7-9")."""
-    return [grid_stats(name, block) for name, block in zip(("1-6", "7-9"), gw.blocks, strict=True)]
+    return [grid_stats(name, block) for name, block in zip(("1-6", "7-9"), gw.level_blocks, strict=True)]
 
 
 def _tally_pair(pairs: dict[str, int], a: WallType, b: WallType) -> None:
@@ -559,8 +559,8 @@ def _is_ganon_item_byte(room: Room) -> bool:
 def b1_checkpoint(gw: GameWorld) -> B1Checkpoint:
     """post-shapes-b1.md "Checkpoint (B1)": the four censuses over the two
     quest-1 blocks (every room, owned or not) and the special-cave slots."""
-    rooms = [room for block in gw.blocks for room in block.rooms]
-    cellar_items = [c.item for block in gw.blocks for c in block.staircases]
+    rooms = [room for block in gw.level_blocks for room in block.rooms]
+    cellar_items = [c.item for block in gw.level_blocks for c in block.staircases]
     return B1Checkpoint(
         goriya=sum(r.enemy == Enemy.HUNGRY_GORIYA for r in rooms),
         ganon_8e=sum(_is_ganon_item_byte(r) for r in rooms),

@@ -33,6 +33,12 @@ class ExtraOptions:
     # (Add L4 Sword = Level 2), and level 9 opening for a level-4 sword
     l4_sword_in_level_2: bool = False
     level_9_entrance_sword: bool = False
+    # Not a ZORA extra: every overworld quest but the first (C01 = 1, 2, 3) has the eleven-screen
+    # recorder set the acceptance rules read (OW-MIX-08, OW-QST-04); here because logic_rules is
+    # built from these options
+    eleven_screen_recorder_set: bool = False
+    # Allow Important Items in 9 (B25, VA-REJ-08): level 9's items need level-9 entry, not the long items
+    important_items_in_level_9: bool = False
 
     @property
     def l4_sword_in_level_9(self) -> bool:
@@ -51,7 +57,9 @@ class ExtraOptions:
         ASNB's level-9 entrance)."""
         return logic_rules(self.progressive_items, self.shop_items_in_pool, self.gates,
                            level_9_by_swords=self.level_9_entrance_sword,
-                           magical_sword_cave_counts=not self.randomize_magical_sword)
+                           magical_sword_cave_counts=not self.randomize_magical_sword,
+                           eleven_screen_recorder_set=self.eleven_screen_recorder_set,
+                           important_items_in_level_9=self.important_items_in_level_9)
 
 
 # Every ZORA extra off: the default where none are given.

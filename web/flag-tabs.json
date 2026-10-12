@@ -60,15 +60,16 @@
   "help": "Chooses how items and characters look: as usual, a fun percentage, shuffled sprites, or one picked for each seed."
  },
  "C16": {
-  "tab": "Items",
+  "tab": "Starting Items",
   "help": "Chooses how many hearts the player starts with: 1 to 16, or a random number from 1 to 5."
  },
  "C17": {
-  "tab": "Items",
-  "help": "Limits how many of the chosen starting items the player really gets: all of them, at most 0 to 20, or a random limit from 0 to 20."
+  "tab": "Starting Items",
+  "help": "Limits how many of the items chosen on this tab the player really starts with. All keeps every chosen item; a number keeps at most that many, picked at random with equal chances; Random draws a limit from 0 to 20 for each seed. At 0, the default, the player starts with none of them.",
+  "keepsNoStartItems": 1
  },
  "C18": {
-  "tab": "Items",
+  "tab": "Starting Items",
   "help": "Chooses how many Triforce pieces the player starts with: 0 to 8, or a random number."
  },
  "C19": {
@@ -117,7 +118,7 @@
  },
  "B03": {
   "tab": "Overworld",
-  "help": "With it on, the wooden-sword cave can be hidden behind blocks; with it off, it never is."
+  "help": "With it on, the wooden-sword cave can be hidden behind blocks; with it off, it never is. When the player starts with the Raft, the Recorder, the Power Bracelet or the blue candle, the cave can be one that needs that item to reach."
  },
  "B04": {
   "tab": "Overworld",
@@ -334,92 +335,114 @@
   "help": "With it on, items that enemies drop can be destroyed; with it off, they can't."
  },
  "B57": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Raft (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Raft, if Max Start Items keeps it; Random flips a coin for each seed first. The Raft can still be found in the world too, and each seed is checked to be beatable without starting with it. With Allow OW Blocks of Wood Sword on, the wooden-sword cave can then be one that needs the Raft to reach.",
+  "startItem": true
  },
  "B58": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Bow (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Bow (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B59": {
-  "tab": "Items",
-  "help": "With it on, the player starts with 8 bombs; with it off, bombs have to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with 8 bombs, if Max Start Items keeps them; Random flips a coin for each seed first. Bombs can still be found in the world too, and each seed is checked to be beatable without starting with them.",
+  "startItem": true
  },
  "B60": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Recorder (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Recorder, if Max Start Items keeps it; Random flips a coin for each seed first. The Recorder can still be found in the world too, and each seed is checked to be beatable without starting with it. With Allow OW Blocks of Wood Sword on, the wooden-sword cave can then be one that needs the Recorder to reach.",
+  "startItem": true
  },
  "B61": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Bait (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Bait, if Max Start Items keeps it; Random flips a coin for each seed first. The Bait can still be found in the world too, and each seed is checked to be beatable without starting with it.",
+  "startItem": true
  },
  "B62": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Magical Key (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Magical Key (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B63": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Letter (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Letter, if Max Start Items keeps it; Random flips a coin for each seed first. The Letter can still be found in the world too, and each seed is checked to be beatable without starting with it.",
+  "startItem": true
  },
  "B64": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Power Bracelet (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Power Bracelet, if Max Start Items keeps it; Random flips a coin for each seed first. The Power Bracelet can still be found in the world too, and each seed is checked to be beatable without starting with it. With Allow OW Blocks of Wood Sword on, the wooden-sword cave can then be one that needs the Power Bracelet to reach.",
+  "startItem": true
  },
  "B65": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Ladder (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Ladder (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B66": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Wand (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Wand (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B67": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Book of Magic (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Book of Magic (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B68": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the wooden sword (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the wooden sword (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B69": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the white sword (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the white sword (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B70": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the magical sword (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the magical sword (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B71": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the wooden arrow (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the wooden arrow (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B72": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Silver Arrow (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Silver Arrow (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B73": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the blue candle (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the blue candle, if Max Start Items keeps it; Random flips a coin for each seed first. The blue candle can still be found in the world too, and each seed is checked to be beatable without starting with it. With Allow OW Blocks of Wood Sword on, the wooden-sword cave can then be one that needs the blue candle to reach.",
+  "startItem": true
  },
  "B74": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the red candle (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the red candle (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B75": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the blue ring (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the blue ring (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B76": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the red ring (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the red ring (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B77": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the wooden Boomerang (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the wooden Boomerang, if Max Start Items keeps it; Random flips a coin for each seed first. The wooden Boomerang can still be found in the world too, and each seed is checked to be beatable without starting with it.",
+  "startItem": true
  },
  "B78": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the Magical Boomerang (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the Magical Boomerang, if Max Start Items keeps it; Random flips a coin for each seed first. The Magical Boomerang can still be found in the world too, and each seed is checked to be beatable without starting with it.",
+  "startItem": true
  },
  "B79": {
   "tab": "Monsters",
@@ -446,8 +469,9 @@
   "help": "With it on, the game prevents slipping through walls while the screen scrolls; with it off, it doesn't."
  },
  "B85": {
-  "tab": "Items",
-  "help": "With it on, the player starts with the magical shield (within the limit on starting items); with it off, it has to be found."
+  "tab": "Starting Items",
+  "help": "With it on, the player starts with the magical shield (within the limit on starting items); with it off, it has to be found.",
+  "startItem": true
  },
  "B86": {
   "tab": "Dungeons",

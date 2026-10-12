@@ -5,7 +5,9 @@ corpus ROMs.
 Each side writes its own wording, so no text is matched against words:
 1. The slot each text was composed for is recovered from its pointer's rank.
    Both sides lay the bodies out in slot order, and HT-TEXT-04 exchanges
-   pointers only (slots 27 and 34 point outside the block).
+   pointers only (slots 27 and 34 point outside the block). ZORA continues in
+   the overflow region, below the extended bank, when the bank is full (about
+   one ROM in 18; the corpus never does): the bank's addresses rank first.
 2. Each composed slot's possible facts are read from the ROM: the region of
    a door screen, a level-9 quadrant, the compass family, a person pair's
    name form, the requirement candidates of HT-HINT-01.
@@ -13,7 +15,10 @@ Each side writes its own wording, so no text is matched against words:
    every occurrence comes with that fact, and a pool text (which carries no
    map information, HT-TEXT-02) would agree that often only with
    probability under CHANCE_LIMIT. A text seen once is left undecided, on
-   both sides, so both samples must be the same size.
+   both sides, so both samples must be the same size. Texts are compared
+   without line breaks and centring and without ZORA's openers ("IT IS SAID
+   THAT", ...), decoration added after the hint is chosen (no corpus text
+   starts with one), so one hint's variants count as one text.
 
 The checkpoints (zora_measure/checkpoints/) record the facts per ROM and classify
 in their Summary's cross-ROM `resolve` step.
@@ -28,23 +33,28 @@ from zora.generate.steps.hint_text import (
     FORMS,
     HUMAN_FORM,
     INSIDE_MEANS,
+    OPENERS,
     PERSON_SPRITES,
     REQUIREMENT_SLOTS,
     SAME_FORM,
     _quadrant,
     compass_family_name,
     inside_dungeon_needs,
+    is_paired,
     item_place,
+    level_shown_as,
     name_form,
     region_of_screen,
     requirement_candidates,
     sword_enters,
 )
+from zora.generate.steps.mixed_overworld_quest import door_screen
 from zora.model.enums import Destination, Item, QuestVisibility, RoomAction
 from zora.model.game_world import GameWorld
 from zora.model.levels import GANON_LIST, ZELDA_LIST
 from zora.model.overworld import ItemCave
 from zora.model.rooms import Room
+from zora.rom.layout import EXT_HINT_DATA_ROM_START, cpu_address_in_bank1
 
 SLOT_COUNT = 45
 OUTSIDE_BLOCK = (27, 34)             # pointers replaced by later passes (HT-TEXT-02)
@@ -63,6 +73,8 @@ FIRST_NPC_ENTRY = 0x54               # EnemyData.overworld_npc_pointers[0]'s obj
 MONSTER_BIT_LIST = 0x40              # list id bit 6 = the D byte's bit 7
 WHITE_SWORD_CAVE_CODE, MEET_CAVE_CODE = 18, 19
 HIDDEN = (QuestVisibility.SECOND_QUEST, QuestVisibility.NEITHER_QUEST)   # F bit 7 set
+EXTENDED_BANK_CPU_START = cpu_address_in_bank1(EXT_HINT_DATA_ROM_START)
+CENTRING_BLANK, LINE_BREAK = "~", "|"   # a decoded text's centring blanks and line breaks
 # Ties between equally likely facts: a Ganon-room text shows only in slot
 # 36, where the Zelda-room fact is always present too.
 KIND_ORDER = ("ganon", "zelda")
@@ -86,12 +98,18 @@ def has_hint_text(gw: GameWorld) -> bool:
     return gw.hint_pointers is not None and len(gw.hint_pointers) == SLOT_COUNT
 
 
+def _layout_rank(address: int) -> tuple[bool, int]:
+    """A text's place in the slot-order layout: the extended bank, then the overflow region
+    below it (layout.place_hint_texts)."""
+    return address < EXTENDED_BANK_CPU_START, address
+
+
 def composed_texts(gw: GameWorld) -> dict[int, str]:
     """Composed slot -> the text displayed for it, through the pointer ranks."""
     pointers = gw.hint_pointers
     assert pointers is not None and len(pointers) == SLOT_COUNT
     inside = [slot for slot in range(SLOT_COUNT) if slot not in OUTSIDE_BLOCK]
-    by_address = sorted(inside, key=lambda slot: pointers[slot])
+    by_address = sorted(inside, key=lambda slot: _layout_rank(pointers[slot]))
     return {composed: gw.quotes[final].text for composed, final in zip(inside, by_address, strict=True)}
 
 
@@ -100,6 +118,14 @@ def _lowest_screen(gw: GameWorld, code: int, flag_clear: bool) -> int:
     its hidden flag clear)."""
     return next(s.screen_num for s in gw.overworld.screens if s.destination.value == code
                 and not (flag_clear and s.quest_visibility in HIDDEN))
+
+
+def _level_door(gw: GameWorld, level: int) -> int:
+    """A level's door screen, as the hints read it (2nd Quest's leftover codes on 11 and 66 are
+    not doors, OW-QST-05)."""
+    screen = door_screen(gw.overworld, level)
+    assert screen is not None, level
+    return screen
 
 
 def _pair_form(gw: GameWorld, pair: tuple[int, int]) -> str:
@@ -114,13 +140,14 @@ def _list_id(room: Room) -> int:
 
 
 def location_shown(gw: GameWorld) -> list[Shown]:
-    """HT-HINT-01's level-location entries: each level's door-screen region."""
+    """HT-HINT-01's level-location entries: entry N's player level N and the region of its door,
+    the door of the data level shown as N (SH-NUM-03)."""
     if not has_hint_text(gw):
         return []
     texts = composed_texts(gw)
-    return [Shown(slot, texts[slot],
-                  frozenset({("location", level, region_of_screen(_lowest_screen(gw, level, True)))}))
-            for level, slot in LOCATION_SLOTS.items()]
+    return [Shown(slot, texts[slot], frozenset({("location", player_level, region_of_screen(
+                      _level_door(gw, level_shown_as(gw.levels, player_level).level_num)))}))
+            for player_level, slot in LOCATION_SLOTS.items()]
 
 
 def name_shown(gw: GameWorld) -> list[Shown]:
@@ -168,7 +195,8 @@ def trio_shown(gw: GameWorld, progressive_items: bool = False) -> list[Shown]:
 
 def requirement_shown(gw: GameWorld) -> list[Shown]:
     """The ten requirement texts: each could convey any candidate of
-    HT-HINT-01 rebuilt from the ROM (ZORA's reading of rules 1-5)."""
+    HT-HINT-01 rebuilt from the ROM (ZORA's reading of rules 1-5), with the original randomizer's walks
+    for a paired level (generate ZORA's ROMs with compare_corpus --reference-paired-hints)."""
     from zora_measure.checkpoints.acceptance import TRACKED_TYPES, item_places
     if not has_hint_text(gw):
         return []
@@ -180,7 +208,7 @@ def requirement_shown(gw: GameWorld) -> list[Shown]:
     level_items = [(int(item), level) for item in TRACKED_TYPES
                    for level in places.get(item, []) if level in LOCATION_SLOTS]
     facts = frozenset(("requirement", *c.key)
-                      for c in requirement_candidates(gw, level_items))
+                      for c in requirement_candidates(gw, level_items, walk_own_rooms=False))
     return [Shown(slot, texts[slot], facts) for slot in COMPOSED_REQUIREMENT_SLOTS]
 
 
@@ -190,7 +218,7 @@ INSIDE_DUNGEON_KEYS = ("tested", "blocked", *(form for _means, form in INSIDE_ME
 def inside_dungeon_outcomes(gw: GameWorld) -> Counter[str]:
     """HT-HINT-01 rule 2 on the ROM's own item records: the records with a
     dungeon (tested), those the sword alone cannot enter (blocked), and the
-    ladder, recorder and bow candidates formed."""
+    ladder, recorder and bow candidates formed (the original randomizer's walks, as requirement_shown)."""
     from zora_measure.checkpoints.acceptance import TRACKED_TYPES, item_places
     places = item_places(gw)
     outcomes: Counter[str] = Counter()
@@ -204,11 +232,48 @@ def inside_dungeon_outcomes(gw: GameWorld) -> Counter[str]:
             outcomes["tested"] += 1
             if not sword_enters(place):
                 outcomes["blocked"] += 1
-                outcomes.update(inside_dungeon_needs(place, int(item)))
+                outcomes.update(inside_dungeon_needs(place, int(item), walk_own_rooms=False))
     return outcomes
 
 
+# The second-quest data levels HT-HINT-01's owner-ruled deviation gives figures for: each pair,
+# and the unpaired levels 1, 6 and 9 of a second-quest set
+SECOND_QUEST_GROUPS = {2: "2/3", 3: "2/3", 4: "4/5", 5: "4/5", 7: "7/8", 8: "7/8", 1: "1/6/9", 6: "1/6/9",
+                       9: "1/6/9"}
+PAIRED_CANDIDATE_KEYS = tuple(f"{group} {form}" for group in dict.fromkeys(SECOND_QUEST_GROUPS.values())
+                              for _means, form in INSIDE_MEANS)
+
+
+def second_quest_inside_candidates(gw: GameWorld) -> Counter[str]:
+    """HT-HINT-01's owner-ruled deviation: the inside-dungeon candidates of the ROM's item records
+    in second-quest data levels, every level walking its own rooms, by group (the three pairs;
+    levels 1, 6 and 9) and means. The spec's targets are this walk on the corpus finals."""
+    from zora_measure.checkpoints.acceptance import TRACKED_TYPES, item_places
+    places = item_places(gw)
+    candidates: Counter[str] = Counter()
+    for item in TRACKED_TYPES:
+        for level in places.get(item, []):
+            if level not in LOCATION_SLOTS:
+                continue
+            place = item_place(gw.levels, level, int(item))
+            if place is None or not place.level.is_second_quest:
+                continue
+            group = SECOND_QUEST_GROUPS[level]
+            assert is_paired(place.level) == (group != "1/6/9"), level
+            candidates.update(f"{group} {form}" for form in inside_dungeon_needs(place, int(item)))
+    return candidates
+
+
 # --- classifying across ROMs ---------------------------------------------------
+
+def hint_key(text: str) -> str:
+    """A text as the classifier compares it: one line of words, without a leading opener."""
+    flat = " ".join(text.replace(CENTRING_BLANK, " ").replace(LINE_BREAK, " ").split())
+    for opener in OPENERS:
+        if flat.startswith(opener + " "):
+            return flat[len(opener) + 1:]
+    return flat
+
 
 def _log_binomial_tail(hits: int, n: int, p: float) -> float:
     """log P(X >= hits) for X ~ Binomial(n, p)."""
@@ -241,7 +306,7 @@ def classify(roms: list[list[Shown]]) -> list[list[Key | None]]:
         for shown in rom:
             per_slot[shown.slot].update(shown.facts)
             shown_per_slot[shown.slot] += 1
-            occurrences[shown.text].append(shown)
+            occurrences[hint_key(shown.text)].append(shown)
 
     def frequency(fact: Key, shown: Shown) -> float:
         return per_slot[shown.slot][fact] / shown_per_slot[shown.slot]
@@ -266,7 +331,7 @@ def classify(roms: list[list[Shown]]) -> list[list[Key | None]]:
                 best = (score, rank, fact)
         if best is not None and best[0] < math.log(CHANCE_LIMIT):
             conveys[text] = best[2]
-    return [[conveys.get(shown.text) for shown in rom] for rom in roms]
+    return [[conveys.get(hint_key(shown.text)) for shown in rom] for rom in roms]
 
 
 # --- per-ROM results of each checkpoint --------------------------------------------

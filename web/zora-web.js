@@ -24,16 +24,15 @@ const EMBEDDED = document.getElementById("zora-embedded");
 const EMBEDDED_INFO = EMBEDDED ? JSON.parse(EMBEDDED.textContent) : null;
 const FLAGS_TYPING_DELAY_MS = 250;
 const SEED_CODE_LENGTH = 4;
-// A three-state field's values, and the words its segmented control shows
-// ("Random" is the page's name for the spec's "possible, decided per seed").
-const TOGGLE_OFF = 0;
+// A switch's "on" and "off" values. Each switch's states and their words (Off, On, Random) come with the
+// metadata, in field.values, like an option field's.
 const TOGGLE_ON = 1;
-const TOGGLE_RANDOM = 2;
-const TOGGLE_CHOICES = { [TOGGLE_OFF]: "Off", [TOGGLE_ON]: "On", [TOGGLE_RANDOM]: "Random" };
+const TOGGLE_OFF = 0;
 // The flag tabs, in order; web/flag-tabs.json maps each field id to one, and
 // to its help text (docs/flag-names.csv, what_it_does). A field it does not
 // name goes to the fallback tab. ZORA extras and Look and feel follow them.
-const FLAG_TABS = ["Overworld", "Dungeons", "Items", "Monsters", "Misc"];
+const START_TAB = "Starting Items";
+const FLAG_TABS = ["Overworld", "Dungeons", "Items", START_TAB, "Monsters", "Misc"];
 const FALLBACK_TAB = "Misc";
 const ZORA_TAB = "ZORA extras";
 const LOOK_TAB = "Look and feel";
@@ -76,6 +75,8 @@ let form = null;                // the current zora.flag_form.form_state()
 // loaded ({fields: id -> value, zora: name -> value}).
 let startState = null;
 let startName = "";
+// The start-item fields and Max Start Items, from web/flag-tabs.json (startItemRules); null without it.
+let startRules = null;
 // field id -> {kind: "select" | "segments", input (a select), buttons (value ->
 // button), row, reason, value, field, supported (a Set of the values ZORA
 // produces), shown (one of Consternation's fields), tab}
@@ -228,6 +229,18 @@ function helpButton(name, text) {
   return wrap;
 }
 
+// The label the metadata gives a value of a field (`values` is the field's value list).
+function labelIn(values, value) {
+  const entry = values.find((v) => v.value === value);
+  return entry ? entry.label : String(value);
+}
+
+// The note the metadata gives a value, where its label alone could mislead ("" for none).
+function noteIn(values, value) {
+  const entry = values.find((v) => v.value === value);
+  return (entry && entry.note) || "";
+}
+
 // A segmented control: one button per value, labelled by `labelOf`.
 function segments(name, values, labelOf, onPick) {
   const group = element("div", { className: "seg", role: "group", ariaLabel: name });
@@ -256,15 +269,21 @@ function fieldRow(field, help, hidden) {
   let input = null;
   let buttons = null;
   let controlNode;
+  let note = null;
   if (field.kind === "option") {
     input = controlNode = selectControl(`field-${field.id}`, fieldName(field), field.values, onControlChanged);
+    if (field.values.some((entry) => entry.note)) {        // the chosen value's note, beside the select
+      note = element("span", { className: "value-note" });
+      controlNode = element("span", { className: "value-noted" }, note, input);
+    }
   } else {
     ({ group: controlNode, buttons } = segments(fieldName(field), field.values.map((entry) => entry.value),
-                                               (value) => TOGGLE_CHOICES[value], (value) => onToggled(field.id, value)));
+                                               (value) => labelIn(field.values, value),
+                                               (value) => onToggled(field.id, value)));
     controlNode.id = `field-${field.id}`;
   }
   const { row, reason, changed } = settingRow(fieldName(field), help, controlNode);
-  return { row, control: { kind: field.kind === "option" ? "select" : "segments", input, buttons, row, reason,
+  return { row, control: { kind: field.kind === "option" ? "select" : "segments", input, buttons, note, row, reason,
                            changed, value: 0, field, supported: new Set(field.supportedValues),
                            shown: !hidden && (field.id === metadata.encodeLevelData || isConsternationField(field)) } };
 }
@@ -296,9 +315,12 @@ function buildForm(flagTabs) {
   // Each flag tab: its option fields, then its three-state fields (metadata
   // order). Encode level data is a two-state field of the Misc tab (owner).
   const grids = new Map();
+  startRules = startItemRules(flagTabs);
   for (const name of FLAG_TABS) {
     const grid = settingGrid();
-    addTab(name).append(grid);
+    const panel = addTab(name);
+    if (name === START_TAB) panel.append(...startItemNotes());
+    panel.append(grid);
     grids.set(name, grid);
   }
   for (const field of metadata.fields) {
@@ -315,6 +337,39 @@ function buildForm(flagTabs) {
   $("flags").disabled = false;
   $("zora-flags").disabled = false;
   $("form").hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// Starting Items: how the start fields and Max Start Items work together (FP-START-02)
+// ---------------------------------------------------------------------------
+
+const START_ITEMS_INTRO = "Each Start setting at On adds its item to a new file; at Random, a coin decides for " +
+                          "each seed. Max Start Items then sets how many of those items the player really gets: " +
+                          "All keeps every one, a number keeps at most that many (picked at random, all equally " +
+                          "likely), and Random draws a limit from 0 to 20 for each seed.";
+const START_LIMIT_NOTE = "Max Start Items is 0, so the player starts with none of the items chosen here. " +
+                         "Set Max Start Items to All or to a number to keep them.";
+
+// flag-tabs.json marks each start-item field ("startItem") and Max Start Items, with its value that
+// keeps no start items ("keepsNoStartItems"). Null when it marks no limit (the tabs did not load).
+function startItemRules(flagTabs) {
+  const ids = Object.keys(flagTabs);
+  const limit = ids.find((id) => flagTabs[id].keepsNoStartItems !== undefined);
+  if (limit === undefined) return null;
+  return { items: ids.filter((id) => flagTabs[id].startItem), limit, keepsNone: flagTabs[limit].keepsNoStartItems };
+}
+
+// Whether a start field is On or Random while Max Start Items keeps none of them (`fields`: a
+// form state's fields, id -> {value}).
+function startItemsAllDropped(rules, fields) {
+  return rules !== null && fields[rules.limit].value === rules.keepsNone
+    && rules.items.some((id) => fields[id] && fields[id].value !== TOGGLE_OFF);
+}
+
+function startItemNotes() {
+  return [element("p", { className: "panel-note", textContent: START_ITEMS_INTRO }),
+          element("p", { id: "start-limit-note", className: "callout", role: "status", hidden: true,
+                         textContent: START_LIMIT_NOTE })];
 }
 
 // ---------------------------------------------------------------------------
@@ -338,8 +393,8 @@ function buildZoraPanel(panel) {
     if (field.kind === "option") {
       input = controlNode = selectControl(`zora-${field.name}`, field.label, field.values, onZoraControlChanged);
     } else {
-      const choices = field.kind === "three_state" ? [TOGGLE_OFF, TOGGLE_ON, TOGGLE_RANDOM] : [TOGGLE_OFF, TOGGLE_ON];
-      ({ group: controlNode, buttons } = segments(field.label, choices, (value) => TOGGLE_CHOICES[value],
+      const choices = field.values.map((entry) => entry.value);
+      ({ group: controlNode, buttons } = segments(field.label, choices, (value) => labelIn(field.values, value),
                                                  (value) => onZoraToggled(field.name, value)));
       controlNode.id = `zora-${field.name}`;
     }
@@ -488,6 +543,8 @@ const PLAYER_CHOICES = [
     help: "Tones down the screen flashes, for players sensitive to flashing light." },
   { key: "music", label: "Music", default: "on", choices: [["on", "On"], ["off", "Off"]],
     help: "Turns the game's music on or off. Sound effects stay." },
+  { key: "statisticsScreen", label: "Statistics screen", default: "off", choices: [["on", "On"], ["off", "Off"]],
+    help: "After the credits, Start shows a screen with your times per level, when you found the key items, deaths, sword stabs and bombs used. Off leaves the original ending." },
 ];
 // The colour slots, as NES palette indexes, under their headings.
 const PLAYER_COLOURS = [
@@ -824,9 +881,7 @@ function blockedReason(id, field, value) {
 
 // The label of a field's value, as the page shows it.
 function valueLabel(control, value) {
-  if (control.kind === "segments" && value in TOGGLE_CHOICES) return TOGGLE_CHOICES[value];
-  const entry = control.field.values.find((v) => v.value === value);
-  return entry ? entry.label : String(value);
+  return labelIn(control.field.values, value);
 }
 
 // The field's value and its label, for "Not yet implemented: ...".
@@ -853,6 +908,7 @@ function showField(id, control, field) {
   };
   if (control.kind === "select") {
     control.input.value = String(field.value);
+    if (control.note) control.note.textContent = noteIn(control.field.values, field.value);
     for (const option of control.input.options) {
       const value = Number(option.value);
       const why = offer(value);
@@ -919,6 +975,7 @@ function showState(state, { rewrite, start = false, name = "" }) {
   }
 
   for (const [id, control] of controls) showField(id, control, state.fields[id]);
+  $("start-limit-note").hidden = !startItemsAllDropped(startRules, state.fields);
   showZoraState(state.zora, { rewrite });
 
   const notes = [...state.refusals.map((text) => `Rule: ${plainText(text)}`), ...state.adjustments.map(plainText)];

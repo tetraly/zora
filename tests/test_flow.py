@@ -229,3 +229,22 @@ def test_ship_order_is_pinned():
     assert [name for name, _ in SHIP_STEPS] == [
             "sets", "overworld", "item shuffle", "extra pool items", "hints", "monster shuffle", "hit points", "groups", "colors",
             "start screen"]
+
+
+def test_the_attempt_cap_error_names_what_kept_failing() -> None:
+    from zora.generate.generation_pass import describe_restarts
+    reasons = ["acceptance: E1"] * 5 + ["acceptance: hearts", "level 3: boss placement failed",
+                                        "late gate: late gate budget exhausted"]
+    assert describe_restarts(reasons) == (
+        "the acceptance check 6 (E1 5, hearts 1); the shape stage 1 (level 3: boss placement failed 1); "
+        "the late gate 1 (late gate budget exhausted 1)")
+
+
+def test_an_exhausted_attempt_cap_names_the_acceptance_code(monkeypatch: pytest.MonkeyPatch) -> None:
+    """VA-REJ-06: when every attempt is rejected the error says by what, not "shapes generation"
+    (Randomize Magical Sword with Level 9 Entrance = Level 4 sword failed E1 on every attempt)."""
+    import zora.generate.generation_pass as generation_pass
+    monkeypatch.setattr(generation_pass, "MAX_ATTEMPTS", 3)
+    monkeypatch.setattr(generation_pass, "acceptance_check", lambda *args: "E1")
+    with pytest.raises(RuntimeError, match=r"after 3 attempts.*the acceptance check 3 \(E1 3\)$"):
+        generate_shapes(parse_rom(_vanilla_rom()), Rng(31), ShapeOptions())

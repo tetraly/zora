@@ -30,6 +30,7 @@ from .layout import (
     LEVEL_INFO_SIZE,
 )
 from .player_settings import PlayerSettings, apply_player_settings
+from .start_items import start_table
 
 
 @dataclass(frozen=True)
@@ -61,7 +62,8 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     """B10's CODE patches (features-behavior.md; docs/rom-map.md), with the
     per-level and overworld level-information bytes the patched code reads.
     Book is an Atlas (B49) off leaves its patch out (FL-OFF-05); the progressive
-    patches are written only with their ZORA flags on (PI-CODE-01)."""
+    patches are written only with their ZORA flags on (PI-CODE-01), fp-start-02 only with start
+    items (FP-START-03)."""
     for level in world.levels:
         start = LEVEL_INFO_ADDRESS + level.level_num * LEVEL_INFO_SIZE
         info = rom[start:start + LEVEL_INFO_SIZE]
@@ -72,10 +74,17 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     rom[LEVEL_INFO_ADDRESS:LEVEL_INFO_ADDRESS + LEVEL_INFO_SIZE] = overworld_info
     config = settings.config
     left_out = code_patches.left_out_patches(config.book_is_an_atlas, config.progressive_items,
-                                             config.shop_items_in_pool, config.potion_shop_in_pool)
+                                             config.shop_items_in_pool, config.potion_shop_in_pool,
+                                             start_items=bool(world.start_items),
+                                             start_rooms_moved=any(level.arrival_code in code_patches.SIDE_ARRIVAL_CODES
+                                                                   for level in world.levels))
     for address, data in code_patches.code_patch_writes(world, left_out, config.progressive_items,
                                                         config.one_time_places):
         rom[address:address + len(data)] = data
+    if world.start_items:
+        # FP-START-03: fp-start-02's table, with the start hearts (its default is PRG0's start)
+        table = start_table(world.start_items, world.new_file_heart_containers, world.new_file_full_hearts)
+        rom[code_patches.START_ITEMS_TABLE:code_patches.START_ITEMS_TABLE + len(table)] = table
     for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword):
         rom[address:address + len(data)] = data
 

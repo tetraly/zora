@@ -164,8 +164,8 @@ def main() -> int:
                  f"- round-trip parse→serialize: {'byte-identical' if rt_ok else 'MISMATCH'}",
                  f"- spec checks: {len(checks) - len(failed)}/{len(checks)} pass"
                  + (f" (failed: {[f.check_id for f in failed]})" if failed else ""),
-                 f"- map: E=entrance T=triforce P=person g=grumble Z=zelda G=ganon "
-                 f"s=staircase house room S=stairway cell #=room .=nothing"]
+                 (f"- map: E=entrance T=triforce P=person g=grumble Z=zelda G=ganon "
+                  f"s=staircase house room S=stairway cell #=room .=nothing")]
         for lvl in gw2.levels:
             t = level_tallies(lvl)
             warn = ""

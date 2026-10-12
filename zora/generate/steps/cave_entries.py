@@ -25,6 +25,9 @@ WOOD_SWORD_SCREENS = frozenset({4, 10, 11, 12, 14, 15, 26, 28, 31, 32, 33, 34, 3
 # OW-APP-A4: the reachability sets.
 RAFT_SCREENS = frozenset({47, 69})
 RECORDER_SCREENS = frozenset({66})
+# OW-MIX-04 and OW-MIX-08: under a mixed overworld quest (C01 = 2) the recorder set is the eleven
+# screens of FluteRoomSecretsOW, those whose entry became $80 included
+MIXED_RECORDER_SCREENS = frozenset({66, 6, 41, 43, 48, 58, 60, 88, 96, 110, 114})
 LADDER_SCREENS = frozenset({24, 25})
 BRACELET_SCREENS = frozenset({9, 17, 27, 29, 35, 73, 121})
 BURNABLE_SCREENS = frozenset({40, 70, 71, 72, 75, 77, 81, 83, 86, 91, 98, 99, 104, 106, 107,
@@ -74,3 +77,9 @@ class OverworldResult:
     """The overworld passes' result: the staged model, written at ship, and the cave shuffle."""
     overworld: Overworld
     caves: CaveShuffle
+
+
+def recorder_screens(overworld: Overworld) -> frozenset[int]:
+    """OW-APP-A4's Recorder set for this overworld: screen 66, or under a mixed overworld quest,
+    whose first quest reveals every listed secret, the eleven of OW-MIX-04 (OW-MIX-08)."""
+    return MIXED_RECORDER_SCREENS if overworld.recorder_reveals_listed_secrets_in_first_quest else RECORDER_SCREENS

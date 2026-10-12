@@ -122,6 +122,15 @@ class Level:
     # byte-faithful round-trip; passes that move the triforce set it to
     # None to re-derive on serialization (serializer.derive_triforce_room_ptr).
     triforce_room_ptr: int | None = None
+    # SH-SRC: a second-quest level (Dungeon Quest, C02), read from its block's
+    # pointer; the walk's level-9 goriya cell is fixed then (VA-WALK-08)
+    is_second_quest: bool = field(default=False, compare=False)
+    # PS-START-03 (B26): a moved start room's arrival code (level information +$3D: 1 up, 2 down,
+    # 3 left, 4 right, the side of the start room that is open) and the room a move through that
+    # side reaches (+$23, with bit 7 set), as a parsed ROM holds them too. None: FP-ENTR-01's
+    # dungeon code 2 and FP-ENTR-02's count.
+    arrival_code: int | None = None
+    exit_room: int | None = None
 
     def __post_init__(self) -> None:
         self.block.levels.append(self)

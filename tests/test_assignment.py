@@ -29,7 +29,9 @@ from zora.rom.layout import (
     CAVE_ITEM_DATA_ADDRESS,
     COAST_ITEM_ADDRESS,
     LEVEL_1_6_DATA_ADDRESS,
+    LEVEL_1_6_DATA_ADDRESS_Q2,
     LEVEL_7_9_DATA_ADDRESS,
+    LEVEL_7_9_DATA_ADDRESS_Q2,
     LEVEL_TABLE_SIZE,
 )
 from zora.rom.parse.rom_file import parse_rom
@@ -78,10 +80,12 @@ def reading(config: GameConfig) -> GameConfig:
 
 
 def item_byte_offsets() -> set[int]:
-    """Where the ROM holds item codes: both quest-1 blocks' room item tables, the cave item table
-    and the Armos and coast items."""
-    offsets = {block + ITEM_TABLE * LEVEL_TABLE_SIZE + room for block in (LEVEL_1_6_DATA_ADDRESS,
-                                                                          LEVEL_7_9_DATA_ADDRESS)
+    """Where the ROM holds item codes: the room item tables of the four level blocks (the
+    second-quest blocks hold Dungeon Quest 2nd Quest's levels), the cave item table and the Armos
+    and coast items."""
+    offsets = {block + ITEM_TABLE * LEVEL_TABLE_SIZE + room
+               for block in (LEVEL_1_6_DATA_ADDRESS, LEVEL_7_9_DATA_ADDRESS, LEVEL_1_6_DATA_ADDRESS_Q2,
+                             LEVEL_7_9_DATA_ADDRESS_Q2)
                for room in range(LEVEL_TABLE_SIZE)}
     offsets |= set(range(CAVE_ITEM_DATA_ADDRESS, CAVE_ITEM_DATA_ADDRESS + CAVE_TABLE_SIZE))
     return offsets | {ARMOS_ITEM_ADDRESS, COAST_ITEM_ADDRESS}

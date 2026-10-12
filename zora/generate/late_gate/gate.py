@@ -163,6 +163,7 @@ def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None) -> 
         for level in gate_block.levels:
             if not level.room_nums:
                 continue
+            _guard_level_3_cellar_list(level)
             while True:
                 if used >= GATE_BUDGET:
                     piece_sizes = sorted((len(piece) for piece in spatial_pieces_of(set(level.room_nums))),
@@ -187,6 +188,20 @@ def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None) -> 
     for gate_block in blocks:
         _tail(gate_block)
     return stats
+
+
+# PS-ROOM-16: the level whose cellar list the guard reads, the value it looks for, and what it writes
+GUARDED_LEVEL = 3
+NO_CELLAR = 0xFF
+GUARDED_CELLAR = 0x0F
+
+
+def _guard_level_3_cellar_list(level: Level) -> None:
+    """PS-ROOM-16: before level 3 is dealt, the first entry of its cellar list ($34 of its level
+    information) becomes $0F if it is $FF. It fires whenever levels 1 to 6 are first quest (PRG0's
+    level 3 has no cellar); a shapes level 3 always has one there."""
+    if level.level_num == GUARDED_LEVEL and level.stairway_data_raw[0] == NO_CELLAR:
+        level.stairway_data_raw = bytes([GUARDED_CELLAR]) + level.stairway_data_raw[1:]
 
 
 def _attempt(gate_block: GateBlock, level: Level,

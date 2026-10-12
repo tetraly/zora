@@ -30,7 +30,7 @@ def grow_set(world: SetWorld, rng: Rng, six_level: bool,
     (no sweep); they join the stair pool (SH-GRID-08)."""
     opts = opts or ShapeOptions()
     frontier: list[tuple[int, int]] = []
-    _place_starts(world, rng, six_level, frontier)
+    _place_starts(world, rng, six_level, frontier, opts.start_room_swap)
     order = list(range(world.blob_count))
     for blob in order:               # update 10: one step per level, 1, 2, 3...
         _grow_step(world, rng, blob, frontier)
@@ -167,24 +167,32 @@ def _sixth_level_first_start(rng: IntRng) -> int:
     raise AssertionError("weights cover the roll")
 
 
-def _start_is_free(world: SetWorld, col: int) -> bool:
-    return world.blob_of[room_grid.room_number(GRID_ROWS - 1, col)] == -1
+def _start_is_free(world: SetWorld, col: int, row: int = GRID_ROWS - 1) -> bool:
+    return world.blob_of[room_grid.room_number(row, col)] == -1
+
+
+def _start_row(rng: Rng, random_rows: bool) -> int:
+    """SH-GRID-02: a level starts on the bottom row, or, with the start-room swap (B26), on a
+    row drawn uniformly from rows 0 to 7, just before the start's column (U40)."""
+    return rng.below(GRID_ROWS) if random_rows else GRID_ROWS - 1
 
 
 def _place_starts(world: SetWorld, rng: Rng, six_level: bool,
-                  frontier: list[tuple[int, int]]) -> None:
+                  frontier: list[tuple[int, int]], random_rows: bool = False) -> None:
     """SH-GRID-03/16: draw every start and fix every band, THEN list the
-    start cells' neighbours under the final bands (SH-GRID-16 *Order*)."""
+    start cells' neighbours under the final bands (SH-GRID-16 *Order*).
+    random_rows: SH-GRID-02's random starting rows (B26)."""
     starts: list[tuple[int, int]] = []           # (cell, blob), placement order
     if six_level:
         for blob in range(world.blob_count):
             # SH-GRID-16 start-cell re-draws: the row never changes; the
             # column is re-drawn until the cell is free.
+            row = _start_row(rng, random_rows)
             if blob == world.blob_count - 1:
                 col = _sixth_level_first_start(rng)
             else:
                 col = _six_level_start(blob, rng)
-            while not _start_is_free(world, col):
+            while not _start_is_free(world, col, row):
                 col = _six_level_start(blob, rng)
             # SH-GRID-16: the default band from the final column, then the
             # first level's minimum forced to 0 and maximum to at most 7;
@@ -195,20 +203,24 @@ def _place_starts(world: SetWorld, rng: Rng, six_level: bool,
             elif blob == world.blob_count - 1:
                 band = [max(band[0], 8), GRID_COLS - 1]
             world.bands[blob] = band
-            starts.append((room_grid.room_number(GRID_ROWS - 1, col), blob))
+            starts.append((room_grid.room_number(row, col), blob))
             world.assign(starts[-1][0], blob)
     else:
         # SH-GRID-03: three-level set. First starts at column 6 and takes the
         # cell above it; second in cols 0-11; third in cols 8-15.
         # SH-GRID-16: first band replaced outright with columns 0-7.
         world.bands[0] = [0, 7]
-        for cell in (room_grid.room_number(GRID_ROWS - 1, 6), room_grid.room_number(GRID_ROWS - 2, 6)):
+        # SH-GRID-02 exception (U40): the first level keeps row 7 under B26 too; the
+        # reference draws a row for it and throws it away, a draw ZORA skips (A24)
+        first_row = GRID_ROWS - 1
+        for cell in (room_grid.room_number(first_row, 6), room_grid.room_number(first_row - 1, 6)):
             starts.append((cell, 0))
             world.assign(cell, 0)
         # Second level: drawn from 0-11; a re-draw after landing on a taken
         # cell uses 4-11; the band uses the final column.
+        row_second = _start_row(rng, random_rows)
         col_second = rng.below(12)
-        while not _start_is_free(world, col_second):
+        while not _start_is_free(world, col_second, row_second):
             col_second = 4 + rng.below(8)
         redrawn = col_second < 7
         if redrawn:
@@ -220,16 +232,17 @@ def _place_starts(world: SetWorld, rng: Rng, six_level: bool,
             world.bands[0] = [lo, lo + 7]
         else:
             world.bands[1] = _band_for_start(col_second)
-        starts.append((room_grid.room_number(GRID_ROWS - 1, col_second), 1))
+        starts.append((room_grid.room_number(row_second, col_second), 1))
         world.assign(starts[-1][0], 1)
         # Third level: its band is the whole right half, or 10-15 when the
         # first level's band was re-drawn. Its start is drawn from 8-15 and
         # re-drawn from the same range while taken (SH-GRID-16).
         world.bands[2] = [10, 15] if redrawn else [8, 15]
+        row_third = _start_row(rng, random_rows)
         col_third = 8 + rng.below(8)
-        while not _start_is_free(world, col_third):
+        while not _start_is_free(world, col_third, row_third):
             col_third = 8 + rng.below(8)
-        starts.append((room_grid.room_number(GRID_ROWS - 1, col_third), 2))
+        starts.append((room_grid.room_number(row_third, col_third), 2))
         world.assign(starts[-1][0], 2)
     for cell, blob in starts:
         _push_neighbors(world, cell, blob, frontier)

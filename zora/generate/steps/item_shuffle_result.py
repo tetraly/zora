@@ -7,6 +7,7 @@ from ...model.enums import Destination
 from ...model.levels import Level
 from ...model.rooms import LifeOrMoneyToll, Room, RoomPlace
 from ..shapes.world import blocks_of
+from .dungeon_quest import ALL_SHAPES, SetSources
 
 
 @dataclass
@@ -17,6 +18,8 @@ class ItemShuffleOptions:
     armos_item: int = 0          # FORCED_ITEM_OPTIONS index
     white_sword_item: int = 0
     coast_item: int = 0
+    # SH-SRC: each set's source; a vanilla set gives PS-VAN-03's fixed item rooms
+    set_sources: SetSources = ALL_SHAPES
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,12 @@ class TrackedPlace:
     item: int
     level: int | None = None         # a progression place's level
     slot: str | None = None          # "armos", "white_sword" or "coast", or an extra's cave below
+    # Where in the level, for HT-HINT-01's tested room: the room and the whole item byte written
+    # there, or the item cellar. Not part of equality: a record names an item's level or slot
+    # (VA-REJ-07), and finish.rebuild_tracking finds records again by those.
+    room: int | None = field(default=None, compare=False)
+    item_byte: int | None = field(default=None, compare=False)
+    cellar: int | None = field(default=None, compare=False)
 
 
 # The ZORA extras' cave slots (docs/zora-extras.md): an item an extra displaces
@@ -68,6 +77,10 @@ class ItemShuffleResult:
     pool_size: int = 0
     pool_high_bits: int = 0              # pool bytes with bits 5-7 (diagnostic)
     item_shuffle_iterations: int = 0
+    # Within each dungeon (C06 = 2): the second deal's iterations (PS-ITW-03), and whether this
+    # scope was dealt; the hints then name heart containers in requirement texts (PS-ITW-05)
+    within_levels_iterations: int = 0
+    items_within_levels: bool = False
     # VA-REJ-07's fifteen tracked items, which are also PS-BOSS-05's planted-item records
     tracked: list[TrackedPlace] = field(default_factory=list)
 

@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass, field
 
-from .enums import VANILLA_PERSON_INITS, UnderworldPersonInit
+from .enums import VANILLA_PERSON_INITS, Item, UnderworldPersonInit
 from .levels import Level, LevelBlock
 from .overworld import Overworld, Quote
 from .rooms import LifeOrMoneyToll
@@ -16,9 +16,13 @@ class GameWorld:
     quotes: list[Quote]      # exactly 38
     sprites: SpriteData
     enemies: EnemyData
-    levels_2q: list[Level] = field(default_factory=list)  # exactly 9, index 0 = 2Q Level 1; read-only, never serialised
+    # PRG0's second-quest levels, exactly 9 (index 0 = 2Q Level 1), read-only: what a
+    # second-quest set (C02, SH-SRC-02/03) starts from; they are never serialised.
+    levels_2q: list[Level] = field(default_factory=list)
     # The two quest-1 room blocks (0 = levels 1-6, 1 = levels 7-9) and the
-    # quest-2 pair; every level's rooms live here.
+    # quest-2 pair; every level's rooms live here. A level reads the block its
+    # Level.block is (SH-SRC-02): one of `blocks`, or one of `blocks_2q` for a
+    # second-quest set.
     blocks: list[LevelBlock] = field(default_factory=list)
     blocks_2q: list[LevelBlock] = field(default_factory=list)
     # Verbatim quotes_data block (pointer table + text) as parsed. Lets VANILLA
@@ -64,6 +68,9 @@ class GameWorld:
     # switch) starts with, and how many of them are full (HeartValues; PRG0: 3 and 3)
     new_file_heart_containers: int = 3
     new_file_full_hearts: int = 3
+    # FP-START-02 and FP-START-03: the start items a new save file (and the second-quest switch)
+    # holds; none writes PRG0's starting routines, any writes fp-start-02's table
+    start_items: tuple[Item, ...] = ()
     # FP-START-01: the hearts a Continue restores (operand at 0x14B83)
     continue_hearts_operand: int = 0x02
     # FP-RESET-01, FP-TEXT-01, FP-BEEP-01, FP-FIX-01, FP-Q2R-01, FP-LEVEL-01
@@ -72,6 +79,9 @@ class GameWorld:
     low_health_beep_value: int = 0x40
     dmc_level_value: int = 0x7F
     q2_room_trigger_value: int = 0x06
+    # SH-SRC-05: the three quest-number branches send a first-quest save down the
+    # second-quest path (ropes with $40 hit points that flash, Stalfos that shoot)
+    monsters_take_second_quest_path: bool = False
     level_dash_tile: int = 0x62
 
     # B10 DATA-item state (docs/spec/features-behavior.md).
@@ -88,3 +98,9 @@ class GameWorld:
     level9_refusal_text: str = ""
     # FP-PERSON-01: the 17 cave-person animation bytes for object types $6B-$7B.
     cave_person_animations: tuple[int, ...] = ()
+
+    @property
+    def level_blocks(self) -> list[LevelBlock]:
+        """The room block each set's levels read (SH-SRC-02): blocks[s], or blocks_2q[s] for a
+        second-quest set (levels 1-6, then 7-9)."""
+        return [self.levels[0].block, self.levels[6].block]

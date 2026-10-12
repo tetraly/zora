@@ -3,16 +3,19 @@
 #
 #   sh scripts/verify.sh          zora/'s import rules, tests, type check, ruff on zora/ and its
 #                                 sibling packages, output hashes of 20 seeds
-#   sh scripts/verify.sh REV      ... and compare the output with revision REV
-#                                 (exit 1 if any seed's ROM differs)
+#   sh scripts/verify.sh REV      ... and compare the output (20-seed hashes and the ROM
+#                                 matrix) with revision REV: exit 1 if any differs, and a
+#                                 non-zero exit if REV is unknown or its output can't be made
 #
-# The comparison exports REV's committed files (git archive) into temp/verify/base
-# and hashes them with this checkout's scripts/output_hash.py; it works in any git
-# checkout of ZORA.
+# scripts/compare_revision.py makes the comparison: it exports REV's committed files into
+# temp/verify/base and hashes them with this checkout's scripts/output_hash.py. In a clean
+# copy (scripts/clean_copy.py) REV is resolved in the checkout the copy was made from
+# (ZORA_SOURCE_REPO in the copy's verify.env), never in the copy's one-commit repository.
 #
 # Local settings: if verify.env exists at the repo root (git-ignored), its
-# VAR=value lines are exported first; for example ZORA_CORPUS=DIR, the folder of
-# finished ROMs the corpus tests read (they skip without it).
+# VAR=value lines are exported first; for example ZORA_CORPORA=DIR, the folder that
+# holds the measurement corpora (zora_measure/corpora.py says where it defaults to). The
+# corpus tests read its clean/final and skip without it.
 set -e
 
 # One full suite at a time on this checkout (tests/suite_lock.py): several sessions share it,
@@ -31,11 +34,17 @@ if [ -f verify.env ]; then
     set +a
 fi
 
-# Without verify.env (and no ZORA_CORPUS in the environment) the corpus tests skip.
+# An unknown REV stops the run now, before the suite, rather than after it
+if [ -n "$1" ]; then
+    python3 scripts/compare_revision.py "$1" --resolve-only
+fi
+
+# Without the MVP baseline corpus (ZORA_CORPORA's clean/final) the corpus tests skip.
 # Say so before the run and again at the end, where it is not scrolled away.
 CORPUS_WARNING=""
-if [ ! -f verify.env ] && [ -z "$ZORA_CORPUS" ]; then
-    CORPUS_WARNING="verify: WARNING: verify.env is missing, so the corpus tests are SKIPPED (set ZORA_CORPUS=DIR in verify.env; see the comment at the top of scripts/verify.sh)"
+CLEAN_CORPUS=$(python3 -c "from zora_measure.corpora import CLEAN, corpus; print(corpus(CLEAN))")
+if [ ! -d "$CLEAN_CORPUS" ]; then
+    CORPUS_WARNING="verify: WARNING: $CLEAN_CORPUS is missing, so the corpus tests are SKIPPED (set ZORA_CORPORA=DIR in verify.env; see the comment at the top of scripts/verify.sh)"
     printf '\n*** %s ***\n\n' "$CORPUS_WARNING" >&2
     trap 'printf "\n*** %s ***\n" "$CORPUS_WARNING" >&2' EXIT
 fi
@@ -51,6 +60,13 @@ fi
 # another name; docs/packaging.md "Packages").
 python3 scripts/check_imports.py
 
+# The release's mention and original-game-byte checks (scripts/make_release.py's own) on the files
+# a release would ship: a hit fails here, at commit time, rather than at the release. A released
+# checkout has no release/ folder to scan against.
+if [ -f release/allowlist.txt ]; then
+    python3 scripts/release_scan.py
+fi
+
 # pytest-xdist (the "test" extra in pyproject.toml) runs the suite in parallel, one
 # worker per core (tests/conftest.py, pytest_xdist_auto_num_workers): the suite lock
 # above keeps other full suites off the machine meanwhile. Without it the run falls
@@ -65,16 +81,17 @@ python3 -m pytest tests -q $PYTEST_WORKERS
 # --no-incremental: the incremental cache has reported success on stale code
 python3 -m mypy --no-incremental
 # Archipelago's ruff settings (pyproject.toml; docs/style-archipelago.md): any finding fails
+# The ruff release named in pyproject.toml: another release checks other rules (0.15 left
+# ISC004 to preview), so a pass under it proves less
+RUFF_WANTED=$(sed -n 's/^# Ruff version: \([0-9.]*\).*/\1/p' pyproject.toml)
+RUFF_INSTALLED=$(python3 -m ruff --version | sed 's/^ruff //')
+if [ "$RUFF_INSTALLED" != "$RUFF_WANTED" ]; then
+    echo "verify: WARNING: ruff $RUFF_INSTALLED is installed, pyproject.toml names $RUFF_WANTED (pip install ruff==$RUFF_WANTED)" >&2
+fi
 python3 -m ruff check zora zora_export zora_measure zora_web
 python3 scripts/output_hash.py --seeds $SEEDS --json $OUT/head.json
 
 if [ -n "$1" ]; then
-    rm -rf $OUT/base
-    mkdir -p $OUT/base
-    trap 'rm -rf $OUT/base; [ -z "$CORPUS_WARNING" ] || printf "\n*** %s ***\n" "$CORPUS_WARNING" >&2' EXIT
-    git archive "$1" | tar -x -C $OUT/base
-    echo "== output at $1"
-    python3 scripts/output_hash.py --seeds $SEEDS --code $OUT/base --json $OUT/base.json
-    echo "== $1 vs working tree"
-    python3 scripts/output_hash.py --compare $OUT/base.json $OUT/head.json
+    echo "== output at $1 vs this checkout"
+    python3 scripts/compare_revision.py "$1" --seeds $SEEDS --head-hashes $OUT/head.json
 fi

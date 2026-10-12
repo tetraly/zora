@@ -110,6 +110,18 @@ def test_the_displaced_item_keeps_its_tracked_record() -> None:
     assert all(place.item != Item.MAGICAL_SWORD for place in state.tracked)
 
 
+@pytest.mark.parametrize("drawn", [5, -1])
+def test_the_sword_is_tracked_where_it_lands_when_level_9_counts_swords(drawn: int) -> None:
+    """Level 9 Entrance = Level 4 sword (docs/design/asnb.md section 5): the joined sword keeps a
+    tracked record wherever it lands, its own cave included, so the closure counts it."""
+    world, state = shuffled_world()
+    extras = ExtraPoolItems()
+    place = randomize_magical_sword(world.levels, state, extras, world.overworld, FixedRng(drawn), tracked=True)
+    records = [record for record in state.tracked if record.item == Item.MAGICAL_SWORD]
+    expected = ExtraSlotPlace(MAGICAL_SWORD_SLOT, extras) if place is None else place
+    assert records == [expected.tracked(Item.MAGICAL_SWORD)]
+
+
 def test_drawing_its_own_cave_leaves_the_sword_there() -> None:
     world, state = shuffled_world()
     extras = ExtraPoolItems()

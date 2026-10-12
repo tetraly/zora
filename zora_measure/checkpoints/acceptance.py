@@ -13,6 +13,7 @@ from zora_measure.checkpoints.summaries import LEVELS_7_9, Summary
 # --- B6: the acceptance check (acceptance.md) ------------------------------------
 
 SPEC_B6 = "acceptance.md @ 1f19c6e"
+SPEC_B25_ACCEPTANCE = "acceptance.md @ eca85cc"
 LONG_ITEMS = (Item.RECORDER, Item.BOW, Item.RAFT, Item.LADDER, Item.POWER_BRACELET)   # VA-REJ-08
 
 
@@ -21,10 +22,37 @@ def long_items_outside_level9(gw: GameWorld) -> bool:
     item place (its rooms and item cellars)."""
     level9 = gw.levels[8]
     rooms = [r.item for r in level9.rooms]
-    cellars = [c.item for c in gw.blocks[LEVELS_7_9].cells
+    cellars = [c.item for c in gw.level_blocks[LEVELS_7_9].cells
                if isinstance(c, StaircaseRoom) and c.room_type == RoomType.ITEM_STAIRCASE
                and c.return_dest in level9.room_nums]
     return not any(item in LONG_ITEMS for item in rooms + cellars)
+
+
+# VA-REJ-08's B25 corpus string: the MVP baseline's with Allow Important Items in 9 on
+IMPORTANT_ITEMS_IN_9_FLAGS = "8hq4BeR1orW6eezsmNNlX9fU4iUJ3A"
+
+
+def _level9_cellar_items(gw: GameWorld) -> list[Item]:
+    level9 = gw.levels[8]
+    return [c.item for c in gw.level_blocks[LEVELS_7_9].cells
+            if isinstance(c, StaircaseRoom) and c.room_type == RoomType.ITEM_STAIRCASE
+            and c.return_dest in level9.room_nums and c.item is not None]
+
+
+def long_items_in_level9_cellars(gw: GameWorld) -> int:
+    """VA-REJ-08 with B25: how many of the five long items sit in a level-9 item cellar."""
+    return sum(item in LONG_ITEMS for item in _level9_cellar_items(gw))
+
+
+# VA-REJ-08's Check names the five long items in this order (bow, raft, power bracelet,
+# recorder, ladder); LONG_ITEMS is a set, so the row keeps its own order
+LONG_ITEMS_IN_SPEC_ORDER = (Item.BOW, Item.RAFT, Item.POWER_BRACELET, Item.RECORDER, Item.LADDER)
+
+
+def long_item_kinds_in_level9_cellars(gw: GameWorld) -> dict[str, bool]:
+    """VA-REJ-08 with B25: which long items sit in a level-9 item cellar."""
+    cellar_items = _level9_cellar_items(gw)
+    return {item.name.lower(): item in cellar_items for item in LONG_ITEMS_IN_SPEC_ORDER}
 
 
 # --- E1's selection traces (acceptance.md VA-REJ-07/08/17) ------------------------
@@ -78,7 +106,7 @@ def item_places(gw: GameWorld) -> dict[Item, list[int]]:
     for level in gw.levels:
         for room in level.rooms:
             places.setdefault(room.item, []).append(level.level_num)
-    for block in gw.blocks:
+    for block in gw.level_blocks:
         for cell in block.cells:
             if isinstance(cell, StaircaseRoom) and cell.room_type == RoomType.ITEM_STAIRCASE \
                     and cell.item is not None:
@@ -176,9 +204,11 @@ def e1_replay(gw: GameWorld) -> bool:
     Every corpus final was accepted when it was made, so the corpus column tests
     that ZORA's check is not stricter than the corpus's; the ZORA column
     must be all accepted by construction."""
-    from zora.generate.acceptance_check import AcceptanceCheck
-    from zora.generate.steps.cave_entries import FIXED_DUNGEON_DOORS, CaveShuffle, Entry
+    from zora.generate.acceptance_check import AcceptanceCheck, logic_rules
+    from zora.generate.steps.cave_entries import CaveShuffle, Entry
     from zora.generate.steps.item_shuffle_result import ItemShuffleResult, TrackedPlace
+    from zora.generate.steps.mixed_overworld_quest import SECOND_QUEST_LEFTOVER_SCREENS, is_second_quest_overworld
+    from zora.model.enums import QuestVisibility
     places = item_places(gw)
     slot_of = {item: name for name, item in _cave_slots(gw).items()}
     tracked = []
@@ -190,8 +220,16 @@ def e1_replay(gw: GameWorld) -> bool:
         else:
             return False
     movable = (Destination.WHITE_SWORD_CAVE, *(Destination(d) for d in range(1, 10)))
+    # Only shown screens: OW-ENTR-02's fixed doors are second-quest screens, and a mixed overworld
+    # quest (C01 = 2) leaves dungeon codes on hidden positions (OW-MIX-03) while a dealt one may be
+    # the door; it also reads the eleven-screen recorder set (OW-MIX-08)
+    shown = (QuestVisibility.BOTH_QUESTS, QuestVisibility.FIRST_QUEST)
+    # 2nd Quest's leftover dungeon codes on 11 and 66 are shown but are not doors (OW-QST-05)
+    leftovers = SECOND_QUEST_LEFTOVER_SCREENS if is_second_quest_overworld(gw.overworld) else frozenset()
     entries = [Entry(screen, s.destination, 0) for screen, s in enumerate(gw.overworld.screens)
-               if s.destination in movable and FIXED_DUNGEON_DOORS.get(int(s.destination)) != screen]
+               if s.destination in movable and s.quest_visibility in shown and screen not in leftovers]
     caves = CaveShuffle(entries, armos_screen=gw.overworld.armos_screen_ids[0])
-    return AcceptanceCheck(gw.levels, ItemShuffleResult(tracked=tracked), gw.overworld, caves) \
+    rules = logic_rules(False, False,
+                        eleven_screen_recorder_set=gw.overworld.recorder_reveals_listed_secrets_in_first_quest)
+    return AcceptanceCheck(gw.levels, ItemShuffleResult(tracked=tracked), gw.overworld, caves, rules) \
         .collects_everything()

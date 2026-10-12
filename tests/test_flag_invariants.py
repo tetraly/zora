@@ -37,6 +37,7 @@ from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.rom.layout import ines_header
+from zora.flags.fields import DungeonLayoutSource
 from zora.generate.alternative_values import AlternativeValues
 from zora.generate.extra_options import ExtraOptions
 from zora.generate.flag_steps import FlagSteps
@@ -82,6 +83,7 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "second_quest_rooms": (True, False),
     "second_quest_monsters": (False, True),
     "universal_drops": (False, True),
+    "start_room_swap": (False, True),             # B26: SH-GRID-02, SH-ENT-01 and PS-START
     "post_shapes": (True, False),
     "dungeon_nothing_code": (DungeonNothingCode.VANILLA, DungeonNothingCode.ZORA_REMAP),
     "features_b10": (False, True),
@@ -92,6 +94,20 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "start_with_four_hearts": (False, True),
     "change_sword_hearts_from_five_hearts": (False, True),
     "generate_community_hint_text": (False, True),
+    "show_every_helpful_hint": (False, True),
+    "important_items_in_level_9": (False, True),
+    "shuffle_items_within_levels": (False, True),
+    "mix_overworld_quest": (False, True),
+    "full_start_shuffle": (False, True),
+    "start_on_wood_sword_screen": (False, True),
+    "mix_overworld_quest_second_variant": (False, True),
+    "second_quest_overworld": (False, True),
+    "force_overworld_block": (False, True),
+    "wood_sword_cave_behind_blocks": (False, True),
+    "dungeon_quest": (DungeonLayoutSource.GENERATED_SHAPES, DungeonLayoutSource.FIRST_QUEST,
+                      DungeonLayoutSource.SECOND_QUEST),
+    # FP-START-02: none, or a set that widens B03's cave screens (FP-START-04) and fills other slots
+    "start_items": ((), (Item.BOMBS, Item.RECORDER, Item.RAFT, Item.POWER_BRACELET, Item.LETTER)),
 }
 # FL-OFF-07's turn-off values: each flag-switched step off on the preset (with
 # the feature switch on, as every flag string has it), and all of them off.
@@ -149,27 +165,38 @@ def one_at_a_time() -> list[Flags]:
 
 
 def all_pairs() -> list[Flags]:
-    """A greedy all-pairs covering set: every value pair of every two
-    implemented options appears in at least one combination.
+    """A greedy all-pairs covering set: every value pair of every two implemented options appears
+    in at least one combination.
 
-    Deterministic: candidates are tried in cross-product order and ties
-    keep the first."""
+    Each combination starts from the first pair not yet covered (options in IMPLEMENTED order,
+    values in their listed order) and gives every other option the value that covers the most
+    uncovered pairs with the options already set, ties keeping the first. It never builds the
+    cross product, which doubles with each switch (2^20 at 20 options). Deterministic."""
     names = list(IMPLEMENTED)
-    uncovered = {((a, va), (b, vb))
+    order = {name: index for index, name in enumerate(names)}
+    uncovered = {((a, ia), (b, ib))
                  for a, b in combinations(names, 2)
-                 for va in IMPLEMENTED[a] for vb in IMPLEMENTED[b]}
-    candidates = [dict(zip(names, values))
-                  for values in product(*(IMPLEMENTED[n] for n in names))]
+                 for ia in range(len(IMPLEMENTED[a])) for ib in range(len(IMPLEMENTED[b]))}
+
+    def first_pair() -> tuple[tuple[str, int], tuple[str, int]]:
+        return min(uncovered, key=lambda pair: (order[pair[0][0]], order[pair[1][0]], pair[0][1], pair[1][1]))
+
     chosen: list[Flags] = []
     while uncovered:
-        def covered(candidate: dict[str, Any]) -> set[Any]:
-            return {pair for pair in uncovered
-                    if all(candidate[n] == v for n, v in pair)}
-        best = max(candidates, key=lambda c: len(covered(c)))
-        uncovered -= covered(best)
+        (a, ia), (b, ib) = first_pair()
+        candidate = {a: ia, b: ib}
+        for name in names:
+            if name in candidate:
+                continue
+            gains = [sum(((other, index), (name, value)) in uncovered if order[other] < order[name]
+                         else ((name, value), (other, index)) in uncovered
+                         for other, index in candidate.items())
+                     for value in range(len(IMPLEMENTED[name]))]
+            candidate[name] = gains.index(max(gains))
+        uncovered -= {((x, candidate[x]), (y, candidate[y])) for x, y in combinations(names, 2)}
         flags = PRESET
-        for name, value in best.items():
-            flags = with_option(flags, name, value)
+        for name in names:
+            flags = with_option(flags, name, IMPLEMENTED[name][candidate[name]])
         chosen.append(flags)
     return chosen
 
@@ -213,10 +240,14 @@ def vanilla_rom() -> bytes:
 
 def serialization_config(flags: Flags) -> GameConfig:
     """The config a ROM is written and read with: Randomize Magical Sword brings its "no item"
-    remap, as generate.plan sets it, whatever the combination's own nothing code; the
+    remap, as generate.plan sets it, whatever the combination's own nothing code; the start-room
+    swap brings the B10 patches; the
     progressive items' flags choose their patches (PI-CODE-01)."""
     config = replace(flags.config, progressive_items=flags.extras.progressive_items,
                      shop_items_in_pool=flags.extras.shop_items_in_pool)
+    if flags.shapes.start_room_swap:
+        # B26's arrival codes and exit rooms (PS-START-03) are B10 data, which every flag string has
+        config = replace(config, features_b10=True)
     if flags.extras.randomize_magical_sword:
         return replace(config, dungeon_nothing_code=DungeonNothingCode.ZORA_REMAP)
     return config
@@ -241,8 +272,10 @@ def generate_cached(flags: Flags, seed: int) -> bytes:
 def level_checks(flags: Flags) -> tuple[Check, ...]:
     """The zora_measure.checks checks a finished ROM must pass under these flags
     (sorted numbering only with sort_shapes; the rules B1 moves only
-    without B1)."""
-    return finished_rom_checks(sort_shapes=flags.shapes.sort_shapes, post_shapes=flags.post_shapes)
+    without B1; the shape stage's rules only for shaped dungeons)."""
+    return finished_rom_checks(sort_shapes=flags.shapes.sort_shapes, post_shapes=flags.post_shapes,
+                               shaped=flags.alternatives.dungeon_quest is DungeonLayoutSource.GENERATED_SHAPES,
+                               start_rooms_moved=flags.shapes.start_room_swap)
 
 
 def run_level_checks(world: GameWorld, flags: Flags) -> list[CheckResult]:
@@ -259,17 +292,20 @@ def run_level_checks(world: GameWorld, flags: Flags) -> list[CheckResult]:
 
 def levels_do_not_overlap(world: GameWorld) -> list[str]:
     problems = []
-    for block_index, block in enumerate(world.blocks):
+    for block_index, block in enumerate(world.level_blocks):
         owners = Counter(room_num for level in block.levels for room_num in level.room_nums)
         problems += [f"block {block_index}: room {room_num:02X} owned {count} times"
                      for room_num, count in owners.items() if count > 1]
     return problems
 
 
+SECOND_QUEST_HUNGRY_GORIYAS = 2
+
+
 def item_problems(world: GameWorld, flags: Flags) -> list[str]:
     """Item integrity from PS-ITEM-01/02 and SH-ROOM-01."""
-    dungeon = [room.item for block in world.blocks for room in block.rooms]
-    dungeon += [stair.item for block in world.blocks for stair in block.staircases
+    dungeon = [room.item for block in world.level_blocks for room in block.rooms]
+    dungeon += [stair.item for block in world.level_blocks for stair in block.staircases
                 if stair.item is not None]
     extra_caves = [world.overworld.get_cave(destination, ItemCave) for destination in EXTRA_CAVES]
     # Shop Items in the Item Pool may put a pool item in a shop ware (SI-JOIN-01).
@@ -287,11 +323,13 @@ def item_problems(world: GameWorld, flags: Flags) -> list[str]:
         expected = 1 if level.level_num in TRIFORCE_LEVELS else 0
         if triforces != expected:
             problems.append(f"level {level.level_num}: {triforces} triforces")
-    # PS-GRUM-02: B1 replaces the grumble room with exactly one hungry goriya.
+    # PS-GRUM-02: B1 replaces the grumble room with exactly one hungry goriya. PS-VAN-02: the
+    # second quest's dungeons keep their two (second-quest level 2 room $25, level 7 room $2F).
     if flags.post_shapes:
         goriyas = sum(room.enemy == Enemy.HUNGRY_GORIYA
-                      for block in world.blocks for room in block.rooms)
-        if goriyas != 1:
+                      for block in world.level_blocks for room in block.rooms)
+        expected = SECOND_QUEST_HUNGRY_GORIYAS if flags.alternatives.dungeon_quest is DungeonLayoutSource.SECOND_QUEST else 1
+        if goriyas != expected:
             problems.append(f"{goriyas} hungry goriya rooms")
     return problems
 
@@ -346,7 +384,7 @@ def test_invariants(flags: Flags, seed: int) -> None:
 
 # A non-default value for each blocked option.
 BLOCKED_VALUES: dict[str, Any] = {
-    "start_room_swap": True, "second_quest_doors": True, "mixed_quests": True,
+    "second_quest_doors": True, "mixed_quests": True,
     "seed_placement": "adjacent", "relocate_hint_text": True, "relocate_boss_sprites": True,
 }
 

@@ -42,23 +42,37 @@ from ..flags.fields import (
     DUNGEON_ROOM_SHUFFLE,
     ENCODE_LEVEL_DATA,
     ENEMY_HIT_POINTS,
+    FORCE_OVERWORLD_BLOCK,
     FOUR_STARTING_HEARTS,
     HINT_STYLE,
+    IMPORTANT_ITEMS_IN_LEVEL_9,
+    ITEM_SHUFFLE_SCOPE,
     OPTIONS_BY_ID,
+    OVERWORLD_QUEST,
+    START_ROOM_MAY_MOVE,
     START_SCREEN,
     STARTING_HEARTS,
     TOGGLES_BY_ID,
     WHITE_SWORD_FROM_FIVE_HEARTS,
     WHITE_SWORD_LOWEST,
+    WOOD_SWORD_CAVE_BEHIND_BLOCKS,
     DungeonLayoutSource,
     DungeonRoomShuffle,
     HintStyle,
     HitPointChange,
+    ItemShuffleScope,
+    OverworldQuest,
     Settings,
     StartScreen,
     ThreeState,
 )
-from ..flags.support import ENCODE_LEVEL_DATA_NOT_RANDOM, encode_level_data_is_random, unsupported_fields
+from ..flags.support import (
+    ENCODE_LEVEL_DATA_NOT_RANDOM,
+    ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS,
+    encode_level_data_is_random,
+    encodes_second_quest_dungeons,
+    unsupported_fields,
+)
 from ..flags.zora_flags import ZoraFlags, ZoraFlagStringError
 from ..rom import level_encoding
 from ..rom.game_config import DungeonNothingCode, GameConfig, HintMode, LevelEncodingKey
@@ -69,6 +83,7 @@ from .flag_steps import FlagSteps
 from .rng import Rng
 from .shapes.options import ShapeOptions
 from .steps.overworld_gates import OverworldGates
+from .steps.start_items import start_items
 
 if TYPE_CHECKING:
     from ..model.enums import Item
@@ -77,11 +92,13 @@ if TYPE_CHECKING:
     from .finish import Assignment, Finished
     from .places import Place
 
-# C03 (hint style): mixed (index 4) and community (index 2, FL-ALT-04) both write the generated
-# 45-slot block; only its generation differs (generate_community_hint_text). The level-9 and
-# triforce texts depend only on whether hints are normal (FL-ALT-04), so they are the same.
+# C03 (hint style): mixed (index 4), helpful (index 1, HT-HINT-04) and community (index 2,
+# FL-ALT-04) all write the generated 45-slot block; only its generation differs
+# (show_every_helpful_hint, generate_community_hint_text). The level-9 and triforce texts depend
+# only on whether hints are normal (FL-ALT-04), so they are the same.
 HINT_STYLE_MODES: dict[int, HintMode] = {
     HintStyle.MIXED: HintMode.CONSTERNATION,
+    HintStyle.HELPFUL: HintMode.CONSTERNATION,
     HintStyle.COMMUNITY: HintMode.CONSTERNATION,
 }
 # The start of the refusal that names the fields the support matrix does not produce.
@@ -126,7 +143,7 @@ class GenerationPlan:
     shape_options: ShapeOptions
     steps: FlagSteps                 # the flag-switched steps that run (FL-OFF)
     alternatives: AlternativeValues  # the alternative values produced (FL-ALT)
-    post_shapes: bool                # the post-shapes passes (C02 generated shapes)
+    post_shapes: bool                # the post-shapes passes (off only in tests of the shape stage)
     config: GameConfig
     zora_flag_string: str = ""       # canonical; empty: every ZORA flag off
     zora: ZoraFlags = zora_flags.DEFAULT     # the decoded ZORA flags, "?" values as asked
@@ -216,6 +233,8 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     if unsupported:
         reasons.append(NOT_PRODUCED_PREFIX + ", ".join(_unsupported_name(adjusted, field_id)
                                                        for field_id in unsupported))
+    if encodes_second_quest_dungeons(adjusted):
+        reasons.append(ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS)
     if reasons:
         raise FlagsRefused(flag_string, reasons)
     canonical = encode(adjusted)
@@ -236,8 +255,9 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
         shape_options=replace(shape_options(settings),
                               level_2_sword_cellar=zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2),
         steps=flag_steps(settings),
-        alternatives=alternative_values(settings),
-        post_shapes=settings.option(DUNGEON_LAYOUT_SOURCE) == DungeonLayoutSource.GENERATED_SHAPES,
+        # FP-START-02: the kept start items, from their own stream (no draw without start items)
+        alternatives=replace(alternative_values(settings), start_items=start_items(settings, seed, canonical)),
+        post_shapes=True,                # every C02 value runs them (PS-VAN-01)
         config=GameConfig(
             hint_mode=HINT_STYLE_MODES[settings.option(HINT_STYLE)],
             features_b10=True,
@@ -294,6 +314,7 @@ def flag_steps(settings: Settings) -> FlagSteps:
         change_money_or_life_toll=on("B23"),
         shuffle_dungeon_palettes=on("B27"),
         shuffle_hungry_goriya=on("B28"),
+        shuffle_bomb_upgrade_men=on("B29"),
         shuffle_overworld_monsters=on("B31"),
         shuffle_bosses=on("B34"),
         shuffle_monsters_between_levels=on("B36"),
@@ -310,10 +331,22 @@ def flag_steps(settings: Settings) -> FlagSteps:
 def alternative_values(settings: Settings) -> AlternativeValues:
     """FL-ALT-02 to FL-ALT-04: each alternative value's function runs when its field holds that
     value (supported values only reach here)."""
+    quest = settings.option(OVERWORLD_QUEST)
     return AlternativeValues(
         start_with_four_hearts=settings.option(STARTING_HEARTS) == FOUR_STARTING_HEARTS,
         change_sword_hearts_from_five_hearts=settings.option(WHITE_SWORD_LOWEST) == WHITE_SWORD_FROM_FIVE_HEARTS,
         generate_community_hint_text=settings.option(HINT_STYLE) == HintStyle.COMMUNITY,
+        show_every_helpful_hint=settings.option(HINT_STYLE) == HintStyle.HELPFUL,
+        shuffle_items_within_levels=settings.option(ITEM_SHUFFLE_SCOPE) == ItemShuffleScope.WITHIN_EACH_DUNGEON,
+        mix_overworld_quest=quest == OverworldQuest.MIXED_FIRST_QUEST_VARIANT,
+        mix_overworld_quest_second_variant=quest == OverworldQuest.MIXED_SECOND_QUEST_VARIANT,
+        second_quest_overworld=quest == OverworldQuest.SECOND_QUEST,
+        full_start_shuffle=settings.option(START_SCREEN) == StartScreen.FULL_SHUFFLE,
+        start_on_wood_sword_screen=settings.option(START_SCREEN) == StartScreen.WOODEN_SWORD_SCREEN,
+        force_overworld_block=settings.is_on(FORCE_OVERWORLD_BLOCK),
+        wood_sword_cave_behind_blocks=settings.is_on(WOOD_SWORD_CAVE_BEHIND_BLOCKS),
+        dungeon_quest=DungeonLayoutSource(settings.option(DUNGEON_LAYOUT_SOURCE)),
+        important_items_in_level_9=settings.is_on(IMPORTANT_ITEMS_IN_LEVEL_9),
     )
 
 
@@ -321,7 +354,7 @@ def shape_options(settings: Settings) -> ShapeOptions:
     """The shapes generator's options from their three-state fields."""
     return ShapeOptions(
         sort_shapes=not settings.is_on("B86"),
-        start_room_swap=settings.is_on("B26"),
+        start_room_swap=settings.is_on(START_ROOM_MAY_MOVE),
         second_quest_doors=settings.is_on("B21"),
         second_quest_rooms=settings.is_on("B20"),
         second_quest_monsters=settings.is_on("B37"),
@@ -358,6 +391,8 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         add_l4_sword=chosen.zora_resolved.is_on("add_l4_sword"),
         l4_sword_in_level_2=chosen.zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2,
         level_9_entrance_sword=chosen.zora_resolved.level_9_entrance_sword,
+        eleven_screen_recorder_set=chosen.alternatives.second_quest_secrets,
+        important_items_in_level_9=chosen.alternatives.important_items_in_level_9,
     )
 
 

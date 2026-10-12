@@ -32,8 +32,6 @@ from ..acceptance_check import (
     DEFAULT_RULES,
     FAMILY_EXEMPT_LAYOUT,
     LADDER_LAYOUTS,
-    LEVEL9_ENTRY,
-    LONG_ITEMS,
     AcceptanceCheck,
     LogicRules,
 )
@@ -62,10 +60,13 @@ TAKE_ANY_CAVES_SPENT_ELSEWHERE = 2
 
 def randomize_magical_sword(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,
                             overworld: Overworld, rng: IntRng,
-                            opts: ItemShuffleOptions | None = None) -> PoolPlace | None:
+                            opts: ItemShuffleOptions | None = None, tracked: bool = False) -> PoolPlace | None:
     """Randomize Magical Sword: the magical-sword cave joins the pool. One
-    draw; returns the place the sword went to (None: it stayed)."""
-    return join_pool(MAGICAL_SWORD_SLOT, levels, state, extras, overworld, rng, opts)
+    draw; returns the place the sword went to (None: it stayed). `tracked`: Level 9 Entrance =
+    Level 4 sword, where the sword counts towards level 9's four wherever it lands; its cave
+    then no longer counts by itself (LogicRules.magical_sword_cave_counts), so an untracked
+    sword left the count at three and E1 rejected every attempt."""
+    return join_pool(MAGICAL_SWORD_SLOT, levels, state, extras, overworld, rng, opts, tracked=tracked)
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +175,7 @@ class AcceptanceHeartReach:
     def _enters(self, level: Level) -> bool:
         needs = self.rules.needs(self.caves.entry_door(level.level_num))
         if level.level_num == LEVEL_9:
-            needs |= LONG_ITEMS | {LEVEL9_ENTRY}
+            needs |= self.rules.level_9_entry_needs
         return needs <= self.held
 
     def reaches(self, place: PoolPlace) -> bool:
