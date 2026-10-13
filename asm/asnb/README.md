@@ -4,14 +4,15 @@ The ROM changes of the owner's ASNB design (docs/design/asnb.md section 3), one 
 asm/'s format (asm/README.md). `build.py` applies each one on its own on top of asm/series.txt
 (fp-prog-01 and fp-prog-02 included) and writes `asnb_data.py`, which imports `.base_rom`
 relatively: zora/rom/asnb_patch_data.py is its verbatim copy, from which
-zora/rom/owner_patches.py writes take-l4 and sword-cap (switch $01) with Add L4 Sword on, and
-level-9-gate with Level 9 Entrance = Level 4 sword.
+zora/rom/owner_patches.py writes take-l4, sword-cap (switch $01) and l4-sword-look with Add L4
+Sword on, and level-9-gate with Level 9 Entrance = Level 4 sword.
 
 | Patch | Design | Sites (headered file offsets) |
 |---|---|---|
 | `take-l4` | 3a: level 4 from any pickup | 0x06D04 (5 bytes): `HandleClass2`'s `LDA $0A / CMP Items, Y` becomes `JSR TakeGradeWithL4` + 2 NOPs; `TakeGradeWithL4` (21 bytes) at $BFE0 in each of banks 0-6 (0x03FF0 + N x 0x4000) |
 | `sword-cap` | 3b: the sword line tops out at level 4 | 0x07F30, 0x13949, 0x17B49 (4 bytes each, becoming 14): `@Fits` in each `ResolveProgressive` copy; per-seed operands `ZORA_B1_SwordLineToL4` 0x07F33, `ZORA_B4_SwordLineToL4` 0x1394C, `ZORA_B5_SwordLineToL4` 0x17B4C |
 | `level-9-gate` | 3c: level 9 opens for sword level 4 | 0x04AB1 (7 bytes): `InitUnderworldPersonC`'s `LDA InvTriforce / CMP #$FF / BNE @Exit` becomes `LDA InvSword / CMP #$04 / BCC @Exit` |
+| `l4-sword-look` | docs/design/l4-sword.md Q2 (2026-10-12): level 4 looks like the magical sword in the white sword's colours | 0x1F7FB (7 bytes): `@CalcSwordAttrs`' `CLC / ADC Items / SEC / SBC #$01` becomes `JSR SwingRowWithL4` + 4 NOPs; 0x1E78A (9 bytes, the last PRG0's): `DrawItemBySlot`'s sword reads its row and item slot from two tables; 0x1E73F (2 bytes): `AnimateItemObject` jumps to `LookSwordInWorld`; the two routines (29 bytes) at $BFC0 in each of banks 0-6 (0x03FD0 + N x 0x4000), the tables (8 bytes) at bank 7 $FF43 (0x1FF53) |
 
 docs/rom-map.md has the rows ("All Swords No Boards").
 
@@ -46,7 +47,8 @@ Then: drop `l4-sword-take` from asm/flags2/build.py's PATCHES and FREE_SPACE (it
 README row go), rebuild flags2_data.py and its zora/rom/ copy, remove the patch from the owner
 patches' writer, mark the bank 7 and bank 1 rows free in docs/rom-map.md, and update
 tests/test_flags2_emulator.py's l4-sword-take case. take-l4
-does not move: $BFC0-$BFDF stays free in banks 0-6 for later use.
+does not move: $BFC0-$BFDF in banks 0-6 now holds l4-sword-look's routines, and bank 7's
+$FF43-$FF4A its tables.
 
 ## sword-cap
 
@@ -84,6 +86,32 @@ In place, no new space. The man's refusal is person text 34, written at 0x04546 
 72 bytes; the pointer in `PersonTextAddrs` at 0x04054): FP-TRIF-01's `REFUSAL_TEXT_ADDRESS` in
 zora/rom/layout.py, where the generator writes the ASNB refusal text.
 
+## l4-sword-look
+
+**Behaviour.** PRG0 picks a sword's palette row as its level minus 1, so level 4 fell on row 3,
+the level's own sprite palette (green in level 1, blue and brown on the overworld), with the
+plain sword's icon. With the patch, level 4 takes row 1, the white sword's, and the magical
+sword's icon (item slot $20) wherever the game draws an icon:
+
+- **A box:** `DrawItemBySlot`'s sword (slot 0, A = level - 1) reads the row and item slot from
+  `SwordLookRows` ($00 $01 $02 $01) and `SwordLookIcons` ($00 $00 $20 $20); levels 1-3 get PRG0's.
+- **Floor, cave and shop items, and Link holding one up:** all drawn by `AnimateItemObject`,
+  which now jumps to `LookSwordInWorld`. A magical sword ($03) shown while Link's sword is level 3
+  or more is the L4 item (take-l4 gives level 4 for it on every path; at level 4 sword-cap shows it
+  as the top), so it is drawn as item value 4: the A box's level-4 look. Every other item goes on
+  unchanged. The seed's code icons call `DrawItemBySlot` directly and never meet it.
+- **Swing:** `@CalcSwordAttrs` calls `SwingRowWithL4`, which ORs the base attribute ($00, or $80
+  facing down) with `SwordLookRows`' row for the level and gives X back the sword's object slot,
+  $0D. The swing has one shape for every sword, so level 4 looks exactly like the white sword.
+- **Beam and sub-screen:** nothing to change (the beam cycles all four rows for every sword; the
+  item screen draws no sword).
+
+**Space.** The swing in place would need 8 bytes after `@CalcSwordAttrs`, which holds 7, and a
+hook can't replace across that label, so it calls a routine. `LookSwordInWorld` (20 bytes) and
+`SwingRowWithL4` (9) run with whichever of banks 0-6 is switched in, so each bank holds them at
+$BFC0 (29 of the 32 bytes below take-l4's copies); the tables are bank 7's (8 of its 13-byte gap at
+$FF43). l4-sword-take used both gaps until take-l4 retired it, so the two are never written together.
+
 ## Commands
 
 ```
@@ -94,6 +122,9 @@ python3 asm/asnb/build.py refresh NAME      # check NAME applies; list its hook 
 ```
 
 Tests: tests/test_asnb_patches.py (the module is current; the copies; each routine run on
-tests/mini6502.py; no byte written by two patches; z1rr-coop's reserved bytes and the level
-encoding's sites untouched; ZORA's output holds the ZORA build where the patches write) and
-tests/test_asnb_emulator.py (every pickup path at sword levels 0-4, the gate, save and reload).
+tests/mini6502.py; for l4-sword-look the row and item slot the A box, items and swing are drawn
+with; no byte written by two patches; z1rr-coop's reserved bytes and the level
+encoding's sites untouched; ZORA's output holds the ZORA build where the patches write),
+tests/test_asnb_emulator.py (every pickup path at sword levels 0-4, the gate, save and reload), and
+tests/test_l4_sword_look_emulator.py (the sword's sprites in every place at sword levels 0-4, against
+the ROM without l4-sword-look).

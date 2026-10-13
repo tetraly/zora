@@ -47,6 +47,12 @@ FLAG_CASES: dict[str, tuple[str, str]] = {
     "start room swap": (z1r_with(toggles={"B26": ThreeState.ON}), ""),
     "start room swap, second quest dungeons": (
         z1r_with(options={"C02": DungeonLayoutSource.SECOND_QUEST}, toggles={"B26": ThreeState.ON}), ""),
+    # B30 on (PS-OSTAIR): passed 2026-10-12, 100 of 100 seeds at on and Random
+    "remove most open stairs": (z1r_with(toggles={"B30": ThreeState.ON}), ""),
+    # B48 on (HT-BOOK): passed 2026-10-12, 100 of 100 seeds at on and Random
+    "book to understand old men": (z1r_with(toggles={"B48": ThreeState.ON}), ""),
+    # C02 = 4 (SH-SRC): passed 2026-10-12, 100 of 100 seeds, alone and with B26 on
+    "mixed and shapes dungeons": (z1r_with(options={"C02": DungeonLayoutSource.MIXED_WITH_SHAPES}), ""),
     **{f"start item {field}": (z1r_with(options={"C17": 0}, toggles={field: ThreeState.ON}), "")
        for field in START_ITEM_TOGGLES},
 }

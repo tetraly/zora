@@ -254,3 +254,13 @@ slot 19	INSERT COMMUNITY HINT 52	placeholder
 slot 19	INSERT COMMUNITY HINT 53	placeholder
 slot 19	INSERT COMMUNITY HINT 54	placeholder
 slot 19	INSERT COMMUNITY HINT 55	placeholder
+# Book To Understand Old Men (B48, HT-BOOK-02): slot 0 shows one of these, and only these, and
+# without the Book every person shows slot 0. The spec's pool has 50 strings in which the
+# speaker cannot be understood; ZORA's pool had none. Owner ruling (2026-10-12): five stand-ins
+# written by Claude, noted "stand-in", until the owner's own wording replaces them. Without B48
+# they are never drawn.
+slot 0 with the Book	MUMBLE MUMBLE...|GRUMBLE.	stand-in
+slot 0 with the Book	GLORB FLINDOR|WAKKA ZOOP!	stand-in
+slot 0 with the Book	THE WORDS ARE IN A|TONGUE YOU DO NOT KNOW.	stand-in
+slot 0 with the Book	THE VOICE IS|TOO FAINT TO|MAKE OUT.	stand-in
+slot 0 with the Book	IF ONLY YOU HAD A|BOOK TO MAKE SENSE|OF THESE WORDS...	stand-in

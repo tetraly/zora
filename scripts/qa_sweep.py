@@ -400,7 +400,8 @@ def check_returned_to_page(config: Config, asked: Settings, encoded: bool, finis
 
 def check_round_trip(chosen: GenerationPlan, world: GameWorld, rom: bytes, fail: Callable[[str], None]) -> None:
     """Parse and re-serialize byte for byte, then the finished-ROM checks. An encoded ROM is
-    checked through its plain build, whose level data its own must decode to."""
+    checked through its plain build, whose level data its own must decode to (plain_level_data
+    folds a second-quest set's block first, as the encoding does)."""
     if chosen.config.level_encoding is not None:
         plain = serialize_to_rom(world, base_rom(), config=replace(chosen.config, level_encoding=None))
         if level_encoding.decode_level_data(rom, chosen.config.level_encoding) \

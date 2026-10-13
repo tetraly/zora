@@ -95,8 +95,8 @@ STATE_WORDS = {"off": ThreeState.OFF, "on": ThreeState.ON, "possible": ThreeStat
 # Specified values ZORA does not produce yet (each leaves this table once it is implemented).
 # C05, C06 and B91 (6c6506b export, docs only) wait until after Hopla.
 NOT_YET_PRODUCED: dict[str, set[int]] = {
-    "C02": {2, 4, 5, 6}, "C05": {0, 1, 2, 4}, "C06": {0, 1, 4},
-    **{toggle: {ThreeState.ON, ThreeState.POSSIBLE} for toggle in ("B30", "B48", "B91")},
+    "C02": {2, 5, 6}, "C05": {0, 1, 2, 4}, "C06": {0, 1, 4},
+    **{toggle: {ThreeState.ON, ThreeState.POSSIBLE} for toggle in ("B91",)},
     **{toggle: {ThreeState.OFF} for toggle in ("B02", "B04")},
 }
 
@@ -504,10 +504,14 @@ def test_fl_sup_01_mvp_baseline_preset_is_fully_supported() -> None:
     assert Support.SUPPORTED.value == "supported" and Support.NOT_PRODUCED.value == "not produced"
 
 
-@pytest.mark.parametrize("preset", PRESET_NAMES[2:])
-def test_fl_sup_01_other_presets_have_unsupported_fields(preset: str) -> None:
-    assert unsupported_fields(decode(PRESETS[preset]))
-    assert not is_fully_supported(decode(PRESETS[preset]))
+def test_fl_sup_01_published_variant_b_has_unsupported_fields() -> None:
+    assert unsupported_fields(decode(PRESETS["Published variant B"]))
+    assert not is_fully_supported(decode(PRESETS["Published variant B"]))
+
+
+def test_fl_sup_01_published_variant_c_is_fully_supported() -> None:
+    """Variant C (Hopla): every value produced since Mixed + Shapes (C02 = 4), the last of them."""
+    assert is_fully_supported(decode(PRESETS["Published variant C"]))
 
 
 def test_fl_sup_01_published_variant_a_is_fully_supported() -> None:

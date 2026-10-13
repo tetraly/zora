@@ -120,16 +120,21 @@ def test_metadata_presets_are_the_spec_presets(build: str) -> None:
     # variant A without level encoding: every build produces it (owner approval, 2026-10-10)
     assert presets[5]["flags"] == flags_presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF and presets[5]["available"]
     variant_a = presets[1]
-    for preset in presets[2:4]:          # variants B and C have fields ZORA does not produce
-        assert not preset["available"] and preset["reasons"][0].startswith("not produced: ")
-        assert preset["reason"] == "Not produced by ZORA yet"
-    # variant A is produced (C01 = 2 and C06 = 2) and encodes its level data, as Consternation does
+    variant_b, variant_c = presets[2:4]
+    # variant B has fields ZORA does not produce
+    assert not variant_b["available"] and variant_b["reasons"][0].startswith("not produced: ")
+    assert variant_b["reason"] == "Not produced by ZORA yet"
+    # variants A (C01 = 2 and C06 = 2) and C (Hopla: Mixed + Shapes, C02 = 4, with level encoding on
+    # second-quest dungeons since 2026-10-12) are produced and encode their level data, as
+    # Consternation does
     if build == "installed":
         assert presets[0]["available"] and presets[0]["reason"] is None
         assert variant_a["available"] and variant_a["reason"] is None
+        assert variant_c["available"] and variant_c["reason"] is None
     else:
         assert presets[0]["reason"] == "Encode level data: not available in this build"
         assert not variant_a["available"] and variant_a["reason"] == presets[0]["reason"]
+        assert not variant_c["available"] and variant_c["reason"] == presets[0]["reason"]
 
 
 def test_metadata_lists_every_rule_the_check_can_give() -> None:
@@ -198,11 +203,21 @@ def test_fl_dep_06_b23_is_greyed_while_b22_is_off_and_the_string_is_corrected() 
 
 
 def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused() -> None:
+    state = worker_state(flags_presets.PUBLISHED_VARIANT_B)
+    c03 = state["fields"]["C03"]
+    assert not c03["disabled"] and c03["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
+    assert "1" not in c03["blocked"]                 # a produced value (helpful hints) can be picked
+    assert state["generateRefusals"][0].startswith("not produced: C03 (Hint style): ?, ")
+
+
+@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+def test_published_variant_c_is_produced() -> None:
+    """Every value of variant C (Hopla) is produced since Mixed + Shapes (C02 = 4), and its level
+    encoding works with second-quest dungeons since 2026-10-12 (level_encoding.fold_second_quest_blocks),
+    so variant C generates."""
     state = worker_state(flags_presets.PUBLISHED_VARIANT_C)
-    c02 = state["fields"]["C02"]
-    assert not c02["disabled"] and c02["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
-    assert "3" not in c02["blocked"]                 # the produced value (generated shapes) can be picked
-    assert state["generateRefusals"][0].startswith("not produced: C02 (Dungeon layout source), ")
+    assert all(field["reason"] != flag_form.CURRENT_NOT_PRODUCED_TEXT for field in state["fields"].values())
+    assert state["generateRefusals"] == []
 
 
 @pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")

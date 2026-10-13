@@ -93,9 +93,15 @@ def encode_text(lines: list[str]) -> list[int]:
 # (docs/ui-provenance.md): slot 0's own quotes, which replace the greeting,
 # and three quotes added to slot 9's general draw.
 UNROUTED = "unrouted"
+# Slot 0's two classes: the wood sword cave's own quotes (owner ruling), and with Book To
+# Understand Old Men (B48, HT-BOOK-02) the lines in which the speaker cannot be understood, which
+# take slot 0 in their place and are drawn nowhere without B48
+WOOD_SWORD_SLOT_0_CLASS = "slot 0 (owner ruling)"
+BOOK_SLOT_0_CLASS = "slot 0 with the Book"
 POOL_CLASSES: dict[str, tuple[int, ...]] = {
     UNROUTED: tuple(range(1, 45)),
-    "slot 0 (owner ruling)": (0,),
+    WOOD_SWORD_SLOT_0_CLASS: (0,),
+    BOOK_SLOT_0_CLASS: (0,),
     "slot 9 (owner ruling)": (9,),
     **{f"slot {slot}": (slot,) for slot in (2, 4, 5, 6, 8, 16, 17, 18, 19, 20, 21, 24, 25, 27, 34)},
     "slot 1 or 19": (1, 19),
@@ -117,6 +123,8 @@ HEARTS_NOTE = re.compile(r"(white sword|magical sword) (\d+) hearts")
 RESERVED_NOTE = "reserved"
 PLACEHOLDER_NOTE = "placeholder"
 PLACEHOLDER_TEXT = "INSERT COMMUNITY HINT"
+# Wording written by Claude until the owner's replaces it (owner ruling, 2026-10-12)
+STAND_IN_NOTE = "stand-in"
 
 POOL_FILE = "hint_pool.txt"
 POOL_COMMENT = "#"
@@ -148,12 +156,15 @@ class PoolEntry:
     hearts: tuple[int, int] | None = None
     reserved: bool = False
     placeholder: bool = False
+    stand_in: bool = False
 
-    def slots(self, white_hearts: int, magical_hearts: int) -> tuple[int, ...]:
+    def slots(self, white_hearts: int, magical_hearts: int, book_needed: bool = False) -> tuple[int, ...]:
         """The slots this quote may be shown in, in a seed whose sword caves
         ask for these heart counts. Reserved quotes and slots 27 and 34 are
-        never drawn: their final pointers are replaced (HT-TEXT-02)."""
-        if self.reserved:
+        never drawn: their final pointers are replaced (HT-TEXT-02). book_needed: Book To
+        Understand Old Men (B48), whose lines take slot 0 from the wood sword cave's quotes
+        (HT-BOOK-02)."""
+        if self.reserved or self.routing_class == (WOOD_SWORD_SLOT_0_CLASS if book_needed else BOOK_SLOT_0_CLASS):
             return ()
         if self.hearts is not None:
             slot, count = self.hearts
@@ -181,12 +192,12 @@ def _pool_entry(row: str) -> PoolEntry:
         if int(match.group(2)) not in counts or slot not in POOL_CLASSES[routing_class]:
             raise ValueError(f"{POOL_FILE}: {row!r}: no such heart requirement in this class")
         hearts = (slot, int(match.group(2)))
-    elif note not in ("", RESERVED_NOTE, PLACEHOLDER_NOTE):
+    elif note not in ("", RESERVED_NOTE, PLACEHOLDER_NOTE, STAND_IN_NOTE):
         raise ValueError(f"{POOL_FILE}: {row!r}: unknown note {note!r}")
     reserved = note == RESERVED_NOTE
     if reserved != (not shown_class_slots(routing_class)):
         raise ValueError(f"{POOL_FILE}: {row!r}: only the classes of slots 27 and 34 are reserved")
-    return PoolEntry(routing_class, tuple(lines), hearts, reserved, note == PLACEHOLDER_NOTE)
+    return PoolEntry(routing_class, tuple(lines), hearts, reserved, note == PLACEHOLDER_NOTE, note == STAND_IN_NOTE)
 
 
 def load_pool() -> tuple[PoolEntry, ...]:
@@ -879,7 +890,8 @@ def draw_requirements(candidates: list[Requirement], rng: Rng) -> list[Requireme
 # Pool routing
 # -----------------------------------------------------------------------------
 
-def place_pool(rng: Rng, white_hearts: int, magical_hearts: int) -> dict[int, list[list[str]]]:
+def place_pool(rng: Rng, white_hearts: int, magical_hearts: int,
+               book_needed: bool = False) -> dict[int, list[list[str]]]:
     """HT-TEXT-02 steps 1-3: route every pool quote to a slot's candidate list.
 
     Owner rulings (docs/ui-provenance.md), departing from the spec's
@@ -893,7 +905,7 @@ def place_pool(rng: Rng, white_hearts: int, magical_hearts: int) -> dict[int, li
     candidates: dict[int, list[list[str]]] = {slot: [] for slot in range(SLOT_COUNT)}
     filled: dict[str, set[int]] = defaultdict(set)
     for entry in POOL:
-        slots = entry.slots(white_hearts, magical_hearts)
+        slots = entry.slots(white_hearts, magical_hearts, book_needed)
         if not slots:
             continue
         open_slots = [slot for slot in slots if slot not in filled[entry.routing_class]] or list(slots)
@@ -1028,11 +1040,12 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
                        names: ItemNames = VANILLA_NAMES,
                        maze_offers: dict[int, list[str]] | None = None,
                        gates: OverworldGates = NO_GATES,
-                       every_helpful_hint: bool = False) -> HintTextResult:
+                       every_helpful_hint: bool = False, book_needed: bool = False) -> HintTextResult:
     """HT-TEXT and HT-HINT. every_helpful_hint: Helpful hints (C03 = 1, HT-HINT-04), where every
     slot with a helpful text shows it, with no overlay coin. cave_text_for_magical_sword
     (Randomize Magical Sword) replaces the text drawn for the magical-sword cave's slot after every
-    draw, so the draws are unchanged.
+    draw, so the draws are unchanged. book_needed: Book To Understand Old Men (B48, HT-BOOK-02),
+    slot 0's candidates are the lines in which the speaker cannot be understood.
     names: how the texts name items (PI-TEXT-01; the vanilla names give HT-HINT-01's).
     gates: the owner's overworld gates, for the requirement candidates.
 
@@ -1073,7 +1086,7 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     relocate(slot_texts)
     relocate(sentences)
 
-    pool_candidates = route_pool_candidates(gw, rng, names)
+    pool_candidates = route_pool_candidates(gw, rng, names, book_needed)
     final_texts, overlay_flags = select_final_texts(slot_texts, pool_candidates, rng, every_helpful_hint)
     add_openers(final_texts, overlay_flags, sentences, opener_rng)
     if cave_text_for_magical_sword is not None:
@@ -1087,7 +1100,8 @@ def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffle
                                  hint_assignment: HintAssignmentResult, rng: Rng,
                                  cave_text_for_magical_sword: list[str] | None = None,
                                  names: ItemNames = VANILLA_NAMES,
-                                 maze_offers: dict[int, list[str]] | None = None) -> HintTextResult:
+                                 maze_offers: dict[int, list[str]] | None = None,
+                                 book_needed: bool = False) -> HintTextResult:
     """FL-ALT-04 (C03 = 2, community hints): the helpful texts (HT-HINT-01) are not made and the
     mixed overlay (HT-HINT-02) does not run, nor its moves between slots 38, 12 and 19: each
     slot shows one candidate drawn from its own pool list (HT-TEXT-02). The two hint shops are
@@ -1100,10 +1114,10 @@ def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffle
     (owner quotes and numbered placeholders); slot 0, the wood sword cave, shows one of the
     owner's seven quotes, never the greeting; slot 9 has its three added quotes; place_pool's
     routing gives every shown slot a candidate, so the greeting fallback never happens.
-    cave_text_for_magical_sword and names as in generate_hint_text.
+    cave_text_for_magical_sword, names and book_needed as in generate_hint_text.
 
     The random draws, in order: the pool routing, then per slot the pool pick."""
-    pool_candidates = route_pool_candidates(gw, rng, names)
+    pool_candidates = route_pool_candidates(gw, rng, names, book_needed)
     final_texts, overlay_flags = select_final_texts([None] * SLOT_COUNT, pool_candidates, rng)
     if cave_text_for_magical_sword is not None:
         final_texts[MAGICAL_SWORD_TEXT_SLOT] = cave_text_for_magical_sword
@@ -1279,14 +1293,16 @@ def _arrow_upgrade_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
     return ["ARROW UPGRADES", "LIE ELSEWHERE"]
 
 
-def route_pool_candidates(gw: GameWorld, rng: Rng, names: ItemNames = VANILLA_NAMES) -> dict[int, list[list[str]]]:
+def route_pool_candidates(gw: GameWorld, rng: Rng, names: ItemNames = VANILLA_NAMES,
+                          book_needed: bool = False) -> dict[int, list[list[str]]]:
     """The pool's candidate lists (place_pool's draws); heart-count quotes follow the sword
-    caves' requirements, and the white-sword cave's slot may also name the cave's item."""
+    caves' requirements, and the white-sword cave's slot may also name the cave's item. With
+    book_needed (B48) slot 0 draws from the lines in which the speaker cannot be understood."""
     white_sword_cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
     magical_sword_cave = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
     white_hearts = white_sword_cave.heart_requirement if white_sword_cave is not None else 0
     magical_hearts = magical_sword_cave.heart_requirement if magical_sword_cave is not None else 0
-    pool_candidates = place_pool(rng, white_hearts, magical_hearts)
+    pool_candidates = place_pool(rng, white_hearts, magical_hearts, book_needed)
 
     white_sword_item_code = white_sword_cave.item & ITEM_CODE_MASK if white_sword_cave is not None else None
     if white_sword_item_code in WHITE_SWORD_CAVE_NAMED_ITEMS:

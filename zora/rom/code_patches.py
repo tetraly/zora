@@ -60,6 +60,8 @@ SIDE_ARRIVAL_CODES = frozenset({1, 3, 4})
 # FP-BOOK-01, the patch of Book is an Atlas (B49); with B49 off (FL-OFF-05)
 # it is left out and its sites keep PRG0's code.
 BOOK_IS_AN_ATLAS = "fp-book-01"
+# HT-BOOK-01, the patch of Book To Understand Old Men (B48): written only with B48 on.
+BOOK_TO_UNDERSTAND_OLD_MEN = "ht-book-01"
 
 # PI-CODE-01 (docs/design/progressive-items-plan.md; docs/progressive-patches.md):
 # fp-prog-01 (bank 1: caves and shops) is written with Progressive Items or Shop
@@ -93,10 +95,11 @@ ONE_TIME_POTION_SHOP_WARE = (SHOPS_BY_NUMBER.index(Destination.POTION_SHOP), POT
 
 def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items_in_pool: bool,
                      potion_shop_in_pool: bool = False, start_items: bool = False,
-                     start_rooms_moved: bool = False) -> tuple[str, ...]:
+                     start_rooms_moved: bool = False, book_to_understand_old_men: bool = False) -> tuple[str, ...]:
     """The code patches a seed's settings leave out (FL-OFF-05, PI-CODE-01; fp-prog-01's buy-once
     rule also with Shuffle Blue Potion on; fp-start-02 unless a seed starts with other items than
-    PRG0's, FP-START-02; fp-entr-01-sides unless the start-room swap ran, PS-START)."""
+    PRG0's, FP-START-02; fp-entr-01-sides unless the start-room swap ran, PS-START; ht-book-01
+    unless B48 is on, HT-BOOK-01)."""
     left_out = []
     if not book_is_an_atlas:
         left_out.append(BOOK_IS_AN_ATLAS)
@@ -108,6 +111,8 @@ def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items
         left_out.append(START_ITEMS)
     if not start_rooms_moved:
         left_out.append(ENTR_01_SIDES)
+    if not book_to_understand_old_men:
+        left_out.append(BOOK_TO_UNDERSTAND_OLD_MEN)
     return tuple(left_out)
 
 

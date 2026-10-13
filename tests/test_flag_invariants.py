@@ -38,6 +38,7 @@ from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.rom.layout import ines_header
 from zora.flags.fields import DungeonLayoutSource
+from zora.flags.zora_flags import OopsAllBosses, OopsAllEnemies
 from zora.generate.alternative_values import AlternativeValues
 from zora.generate.extra_options import ExtraOptions
 from zora.generate.flag_steps import FlagSteps
@@ -96,6 +97,8 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "generate_community_hint_text": (False, True),
     "show_every_helpful_hint": (False, True),
     "important_items_in_level_9": (False, True),
+    "remove_most_open_stairs": (False, True),        # B30: PS-OSTAIR
+    "book_to_understand_old_men": (False, True),     # B48: HT-BOOK-01 (GameConfig) and HT-BOOK-02
     "shuffle_items_within_levels": (False, True),
     "mix_overworld_quest": (False, True),
     "full_start_shuffle": (False, True),
@@ -105,9 +108,12 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "force_overworld_block": (False, True),
     "wood_sword_cave_behind_blocks": (False, True),
     "dungeon_quest": (DungeonLayoutSource.GENERATED_SHAPES, DungeonLayoutSource.FIRST_QUEST,
-                      DungeonLayoutSource.SECOND_QUEST),
+                      DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED_WITH_SHAPES),
     # FP-START-02: none, or a set that widens B03's cave screens (FP-START-04) and fills other slots
     "start_items": ((), (Item.BOMBS, Item.RECORDER, Item.RAFT, Item.POWER_BRACELET, Item.LETTER)),
+    # Oops All Enemies and Oops All Bosses (docs/design/oops-all.md)
+    "oops_all_enemies": tuple(OopsAllEnemies),
+    "oops_all_bosses": tuple(OopsAllBosses),
 }
 # FL-OFF-07's turn-off values: each flag-switched step off on the preset (with
 # the feature switch on, as every flag string has it), and all of them off.
@@ -130,7 +136,9 @@ def with_option(flags: Flags, name: str, value: Any) -> Flags:
     if name in EXTRA_FIELDS:
         return replace(flags, extras=replace(flags.extras, **{name: value}))
     if name in ALTERNATIVE_FIELDS:
-        return replace(flags, alternatives=replace(flags.alternatives, **{name: value}))
+        # A value with a generation side and a ROM side (B48) sets both
+        config = replace(flags.config, **{name: value}) if name in CONFIG_FIELDS else flags.config
+        return replace(flags, alternatives=replace(flags.alternatives, **{name: value}), config=config)
     if name in CONFIG_FIELDS:
         return replace(flags, config=replace(flags.config, **{name: value}))
     return replace(flags, **{name: value})
@@ -212,11 +220,20 @@ def turned_off() -> list[Flags]:
     return [*out, every_off]
 
 
+def producible(flags: Flags) -> bool:
+    """Not every combination is one a flag string makes: every Dungeon Quest value runs the
+    post-shapes passes (PS-VAN-01), and Mixed + Shapes without them would leave a shapes set's
+    shape-stage items beside a vanilla set's own (two wands, say). 1st and 2nd Quest without
+    them keep their quest's items, so they stay as a test of the vanilla sets alone."""
+    return flags.post_shapes or flags.alternatives.dungeon_quest is not DungeonLayoutSource.MIXED_WITH_SHAPES
+
+
 def sampled_combinations() -> list[Flags]:
-    """Preset, one-at-a-time, all-pairs and the turn-offs, without duplicates."""
+    """Preset, one-at-a-time, all-pairs and the turn-offs, without duplicates, the ones a flag
+    string can make (producible)."""
     out: list[Flags] = []
     for flags in [PRESET, *one_at_a_time(), *all_pairs(), *turned_off()]:
-        if flags not in out:
+        if flags not in out and producible(flags):
             out.append(flags)
     return out
 
@@ -299,7 +316,6 @@ def levels_do_not_overlap(world: GameWorld) -> list[str]:
     return problems
 
 
-SECOND_QUEST_HUNGRY_GORIYAS = 2
 
 
 def item_problems(world: GameWorld, flags: Flags) -> list[str]:
@@ -323,12 +339,14 @@ def item_problems(world: GameWorld, flags: Flags) -> list[str]:
         expected = 1 if level.level_num in TRIFORCE_LEVELS else 0
         if triforces != expected:
             problems.append(f"level {level.level_num}: {triforces} triforces")
-    # PS-GRUM-02: B1 replaces the grumble room with exactly one hungry goriya. PS-VAN-02: the
-    # second quest's dungeons keep their two (second-quest level 2 room $25, level 7 room $2F).
+    # PS-GRUM-02: B1 replaces the grumble room with exactly one hungry goriya, in the levels 7-9
+    # set. PS-VAN-02: a vanilla set keeps its quest's own: first-quest level 7's room $28,
+    # second-quest level 7's room $2F, and with second-quest levels 1-6 also level 2's room $25
+    # (measured: 60 seeds of Mixed + Shapes, every source pair).
     if flags.post_shapes:
         goriyas = sum(room.enemy == Enemy.HUNGRY_GORIYA
                       for block in world.level_blocks for room in block.rooms)
-        expected = SECOND_QUEST_HUNGRY_GORIYAS if flags.alternatives.dungeon_quest is DungeonLayoutSource.SECOND_QUEST else 1
+        expected = 1 + (world.levels[0].block is world.blocks_2q[0])
         if goriyas != expected:
             problems.append(f"{goriyas} hungry goriya rooms")
     return problems

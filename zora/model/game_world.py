@@ -90,6 +90,10 @@ class GameWorld:
     # The record line 15 addresses (length, first column, tiles), as read from a ROM; measured
     # only (FP-LOCK-02's Check), never written: the serializer writes the pointers.
     credits_line_15_record: bytes = b""
+    # HT-BOOK-01's Check: the three bytes of UpdatePersonState_Textbox's text-pointer load (PRG0's
+    # LDA PersonTextAddrs, Y, or B48's call), as read from a ROM; measured only, never written:
+    # the serializer writes the patch (GameConfig.book_to_understand_old_men).
+    person_text_pointer_load: bytes = b""
     # Title-screen seed number (right-aligned in the first replaced row).
     title_seed_number: int = 0
     # Title-screen version line (ZORA-authored; empty means leave PRG0 row blank).

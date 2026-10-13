@@ -117,6 +117,10 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x17C50, bytes.fromhex("adbb6bc901f00bc903f013c904f01b4cc1baa9788570a93d8584a904d016a9008570a98d8584a901d0"
                                 "0aa9f08570a98d8584a90285984c906c")),
     ),
+    "ht-book-01": (
+        (0x04847, bytes.fromhex("20309f")),
+        (0x05F40, bytes.fromhex("ad6106d006c044f002a000b9008060")),
+    ),
 }
 
 # Data the passes fill per seed: exported label -> file offset.

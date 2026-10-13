@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, fields
+from enum import IntEnum
 from typing import Any
 
 from zora.flags import form as flag_form
@@ -470,9 +471,16 @@ LEVEL_9_ENTRANCE = "level_9_entrance_sword"
 L4_SWORD_TEXT = {zora_flags.L4Sword.LEVEL_2: "level 2", zora_flags.L4Sword.LEVEL_9: "level 9"}
 
 
+# Oops All Enemies and Oops All Bosses (version 5): shown only when set, by their value's name, so
+# a seed without them keeps its document too.
+OOPS_ALL_FIELDS = tuple(zora_flags.ENUM_FIELDS)
+
+
 def zora_entry_shown(flags: zora_flags.ZoraFlags, name: str) -> bool:
     if name == L4_SWORD_IN_LEVEL_2:
         return False
+    if name in OOPS_ALL_FIELDS:
+        return bool(getattr(flags, name))
     return name != LEVEL_9_ENTRANCE or flags.level_9_entrance_sword
 
 
@@ -492,6 +500,8 @@ def zora_value_text(value: bool | int | ThreeState | None) -> str:
         return QUESTION_MARK if value is ThreeState.POSSIBLE else ("on" if value is ThreeState.ON else "off")
     if isinstance(value, bool):
         return "on" if value else "off"
+    if isinstance(value, IntEnum):
+        return value.name.lower()
     return "follow the Z1R flags" if value is None else str(value)
 
 

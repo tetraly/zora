@@ -37,6 +37,7 @@ from ..flags.dependencies import (
     resolve,
 )
 from ..flags.fields import (
+    BOOK_TO_UNDERSTAND_OLD_MEN,
     BOSS_HIT_POINTS,
     DUNGEON_LAYOUT_SOURCE,
     DUNGEON_ROOM_SHUFFLE,
@@ -47,6 +48,7 @@ from ..flags.fields import (
     HINT_STYLE,
     IMPORTANT_ITEMS_IN_LEVEL_9,
     ITEM_SHUFFLE_SCOPE,
+    MOST_OPEN_STAIRS_REMOVED,
     OPTIONS_BY_ID,
     OVERWORLD_QUEST,
     START_ROOM_MAY_MOVE,
@@ -68,9 +70,7 @@ from ..flags.fields import (
 )
 from ..flags.support import (
     ENCODE_LEVEL_DATA_NOT_RANDOM,
-    ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS,
     encode_level_data_is_random,
-    encodes_second_quest_dungeons,
     unsupported_fields,
 )
 from ..flags.zora_flags import ZoraFlags, ZoraFlagStringError
@@ -233,8 +233,6 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     if unsupported:
         reasons.append(NOT_PRODUCED_PREFIX + ", ".join(_unsupported_name(adjusted, field_id)
                                                        for field_id in unsupported))
-    if encodes_second_quest_dungeons(adjusted):
-        reasons.append(ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS)
     if reasons:
         raise FlagsRefused(flag_string, reasons)
     canonical = encode(adjusted)
@@ -262,6 +260,7 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             hint_mode=HINT_STYLE_MODES[settings.option(HINT_STYLE)],
             features_b10=True,
             book_is_an_atlas=settings.is_on(BOOK_IS_AN_ATLAS),
+            book_to_understand_old_men=settings.is_on(BOOK_TO_UNDERSTAND_OLD_MEN),
             level_encoding=(LevelEncodingKey(seed, zora_flags.level_encoding_text(canonical, zora_canonical))
                             if encode_level_data else None),
             # a magical sword may lie in a dungeon room: "no item" becomes $0E (docs/zora-extras.md section 6)
@@ -347,6 +346,8 @@ def alternative_values(settings: Settings) -> AlternativeValues:
         wood_sword_cave_behind_blocks=settings.is_on(WOOD_SWORD_CAVE_BEHIND_BLOCKS),
         dungeon_quest=DungeonLayoutSource(settings.option(DUNGEON_LAYOUT_SOURCE)),
         important_items_in_level_9=settings.is_on(IMPORTANT_ITEMS_IN_LEVEL_9),
+        remove_most_open_stairs=settings.is_on(MOST_OPEN_STAIRS_REMOVED),
+        book_to_understand_old_men=settings.is_on(BOOK_TO_UNDERSTAND_OLD_MEN),
     )
 
 
@@ -393,6 +394,9 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         level_9_entrance_sword=chosen.zora_resolved.level_9_entrance_sword,
         eleven_screen_recorder_set=chosen.alternatives.second_quest_secrets,
         important_items_in_level_9=chosen.alternatives.important_items_in_level_9,
+        oops_all_enemies=chosen.zora_resolved.oops_all_enemies,
+        oops_all_bosses=chosen.zora_resolved.oops_all_bosses,
+        oops_all_seed=zora_flags.oops_all_seed(chosen.seed, chosen.flag_string, chosen.zora_flag_string),
     )
 
 

@@ -1,5 +1,6 @@
 """Randomize Boss Groups (B40; PS-BGRP-01 to -03, PS-SPR-02)."""
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 from ...model.enums import Enemy
@@ -116,14 +117,11 @@ def _boss_destination(block: int, tile: int) -> tuple[PatternBlock, int]:
     return BOSS_BLOCKS[block], (tile - BOSS_BLOCK_FIRST_TILE) * TILE_BYTES
 
 
-def pack_bosses(gw: GameWorld, deal: BossDeal, staged: Staged) -> None:
-    """PS-SPR-02: first-fit per block in packing order, companions right
-    after their boss; frame bytes renumbered (+1 in the common block), with
-    Aquamentus's and Gleeok's operand fix-ups."""
-    enemies = gw.enemies
+def packed_slots(deal: BossDeal) -> Iterator[tuple[int, Enemy, SpriteObject, list[int]]]:
+    """PS-SPR-02's placement: (block, boss, sprite object, its tiles), first-fit per block in
+    packing order, companions right after their boss."""
     for block, bosses in deal.blocks.items():
         free = list(BOSS_BLOCK_TILES[block])
-        shift = COMMON_TABLE_BIT if block == OVERWORLD else 0
         # Packing follows the dealing order (descending cost), the special
         # boss included: Aquamentus dealt into the common block beside a
         # special Digdogger still takes its first slot.
@@ -131,29 +129,39 @@ def pack_bosses(gw: GameWorld, deal: BossDeal, staged: Staged) -> None:
             for sprite_object in (BOSSES[boss].body, BOSSES[boss].companion):
                 if sprite_object is None:
                     continue
-                data = gw.sprites.read_tiles(*sprite_object.source, sprite_object.tiles)
                 slots, free = free[:sprite_object.tiles], free[sprite_object.tiles:]
-                for tile, tile_data in zip(slots, data, strict=True):
-                    staged.tiles.append((*_boss_destination(block, tile), tile_data))
-                offset, count = sprite_object.frames
-                if sprite_object.frames == AQUAMENTUS_FRAMES:
-                    assert enemies.aquamentus_tile_layout_table is not None
-                    staged.aquamentus_tiles = _renumber(
-                        enemies.aquamentus_tile_layout_table, slots,
-                        AQUAMENTUS_FRAME_LIFT + shift
-                    )
-                    staged.aquamentus_open_mouth = slots[0] + shift
-                elif sprite_object.frames == GLEEOK_FRAMES:
-                    assert enemies.gleeok_body_tiles is not None
-                    body = _renumber(enemies.gleeok_body_tiles, slots, shift)
-                    staged.gleeok_body_tiles = body
-                    staged.gleeok_neck = body[0] + GLEEOK_NECK_LIFT
-                    staged.gleeok_head = body[0] + GLEEOK_HEAD_LIFT
-                    staged.frames[GLEEOK_HEAP_OFFSET] = body[0] + GLEEOK_HEAP_LIFT
-                else:
-                    frames = enemies.frame_bytes(offset, count)
-                    staged.frames.update(zip(range(offset, offset + count),
-                                             _renumber(frames, slots, shift), strict=True))
+                yield block, boss, sprite_object, slots
+
+
+def pack_bosses(gw: GameWorld, deal: BossDeal, staged: Staged) -> None:
+    """PS-SPR-02: first-fit per block in packing order, companions right
+    after their boss; frame bytes renumbered (+1 in the common block), with
+    Aquamentus's and Gleeok's operand fix-ups."""
+    enemies = gw.enemies
+    for block, _boss, sprite_object, slots in packed_slots(deal):
+        shift = COMMON_TABLE_BIT if block == OVERWORLD else 0
+        data = gw.sprites.read_tiles(*sprite_object.source, sprite_object.tiles)
+        for tile, tile_data in zip(slots, data, strict=True):
+            staged.tiles.append((*_boss_destination(block, tile), tile_data))
+        offset, count = sprite_object.frames
+        if sprite_object.frames == AQUAMENTUS_FRAMES:
+            assert enemies.aquamentus_tile_layout_table is not None
+            staged.aquamentus_tiles = _renumber(
+                enemies.aquamentus_tile_layout_table, slots,
+                AQUAMENTUS_FRAME_LIFT + shift
+            )
+            staged.aquamentus_open_mouth = slots[0] + shift
+        elif sprite_object.frames == GLEEOK_FRAMES:
+            assert enemies.gleeok_body_tiles is not None
+            body = _renumber(enemies.gleeok_body_tiles, slots, shift)
+            staged.gleeok_body_tiles = body
+            staged.gleeok_neck = body[0] + GLEEOK_NECK_LIFT
+            staged.gleeok_head = body[0] + GLEEOK_HEAD_LIFT
+            staged.frames[GLEEOK_HEAP_OFFSET] = body[0] + GLEEOK_HEAP_LIFT
+        else:
+            frames = enemies.frame_bytes(offset, count)
+            staged.frames.update(zip(range(offset, offset + count),
+                                     _renumber(frames, slots, shift), strict=True))
 
 
 OLD_BOSS_GROUPS: dict[int, int] = {

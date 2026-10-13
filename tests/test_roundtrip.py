@@ -173,9 +173,9 @@ def test_nothing_code_config_vanilla_is_default() -> None:
     n03 = sum(1 for b in vanilla_t4 if b & 0x1F == 0x03)
     n0e = sum(1 for b in grid[4 * 0x80:5 * 0x80] if b & 0x1F == 0x0E)
     assert n03 > 10
-    # cells not owned by the model (stale stair-pool leftovers) keep their
-    # raw vanilla byte; only modelled rooms get the configured code
-    assert n03 - n0e <= 2
+    # every $03 byte becomes $0E, the transport cellars' too ($07 and $08 kept $03
+    # before the fix and showed a magical sword)
+    assert n03 == n0e
     # the engine sentinel patch is a final ROM step (zora/rom/final_steps.py)
     assert ASM_NOTHING_CODE_PATCH_OFFSET not in patch.data
     finished = serialize_to_rom(gw, rom, config=cfg)

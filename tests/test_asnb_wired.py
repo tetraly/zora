@@ -217,11 +217,14 @@ def test_the_gate_is_written_only_with_the_entrance() -> None:
 
 
 def test_l4_sword_take_is_retired() -> None:
-    """Add L4 Sword = Level 9 (today's setting) writes take-l4 and sword-cap; l4-sword-take's bank-7
-    stub, bank-1 routine and TryTakeItem hook hold PRG0's bytes again."""
+    """Add L4 Sword = Level 9 (today's setting) writes take-l4, sword-cap and l4-sword-look;
+    l4-sword-take's TryTakeItem hook and its bank-7 stub and bank-1 routine hold PRG0's bytes again,
+    but where l4-sword-look reuses that free space (its tables at bank 7 $FF43, its routines at bank
+    1 $BFC0)."""
     rom = generate_rom(WITHOUT_CANDLES, 1, base(), zora_flag_string=zora_flags.encode(LEVEL_9)).rom
     assert "l4-sword-take" not in PATCHES_BY_FLAG["add_l4_sword"]
-    for offset in written(FLAGS2_PATCHES["l4-sword-take"]):
+    reused = written(ASNB_PATCHES["l4-sword-look"])
+    for offset in written(FLAGS2_PATCHES["l4-sword-take"]) - reused:
         assert rom[offset] == base()[offset], hex(offset)
     for offset, data in owner_patch_writes(["add_l4_sword"]):
         assert rom[offset:offset + len(data)] == data, hex(offset)

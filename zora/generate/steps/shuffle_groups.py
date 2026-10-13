@@ -74,6 +74,9 @@ def apply_groups(gw: GameWorld, state: GroupShuffleResult) -> None:
             screen.enemy_spec = EnemySpec(enemy=staged.overworld_monsters[screen.screen_num])
     if staged.item_carrier_operands is not None:
         gw.item_carrier_operands = staged.item_carrier_operands
+    for level in gw.levels:
+        if level.level_num in staged.boss_sprite_sets:
+            level.boss_sprite_set = staged.boss_sprite_sets[level.level_num]
     if state.enemy_deal is not None:
         # PS-EGRP-05 and PS-EGRP-06's fixed writes: the enemy group pass's
         gw.overworld_wizzrobe_patch = staged.red_wizzrobe_overworld

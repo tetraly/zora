@@ -112,7 +112,9 @@ def test_level_encoding_refused_when_unavailable() -> None:
 def test_level_encoding_keeps_the_guarantees() -> None:
     """With the private module: the encoded ROM has the plain twin's size,
     differs only in the level data, the two edit sites and the seed's code, and its
-    level data decodes back to the twin's; FP-Q2R-01's byte is omitted."""
+    level data decodes back to the twin's (plain_level_data: a second-quest set's block
+    folded, as the encoding does; none here, tests/test_level_encoding_fold.py has them);
+    FP-Q2R-01's byte is omitted."""
     base = _base()
     seed = 5
     on = plan(MVP_BASELINE, seed)

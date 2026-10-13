@@ -28,7 +28,7 @@ import hashlib
 import re
 from collections.abc import Iterator
 from dataclasses import dataclass, fields, replace
-from enum import Enum
+from enum import Enum, IntEnum
 
 from .codec import ALPHABET, DIGIT_VALUE, RADIX
 from .dependencies import UnresolvedError, magical_sword_hearts, starting_hearts
@@ -81,6 +81,26 @@ OWNER_2_0_FIELDS = (
     "randomize_dead_woods",                # §13
 )
 
+
+
+class OopsAllEnemies(IntEnum):
+    """Oops All Enemies: the family every regular dungeon room's enemies are drawn from, per room
+    (docs/design/oops-all.md section 3)."""
+    OFF = 0
+    WIZZROBES = 1          # red and blue
+    KEESE = 2              # blue, red and dark
+    BOUNCERS = 3           # Pols Voice and Vire (the owner's name: both hop)
+
+
+class OopsAllBosses(IntEnum):
+    """Oops All Bosses: the boss every level 1-8 boss room holds where its layout allows."""
+    OFF = 0
+    DODONGOS = 1           # triple and single
+
+
+# Fields whose digit is an enum's value
+ENUM_FIELDS: dict[str, type[IntEnum]] = {"oops_all_enemies": OopsAllEnemies, "oops_all_bosses": OopsAllBosses}
+
 # Every field ever defined, in payload order (least significant first).
 # Append only: a field's position and radix never change once released.
 FIELDS: tuple[ZoraField, ...] = (
@@ -99,6 +119,10 @@ FIELDS: tuple[ZoraField, ...] = (
     # meaning and its spelling.
     ZoraField("l4_sword_in_level_2", 2, version=4),
     ZoraField("level_9_entrance_sword", 2, version=4),
+    # Version 5: Oops All Enemies and Oops All Bosses (docs/design/oops-all.md section 3). Off is
+    # 0 in both, so every older string keeps its meaning and its spelling. No random value yet.
+    ZoraField("oops_all_enemies", len(OopsAllEnemies), version=5),
+    ZoraField("oops_all_bosses", len(OopsAllBosses), version=5),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -139,6 +163,9 @@ class ZoraFlags:
     # level 9 opening for a level-4 sword instead of the triforce pieces.
     l4_sword_in_level_2: bool = False
     level_9_entrance_sword: bool = False
+    # Version 5: Oops All Enemies and Oops All Bosses.
+    oops_all_enemies: OopsAllEnemies = OopsAllEnemies.OFF
+    oops_all_bosses: OopsAllBosses = OopsAllBosses.OFF
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -187,6 +214,8 @@ def _index_of(flags: ZoraFlags, field: ZoraField) -> int:
 
 def _value_of(field: ZoraField, index: int) -> bool | int | ThreeState | None:
     """A field's value from its digit."""
+    if field.name in ENUM_FIELDS:
+        return ENUM_FIELDS[field.name](index)
     if field.name == "magical_sword_hearts_highest":
         return None if index == HEARTS_FOLLOW_Z1R else HEARTS_CAP_BASE + index
     if field.slots == THREE_STATE_SLOTS:
@@ -530,6 +559,19 @@ def generation_seed(seed: int, z1r_canonical: str, zora_canonical: str) -> int:
         return seed
     message = KEY_SEPARATOR.join((str(seed), z1r_canonical, zora_canonical)).encode("utf-8")
     digest = hashlib.blake2b(message, digest_size=SEED_BITS // 8, person=SEED_DOMAIN).digest()
+    return int.from_bytes(digest, "little")
+
+
+OOPS_ALL_STREAM = b"zora oops all"         # 16 bytes at most (BLAKE2b's person)
+
+
+def oops_all_seed(seed: int, z1r_canonical: str, zora_canonical: str) -> int:
+    """The key of Oops All's own random stream (docs/design/oops-all.md 2.8): derived only from
+    the seed number and both canonical strings, so its draws move nothing in the generation's
+    stream. (Turning Oops on still changes the whole seed: its fields are in generation_seed's
+    key like every ZORA flag, owner decision 1.)"""
+    message = KEY_SEPARATOR.join((str(seed), z1r_canonical, zora_canonical)).encode("utf-8")
+    digest = hashlib.blake2b(message, digest_size=SEED_BITS // 8, person=OOPS_ALL_STREAM).digest()
     return int.from_bytes(digest, "little")
 
 

@@ -18,7 +18,7 @@ from zora.generate.finish import FOREIGN, FOREIGN_ITEM, AssignmentRefused, Forei
 from zora.generate.pipeline import Built, build, finish, finish_world, plan
 from zora.generate.places import Place, PlaceKind, is_never_a_place, read_item
 from zora.generate.steps import move_last_boss_room_items
-from zora.model.enums import Destination, Item, RoomAction
+from zora.model.enums import Destination, Item, RoomAction, RoomType
 from zora.model.overworld import ItemCave
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.code_patches import ONE_TIME_WARES, SEED_CODE_ADDRESS, SEED_CODE_LENGTH
@@ -43,6 +43,8 @@ finish_unchecked = partial(finish, check=False)
 finish_world_unchecked = partial(finish_world, check=False)
 CAVE_TABLE_SIZE = 20 * 3            # 20 caves x 3 wares
 ITEM_TABLE = 4                      # LevelBlockAttrsE, the room item byte
+ITEM_CODE_MASK = 0x1F
+LAST_LEVEL_OF_FIRST_BLOCK = 6       # levels 1-6 share one room block, 7-9 the other
 ONE_TIME_WARES_SIZE = 3
 
 
@@ -201,6 +203,14 @@ def test_a_magical_sword_in_a_dungeon_turns_the_remap_on(base: bytes, case: str)
     assert rom[ASM_NOTHING_CODE_PATCH_OFFSET] != base[ASM_NOTHING_CODE_PATCH_OFFSET]
     parsed = parse_rom(rom, reading(finished.config))
     assert read_item(parsed, room) == read_item(parsed, cellar) == Item.MAGICAL_SWORD
+    # A transport cellar holds the remapped "no item" code too ($03 would draw a magical sword)
+    transports = [(level, stair) for level in parsed.levels for stair in level.staircase_rooms
+                  if stair.room_type == RoomType.TRANSPORT_STAIRCASE]
+    assert transports
+    for level, stair in transports:
+        block = LEVEL_1_6_DATA_ADDRESS if level.level_num <= LAST_LEVEL_OF_FIRST_BLOCK else LEVEL_7_9_DATA_ADDRESS
+        item_byte = rom[block + ITEM_TABLE * LEVEL_TABLE_SIZE + stair.room_num]
+        assert item_byte & ITEM_CODE_MASK == DungeonNothingCode.ZORA_REMAP, (level.level_num, hex(stair.room_num))
 
 
 def test_the_white_sword_cave_asks_for_its_hearts_whatever_it_holds(base: bytes) -> None:

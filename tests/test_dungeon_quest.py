@@ -1,7 +1,8 @@
 """Dungeon Quest (C02; shapes-behavior.md SH-SRC-01 to SH-SRC-10, post-shapes-b9.md PS-VAN-01 to
 PS-VAN-07): the set sources, the vanilla sets' fixed lists, and finished ROMs of 1st Quest
-(C02 = 0) and 2nd Quest (C02 = 1). The Checks over 1,000 seeds: `python3 scripts/compare_corpus.py
---set c02-quest1` (or c02-quest2), and the CP-5 set against each value's corpus."""
+(C02 = 0), 2nd Quest (C02 = 1) and Mixed + Shapes (C02 = 4). The Checks over 1,000 seeds:
+`python3 scripts/compare_corpus.py --set c02-quest1` (or c02-quest2, c02-mixshapes), and the CP-5
+set against each value's corpus."""
 from collections import Counter
 from functools import cache
 
@@ -9,8 +10,7 @@ import pytest
 
 from zora.flags.codec import decode, encode
 from zora.flags.fields import DUNGEON_LAYOUT_SOURCE, ENCODE_LEVEL_DATA, DungeonLayoutSource, ThreeState
-from zora.flags.support import ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS
-from zora.generate.pipeline import FlagsRefused, generate_rom, plan
+from zora.generate.pipeline import generate_rom, plan
 from zora.generate.rng import Rng
 from zora.generate.steps.dungeon_quest import (
     MIXED_HEADS,
@@ -23,11 +23,13 @@ from zora.generate.steps.dungeon_quest import (
 )
 from zora.generate.steps.shuffle_items import PAIRED_LEVELS, _RoomPosition, heart_rooms
 from zora.model.game_world import GameWorld
+from zora.rom import level_encoding
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.game_config import GameConfig
 from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checkpoints.dungeon_quest import (
     FIRST_QUEST_DUNGEONS_FLAGS,
+    MIXED_WITH_SHAPES_FLAGS,
     SECOND_QUEST_DUNGEONS_FLAGS,
     item_invariants,
     level_2_bank,
@@ -91,10 +93,12 @@ def test_mixed_quest_draws_its_coin_per_attempt() -> None:
     assert {draw_attempt_set_sources(None, rng) for _ in range(40)} == {MIXED_HEADS, MIXED_TAILS}
 
 
-def test_level_encoding_is_refused_with_second_quest_dungeons() -> None:
+@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+def test_level_encoding_plans_with_second_quest_dungeons() -> None:
+    """Encode level data with second-quest dungeons is no longer refused (owner decision,
+    2026-10-12): the encoding folds a second-quest set's block first (tests/test_level_encoding_fold.py)."""
     settings = decode(SECOND_QUEST_DUNGEONS_FLAGS).updated(toggles={ENCODE_LEVEL_DATA.id: ThreeState.ON})
-    with pytest.raises(FlagsRefused, match=ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS):
-        plan(encode(settings), 1)
+    assert plan(encode(settings), 1).config.level_encoding is not None
     first_quest = decode(FIRST_QUEST_DUNGEONS_FLAGS)
     assert first_quest.option(DUNGEON_LAYOUT_SOURCE) == DungeonLayoutSource.FIRST_QUEST
 
@@ -120,6 +124,20 @@ def test_second_quest_dungeons(seed: int) -> None:
     assert second_quest_people(gw) == (8, 8)               # PS-VAN-07
     assert all(item_invariants(gw).values()) and all(level_9_rooms(gw).values())
     assert start_rooms(gw) == (9, 9)
+
+
+@pytest.mark.parametrize("seed", range(1, 7))
+def test_mixed_with_shapes_dungeons(seed: int) -> None:
+    """SH-SRC-01 to SH-SRC-06 (C02 = 4): two different sources (so at most one set shapes); the monster
+    branches take the second-quest path exactly when a set is second quest; the hungry-goriya and
+    bomb-upgrade moves are off; the item and level-9 invariants hold."""
+    gw = _finished(MIXED_WITH_SHAPES_FLAGS, seed)
+    sources = set_sources(gw)
+    assert sources[0] is not sources[1]
+    assert all(monster_branches(gw).values()) == (SetSource.SECOND_QUEST in sources)
+    assert not any(monster_branches(gw).values()) == (SetSource.SECOND_QUEST not in sources)
+    assert gw.bomb_upgrade_levels is None                  # SH-SRC-06 item 1 (FL-DEP-02 item 4)
+    assert all(item_invariants(gw).values()) and all(level_9_rooms(gw).values())
 
 
 def test_ps_item_08_records_a_second_quest_heart_room_as_its_paired_level() -> None:

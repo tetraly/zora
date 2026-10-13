@@ -155,12 +155,13 @@ L4_FLAGS = {"add_l4_sword": ON, "progressive_items": True}
 
 
 def test_with_add_l4_sword_on_its_patches_are_written() -> None:
-    """The beam test, and ASNB's take-l4 and sword-cap, which retire l4-sword-take (asnb.md 3a)."""
+    """The beam test, and ASNB's take-l4 and sword-cap, which retire l4-sword-take (asnb.md 3a), and
+    l4-sword-look (l4-sword.md Q2)."""
     from zora.rom.owner_patches import ASNB_PATCHES_BY_FLAG, RETIRED_PATCHES
     rom = generate_rom(WITHOUT_CANDLES, 1, base(), zora_flag_string=zora(**L4_FLAGS)).rom
     writes = owner_patch_writes(["add_l4_sword"])
     assert set(PATCHES_BY_FLAG["add_l4_sword"]) == {"l4-sword-beam"} and RETIRED_PATCHES == {"l4-sword-take"}
-    assert set(ASNB_PATCHES_BY_FLAG["add_l4_sword"]) == {"take-l4", "sword-cap"}
+    assert set(ASNB_PATCHES_BY_FLAG["add_l4_sword"]) == {"take-l4", "sword-cap", "l4-sword-look"}
     for offset, data in writes:
         assert rom[offset:offset + len(data)] == data, hex(offset)
 

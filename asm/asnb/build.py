@@ -5,7 +5,7 @@
     python3 asm/asnb/build.py edit NAME       write the sources with NAME applied to temp/asm-asnb/edit/src
     python3 asm/asnb/build.py refresh NAME    check NAME applies and list its hook sites
 
-Three patches, each a folder asm/asnb/NAME/ in asm/'s format (asm/README.md: ZORA's code only,
+Four patches, each a folder asm/asnb/NAME/ in asm/'s format (asm/README.md: ZORA's code only,
 no disassembly text), applied on its own on top of asm/series.txt (the "ZORA build"), as
 asm/flags2/ does. zora/rom/owner_patches.py writes them, behind Add L4 Sword and Level 9
 Entrance, from zora/rom/asnb_patch_data.py, a verbatim copy of asnb_data.py.
@@ -16,13 +16,17 @@ Entrance, from zora/rom/asnb_patch_data.py, a verbatim copy of asnb_data.py.
                 switched by the per-seed operand ZORA_B<bank>_SwordLineToL4 (one value, three
                 places). Its hooks are inside fp-prog-01's and fp-prog-02's routines.
   level-9-gate  3c: the man at level 9's entrance opens the shutters for sword level 4.
+  l4-sword-look Add L4 Sword's look (docs/design/l4-sword.md Q2): level 4 draws as the magical
+                sword in the white sword's colours, through two in-place hooks with their
+                tables in bank 7 and LookSwordInWorld, one copy at $BFC0 in each of banks 0-6.
 
 `build` assembles the ZORA build, then each patch on it, and records what changed as pieces
 (ZORA's bytes, or Original pieces read from the player's ROM). It checks that every new segment
 is one of FREE_SPACE's, blank in the ZORA build, that a patch writes no other blank byte except
-where it lengthens a ZORA segment inside that segment's slot (GROWTH), and that the three
+where it lengthens a ZORA segment inside that segment's slot (GROWTH), and that the four
 applied together write exactly what each writes alone. It records the per-seed operands, the
-three ResolveProgressive copies with sword-cap applied, and the seven TakeGradeWithL4 copies.
+three ResolveProgressive copies with sword-cap applied, and the seven TakeGradeWithL4 and seven
+LookSwordInWorld copies.
 
 This script imports scripts/asm_patches.py for its assembling and patch helpers and does not
 change it; each build works in a scratch folder of its own (scripts/asm_patches.py's scratch()).
@@ -64,6 +68,7 @@ PATCHES = (
     "take-l4",          # 3a  level 4 from any pickup
     "sword-cap",        # 3b  the sword line tops out at level 4
     "level-9-gate",     # 3c  level 9 opens for sword level 4
+    "l4-sword-look",    # Add L4 Sword's look (l4-sword.md Q2)
 )
 
 
@@ -85,6 +90,11 @@ class FreeSpace:
 TAKE_BANKS = range(7)
 TAKE_ADDRESS = 0xBFE0
 FREE_SPACE = {f"ZORA_ASNB_TAKE_B{bank}": FreeSpace(bank, TAKE_ADDRESS, 0xBFF9) for bank in TAKE_BANKS}
+# l4-sword-look: LookSwordInWorld at $BFC0-$BFDF in each of banks 0-6 (bank 1's freed when take-l4
+# retired l4-sword-take), and its tables in bank 7's 13-byte gap (l4-sword-take's old stub).
+LOOK_ADDRESS = 0xBFC0
+FREE_SPACE |= {f"ZORA_ASNB_LOOK_B{bank}": FreeSpace(bank, LOOK_ADDRESS, 0xBFDF) for bank in TAKE_BANKS}
+FREE_SPACE["ZORA_ASNB_LOOK_B7"] = FreeSpace(7, 0xFF43, 0xFF4F)
 
 # The ZORA segments sword-cap lengthens, and the slots they may grow into (asm/progressive/build.py's
 # FREE_SPACE, docs/rom-map.md).
@@ -130,11 +140,12 @@ def labels(tree: Any) -> dict[str, int]:
 class Build:
     """Each patch's writes against the ZORA build; the per-seed operands (label -> file offset);
     sword-cap's ResolveProgressive copies (bank -> file range of the shared body, end exclusive);
-    the TakeGradeWithL4 copies (bank -> file range)."""
+    the TakeGradeWithL4 and LookSwordInWorld copies (bank -> file range)."""
     writes: dict[str, list[tuple[int, Piece]]]
     symbols: dict[str, int]
     resolve_copies: dict[int, tuple[int, int]]
     take_copies: dict[int, tuple[int, int]]
+    look_copies: dict[int, tuple[int, int]]
 
 
 def build_all() -> Build:
@@ -158,14 +169,20 @@ def build_all() -> Build:
         if name == "sword-cap":
             check_operands(patched, symbols)
     check_together(base, zora, writes)
-    take_copies = {}
-    for bank in TAKE_BANKS:
-        space = FREE_SPACE[f"ZORA_ASNB_TAKE_B{bank}"].file_range()
-        inside = [offset for start, piece in writes["take-l4"] for offset in range(start, start + piece_length(piece))
-                  if offset in space]
-        take_copies[bank] = (space.start, max(inside) + 1)
     resolve_copies = {bank: (found["Body"], found["End"]) for bank, found in sorted(resolve.items())}
-    return Build(writes, dict(sorted(symbols.items())), resolve_copies, take_copies)
+    return Build(writes, dict(sorted(symbols.items())), resolve_copies, copies(writes, "take-l4", "TAKE"),
+                 copies(writes, "l4-sword-look", "LOOK"))
+
+
+def copies(writes: dict[str, list[tuple[int, Piece]]], name: str, segment: str) -> dict[int, tuple[int, int]]:
+    """The file range (end exclusive) the patch writes in each of banks 0-6's ZORA_ASNB_<segment>_B<bank>."""
+    found = {}
+    for bank in TAKE_BANKS:
+        space = FREE_SPACE[f"ZORA_ASNB_{segment}_B{bank}"].file_range()
+        inside = [offset for start, piece in writes[name] for offset in range(start, start + piece_length(piece))
+                  if offset in space]
+        found[bank] = (space.start, max(inside) + 1)
+    return found
 
 
 def check_segments(name: str, zora: bytes, patched: bytes, src: Path) -> None:
@@ -205,7 +222,7 @@ def check_operands(patched: bytes, symbols: dict[str, int]) -> None:
 
 
 def check_together(base: Any, zora: bytes, writes: dict[str, list[tuple[int, Piece]]]) -> None:
-    """The three patches applied to one tree write what each writes alone, and no byte twice."""
+    """The patches applied to one tree write what each writes alone, and no byte twice."""
     tree = base.copy(tool.scratch("asm-asnb-together"))
     for name in PATCHES:
         together = bytes(tree.apply(load_patch(name)))
@@ -266,6 +283,11 @@ def render(build: Build) -> str:
     lines.append("# take-l4's TakeGradeWithL4 in each of banks 0-6: (first file offset, end), end exclusive.")
     lines.append("TAKE_COPIES: dict[int, tuple[int, int]] = {")
     lines.extend(f"    {bank}: (0x{first:05X}, 0x{end:05X})," for bank, (first, end) in build.take_copies.items())
+    lines.append("}")
+    lines.append("")
+    lines.append("# l4-sword-look's LookSwordInWorld in each of banks 0-6: (first file offset, end), end exclusive.")
+    lines.append("LOOK_COPIES: dict[int, tuple[int, int]] = {")
+    lines.extend(f"    {bank}: (0x{first:05X}, 0x{end:05X})," for bank, (first, end) in build.look_copies.items())
     lines.append("}")
     return "\n".join(lines) + "\n"
 

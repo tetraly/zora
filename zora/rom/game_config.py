@@ -73,6 +73,9 @@ class GameConfig:
     # Book is an Atlas (B49; FP-BOOK-01), one of the B10 code patches: off
     # leaves that patch out (FL-OFF-05).
     book_is_an_atlas: bool = True
+    # Book To Understand Old Men (B48; HT-BOOK-01): on writes ht-book-01, so a person shows text 0
+    # unless Link holds the Book. Off leaves the patch out.
+    book_to_understand_old_men: bool = False
     # The ZORA flags Progressive Items and Shop Items in the Item Pool (PI-CODE-01): they
     # choose which of fp-prog-01 / fp-prog-02 are written, and fp-prog-01's on/off byte.
     progressive_items: bool = False

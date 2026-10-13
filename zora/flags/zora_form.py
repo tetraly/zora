@@ -14,6 +14,7 @@ from typing import Any
 
 from .fields import THREE_STATE_LABELS, Settings, ThreeState
 from .zora_flags import (
+    ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
     OWNER_2_0_FIELDS,
     L4Sword,
@@ -113,6 +114,21 @@ _L4_SWORD_FIELDS = (
 )
 _AFTER = FIELD_NAMES.index("shuffle_blue_potion") + 1
 FIELDS = (*FIELDS[:_AFTER], *_L4_SWORD_FIELDS, *FIELDS[_AFTER:])
+
+# Oops All (docs/design/oops-all.md section 3): version 5's two option fields, last on the tab.
+_OOPS_ALL_FIELDS = (
+    {"name": "oops_all_enemies", "kind": "option", "label": "Oops All Enemies",
+     "help": ("Every dungeon room's enemies come from one family, drawn room by room: Wizzrobes (red and "
+              "blue), Keese (blue, red and dark) or Bouncers (Pols Voice and Vire). Rooms keep their enemy "
+              "counts. Bosses, people, traps and Bubbles stay."),
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Wizzrobes"},
+                {"value": 2, "label": "Keese"}, {"value": 3, "label": "Bouncers"}]},
+    {"name": "oops_all_bosses", "kind": "option", "label": "Oops All Bosses",
+     "help": ("Dodongos: every boss room in levels 1 to 8 holds Dodongos, triple or single, wherever its "
+              "layout allows them; the few rooms that cannot keep their own boss. Level 9 is unchanged."),
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Dodongos"}]},
+)
+FIELDS = (*FIELDS, *_OOPS_ALL_FIELDS)
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 
@@ -141,6 +157,8 @@ def control_value(flags: ZoraFlags, name: str) -> int:
 
 
 def _field_value(name: str, control: int) -> bool | int | ThreeState | None:
+    if name in ENUM_FIELDS:
+        return ENUM_FIELDS[name](control)
     if name == "magical_sword_hearts_highest":
         return None if control == 0 else HEARTS_CAP_CHOICES[control - 1]
     if name in OWNER_2_0_FIELDS:

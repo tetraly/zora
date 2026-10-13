@@ -1,7 +1,9 @@
 """The ROM side of All Swords No Boards (docs/design/asnb.md section 3; asm/asnb/):
-asm/asnb/asnb_data.py matches a fresh build; the seven TakeGradeWithL4 copies are the same bytes
-at the same address in banks 0-6, and the three ResolveProgressive copies the same bytes with
-sword-cap; what each routine returns and keeps, run on tests/mini6502.py; no byte written by two
+asm/asnb/asnb_data.py matches a fresh build; the seven TakeGradeWithL4 and the seven l4-sword-look
+copies are the same bytes at the same address in banks 0-6, and the three ResolveProgressive copies
+the same bytes with sword-cap; what each routine returns and keeps, run on tests/mini6502.py
+(l4-sword-look: the palette row and item slot the A box, the world's items and the swing are drawn
+with, for sword levels 1-4, levels 1-3 as ZORA draws them without it); no byte written by two
 patches (these, the series, the flag patches, the player settings, the overworld Wizzrobe
 routine); none of z1rr-coop's reserved bytes or the level encoding's sites written; ZORA's
 output holds each patch its flags ask for (zora/rom/owner_patches.py) and leaves the others'
@@ -38,6 +40,7 @@ from zora.flags.fields import ThreeState
 from zora.rom.base_rom import Original, original_bytes, piece_bytes
 from zora.rom.code_patch_data import PATCHES as SERIES_PATCHES
 from zora.rom.layout import NES_HEADER_SIZE, OVERWORLD_WIZZROBE_PATCH
+from zora.rom.owner_patches import RETIRED_PATCHES
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -69,6 +72,23 @@ MAGICAL_SWORD_GRADE, L4_SWORD_LEVEL = 0x03, 0x04
 GRADE_ADDRESS = 0x0A                   # [0A]: the grade TakeItem takes
 CMP_IMMEDIATE, LDA_ABSOLUTE, BCC = 0xC9, 0xAD, 0x90
 INV_SWORD = ITEMS + ITEM_SLOT_SWORD
+# l4-sword-look (CPU addresses: bank 7, the RAM code block, and the copies in banks 0-6)
+LOOK_ADDRESS = 0xBFC0                  # LookSwordInWorld; SwingRowWithL4 follows it
+SWING_ROW = 0xBFD4
+SWING_HOOK = 0x1F7FB                   # UpdateSwordOrRod's @CalcSwordAttrs: CLC / ADC Items / SEC / SBC #$01
+WORLD_HOOK = 0x1E73E                   # AnimateItemObject's JMP DrawItemBySlot
+ANIMATE_ITEM_OBJECT = 0xE70E
+DRAW_ITEM_IN_INVENTORY = 0xE735
+WRITE_STATIC_ITEM_SPRITES = 0x790C     # Anim_WriteStaticItemSpritesWithAttributes: A attributes, Y item slot
+FETCH_OBJECT_POSITION = 0xFA93         # Anim_FetchObjPosForSpriteDescriptor
+JMP_ABSOLUTE = 0x4C
+SWORD_OBJECT_SLOT, ROOM_ITEM_OBJECT_SLOT = 0x0D, 0x13
+FLASHING_ITEM_SLOTS = {0x16, 0x19, 0x1A, 0x1B}     # DrawItemBySlot's LSR path, which mini6502 lacks
+ITEM_IDS = range(0x24)
+ITEM_ID_TO_SLOT = 0x72A4               # ItemIdToSlot, in the RAM code block
+MAGICAL_SWORD_ITEM, MAGICAL_SWORD_ICON_SLOT, WHITE_SWORD_ROW = 0x03, 0x20, 1
+SWORD_LEVELS = range(1, L4_SWORD_LEVEL + 1)
+SWING_BASE_ATTRIBUTES = (0x00, 0x80)  # RDirectionToWeaponBaseAttribute: down flips vertically
 SWORD_CAP_SLOTS = {1: build.GROWTH["ZORA_FP_PROG_01_RESOLVE"], 4: build.GROWTH["ZORA_FP_PROG_02_ARMOS"],
                    5: build.GROWTH["ZORA_FP_PROG_02_ROOM"]}
 
@@ -98,7 +118,7 @@ def test_module_matches_a_fresh_build() -> None:
 
 
 def test_every_patch_is_built() -> None:
-    assert tuple(data.PATCHES) == build.PATCHES == ("take-l4", "sword-cap", "level-9-gate")
+    assert tuple(data.PATCHES) == build.PATCHES == ("take-l4", "sword-cap", "level-9-gate", "l4-sword-look")
     assert all(data.PATCHES[name] for name in build.PATCHES)
 
 
@@ -238,15 +258,105 @@ def test_the_gate_reads_the_sword_level() -> None:
                                BCC, original[LEVEL_9_GATE_HOOK + 6]])
 
 
+# --- l4-sword-look: level 4 looks like the magical sword in the white sword's colours ----------------
+
+def look_rom() -> bytes:
+    """ZORA's output (seed 1) with the progressive patches and l4-sword-look alone."""
+    return bytes(build.apply_patches(patched(), ("l4-sword-look",)))
+
+
+def test_the_look_copies_are_identical_at_one_address_in_banks_0_to_6() -> None:
+    """AnimateItemObject and the swing run with any of banks 0-6 in: each holds the same two
+    routines at $BFC0, inside the 32-byte slot, and the hooks call them there."""
+    rom = look_rom()
+    assert set(data.LOOK_COPIES) == set(TAKE_BANKS)
+    copies = {bank: rom[first:end] for bank, (first, end) in data.LOOK_COPIES.items()}
+    assert len(set(copies.values())) == 1
+    assert {cpu_address(first) for first, _ in data.LOOK_COPIES.values()} == {LOOK_ADDRESS}
+    assert {(first - NES_HEADER_SIZE) // BANK_SIZE for first, _ in data.LOOK_COPIES.values()} == set(TAKE_BANKS)
+    assert all(end - first <= 32 for first, end in data.LOOK_COPIES.values())
+    assert rom[WORLD_HOOK:WORLD_HOOK + 3] == bytes([JMP_ABSOLUTE, LOOK_ADDRESS & 0xFF, LOOK_ADDRESS >> 8])
+    assert rom[SWING_HOOK:SWING_HOOK + 7] == bytes([JSR, SWING_ROW & 0xFF, SWING_ROW >> 8, NOP, NOP, NOP, NOP])
+
+
+def drawn(cpu: CPU, entry: int) -> tuple[int, int]:
+    """Run a draw routine to its sprite writer: (palette row and flips, item slot) it draws with."""
+    seen: list[tuple[int, int]] = []
+    cpu.stubs[WRITE_STATIC_ITEM_SPRITES] = lambda cpu: seen.append((cpu.a, cpu.y))
+    cpu.stubs[FETCH_OBJECT_POSITION] = lambda cpu: None
+    cpu.call(entry)
+    assert len(seen) == 1
+    return seen[0]
+
+
+def a_box(rom: bytes, bank: int, level: int) -> tuple[int, int]:
+    """The status bar's sword at `level` (DrawStatusBarSword: DrawItemInInventory, X and Y slot 0)."""
+    cpu = cpu_for(rom, bank, Inventory((level, 0, 0, 0)))
+    cpu.x = cpu.y = ITEM_SLOT_SWORD
+    return drawn(cpu, DRAW_ITEM_IN_INVENTORY)
+
+
+def world_item(rom: bytes, bank: int, item: int, level: int) -> tuple[int, int]:
+    """A room, cave or shop item, or the item Link holds up (AnimateItemObject, A the item ID)."""
+    cpu = cpu_for(rom, bank, Inventory((level, 0, 0, 0)))
+    cpu.a, cpu.x = item, ROOM_ITEM_OBJECT_SLOT
+    return drawn(cpu, ANIMATE_ITEM_OBJECT)
+
+
+@pytest.mark.parametrize("bank", list(TAKE_BANKS))
+def test_the_a_box_draws_level_4_as_the_magical_sword_in_row_1(bank: int) -> None:
+    """Levels 1-3 as ZORA draws them without the patch (rows 0, 1 and 2; the magical sword's icon
+    at level 3); level 4 the magical sword's icon in the white sword's row 1 (row 3, the plain
+    sword's icon, without the patch)."""
+    rom, today = look_rom(), patched()
+    for level in SWORD_LEVELS[:-1]:
+        assert a_box(rom, bank, level) == a_box(today, bank, level), level
+    assert a_box(today, bank, L4_SWORD_LEVEL) == (3, ITEM_SLOT_SWORD)
+    assert a_box(rom, bank, L4_SWORD_LEVEL) == (WHITE_SWORD_ROW, MAGICAL_SWORD_ICON_SLOT)
+
+
+@pytest.mark.parametrize("bank", list(TAKE_BANKS))
+def test_world_items_draw_the_l4_sword_with_level_4s_look(bank: int) -> None:
+    """Every item (but the flashing ones, which mini6502 can't draw) at sword levels 0-4 is drawn
+    as without the patch, except the magical sword at sword level 3 or 4: the magical sword's icon
+    in row 1 (row 2 without the patch)."""
+    rom, today = look_rom(), patched()
+    slots = cpu_for(rom, bank)
+    for item, level in product(ITEM_IDS, range(L4_SWORD_LEVEL + 1)):
+        if slots[ITEM_ID_TO_SLOT + item] in FLASHING_ITEM_SLOTS:
+            continue
+        before = world_item(today, bank, item, level)
+        if item == MAGICAL_SWORD_ITEM and level >= MAGICAL_SWORD_GRADE:
+            assert before == (2, MAGICAL_SWORD_ICON_SLOT)
+            assert world_item(rom, bank, item, level) == (WHITE_SWORD_ROW, MAGICAL_SWORD_ICON_SLOT), level
+        else:
+            assert world_item(rom, bank, item, level) == before, (hex(item), level)
+
+
+@pytest.mark.parametrize("bank", list(TAKE_BANKS))
+def test_the_swing_takes_row_1_at_level_4(bank: int) -> None:
+    """SwingRowWithL4 returns the base attribute ORed with the row, levels 1-3 as PRG0's base +
+    level - 1, level 4 row 1; X is the sword's object slot again, Y kept."""
+    rom = look_rom()
+    for base, level in product(SWING_BASE_ATTRIBUTES, SWORD_LEVELS):
+        cpu = cpu_for(rom, bank, Inventory((level, 0, 0, 0)))
+        cpu.a, cpu.x, cpu.y = base, SWORD_OBJECT_SLOT, 0x02
+        cpu.call(SWING_ROW)
+        row = WHITE_SWORD_ROW if level == L4_SWORD_LEVEL else level - 1
+        assert (cpu.a, cpu.x, cpu.y) == (base | row, SWORD_OBJECT_SLOT, 0x02), (base, level)
+
+
 # --- no shared bytes, no reserved bytes ---------------------------------------------------------
 
 def test_no_two_patches_write_the_same_byte() -> None:
-    """Between these patches, and between each of them and the series, the flag patches (l4-sword-take
-    included: take-l4 is written beside it until it is retired), every player setting's choices and
+    """Between these patches, and between each of them and the series, the flag patches (but the
+    retired l4-sword-take, which no flag writes: l4-sword-look reuses its bank 7 and bank 1
+    bytes), every player setting's choices and
     the overworld red Wizzrobe routine. sword-cap rewrites fp-prog-01's and fp-prog-02's own code
     and lengthens it inside its slots, and writes no other series byte."""
     others = {f"series {name}": written(pieces) for name, pieces in SERIES_PATCHES.items()}
-    others.update({f"flags2 {name}": written(pieces) for name, pieces in flags2.PATCHES.items()})
+    others.update({f"flags2 {name}": written(pieces) for name, pieces in flags2.PATCHES.items()
+                   if name not in RETIRED_PATCHES})
     for setting, choices in settings.SETTINGS.items():
         others[f"setting {setting}"] = set().union(*(written(runs) for runs in choices.values()))
     others["overworld Wizzrobe routine"] = written(OVERWORLD_WIZZROBE_PATCH)
@@ -280,10 +390,11 @@ def written_bytes(name: str, sword_line_to_l4: bool = True) -> dict[int, int]:
 
 
 def expected_patches(zora_flag_string: str) -> set[str]:
-    """The ASNB patches ZORA writes for a ZORA flag string (zora/rom/owner_patches.py): take-l4 and
-    sword-cap with Add L4 Sword on, level-9-gate with Level 9 Entrance = Level 4 sword."""
+    """The ASNB patches ZORA writes for a ZORA flag string (zora/rom/owner_patches.py): take-l4,
+    sword-cap and l4-sword-look with Add L4 Sword on, level-9-gate with Level 9 Entrance = Level 4
+    sword."""
     flags = zora_flags.decode(zora_flag_string) if zora_flag_string else zora_flags.DEFAULT
-    names = {"take-l4", "sword-cap"} if flags.add_l4_sword is ThreeState.ON else set()
+    names = {"take-l4", "sword-cap", "l4-sword-look"} if flags.add_l4_sword is ThreeState.ON else set()
     return names | ({"level-9-gate"} if getattr(flags, "level_9_entrance_sword", False) else set())
 
 

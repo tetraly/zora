@@ -171,6 +171,8 @@ VALUE_KEYS = {
     "magical_boomerang_damage": THREE_STATE,
     "randomize_lost_hills": THREE_STATE,
     "randomize_dead_woods": THREE_STATE,
+    "oops_all_enemies": ("off", "wizzrobes", "keese", "bouncers"),
+    "oops_all_bosses": ("off", "dodongos"),
 }
 COLOURS = tuple(f"0x{value:02X}" for value in range(0x40) if value != 0x0D)   # every NES palette value but $0D
 # page key -> (YAML key, each listed value's key in the page's order; a colour's are COLOURS)

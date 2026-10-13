@@ -32,6 +32,8 @@ class AlternativeValues:
     # SH-SRC-07; 3, both sets shapes, is the MVP baseline
     dungeon_quest: DungeonLayoutSource = DungeonLayoutSource.GENERATED_SHAPES
     important_items_in_level_9: bool = False             # B25 on (or "?" come up on), VA-REJ-08
+    remove_most_open_stairs: bool = False                # B30 on (or "?" come up on), PS-OSTAIR
+    book_to_understand_old_men: bool = False             # B48 on (or "?" come up on), HT-BOOK
 
     @property
     def second_quest_secrets(self) -> bool:

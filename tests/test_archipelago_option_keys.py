@@ -58,6 +58,7 @@ KEYS = {
     "auto_show_letter": "auto_show_letter", "like_like_eats_rupees": "like_like_eats_rupees",
     "magical_boomerang_damage": "magical_boomerang_damage", "randomize_lost_hills": "randomize_lost_hills",
     "randomize_dead_woods": "randomize_dead_woods",
+    "oops_all_enemies": "oops_all_enemies", "oops_all_bosses": "oops_all_bosses",
 }
 CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")
 

@@ -156,8 +156,13 @@ NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS})
 # reaches, under the Vertical Chute push room ($4E); now none do (docs/archipelago.md "Interface").
 # Shuffle Dungeon Start Room (B26, PS-START) on and Random passed on 2026-10-11 (100 of 100 seeds
 # at each, with the baseline's dungeons and with 2nd Quest's), once its row-7 fix landed (4aa8fc5).
-# Nothing is held back now; a value ZORA newly generates waits here for its scan.
-HELD_BACK: dict[str, frozenset[int]] = {}
+# Remove Most Open Stairs (B30, PS-OSTAIR) on and Random passed on 2026-10-12 (100 of 100 seeds at
+# each), and Book To Understand Old Men (B48, HT-BOOK) on and Random the same day (100 of 100 at
+# each), and Dungeon Quest Mixed + Shapes (C02 = 4, SH-SRC-01 to SH-SRC-06) the same day (100 of 100,
+# alone and with B26 on). A value ZORA newly generates waits here for its scan: Oops All Enemies'
+# and Oops All Bosses' values (ZORA extras, keyed by their names; owner, 2026-10-12: not offered
+# until the second clean session's scan).
+HELD_BACK: dict[str, frozenset[int]] = {"oops_all_enemies": frozenset({1, 2, 3}), "oops_all_bosses": frozenset({1})}
 CHOICE, THREE_STATE, SWITCH = "choice", "three_state", "switch"
 # A switch's two values; every on/off/random value is labelled as on the page (zora/flags/fields.py).
 SWITCH_STATES = (ThreeState.OFF, ThreeState.ON)
@@ -296,8 +301,10 @@ def _z1r_spec(field: flag_form.FieldDef, defaults: Settings) -> OptionSpec:
 
 def _zora_spec(field: Mapping[str, Any], defaults: zora_flags.ZoraFlags) -> OptionSpec:
     name = field["name"]
+    held = HELD_BACK.get(name, frozenset())
     if field["kind"] == "option":
-        kind, choices = CHOICE, tuple((value["value"], value["label"]) for value in field["values"])
+        kind, choices = CHOICE, tuple((value["value"], value["label"]) for value in field["values"]
+                                      if value["value"] not in held)
     elif field["kind"] == zora_form.THREE_STATE_KIND:
         kind, choices = THREE_STATE, tuple((int(state), label) for state, label in THREE_STATE_LABELS.items())
     else:

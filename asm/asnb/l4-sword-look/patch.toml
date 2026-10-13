@@ -1,0 +1,104 @@
+# Add L4 Sword's look (docs/design/l4-sword.md Q2, owner decision 2026-10-12): sword level 4 looks
+# like the magical sword in the white sword's colours. PRG0 picks a sword's palette row as its level
+# minus 1, so level 4 fell on row 3, the level's own sprite palette, and its icon was the wooden and
+# white swords'. With this patch:
+#   - the swing: level 4 takes row 1, the white sword's (the swing has one shape for every sword);
+#   - the A box: level 4 draws the magical sword's icon (item slot $20) in row 1; level 3 keeps
+#     its icon in row 2;
+#   - floor, cave and shop items, and Link holding one up: a magical sword ($03) shown while Link's
+#     sword is level 3 or more is the L4 item (take-l4 gives level 4 for it on every path; at
+#     level 4 sword-cap shows it as the top), so it is drawn with level 4's look.
+# Levels 1-3 and every other item keep PRG0's look. The beam has one look for every sword.
+#
+# Two 4-byte tables in bank 7's free gap (ZORA_ASNB_LOOK_B7, $FF43) give the row and the item slot
+# for each sword level. The A box's hook reads them in place. The swing's hook calls
+# SwingRowWithL4: in place it would need 8 bytes after @CalcSwordAttrs, which holds 7 (a hook can't
+# replace across the label). The third hook sends AnimateItemObject (every floor, cave and shop
+# item, and the item Link holds up) through LookSwordInWorld. Both routines run with whichever of
+# banks 0-6 is switched in, so each holds them at $BFC0, the 32-byte slot below take-l4's copies. asm/asnb/README.md and asm/asnb/build.py
+# describe this file.
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B0"
+bank = 0
+start = 0xBFC0              # bank 0, $BFC0-$BFDF (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B1"
+bank = 1
+start = 0xBFC0              # bank 1, $BFC0-$BFDF (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B2"
+bank = 2
+start = 0xBFC0              # bank 2, $BFC0-$BFDF (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B3"
+bank = 3
+start = 0xBFC0              # bank 3, $BFC0-$BFDF (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B4"
+bank = 4
+start = 0xBFC0              # bank 4, $BFC0-$BFDF (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B5"
+bank = 5
+start = 0xBFC0              # bank 5, $BFC0-$BFDF (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B6"
+bank = 6
+start = 0xBFC0              # bank 6, $BFC0-$BFDF (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_ASNB_LOOK_B7"
+bank = 7
+start = 0xFF43              # bank 7 free space, $FF43-$FF4F (docs/rom-map.md)
+
+[imports]
+bank_00 = ["DrawItemBySlot", "SwordLookRows"]
+bank_01 = ["DrawItemBySlot", "SwordLookRows"]
+bank_02 = ["DrawItemBySlot", "SwordLookRows"]
+bank_03 = ["DrawItemBySlot", "SwordLookRows"]
+bank_04 = ["DrawItemBySlot", "SwordLookRows"]
+bank_05 = ["DrawItemBySlot", "SwordLookRows"]
+bank_06 = ["DrawItemBySlot", "SwordLookRows"]
+bank_07 = ["LookSwordInWorld", "SwingRowWithL4"]
+
+[exports]
+bank_01 = ["LookSwordInWorld", "SwingRowWithL4"]
+bank_07 = ["SwordLookRows"]
+
+[[hook]]
+name = "swing-row"
+offset = 0x1F7FB
+length = 7
+note = "UpdateSwordOrRod's sword attributes (@CalcSwordAttrs): SwingRowWithL4 ORs the base attribute with SwordLookRows' row for the sword level, in place of base + level - 1."
+code = """
+    JSR SwingRowWithL4
+    .RES 4, $EA
+"""
+
+[[hook]]
+name = "status-icon"
+offset = 0x1E78A
+length = 9
+note = "DrawItemBySlot's sword (slot 0, A = level - 1): the row and the item slot from SwordLookRows and SwordLookIcons, in place of the magical sword's slot $20 for row 2 only."
+code = """
+    TAX                         ; level - 1: 0-3 (X is reloaded at @WriteSprites)
+    LDA SwordLookRows, X
+    LDY SwordLookIcons, X
+    BPL @WriteSprites           ; always: the slots are $00 and $20
+"""
+
+[[hook]]
+name = "world-sword"
+offset = 0x1E73E
+length = 3
+note = "AnimateItemObject draws through LookSwordInWorld, which gives a magical sword shown at sword level 3 or more level 4's look."
+code = """
+    JMP LookSwordInWorld
+"""

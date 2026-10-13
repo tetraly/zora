@@ -14,6 +14,8 @@ from ..layout import (
     LEVEL_NAME_DASH_OFFSET,
     LOW_HEALTH_BEEP_OPERAND_ADDRESS,
     NEW_FILE_START_STATE_ADDRESS,
+    PERSON_TEXT_POINTER_LOAD_ADDRESS,
+    PERSON_TEXT_POINTER_LOAD_SIZE,
     Q2_ROOM_3E_TRIGGER_ADDRESS,
     RESET_BUTTON_OPERAND_ADDRESS,
     SECOND_QUEST_START_STATE_ADDRESS,
@@ -88,6 +90,7 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
             "dmc_level_value": 0x7F,
             "q2_room_trigger_value": 0x06,
             "level_dash_tile": 0x62,
+            "person_text_pointer_load": b"",
         }
 
     lo_start = CREDITS_POINTERS_LO_ADDRESS + CREDITS_LINE_12_INDEX
@@ -152,4 +155,7 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
         "dmc_level_value": rom_bytes[DMC_LEVEL_OPERAND_ADDRESS],
         "q2_room_trigger_value": rom_bytes[Q2_ROOM_3E_TRIGGER_ADDRESS],
         "level_dash_tile": rom_bytes[LEVEL_NAME_DASH_OFFSET],
+        # HT-BOOK-01's Check: the person text pointer's load (B48 writes a call there)
+        "person_text_pointer_load": bytes(rom_bytes[PERSON_TEXT_POINTER_LOAD_ADDRESS:
+                                                    PERSON_TEXT_POINTER_LOAD_ADDRESS + PERSON_TEXT_POINTER_LOAD_SIZE]),
     }

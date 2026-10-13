@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..flags.zora_flags import OopsAllBosses, OopsAllEnemies
 from .acceptance_check import LogicRules, logic_rules
 from .steps.change_sword_hearts import MAGICAL_SWORD_HEARTS
 from .steps.overworld_gates import NO_GATES, OverworldGates
@@ -39,6 +40,15 @@ class ExtraOptions:
     eleven_screen_recorder_set: bool = False
     # Allow Important Items in 9 (B25, VA-REJ-08): level 9's items need level-9 entry, not the long items
     important_items_in_level_9: bool = False
+    # Oops All Enemies and Oops All Bosses (docs/design/oops-all.md), and the key of their own
+    # random stream (zora_flags.oops_all_seed)
+    oops_all_enemies: OopsAllEnemies = OopsAllEnemies.OFF
+    oops_all_bosses: OopsAllBosses = OopsAllBosses.OFF
+    oops_all_seed: int = 0
+
+    @property
+    def oops_all(self) -> bool:
+        return bool(self.oops_all_enemies or self.oops_all_bosses)
 
     @property
     def l4_sword_in_level_9(self) -> bool:

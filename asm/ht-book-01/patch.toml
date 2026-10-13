@@ -1,0 +1,32 @@
+# ZORA HT-BOOK-01: Book To Understand Old Men (B48). Without the Book of Magic every person shows
+# text 0, except text 34 (the level-9 entrance person's count of the Triforce pieces needed).
+# asm/README.md describes this file. Written only with B48 on (code_patches.left_out_patches).
+
+[[hook]]
+name = "text-pointer"
+offset = 0x04847
+length = 3
+note = "UpdatePersonState_Textbox's load of the text address's low byte calls PersonTextAddrIfUnderstood, which leaves Y at 0 (text 0) when the person cannot be understood, so the high byte's load after it reads text 0's too."
+code = """
+    JSR PersonTextAddrIfUnderstood
+"""
+
+[[hook]]
+name = "routine"
+offset = 0x05F3C
+length = 24
+note = "PRG0's unused $FF block after DemoBackgroundPatterns: PersonTextAddrIfUnderstood at $9F30 (HT-BOOK-01), the block's other bytes kept."
+code = """
+    .BYTE $FF, $FF, $FF, $FF
+PersonTextAddrIfUnderstood:
+    LDA InvBook
+    BNE @Understood
+    CPY #PERSON_TEXT_34_SELECTOR
+    BEQ @Understood
+    LDY #$00                    ; text 0
+@Understood:
+    LDA PersonTextAddrs, Y
+    RTS
+    .BYTE $FF, $FF, $FF, $FF, $FF
+PERSON_TEXT_34_SELECTOR = $44   ; a selector is twice its text's number
+"""

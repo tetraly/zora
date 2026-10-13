@@ -88,17 +88,20 @@ def test_values_wait_for_the_logic_scan() -> None:
     """Owner ruling (2026-10-10): a value is offered once it passes C2's logic scan. C01 = 1 to 4,
     C04 = 2 and 3, B81 and B03 (on and Random), Helpful hints (C03 = 1), and on 2026-10-11 Dungeon
     Quest 1st Quest (C02 = 0), the nine start items, Allow Important Items in 9 (B25, on and
-    Random), Dungeon Quest 2nd Quest (C02 = 1) and Shuffle Dungeon Start Room (B26, on and Random)
-    have. Nothing waits now; a held value would be refused by name."""
+    Random), Dungeon Quest 2nd Quest (C02 = 1), Shuffle Dungeon Start Room (B26, on and Random)
+    and on 2026-10-12 Remove Most Open Stairs (B30) and Book To Understand Old Men (B48), on and
+    Random, and Dungeon Quest Mixed + Shapes (C02 = 4) have. Oops All Enemies and Oops All Bosses
+    (ZORA extras, 2026-10-12) wait, offering Off only; a held value is refused by name."""
     start_items = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78")
-    assert archipelago.HELD_BACK == {}
+    assert archipelago.HELD_BACK == {"oops_all_enemies": frozenset({1, 2, 3}), "oops_all_bosses": frozenset({1})}
     offered = {spec.id: spec.values for spec in SPECS}
+    assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0,), (0,))
     assert offered["C01"] == (0, 1, 2, 3, 4)
     assert offered["C04"] == (0, 1, 2, 3)
-    assert offered["C02"] == (0, 1, 3)
+    assert offered["C02"] == (0, 1, 3, 4)
     assert 1 in offered["C03"]
     assert all(offered[field_id] == tuple(int(state) for state in ThreeState)
-               for field_id in ("B81", "B03", "B25", "B26", *start_items))
+               for field_id in ("B81", "B03", "B25", "B26", "B30", "B48", *start_items))
     for option, values in archipelago.HELD_BACK.items():
         for value in values:
             with pytest.raises(OptionsConflict, match=option):

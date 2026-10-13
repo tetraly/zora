@@ -28,6 +28,7 @@ from zora_measure.checkpoints.acceptance import (
     self_locks,
     tracked_in_level9,
 )
+from zora_measure.checkpoints.book import SPEC_HT_BOOK, person_text_pointer_load
 from zora_measure.checkpoints.dungeon_quest import (
     HUNGRY_GORIYA_COUNTS,
     SOURCE_PAIR_SHARES,
@@ -186,6 +187,13 @@ from zora_measure.checkpoints.monster_passes import (
     ganon_room_item_and_trigger,
     monster_bar_violations,
     zelda_on_barred_layout,
+)
+from zora_measure.checkpoints.open_stairs import (
+    OPEN_STAIRS_KEYS,
+    PUSH_STAIRS_KEYS,
+    SPEC_PS_OSTAIR,
+    open_stairs_rooms,
+    push_stairs_rooms,
 )
 from zora_measure.checkpoints.overworld import (
     ARMOS_FIRST_SCREENS,
@@ -1033,6 +1041,27 @@ START_ROOM_CHECKPOINTS = (
 )
 
 
+# PS-OSTAIR with Remove Most Open Stairs (B30), against its corpus; then every CP-5 row, which the
+# new layouts and triggers may change
+OPEN_STAIRS_CHECKPOINTS = (
+    Checkpoint("PS-OSTAIR-01",
+               "open-stairs rooms left without an exemption / exempt (the blocks the levels read)",
+               "left 0, exempt 6791 (baseline 9999 / 6705)", SPEC_PS_OSTAIR, open_stairs_rooms,
+               per_thousand_by_key(OPEN_STAIRS_KEYS)),
+    Checkpoint("PS-OSTAIR-02", "layouts $48 / $4A / $62 on trigger 5, then on trigger 4",
+               "4885 / 8358 / 6507; 980 / 2073 / 1232", SPEC_PS_OSTAIR, push_stairs_rooms,
+               per_thousand_by_key(PUSH_STAIRS_KEYS)),
+)
+
+
+# HT-BOOK with Book To Understand Old Men (B48), against its corpus; then every CP-5 row, where
+# HT-TEXT-02's slot-0 row shows HT-BOOK-02 (slot 0 is never the greeting)
+BOOK_CHECKPOINTS = (
+    Checkpoint("HT-BOOK-01", "text-pointer load at 0x04847: B48's call $20 $30 $9F / PRG0's $B9 $00 $80",
+               "1000 / 0 (control 0 / 1000)", SPEC_HT_BOOK, person_text_pointer_load, FLAG_COUNTS),
+)
+
+
 # VA-REJ-08 with Allow Important Items in 9 (B25), against its corpus
 B25_CHECKPOINTS = (
     Checkpoint("VA-REJ-08", "long items in a level-9 item cellar per ROM: none / one / two",
@@ -1042,8 +1071,17 @@ B25_CHECKPOINTS = (
 )
 
 
+
+# The full Hopla string (C02 = 4, C03 = 1, B25, B26, B30, B48 and the three start items on) against
+# the hopla corpus: each of its values' rows, then every CP-5 row
+HOPLA_CHECKPOINTS = (*DUNGEON_QUEST_CHECKPOINTS, *HINTS_HELPFUL_CHECKPOINTS, *B25_CHECKPOINTS, *START_ROOM_CHECKPOINTS,
+                     *OPEN_STAIRS_CHECKPOINTS, *BOOK_CHECKPOINTS, *HOPLA_START_CHECKPOINTS, *CHECKPOINTS)
+
+
 CHECKPOINT_SETS = {"cp5": CHECKPOINTS, "b25": B25_CHECKPOINTS,
-                   "b26": (*START_ROOM_CHECKPOINTS, *CHECKPOINTS), "hints-helpful": HINTS_HELPFUL_CHECKPOINTS,
+                   "b26": (*START_ROOM_CHECKPOINTS, *CHECKPOINTS),
+                   "b30": (*OPEN_STAIRS_CHECKPOINTS, *CHECKPOINTS),
+                   "b48": (*BOOK_CHECKPOINTS, *CHECKPOINTS), "hints-helpful": HINTS_HELPFUL_CHECKPOINTS,
                    "items-within": ITEMS_WITHIN_CHECKPOINTS, "ow-mixed": OW_MIXED_CHECKPOINTS,
                    "start-full": START_FULL_CHECKPOINTS, "start-wsword": START_WOOD_SWORD_CHECKPOINTS,
                    "quest2": QUEST2_CHECKPOINTS, "mixed2": MIXED2_CHECKPOINTS, "quest-random": QUEST_RANDOM_CHECKPOINTS,
@@ -1055,7 +1093,7 @@ CHECKPOINT_SETS = {"cp5": CHECKPOINTS, "b25": B25_CHECKPOINTS,
                                       FLAG_COUNTS),),
                    **dict.fromkeys(DUNGEON_QUEST_SETS, DUNGEON_QUEST_CHECKPOINTS),
                    "start-items-all": START_ITEMS_ALL_CHECKPOINTS, "start-items-rp6": START_ITEMS_RP6_CHECKPOINTS,
-                   "hopla-start": HOPLA_START_CHECKPOINTS}
+                   "hopla-start": HOPLA_START_CHECKPOINTS, "hopla": HOPLA_CHECKPOINTS}
 
 
 def measure_rom_for(set_name: str, gw: GameWorld) -> list[Any]:

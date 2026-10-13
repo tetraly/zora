@@ -6,6 +6,7 @@ from enum import Enum
 
 from .fields import (
     BOMB_UPGRADE_PERSON_SHUFFLE,
+    BOOK_TO_UNDERSTAND_OLD_MEN,
     BOSS_HIT_POINTS,
     CAVE_SHUFFLE,
     DUNGEON_LAYOUT_SOURCE,
@@ -19,6 +20,7 @@ from .fields import (
     ITEM_SHUFFLE_SCOPE,
     MONEY_OR_LIFE_ROOMS,
     MONEY_OR_LIFE_TOLL,
+    MOST_OPEN_STAIRS_REMOVED,
     OPTION_FIELDS,
     OVERWORLD_QUEST,
     START_ITEM_LIMIT,
@@ -113,6 +115,10 @@ ALTERNATIVE_TOGGLES: dict[str, frozenset[ThreeState]] = {
     IMPORTANT_ITEMS_IN_LEVEL_9.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
     # Shuffle Dungeon Start Room (B26) on (PS-START), and "?" (FL-SUP-03, L36)
     START_ROOM_MAY_MOVE.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    # Remove Most Open Stairs (B30) on (PS-OSTAIR), and "?" (FL-SUP-03, L25; FL-DEP-04)
+    MOST_OPEN_STAIRS_REMOVED.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    # Book To Understand Old Men (B48) on (HT-BOOK-01, HT-BOOK-02), and "?" (FL-SUP-03, L26; FL-DEP-04)
+    BOOK_TO_UNDERSTAND_OLD_MEN.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
 }
 # FL-DEP-02 item 4: the dungeon quests that turn the hungry-goriya and bomb-upgrade moves off
 # (dependencies.LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES applies the rule)
@@ -132,8 +138,10 @@ ALTERNATIVE_OPTIONS: dict[str, frozenset[int]] = {
                                    OverworldQuest.MIXED_SECOND_QUEST_VARIANT}),
     # FL-SUP-02 (2026-10-10 export): OW-START-02 and OW-START-03
     START_SCREEN.id: frozenset({StartScreen.FULL_SHUFFLE, StartScreen.WOODEN_SWORD_SCREEN}),
-    # FL-SUP-02 (eca85cc export): Dungeon Quest's values (SH-SRC-07 to SH-SRC-10, PS-VAN)
-    DUNGEON_LAYOUT_SOURCE.id: frozenset({DungeonLayoutSource.FIRST_QUEST, DungeonLayoutSource.SECOND_QUEST}),
+    # FL-SUP-02 (eca85cc export): Dungeon Quest's values (SH-SRC-07 to SH-SRC-10, PS-VAN); Mixed +
+    # Shapes (C02 = 4, SH-SRC-01 to SH-SRC-06), Hopla's
+    DUNGEON_LAYOUT_SOURCE.id: frozenset({DungeonLayoutSource.FIRST_QUEST, DungeonLayoutSource.SECOND_QUEST,
+                                         DungeonLayoutSource.MIXED_WITH_SHAPES}),
 }
 
 
@@ -196,23 +204,6 @@ def _judge(supported: bool) -> Support:
 
 # Owner ruling (2026-10-06): Encode level data (B82) is a plain on/off setting and never takes "?".
 ENCODE_LEVEL_DATA_NOT_RANDOM = "Encode level data is on or off; it cannot be random"
-
-
-# Level encoding keeps its key material in the second-quest room blocks, which a second-quest set
-# of Dungeon Quest (C02 = 1, 2, 4, and 5 or 6 drawn to one) reads (SH-SRC-02). Until the encoding
-# protects those blocks too (FP-TOURNEY-01), the two are refused together.
-ENCODE_LEVEL_DATA_WITH_SECOND_QUEST_DUNGEONS = ("Encode level data cannot be combined yet with a Dungeon "
-                                                "Quest that can use second-quest dungeons")
-DUNGEON_QUESTS_WITH_SECOND_QUEST_SETS = frozenset({DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED,
-                                                   DungeonLayoutSource.MIXED_WITH_SHAPES,
-                                                   DungeonLayoutSource.RANDOM_WITHOUT_SHAPES,
-                                                   DungeonLayoutSource.RANDOM})
-
-
-def encodes_second_quest_dungeons(settings: Settings) -> bool:
-    """Level encoding on with a Dungeon Quest that may read a second-quest block."""
-    return (settings.toggle(ENCODE_LEVEL_DATA) is ThreeState.ON
-            and settings.option(DUNGEON_LAYOUT_SOURCE) in DUNGEON_QUESTS_WITH_SECOND_QUEST_SETS)
 
 
 def encode_level_data_is_random(settings: Settings) -> bool:

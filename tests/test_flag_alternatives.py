@@ -82,10 +82,10 @@ def test_the_spec_names_the_three_values() -> None:
     """FL-ALT-01: "C16 = 3, C20 = 1 and C03 = 2", the values the support matrix produces."""
     assert spec.ALTERNATIVE_VALUES == "C16 = 3, C20 = 1 and C03 = 2"
     # and FL-SUP-02's specified C01 = 2 and C06 = 2 (spec change L15: OW-MIX, PS-ITW) and C03 = 1
-    # (HT-HINT-04), produced the same way
+    # (HT-HINT-04), produced the same way; Dungeon Quest 1st Quest, 2nd Quest and Mixed + Shapes
     assert ALTERNATIVE_OPTIONS == {STARTING_HEARTS.id: {3}, WHITE_SWORD_LOWEST.id: {1}, HINT_STYLE.id: {1, 2},
                                    ITEM_SHUFFLE_SCOPE.id: {2}, OVERWORLD_QUEST.id: {1, 2, 3}, START_SCREEN.id: {2, 3},
-                                   DUNGEON_LAYOUT_SOURCE.id: {0, 1}}
+                                   DUNGEON_LAYOUT_SOURCE.id: {0, 1, 4}}
 
 
 # ---------------------------------------------------------------------------

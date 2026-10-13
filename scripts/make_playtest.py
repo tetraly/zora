@@ -140,7 +140,9 @@ def main() -> int:
             return 1
         gw, result = generate_world(chosen, rom)
         # The checks read plain level data: with level encoding on they run on
-        # the seed's plain twin (the same world, encoding off).
+        # the seed's plain twin (the same world, encoding off), whose level data
+        # the encoded ROM decodes to once a second-quest set's block is folded
+        # (plain_level_data does it, as the encoding does).
         plain_config = replace(chosen.config, level_encoding=None)
         plain = serialize_to_rom(gw, rom, config=plain_config)
         out = serialize_to_rom(gw, rom, config=chosen.config, player_settings=settings)

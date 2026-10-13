@@ -50,7 +50,7 @@ def _staircase_bytes(sc: StaircaseRoom,
     if sc.room_type == RoomType.ITEM_STAIRCASE and sc.item is not None:
         t4 = nothing_code if sc.item == Item.NOTHING else sc.item.value & 0x1F
     else:
-        t4 = DUNGEON_NOTHING_CODE       # a transport's item byte (PS-DROP-01)
+        t4 = nothing_code               # a transport's item byte: the ROM's "no item" code (PS-DROP-01)
     return t0, t1, t2, t3, t4, sc.t5_raw
 
 

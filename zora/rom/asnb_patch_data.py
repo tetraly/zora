@@ -42,6 +42,19 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x04AB3, Original(0x04AB3, 2)),
         (0x04AB5, bytes.fromhex("0490")),
     ),
+    "l4-sword-look": (
+        (0x03FD0, bytes.fromhex("d00fa504c903d009ad5706c9039002e6044c3ae7ae57061d42ffa20d60")),
+        (0x07FD0, bytes.fromhex("d00fa504c903d009ad5706c9039002e6044c3ae7ae57061d42ffa20d60")),
+        (0x0BFD0, bytes.fromhex("d00fa504c903d009ad5706c9039002e6044c3ae7ae57061d42ffa20d60")),
+        (0x0FFD0, bytes.fromhex("d00fa504c903d009ad5706c9039002e6044c3ae7ae57061d42ffa20d60")),
+        (0x13FD0, bytes.fromhex("d00fa504c903d009ad5706c9039002e6044c3ae7ae57061d42ffa20d60")),
+        (0x17FD0, bytes.fromhex("d00fa504c903d009ad5706c9039002e6044c3ae7ae57061d42ffa20d60")),
+        (0x1BFD0, bytes.fromhex("d00fa504c903d009ad5706c9039002e6044c3ae7ae57061d42ffa20d60")),
+        (0x1E73F, bytes.fromhex("c0bf")),
+        (0x1E78A, bytes.fromhex("aabd43ffbc47ff10")),
+        (0x1F7FB, bytes.fromhex("20d4bfeaeaeaea")),
+        (0x1FF53, bytes.fromhex("0001020100002020")),
+    ),
 }
 
 # sword-cap's per-seed operand in each ResolveProgressive copy: label -> file offset.
@@ -67,4 +80,15 @@ TAKE_COPIES: dict[int, tuple[int, int]] = {
     4: (0x13FF0, 0x14005),
     5: (0x17FF0, 0x18005),
     6: (0x1BFF0, 0x1C005),
+}
+
+# l4-sword-look's LookSwordInWorld in each of banks 0-6: (first file offset, end), end exclusive.
+LOOK_COPIES: dict[int, tuple[int, int]] = {
+    0: (0x03FD0, 0x03FED),
+    1: (0x07FD0, 0x07FED),
+    2: (0x0BFD0, 0x0BFED),
+    3: (0x0FFD0, 0x0FFED),
+    4: (0x13FD0, 0x13FED),
+    5: (0x17FD0, 0x17FED),
+    6: (0x1BFD0, 0x1BFED),
 }

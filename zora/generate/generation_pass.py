@@ -52,7 +52,7 @@ from .shapes.special_rooms import place_special_rooms
 from .shapes.stairs import place_stairs
 from .shapes.world import D_WALL, CellPlan, SetWorld
 from .shapes.writeback import level9_records
-from .ship import Staged, build_sets, cave_item_bytes, ship, ship_hint_text
+from .ship import BOSS_BANKS, Staged, build_sets, cave_item_bytes, ship, ship_hint_text
 from .steps.add_l4_sword import add_l4_sword
 from .steps.add_money_or_life_rooms import add_money_or_life_rooms
 from .steps.assign_hints_for_hint_type import PRG0_RECORDED_LEVELS, HintAssignmentResult, assign_hints_for_hint_type
@@ -93,6 +93,7 @@ from .steps.mixed_overworld_quest import (
 from .steps.monster_lists import MonsterShuffleResult, build_room_lists
 from .steps.move_last_boss_room_items import move_last_boss_room_items
 from .steps.move_map_near_entrance import move_map_near_entrance
+from .steps.oops_all import oops_all_bosses, oops_all_enemies
 from .steps.person_appearances import draw_person_appearances
 from .steps.potion_shop import shuffle_blue_potion
 from .steps.randomize_boss_groups import randomize_boss_groups
@@ -100,6 +101,7 @@ from .steps.randomize_letter import randomize_letter
 from .steps.randomize_magical_sword import check_magical_sword_hearts, randomize_magical_sword
 from .steps.randomize_mazes import randomize_mazes
 from .steps.recorder_to_new_dungeons import recorder_to_new_dungeons
+from .steps.remove_most_open_stairs import remove_most_open_stairs
 from .steps.shop_items_in_pool import shop_items_in_pool
 from .steps.shuffle_armos import shuffle_armos
 from .steps.shuffle_bomb_upgrade_men import shuffle_bomb_upgrade_men
@@ -620,6 +622,12 @@ def _l1_census(levels: list[Level]) -> tuple[int, int]:
     return persons, restrict
 
 
+def remove_most_open_stairs_step(context: GenerationContext) -> None:
+    """PS-OSTAIR (B30): right after the late gate (VA-REJ-01 to VA-REJ-05), before the passes
+    after it and the acceptance check, which judges the new layouts and triggers (VA-REJ-17)."""
+    remove_most_open_stairs(context.sets.blocks, context.rng)
+
+
 def level9_records_step(context: GenerationContext) -> None:
     """PS-L9REC-01: level 9's records, after the gate (no draws)."""
     level9 = context.sets.levels[LEVEL_9 - 1]
@@ -659,6 +667,22 @@ def move_map_near_entrance_step(context: GenerationContext) -> None:
 def change_money_or_life_toll_step(context: GenerationContext) -> None:
     """PS-MERCH-02 pricing (late)."""
     change_money_or_life_toll(context.item_shuffle_result, context.rng)
+
+
+def oops_all_step(context: GenerationContext) -> None:
+    """Oops All Enemies and Oops All Bosses (docs/design/oops-all.md): after every monster pass
+    and the late gate, before the first walk that reads monsters (2.6), on their own stream (2.8)."""
+    groups, overworld, monster_shuffle = context.groups, context.overworld, context.monster_shuffle
+    assert groups is not None and overworld is not None and monster_shuffle is not None
+    extras, rng = context.settings.extras, Rng(context.settings.extras.oops_all_seed)
+    if extras.oops_all_enemies:
+        oops_all_enemies(context.world, context.sets.levels, overworld, groups.enemy_deal, extras.oops_all_enemies,
+                         rng, groups.staged)
+    if extras.oops_all_bosses:
+        boss_sets = {level.level_num: BOSS_BANKS[monster_shuffle.boss_tiers[level.level_num]]
+                     if level.level_num in monster_shuffle.boss_tiers else level.boss_sprite_set
+                     for level in context.sets.levels}
+        oops_all_bosses(context.world, context.sets.levels, boss_sets, groups.boss_deal, rng, groups.staged)
 
 
 # The ZORA extras join the pool after every pass that reads $03 as "no item"
@@ -837,9 +861,10 @@ def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hin
     cave_text = magical_sword_cave_text(gw, names) if extras.randomize_magical_sword else None
     if alternatives.generate_community_hint_text:
         return generate_community_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names,
-                                            maze_offers)
+                                            maze_offers, book_needed=alternatives.book_to_understand_old_men)
     return generate_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names, maze_offers,
-                              extras.gates, every_helpful_hint=alternatives.show_every_helpful_hint)
+                              extras.gates, every_helpful_hint=alternatives.show_every_helpful_hint,
+                              book_needed=alternatives.book_to_understand_old_men)
 
 
 def shuffle_dungeon_text_step(context: GenerationContext) -> None:
@@ -958,6 +983,8 @@ STEPS: tuple[Step, ...] = (
     Step("extra_candles", "B09", extra_candles_step, lambda s: s.post_shapes and s.steps.extra_candles),
     # The late gate and after
     Step("late_gate", "", late_gate_step, restart_label="late gate: "),
+    Step("remove_most_open_stairs", "B30", remove_most_open_stairs_step,
+         lambda s: s.post_shapes and s.alternatives.remove_most_open_stairs),
     Step("level9_records", "", level9_records_step),
     Step("shuffle_start_screen", "C04", shuffle_start_screen_step,
          lambda s: s.post_shapes and s.steps.shuffle_start_screen),
@@ -966,6 +993,8 @@ STEPS: tuple[Step, ...] = (
     Step("change_money_or_life_toll", "B23", change_money_or_life_toll_step,
          lambda s: s.post_shapes and s.steps.change_money_or_life_toll),
     # The ZORA extras and the acceptance check
+    Step("oops_all", "ZORA oops_all_enemies + oops_all_bosses", oops_all_step,
+         lambda s: s.post_shapes and s.extras.oops_all, restart_label="oops all: "),
     Step("randomize_magical_sword", "ZORA randomize_magical_sword", randomize_magical_sword_step,
          lambda s: s.post_shapes and s.extras.randomize_magical_sword),
     Step("randomize_letter", "ZORA randomize_letter", randomize_letter_step,

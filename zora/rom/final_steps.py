@@ -77,7 +77,8 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
                                              config.shop_items_in_pool, config.potion_shop_in_pool,
                                              start_items=bool(world.start_items),
                                              start_rooms_moved=any(level.arrival_code in code_patches.SIDE_ARRIVAL_CODES
-                                                                   for level in world.levels))
+                                                                   for level in world.levels),
+                                             book_to_understand_old_men=config.book_to_understand_old_men)
     for address, data in code_patches.code_patch_writes(world, left_out, config.progressive_items,
                                                         config.one_time_places):
         rom[address:address + len(data)] = data

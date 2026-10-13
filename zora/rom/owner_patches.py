@@ -8,8 +8,9 @@ They are written after the code patches and before the level encoding and the se
 
 All Swords No Boards' patches (docs/design/asnb.md section 3) come the same way from asm/asnb/
 (asnb_patch_data.py, a verbatim copy of asm/asnb/asnb_data.py; tests/test_asnb_wired.py keeps
-them equal): take-l4 and sword-cap, which patch over fp-prog-01's and
-fp-prog-02's ResolveProgressive copies, with Add L4 Sword on (Level 2 or Level 9), and
+them equal): take-l4, sword-cap, which patches over fp-prog-01's and fp-prog-02's
+ResolveProgressive copies, and l4-sword-look (level 4 looks like the magical sword in the white
+sword's colours; docs/design/l4-sword.md Q2), with Add L4 Sword on (Level 2 or Level 9), and
 level-9-gate with Level 9 Entrance = Level 4 sword. take-l4 retires l4-sword-take (3a): it gives
 level 4 on every pickup path, so l4-sword-take's bytes and hook are no longer written.
 Credits (docs/credits.md): Speed Up Heart Fill by snarfblam, Recorder Kills Dungeon Pols Voice by
@@ -26,7 +27,7 @@ from .flags2_patch_data import CREDITS, PATCHES
 
 # Each version-3 ZORA flag (zora_flags.OWNER_2_0_FIELDS) and the patches it writes. Shuffle Blue
 # Potion writes none of its own (fp-prog-01's buy-once rule, code_patches); Add L4 Sword writes the
-# beam damage test (docs/design/l4-sword.md R17) and ASNB's take-l4 and sword-cap (below).
+# beam damage test (docs/design/l4-sword.md R17) and ASNB's take-l4, sword-cap and l4-sword-look (below).
 PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
     "shuffle_blue_potion": (),
     "add_l4_sword": ("l4-sword-beam",),
@@ -53,7 +54,7 @@ PATCH_CREDITS = CREDITS
 # level_9_entrance_sword (LEVEL_9_ENTRANCE, not a version-3 flag).
 LEVEL_9_ENTRANCE = "level_9_entrance_sword"
 ASNB_PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
-    "add_l4_sword": ("take-l4", "sword-cap"),
+    "add_l4_sword": ("take-l4", "sword-cap", "l4-sword-look"),
     LEVEL_9_ENTRANCE: ("level-9-gate",),
 }
 assert set(ASNB_PATCHES) == {name for names in ASNB_PATCHES_BY_FLAG.values() for name in names}

@@ -127,7 +127,9 @@ def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, byte
     patch.add(LEVEL_1_6_DATA_ADDRESS, encode_level_block(game_world.blocks[0], nothing_code))
     patch.add(LEVEL_7_9_DATA_ADDRESS, encode_level_block(game_world.blocks[1], nothing_code))
     # A second-quest block is written only when a level reads it: an unread one keeps the base
-    # ROM's bytes, PRG0's nothing code included (and the level encoding's key material).
+    # ROM's bytes, PRG0's nothing code included. With level encoding on, the encoding (a final
+    # step) moves a read one into its set's first-quest block first and takes the second-quest
+    # blocks for itself (level_encoding.fold_second_quest_blocks).
     for address, block in zip((LEVEL_1_6_DATA_ADDRESS_Q2, LEVEL_7_9_DATA_ADDRESS_Q2), game_world.blocks_2q,
                               strict=True):
         if any(lvl.block is block for lvl in game_world.levels):
@@ -135,9 +137,6 @@ def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, byte
     blocks = [*game_world.blocks, *game_world.blocks_2q]
     for lvl in game_world.levels:
         block_index = next(index for index, block in enumerate(blocks) if block is lvl.block)
-        if block_index >= len(game_world.blocks) and cfg.level_encoding is not None:
-            # The level encoding keeps its key material in the second-quest blocks.
-            raise ValueError(f"level {lvl.level_num} reads a second-quest block, which level encoding replaces")
         patch.add(ROOM_BLOCK_ADDRESSES_Q1 + 2 * lvl.level_num + 1, bytes([ROOM_BLOCK_HIGH_BYTES[block_index]]))
     branch = BNE_OPCODE if game_world.monsters_take_second_quest_path else BEQ_OPCODE
     for address in QUEST_MONSTER_BRANCH_ADDRESSES:

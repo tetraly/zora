@@ -20,8 +20,8 @@ from zora.model.overworld import Quote
 from zora.generate.steps.change_sword_hearts import MAGICAL_SWORD_HEARTS, WHITE_SWORD_HEARTS
 from zora.generate.rng import Rng
 from zora.generate.steps.hint_text import (
-    PLACEHOLDER_TEXT, POOL, POOL_CLASSES, POOL_FILE, SLOT_COUNT, UNSHOWN_SLOTS, PoolEntry, encode_text,
-    place_pool, quote_problems, shown_class_slots,
+    BOOK_SLOT_0_CLASS, PLACEHOLDER_TEXT, POOL, POOL_CLASSES, POOL_FILE, SLOT_COUNT, UNSHOWN_SLOTS,
+    WOOD_SWORD_SLOT_0_CLASS, PoolEntry, encode_text, place_pool, quote_problems, shown_class_slots,
 )
 
 BANK = EXT_HINT_DATA_ROM_END - EXT_HINT_DATA_ROM_START
@@ -44,7 +44,7 @@ def test_pool_is_the_owners_routed_quotes_with_provenance() -> None:
     from importlib.resources import files
     text = files("zora.generate.steps").joinpath(POOL_FILE).read_text(encoding="utf-8")
     assert "owner-quotes-routed.tsv" in text and "afb5732" in text and "docs/ui-provenance.md" in text
-    owner = [entry for entry in POOL if not entry.placeholder]
+    owner = [entry for entry in POOL if not entry.placeholder and not entry.stand_in]
     assert len(owner) == 174
     assert sum(entry.reserved for entry in owner) == 12
     assert sum(entry.hearts is not None for entry in owner) == 27
@@ -63,7 +63,9 @@ def test_placeholders_are_numbered_and_easy_to_find() -> None:
 def _guaranteed(entries: list[PoolEntry], routing_class: str) -> int:
     """How many of a class's quotes can be drawn in every seed, whatever
     hearts FP-SWORD-01 asks for."""
-    return min(sum(1 for entry in entries if entry.routing_class == routing_class and entry.slots(white, magical))
+    book_needed = routing_class == BOOK_SLOT_0_CLASS      # its lines are drawn only with B48
+    return min(sum(1 for entry in entries
+                   if entry.routing_class == routing_class and entry.slots(white, magical, book_needed))
                for white, magical in HEART_REQUIREMENTS)
 
 
@@ -108,6 +110,21 @@ def test_every_shown_slot_gets_candidates_and_no_quote_twice(white: int, magical
             if slot != 9:
                 assert all(by_lines["|".join(lines)].routing_class != "slot 9 (owner ruling)"
                            for lines in candidates[slot])
+
+
+def test_book_lines_take_slot_0_only_with_b48() -> None:
+    """HT-BOOK-02 (B48): slot 0 draws from the five stand-in lines in which the speaker cannot be
+    understood, instead of the wood sword cave's quotes; without B48 they are drawn nowhere, and
+    no other slot changes."""
+    book_lines = [entry.lines for entry in POOL if entry.routing_class == BOOK_SLOT_0_CLASS]
+    assert len(book_lines) == 5 and all(entry.stand_in for entry in POOL if entry.routing_class == BOOK_SLOT_0_CLASS)
+    for seed in range(20):
+        plain, book = place_pool(Rng(seed), 5, 12), place_pool(Rng(seed), 5, 12, book_needed=True)
+        assert sorted(map(tuple, book[0])) == sorted(book_lines)
+        assert {tuple(lines) for lines in plain[0]} == {
+            entry.lines for entry in POOL if entry.routing_class == WOOD_SWORD_SLOT_0_CLASS}
+        assert all(plain[slot] == book[slot] for slot in range(1, SLOT_COUNT))
+        assert not any(tuple(lines) in book_lines for slot in range(1, SLOT_COUNT) for lines in plain[slot])
 
 
 def test_heart_count_quotes_follow_the_requirement() -> None:

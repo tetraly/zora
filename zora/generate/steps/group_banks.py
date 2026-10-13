@@ -3,7 +3,7 @@ and the writes staged outside the room blocks."""
 
 from dataclasses import dataclass, field
 
-from ...model.enums import Enemy
+from ...model.enums import BossSpriteSet, Enemy
 from ...model.sprites import PatternBlock
 
 E = Enemy
@@ -38,3 +38,5 @@ class Staged:
     overworld_monsters: dict[int, Enemy] = field(default_factory=dict)
     item_carrier_operands: tuple[int, int, int] | None = None
     red_wizzrobe_overworld: bool = False     # the four overworld-Wizzrobe byte runs
+    # Oops All Bosses: a level's boss block moved (level number -> block), after B34's
+    boss_sprite_sets: dict[int, BossSpriteSet] = field(default_factory=dict)
