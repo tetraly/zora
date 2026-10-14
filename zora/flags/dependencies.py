@@ -123,7 +123,7 @@ def apply_dependencies(settings: Settings) -> Settings:
     Rule 4: with second-quest dungeons, mixed, or mixed with shapes (C02 = 1, 2 or 4), the
     hungry-goriya shuffle (B28) and the bomb-upgrade-person shuffle (B29) are turned off.
     Rule 5: level 9 open (C08 = 8) and an item instead of pieces (C08 = 11) are two values of one
-    field, so the spec's rule cancelling both when both hold never fires; nothing to apply.
+    field, so the spec's rule canceling both when both hold never fires; nothing to apply.
     """
     if settings.option(DUNGEON_LAYOUT_SOURCE) in LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES:
         return settings.updated(toggles={HUNGRY_GORIYA_SHUFFLE: ThreeState.OFF,

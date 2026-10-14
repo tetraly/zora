@@ -174,8 +174,8 @@ VALUE_KEYS = {
     "oops_all_enemies": ("off", "wizzrobes", "keese", "bouncers"),
     "oops_all_bosses": ("off", "dodongos"),
 }
-COLOURS = tuple(f"0x{value:02X}" for value in range(0x40) if value != 0x0D)   # every NES palette value but $0D
-# page key -> (YAML key, each listed value's key in the page's order; a colour's are COLOURS)
+COLORS = tuple(f"0x{value:02X}" for value in range(0x40) if value != 0x0D)   # every NES palette value but $0D
+# page key -> (YAML key, each listed value's key in the page's order; a color's are COLORS)
 PLAYER_KEYS = {
     "selectButton": ("select_button", ("off", "swap", "toggle")),
     "lowHealthBeep": ("low_health_beep", ("removed", "kept")),
@@ -183,10 +183,10 @@ PLAYER_KEYS = {
     "reduceFlashing": ("reduce_flashing", ("off", "on")),
     "music": ("music", ("on", "off")),
     "statisticsScreen": ("statistics_screen", ("on", "off")),
-    "greenTunic": ("green_tunic", COLOURS),
-    "blueRingTunic": ("blue_ring_tunic", COLOURS),
-    "redRingTunic": ("red_ring_tunic", COLOURS),
-    "heart": ("hearts", COLOURS),
+    "greenTunic": ("green_tunic", COLORS),
+    "blueRingTunic": ("blue_ring_tunic", COLORS),
+    "redRingTunic": ("red_ring_tunic", COLORS),
+    "heart": ("hearts", COLORS),
     "levelWord": ("level_word", (
         "level", "board", "abode", "lair", "sector", "area", "palace", "vault", "crypt", "tomb", "keep", "maze",
         "tower", "temple", "shrine", "castle", "fort", "hall", "den", "nest", "hold", "stage", "world", "zone",
@@ -254,16 +254,16 @@ def test_every_player_setting_key_is_pinned() -> None:
 
 
 def test_the_player_key_rules() -> None:
-    """YAML keys and choice and word keys are identifiers; colours are hex; RANDOM is random_word."""
+    """YAML keys and choice and word keys are identifiers; colors are hex; RANDOM is random_word."""
     yaml_keys = [spec.yaml_key for spec in PLAYER_SPECS.values()]
     assert len(set(yaml_keys)) == len(yaml_keys) and all(key.isidentifier() for key in yaml_keys)
     for spec in PLAYER_SPECS.values():
         keys = [key for _value, key in spec.value_keys]
         assert len(set(keys)) == len(keys) and "random" not in keys, spec.key
-        if spec.kind != archipelago.COLOUR:
+        if spec.kind != archipelago.COLOR:
             assert all(key.isidentifier() and key == key.lower() for key in keys), spec.key
         else:
-            assert spec.value_keys == tuple((colour, f"0x{colour:02X}") for colour in spec.colours)
+            assert spec.value_keys == tuple((color, f"0x{color:02X}") for color in spec.colors)
     assert dict(PLAYER_SPECS[PAGE_BOSS_SOUND_WORD].value_keys)[RANDOM_BOSS_SOUND_WORD] == "random_word"
 
 

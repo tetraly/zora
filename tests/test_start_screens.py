@@ -6,11 +6,14 @@ from functools import cache
 
 import pytest
 
+from zora.flags import zora_flags
 from zora.flags.codec import decode, encode
-from zora.flags.fields import START_SCREEN, StartScreen
+from zora.flags.fields import START_SCREEN, StartScreen, ThreeState
+from zora.flags.zora_flags import ZoraFlags
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom, plan
 from zora.generate.rng import Rng
+from zora.generate.steps import overworld_gates as gates
 from zora.generate.steps.shuffle_start_screen import (
     FULL_START_SCREENS,
     START_ROWS,
@@ -44,8 +47,8 @@ def _prg0() -> GameWorld:
 
 
 @cache
-def finished(flags: str, seed: int) -> GameWorld:
-    return parse_rom(generate_rom(flags, seed, _base()).rom)
+def finished(flags: str, seed: int, zora_flag_string: str = "") -> GameWorld:
+    return parse_rom(generate_rom(flags, seed, _base(), zora_flag_string=zora_flag_string).rom)
 
 
 def test_the_corpus_strings_are_cp5_with_c04() -> None:
@@ -103,3 +106,41 @@ def test_finished_roms(flags: str, seed: int) -> None:
         assert start in FULL_START_SCREENS
     else:
         assert all(wood_sword_start(world)[key] for key in ("code 16 once", "S follows code 16"))
+
+
+# The screens past each randomized maze, by the map (tests/test_overworld_gates.py derives them):
+# $72's cave opens only to $71.
+PAST_LOST_HILLS = frozenset({0x0B, 0x0C, 0x0D})
+PAST_DEAD_WOODS = frozenset({0x70, 0x71, 0x72})
+
+
+# Seeds whose start-screen draw landed on a screen an overworld gate gates or walls in before the
+# draw left those out (raft seed 8: $34; bracelet seed 7: $01; Lost Hills seed 36: $0B; Dead Woods
+# seed 129: $70 and seed 58: $72, and with Easy start shuffle seed 16: $71 and seed 15: $72);
+# Extra Power Bracelet Blocks with B04 off, which it needs.
+@pytest.mark.parametrize(("flag", "z1r_flags", "seed", "screens", "barred"), [
+    ("extra_raft_blocks", FULL_START_FLAGS, 8, FULL_START_SCREENS, gates.RAFT_ENCLOSED_SCREENS),
+    ("extra_power_bracelet_blocks", encode(decode(FULL_START_FLAGS).updated(toggles={"B04": ThreeState.OFF})), 7,
+     FULL_START_SCREENS, gates.BRACELET_ENCLOSED_SCREENS),
+    ("randomize_lost_hills", FULL_START_FLAGS, 36, FULL_START_SCREENS, PAST_LOST_HILLS),
+    ("randomize_dead_woods", FULL_START_FLAGS, 129, FULL_START_SCREENS, PAST_DEAD_WOODS),
+    ("randomize_dead_woods", FULL_START_FLAGS, 58, FULL_START_SCREENS, PAST_DEAD_WOODS),
+    ("randomize_dead_woods", MVP_BASELINE_LEVEL_ENCODING_OFF, 16, START_SCREENS, PAST_DEAD_WOODS),
+    ("randomize_dead_woods", MVP_BASELINE_LEVEL_ENCODING_OFF, 15, START_SCREENS, PAST_DEAD_WOODS)])
+def test_the_start_is_never_past_an_overworld_gate(flag: str, z1r_flags: str, seed: int, screens: frozenset[int],
+                                                  barred: frozenset[int]) -> None:
+    """With a ZORA overworld gate on, the start-screen draw leaves out the screens it gates or walls
+    in (OverworldGates.start_barred), as OW-START-02 leaves out PRG0's raft islands: Link never
+    starts shut in, or past a maze he has not solved (owner decision, 2026-10-13)."""
+    world = finished(z1r_flags, seed, zora_flags.encode(ZoraFlags(**{flag: ThreeState.ON})))  # type: ignore[arg-type]
+    start = world.overworld.start_screen
+    assert start in screens - barred
+    assert world.overworld.start_position_y == start_y(start)
+
+
+def test_dead_woods_keeps_the_west_half_as_a_start() -> None:
+    """Only the screens past each maze are left out (owner decision, 2026-10-13); the west half,
+    which the logic gates by the ladder, stays in the draw."""
+    barred = gates.OverworldGates(lost_hills=True, dead_woods=True).start_barred()
+    assert barred == PAST_LOST_HILLS | PAST_DEAD_WOODS
+    assert not barred & gates.DEAD_WOODS_WEST

@@ -43,8 +43,8 @@ PERIOD           = $2C
 LEVEL_RECORD_RAM    = $681C
 LEVEL_RECORD_COUNT  = LEVEL_RECORD_RAM + 2
 LEVEL_RECORD_TILES  = LEVEL_RECORD_RAM + 3
-; The loaded level information's palette record (PPU address, count, 32 colours): its sprite rows,
-; so the items keep their play-time colours.
+; The loaded level information's palette record (PPU address, count, 32 colors): its sprite rows,
+; so the items keep their play-time colors.
 SPRITE_PALETTES     = LevelInfo_PalettesTransferBuf + 3 + 16
 
 LEVELS              = 9

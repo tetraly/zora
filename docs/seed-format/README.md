@@ -68,9 +68,9 @@ hand-off. No visualizer code is copied into ZORA.
   - Column: `((grid column + map start) & $F) - 3`. The map shows the middle eight of the
     level's 16 bitmap columns (SH-MAP-01, `zora/generate/shapes/minimap.py`).
   - Row: the grid row + 1.
-- **Level colour.** The level's wall colour (palette group 2), one NES brightness step up. The
+- **Level color.** The level's wall color (palette group 2), one NES brightness step up. The
   RGB comes from the cynes palette table that `web/zora-web.js` also uses, in
-  `zora_export/nes_palette.py` with cynes' MIT licence text.
+  `zora_export/nes_palette.py` with cynes' MIT license text.
 - **Who says a text.**
   - Each overworld cave's person, and each hint shop's hints.
   - In a dungeon:
@@ -120,7 +120,7 @@ side, which the test allows:
 
 Names that each side chooses for itself are not compared. For those, the check is that the two
 sides' names map one to one. That covers room layouts, enemies, caves and screens, level
-colours and transport staircase numbers.
+colors and transport staircase numbers.
 
 ## Checking the hand-off
 

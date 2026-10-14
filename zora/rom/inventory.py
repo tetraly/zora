@@ -106,7 +106,7 @@ NO_RULES = GiveRules()
 def give(item: Item, ram: Mapping[int, int], rules: GiveRules = NO_RULES) -> dict[int, int]:
     """The RAM writes (address -> value) that give `item` as TakeItem does, from `ram`, a snapshot
     holding at least the inventory ($0657-$067C); empty when the item changes nothing. Ring
-    colours follow at the next palette load, not here (TakeItem also patches the palette)."""
+    colors follow at the next palette load, not here (TakeItem also patches the palette)."""
     slots, descriptors = item_slots(), item_descriptors()
     if slots[item] == SWORD_SLOT and ram[ITEMS + SWORD_SLOT] > MAGICAL_SWORD_LEVEL:
         # Add L4 Sword's level 4 is the line's top. (The game's ResolveProgressive runs past it

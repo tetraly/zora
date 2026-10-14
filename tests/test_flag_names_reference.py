@@ -59,16 +59,20 @@ def test_option_fields_keep_their_names() -> None:
 @needs_reference
 def test_switches_are_named_as_the_reference_names_them() -> None:
     """Every B field's name, but Encode level data's: ZORA's B82 is not the original randomizer's (Race ROM).
-    FL-DEP-05's two fields, which change nothing in ZORA, say so after the name."""
+    FL-DEP-05's two fields, which change nothing in ZORA, say so after the name. Two switches have
+    ZORA's own neutral names (owner decision, 2026-10-12; form.OWN_SWITCH_NAMES)."""
     table = reference()
     inert = {field.id for field in INERT_TOGGLES}
     for code, field in page_fields().items():
         if field["kind"] == "toggle" and code != ENCODE_LEVEL_DATA.id:
             suffix = " (no effect in ZORA)" if code in inert else ""
-            assert field["label"] == table[code][0]["field_name"] + suffix, code
+            name = flag_form.OWN_SWITCH_NAMES.get(code, table[code][0]["field_name"])
+            assert field["label"] == name + suffix, code
     assert page_fields()[ENCODE_LEVEL_DATA.id]["label"] == "Encode level data"
     assert page_fields()["B14"]["label"] == "Shuffle Dungeon Items (no effect in ZORA)"
     assert page_fields()["B16"]["label"] == "Shuffle Dungeon Hearts (no effect in ZORA)"
+    assert page_fields()["B29"]["label"] == "Shuffle Bomb Upgraders"
+    assert page_fields()["B48"]["label"] == "Book to Understand NPCs"
 
 
 def test_misleading_values_have_notes() -> None:

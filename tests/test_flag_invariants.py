@@ -98,7 +98,7 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "show_every_helpful_hint": (False, True),
     "important_items_in_level_9": (False, True),
     "remove_most_open_stairs": (False, True),        # B30: PS-OSTAIR
-    "book_to_understand_old_men": (False, True),     # B48: HT-BOOK-01 (GameConfig) and HT-BOOK-02
+    "book_to_understand_npcs": (False, True),     # B48: HT-BOOK-01 (GameConfig) and HT-BOOK-02
     "shuffle_items_within_levels": (False, True),
     "mix_overworld_quest": (False, True),
     "full_start_shuffle": (False, True),

@@ -15,7 +15,7 @@ from zora.model.enums import BossSound, Destination, Enemy, Item, RoomAction, Ro
 from zora.model.game_world import GameWorld
 from zora.model.levels import LEVEL_BLOCK_ROOMS, Level, LevelBlock
 from zora.model.overworld import ItemCave, OverworldItem
-from zora.model.room_grid import neighbour
+from zora.model.room_grid import neighbor
 from zora.model.rooms import Room, StaircaseRoom
 
 # Enemies with the is_boss flag that the spec treats as ordinary room monsters
@@ -46,7 +46,7 @@ class LevelStats:
     footprint: int                    # cells used = rooms + stair cells
     dead_end_rooms: int               # degree-1 rooms (excluding entrance)
     door_open: int
-    door_closed_wall: int             # same-level neighbour pair, both sides solid
+    door_closed_wall: int             # same-level neighbor pair, both sides solid
     door_walk: int
     door_bomb: int
     door_key: int
@@ -185,7 +185,7 @@ def door_census(rooms: dict[int, Room], cells: list[int], stair_slots: set[int])
             continue
         room = rooms[rn]
         for side in Side:
-            nb = neighbour(rn, side)
+            nb = neighbor(rn, side)
             if nb is None:
                 census.wall_edge += 1
                 continue
@@ -453,7 +453,7 @@ def grid_stats(grid_name: str, block: LevelBlock) -> GridStats:
             sides[_SIDE_KIND[room.walls[side]]] += 1
         # each facing pair once: from its west and its north room
         for side in (Side.EAST, Side.SOUTH):
-            other = neighbour(room.room_num, side)
+            other = neighbor(room.room_num, side)
             if other is not None and isinstance(block[other], Room):
                 _tally_pair(pairs, room.walls[side], block.room(other).walls[side.opposite])
 

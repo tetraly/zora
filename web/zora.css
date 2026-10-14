@@ -1,5 +1,5 @@
 /* ZORA's page: the "Deep current" look (docs/design/web-ui-water.md, artboard C).
-   Every colour is a token here, mapped again for the dark theme below. */
+   Every color is a token here, mapped again for the dark theme below. */
 
 :root {
   --teal: #00B8D0;           /* accents: On, the active tab, presets, Download, dots */
@@ -34,6 +34,7 @@
   --beta-ink: #3D2A00;
   --beta-line: #C98A00;
   --beta-link: #5C3A00;
+  --link: #1450A8;           /* links in reading text (the guide) */
   color-scheme: light;
 }
 
@@ -44,7 +45,7 @@
     --page: #08182B; --card: #0F2440; --row: #132B4B; --tint-blue: #1A3A63; --tint-teal: #16405A;
     --track: #0B1E36; --line: #28496F; --divider: #1D3858; --help-ring: #5E7C9C; --field-bg: #0B1E36;
     --error: #FF8A80; --pressed-off: #2A4A72; --preset-current: #163E5A; --backdrop: rgba(0, 8, 20, .6);
-  --beta-bg: #3B2B05; --beta-ink: #FFEBB0; --beta-line: #C98A00; --beta-link: #FFD675;
+  --beta-bg: #3B2B05; --beta-ink: #FFEBB0; --beta-line: #C98A00; --beta-link: #FFD675; --link: #8EC5FF;
     color-scheme: dark;
   }
 }
@@ -53,7 +54,7 @@
   --page: #08182B; --card: #0F2440; --row: #132B4B; --tint-blue: #1A3A63; --tint-teal: #16405A;
   --track: #0B1E36; --line: #28496F; --divider: #1D3858; --help-ring: #5E7C9C; --field-bg: #0B1E36;
   --error: #FF8A80; --pressed-off: #2A4A72; --preset-current: #163E5A; --backdrop: rgba(0, 8, 20, .6);
-  --beta-bg: #3B2B05; --beta-ink: #FFEBB0; --beta-line: #C98A00; --beta-link: #FFD675;
+  --beta-bg: #3B2B05; --beta-ink: #FFEBB0; --beta-line: #C98A00; --beta-link: #FFD675; --link: #8EC5FF;
   color-scheme: dark;
 }
 
@@ -131,6 +132,8 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .step-title { margin: 0; font-weight: 700; font-size: 20px; }
 .step-sub { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
 .step-sub strong { color: var(--ink); }
+.step-note { margin: 6px 0 0; font-size: 14px; color: var(--ink); }
+.step-note:empty { display: none; }
 .step-error { margin: 6px 0 0; font-size: 14px; color: var(--error); }
 .step-error:empty { display: none; }
 
@@ -252,12 +255,12 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 }
 .help-wrap:hover .tip, .help:focus-visible + .tip { display: block; }
 
-/* Look and feel: the colour pickers */
+/* Look and feel: the color pickers */
 .level-word-control { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .level-word-input { width: 7.5em; text-transform: uppercase; font-family: inherit; }
 .level-word-input--error { border-color: var(--error); box-shadow: 0 0 0 1px var(--error); }
-.colour-note { grid-column: 1 / -1; margin: 0; padding: 0 14px; }
-.colour-heading { grid-column: 1 / -1; margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.color-note { grid-column: 1 / -1; margin: 0; padding: 0 14px; }
+.color-heading { grid-column: 1 / -1; margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
 .flag-color-picker { position: relative; display: inline-flex; }
 .color-picker-toggle {
   width: 32px; height: 32px; border: 2px solid var(--line); border-radius: 10px; padding: 0;
@@ -434,3 +437,94 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
   outline-offset: 2px;
 }
 .page-footer a { color: var(--ink); text-decoration: underline; }   /* ink: --action is 4.46:1 on the dark page */
+
+/* ---------------------------------------------------------------------------
+   Single player or multiworld (Archipelago): the toggle above the steps, the
+   world's step and the YAML export
+   --------------------------------------------------------------------------- */
+.step[hidden], .generate-row[hidden], .result-card[hidden] { display: none; }
+.mode-bar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  background: var(--card); border-radius: 20px; padding: 14px 18px 14px 24px; box-shadow: var(--shadow-card);
+}
+.mode-title { font-weight: 700; font-size: 16px; }
+.seg--mode button { min-height: 40px; padding: 0 16px; font-size: 14px; }
+.seg--mode button[aria-pressed="true"] { background: var(--teal); color: var(--on-teal); box-shadow: none; }
+.mw-links {
+  display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; padding: 12px 16px;
+  border-radius: 12px; background: var(--row); font-size: 14px;
+}
+.mw-links dt { font-weight: 600; }
+.mw-links dd { margin: 0; color: var(--muted); }
+.mw-links a { color: var(--action); }
+.mw-placeholder { font-style: italic; }
+.yaml-details summary { cursor: pointer; font-size: 14px; color: var(--deep-text); }
+.yaml-preview {
+  margin: 10px 0 0; max-height: 320px; overflow: auto; padding: 12px 14px; border-radius: 12px;
+  background: var(--deep-field); color: var(--deep-text); font: 12px/1.5 'DM Mono', ui-monospace, monospace;
+}
+
+@media (max-width: 640px) {
+  .mode-bar { padding: 14px 16px; border-radius: 20px; }
+  .seg--mode { width: 100%; }
+  .seg--mode button { flex: 1 1 0; padding: 0 8px; white-space: normal; line-height: 1.2; }
+  .mw-links { grid-template-columns: 1fr; gap: 2px; }
+  .mw-links dd { margin-bottom: 8px; }
+}
+
+/* ---------------------------------------------------------------------------
+   The Archipelago guide (archipelago-guide.html, scripts/guide_page.py): one
+   reading column on a card, the masthead without the generator's controls
+   --------------------------------------------------------------------------- */
+.wordmark-link { color: #FFFFFF; text-decoration: none; }
+.guide {
+  max-width: 820px; margin: 0 auto; padding: 8px 24px 64px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+.guide-contents, .guide-body {
+  background: var(--card); border-radius: 28px; box-shadow: var(--shadow-card); padding: 24px 32px;
+}
+.guide-contents h2 { margin: 0 0 8px; font-size: 16px; }
+.guide-contents ol { margin: 0; padding-left: 0; list-style: none; columns: 2; column-gap: 24px; }
+.guide-contents li { padding: 3px 0; break-inside: avoid; }
+.guide-body { padding-top: 8px; font-size: 16px; line-height: 1.6; }
+.guide a { color: var(--link); }
+.guide-body h2 {
+  margin: 32px 0 10px; padding-top: 20px; border-top: 1px solid var(--divider);
+  font-size: 22px; line-height: 1.25; scroll-margin-top: 16px;
+}
+.guide-body > h2:first-of-type { border-top: 0; padding-top: 0; margin-top: 24px; }
+.guide-body h3 { margin: 24px 0 8px; font-size: 18px; scroll-margin-top: 16px; }
+.guide-body p { margin: 0 0 12px; }
+.guide-body ul, .guide-body ol { margin: 0 0 14px; padding-left: 24px; }
+.guide-body li { margin: 4px 0; }
+.guide-body li > ul, .guide-body li > ol, .guide-body li > p { margin: 6px 0; }
+.guide-body code {
+  font: 0.88em 'DM Mono', ui-monospace, monospace; background: var(--row); border: 1px solid var(--divider);
+  border-radius: 6px; padding: 1px 5px; overflow-wrap: anywhere;
+}
+.guide-table { overflow-x: auto; margin: 0 0 16px; }
+.guide-table table { border-collapse: collapse; width: 100%; font-size: 15px; }
+.guide-table th, .guide-table td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+.guide-table th { font-weight: 700; background: var(--row); }
+.guide-back { margin: 0; text-align: center; }
+
+/* The generator's pointers to the guide, in the multiworld steps */
+.guide-next { margin: 0; font-size: 14px; color: var(--deep-text); }
+.guide-next a { color: #FFFFFF; font-weight: 600; }
+.mw-links a.guide-link { font-weight: 600; }
+
+@media (max-width: 640px) {
+  .guide { padding-left: 16px; padding-right: 16px; }
+  .guide-contents, .guide-body { padding-left: 18px; padding-right: 18px; border-radius: 24px; }
+  .guide-contents ol { columns: 1; }
+  /* The table's rows stacked: a file name keeps its line, its description below it */
+  .guide-table thead { display: none; }
+  .guide-table table, .guide-table tbody, .guide-table tr, .guide-table td { display: block; }
+  .guide-table tr { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .guide-table tr:last-child { border-bottom: 0; }
+  .guide-table td { border: 0; padding: 2px 0; }
+  .guide-table td:first-child { font-weight: 600; }
+  .guide-body { font-size: 15px; }
+  .guide-body h2 { font-size: 20px; }
+}

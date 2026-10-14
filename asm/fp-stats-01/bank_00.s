@@ -52,11 +52,11 @@ StampItemThresholds:
 StatsTick:
     LDA StatsMagic
     CMP #STATS_MAGIC
-    BEQ @Initialised
+    BEQ @Initialized
     JSR ClearStatsBlock
     JMP DriveAudio
 
-@Initialised:
+@Initialized:
     LDA GameMode
     CMP #MODE_WIN
     BEQ @Win

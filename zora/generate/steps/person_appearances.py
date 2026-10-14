@@ -9,7 +9,7 @@ from ..rng import IntRng
 
 FIRST_NPC_ENTRY = 0x54               # object type of EnemyData.overworld_npc_pointers[0]
 CAVE_PERSON_TYPES = range(0x6B, 0x7C)   # the 17 cave person object types
-FIRST_APPEARANCE = 0x58              # ObjAnimations $58-$5B: old man, old woman, merchant, Moblin
+FIRST_APPEARANCE = 0x58              # ObjAnimations $58-$5B: the two elders, merchant, Moblin
 APPEARANCE_COUNT = 4
 
 

@@ -155,6 +155,15 @@ def test_the_overworld_gates(base: bytes, case: str) -> None:
                     seen[gate] += is_on
                     assert requires(logic.events[triforce_event(level)], need) == is_on, (gate, seed, level)
     gates = extra_options(_built(case, 1).plan).gates
+    for gate in ("raft_blocks", "bracelet_blocks"):
+        if getattr(gates, gate) and not seen[gate]:
+            # A gate's screens hold a level in about 1 seed in 3 (the raft's under every turn-off value:
+            # seeds 8, 10, 11 and 12 of 1-12), so look past SEEDS for the first one, and check it.
+            screens, need = gate_needs[gate]
+            seed, level = next((seed, level) for seed in MANY_SEEDS[len(SEEDS):]
+                               for level, door in entry_doors(_built(case, seed)).items() if door in screens)
+            assert requires(model(case, seed).events[triforce_event(level)], need), (gate, seed, level)
+            seen[gate] += 1
     assert all(seen[gate] for gate in ("raft_blocks", "bracelet_blocks") if getattr(gates, gate)), seen
 
 

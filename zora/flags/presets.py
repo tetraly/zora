@@ -10,10 +10,17 @@ MVP_BASELINE = "oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUJ3A"
 PUBLISHED_VARIANT_A = "oIbnPfPb01Hll3D295IGDxxjR4UwfEok8P4MD"
 PUBLISHED_VARIANT_B = "24hJoDaoq92qaumIfio4Qq8LtfU0Xt8tpG3Iafo"
 PUBLISHED_VARIANT_C = "oIbnRjuMUKqwdnOXzOMO7PuDtwAvU3boJnaXW"
+# Hopla, the community's name for published variant C (features-behavior.md FP-START-02), with Encode
+# level data on as published; the page shows variant C by this name (form.PRESET_LABELS; owner, beta 5).
+HOPLA = PUBLISHED_VARIANT_C
+# Consternation Remastered, the community's name for published variant A, also with Encode level data on
+# as published (form.PRESET_LABELS; owner, beta 5). Random% (published variant B) stays off the menu.
+CONSTERNATION_REMASTERED = PUBLISHED_VARIANT_A
 # CP-5: the MVP baseline with level encoding (B82) off, the string the 1,000-ROM corpus was built from.
 MVP_BASELINE_LEVEL_ENCODING_OFF = "8hq4BeR1JXo89BJ2!TFpTP02u8UJ3A"
 # Published variant A with level encoding (B82) off: the spec's string for it (PS-ITW-07's second
-# Check), which decodes as variant A in every other field.
+# Check), which decodes as variant A in every other field. Not on the page's menu (owner, beta 5),
+# which offers variant A, as Consternation Remastered, with level encoding on.
 PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF = "8hq4BeR1JXhpMPc6s5bu0bWYCiP4MD"
 
 PRESETS: dict[str, str] = {

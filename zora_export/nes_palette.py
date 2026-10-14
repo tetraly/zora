@@ -1,9 +1,9 @@
-"""The NES palette as RGB, for the level colours of the seed document."""
+"""The NES palette as RGB, for the level colors of the seed document."""
 
 # The NES (2C02) palette, entries $00 to $3F as RGB, emphasis bits off: the same table as
 # web/zora-web.js. Source: the first 64 entries of PALETTE_COLORS in src/ppu.cpp of cynes (the emulator
 # ZORA's tests use), https://github.com/Youlixx/cynes, commit 6f8d3a4 (read
-# 2026-10-06). Used under cynes' licence, which follows:
+# 2026-10-06). Used under cynes' license, which follows:
 #
 # MIT License
 #

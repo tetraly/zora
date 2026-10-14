@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77"]     # PEP 639 licence expressions
+requires = ["setuptools>=77"]     # PEP 639 license expressions
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ name = "zora"
 dynamic = ["version"]
 description = "ZORA: Zelda 1 randomizer (shapes dungeon generator)"
 requires-python = ">=3.11"
-# Owner decision 2026-10-07: MIT (LICENSE). PEP 639: the expression replaces the licence
+# Owner decision 2026-10-07: MIT (LICENSE). PEP 639: the expression replaces the license
 # classifier, which setuptools 77+ refuses next to it; the wheel's METADATA shows
 # "License-Expression: MIT" and carries LICENSE.
 license = "MIT"
@@ -17,10 +17,11 @@ license-files = ["LICENSE"]
 [project.optional-dependencies]
 # The emulator tests (tests/emulator.py; docs/packaging.md "Emulator tests"),
 # the parallel test run of scripts/verify.sh (pytest -n auto) and the seed format's schema
-# (tests/test_seed_document.py).
+# (tests/test_seed_document.py), and PyYAML, which reads the page's Archipelago YAML back as
+# Archipelago does (tests/test_web_multiworld.py).
 # numpy (cynes' dependency) below 2.5: 2.5's type stubs use the 3.12 `type` statement, which
 # mypy refuses while it checks for the 3.11 floor.
-test = ["cynes==0.1.2", "jsonschema>=4.18", "numpy<2.5", "pytest-xdist>=3"]
+test = ["cynes==0.1.2", "jsonschema>=4.18", "numpy<2.5", "pytest-xdist>=3", "pyyaml>=6"]
 # The private site build (scripts/build_site.py --with-private; docs/site-build.md).
 site = ["python-minifier==3.4.0"]
 
@@ -43,12 +44,14 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # The flag-combination suites are slow; run them in parallel with `pytest -m slow -n auto`.
 addopts = "-m 'not slow'"
-markers = ["slow: flag-combination suites, many-seed and exhaustive sweeps, and the cross-version check (tests/test_flag_invariants.py, tests/test_cross_version.py)"]
+markers = ["slow: flag-combination suites, many-seed and exhaustive sweeps, and the cross-version check (tests/test_flag_invariants.py, tests/test_cross_version.py)",
+           "full_tier: seeds 2 and up of a seed sweep (a parametrize over `seed` alone), set by tests/conftest.py; the fast tier (scripts/verify.sh) leaves them to the full tier (scripts/verify_full.sh)"]
 
 [tool.mypy]
 files = ["zora", "zora_export", "zora_measure", "zora_web", "tests", "scripts/check_imports.py",
          "scripts/compare_corpus.py", "scripts/compare_revision.py", "scripts/metrics.py", "scripts/output_hash.py",
-         "scripts/flag_names.py"]
+         "scripts/flag_names.py", "scripts/encoder_check.py", "scripts/full_tier.py", "scripts/job.py",
+         "scripts/jobs.py", "scripts/build_apworld.py", "scripts/check_apworld.py", "scripts/guide_page.py"]
 python_version = "3.11"
 strict = true
 

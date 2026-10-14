@@ -291,7 +291,7 @@ def is_extra_slot_collected(slot: str, caves: CaveShuffle, held: frozenset[int],
                             rules: LogicRules = DEFAULT_RULES) -> bool:
     """VA-REJ-07's rule for an extra's cave, as for the white-sword slot:
     collected when the cave's screen needs are held; a cave the cave
-    shuffle did not enrol is never collected, as for that slot. The
+    shuffle did not enroll is never collected, as for that slot. The
     magical-sword cave's heart requirement is judged apart, by
     randomize_magical_sword.has_enough_heart_containers."""
     screens = caves.movable_screens(EXTRA_SLOT_CAVES[slot])

@@ -3,7 +3,7 @@
 run as a subprocess (`cli.py --seed`); none of its code is imported.
 
 Compared: what both read from the ROM. Not compared: names each side chooses for itself
-(room layouts, enemies, cave and screen names, level colours, transport staircase numbers);
+(room layouts, enemies, cave and screen names, level colors, transport staircase numbers);
 for those the check is that each side's names map one to one onto the other's, so the two
 sides at least tell the same things apart. ZORA's extras (settings, speakers, sellsOnce) the
 visualizer cannot read, so they are not compared.

@@ -51,17 +51,21 @@ MMG win/lose values: 5 independent patchable ROM locations.
 """
 from typing import Any
 
+from ...model.enums import DungeonNothingCode
 from ...model.game_world import GameWorld
 from ...model.levels import Level, LevelBlock
 from ...model.sprites import SpriteData
 from .. import person_code
 from ..game_config import GameConfig
 from ..layout import (
+    ASM_NOTHING_CODE_PATCH_OFFSET,
+    ASM_NOTHING_CODE_PATCH_VALUE,
     BNE_OPCODE,
     BOSS_SET_EXPANSION_SPRITES_SIZE,
     DUNGEON_NOTHING_CODE,
     FIRST_MIXED_GROUP_CODE,
     HINT_SHOP_QUOTES_ADDRESS,
+    LEVEL_INFO_SIZE,
     OVERWORLD_PERSON_TEXT_SELECTORS_ADDRESS,
     POINTER_COUNT,
     QUOTE_DATA_ADDRESS,
@@ -71,7 +75,7 @@ from ..layout import (
 from .bin_files import RawBinFiles
 from .enemies import _parse_enemy_hp, _parse_enemy_tile_data, _parse_mixed_enemy_groups
 from .features import _parse_b10_data
-from .levels import _parse_block, _parse_level
+from .levels import _arrival_code, _parse_block, _parse_level
 from .overworld import _parse_overworld
 from .text import REFUSAL_SLOT, _parse_person_text, _slot_text
 
@@ -162,12 +166,23 @@ def parse_game_world(bins: RawBinFiles,
         blocks=blocks,
         blocks_2q=blocks_2q,
         quotes_raw=bins.quotes_data,
+        overworld_arrival_code=_arrival_code(bins.level_info[:LEVEL_INFO_SIZE]),
+        dungeon_nothing_code=_engine_nothing_code(rom_bytes),
         **_parse_person_code(bins, rom_bytes=rom_bytes),
         **_parse_b10_data(rom_bytes, bins.tile_mapping_pointers, _slot_text(quotes, REFUSAL_SLOT)),
     )
 
 
 SET_LEVELS = (range(1, 7), range(7, 10))
+
+
+def _engine_nothing_code(rom_bytes: bytes | None) -> DungeonNothingCode:
+    """The "no item" code the engine's sentinel comparison reads (GameWorld.dungeon_nothing_code):
+    ZORA_REMAP where the ROM carries the remap's byte; PRG0's otherwise, and without a ROM image.
+    The room bytes are read in the code the caller's GameConfig names."""
+    if rom_bytes is not None and rom_bytes[ASM_NOTHING_CODE_PATCH_OFFSET] == ASM_NOTHING_CODE_PATCH_VALUE:
+        return DungeonNothingCode.ZORA_REMAP
+    return DungeonNothingCode.VANILLA
 
 
 def _second_quest_sets(level_pointers: bytes) -> list[int]:

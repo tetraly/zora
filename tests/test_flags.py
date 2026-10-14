@@ -33,7 +33,8 @@ from zora.flags.fields import (
 )
 from zora.flags.codec import FlagStringError, decode, encode
 from zora.flags.support import (
-    OWNER_TURN_OFF_TOGGLES, TURN_OFF_OPTIONS, TURN_OFF_TOGGLES, Support, is_fully_supported,
+    OWNER_TURN_OFF_TOGGLES, TURN_OFF_OPTIONS, TURN_OFF_TOGGLES, TURN_OFF_TOGGLES_NOT_RANDOM, Support,
+    is_fully_supported,
     mvp_baseline_settings, support,
     unsupported_fields,
 )
@@ -629,8 +630,8 @@ def test_fl_sup_03_supported_three_state_values_are_the_baseline_and_the_turn_of
     row = next(row for row in SUPPORT_TOGGLE_ROWS if row[0] == toggle.id)
     produced = (({mvp_baseline_settings().toggle(toggle)} | turn_off_values(row) | specified_values(row))
                 - NOT_YET_PRODUCED.get(toggle.id, set()))
-    if {ThreeState.OFF, ThreeState.ON} <= produced:
-        produced.add(ThreeState.POSSIBLE)
+    if {ThreeState.OFF, ThreeState.ON} <= produced and toggle.id not in TURN_OFF_TOGGLES_NOT_RANDOM:
+        produced.add(ThreeState.POSSIBLE)                # B29's "?" stays unsupported (FL-SUP-01)
     if toggle == ENCODE_LEVEL_DATA:
         produced = {ThreeState.OFF, ThreeState.ON}       # never "?" (owner ruling, 2026-10-06)
     if toggle.id in OWNER_TURN_OFF_TOGGLES:
@@ -642,15 +643,15 @@ def test_fl_sup_03_supported_three_state_values_are_the_baseline_and_the_turn_of
 
 
 def test_fl_off_07_table_matches_the_support_columns_and_counts() -> None:
-    """FL-OFF-07 lists 27 fields (22 three-state, 5 option) and 48 values, the same as the last
+    """FL-OFF-07 lists 28 fields (23 three-state, 5 option) and 49 values, the same as the last
     columns of FL-SUP-02 and FL-SUP-03 and as zora.flags.support."""
     assert [row[0] for row in TURN_OFF_ROWS] == [
         "B01", "B08", "B09", "B13", "B10", "B11", "B12", "B14", "B16", "B15", "B19", "B22", "B23", "B27", "B28",
-        "B31", "B34", "B36", "B40", "B42", "B49", "B54", "C04", "C09", "C10", "C14", "C17"]
+        "B29", "B31", "B34", "B36", "B40", "B42", "B49", "B54", "C04", "C09", "C10", "C14", "C17"]
     columns = {row[0]: turn_off_values(row) for row in SUPPORT_OPTION_ROWS + SUPPORT_TOGGLE_ROWS
                if turn_off_values(row)}
     assert set(columns) == {row[0] for row in TURN_OFF_ROWS}
-    assert sum(len(values) for values in columns.values()) == 48
+    assert sum(len(values) for values in columns.values()) == 49
     assert sorted(TURN_OFF_TOGGLES) == sorted(f for f in columns if f.startswith("B"))
     assert {f: set(v) for f, v in TURN_OFF_OPTIONS.items()} == {f: v for f, v in columns.items() if f.startswith("C")}
 
@@ -686,6 +687,9 @@ def test_question_mark_on_a_field_without_a_supported_off_is_refused_up_front() 
     cp5 = decode(MVP_BASELINE_LEVEL_ENCODING_OFF)
     for field_id in ("B02", "B32", "B43"):              # on in the baseline, off not supported
         assert unsupported_fields(cp5.updated(toggles={field_id: ThreeState.POSSIBLE})) == [field_id]
+    # B29's off is supported, its "?" is not (FL-SUP-01: FL-DEP-02 rule 4)
+    assert unsupported_fields(cp5.updated(toggles={"B29": ThreeState.POSSIBLE})) == ["B29"]
+    assert is_fully_supported(cp5.updated(toggles={"B29": ThreeState.OFF}))
     # B23's off needs B22 off, so a "?" on B23 with B22 on or "?" is refused
     for b22 in (ThreeState.ON, ThreeState.POSSIBLE):
         assert unsupported_fields(cp5.updated(toggles={"B22": b22, "B23": ThreeState.POSSIBLE})) == ["B23"]
@@ -695,5 +699,5 @@ def test_question_mark_on_a_field_without_a_supported_off_is_refused_up_front() 
     assert is_fully_supported(cp5.updated(options={"C17": 22}))
     assert is_fully_supported(cp5.updated(toggles={"B22": ThreeState.POSSIBLE}))
     assert is_fully_supported(cp5.updated(toggles=dict.fromkeys(TURN_OFF_TOGGLES, ThreeState.POSSIBLE)
-                                          | {"B23": ThreeState.ON}))
+                                          | {"B23": ThreeState.ON, "B29": ThreeState.ON}))
     assert unsupported_fields(cp5.updated(toggles={"B82": ThreeState.POSSIBLE})) == ["B82"]

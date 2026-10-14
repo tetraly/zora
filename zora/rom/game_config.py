@@ -2,16 +2,24 @@
 
 Reconstructed: this module was imported by the serializer but missing from the
 repo snapshot. Only HintMode was needed by the data layer at first;
-DungeonNothingCode + GameConfig were added for the "no item" modeling
-decision (serialization byte is a setting, the model keeps a meaning).
+GameConfig was added for the "no item" modeling decision: the room bytes' "no item" code is a
+setting (GameConfig.dungeon_nothing_code), the model keeps a meaning; the engine byte that
+compares it is the model's (GameWorld.dungeon_nothing_code, owner ruling 2026-10-13).
 
 Future settings derived from the randomizer flags (per the same decision,
 landing later): hint text relocation and boss sprite relocation — they belong
 as fields on GameConfig once the flag surface exists.
 """
 from dataclasses import dataclass, fields
-from enum import Enum, IntEnum, auto
+from enum import Enum, auto
 from typing import Any
+
+from ..model.enums import DungeonNothingCode
+from .revision import Revision
+
+# DungeonNothingCode, GameConfig's field type, lives in the model (GameWorld holds the engine's code)
+__all__ = ["BLOCKED_CONFIG", "DungeonNothingCode", "GameConfig", "HintMode", "LevelEncodingKey",
+           "reject_blocked_options"]
 
 
 def reject_blocked_options(options: Any, blocked: dict[str, str]) -> None:
@@ -27,20 +35,6 @@ class HintMode(Enum):
     COMMUNITY = auto()    # extended hint bank, centered community hints
     HELPFUL = auto()      # extended hint bank, centered helpful hints
     CONSTERNATION = auto()  # generated Consternation hint text (hints-behavior.md)
-
-
-class DungeonNothingCode(IntEnum):
-    """Which ROM byte encodes "no item" in dungeon room item bytes.
-
-    The model-level meaning is Item.NOTHING; this enum chooses the encoding.
-    VANILLA ($03) is what the Consternation preset uses and keeps
-    parse→serialize byte-identical. ZORA_REMAP ($0E) requires the matching
-    assembly patch (rom_layout.ASM_NOTHING_CODE_PATCH_*; the serializer
-    emits it) which moves the engine's sentinel comparison so $03 can be
-    used for the magical sword inside dungeons.
-    """
-    VANILLA = 0x03
-    ZORA_REMAP = 0x0E
 
 
 @dataclass(frozen=True)
@@ -73,9 +67,9 @@ class GameConfig:
     # Book is an Atlas (B49; FP-BOOK-01), one of the B10 code patches: off
     # leaves that patch out (FL-OFF-05).
     book_is_an_atlas: bool = True
-    # Book To Understand Old Men (B48; HT-BOOK-01): on writes ht-book-01, so a person shows text 0
+    # Book to Understand NPCs (B48; HT-BOOK-01): on writes ht-book-01, so a person shows text 0
     # unless Link holds the Book. Off leaves the patch out.
-    book_to_understand_old_men: bool = False
+    book_to_understand_npcs: bool = False
     # The ZORA flags Progressive Items and Shop Items in the Item Pool (PI-CODE-01): they
     # choose which of fp-prog-01 / fp-prog-02 are written, and fp-prog-01's on/off byte.
     progressive_items: bool = False
@@ -100,6 +94,12 @@ class GameConfig:
     # Encode level data (FP-TOURNEY-01; zora/rom/level_encoding.py): None leaves
     # the level data plain, byte-identical to the unencoded output.
     level_encoding: LevelEncodingKey | None = None
+    # The player's base ROM (docs/design/prg1.md): which release, and whether its graphics are
+    # modified. serialize_to_rom sets both from the ROM it is given (revision.identify_rom); only
+    # the move back to the release's own layout reads them. The plan, the model and the draws
+    # never do.
+    revision: Revision = Revision.PRG0
+    modified_graphics: bool = False
     # Placeholder fields for the follow-ups named in the same decision —
     # both default to the vanilla/Consternation behavior:
     relocate_hint_text: bool = False       # later derived from flags

@@ -1,22 +1,42 @@
 #!/bin/sh
-# Pre-commit verification (AGENTS.md "Verification"). Run from the repo root:
+# The fast verification tier, before every commit (AGENTS.md "Verification";
+# docs/design/test-speed.md 3.2). Run from the repo root:
 #
-#   sh scripts/verify.sh          zora/'s import rules, tests, type check, ruff on zora/ and its
-#                                 sibling packages, output hashes of 20 seeds
-#   sh scripts/verify.sh REV      ... and compare the output (20-seed hashes and the ROM
-#                                 matrix) with revision REV: exit 1 if any differs, and a
-#                                 non-zero exit if REV is unknown or its output can't be made
+#   sh scripts/verify.sh          zora/'s import rules, the release scan, the tests (but seeds 2
+#                                 and up of seed sweeps, and the slow suite), the encoder check,
+#                                 type check, ruff, and the output (20-seed hashes and the ROM
+#                                 matrix) against the parent commit. It ends on the comparison's
+#                                 verdict: "output identical to <parent>" or "output DIFFERS
+#                                 from <parent>" (a feature's change, reported, not a failure)
+#   sh scripts/verify.sh REV      ... compared with REV instead, strictly: exit 1 if any output
+#                                 differs (a refactor: REV "parent" is the parent itself)
+#
+# Any run exits non-zero if the comparison can't be made (REV unknown, or its output can't be
+# made). The full tier, scripts/verify_full.sh, runs this with ZORA_VERIFY_TIER=full (every
+# seed), then the slow suite, the release-tree checks and the comparison with the last release.
 #
 # scripts/compare_revision.py makes the comparison: it exports REV's committed files into
-# temp/verify/base and hashes them with this checkout's scripts/output_hash.py. In a clean
-# copy (scripts/clean_copy.py) REV is resolved in the checkout the copy was made from
-# (ZORA_SOURCE_REPO in the copy's verify.env), never in the copy's one-commit repository.
+# temp/verify/base and hashes them with this checkout's scripts/output_hash.py, or reuses their
+# hashes from temp/verify/base-cache/ when nothing they depend on changed. In a clean copy
+# (scripts/clean_copy.py) REV is resolved in the checkout the copy was made from
+# (ZORA_SOURCE_REPO in the copy's verify.env), never in the copy's one-commit repository, and
+# the parent is the commit the copy was made from (ZORA_COPY_REVISION).
 #
 # Local settings: if verify.env exists at the repo root (git-ignored), its
 # VAR=value lines are exported first; for example ZORA_CORPORA=DIR, the folder that
 # holds the measurement corpora (zora_measure/corpora.py says where it defaults to). The
 # corpus tests read its clean/final and skip without it.
 set -e
+
+# Progress (zora_measure/progress.py): the run is a job that says at least once a minute where it
+# is and how long is left; inside the full tier it is that job's first step.
+if [ -z "$ZORA_JOB_ID" ]; then
+    exec python3 scripts/job.py run --name "verify.sh (fast tier)" -- sh "$0" "$@"
+fi
+if [ "$ZORA_VERIFY_TIER" = "full" ]; then STEP_LEVEL=substep; else STEP_LEVEL=step; fi
+progress_step() {
+    python3 scripts/job.py $STEP_LEVEL "$1"
+}
 
 # One full suite at a time on this checkout (tests/suite_lock.py): several sessions share it,
 # and suites run together oversubscribe the machine. If another suite holds the lock, this
@@ -34,9 +54,16 @@ if [ -f verify.env ]; then
     set +a
 fi
 
+# The comparison: with REV given, strict; without, the parent, reported
+REV=${1:-parent}
 # An unknown REV stops the run now, before the suite, rather than after it
-if [ -n "$1" ]; then
-    python3 scripts/compare_revision.py "$1" --resolve-only
+python3 scripts/compare_revision.py "$REV" --resolve-only
+
+# The fast tier leaves seeds 2 and up of seed sweeps to the full tier (tests/conftest.py)
+if [ "$ZORA_VERIFY_TIER" = "full" ]; then
+    SELECTION="not slow"
+else
+    SELECTION="not slow and not full_tier"
 fi
 
 # Without the MVP baseline corpus (ZORA_CORPORA's clean/final) the corpus tests skip.
@@ -58,6 +85,7 @@ fi
 # zora/ is generation only: it never imports its siblings zora_export/, zora_measure/
 # or zora_web/, and imports itself only relatively (Archipelago copies zora/ alone, under
 # another name; docs/packaging.md "Packages").
+progress_step "zora/'s import rules and the release scan"
 python3 scripts/check_imports.py
 
 # The release's mention and original-game-byte checks (scripts/make_release.py's own) on the files
@@ -77,8 +105,18 @@ else
     echo "verify: pytest-xdist not installed (pip install -e '.[test]'); running the tests serially" >&2
     PYTEST_WORKERS=""
 fi
-python3 -m pytest tests -q $PYTEST_WORKERS
+# The encoder check (scripts/encoder_check.py): the tests that reach the private level encoder
+# are recorded, then rerun without it, as in a release tree; each must pass or skip.
+progress_step "tests"
+ENCODER_RECORD=$OUT/encoder-record
+rm -rf "$ENCODER_RECORD"
+export ZORA_ENCODER_RECORD="$ENCODER_RECORD"
+python3 -m pytest tests -q -m "$SELECTION" $PYTEST_WORKERS
+unset ZORA_ENCODER_RECORD
+progress_step "the encoder check"
+python3 scripts/encoder_check.py "$ENCODER_RECORD"
 # --no-incremental: the incremental cache has reported success on stale code
+progress_step "type check and ruff"
 python3 -m mypy --no-incremental
 # Archipelago's ruff settings (pyproject.toml; docs/style-archipelago.md): any finding fails
 # The ruff release named in pyproject.toml: another release checks other rules (0.15 left
@@ -89,9 +127,34 @@ if [ "$RUFF_INSTALLED" != "$RUFF_WANTED" ]; then
     echo "verify: WARNING: ruff $RUFF_INSTALLED is installed, pyproject.toml names $RUFF_WANTED (pip install ruff==$RUFF_WANTED)" >&2
 fi
 python3 -m ruff check zora zora_export zora_measure zora_web
+progress_step "the output against $REV"
 python3 scripts/output_hash.py --seeds $SEEDS --json $OUT/head.json
 
-if [ -n "$1" ]; then
-    echo "== output at $1 vs this checkout"
-    python3 scripts/compare_revision.py "$1" --seeds $SEEDS --head-hashes $OUT/head.json
+echo "== output at $REV vs this checkout"
+set +e
+python3 scripts/compare_revision.py "$REV" --seeds $SEEDS --head-hashes $OUT/head.json | tee $OUT/compare.txt
+COMPARED=$?
+set -e
+# tee's status is the pipeline's; compare_revision's verdict line says which it was
+VERDICT=$(tail -n 1 $OUT/compare.txt)
+case "$VERDICT" in
+    "compare_revision: output identical to "*) COMPARED=0 ;;
+    "compare_revision: output DIFFERS from "*) COMPARED=1 ;;
+    *) COMPARED=2 ;;
+esac
+
+if [ "$ZORA_VERIFY_TIER" != "full" ]; then
+    echo
+    echo "verify: fast tier. Not checked here: seeds 2 and up of seed sweeps (tests marked full_tier),"
+    echo "verify: the slow suite, the release-tree checks and the output against the last release."
+    echo "verify: Before reporting a feature done, before merging and in release runs: sh scripts/verify_full.sh"
+fi
+if [ $COMPARED -eq 2 ]; then
+    echo "verify: FAILED: no comparison was made (above)" >&2
+    exit 2
+fi
+echo "$VERDICT"
+# With REV given the comparison is strict; with the parent, a difference is reported only
+if [ $COMPARED -eq 1 ] && [ -n "$1" ]; then
+    exit 1
 fi

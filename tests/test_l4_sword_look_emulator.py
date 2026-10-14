@@ -48,7 +48,7 @@ SWORD_TILES = frozenset({SWORD_TILE, SWORD_SIDE_TILE, MAGICAL_SWORD_TILE})
 PALETTE_ROW_MASK = 0x03
 WHITE_SWORD_ROW, MAGICAL_SWORD_ROW, LEVEL_PALETTE_ROW = 1, 2, 3
 STATUS_BAR_Y = 0x1F
-A_BOX_X = 0x98                        # DrawStatusBarSword's X $94, centred for a narrow item
+A_BOX_X = 0x98                        # DrawStatusBarSword's X $94, centered for a narrow item
 HIDDEN_Y = 0xEF                       # a sprite at Y >= $EF is off screen
 OAM = 0x200
 OAM_RECORDS = 64

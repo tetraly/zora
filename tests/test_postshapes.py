@@ -20,7 +20,7 @@ from zora.generate.generation_pass import generate_shapes
 from zora.generate.shapes.options import ShapeOptions
 from zora.generate.steps.item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
 from zora.generate.steps.add_money_or_life_rooms import add_money_or_life_rooms
-from zora.generate.steps.shuffle_bomb_upgrade_men import shuffle_bomb_upgrade_men
+from zora.generate.steps.shuffle_bomb_upgraders import shuffle_bomb_upgraders
 from zora.generate.steps.shuffle_dungeon_drops import shuffle_dungeon_drops, snapshot_shapes
 from zora.generate.steps.shuffle_items import shuffle_items
 from zora.generate.steps.change_money_or_life_toll import change_money_or_life_toll
@@ -191,7 +191,7 @@ def test_bomb_upgrade_move() -> None:
     # combined = [2, 3, 0, 1]; discards, then entry 2 (cell 0) swaps with
     # index 1 (cell 3) and entry 3 (cell 1) with itself; combined becomes
     # [2, 0, 3, 1], so the $0F cells in list order are 3 (L2), 1 (L7)
-    shuffle_bomb_upgrade_men(levels, st, ScriptedRng([0, 0, 1, 3]))
+    shuffle_bomb_upgraders(levels, st, ScriptedRng([0, 0, 1, 3]))
     assert [_room(levels, c).enemy for c in range(4)] == [0x4D, 0x4F, 0x4E, 0x4F]
     assert st.bomb_levels == (2, 7)
 

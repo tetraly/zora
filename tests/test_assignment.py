@@ -109,9 +109,10 @@ def test_the_identity_assignment_gives_the_zora_mode_rom(base: bytes, case: str,
     for shop_number, position in one_time_places(built.places):
         expected[ONE_TIME_WARES + position] |= 1 << shop_number
     external = bytearray(finish_unchecked(built, base, identity(built), recompute=False))
-    if expected != bytearray(zora_mode):            # the seed code hashes the ROM, so it follows
-        seed_code = slice(SEED_CODE_ADDRESS, SEED_CODE_ADDRESS + SEED_CODE_LENGTH)
-        external[seed_code] = expected[seed_code]
+    # The seed code covers the configuration, External mode's one-time places included, so it
+    # follows (tests/test_revision.py proves it is the model's)
+    seed_code = slice(SEED_CODE_ADDRESS, SEED_CODE_ADDRESS + SEED_CODE_LENGTH)
+    external[seed_code] = expected[seed_code]
     assert external == expected
 
 

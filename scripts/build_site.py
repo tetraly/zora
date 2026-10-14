@@ -26,6 +26,9 @@ already contain, and fails on any hit.
         open from disk: stylesheets, scripts, fonts (data: URIs), the wheel
         and the worker inlined (docs/beta-testers.md). With --with-private the
         grep check runs on that file too, the embedded wheel's members included.
+        The Archipelago guide (archipelago-guide.html, scripts/guide_page.py) is
+        written the same way beside it, as archipelago-guide-<label>.html;
+        scripts/publish_site.sh publishes it as archipelago-guide.html.
 
 --noindex adds <meta name="robots" content="noindex"> to every page written
 (off by default; scripts/publish_site.sh, the real site, leaves it off).
@@ -75,6 +78,9 @@ EMBEDDED_WHEEL_ID = "zora-embedded-wheel"
 # FLAG_TABS_EMBEDDED_ID)
 EMBEDDED_FLAG_TABS_ID = "zora-embedded-flag-tabs"
 FLAG_TABS = "flag-tabs.json"
+GUIDE_PAGE = "archipelago-guide.html"       # scripts/guide_page.py's page, staged by web/stage.sh
+# The guide links back to the generator and to its own headings; nothing else of the site's.
+GUIDE_LOCAL_LINKS = re.compile(r'(?:href|src)="(?!data:|https://|\./"|#)[^"]*"')
 STYLESHEET_TAG = re.compile(r'<link rel="stylesheet" href="([^"]+)">')
 SCRIPT_TAG = re.compile(r'<script src="([^"]+)"></script>')
 FONT_URL = re.compile(r"url\('(fonts/[^']+\.woff2)'\)")
@@ -127,17 +133,17 @@ def check_output_folder(out: Path) -> Path:
 def stage_public(out: Path, noindex: bool = False) -> None:
     """The public site, by web/stage.sh itself; then, with noindex, its page gets the robots tag."""
     subprocess.run(["sh", "web/stage.sh", str(out)], cwd=REPO, check=True, stdout=subprocess.DEVNULL)
-    page = out / "index.html"
-    page.write_text(marked_page(page.read_text(), noindex))
+    for page in (out / "index.html", out / GUIDE_PAGE):
+        page.write_text(marked_page(page.read_text(), noindex))
 
 
 def marked_page(page: str, noindex: bool = False) -> str:
     """The page, with noindex the robots meta tag first in <head>."""
     if not page.startswith(DOCTYPE):
-        raise BuildError(f"index.html does not start with {DOCTYPE.strip()!r}")
+        raise BuildError(f"a page does not start with {DOCTYPE.strip()!r}")
     if noindex:
         if "<head>\n" not in page:
-            raise BuildError("index.html has no <head> for the robots tag")
+            raise BuildError("a page has no <head> for the robots tag")
         page = page.replace("<head>\n", "<head>\n" + ROBOTS_NOINDEX, 1)
     return page
 
@@ -314,12 +320,29 @@ def single_file_html(site: Path, label: str) -> str:
         raise BuildError("index.html: no stylesheet or script tags to inline")
     first_script = page.index("<script>")
     page = page[:first_script] + embedded + page[first_script:]
-    # The fonts' licence travels with them (SIL OFL 1.1).
-    licence = _inline((site / FONT_LICENSE).read_text(), "-->", FONT_LICENSE)
-    page = page.replace("<head>\n", f"<head>\n<!--\nDM Sans and DM Mono, embedded below:\n\n{licence}-->\n", 1)
+    # The fonts' license travels with them (SIL OFL 1.1).
+    license = _inline((site / FONT_LICENSE).read_text(), "-->", FONT_LICENSE)
+    page = page.replace("<head>\n", f"<head>\n<!--\nDM Sans and DM Mono, embedded below:\n\n{license}-->\n", 1)
     leftover = re.findall(r'(?:href|src)="(?!data:|https://)[^"]*"', page)
     if leftover:
         raise BuildError(f"index.html: local references left in the single file: {leftover}")
+    return page
+
+
+def single_file_guide(site: Path) -> str:
+    """The staged guide as one page: stylesheets (fonts as data: URIs) and scripts inline. It links
+    only to the generator beside it ("./") and to its own headings."""
+    page = (site / GUIDE_PAGE).read_text()
+    page, sheets = STYLESHEET_TAG.subn(lambda match: _stylesheet(site, match.group(1)), page)
+    page, scripts = SCRIPT_TAG.subn(lambda match: "<script>\n" + _inline(
+        (site / match.group(1)).read_text(), "</script", match.group(1)) + "</script>", page)
+    if not sheets or not scripts:
+        raise BuildError(f"{GUIDE_PAGE}: no stylesheet or script tags to inline")
+    license = _inline((site / FONT_LICENSE).read_text(), "-->", FONT_LICENSE)
+    page = page.replace("<head>\n", f"<head>\n<!--\nDM Sans and DM Mono, embedded below:\n\n{license}-->\n", 1)
+    leftover = GUIDE_LOCAL_LINKS.findall(page)
+    if leftover:
+        raise BuildError(f"{GUIDE_PAGE}: local references left in the single file: {leftover}")
     return page
 
 
@@ -351,8 +374,17 @@ def build_single_file(site: Path, with_private: bool, public: dict[str, str] | N
         print(f"grep check (single file): {len(distinctive)} distinctive strings, {len(hits)} hits")
         if hits:
             raise BuildError("private strings in the single file (not written):\n  " + "\n  ".join(hits[:40]))
+    guide_path = out / f"archipelago-guide-{slug}{'' if with_private else '-public'}.html"
+    guide = single_file_guide(site)
+    if with_private:
+        assert public is not None
+        _distinctive, hits = grep_check({guide_path.name: guide}, public, private_strings())
+        if hits:
+            raise BuildError("private strings in the guide (not written):\n  " + "\n  ".join(hits[:40]))
     path.write_text(page)
     print(f"single file {path.relative_to(REPO)} ({path.stat().st_size:,} bytes), {label}")
+    guide_path.write_text(guide)
+    print(f"guide page {guide_path.relative_to(REPO)} ({guide_path.stat().st_size:,} bytes)")
     return path
 
 

@@ -12,7 +12,7 @@ item placement). Levels with unreachable rooms are counted in
 world.unreachable_levels for reporting.
 """
 from ...model.enums import Side
-from ...model.room_grid import neighbour
+from ...model.room_grid import neighbor
 from .world import SetWorld, StairKind, StairPlan
 
 
@@ -35,7 +35,7 @@ def _forward_edges(world: SetWorld, blob: int) -> dict[int, list[int]]:
     adj: dict[int, list[int]] = {c: [] for c in cells | stair_cells}
     for c in sorted(cells):
         for d in Side:
-            nb = neighbour(c, d)
+            nb = neighbor(c, d)
             if nb in cells and world.plans[c].walls[d] != 1:
                 adj[c].append(nb)
     for sp in sorted(stairs.values(), key=lambda s: s.cell):
@@ -59,7 +59,7 @@ def _reverse_edges(world: SetWorld, blob: int) -> dict[int, list[int]]:
     adj: dict[int, list[int]] = {c: [] for c in cells | stair_cells}
     for c in sorted(cells):
         for d in Side:
-            nb = neighbour(c, d)
+            nb = neighbor(c, d)
             if nb in cells and world.plans[nb].walls[d.opposite] != 1:
                 # nb -> c is traversable; record reverse-reach edge c <- nb
                 adj[c].append(nb)

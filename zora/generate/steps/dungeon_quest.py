@@ -105,7 +105,12 @@ def _apply_stored_values(levels: list[Level], source: SetSource) -> None:
 def vanilla_set(gw: GameWorld, set_index: int, source: SetSource) -> tuple[LevelBlock, list[Level]]:
     """SH-SRC-02/03: a vanilla set starts as PRG0's block for its quest and set, with PRG0's
     level information for each level (the second quest's replacement bytes in a second-quest
-    level); a copy, so the base GameWorld is untouched."""
+    level); a copy, so the base GameWorld is untouched.
+
+    The Triforce-room record (level information +$30, the compass) is not kept: the passes move
+    the triforce (the late gate's re-deal re-points the record, VA-REJ-03 step 1, A16; PS-DROP-03),
+    so it is derived from the rooms when the level is written, as for a shapes level. Kept, it
+    pointed at PRG0's triforce room."""
     first_quest = source is SetSource.FIRST_QUEST
     base_block = (gw.blocks if first_quest else gw.blocks_2q)[set_index]
     base_levels = [(gw.levels if first_quest else gw.levels_2q)[level_num - 1] for level_num in SET_LEVELS[set_index]]
@@ -113,6 +118,7 @@ def vanilla_set(gw: GameWorld, set_index: int, source: SetSource) -> tuple[Level
     block.levels[:] = levels
     for level in levels:
         level.is_second_quest = not first_quest
+        level.triforce_room_ptr = None
     _apply_stored_values(levels, source)
     return block, levels
 

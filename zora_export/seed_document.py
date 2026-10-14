@@ -92,9 +92,9 @@ DOORS = {
 # zora/generate/shapes/minimap.py).
 MAP_COLUMNS_HIDDEN_LEFT = 4
 MAP_COLUMN_MASK = 0x0F
-# The level's map colour: its wall colour (the third colour group's colour), one NES
-# brightness step up so that a dark wall colour still shows on a map.
-WALL_COLOUR_GROUP = 2
+# The level's map color: its wall color (the third color group's color), one NES
+# brightness step up so that a dark wall color still shows on a map.
+WALL_COLOR_GROUP = 2
 BRIGHTNESS_STEP = 0x10
 BRIGHTEST_ROW = 0x30
 # Monsters without the level's group size: bosses, people and other single objects.
@@ -121,11 +121,11 @@ def map_column(level: Level, room_number: int) -> int:
     return ((room_grid.column(room_number) + level.map_start) & MAP_COLUMN_MASK) - MAP_COLUMNS_HIDDEN_LEFT + 1
 
 
-def level_colour(level: Level) -> str:
-    colour = level.palette_colors()[WALL_COLOUR_GROUP]
-    if colour < BRIGHTEST_ROW:
-        colour += BRIGHTNESS_STEP
-    return NES_PALETTE[colour].upper()
+def level_color(level: Level) -> str:
+    color = level.palette_colors()[WALL_COLOR_GROUP]
+    if color < BRIGHTEST_ROW:
+        color += BRIGHTNESS_STEP
+    return NES_PALETTE[color].upper()
 
 
 # Without PS-BOMB-03's patch the engine's own test applies: persons outside levels 3, 4, 6,
@@ -196,7 +196,7 @@ def level_entry(level: Level, selling: frozenset[int]) -> dict[str, Any]:
         "staircase": stairs.get(room.room_num),
         "doors": {side: DOORS[getattr(room.walls, side)] for side in ("north", "east", "south", "west")},
     } for room in level.rooms]
-    return {"number": level.level_num, "shownNumber": level.rom_level_num, "color": level_colour(level),
+    return {"number": level.level_num, "shownNumber": level.rom_level_num, "color": level_color(level),
             "rooms": rooms}
 
 
@@ -314,7 +314,7 @@ def shop_wares(shop: Shop) -> list[tuple[int, ShopItem]]:
 
 # A text selector is twice the text's slot (the person-text pointer table is two bytes a text).
 SELECTOR_TO_SLOT = 2
-FIRST_PERSON = Enemy.OLD_MAN           # people are object types $4B-$52: their table index
+FIRST_PERSON = Enemy.ELDER             # people are object types $4B-$52: their table index
 # Level 9's persons read a fixed table (aldonunez UnderworldPersonTextSelectorsC), which ZORA
 # leaves as PRG0 has it.
 LEVEL_9_SELECTORS = (0x44, 0x46, 0x48, 0x4A)
@@ -392,7 +392,7 @@ def speakers(world: GameWorld) -> dict[int, list[Speaker]]:
 
 
 def shown_text(text: str) -> str:
-    """A text as the player reads it: its lines joined, without the centring padding."""
+    """A text as the player reads it: its lines joined, without the centering padding."""
     return " ".join(line.replace("~", " ").strip() for line in text.split("|") if line.strip("~ "))
 
 

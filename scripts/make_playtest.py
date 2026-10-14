@@ -10,7 +10,7 @@
   (default temp/playtest_report.md)
 
 Usage: python3 scripts/make_playtest.py [--seeds 1 2 3 4 5] [--flags STRING]
-                                        [--outdir DIR] [--report FILE]
+                                        [--outdir DIR] [--report FILE] [--base-rom FILE]
 """
 import argparse
 import sys
@@ -28,12 +28,13 @@ from dataclasses import replace  # noqa: E402
 
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF  # noqa: E402
 from zora.rom import level_encoding
-from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom  # noqa: E402
+from zora.rom.base_rom import BASE_ROM_PATH  # noqa: E402
+from zora.rom.revision import RomNotRecognized, identify_rom  # noqa: E402
 from zora.generate.pipeline import FlagsRefused, generate_world, plan  # noqa: E402
 from zora.rom.parse.rom_file import load_rom, parse_rom  # noqa: E402
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.rom.player_settings import PlayerSettingError, parse_player_settings  # noqa: E402
-from zora.model.room_grid import neighbour  # noqa: E402
+from zora.model.room_grid import neighbor  # noqa: E402
 from zora.generate.shapes.tables import PERSON_LIST_DEFAULT, L9_PERSON_LISTS, EXTRA_PERSON_5_7  # noqa: E402
 
 PERSON_LISTS = {0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50, 0x51, 0x52}
@@ -85,7 +86,7 @@ def level_tallies(lvl: Level) -> dict[str, int]:
     seen_pairs: set[tuple[int, int]] = set()
     for rn, room in rooms.items():
         for side in Side:
-            nb = neighbour(rn, side)
+            nb = neighbor(rn, side)
             if nb is None or nb not in rooms:
                 continue
             pair = (min(rn, nb), max(rn, nb))
@@ -112,9 +113,12 @@ def main() -> int:
                     help="flag string (default: the MVP baseline, level encoding off)")
     ap.add_argument("--outdir", type=Path, default=REPO / "temp" / "playtest")
     ap.add_argument("--report", type=Path, default=REPO / "temp" / "playtest_report.md")
+    ap.add_argument("--base-rom", type=Path, default=BASE_ROM_PATH,
+                    help="the base ROM: PRG0 or PRG1, with or without modified graphics "
+                         "(default: the repo's PRG0 file)")
     ap.add_argument("--setting", action="append", default=[], metavar="NAME=VALUE",
                     help="a player setting (zora/rom/player_settings.py), e.g. music=off or "
-                         "heart_colour=0x21; repeat for more; the defaults otherwise")
+                         "heart_color=0x21; repeat for more; the defaults otherwise")
     args = ap.parse_args()
     try:
         settings = parse_player_settings(args.setting)
@@ -122,12 +126,16 @@ def main() -> int:
         print(exc, file=sys.stderr)
         return 1
 
-    vanilla_path = BASE_ROM_PATH
+    vanilla_path = args.base_rom
     if not vanilla_path.exists():
         print("vanilla ROM not found", file=sys.stderr)
         return 1
-    verify_base_rom(vanilla_path)
     rom = load_rom(vanilla_path)
+    try:
+        print(identify_rom(rom).message)
+    except RomNotRecognized as refused:
+        print(refused, file=sys.stderr)
+        return 1
     outdir = args.outdir
     outdir.mkdir(parents=True, exist_ok=True)
 
@@ -141,8 +149,8 @@ def main() -> int:
         gw, result = generate_world(chosen, rom)
         # The checks read plain level data: with level encoding on they run on
         # the seed's plain twin (the same world, encoding off), whose level data
-        # the encoded ROM decodes to once a second-quest set's block is folded
-        # (plain_level_data does it, as the encoding does).
+        # the encoded ROM decodes to (a second-quest set's block is already in its
+        # first-quest slot: GameWorld.store_second_quest_sets_in_first_quest_slots).
         plain_config = replace(chosen.config, level_encoding=None)
         plain = serialize_to_rom(gw, rom, config=plain_config)
         out = serialize_to_rom(gw, rom, config=chosen.config, player_settings=settings)

@@ -10,7 +10,7 @@ both, a step sideways only the tile he moves onto. The engine's one special case
 $1F's false wall (at X = $80 going up), which opens its top.
 
 With the ladder, Link also steps over exactly one square of water (two tiles) in a straight
-line onto land. Raft docks, the recorder, bombable walls and the boulders are not modelled:
+line onto land. Raft docks, the recorder, bombable walls and the boulders are not modeled:
 they gate entrances, which the acceptance check's screen sets already handle.
 
 Two screens join where one's edge and the other's opposite edge are walkable at the same
@@ -68,9 +68,16 @@ def screen_tiles(rom: bytes, screen: int) -> Tiles:
 
 @dataclass
 class ScreenRegions:
-    """One screen: its regions and, per side, the region at each edge position (None: wall)."""
+    """One screen: its regions, per side the region at each edge position (None: wall), and the
+    region of every position Link can stand on."""
     count: int
     edges: dict[str, dict[int, int | None]]
+    positions: dict[tuple[int, int], int] = field(default_factory=dict)
+
+    def regions_in_columns(self, columns: range) -> set[int]:
+        """The regions with a position whose left foot is in one of the columns (a cave entrance's
+        square: the screen's split regions tell which side of a wall its cave is on)."""
+        return {region for (_, column), region in self.positions.items() if column in columns}
 
 
 def _stands(tiles: Tiles, row: int, column: int) -> bool:
@@ -115,10 +122,10 @@ def screen_regions(tiles: Tiles, ladder: bool) -> ScreenRegions:
              "S": {c: region.get((ROWS - 1, c)) for c in range(POSITIONS)},
              "W": {r: region.get((r, 0)) for r in range(ROWS)},
              "E": {r: region.get((r, POSITIONS - 1)) for r in range(ROWS)}}
-    return ScreenRegions(count, edges)
+    return ScreenRegions(count, edges, region)
 
 
-def neighbour(screen: int, side: str) -> int | None:
+def neighbor(screen: int, side: str) -> int | None:
     row, column = divmod(screen, GRID_COLUMNS)
     step_row, step_column, _ = SIDES[side]
     if 0 <= row + step_row < SCREEN_ROWS and 0 <= column + step_column < GRID_COLUMNS:
@@ -135,6 +142,10 @@ class ScreenGraph:
     def reach(self, start: int, closed: frozenset[tuple[int, str]] = frozenset()) -> set[int]:
         """The screens reached from any region of `start`, never leaving a screen by a closed
         (screen, side): a maze screen's sides that repeat it."""
+        return {screen for screen, _ in self.reach_regions(start, closed)}
+
+    def reach_regions(self, start: int, closed: frozenset[tuple[int, str]] = frozenset()) -> set[Node]:
+        """The regions reached from any region of `start`, as reach."""
         seen = {(start, region) for region in range(self.screens[start].count)}
         queue = deque(seen)
         while queue:
@@ -146,7 +157,7 @@ class ScreenGraph:
                     if arrival not in seen:
                         seen.add(arrival)
                         queue.append(arrival)
-        return {screen for screen, _ in seen}
+        return seen
 
 
 def screen_graph(rom: bytes, ladder: bool = False) -> ScreenGraph:
@@ -154,7 +165,7 @@ def screen_graph(rom: bytes, ladder: bool = False) -> ScreenGraph:
     graph = ScreenGraph({screen: screen_regions(screen_tiles(rom, screen), ladder) for screen in range(SCREEN_COUNT)})
     for screen, regions in graph.screens.items():
         for side, (_, _, opposite) in SIDES.items():
-            other = neighbour(screen, side)
+            other = neighbor(screen, side)
             if other is None:
                 continue
             across = graph.screens[other].edges[opposite]

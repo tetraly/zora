@@ -39,13 +39,42 @@
 
 <main class="steps">
 
+  <!-- Single player or multiworld (Archipelago): the flow below follows it -->
+  <section class="mode-bar" aria-labelledby="mode-title">
+    <span class="mode-title" id="mode-title">How will you play?</span>
+    <div class="seg seg--mode" id="mode" role="group" aria-labelledby="mode-title">
+      <button type="button" id="mode-single" aria-pressed="true">Single player</button>
+      <button type="button" id="mode-multiworld" aria-pressed="false">Multiworld (Archipelago)</button>
+    </div>
+  </section>
+
+  <!-- Step 1 in multiworld mode: the Archipelago world -->
+  <section class="step" id="step-apworld" aria-labelledby="step-apworld-title" hidden>
+    <span class="step-num" aria-hidden="true">1</span>
+    <div class="step-body">
+      <div>
+        <h2 class="step-title" id="step-apworld-title">Get the ZORA world</h2>
+        <p class="step-sub">Archipelago builds the multiworld from every player's YAML. It needs ZORA's world
+          file, zora.apworld, and a PRG0 or PRG1 ROM on the computer that patches your game. This page only makes
+          your YAML: no ROM is needed here.</p>
+      </div>
+      <dl class="mw-links">
+        <dt>zora.apworld</dt>
+        <dd id="apworld-link"><span class="mw-placeholder">The download link appears once the page has loaded.</span></dd>
+        <dt>Setup guide</dt>
+        <dd id="guide-link"><span class="mw-placeholder">The Archipelago guide for ZORA: how to install the world, generate, host and play.</span></dd>
+      </dl>
+    </div>
+  </section>
+
   <!-- Step 1: the base ROM -->
-  <section class="step" id="step-rom" aria-labelledby="step-rom-title">
+  <section class="step" id="step-rom" aria-labeledby="step-rom-title">
     <span class="step-num" id="step-rom-num" aria-hidden="true">1</span>
     <div class="step-body step-body--row">
       <div>
         <h2 class="step-title" id="step-rom-title">Select ROM</h2>
-        <p class="step-sub" id="rom-label">Legend of Zelda, The (USA), PRG0 release, as a .nes file.</p>
+        <p class="step-sub" id="rom-label">Legend of Zelda, The (USA), PRG0 or PRG1 release, as a .nes file.</p>
+        <p class="step-note" id="rom-identity" role="status"></p>
         <p class="step-error" id="rom-error" role="alert"></p>
       </div>
       <button id="rom-btn" class="btn btn-tint" type="button">Choose file</button>
@@ -54,7 +83,7 @@
   </section>
 
   <!-- Step 2: the settings, built by zora-web.js from the worker's metadata -->
-  <section class="step" aria-labelledby="step-settings-title">
+  <section class="step" aria-labeledby="step-settings-title">
     <span class="step-num" aria-hidden="true">2</span>
     <div class="step-body">
       <div>
@@ -89,11 +118,11 @@
   </section>
 
   <!-- Step 3: generate -->
-  <section class="step" aria-labelledby="step-generate-title">
+  <section class="step" aria-labeledby="step-generate-title">
     <span class="step-num" id="step-generate-num" aria-hidden="true">3</span>
     <div class="step-body">
       <h2 class="step-title" id="step-generate-title">Generate the game</h2>
-      <div class="generate-row">
+      <div class="generate-row" id="generate-row">
         <div class="seed-field">
           <label class="seed-label" for="seed">Seed</label>
           <div class="seed-inputs">
@@ -105,6 +134,14 @@
         </div>
         <button id="generate" class="btn-generate" type="button" disabled>Generate</button>
       </div>
+      <div class="generate-row" id="export-row" hidden>
+        <div class="seed-field">
+          <label class="seed-label" for="player-name">Player name (at most 16 characters)</label>
+          <input id="player-name" class="seed-input" type="text" spellcheck="false" autocomplete="off" aria-describedby="player-name-error">
+        </div>
+        <button id="export" class="btn-generate" type="button" disabled>Export YAML</button>
+      </div>
+      <p class="step-error" id="player-name-error" role="alert"></p>
       <p class="status-line"><span id="status-dot" class="status-dot" aria-hidden="true"></span><span id="status" role="status">Loading Python…</span></p>
       <ul id="problems" class="problems"></ul>
 
@@ -121,6 +158,20 @@
         <div class="result-actions" id="download"></div>
         <p class="after-seed" id="after-seed" role="status"></p>
       </div>
+
+      <div id="export-result" class="result-card" hidden>
+        <div class="result-head">
+          <span class="result-title">Your YAML is ready</span>
+        </div>
+        <p class="after-seed">Put it in Archipelago's Players folder with the other players' YAMLs.</p>
+        <div class="result-actions" id="yaml-download"></div>
+        <p class="guide-next" id="export-guide">Next: see the <a id="export-guide-link" target="_blank" rel="noopener">Archipelago
+          guide</a> for how to generate and join a game.</p>
+        <details class="yaml-details">
+          <summary>Show the YAML</summary>
+          <pre id="yaml-preview" class="yaml-preview"></pre>
+        </details>
+      </div>
     </div>
   </section>
 
@@ -131,7 +182,7 @@
     <a href="https://github.com/tetraly/zora/blob/main/docs/credits.md" target="_blank" rel="noopener">All credits</a></p>
 </footer>
 
-<dialog id="presets" class="preset-dialog" aria-labelledby="presets-title" aria-modal="true">
+<dialog id="presets" class="preset-dialog" aria-labeledby="presets-title" aria-modal="true">
   <div class="preset-dialog-head">
     <h2 id="presets-title">Presets</h2>
     <button id="presets-close" class="btn-close" type="button" aria-label="Close">

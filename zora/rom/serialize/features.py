@@ -52,7 +52,8 @@ def _serialize_new_file_hearts(game_world: GameWorld, patch: Patch) -> None:
     """FP-START-01 and FL-ALT-02: the HeartValues a new save file and the second-quest switch
     store. PRG0's routines are left alone at PRG0's $22 (FP-START-01 allows it); another value
     replaces the immediate in both, so every start sets the same hearts. With start items the
-    routines jump to fp-start-02's table instead, whose hearts byte holds the value (final_steps)."""
+    routines jump to fp-start-02's table instead, whose hearts byte holds the value (the start
+    table, which _serialize_overworld_data writes)."""
     value = heart_values(game_world.new_file_heart_containers, game_world.new_file_full_hearts)
     if value == PRG0_START_HEART_VALUES or game_world.start_items:
         return

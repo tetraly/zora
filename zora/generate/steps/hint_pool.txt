@@ -8,7 +8,9 @@
 # written (a character the text encoder has no tile for, more than three
 # lines, or a line over 24 characters) is left out; docs/ui-provenance.md
 # lists it. The comma and the double quote mark are shown, by owner ruling
-# (2026-10-02), a departure from HT-TEXT-01 for ZORA's own wording.
+# (2026-10-02), a departure from HT-TEXT-01 for ZORA's own wording. Two quotes
+# are in US spelling since the conversion (owner decision, 2026-10-12): TRAVELER
+# and TRAVELED.
 #
 # Format: one quote per line, three tab-separated columns:
 #   class   the routing class: "unrouted", "slot N", "slot A or B",
@@ -95,7 +97,7 @@ slot 14 or 15	MATH IS HARD.|LET'S GO SHOPPING!
 slot 14 or 15	CAN I OFFER YOU|A NICE EGG IN|THIS TRYING TIME?
 slot 14 or 15	USE DISCOUNT CODE|'ZORA' FOR 10 PERCENT|OFF YOUR NEXT ORDER
 slot 14 or 15	SHOP LOCAL, SUPPORT|SMALL BUSINESSES
-slot 14 or 15	HELLO TRAVELLER!|HOW CAN I HELP YOU?
+slot 14 or 15	HELLO TRAVELER!|HOW CAN I HELP YOU?
 slot 14 or 15	I HAVE GREAT DEALS|IN STORE FOR YOU
 slot 14 or 15	THE MIDDLE ITEM IS|MY FAMILY HEIRLOOM
 slot 14 or 15	GET IN, LOSER,|WE'RE GOING SHOPPING
@@ -105,7 +107,7 @@ slot 14 or 15	SHOP SMART!|SHOP S-MART!
 slot 14 or 15	MERCHANDIZING!|WHERE THE REAL MONEY|FROM THE MOVIE IS MADE
 slot 2	I CHALLENGE YOU TO|A STAIRING CONTEST!
 slot 2	BE CAREFUL, STAIRS|ARE ALWAYS UP TO|SOMETHING
-slot 2	MY ADVICE? TAKE THE|ROAD LESS TRAVELLED
+slot 2	MY ADVICE? TAKE THE|ROAD LESS TRAVELED
 slot 2	IN CASE OF EMERGENCY|PLEASE USE STAIRWAYS
 slot 2	THIS IS A|LOST WOODS-BOUND|EXPRESS TRAIN
 slot 18	OM NOM NOM NOM TIME?
@@ -254,7 +256,7 @@ slot 19	INSERT COMMUNITY HINT 52	placeholder
 slot 19	INSERT COMMUNITY HINT 53	placeholder
 slot 19	INSERT COMMUNITY HINT 54	placeholder
 slot 19	INSERT COMMUNITY HINT 55	placeholder
-# Book To Understand Old Men (B48, HT-BOOK-02): slot 0 shows one of these, and only these, and
+# Book to Understand NPCs (B48, HT-BOOK-02): slot 0 shows one of these, and only these, and
 # without the Book every person shows slot 0. The spec's pool has 50 strings in which the
 # speaker cannot be understood; ZORA's pool had none. Owner ruling (2026-10-12): five stand-ins
 # written by Claude, noted "stand-in", until the owner's own wording replaces them. Without B48

@@ -93,8 +93,8 @@ def encode_text(lines: list[str]) -> list[int]:
 # (docs/ui-provenance.md): slot 0's own quotes, which replace the greeting,
 # and three quotes added to slot 9's general draw.
 UNROUTED = "unrouted"
-# Slot 0's two classes: the wood sword cave's own quotes (owner ruling), and with Book To
-# Understand Old Men (B48, HT-BOOK-02) the lines in which the speaker cannot be understood, which
+# Slot 0's two classes: the wood sword cave's own quotes (owner ruling), and with Book to
+# Understand NPCs (B48, HT-BOOK-02) the lines in which the speaker cannot be understood, which
 # take slot 0 in their place and are drawn nowhere without B48
 WOOD_SWORD_SLOT_0_CLASS = "slot 0 (owner ruling)"
 BOOK_SLOT_0_CLASS = "slot 0 with the Book"
@@ -161,8 +161,8 @@ class PoolEntry:
     def slots(self, white_hearts: int, magical_hearts: int, book_needed: bool = False) -> tuple[int, ...]:
         """The slots this quote may be shown in, in a seed whose sword caves
         ask for these heart counts. Reserved quotes and slots 27 and 34 are
-        never drawn: their final pointers are replaced (HT-TEXT-02). book_needed: Book To
-        Understand Old Men (B48), whose lines take slot 0 from the wood sword cave's quotes
+        never drawn: their final pointers are replaced (HT-TEXT-02). book_needed: Book to
+        Understand NPCs (B48), whose lines take slot 0 from the wood sword cave's quotes
         (HT-BOOK-02)."""
         if self.reserved or self.routing_class == (WOOD_SWORD_SLOT_0_CLASS if book_needed else BOOK_SLOT_0_CLASS):
             return ()
@@ -441,29 +441,40 @@ BOSS_LABELS: dict[int, str] = {
     5: "DIGDOGGER", 6: "GLEEOK", 7: "MOLDORM", 8: "LURKING MANHANDLA",
 }
 
-PERSON_SPRITES: dict[int, str] = {
-    0x58: "OLD MAN", 0x59: "OLD WOMAN", 0x5A: "MERCHANT", 0x5B: "MOBLIN",
+# The four person sprites (ObjAnimations $58-$5B) and the name a hint gives each. Owner
+# decision (2026-10-12): both elder sprites are THE ELDER, so a hint no longer tells those two
+# apart.
+PERSON_NAMES: dict[int, str] = {
+    0x58: "ELDER", 0x59: "ELDER", 0x5A: "MERCHANT", 0x5B: "MOBLIN",
 }
 MOBLIN_SPRITE = 0x5B
 SAME_FORM = "SAME"
 HUMAN_FORM = "HUMAN"
 
 
+def sprite_form(sprite: int) -> str:
+    """A target sprite's name form, by its sprite ("$58"): the measured category, whatever
+    name the hint gives it."""
+    return f"${sprite:02X}"
+
+
 def name_form(giver: int, target: int) -> str:
     """HT-HINT-01's name form of a (giver, target) pair: "same" when both
     bytes are equal, else "the human" when the giver is the Moblin, else
-    the target's own name."""
+    the target's own sprite."""
     if giver == target:
         return SAME_FORM
     if giver == MOBLIN_SPRITE:
         return HUMAN_FORM
-    return PERSON_SPRITES[target]
+    return sprite_form(target)
 
 
 def person_name(giver: int, target: int) -> str:
     """The pair's name as an object ("ME" for the same form)."""
     form = name_form(giver, target)
-    return "ME" if form == SAME_FORM else f"THE {form}"
+    if form == SAME_FORM:
+        return "ME"
+    return f"THE {HUMAN_FORM if form == HUMAN_FORM else PERSON_NAMES[target]}"
 
 
 COMPASS_FAMILIES: tuple[tuple[frozenset[int], str], ...] = (
@@ -605,7 +616,7 @@ def gated_screens(gates: OverworldGates) -> dict[str, frozenset[int]]:
     means (Extra Raft Blocks, Extra Power Bracelet Blocks, Randomize Dead Woods' west half;
     overworld_gates.py, the acceptance check's own sets), empty for a means no gate asks for.
     HT-HINT-01's screen sets are PRG0's; without these a door on a new raft block got "THE
-    PRINCESS NEEDS NO RAFT"."""
+    PRINCESS NEEDS NO RAFT" (now "THE HERO'S PATH NEEDS NO RAFT")."""
     gated = dict.fromkeys(GATE_FORMS.values(), frozenset[int]())
     for screens, need in gates.screen_needs():
         if need in GATE_FORMS:
@@ -849,8 +860,9 @@ def requirement_candidates(gw: GameWorld, level_items: list[tuple[int, int]],
 
 # A bracelet door on the graveyard (GRAVESTONE_SCREENS), with the item's own article.
 GRAVESTONE_TEXT = "THE PATH TO {item} LIES BENEATH A GRAVESTONE."
-NOT_NEEDED_TEXT = {Form.NO_BRACELET: ["THE PRINCESS", "NEEDS NO BRACELET"],
-                   Form.NO_RAFT: ["THE PRINCESS", "NEEDS NO RAFT"]}
+# Owner decision (2026-10-12): "THE HERO'S PATH" (it was "THE PRINCESS").
+NOT_NEEDED_TEXT = {Form.NO_BRACELET: ["THE HERO'S PATH", "NEEDS NO BRACELET"],
+                   Form.NO_RAFT: ["THE HERO'S PATH", "NEEDS NO RAFT"]}
 
 
 def _fit(line: str, first: str, second: str) -> list[str]:
@@ -1044,7 +1056,7 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     """HT-TEXT and HT-HINT. every_helpful_hint: Helpful hints (C03 = 1, HT-HINT-04), where every
     slot with a helpful text shows it, with no overlay coin. cave_text_for_magical_sword
     (Randomize Magical Sword) replaces the text drawn for the magical-sword cave's slot after every
-    draw, so the draws are unchanged. book_needed: Book To Understand Old Men (B48, HT-BOOK-02),
+    draw, so the draws are unchanged. book_needed: Book to Understand NPCs (B48, HT-BOOK-02),
     slot 0's candidates are the lines in which the speaker cannot be understood.
     names: how the texts name items (PI-TEXT-01; the vanilla names give HT-HINT-01's).
     gates: the owner's overworld gates, for the requirement candidates.

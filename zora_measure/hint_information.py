@@ -16,7 +16,7 @@ Each side writes its own wording, so no text is matched against words:
    map information, HT-TEXT-02) would agree that often only with
    probability under CHANCE_LIMIT. A text seen once is left undecided, on
    both sides, so both samples must be the same size. Texts are compared
-   without line breaks and centring and without ZORA's openers ("IT IS SAID
+   without line breaks and centering and without ZORA's openers ("IT IS SAID
    THAT", ...), decoration added after the hint is chosen (no corpus text
    starts with one), so one hint's variants count as one text.
 
@@ -34,7 +34,7 @@ from zora.generate.steps.hint_text import (
     HUMAN_FORM,
     INSIDE_MEANS,
     OPENERS,
-    PERSON_SPRITES,
+    PERSON_NAMES,
     REQUIREMENT_SLOTS,
     SAME_FORM,
     _quadrant,
@@ -46,6 +46,7 @@ from zora.generate.steps.hint_text import (
     name_form,
     region_of_screen,
     requirement_candidates,
+    sprite_form,
     sword_enters,
 )
 from zora.generate.steps.mixed_overworld_quest import door_screen
@@ -74,7 +75,7 @@ MONSTER_BIT_LIST = 0x40              # list id bit 6 = the D byte's bit 7
 WHITE_SWORD_CAVE_CODE, MEET_CAVE_CODE = 18, 19
 HIDDEN = (QuestVisibility.SECOND_QUEST, QuestVisibility.NEITHER_QUEST)   # F bit 7 set
 EXTENDED_BANK_CPU_START = cpu_address_in_bank1(EXT_HINT_DATA_ROM_START)
-CENTRING_BLANK, LINE_BREAK = "~", "|"   # a decoded text's centring blanks and line breaks
+CENTERING_BLANK, LINE_BREAK = "~", "|"   # a decoded text's centering blanks and line breaks
 # Ties between equally likely facts: a Ganon-room text shows only in slot
 # 36, where the Zelda-room fact is always present too.
 KIND_ORDER = ("ganon", "zelda")
@@ -268,7 +269,7 @@ def second_quest_inside_candidates(gw: GameWorld) -> Counter[str]:
 
 def hint_key(text: str) -> str:
     """A text as the classifier compares it: one line of words, without a leading opener."""
-    flat = " ".join(text.replace(CENTRING_BLANK, " ").replace(LINE_BREAK, " ").split())
+    flat = " ".join(text.replace(CENTERING_BLANK, " ").replace(LINE_BREAK, " ").split())
     for opener in OPENERS:
         if flat.startswith(opener + " "):
             return flat[len(opener) + 1:]
@@ -345,7 +346,7 @@ def location_results(roms: list[list[Shown]]) -> list[dict[str, bool]]:
     return results
 
 
-NAME_FORMS = (SAME_FORM, HUMAN_FORM, *PERSON_SPRITES.values())
+NAME_FORMS = (SAME_FORM, HUMAN_FORM, *map(sprite_form, PERSON_NAMES))
 
 
 def name_results(roms: list[list[Shown]]) -> list[Counter[str]]:

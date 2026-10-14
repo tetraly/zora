@@ -12,7 +12,7 @@ Sword on, and level-9-gate with Level 9 Entrance = Level 4 sword.
 | `take-l4` | 3a: level 4 from any pickup | 0x06D04 (5 bytes): `HandleClass2`'s `LDA $0A / CMP Items, Y` becomes `JSR TakeGradeWithL4` + 2 NOPs; `TakeGradeWithL4` (21 bytes) at $BFE0 in each of banks 0-6 (0x03FF0 + N x 0x4000) |
 | `sword-cap` | 3b: the sword line tops out at level 4 | 0x07F30, 0x13949, 0x17B49 (4 bytes each, becoming 14): `@Fits` in each `ResolveProgressive` copy; per-seed operands `ZORA_B1_SwordLineToL4` 0x07F33, `ZORA_B4_SwordLineToL4` 0x1394C, `ZORA_B5_SwordLineToL4` 0x17B4C |
 | `level-9-gate` | 3c: level 9 opens for sword level 4 | 0x04AB1 (7 bytes): `InitUnderworldPersonC`'s `LDA InvTriforce / CMP #$FF / BNE @Exit` becomes `LDA InvSword / CMP #$04 / BCC @Exit` |
-| `l4-sword-look` | docs/design/l4-sword.md Q2 (2026-10-12): level 4 looks like the magical sword in the white sword's colours | 0x1F7FB (7 bytes): `@CalcSwordAttrs`' `CLC / ADC Items / SEC / SBC #$01` becomes `JSR SwingRowWithL4` + 4 NOPs; 0x1E78A (9 bytes, the last PRG0's): `DrawItemBySlot`'s sword reads its row and item slot from two tables; 0x1E73F (2 bytes): `AnimateItemObject` jumps to `LookSwordInWorld`; the two routines (29 bytes) at $BFC0 in each of banks 0-6 (0x03FD0 + N x 0x4000), the tables (8 bytes) at bank 7 $FF43 (0x1FF53) |
+| `l4-sword-look` | docs/design/l4-sword.md Q2 (2026-10-12): level 4 looks like the magical sword in the white sword's colors | 0x1F7FB (7 bytes): `@CalcSwordAttrs`' `CLC / ADC Items / SEC / SBC #$01` becomes `JSR SwingRowWithL4` + 4 NOPs; 0x1E78A (9 bytes, the last PRG0's): `DrawItemBySlot`'s sword reads its row and item slot from two tables; 0x1E73F (2 bytes): `AnimateItemObject` jumps to `LookSwordInWorld`; the two routines (29 bytes) at $BFC0 in each of banks 0-6 (0x03FD0 + N x 0x4000), the tables (8 bytes) at bank 7 $FF43 (0x1FF53) |
 
 docs/rom-map.md has the rows ("All Swords No Boards").
 
@@ -52,7 +52,7 @@ $FF43-$FF4A its tables.
 
 ## sword-cap
 
-**Behaviour.** With the per-seed byte $01, at sword level 3 a sword item shows the magical sword
+**Behavior.** With the per-seed byte $01, at sword level 3 a sword item shows the magical sword
 ($03) but not as the line's top: a shop still sells it, and a cave or room gives it (take-l4 then
 gives level 4). At sword level 4 it shows $03 as the top: a shop hides it, and taken elsewhere it
 changes nothing. Every other line is unchanged. With $00 the routine behaves as fp-prog's.
@@ -78,17 +78,17 @@ new address: bank 1 `ZORA_FP_PROG_01_RESOLVE` 98 of 112 bytes, bank 4 `ZORA_FP_P
 fp-prog-01 or fp-prog-02 can move them; the build then stops (a hook off whole instructions, or
 an operand label off its `CMP`), and tests/test_asnb_patches.py's fresh-build test fails. When it
 is wired, the change can move into fp-prog-01's and fp-prog-02's routines themselves, with the
-operand as a labelled per-seed byte like `ZORA_B1_ProgressiveItems`.
+operand as a labeled per-seed byte like `ZORA_B1_ProgressiveItems`.
 
 ## level-9-gate
 
-In place, no new space. The man's refusal is person text 34, written at 0x04546 (bank 1 $8536,
+In place, no new space. The refusal is person text 34, written at 0x04546 (bank 1 $8536,
 72 bytes; the pointer in `PersonTextAddrs` at 0x04054): FP-TRIF-01's `REFUSAL_TEXT_ADDRESS` in
 zora/rom/layout.py, where the generator writes the ASNB refusal text.
 
 ## l4-sword-look
 
-**Behaviour.** PRG0 picks a sword's palette row as its level minus 1, so level 4 fell on row 3,
+**Behavior.** PRG0 picks a sword's palette row as its level minus 1, so level 4 fell on row 3,
 the level's own sprite palette (green in level 1, blue and brown on the overworld), with the
 plain sword's icon. With the patch, level 4 takes row 1, the white sword's, and the magical
 sword's icon (item slot $20) wherever the game draws an icon:

@@ -343,7 +343,9 @@ def logic_model(built: Built) -> LogicModel:
     for hint, hint_shop in rules.maze_hints:
         hint_event = PSEUDO_TERMS[hint]
         assert isinstance(hint_event, EventTerm)
-        events[hint_event.name] = derive(partial(check.shop_door_reached, hint_shop), universes.screen,
+        # with Book to Understand NPCs (B48) the path also needs the book (knows_maze_path)
+        hint_universe = universes.screen | ({Item.BOOK} if rules.maze_hints_need_book else frozenset())
+        events[hint_event.name] = derive(partial(check.knows_maze_path, hint_shop), hint_universe,
                                          hint_event.name)
     if rules.counts_lines and rules.counts_shop_wares:
         for line, ware, _counts in LINE_SHOP_WARES:

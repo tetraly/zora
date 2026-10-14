@@ -1,4 +1,4 @@
-"""Shuffle Bomb Upgrade Men (B29; PS-BOMB-01 to -03)."""
+"""Shuffle Bomb Upgraders (B29; PS-BOMB-01 to -03)."""
 
 from ...model.levels import LEVEL_9, Level
 from ...model.rooms import PERSON_LISTS, EnemyInfo, Room
@@ -12,7 +12,7 @@ BOMB_UPGRADE_LEVELS = (5, 7)     # PS-BOMB-01: the levels whose $0F persons are 
 STRAY_BOMB_UPGRADE_CODE = 0x0E   # PS-BOMB-01: an uncollected $0F becomes $0E
 
 
-def shuffle_bomb_upgrade_men(levels: list[Level], state: ItemShuffleResult,
+def shuffle_bomb_upgraders(levels: list[Level], state: ItemShuffleResult,
                              rng: IntRng) -> None:
     """PS-BOMB-01..03: collect the first two $0F person rooms of levels 5/7,
     rewrite every other $0F person to $0E, swap each collected room's

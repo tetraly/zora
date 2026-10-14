@@ -167,7 +167,7 @@ def test_no_zora_flag_patch_writes_a_reserved_byte(name: str) -> None:
 
 
 @pytest.mark.parametrize("setting", ["select_swap", "low_health_beep", "death_warp", "reduce_flashing",
-                                     "tunic_colours", "heart_colour", "music", "level_word",
+                                     "tunic_colors", "heart_color", "music", "level_word",
                                      "boss_sound_word"])
 def test_no_player_setting_writes_a_reserved_byte(setting: str) -> None:
     """Every byte any choice of the setting may write."""
@@ -204,7 +204,7 @@ EVERY_OWNER_FLAG_ON = zora_flags.encode(replace(
 # Progressive Items refuses Extra Candles (B09), and Extra Power Bracelet Blocks refuses
 # Shuffle "Take Any Road" Caves (B04).
 BASELINE_FOR_OWNER_FLAGS = {"B09": ThreeState.OFF, "B04": ThreeState.OFF}
-# A choice away from each default (tunic and heart colours at other palette values).
+# A choice away from each default (tunic and heart colors at other palette values).
 OTHER_PLAYER_SETTINGS = (
     PlayerSettings(SelectSwap.OFF, LowHealthBeep.KEPT, DeathWarp.CONTROLLER2_UP_A, True,
                    (0x01, 0x02, 0x03), 0x30, Music.OFF, "PALACE", "RANDOM"),

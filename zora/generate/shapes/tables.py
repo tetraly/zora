@@ -85,7 +85,7 @@ def cellar_items(level: int, level_2_sword_cellar: bool = False) -> list[int]:
 # --- SH-ROOM-02/03: person rooms ----------------------------------------------
 # U13 (2026-09-28): 1/1/1/1/2/2/1/2/3 for levels 1-9 (#44.4).
 PERSON_ROOMS: dict[int, int] = {1: 1, 2: 1, 3: 1, 4: 1, 5: 2, 6: 2, 7: 1, 8: 2, 9: 3}
-PERSON_LIST_DEFAULT = 0x4D            # old man (SH-ROOM-02)
+PERSON_LIST_DEFAULT = 0x4D            # the elder (SH-ROOM-02)
 L9_PERSON_LISTS = (0x4C, 0x4D, 0x4E)  # one each (SH-ROOM-02)
 EXTRA_PERSON_5_7 = 0x4F               # bomb upgrader (SH-ROOM-03)
 

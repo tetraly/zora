@@ -11,7 +11,8 @@ DATA_LAYER = "zora/rom/"
 # Tests OF the data layer, which check bytes at fixed offsets by design.
 DATA_LAYER_TESTS = {
     "tests/test_asm_patches.py", "tests/test_data_boundary.py", "tests/test_flag_alternatives.py",
-    "tests/test_person_code.py",
+    "tests/test_game_data_in_model.py",
+    "tests/test_person_code.py", "tests/test_revision.py",
     "tests/test_rom_layout.py", "tests/test_roundtrip.py",
     "tests/test_serializer_guards.py", "tests/test_overworld.py",
 }

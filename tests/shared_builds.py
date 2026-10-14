@@ -7,9 +7,11 @@ folder that lives as long as the session (tests/conftest.py makes and removes it
 process to ask for a (plan, base ROM) generates and stores the world, while others asking at
 the same time wait for it, and another process's first request loads the stored copy.
 
-Every later request in the same process generates afresh, so a test that builds twice and
-compares (a determinism check, a recipe rebuilt) still compares two generations; a test that
-monkeypatches anything neither loads nor stores (its generation may be patched).
+Each test loads a plan from the folder at most once (docs/design/test-speed.md 3.1): every
+later request for it in the same test generates afresh, so a test that builds twice and compares
+(a determinism check, a recipe rebuilt) still compares two generations, while another test asking
+for the same plan, in any process, loads the stored copy. A test that monkeypatches anything
+neither loads nor stores (its generation may be patched). conftest.py marks each test's start.
 
 prebuild() generates a list of plans in a few processes into the folder, so a test that walks
 many seeds one after another loads them instead of generating each in turn.
@@ -41,8 +43,13 @@ class SharedBuilds:
 
     def __init__(self, generate_world: GenerateWorld) -> None:
         self.generate_world = generate_world
-        self.handed_out: set[str] = set()       # keys this process has already had once
+        self.handed_out: set[str] = set()       # keys the running test has already had once
         self.patched_test = False                # the running test uses monkeypatch
+
+    def begin_test(self, patched: bool) -> None:
+        """A new test: it may load each stored plan once more (conftest.pytest_runtest_protocol)."""
+        self.handed_out.clear()
+        self.patched_test = patched
 
     def folder(self) -> Path | None:
         folder = os.environ.get(FOLDER_ENV)

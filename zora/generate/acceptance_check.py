@@ -104,6 +104,9 @@ class LogicRules:
     # shops' front doors must avoid as well (E4/E5).
     maze_hints: tuple[tuple[int, Destination], ...] = ()
     front_door_barred: frozenset[int] = frozenset()
+    # Book to Understand NPCs (B48, HT-BOOK-01): every person, the hint shops' too, shows text 0
+    # until the book is held, so a maze's path is known only with the book as well
+    maze_hints_need_book: bool = False
     # ASNB: level-9 entry by SWORDS_FOR_LEVEL_9 swords instead of the eight triforces; and whether
     # the magical-sword cave's own sword counts once its cave is reached (Randomize Magical Sword
     # off; the heart check leaves it out, AcceptanceHeartReach)
@@ -138,7 +141,8 @@ def _family(family_lists: FamilyLists, name: str, *unblocked_by: frozenset[int])
 
 def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: OverworldGates = NO_GATES,
                 level_9_by_swords: bool = False, magical_sword_cave_counts: bool = False,
-                eleven_screen_recorder_set: bool = False, important_items_in_level_9: bool = False) -> LogicRules:
+                eleven_screen_recorder_set: bool = False, important_items_in_level_9: bool = False,
+                maze_hints_need_book: bool = False) -> LogicRules:
     """Plan section 5, the owner's 2.0 overworld gates and ASNB's level-9 entrance: each rule only
     when its flag is on. Every overworld quest but the first (C01 = 1, 2, 3) reads the
     eleven-screen recorder set (OW-MIX-08, OW-QST-02, OW-QST-04: an entry door or the white-sword
@@ -154,7 +158,8 @@ def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: Overwo
         rules = replace(rules, level_9_by_swords=True, magical_sword_cave_counts=magical_sword_cave_counts)
     if gates.any:
         rules = replace(rules, screen_needs=(*rules.screen_needs, *gates.screen_needs()),
-                        maze_hints=gates.maze_hints(), front_door_barred=gates.gated_screens())
+                        maze_hints=gates.maze_hints(), front_door_barred=gates.gated_screens(),
+                        maze_hints_need_book=maze_hints_need_book and bool(gates.maze_hints()))
     if progressive_items:
         # PI-LOGIC-02: Ganon (the "arrow" family) needs the bow and two arrow upgrades
         rules = replace(rules, counts_lines=True,
@@ -273,6 +278,12 @@ class AcceptanceCheck:
         screens = self.caves.movable_screens(cave)
         return bool(screens) and self.reaches_screen(screens[0], held)
 
+    def knows_maze_path(self, hint_shop: Destination, held: frozenset[int]) -> bool:
+        """A maze's hint: a door of the hint shop that sells its path reached, and with Book to
+        Understand NPCs (B48) the book held, without which the shop's text is text 0."""
+        return self.shop_door_reached(hint_shop, held) and (not self.rules.maze_hints_need_book
+                                                             or Item.BOOK in held)
+
     def collects(self, place: TrackedPlace, held: frozenset[int]) -> bool:
         """VA-REJ-07: whether the closure collects a tracked item's place with this held set."""
         if place.slot == "armos":
@@ -331,7 +342,7 @@ class AcceptanceCheck:
                 held.add(LEVEL9_ENTRY)
                 changed = True
             for hint, hint_shop in self.rules.maze_hints:
-                if hint not in held and self.shop_door_reached(hint_shop, frozenset(held)):
+                if hint not in held and self.knows_maze_path(hint_shop, frozenset(held)):
                     held.add(hint)
                     changed = True
             if (self.rules.walk.triforce_of_power_opens and Item.TRIFORCE_OF_POWER not in held
@@ -356,7 +367,7 @@ class AcceptanceCheck:
     def line_counts(self, held: frozenset[int]) -> set[int]:
         """PI-LOGIC-01: the line-count pseudo-items a held set gives: the line's held items,
         plus (Shop Items in the Item Pool off) its vanilla shop ware once a door of a shop
-        selling it is reached. Rupees are not modelled."""
+        selling it is reached. Rupees are not modeled."""
         counts: set[int] = set()
         for line, ware, at_least in LINE_SHOP_WARES:
             count = len(held & line)

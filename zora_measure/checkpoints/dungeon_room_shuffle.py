@@ -5,7 +5,7 @@ from collections.abc import Callable
 
 from zora.model.enums import RoomAction, Side, WallType
 from zora.model.game_world import GameWorld
-from zora.model.room_grid import neighbour
+from zora.model.room_grid import neighbor
 from zora_measure.checkpoints.shapes_and_gate import _zelda_room
 from zora_measure.checkpoints.summaries import LEVELS_7_9, POOL_ITEMS, Summary, _level9_person_room
 
@@ -93,27 +93,27 @@ def level9_person_trigger(gw: GameWorld) -> int | str:
     return shutters if shutters in LEVEL9_PERSON_TRIGGER_KEYS else "other"
 
 
-ZELDA_NEIGHBOUR_COUNTS = (1, 2, 3, 4)
+ZELDA_NEIGHBOR_COUNTS = (1, 2, 3, 4)
 
 
-def zelda_neighbour_count(gw: GameWorld) -> int:
-    """A48: Zelda's same-level neighbours."""
+def zelda_neighbor_count(gw: GameWorld) -> int:
+    """A48: Zelda's same-level neighbors."""
     zelda = _zelda_room(gw)
     if zelda is None:
         return 0
     owned = set(gw.levels[8].room_nums)
-    return sum(neighbour(zelda.room_num, side) in owned for side in Side)
+    return sum(neighbor(zelda.room_num, side) in owned for side in Side)
 
 
-def zelda_neighbours_trigger3(gw: GameWorld) -> tuple[int, int]:
-    """A48: Zelda's same-level neighbours whose trigger byte is exactly $03."""
+def zelda_neighbors_trigger3(gw: GameWorld) -> tuple[int, int]:
+    """A48: Zelda's same-level neighbors whose trigger byte is exactly $03."""
     zelda = _zelda_room(gw)
     if zelda is None:
         return 0, 0
     level9 = gw.levels[8]
     owned = set(level9.room_nums)
-    neighbours = [gw.level_blocks[LEVELS_7_9].room(n) for side in Side
-                  if (n := neighbour(zelda.room_num, side)) in owned]
+    neighbors = [gw.level_blocks[LEVELS_7_9].room(n) for side in Side
+                  if (n := neighbor(zelda.room_num, side)) in owned]
     hits = sum(room.room_action == RoomAction.LAST_BOSS
-               and room.item_position == 0 for room in neighbours)
-    return hits, len(neighbours)
+               and room.item_position == 0 for room in neighbors)
+    return hits, len(neighbors)

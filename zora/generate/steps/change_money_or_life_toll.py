@@ -4,7 +4,7 @@ from ...model.enums import TollOption
 from ...model.rooms import LifeOrMoneyToll
 from ..rng import IntRng, discard
 from .item_shuffle_result import ItemShuffleResult
-from .shuffle_bomb_upgrade_men import LEADING_DISCARDS
+from .shuffle_bomb_upgraders import LEADING_DISCARDS
 
 # PS-MERCH-02's draw order; ordering a pair by it puts life or max bombs first
 TOLL_OPTIONS = (TollOption.LIFE, TollOption.MAX_BOMBS, TollOption.KEYS, TollOption.MONEY)

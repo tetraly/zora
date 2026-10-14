@@ -24,7 +24,7 @@ def cpu_to_prg(bank: int, cpu_address: int) -> int:
 
 @dataclass(frozen=True)
 class RomTable:
-    """One labelled table: its disassembly label, where it lives, its size."""
+    """One labeled table: its disassembly label, where it lives, its size."""
     label: str
     source: str          # the disassembly file and how the CPU sees it
     prg_offset: int

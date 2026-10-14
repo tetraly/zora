@@ -1,4 +1,4 @@
-"""Book To Understand Old Men (B48; hints-behavior.md HT-BOOK-01 and HT-BOOK-02): slot 0 shows one
+"""Book to Understand NPCs (B48; hints-behavior.md HT-BOOK-01 and HT-BOOK-02): slot 0 shows one
 of the lines in which the speaker cannot be understood, and, without the Book of Magic, every person
 shows slot 0's text (asm/ht-book-01). The spec's patch was code-read, not run; here it runs."""
 from functools import cache
@@ -13,7 +13,7 @@ from zora.generate.steps.hint_text import BOOK_SLOT_0_CLASS, POOL, WOOD_SWORD_SL
 from zora.model.enums import Destination
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.code_patch_data import PATCHES
-from zora.rom.code_patches import BOOK_TO_UNDERSTAND_OLD_MEN
+from zora.rom.code_patches import BOOK_TO_UNDERSTAND_NPCS
 from zora.rom.game_config import GameConfig
 from zora.rom.layout import QUOTE_DATA_ADDRESS
 from zora.rom.parse.rom_file import parse_rom
@@ -47,7 +47,7 @@ def _slot_0_text(rom: bytes, flags: str, seed: int) -> str:
     return world.quotes[0].text.replace(CENTERING, "")
 
 
-CENTERING = "~"                    # the parsed text's centring spaces
+CENTERING = "~"                    # the parsed text's centering spaces
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -63,7 +63,7 @@ def test_slot_0_shows_a_line_that_cannot_be_understood(seed: int) -> None:
 def test_the_patch_is_written_only_with_b48(seed: int) -> None:
     """HT-BOOK-01's Check: $20 $30 $9F at 0x04847 with B48, PRG0's $B9 $00 $80 without; and the
     routine's fifteen bytes at 0x05F40."""
-    assert dict(PATCHES[BOOK_TO_UNDERSTAND_OLD_MEN]) == PATCH_BYTES
+    assert dict(PATCHES[BOOK_TO_UNDERSTAND_NPCS]) == PATCH_BYTES
     book, baseline = _rom(BOOK_FLAGS, seed), _rom(BASELINE_FLAGS, seed)
     for offset, data in PATCH_BYTES.items():
         assert book[offset:offset + len(data)] == data

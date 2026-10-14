@@ -37,7 +37,7 @@ class Side(IntEnum):
 
     @property
     def delta(self) -> int:
-        """The room-number step to the neighbour on this side."""
+        """The room-number step to the neighbor on this side."""
         return _SIDE_DELTAS[self]
 
     @property
@@ -385,14 +385,15 @@ class Enemy(IntEnum):
     PATRA_1           = 0x48
     THREE_PAIRS_OF_TRAPS = 0x49
     CORNER_TRAPS      = 0x4A
-    OLD_MAN           = 0x4B
-    OLD_MAN_2         = 0x4C
-    OLD_MAN_3         = 0x4D
-    OLD_MAN_4         = 0x4E
+    # $4B-$52 but $4F and $51: the dungeons' people (shown as Elder in the seed document)
+    ELDER             = 0x4B
+    ELDER_2           = 0x4C
+    ELDER_3           = 0x4D
+    ELDER_4           = 0x4E
     BOMB_UPGRADER     = 0x4F
-    OLD_MAN_5         = 0x50
+    ELDER_5           = 0x50
     MUGGER            = 0x51
-    OLD_MAN_6         = 0x52
+    ELDER_6           = 0x52
     # Object-template IDs $53-$61: the engine spawns these directly as repeated
     # objects (disasm Z_05 "repeated object" path); only $62+ are member lists.
     # Exact identities are overworld/NPC variants; placeholders for parsing.
@@ -454,11 +455,11 @@ class Enemy(IntEnum):
         )
 
     def is_unkillable(self) -> bool:
-        """Enemies that cannot be killed (Old Men, NPCs, etc.) — room is always passable."""
+        """Enemies that cannot be killed (NPCs etc.) — room is always passable."""
         return self in (
-            Enemy.NOTHING, Enemy.OLD_MAN, Enemy.OLD_MAN_2, Enemy.OLD_MAN_3,
-            Enemy.OLD_MAN_4, Enemy.BOMB_UPGRADER, Enemy.OLD_MAN_5, Enemy.MUGGER,
-            Enemy.OLD_MAN_6, Enemy.RUPEE_BOSS, Enemy.KILLABLE_FLAME, Enemy.MIXED_FLAME,
+            Enemy.NOTHING, Enemy.ELDER, Enemy.ELDER_2, Enemy.ELDER_3,
+            Enemy.ELDER_4, Enemy.BOMB_UPGRADER, Enemy.ELDER_5, Enemy.MUGGER,
+            Enemy.ELDER_6, Enemy.RUPEE_BOSS, Enemy.KILLABLE_FLAME, Enemy.MIXED_FLAME,
             Enemy.WHISTLE_TORNADO, Enemy.FAIRY,
         )
 
@@ -615,3 +616,18 @@ class TollOption(Enum):
     MAX_BOMBS = "MAX BOMBS"
     KEYS = "KEYS"
     MONEY = "MONEY"
+
+
+class DungeonNothingCode(IntEnum):
+    """Which byte means "no item" in dungeon room item bytes.
+
+    The model-level meaning is Item.NOTHING; this enum chooses the encoding.
+    VANILLA ($03) is what the Consternation preset uses and keeps
+    parse→serialize byte-identical. ZORA_REMAP ($0E) needs the engine's
+    sentinel comparison moved (layout.ASM_NOTHING_CODE_PATCH_*), so $03 can be
+    used for the magical sword inside dungeons: GameWorld.dungeon_nothing_code
+    is the code the engine compares, GameConfig.dungeon_nothing_code the one
+    the room bytes are written in.
+    """
+    VANILLA = 0x03
+    ZORA_REMAP = 0x0E

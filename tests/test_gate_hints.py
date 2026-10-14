@@ -1,7 +1,7 @@
 """The requirement hints know the owner's overworld gates (HT-HINT-01; overworld_gates.py).
 
 A player's 2.0 beta 2 report: seed 1109332123 (Extra Raft Blocks on) put level 2's door on a new
-raft block, $1F, and level 2 said THE PRINCESS NEEDS NO RAFT. HT-HINT-01's screen sets are PRG0's;
+raft block, $1F, and level 2 said THE PRINCESS NEEDS NO RAFT (now THE HERO'S PATH). HT-HINT-01's screen sets are PRG0's;
 hint_text.gated_screens adds each gate's screens to its means (the raft blocks to the raft, the
 bracelet blocks to the bracelet, Randomize Dead Woods' west half to the ladder), as the acceptance
 check's screen needs already do.
@@ -13,7 +13,7 @@ and the logic model's sweep, everything in the pool given but the means:
     every long item, VA-REJ-08, so the sweep cannot tell there). A rule-2 claim (the spec's
     inside-dungeon walk) is accepted as the spec's;
   - "THE X CAVE NEEDS THE M": M is among the white-sword cave screen's needs;
-  - "THE PRINCESS NEEDS NO M": no level's door needs M, and the sweep takes every triforce
+  - "THE HERO'S PATH NEEDS NO M": no level's door needs M, and the sweep takes every triforce
     without M (a door behind a maze needs what the maze's hint shop needs, hint_text.door_needs).
   - "THE PATH TO X LIES BENEATH A GRAVESTONE": HT-HINT-01's bracelet door set holds the
     graveyard's $20 and $21, whose door opens by pushing a gravestone, without the bracelet
@@ -58,6 +58,9 @@ CASES = {**{name: with_gates(name) for name in GATE_FLAGS}, "every gate": with_g
          "mixed overworld quest": (z1r_with(options={"C01": OverworldQuest.MIXED_FIRST_QUEST_VARIANT}), "")}
 QUICK_SEEDS = range(3)
 SWEEP_SEEDS = range(100)
+# The sweep runs as chunks of 10 seeds, so no one test holds a worker for minutes at the end of
+# the slow suite (docs/design/test-speed.md 3.3): the same seeds and the same check in all
+SWEEP_CHUNKS = [SWEEP_SEEDS[start:start + 10] for start in range(0, len(SWEEP_SEEDS), 10)]
 MEANS = {Form.RAFT: Item.RAFT, Form.LADDER: Item.LADDER, Form.BRACELET: Item.POWER_BRACELET,
          Form.RECORDER: Item.RECORDER, Form.BOW: Item.BOW, Form.NO_RAFT: Item.RAFT,
          Form.NO_BRACELET: Item.POWER_BRACELET}
@@ -232,10 +235,12 @@ def test_every_requirement_hint_holds(base: bytes, case: str, seed: int) -> None
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize("chunk", SWEEP_CHUNKS, ids=lambda chunk: f"seeds {chunk[0]}-{chunk[-1]}")
 @pytest.mark.parametrize("case", list(CASES))
-def test_every_requirement_hint_holds_over_100_seeds(base: bytes, case: str) -> None:
+def test_every_requirement_hint_holds_over_100_seeds(base: bytes, case: str, chunk: range) -> None:
+    """Every requirement hint holds in seeds 0-99 of every case (ten seeds per test)."""
     found = {}
-    for seed in SWEEP_SEEDS:
+    for seed in chunk:
         result = archipelago.build_from_strings(*CASES[case], seed, base)
         if refuted := false_requirements(result.state, result.logic):
             found[seed] = refuted

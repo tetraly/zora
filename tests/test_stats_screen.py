@@ -4,7 +4,7 @@ tests that need the screen turn it on, and a default ROM carries none of its cod
 
 In the emulator, on PRG0 with only the setting's bytes written (the patch builds on the series
 but uses none of it, so it runs on the original game) and on a generated seed: the stats block in
-SRAM ($7F00-$7F3F) is initialised at first boot, cleared when a new file is registered and kept
+SRAM ($7F00-$7F3F) is initialized at first boot, cleared when a new file is registered and kept
 otherwise (resets, the title screen's formatting of empty slots); the clock runs at 601 frames
 per 10 seconds in the counted modes and charges the current area; levels, key items, bombs and
 sword stabs are stamped or counted as the doc says; the win mode freezes it; after the credits
@@ -138,7 +138,7 @@ def playing(name: str) -> Emulator:
 
 
 @pytest.mark.parametrize("name", ROMS)
-def test_first_boot_initialises_the_block(name: str) -> None:
+def test_first_boot_initializes_the_block(name: str) -> None:
     emu = Emulator(ROMS[name]())
     for i in range(STATS_SIZE):
         emu[STATS_BLOCK + i] = 0xFF

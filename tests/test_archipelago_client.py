@@ -236,7 +236,7 @@ def test_every_line_at_every_level() -> None:
 
 
 def test_items_beyond_an_inventory_bit() -> None:
-    assert receive("Letter") == {LETTER: 1}               # shown to the old woman as ever (or Auto Show Letter)
+    assert receive("Letter") == {LETTER: 1}               # shown in the potion shop as ever (or Auto Show Letter)
     assert receive("Magical Key") == {MAGICAL_KEY: 1}
     assert receive("Raft") == {RAFT: 1} and receive("Recorder") == {RECORDER: 1}
     assert receive("Heart Container", hearts=0x22) == {HEARTS: 0x33}      # a container and a heart

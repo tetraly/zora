@@ -1,12 +1,14 @@
 // ZORA's generator in a Web Worker, so the page stays responsive while a
 // seed generates. Messages in: init {version, wheelUrl or wheelBytes, classic};
-// check {id, bytes};
+// check {id, bytes} (the ROM's identity);
 // state {id, flags, zoraFlags}; change {id, previous, values, zoraFlags};
 // zoraChange {id, flags, zoraValues}; generate {id, bytes, seed, flags,
 // zoraFlags, playerSettings}; report {id, bytes (the finished ROM), seed,
-// flags, zoraFlags}. Messages out: ready {ms, python, pyodide,
-// metadata}; result {id, ...} (generate's adds code, the seed code's four
-// item names, and zoraFlags, the canonical ZORA string); error {id, message}.
+// flags, zoraFlags}; multiworldCheck {id, flags, zoraFlags, playerSettings};
+// nameProblem {id, name}; exportYaml {id, name, flags, zoraFlags, playerSettings}.
+// Messages out: ready {ms, python, pyodide, metadata, multiworld}; result
+// {id, ...} (generate's adds code, the seed code's four item names, and
+// zoraFlags, the canonical ZORA string); error {id, message}.
 //
 // A MODULE worker (zora-web.js starts it with type "module"): Pyodide's
 // 314.x line refuses classic workers ("Classic web workers are not
@@ -18,14 +20,11 @@
 // no field list of its own; generation calls the same entry point as the
 // native scripts (zora.generate). Results cross to JavaScript as JSON.
 const GLUE = `
-import hashlib, json, sys, zlib
-from zora_web.api import flag_form, generate_rom, player_settings_from_page, seed_report, EXPECTED_CRC32, EXPECTED_MD5, EXPECTED_SHA1
+import json, sys
+from zora_web.api import flag_form, generate_rom, identify_rom, multiworld, player_settings_from_page, seed_report
 
-def check_rom(data):
-    data = bytes(data.to_py())
-    return (hashlib.md5(data).hexdigest() == EXPECTED_MD5
-            and hashlib.sha1(data).hexdigest() == EXPECTED_SHA1
-            and (zlib.crc32(data) & 0xFFFFFFFF) == EXPECTED_CRC32)
+def identify(data):
+    return json.dumps(identify_rom(bytes(data.to_py())))
 
 def form_metadata():
     return json.dumps(flag_form.metadata())
@@ -52,6 +51,22 @@ def generate(data, seed, flag_string, player_settings, zora_flag_string):
 
 def report(data, seed, flag_string, zora_flag_string):
     return json.dumps(seed_report(bytes(data.to_py()), flag_string, int(seed), zora_flag_string))
+
+def multiworld_metadata():
+    return json.dumps(multiworld.metadata())
+
+def multiworld_check(flag_string, zora_flag_string, player_settings):
+    return json.dumps(multiworld.check(flag_string, zora_flag_string, json.loads(player_settings)))
+
+def player_name_problem(name):
+    return json.dumps(multiworld.player_name_problem(name))
+
+def export_yaml(name, flag_string, zora_flag_string, player_settings):
+    try:
+        return json.dumps({"ok": True, **multiworld.export_yaml(name, flag_string, zora_flag_string,
+                                                                json.loads(player_settings))})
+    except multiworld.ExportRefused as refused:
+        return json.dumps({"ok": False, "reasons": refused.reasons})
 
 PYTHON_VERSION = sys.version.split()[0]
 `;
@@ -84,11 +99,13 @@ async function init({ version, wheelUrl, wheelBytes, classic }) {
   pyodide.runPython(GLUE);
   postMessage({ type: "ready", ms: performance.now() - t0,
                 python: pyodide.globals.get("PYTHON_VERSION"), pyodide: pyodide.version,
-                metadata: JSON.parse(call("form_metadata")) });
+                metadata: JSON.parse(call("form_metadata")), multiworld: JSON.parse(call("multiworld_metadata")) });
 }
 
+// The player's ROM: zora_web.api.identify_rom's answer (PRG0 or PRG1, modified graphics or not, or
+// refused), with the message the page shows. generate_rom identifies the ROM again itself.
 function check({ id, bytes }) {
-  postMessage({ type: "result", id, ok: call("check_rom", bytes) });
+  postMessage({ type: "result", id, identity: JSON.parse(call("identify", bytes)) });
 }
 
 function state({ id, flags, zoraFlags }) {
@@ -121,6 +138,22 @@ function report({ id, bytes, seed, flags, zoraFlags }) {
   postMessage({ type: "result", id, report: JSON.parse(call("report", bytes, String(seed), flags, zoraFlags || "")) });
 }
 
+// Multiworld mode (zora_web.multiworld): whether the settings can become an Archipelago YAML, the
+// player name's problem (null for none), and the YAML itself.
+function multiworldCheck({ id, flags, zoraFlags, playerSettings }) {
+  postMessage({ type: "result", id, verdict: JSON.parse(call("multiworld_check", flags, zoraFlags || "",
+                                                             JSON.stringify(playerSettings || {}))) });
+}
+
+function nameProblem({ id, name }) {
+  postMessage({ type: "result", id, problem: JSON.parse(call("player_name_problem", name)) });
+}
+
+function exportYaml({ id, name, flags, zoraFlags, playerSettings }) {
+  postMessage({ type: "result", id, ...JSON.parse(call("export_yaml", name, flags, zoraFlags || "",
+                                                       JSON.stringify(playerSettings || {}))) });
+}
+
 self.onmessage = async (event) => {
   const message = event.data;
   try {
@@ -131,6 +164,9 @@ self.onmessage = async (event) => {
     else if (message.type === "zoraChange") zoraChange(message);
     else if (message.type === "generate") generate(message);
     else if (message.type === "report") report(message);
+    else if (message.type === "multiworldCheck") multiworldCheck(message);
+    else if (message.type === "nameProblem") nameProblem(message);
+    else if (message.type === "exportYaml") exportYaml(message);
   } catch (err) {
     postMessage({ type: "error", id: message.id, message: String(err) });
   }

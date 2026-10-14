@@ -524,7 +524,7 @@ def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z
     return resolved, resolved_z1r
 
 
-# The version-3 fields whose behaviour this build produces; any other one on or "?" is refused
+# The version-3 fields whose behavior this build produces; any other one on or "?" is refused
 # (FlagsRefused), never ignored.
 PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset(OWNER_2_0_FIELDS)
 

@@ -6,15 +6,15 @@ candidates (bottom row) and the L9 entry-person room (row 6) intact.
 """
 from ...model import room_grid
 from ...model.enums import Side
-from ...model.room_grid import neighbour
+from ...model.room_grid import neighbor
 from ..rng import IntRng, Rng
 from .options import ShapeOptions
 from .world import GRID_COLS, GRID_ROWS, SetWorld
 
-# In-grid neighbours of every cell, in N/E/S/W order (precomputed: growth
+# In-grid neighbors of every cell, in N/E/S/W order (precomputed: growth
 # reads them for every frontier push and weight).
 _NEIGHBORS: tuple[tuple[int, ...], ...] = tuple(
-    tuple(n for n in (neighbour(c, d) for d in Side) if n is not None)
+    tuple(n for n in (neighbor(c, d) for d in Side) if n is not None)
     for c in range(GRID_COLS * GRID_ROWS)
 )
 
@@ -25,7 +25,7 @@ def grow_set(world: SetWorld, rng: Rng, six_level: bool,
     order), the three extra seeds, 12 (six-level) / 17 (three-level) more
     rounds, then the fill until the frontier is empty. The frontier is a
     LIST of (cell, level) entries (SH-GRID-13): every placement appends one
-    entry per on-grid neighbour inside the placing level's band; duplicates
+    entry per on-grid neighbor inside the placing level's band; duplicates
     and entries for owned cells stay listed. Leftover cells stay unowned
     (no sweep); they join the stair pool (SH-GRID-08)."""
     opts = opts or ShapeOptions()
@@ -58,7 +58,7 @@ _POW10 = (1, 10, 100, 1000, 10000)
 
 
 def _weight(world: SetWorld, cell: int, blob: int) -> int:
-    """SH-GRID-05/13: 10 ** (in-band neighbours that are free or owned by
+    """SH-GRID-05/13: 10 ** (in-band neighbors that are free or owned by
     another level), evaluated at draw time; the first-grown level of the
     set (in-set blob 0) doubles it, so it is never weight 1."""
     lo, hi = world.bands[blob]
@@ -180,7 +180,7 @@ def _start_row(rng: Rng, random_rows: bool) -> int:
 def _place_starts(world: SetWorld, rng: Rng, six_level: bool,
                   frontier: list[tuple[int, int]], random_rows: bool = False) -> None:
     """SH-GRID-03/16: draw every start and fix every band, THEN list the
-    start cells' neighbours under the final bands (SH-GRID-16 *Order*).
+    start cells' neighbors under the final bands (SH-GRID-16 *Order*).
     random_rows: SH-GRID-02's random starting rows (B26)."""
     starts: list[tuple[int, int]] = []           # (cell, blob), placement order
     if six_level:
@@ -297,7 +297,7 @@ def _place_seeds(world: SetWorld, rng: Rng, opts: ShapeOptions,
     """SH-GRID-06 seeds: three draws per set — a level uniformly, a row
     uniformly from all eight, a column uniformly inside that level's band.
     A free cell becomes the level's; either way the picked cell's in-band
-    neighbours join that level's frontier."""
+    neighbors join that level's frontier."""
     for _ in range(3):
         blob = rng.below(world.blob_count)
         row = rng.below(GRID_ROWS)

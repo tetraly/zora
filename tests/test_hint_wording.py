@@ -110,14 +110,14 @@ def test_people_hints_name_the_region_by_its_phrase() -> None:
     from zora.generate.steps.hint_text import region_phrase
     for region in REGION_PHRASES:
         assert region_phrase(region) == REGION_PHRASES[region]
-        for holder in ("I HAVE", "THE OLD WOMAN HAS", "THE MERCHANT HAS"):
+        for holder in ("I HAVE", "THE ELDER HAS", "THE MERCHANT HAS"):
             for item in ("THE MAGICAL BOOMERANG", FOREIGN_NAME, "A BOOMERANG UPGRADE"):
                 place = region_phrase(region)
                 lines = ([f"{holder} {item} {place}"] if len(f"{holder} {item} {place}") <= LINE_WIDTH
                          else [holder, f"{item} {place}"] if len(f"{item} {place}") <= LINE_WIDTH
                          else [holder, item, place])
                 assert fits(lines), lines
-        assert fits(["MEET THE OLD WOMAN", region_phrase(region)])
+        assert fits(["MEET THE MERCHANT", region_phrase(region)])
 
 
 def test_the_level_sentences() -> None:
@@ -212,8 +212,8 @@ def test_the_openers_move_no_other_draw(monkeypatch: pytest.MonkeyPatch) -> None
 
 
 # HT-HINT-01's people hints: MEET <PERSON> ..., and the white-sword cave item's holder
-PEOPLE_HINT = re.compile(r"MEET (ME|THE (OLD MAN|OLD WOMAN|MERCHANT|MOBLIN|HUMAN)) |"
-                         r"(I HAVE|THE (OLD MAN|OLD WOMAN|MERCHANT|MOBLIN|HUMAN) HAS) (THE|A|AN|ANOTHER) ")
+PEOPLE_HINT = re.compile(r"MEET (ME|THE (ELDER|MERCHANT|MOBLIN|HUMAN)) |"
+                         r"(I HAVE|THE (ELDER|MERCHANT|MOBLIN|HUMAN) HAS) (THE|A|AN|ANOTHER) ")
 
 
 @pytestmark_rom

@@ -54,7 +54,7 @@ class SpriteData:
         data: bytearray = getattr(self, name)
         start = byte_offset - first
         if start < 0 or start + size > len(data):
-            raise IndexError(f"{block.name} + {byte_offset} is outside the modelled bytes")
+            raise IndexError(f"{block.name} + {byte_offset} is outside the modeled bytes")
         return data, start
 
     def read_tiles(self, block: PatternBlock, byte_offset: int, count: int) -> list[bytes]:

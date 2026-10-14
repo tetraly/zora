@@ -13,7 +13,7 @@ from ...model.enums import (
     WallType,
 )
 from ...model.levels import VANILLA_BOSS_SPRITE_SETS, VANILLA_ENEMY_SPRITE_SETS, Cell, Level, LevelBlock
-from ...model.room_grid import neighbour
+from ...model.room_grid import neighbor
 from ...model.rooms import (
     EnemyInfo,
     EnemySpec,
@@ -210,7 +210,7 @@ def _flood_fill_level_rooms(
             }
             for direction in (Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST):
                 if wall_by_dir[direction] != WallType.SOLID_WALL:
-                    other = neighbour(rn, direction.side)
+                    other = neighbor(rn, direction.side)
                     if other is not None and other not in visited and other != exit_room:
                         queue.append(other)
 

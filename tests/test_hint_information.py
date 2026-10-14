@@ -13,6 +13,8 @@ from zora.generate.steps.hint_text import (
     Form,
     Requirement,
     name_form,
+    person_name,
+    sprite_form,
     requirement_text,
 )
 from zora.generate.steps.person_appearances import (
@@ -25,17 +27,26 @@ from zora.model.overworld import Quote
 from zora.rom.base_rom import BASE_ROM_PATH
 from zora_measure.hint_information import Shown, classify, hint_key
 
-OLD_MAN, OLD_WOMAN, MERCHANT, MOBLIN = 0x58, 0x59, 0x5A, 0x5B
+ELDER, SECOND_ELDER, MERCHANT, MOBLIN = 0x58, 0x59, 0x5A, 0x5B
 
 
 def test_name_forms() -> None:
     """HT-HINT-01: "same" when equal, "the human" when the giver is the
-    Moblin, else the target's own name."""
+    Moblin, else the target's own sprite (both elders are named THE ELDER)."""
     assert name_form(MERCHANT, MERCHANT) == SAME_FORM
     assert name_form(MOBLIN, MOBLIN) == SAME_FORM
-    assert name_form(MOBLIN, OLD_MAN) == HUMAN_FORM
-    assert name_form(OLD_WOMAN, MOBLIN) == "MOBLIN"
-    assert name_form(OLD_MAN, OLD_WOMAN) == "OLD WOMAN"
+    assert name_form(MOBLIN, ELDER) == HUMAN_FORM
+    assert name_form(SECOND_ELDER, MOBLIN) == sprite_form(MOBLIN) == "$5B"
+    assert name_form(ELDER, SECOND_ELDER) == "$59"
+
+
+def test_person_names() -> None:
+    """The names the hints say (owner decision, 2026-10-12): both elder sprites are THE ELDER."""
+    assert person_name(ELDER, SECOND_ELDER) == person_name(SECOND_ELDER, ELDER) == "THE ELDER"
+    assert person_name(ELDER, MERCHANT) == "THE MERCHANT"
+    assert person_name(ELDER, MOBLIN) == "THE MOBLIN"
+    assert person_name(MOBLIN, SECOND_ELDER) == "THE HUMAN"
+    assert person_name(SECOND_ELDER, SECOND_ELDER) == "ME"
 
 
 def test_item_name_table() -> None:

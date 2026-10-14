@@ -19,14 +19,23 @@ Covers all parsed ROM regions:
 - Bomb upgrade cost, count, and display tiles
 - Quotes (38 hints): pointer table + encoded text
 """
+from ...model.enums import DungeonNothingCode
 from ...model.game_world import GameWorld
 from .. import person_code
 from ..base_rom import piece_bytes
-from ..code_patches import OVERWORLD_START_Y
+from ..code_patches import (
+    EXIT_ROOM_COUNT_FLAG,
+    LEVEL_INFO_ARRIVAL_CODE,
+    LEVEL_INFO_EXIT_ROOM_COUNT,
+    OVERWORLD_START_Y,
+    START_ITEMS_TABLE,
+)
 from ..game_config import GameConfig, HintMode
 from ..layout import (
     ANY_ROAD_SCREENS_ADDRESS,
     ARMOS_TABLES_ADDRESS,
+    ASM_NOTHING_CODE_PATCH_OFFSET,
+    ASM_NOTHING_CODE_PATCH_VALUE,
     BEQ_OPCODE,
     BNE_OPCODE,
     BOSS_SET_A_SPRITES_ADDRESS,
@@ -64,6 +73,7 @@ from ..layout import (
     TILE_MAPPING_DATA_ADDRESS,
     TILE_MAPPING_POINTERS_ADDRESS,
 )
+from ..start_items import start_table
 from .caves import _serialize_bomb_upgrade, _serialize_cave_data, _serialize_mmg_prizes
 from .enemies import _serialize_enemy_hp, _serialize_enemy_tile_data
 from .features import (
@@ -98,9 +108,9 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
     config: game-serialization settings. GameConfig.dungeon_nothing_code
     selects the ROM byte encoding for the Item.NOTHING meaning in dungeon
     rooms ($03 vanilla — the Consternation preset, byte-identical round
-    trips — or $0E for the ZORA remap, which also needs the engine sentinel
-    patch: a final ROM step, zora/rom/final_steps.py, as are the code
-    patches, the level encoding and the seed's code).
+    trips — or $0E for the ZORA remap); the engine's sentinel byte is the
+    model's (GameWorld.dungeon_nothing_code). The code patches, the level
+    encoding and the seed's code are final ROM steps (zora/rom/final_steps.py).
 
     start_y_in_patch: where the overworld start Y goes (FP-ENTR-01): the
     code patches' own byte, or LevelInfo_StartY. Default: the patch byte
@@ -111,6 +121,9 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
     if start_y_in_patch is None:
         start_y_in_patch = cfg.features_b10
     _serialize_levels(game_world, original_bins_bytes, cfg, patch)
+    if game_world.dungeon_nothing_code is DungeonNothingCode.ZORA_REMAP:
+        # the engine's sentinel comparison reads $0E, so $03 can be the magical sword in dungeons
+        patch.add(ASM_NOTHING_CODE_PATCH_OFFSET, bytes([ASM_NOTHING_CODE_PATCH_VALUE]))
     _serialize_overworld_data(game_world, original_bins_bytes, cfg, start_y_in_patch, patch)
     _serialize_sprites_and_enemies(game_world, patch)
     _serialize_hints(game_world, patch, hint_mode)
@@ -126,14 +139,21 @@ def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, byte
     nothing_code = cfg.dungeon_nothing_code.value
     patch.add(LEVEL_1_6_DATA_ADDRESS, encode_level_block(game_world.blocks[0], nothing_code))
     patch.add(LEVEL_7_9_DATA_ADDRESS, encode_level_block(game_world.blocks[1], nothing_code))
-    # A second-quest block is written only when a level reads it: an unread one keeps the base
-    # ROM's bytes, PRG0's nothing code included. With level encoding on, the encoding (a final
-    # step) moves a read one into its set's first-quest block first and takes the second-quest
-    # blocks for itself (level_encoding.fold_second_quest_blocks).
+    # A second-quest block is written only when a level reads it from its own slot: an unread one
+    # keeps the base ROM's bytes, PRG0's nothing code included. With level encoding on, a read one
+    # is stored in its set's first-quest slot instead (GameWorld.store_second_quest_sets_in_first_quest_slots),
+    # which the levels then point at, and its own slot keeps the base ROM's bytes: the encoding
+    # (a final step) takes the second-quest blocks' space for itself, whatever they hold.
     for address, block in zip((LEVEL_1_6_DATA_ADDRESS_Q2, LEVEL_7_9_DATA_ADDRESS_Q2), game_world.blocks_2q,
                               strict=True):
-        if any(lvl.block is block for lvl in game_world.levels):
-            patch.add(address, encode_level_block(block, nothing_code))
+        if not any(lvl.block is block for lvl in game_world.levels) or any(stored is block
+                                                                           for stored in game_world.blocks):
+            continue
+        if cfg.level_encoding is not None:
+            raise ValueError("level encoding needs each second-quest set stored in its first-quest slot "
+                             "(GameWorld.store_second_quest_sets_in_first_quest_slots)")
+        patch.add(address, encode_level_block(block, nothing_code))
+    # the first slot holding the level's block names it: a first-quest slot before a second-quest one
     blocks = [*game_world.blocks, *game_world.blocks_2q]
     for lvl in game_world.levels:
         block_index = next(index for index, block in enumerate(blocks) if block is lvl.block)
@@ -147,7 +167,25 @@ def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, byte
         block_arr = bytearray(level_info[offset:offset + LEVEL_INFO_SIZE])
         _serialize_level_info(lvl, block_arr)
         level_info[offset:offset + LEVEL_INFO_SIZE] = block_arr
+    if cfg.features_b10:
+        _serialize_level_entry_codes(game_world, level_info)
     patch.add(LEVEL_INFO_ADDRESS, bytes(level_info))
+
+
+def _serialize_level_entry_codes(game_world: GameWorld, level_info: bytearray) -> None:
+    """FP-ENTR-01 and FP-ENTR-02, written with ZORA's code patches, which read them: each level's
+    exit room with bit 7 set (+$23) and arrival code (+$3D), and the overworld's arrival code
+    (GameWorld.record_level_entry_codes; a parsed ROM carries them as written)."""
+    unset = [lvl.level_num for lvl in game_world.levels if lvl.exit_room is None or lvl.arrival_code is None]
+    if unset or game_world.overworld_arrival_code is None:
+        raise ValueError(f"the code patches need every level's entry codes (levels {unset} and the overworld: "
+                         "GameWorld.record_level_entry_codes)")
+    for lvl in game_world.levels:
+        offset = lvl.level_num * LEVEL_INFO_SIZE
+        assert lvl.exit_room is not None and lvl.arrival_code is not None
+        level_info[offset + LEVEL_INFO_EXIT_ROOM_COUNT] = lvl.exit_room | EXIT_ROOM_COUNT_FLAG
+        level_info[offset + LEVEL_INFO_ARRIVAL_CODE] = lvl.arrival_code
+    level_info[LEVEL_INFO_ARRIVAL_CODE] = game_world.overworld_arrival_code
 
 
 def _serialize_overworld_data(game_world: GameWorld, original_bins_bytes: dict[str, bytes], cfg: GameConfig,
@@ -162,6 +200,11 @@ def _serialize_overworld_data(game_world: GameWorld, original_bins_bytes: dict[s
     _serialize_mmg_prizes(game_world.overworld, patch)
     _serialize_bomb_upgrade(game_world.overworld, patch)
     _serialize_new_file_hearts(game_world, patch)
+    if cfg.features_b10 and game_world.start_items:
+        # FP-START-03: fp-start-02's table, with the start hearts (the patch's own copy is PRG0's
+        # start, so the code patches carry this table too: code_patches.seed_data)
+        patch.add(START_ITEMS_TABLE, start_table(game_world.start_items, game_world.new_file_heart_containers,
+                                                 game_world.new_file_full_hearts))
     if cfg.features_b10:
         _serialize_b10_constants(game_world, patch)
         _serialize_credits(game_world, patch)

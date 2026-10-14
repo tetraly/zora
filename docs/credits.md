@@ -1,7 +1,7 @@
 # Credits
 
 ZORA is MIT-licensed (see `LICENSE`). This page credits the people and material it builds on.
-Third-party material keeps its own licence, given with it.
+Third-party material keeps its own license, given with it.
 
 ## Z1R Features
 
@@ -21,10 +21,18 @@ authors ask. ZORA's patches for them are its own code, written from the disassem
 
 ## Fonts and colors
 
-- **Fonts:** DM Sans and DM Mono, under the SIL Open Font License 1.1. The licence text ships with
+- **Fonts:** DM Sans and DM Mono, under the SIL Open Font License 1.1. The license text ships with
   them as `web/fonts/OFL.txt`, and the single-file page carries it too.
-- **NES palette:** the page's and the seed document's NES colours come from cynes, under the MIT
-  licence. Its notice is kept beside the table (`web/zora-web.js`, `zora_export/nes_palette.py`).
+- **NES palette:** the page's and the seed document's NES colors come from cynes, under the MIT
+  license. Its notice is kept beside the table (`web/zora-web.js`, `zora_export/nes_palette.py`).
+
+## Archipelago
+
+- **Archipelago** (archipelago.gg, MIT license), the multiworld randomizer framework: ZORA's
+  Archipelago world (`archipelago/`, released as `zora.apworld`) is written for it and runs inside
+  it, using its world, patch and BizHawk client interfaces. No Archipelago code is copied into ZORA.
+- **Archipelago's The Legend of Zelda world**, for research: how it handles the player's ROM and
+  the patch file informed the world's ROM handling. Nothing was copied from it.
 
 ## Special Thanks
 

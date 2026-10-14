@@ -17,7 +17,7 @@ The room keeps its action. It runs after every step that changes level 9's rooms
 the acceptance check; with no room qualifying the attempt fails (GenerationFailure), never
 shipping without the sword.
 R6a: the triforce-checker room (one north of the entrance) may be drawn; its item then stands at
-the first of level 9's item positions in the top half of the room, behind the old man.
+the first of level 9's item positions in the top half of the room, behind the person.
 R7-R8: the sword is no pool item, place or tracked record, and no hint or rule reads it (the
 wooden sword is never tracked, so the acceptance check's item lookups never meet it).
 """

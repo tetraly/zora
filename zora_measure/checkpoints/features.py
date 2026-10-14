@@ -166,7 +166,8 @@ def exit_room_count_zero(gw: GameWorld) -> dict[str, bool]:
 def dungeon_arrival_codes(gw: GameWorld) -> bool:
     """FP-ENTR-01: every dungeon's arrival code (level information +$3D,
     the stairway list's last byte) is 2."""
-    from zora.rom.code_patches import ARRIVAL_DUNGEON, LEVEL_INFO_ARRIVAL_CODE
+    from zora.model.levels import ARRIVAL_DUNGEON
+    from zora.rom.code_patches import LEVEL_INFO_ARRIVAL_CODE
     stairway_start = 0x34                       # level information +$34: the stairway list
     return all(level.stairway_data_raw[LEVEL_INFO_ARRIVAL_CODE - stairway_start] == ARRIVAL_DUNGEON
                for level in gw.levels)

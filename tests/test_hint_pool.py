@@ -215,7 +215,7 @@ def test_community_overflow_round_trips() -> None:
     assert max(pointers) < 0xBE40 and min(pointers) < 0xB770          # some text spilled
     reread = parse_rom(rom, config)
     assert [quote.text.replace("~", "") for quote in reread.quotes] == [quote.text for quote in world.quotes]
-    # (COMMUNITY's centring pads each line with "~", which a second serialization centres
+    # (COMMUNITY's centering pads each line with "~", which a second serialization centers
     # again, so it is compared as text, not re-serialized byte for byte.)
 
 

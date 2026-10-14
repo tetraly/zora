@@ -14,6 +14,8 @@ cp web/fonts.css web/zora.css "$out/"
 mkdir -p "$out/fonts"
 cp web/fonts/*.woff2 web/fonts/OFL.txt "$out/fonts/"
 cp web/dist/zora-*-py3-none-any.whl web/dist/wheel.json "$out/dist/"
+# The Archipelago guide, rendered from docs/archipelago-guide.md (scripts/guide_page.py).
+python3 scripts/guide_page.py docs/archipelago-guide.md "$out/archipelago-guide.html"
 # Never publish a ROM: the page reads the user's own file locally.
 if find "$out" -iname '*.nes' | grep -q .; then
   echo "refusing: a .nes file is in $out" >&2

@@ -1,13 +1,13 @@
 """The map's position marker (docs/reports/minimap-marker.md): PRG0 draws Link's marker on the
 status bar's map (UpdatePositionMarker, bank 1) and on the item screen's dungeon map (bank 5) as
-sprite tile $3E with attributes 0, and the tile's 3x3 dot is colour 1 of sprite palette 0: the
-tunic colour, which the rings and FP-SET-02's tunic setting change. A black tunic makes the marker
+sprite tile $3E with attributes 0, and the tile's 3x3 dot is color 1 of sprite palette 0: the
+tunic color, which the rings and FP-SET-02's tunic setting change. A black tunic makes the marker
 black, and the dungeon map's background is black, so the marker disappears there (beta tester's
 report).
 
-The fix (owner ruling, option d): with a colour from MARKER_HIDING_COLOURS in any of the three
-tunic slots, the dot is drawn in colour 2, Link's skin; otherwise the marker stays PRG0's. The
-page shows a note from the same set (metadata.markerHidingColours)."""
+The fix (owner ruling, option d): with a color from MARKER_HIDING_COLORS in any of the three
+tunic slots, the dot is drawn in color 2, Link's skin; otherwise the marker stays PRG0's. The
+page shows a note from the same set (metadata.markerHidingColors)."""
 import json
 import re
 from functools import cache
@@ -22,7 +22,7 @@ from zora.generate.pipeline import generate_rom
 from zora.rom.player_settings import (
     BLACKER_THAN_BLACK,
     DEFAULT_PLAYER_SETTINGS,
-    MARKER_HIDING_COLOURS,
+    MARKER_HIDING_COLORS,
     PAGE_TUNIC_SLOTS,
     PALETTE_SIZE,
     TUNIC_SLOTS,
@@ -42,23 +42,23 @@ PLANE_BYTES = 8
 STATUS_BAR_MARKER_ATTRIBUTE = 0x6A99
 ITEM_SCREEN_MARKER_ATTRIBUTE = 0x140DF
 LINKS_PALETTE = 0x00
-TUNIC_COLOUR_INDEX = 1
+TUNIC_COLOR_INDEX = 1
 DOT_ROWS, DOT_COLUMNS = 3, 3
 
-SKIN_COLOUR_INDEX = 2
+SKIN_COLOR_INDEX = 2
 STATUS_BAR_MARKER_SPRITE = 84          # Sprites+84: Y, tile, attributes, X (sprite 21)
 BLACK_TUNIC = 0x0F
 
 
 def pixel_indexes(pattern: bytes) -> list[list[int]]:
-    """An 8x8 tile's colour indexes, row by row."""
+    """An 8x8 tile's color indexes, row by row."""
     low, high = pattern[:PLANE_BYTES], pattern[PLANE_BYTES:]
     return [[(low[row] >> (7 - column) & 1) | (high[row] >> (7 - column) & 1) << 1 for column in range(8)]
             for row in range(8)]
 
 
 def dot(rom: bytes) -> set[int]:
-    """The colour indexes of the marker's drawn pixels."""
+    """The color indexes of the marker's drawn pixels."""
     pixels = pixel_indexes(rom[MARKER_PATTERN:MARKER_PATTERN + TILE_BYTES])
     drawn = {(row, column) for row in range(8) for column in range(8) if pixels[row][column]}
     assert drawn == {(row, column) for row in range(DOT_ROWS) for column in range(DOT_COLUMNS)}
@@ -71,9 +71,9 @@ def zora_rom() -> bytes:
 
 
 @pytest.mark.parametrize("which", ["PRG0", "ZORA"])
-def test_the_marker_is_a_dot_in_the_tunic_colour(which: str) -> None:
+def test_the_marker_is_a_dot_in_the_tunic_color(which: str) -> None:
     rom = vanilla() if which == "PRG0" else zora_rom()
-    assert dot(rom) == {TUNIC_COLOUR_INDEX}
+    assert dot(rom) == {TUNIC_COLOR_INDEX}
     assert rom[STATUS_BAR_MARKER_ATTRIBUTE] == rom[ITEM_SCREEN_MARKER_ATTRIBUTE] == LINKS_PALETTE
     # Each attribute operand follows `LDA #$3E / STA Sprites+...`: the marker tile's store.
     assert rom[STATUS_BAR_MARKER_ATTRIBUTE - 5] == rom[ITEM_SCREEN_MARKER_ATTRIBUTE - 5] == MARKER_TILE
@@ -83,7 +83,7 @@ def test_a_black_tunic_marker_shows_on_the_dungeon_map() -> None:
     """Level 1 without its map: the status bar map is black around the marker. PRG0's overworld
     (Emulator.walk_into_level_1 needs its screens) with FP-SET-02's tunic setting written."""
     from tests.emulator import Emulator
-    emu = Emulator(apply_player_settings(vanilla(), PlayerSettings(tunic_colours=(BLACK_TUNIC, 0x32, 0x16))))
+    emu = Emulator(apply_player_settings(vanilla(), PlayerSettings(tunic_colors=(BLACK_TUNIC, 0x32, 0x16))))
     emu.new_game()
     emu.walk_into_level_1()
     y, tile, attributes, x = emu.sprites()[STATUS_BAR_MARKER_SPRITE:STATUS_BAR_MARKER_SPRITE + 4]
@@ -92,11 +92,11 @@ def test_a_black_tunic_marker_shows_on_the_dungeon_map() -> None:
     assert not (marker == beside).all()
 
 
-# --- The fix: a hiding colour in any slot draws the dot in Link's skin colour --------------------
+# --- The fix: a hiding color in any slot draws the dot in Link's skin color --------------------
 
-def with_tunic(slot: int, colour: int) -> tuple[int, int, int]:
-    tunics = list(DEFAULT_PLAYER_SETTINGS.tunic_colours)
-    tunics[slot] = colour
+def with_tunic(slot: int, color: int) -> tuple[int, int, int]:
+    tunics = list(DEFAULT_PLAYER_SETTINGS.tunic_colors)
+    tunics[slot] = color
     return tunics[0], tunics[1], tunics[2]
 
 
@@ -104,33 +104,33 @@ def changed_offsets(before: bytes, after: bytes) -> set[int]:
     return {offset for offset, (old, new) in enumerate(zip(before, after, strict=True)) if old != new}
 
 
-def test_a_hiding_colour_from_the_generator_draws_the_skin_marker() -> None:
+def test_a_hiding_color_from_the_generator_draws_the_skin_marker() -> None:
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, vanilla(),
-                       player_settings=PlayerSettings(tunic_colours=with_tunic(0, BLACK_TUNIC))).rom
-    assert dot(rom) == {SKIN_COLOUR_INDEX}
-    assert changed_offsets(zora_rom(), rom) <= written_offsets("tunic_colours")
+                       player_settings=PlayerSettings(tunic_colors=with_tunic(0, BLACK_TUNIC))).rom
+    assert dot(rom) == {SKIN_COLOR_INDEX}
+    assert changed_offsets(zora_rom(), rom) <= written_offsets("tunic_colors")
 
 
 @pytest.mark.parametrize("slot", range(TUNIC_SLOTS))
-@pytest.mark.parametrize("colour", sorted(MARKER_HIDING_COLOURS))
-def test_a_hiding_colour_in_any_slot_draws_the_skin_marker(slot: int, colour: int) -> None:
-    rom = apply_player_settings(zora_rom(), PlayerSettings(tunic_colours=with_tunic(slot, colour)))
-    assert dot(rom) == {SKIN_COLOUR_INDEX}
-    assert changed_offsets(zora_rom(), rom) <= written_offsets("tunic_colours")
+@pytest.mark.parametrize("color", sorted(MARKER_HIDING_COLORS))
+def test_a_hiding_color_in_any_slot_draws_the_skin_marker(slot: int, color: int) -> None:
+    rom = apply_player_settings(zora_rom(), PlayerSettings(tunic_colors=with_tunic(slot, color)))
+    assert dot(rom) == {SKIN_COLOR_INDEX}
+    assert changed_offsets(zora_rom(), rom) <= written_offsets("tunic_colors")
 
 
-ORDINARY_COLOURS = [colour for colour in range(PALETTE_SIZE)
-                    if colour not in MARKER_HIDING_COLOURS and colour != BLACKER_THAN_BLACK]
+ORDINARY_COLORS = [color for color in range(PALETTE_SIZE)
+                    if color not in MARKER_HIDING_COLORS and color != BLACKER_THAN_BLACK]
 
 
 @pytest.mark.parametrize("slot", range(TUNIC_SLOTS))
-def test_ordinary_colours_keep_prg0s_marker(slot: int) -> None:
-    """Every other colour, in each slot: only the tunic bytes change; the marker stays PRG0's."""
+def test_ordinary_colors_keep_prg0s_marker(slot: int) -> None:
+    """Every other color, in each slot: only the tunic bytes change; the marker stays PRG0's."""
     marker_bytes = set(range(MARKER_PATTERN, MARKER_PATTERN + TILE_BYTES))
-    for colour in ORDINARY_COLOURS:
-        rom = apply_player_settings(zora_rom(), PlayerSettings(tunic_colours=with_tunic(slot, colour)))
-        assert not changed_offsets(zora_rom(), rom) & marker_bytes, f"${colour:02X}"
-        assert dot(rom) == {TUNIC_COLOUR_INDEX}
+    for color in ORDINARY_COLORS:
+        rom = apply_player_settings(zora_rom(), PlayerSettings(tunic_colors=with_tunic(slot, color)))
+        assert not changed_offsets(zora_rom(), rom) & marker_bytes, f"${color:02X}"
+        assert dot(rom) == {TUNIC_COLOR_INDEX}
 
 
 def test_default_settings_leave_the_output_byte_identical() -> None:
@@ -140,8 +140,8 @@ def test_default_settings_leave_the_output_byte_identical() -> None:
 # --- The set: the report's rule, and the page's copy ---------------------------------------------
 
 PAGE_SCRIPT = Path(__file__).resolve().parent.parent / "web" / "zora-web.js"
-# The map backgrounds the marker sits on: black (levels, item screen), grey $00 (overworld), room
-# blue $12 (a level's shown rooms). A colour under HIDING_DISTANCE (CIE76) from one of them hides
+# The map backgrounds the marker sits on: black (levels, item screen), gray $00 (overworld), room
+# blue $12 (a level's shown rooms). A color under HIDING_DISTANCE (CIE76) from one of them hides
 # the marker, and one under FAINT_ON_BLACK from black is too faint there (a 3x3 dot on a TV).
 BLACK = 0x0F
 MAP_BACKGROUNDS = (BLACK, 0x00, 0x12)
@@ -171,29 +171,29 @@ def lab(rgb: tuple[int, int, int]) -> tuple[float, float, float]:
     return 116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))
 
 
-def colour_distance(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
+def color_distance(a: tuple[int, int, int], b: tuple[int, int, int]) -> float:
     return float(sum((p - q) ** 2 for p, q in zip(lab(a), lab(b), strict=True)) ** 0.5)
 
 
 def test_the_set_is_the_reports_rule() -> None:
-    """The 16 colours of docs/reports/minimap-marker.md, in the page's palette (the same RGB
+    """The 16 colors of docs/reports/minimap-marker.md, in the page's palette (the same RGB
     values the emulator shows)."""
     palette = page_palette()
 
-    def hides(colour: int) -> bool:
-        nearest = min(colour_distance(palette[colour], palette[back]) for back in MAP_BACKGROUNDS)
-        return nearest < HIDING_DISTANCE or colour_distance(palette[colour], palette[BLACK]) < FAINT_ON_BLACK
+    def hides(color: int) -> bool:
+        nearest = min(color_distance(palette[color], palette[back]) for back in MAP_BACKGROUNDS)
+        return nearest < HIDING_DISTANCE or color_distance(palette[color], palette[BLACK]) < FAINT_ON_BLACK
 
-    hiding = {colour for colour in range(PALETTE_SIZE) if colour != BLACKER_THAN_BLACK and hides(colour)}
-    assert hiding == MARKER_HIDING_COLOURS and len(hiding) == 16
+    hiding = {color for color in range(PALETTE_SIZE) if color != BLACKER_THAN_BLACK and hides(color)}
+    assert hiding == MARKER_HIDING_COLORS and len(hiding) == 16
 
 
 def test_the_page_takes_the_set_from_the_metadata() -> None:
-    """The page's note reads metadata.markerHidingColours (no list of its own), and its tunic
+    """The page's note reads metadata.markerHidingColors (no list of its own), and its tunic
     slots are player_settings_from_page's."""
     metadata = json.loads(json.dumps(flag_form.metadata()))
-    assert metadata["markerHidingColours"] == sorted(MARKER_HIDING_COLOURS)
+    assert metadata["markerHidingColors"] == sorted(MARKER_HIDING_COLORS)
     page = PAGE_SCRIPT.read_text()
-    assert "metadata.markerHidingColours.includes(" in page
+    assert "metadata.markerHidingColors.includes(" in page
     slots = re.search(r"const TUNIC_SLOTS = \[([^\]]*)\]", page)
     assert slots and tuple(json.loads(f"[{slots.group(1)}]")) == PAGE_TUNIC_SLOTS

@@ -158,8 +158,10 @@ def test_nothing_code_config_vanilla_is_default() -> None:
     """Item.NOTHING is a model meaning; the ROM byte is a GameConfig setting.
     Default (VANILLA, $03) keeps everything byte-identical (covered by
     test_full_rom_roundtrip_byte_identical); ZORA_REMAP ($0E) rewrites the
-    nothing rooms, and the final ROM steps add the engine sentinel patch byte."""
-    from zora.rom.game_config import DungeonNothingCode, GameConfig
+    nothing rooms. The engine's sentinel byte is the model's
+    (GameWorld.dungeon_nothing_code), which the serializer writes."""
+    from zora.model.enums import DungeonNothingCode
+    from zora.rom.game_config import GameConfig
     from zora.rom.layout import ASM_NOTHING_CODE_PATCH_OFFSET, ASM_NOTHING_CODE_PATCH_VALUE
     path = _vanilla_rom_path()
     if path is None:
@@ -176,8 +178,11 @@ def test_nothing_code_config_vanilla_is_default() -> None:
     # every $03 byte becomes $0E, the transport cellars' too ($07 and $08 kept $03
     # before the fix and showed a magical sword)
     assert n03 == n0e
-    # the engine sentinel patch is a final ROM step (zora/rom/final_steps.py)
+    # the engine's byte follows the world, not the config: PRG0's world leaves it alone
     assert ASM_NOTHING_CODE_PATCH_OFFSET not in patch.data
+    gw.dungeon_nothing_code = DungeonNothingCode.ZORA_REMAP
+    assert serialize_game_world(gw, original_bins_from_rom(rom), config=cfg).data[ASM_NOTHING_CODE_PATCH_OFFSET] \
+        == bytes([ASM_NOTHING_CODE_PATCH_VALUE])
     finished = serialize_to_rom(gw, rom, config=cfg)
     assert finished[ASM_NOTHING_CODE_PATCH_OFFSET] == ASM_NOTHING_CODE_PATCH_VALUE == 0x0E
     # re-parse with the same config: every nothing room stays nothing

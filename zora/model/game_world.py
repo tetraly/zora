@@ -2,11 +2,15 @@
 
 from dataclasses import dataclass, field
 
-from .enums import VANILLA_PERSON_INITS, Item, UnderworldPersonInit
-from .levels import Level, LevelBlock
+from .enums import VANILLA_PERSON_INITS, DungeonNothingCode, Item, UnderworldPersonInit
+from .levels import ARRIVAL_DUNGEON, ARRIVAL_OVERWORLD, Level, LevelBlock
 from .overworld import Overworld, Quote
 from .rooms import LifeOrMoneyToll
 from .sprites import EnemyData, SpriteData
+
+# The two sets of levels (SH-SRC-01): levels 1-6 read one room block, levels 7-9 another
+SET_SLICES = (slice(0, 6), slice(6, 9))
+SET_NAMES = ("1-6", "7-9")
 
 
 @dataclass
@@ -17,12 +21,14 @@ class GameWorld:
     sprites: SpriteData
     enemies: EnemyData
     # PRG0's second-quest levels, exactly 9 (index 0 = 2Q Level 1), read-only: what a
-    # second-quest set (C02, SH-SRC-02/03) starts from; they are never serialised.
+    # second-quest set (C02, SH-SRC-02/03) starts from; they are never serialized.
     levels_2q: list[Level] = field(default_factory=list)
     # The two quest-1 room blocks (0 = levels 1-6, 1 = levels 7-9) and the
     # quest-2 pair; every level's rooms live here. A level reads the block its
     # Level.block is (SH-SRC-02): one of `blocks`, or one of `blocks_2q` for a
-    # second-quest set.
+    # second-quest set. `blocks` is also what each set's first-quest slot in the ROM stores: with
+    # level encoding on, a second-quest set's block is stored there too
+    # (store_second_quest_sets_in_first_quest_slots).
     blocks: list[LevelBlock] = field(default_factory=list)
     blocks_2q: list[LevelBlock] = field(default_factory=list)
     # Verbatim quotes_data block (pointer table + text) as parsed. Lets VANILLA
@@ -83,6 +89,15 @@ class GameWorld:
     # second-quest path (ropes with $40 hit points that flash, Stalfos that shoot)
     monsters_take_second_quest_path: bool = False
     level_dash_tile: int = 0x62
+    # FP-ENTR-01: the overworld's arrival code (its level information +$3D), which ZORA's code
+    # patches read; None in a ROM without them (PRG0's $FF). Set with the levels' codes
+    # (record_level_entry_codes).
+    overworld_arrival_code: int | None = None
+    # The "no item" code the engine's sentinel comparison reads (layout.ASM_NOTHING_CODE_PATCH_*):
+    # ZORA_REMAP ($0E) with Randomize Magical Sword, so $03 can be the magical sword inside
+    # dungeons. The room bytes are written in GameConfig.dungeon_nothing_code, which generation
+    # sets this from.
+    dungeon_nothing_code: DungeonNothingCode = DungeonNothingCode.VANILLA
 
     # B10 DATA-item state (docs/spec/features-behavior.md).
     # Credits text pointers for lines 12-15 (CPU addresses in bank 2).
@@ -92,7 +107,7 @@ class GameWorld:
     credits_line_15_record: bytes = b""
     # HT-BOOK-01's Check: the three bytes of UpdatePersonState_Textbox's text-pointer load (PRG0's
     # LDA PersonTextAddrs, Y, or B48's call), as read from a ROM; measured only, never written:
-    # the serializer writes the patch (GameConfig.book_to_understand_old_men).
+    # the serializer writes the patch (GameConfig.book_to_understand_npcs).
     person_text_pointer_load: bytes = b""
     # Title-screen seed number (right-aligned in the first replaced row).
     title_seed_number: int = 0
@@ -108,3 +123,33 @@ class GameWorld:
         """The room block each set's levels read (SH-SRC-02): blocks[s], or blocks_2q[s] for a
         second-quest set (levels 1-6, then 7-9)."""
         return [self.levels[0].block, self.levels[6].block]
+
+    def record_level_entry_codes(self) -> None:
+        """FP-ENTR-01 and FP-ENTR-02: the level-information bytes ZORA's code patches read, where
+        no pass set them: each level's arrival code (from below, ARRIVAL_DUNGEON) and the room a
+        move leaves it by (Level.exit_room_count; the start-room swap sets both for a moved start
+        room, PS-START-03), and the overworld's arrival code. Run when the rooms' owners are
+        final, at the end of generation; doing it twice is doing it once."""
+        for level in self.levels:
+            if level.arrival_code is None:
+                level.arrival_code = ARRIVAL_DUNGEON
+            if level.exit_room is None:
+                level.exit_room = level.exit_room_count()
+        self.overworld_arrival_code = ARRIVAL_OVERWORLD
+
+    def store_second_quest_sets_in_first_quest_slots(self) -> None:
+        """Encode level data (FP-TOURNEY-01; owner decision, 2026-10-12): the encoding takes the
+        second-quest blocks' ROM space for itself, so a set whose levels read their second-quest
+        block has that block stored in the set's first-quest slot instead, whose own block no level
+        of the set reads. The levels keep reading the same block and their level information is
+        unchanged; the serializer writes the block at the first-quest slot and points the set's
+        levels there ($87, $8A). Owner ruling: the changed pointer bytes are data the protection
+        method needs. A world with no second-quest set is unchanged; doing it twice is doing it
+        once."""
+        for set_index, block in enumerate(self.blocks_2q):
+            read = [level.block is block for level in self.levels[SET_SLICES[set_index]]]
+            if not any(read):
+                continue
+            if not all(read):
+                raise ValueError(f"levels {SET_NAMES[set_index]} read more than one room block")
+            self.blocks[set_index] = block

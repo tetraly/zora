@@ -3,7 +3,7 @@ from collections.abc import Callable
 
 from zora.model import room_grid
 from zora.generate.rng import Rng
-from zora.model.room_grid import neighbour
+from zora.model.room_grid import neighbor
 from zora.generate.shapes.doors import place_doors
 from zora.generate.shapes.entrances import place_entrances
 from zora.generate.errors import GenerationFailure
@@ -96,7 +96,7 @@ def test_transport_same_level_endpoints_multi_piece_legal() -> None:
             edges: dict[int, list[int]] = {c: [] for c in cells}
             for c in cells:
                 for d in Side:
-                    nb = neighbour(c, d)
+                    nb = neighbor(c, d)
                     if nb in cells:
                         edges[c].append(nb)
             seen: set[int] = set()
@@ -309,7 +309,7 @@ def _repair_level(world: SetWorld, blob: int, rng: Rng) -> int:
         out = []
         if u in cells:
             for d in Side:
-                nb = neighbour(u, d)
+                nb = neighbor(u, d)
                 if nb in cells:
                     out.append(nb)
         # stair links connect houses/ends through the stair cell
@@ -338,7 +338,7 @@ def _repair_level(world: SetWorld, blob: int, rng: Rng) -> int:
                 return True
         if u in cells and v in cells:
             for d in Side:
-                if neighbour(u, d) == v:
+                if neighbor(u, d) == v:
                     return world.plans[u].walls[d] != _SOLID and \
                         world.plans[v].walls[d.opposite] != _SOLID
         return True  # stair cell involved
@@ -373,7 +373,7 @@ def _repair_level(world: SetWorld, blob: int, rng: Rng) -> int:
             # simply ship unjoined — acceptance is a later stage's business.
             return opened
         guard -= 1
-        # candidate seals: reached u with unreached neighbour v across a solid
+        # candidate seals: reached u with unreached neighbor v across a solid
         # side (either side) — open them both ways as plain doors.
         options: list[tuple[int, int]] = []
         for u in sorted(seen):
@@ -399,7 +399,7 @@ def _repair_level(world: SetWorld, blob: int, rng: Rng) -> int:
         if vertical and rng.chance(1, 3):
             new_side = 4  # WallType.BOMB_HOLE
         for d in Side:
-            if neighbour(u, d) == v:
+            if neighbor(u, d) == v:
                 world.plans[u].walls[d] = new_side
                 if v in cells:
                     world.plans[v].walls[d.opposite] = new_side

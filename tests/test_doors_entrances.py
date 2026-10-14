@@ -1,7 +1,7 @@
 """Tests for doors (SH-DOOR) and entrances (SH-ENT)."""
 from zora.model import room_grid
 from zora.generate.rng import Rng
-from zora.model.room_grid import neighbour
+from zora.model.room_grid import neighbor
 from zora.generate.shapes.doors import place_doors
 from zora.generate.shapes.entrances import place_entrances
 from zora.generate.shapes.gridgen import grow_set
@@ -39,7 +39,7 @@ def test_pairs_synced_or_oneway_shutter() -> None:
                 if blob < 0:
                     continue
                 for d in (Side.EAST, Side.SOUTH):
-                    nb = neighbour(cell, d)
+                    nb = neighbor(cell, d)
                     if nb is None or w.blob_of[nb] != blob:
                         continue
                     a, b = w.plans[cell].walls[d], w.plans[nb].walls[d.opposite]
@@ -55,7 +55,7 @@ def test_crosslevel_and_edge_sides_solid() -> None:
             if blob < 0:
                 continue
             for d in Side:
-                nb = neighbour(cell, d)
+                nb = neighbor(cell, d)
                 if nb is None or w.blob_of[nb] != blob:
                     if cell in entrance_cells and d == Side.SOUTH:
                         assert w.plans[cell].walls[d] == 0  # SH-ENT-03

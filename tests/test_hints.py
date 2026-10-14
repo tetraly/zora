@@ -39,18 +39,18 @@ def _levels(persons: dict[int, list[int]]) -> list[Level]:
 
 
 def test_marker_moves_within_its_half_and_skips_the_previous_entry() -> None:
-    state = HintAssignmentResult(helpful={3, 4, 6, 8}, old_man_levels=[3, 8])
+    state = HintAssignmentResult(helpful={3, 4, 6, 8}, kept_person_levels=[3, 8])
     move_helpful_markers(state)
     # 3 moves its marker to 1; 8 scans from 5: 5 is free (not 8, not 3)
     assert state.helpful == {1, 4, 5, 6}
-    state = HintAssignmentResult(helpful={3, 4, 6, 8}, old_man_levels=[5, 6])
+    state = HintAssignmentResult(helpful={3, 4, 6, 8}, kept_person_levels=[5, 6])
     move_helpful_markers(state)
     # 5 is unhelpful already; 6 scans from 5 but 5 is the previous entry
     assert state.helpful == {3, 4, 7, 8}
 
 
-def test_repeated_old_man_level_moves_once() -> None:
-    state = HintAssignmentResult(helpful={3, 4, 6, 8}, old_man_levels=[4, 4])
+def test_repeated_kept_person_level_moves_once() -> None:
+    state = HintAssignmentResult(helpful={3, 4, 6, 8}, kept_person_levels=[4, 4])
     move_helpful_markers(state)
     assert state.helpful == {1, 3, 6, 8}
 
@@ -88,5 +88,5 @@ def test_merchants_level9_and_kept_bomb_rooms_are_untouched() -> None:
     state = assign_hints_for_hint_type(levels, (5, 5))
     codes = [levels[0].block.room(cell).monster_list for cell in range(3)]
     assert codes == [0x11, 0x0F, 0x0C]
-    assert state.old_man_levels == [5]
+    assert state.kept_person_levels == [5]
     assert state.listed == 0

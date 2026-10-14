@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from ...model.game_world import GameWorld
-from ..base_rom import remember_base_rom
+from ..base_rom import recognized_player_rom, using_player_rom
 from ..game_config import GameConfig
 from ..layout import (
     LEVEL_1_6_DATA_ADDRESS,
@@ -12,6 +12,7 @@ from ..layout import (
     NES_HEADER_SIZE,
     OVERWORLD_DATA_ADDRESS,
 )
+from ..revision import finished_in_prg0_layout
 from .bin_files import load_bin_files_from_rom
 from .game_world import parse_game_world
 
@@ -37,12 +38,19 @@ def parse_rom(rom: bytes, config: GameConfig | None = None) -> GameWorld:
 
     Accepts vanilla and randomized ROMs alike; regions not present in a vanilla
     ROM (e.g. the boss expansion sprites block) are read from wherever the
-    layout constants say they live. A PRG0 ROM is remembered as the player's ROM,
-    the source of the original bytes the patches keep or move (base_rom.Original).
+    layout constants say they live. A release (PRG0 or PRG1, with or without modified
+    graphics; revision.identify_rom) is parsed in PRG0's layout, so both releases give the
+    same world, and is the source of the original bytes the patches keep or move
+    (base_rom.Original) while it is parsed. Any other ROM (a finished or corpus ROM) is parsed
+    in PRG0's layout too (a finished PRG1 ROM moved back; revision.layout_of), reading those
+    bytes from the player's ROM of the call in progress (or the remembered one).
     """
-    remember_base_rom(rom)
-    return parse_game_world(load_bin_files_from_rom(rom), config=config,
-                            rom_bytes=rom)
+    player = recognized_player_rom(rom)
+    if player is None:
+        image = finished_in_prg0_layout(rom)
+        return parse_game_world(load_bin_files_from_rom(image), config=config, rom_bytes=image)
+    with using_player_rom(player):
+        return parse_game_world(load_bin_files_from_rom(player.layout), config=config, rom_bytes=player.layout)
 
 
 def parse_rom_file(path: Path,

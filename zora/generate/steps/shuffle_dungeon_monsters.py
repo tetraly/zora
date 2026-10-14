@@ -59,7 +59,7 @@ GANON_ITEM = ItemInfo.from_item_byte(GANON_ITEM_BYTE)
 GANON_SECRET = SecretInfo(RoomAction.LAST_BOSS, ItemPosition.POSITION_A)   # trigger byte $03
 GANON_KEPT_DOORS = frozenset({D_WALL, D_BOMB})
 BOSS_SOUND_NEAR = 1              # item byte bit $20: boss-sound index bit 0
-RAW_NEIGHBOUR_STEPS = (-GRID_COLS, GRID_COLS, -1, 1)
+RAW_NEIGHBOR_STEPS = (-GRID_COLS, GRID_COLS, -1, 1)
 
 
 def _is_zelda(value: int) -> bool:
@@ -153,7 +153,7 @@ def _write_ganon_room(block: LevelBlock, room_number: int, copy_to: int | None,
     """PS-MONRD-03's Ganon writes, in order: the room's item byte to the
     last walked $28 room, then $8E and trigger 3, shutters on every side
     but walls and bombable walls, and the boss sound on taking-part
-    byte-neighbours (raw index: left/right look across a row end)."""
+    byte-neighbors (raw index: left/right look across a row end)."""
     room = block.room(room_number)
     if copy_to is not None:
         block.room(copy_to).item_info = room.item_info
@@ -162,7 +162,7 @@ def _write_ganon_room(block: LevelBlock, room_number: int, copy_to: int | None,
     for side in Side:
         if side_of(room, side) not in GANON_KEPT_DOORS:
             set_side(room, side, D_SHUTTER)
-    for step in RAW_NEIGHBOUR_STEPS:
+    for step in RAW_NEIGHBOR_STEPS:
         if room_number + step in taking_part:
             beside = block.room(room_number + step)
             beside.boss_sound = BossSound(beside.boss_sound | BOSS_SOUND_NEAR)

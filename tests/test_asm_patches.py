@@ -13,9 +13,9 @@ from tests.test_feature_patches import vanilla
 from zora.rom.base_rom import Original, original_bytes, piece_bytes, piece_length
 from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import (
-    BOOK_TO_UNDERSTAND_OLD_MEN, ENTR_01, ENTR_01_SIDES, EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT, ONE_TIME_WARES, PROGRESSIVE_CAVES,
+    BOOK_TO_UNDERSTAND_NPCS, ENTR_01, ENTR_01_SIDES, EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT, ONE_TIME_WARES, PROGRESSIVE_CAVES,
     PROGRESSIVE_ITEMS_BYTE,
-    PROGRESSIVE_ROOM_ITEMS, START_ITEMS, exit_room_count, left_out_patches, one_time_wares,
+    PROGRESSIVE_ROOM_ITEMS, START_ITEMS, left_out_patches, one_time_wares,
 )
 from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.parse.rom_file import original_bins_from_rom, parse_rom
@@ -150,7 +150,7 @@ def test_level_information_carries_the_exit_room_counts() -> None:
     rom = vanilla()
     world = parse_rom(rom)
     generate_shapes(world, Rng(3), ShapeOptions())
-    expected = {level.level_num: exit_room_count(world, level) | EXIT_ROOM_COUNT_FLAG
+    expected = {level.level_num: level.exit_room_count() | EXIT_ROOM_COUNT_FLAG
                 for level in world.levels}
     finished = parse_rom(serialize_to_rom(world, rom, config=GameConfig(features_b10=True)))
     assert {level.level_num: level.palette_raw[LEVEL_INFO_EXIT_ROOM_COUNT]
@@ -208,9 +208,9 @@ def test_the_progressive_patches_follow_their_flags(zora: str, caves: bool, room
 
 def test_left_out_patches() -> None:
     assert left_out_patches(True, False, False) == (PROGRESSIVE_CAVES, PROGRESSIVE_ROOM_ITEMS, START_ITEMS,
-                                                    ENTR_01_SIDES, BOOK_TO_UNDERSTAND_OLD_MEN)
+                                                    ENTR_01_SIDES, BOOK_TO_UNDERSTAND_NPCS)
     assert left_out_patches(False, False, True) == ("fp-book-01", PROGRESSIVE_ROOM_ITEMS, START_ITEMS, ENTR_01_SIDES,
-                                                    BOOK_TO_UNDERSTAND_OLD_MEN)
-    assert left_out_patches(True, True, False) == (START_ITEMS, ENTR_01_SIDES, BOOK_TO_UNDERSTAND_OLD_MEN)
+                                                    BOOK_TO_UNDERSTAND_NPCS)
+    assert left_out_patches(True, True, False) == (START_ITEMS, ENTR_01_SIDES, BOOK_TO_UNDERSTAND_NPCS)
     assert left_out_patches(True, True, False, start_items=True, start_rooms_moved=True,
-                            book_to_understand_old_men=True) == ()
+                            book_to_understand_npcs=True) == ()

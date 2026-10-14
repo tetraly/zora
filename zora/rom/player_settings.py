@@ -42,6 +42,7 @@ from .layout import (
     hint_text_regions,
 )
 from .player_settings_data import SETTINGS
+from .revision import Revision, back_to_revision, layout_of, moved_to_prg0_layout, prg1_offset
 from .text_encoding import BYTE_TO_CHAR, CHAR_TO_BYTE, QUOTE_BLANK, QUOTE_CHAR_MASK, QUOTE_END_BITS
 
 # NES palette values (FP-SET-02): six bits, and $0D ("blacker than black",
@@ -49,35 +50,35 @@ from .text_encoding import BYTE_TO_CHAR, CHAR_TO_BYTE, QUOTE_BLANK, QUOTE_CHAR_M
 PALETTE_SIZE = 0x40
 BLACKER_THAN_BLACK = 0x0D
 
-# FP-SET-02: the tunic colour of each ring state, in both copies PRG0 reads:
+# FP-SET-02: the tunic color of each ring state, in both copies PRG0 reads:
 # the file-select copy (LinkColors) and the pickup copy (LinkColors_CommonCode,
 # whose first entry is never read; the slot's value is written there too).
 TUNIC_FILE_SELECT_COPY = 0xA297
 TUNIC_PICKUP_COPY = 0x6BA5
 TUNIC_SLOTS = 3                      # no ring, blue ring, red ring
 # The map's position marker (docs/reports/minimap-marker.md): sprite tile $3E, whose 3x3 dot is
-# colour 1 of Link's palette, the tunic colour. These tunic colours hide it on a map background
-# (black in the levels, grey $00 on the overworld, room blue $12; CIE76 colour distance under 25),
-# or are too faint on black (under 30). With any of them in any slot, the dot is drawn in colour 2, Link's skin ($27;
+# color 1 of Link's palette, the tunic color. These tunic colors hide it on a map background
+# (black in the levels, gray $00 on the overworld, room blue $12; CIE76 color distance under 25),
+# or are too faint on black (under 30). With any of them in any slot, the dot is drawn in color 2, Link's skin ($27;
 # $37 in level 3), which no ring or setting changes. The page shows a note from this same set
 # (zora.flags.form.metadata).
-MARKER_HIDING_COLOURS = frozenset({
+MARKER_HIDING_COLORS = frozenset({
     0x0E, 0x0F, 0x1D, 0x1E, 0x1F, 0x2E, 0x2F, 0x3E, 0x3F,      # black
-    0x00, 0x2D, 0x0C,                                           # on grey $00
+    0x00, 0x2D, 0x0C,                                           # on gray $00
     0x12, 0x13,                                                 # on room blue
     0x07, 0x08,                                                 # faint on black
 })
 # Tile $3E in CommonSpritePatterns (bank 2): its low plane, then its high plane 8 bytes on; the
-# dot is the top three rows. Colour 2 is low bit clear, high bit set in the dot's three columns.
+# dot is the top three rows. Color 2 is low bit clear, high bit set in the dot's three columns.
 MARKER_DOT_LOW_PLANE = 0x846F
 MARKER_DOT_HIGH_PLANE = MARKER_DOT_LOW_PLANE + 8
 MARKER_DOT_ROWS = 3
 MARKER_DOT_COLUMNS_BITS = 0xE0
 SKIN_DOT_LOW_PLANE = bytes(MARKER_DOT_ROWS)
 SKIN_DOT_HIGH_PLANE = bytes([MARKER_DOT_COLUMNS_BITS] * MARKER_DOT_ROWS)
-# FP-SET-03: the heart colour, byte 8 of each of the ten level informations'
+# FP-SET-03: the heart color, byte 8 of each of the ten level informations'
 # palette records (the overworld's is k = 0).
-HEART_COLOUR_OFFSET = 8
+HEART_COLOR_OFFSET = 8
 LEVEL_INFORMATIONS = 10
 # FP-BEEP-01: the operand ORed into Tune0Request ($40 requests the tone).
 BEEP_REMOVED, BEEP_KEPT = 0x00, 0x40
@@ -118,12 +119,12 @@ TRANSFER_END = 0xFF
 # The hints name levels the same way ("THE RAFT RESTS IN LEVEL-3.", "LEVEL-3 LIES BY THE SHORE."),
 # and hint text is written at generation, before the player settings. A word's label is never
 # longer than "LEVEL-3" (5 characters and the dash, or 6 without it), so the setting rewrites each
-# hint line holding a label in place: the label replaced, the line centred again on the box's
+# hint line holding a label in place: the label replaced, the line centered again on the box's
 # width, then padded at its end with the blank padding tile to its old length. Every text keeps
 # its length and place, the pointers stay, and a line only gets shorter, so every hint still fits
 # its box. PRG0's own texts and the community pool never say "LEVEL-".
 HINT_LEVEL_LABEL = re.compile(r"(?<![A-Z0-9])LEVEL-([1-9])(?![0-9])")
-HINT_LINE_WIDTH = 24                      # hint_text.LINE_WIDTH: hint lines are centred on it
+HINT_LINE_WIDTH = 24                      # hint_text.LINE_WIDTH: hint lines are centered on it
 POINTER_BANK_BIT = 0x80                   # a pointer's high byte in bank 1 ($8000-$BFFF)
 # InitMode3_Sub7's `STA LevelNumberTransferBuf+9` (8D 25 68 at 0x1703F): its operand's low byte.
 LEVEL_NUMBER_STORE_OPERAND = 0x17040
@@ -188,8 +189,8 @@ class PlayerSettings:
     death_warp: DeathWarp = DeathWarp.CONTROLLER1_UP_A
     reduce_flashing: bool = False
     # green tunic (no ring), blue ring, red ring: PRG0's
-    tunic_colours: tuple[int, int, int] = (0x29, 0x32, 0x16)
-    heart_colour: int = 0x16                        # PRG0's
+    tunic_colors: tuple[int, int, int] = (0x29, 0x32, 0x16)
+    heart_color: int = 0x16                        # PRG0's
     music: Music = Music.ON
     level_word: str = DEFAULT_LEVEL_WORD            # FP-LEVEL-01
     boss_sound_word: str = DEFAULT_BOSS_SOUND_WORD  # FP-ROAR-01's label: a word or RANDOM
@@ -198,10 +199,10 @@ class PlayerSettings:
     def __post_init__(self) -> None:
         check_level_word(self.level_word)
         check_boss_sound_word(self.boss_sound_word)
-        if len(self.tunic_colours) != TUNIC_SLOTS:
-            raise PlayerSettingError(f"tunic colours: three values, not {len(self.tunic_colours)}")
-        for name, value in (("green tunic", self.tunic_colours[0]), ("blue ring", self.tunic_colours[1]),
-                            ("red ring", self.tunic_colours[2]), ("heart colour", self.heart_colour)):
+        if len(self.tunic_colors) != TUNIC_SLOTS:
+            raise PlayerSettingError(f"tunic colors: three values, not {len(self.tunic_colors)}")
+        for name, value in (("green tunic", self.tunic_colors[0]), ("blue ring", self.tunic_colors[1]),
+                            ("red ring", self.tunic_colors[2]), ("heart color", self.heart_color)):
             check_palette_value(name, value)
 
 
@@ -272,9 +273,13 @@ def random_boss_sound_word(seed: int) -> str:
 def title_seed_number(rom: bytes | bytearray) -> int:
     """The seed number the title screen shows (FP-TITLE-01: SEED, then the number right-aligned).
     The row is 24 tiles: up to 19 digits leave blanks after SEED, but a 20-digit number (10^19
-    and up) fills the row, so the label and the number touch (SEED14089154938208861744)."""
-    row = "".join(BYTE_TO_CHAR.get(tile, "?") for tile in rom[TITLE_SEED_ROW_ADDRESS:
-                                                                 TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH])
+    and up) fills the row, so the label and the number touch (SEED14089154938208861744). Read
+    in PRG0's layout (a ROM made from PRG1 has the row 139 bytes on; revision.layout_of)."""
+    seed_row = TITLE_SEED_ROW_ADDRESS
+    if layout_of(bytes(rom[:TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH + 0x100])) is Revision.PRG1:
+        seed_row = prg1_offset(TITLE_SEED_ROW_ADDRESS)
+    row = "".join(BYTE_TO_CHAR.get(tile, "?") for tile in rom[seed_row:
+                                                                 seed_row + TITLE_ROW_LENGTH])
     label, number = row[:len(TITLE_SEED_LABEL)], row[len(TITLE_SEED_LABEL):].strip()
     if label != TITLE_SEED_LABEL or not number.isdigit():
         raise PlayerSettingError("Random boss-sound word: this ROM's title screen shows no seed number")
@@ -291,14 +296,23 @@ DEFAULT_PLAYER_SETTINGS = PlayerSettings()
 
 
 def apply_player_settings(rom: bytes, settings: PlayerSettings) -> bytes:
-    """A finished ROM with the player settings written; nothing else changes."""
+    """A finished ROM with the player settings written; nothing else changes. A ROM made from
+    PRG1 is written in PRG0's layout and moved back (revision.layout_of)."""
+    if layout_of(rom) is Revision.PRG1:
+        image = moved_to_prg0_layout(rom)
+        return back_to_revision(rom, Revision.PRG1, image, write_player_settings(image, settings))
+    return write_player_settings(rom, settings)
+
+
+def write_player_settings(rom: bytes, settings: PlayerSettings) -> bytes:
+    """apply_player_settings on an image in PRG0's layout (the final steps' image)."""
     out = bytearray(rom)
     select_swap(out, settings.select_swap)
     low_health_beep(out, settings.low_health_beep)
     death_warp(out, settings.death_warp)
     reduce_flashing(out, settings.reduce_flashing)
-    tunic_colours(out, settings.tunic_colours)
-    heart_colour(out, settings.heart_colour)
+    tunic_colors(out, settings.tunic_colors)
+    heart_color(out, settings.heart_color)
     music(out, settings.music)
     level_word(out, settings.level_word)
     boss_sound_word(out, settings.boss_sound_word)
@@ -349,25 +363,25 @@ def reduce_flashing(rom: bytearray, on: bool) -> None:
     _write(rom, SETTINGS["reduce_flashing"]["on" if on else "off"])
 
 
-def tunic_colours(rom: bytearray, colours: tuple[int, int, int]) -> None:
-    """FP-SET-02: each slot's value in both copies; with a colour that hides the map marker in
-    any slot, the marker in Link's skin colour (owner ruling, docs/reports/minimap-marker.md)."""
+def tunic_colors(rom: bytearray, colors: tuple[int, int, int]) -> None:
+    """FP-SET-02: each slot's value in both copies; with a color that hides the map marker in
+    any slot, the marker in Link's skin color (owner ruling, docs/reports/minimap-marker.md)."""
     for copy in (TUNIC_FILE_SELECT_COPY, TUNIC_PICKUP_COPY):
-        rom[copy:copy + len(colours)] = bytes(colours)
-    if hides_the_map_marker(colours):
+        rom[copy:copy + len(colors)] = bytes(colors)
+    if hides_the_map_marker(colors):
         rom[MARKER_DOT_LOW_PLANE:MARKER_DOT_LOW_PLANE + MARKER_DOT_ROWS] = SKIN_DOT_LOW_PLANE
         rom[MARKER_DOT_HIGH_PLANE:MARKER_DOT_HIGH_PLANE + MARKER_DOT_ROWS] = SKIN_DOT_HIGH_PLANE
 
 
-def hides_the_map_marker(colours: tuple[int, int, int]) -> bool:
-    """Whether any ring state's tunic colour would hide the marker drawn in it."""
-    return any(colour in MARKER_HIDING_COLOURS for colour in colours)
+def hides_the_map_marker(colors: tuple[int, int, int]) -> bool:
+    """Whether any ring state's tunic color would hide the marker drawn in it."""
+    return any(color in MARKER_HIDING_COLORS for color in colors)
 
 
-def heart_colour(rom: bytearray, colour: int) -> None:
-    """FP-SET-03: all ten level informations' heart colour."""
+def heart_color(rom: bytearray, color: int) -> None:
+    """FP-SET-03: all ten level informations' heart color."""
     for level_information in range(LEVEL_INFORMATIONS):
-        rom[LEVEL_INFO_ADDRESS + level_information * LEVEL_INFO_SIZE + HEART_COLOUR_OFFSET] = colour
+        rom[LEVEL_INFO_ADDRESS + level_information * LEVEL_INFO_SIZE + HEART_COLOR_OFFSET] = color
 
 
 def music(rom: bytearray, choice: Music) -> None:
@@ -410,15 +424,15 @@ def statistics_screen(rom: bytearray, on: bool) -> None:
 
 
 def relabel_hint_line(line: str, word: str) -> str:
-    """One hint line (its characters, centring pad included) with each level label in `word`'s
-    form, centred again and padded at its end to the line's old length."""
+    """One hint line (its characters, centering pad included) with each level label in `word`'s
+    form, centered again and padded at its end to the line's old length."""
     text = HINT_LEVEL_LABEL.sub(lambda label: level_label(word).replace("1", label.group(1)),
                                 line.lstrip(TEXT_PAD_CHARACTER))
     if text == line.lstrip(TEXT_PAD_CHARACTER):
         return line
-    centred = TEXT_PAD_CHARACTER * max(0, (HINT_LINE_WIDTH - len(text)) // 2) + text
-    assert len(centred) <= len(line), (line, word)
-    return centred.ljust(len(line), TEXT_PAD_CHARACTER)
+    centered = TEXT_PAD_CHARACTER * max(0, (HINT_LINE_WIDTH - len(text)) // 2) + text
+    assert len(centered) <= len(line), (line, word)
+    return centered.ljust(len(line), TEXT_PAD_CHARACTER)
 
 
 def relabel_hint_text(body: bytes, word: str) -> bytes:
@@ -430,9 +444,9 @@ def relabel_hint_text(body: bytes, word: str) -> bytes:
         if not byte & QUOTE_END_BITS:
             continue
         line = "".join(BYTE_TO_CHAR.get(tile & QUOTE_CHAR_MASK, "?") for tile in body[start:end + 1])
-        relabelled = relabel_hint_line(line, word)
-        if relabelled != line:
-            out[start:end + 1] = bytes(CHAR_TO_BYTE[char] for char in relabelled)
+        relabeled = relabel_hint_line(line, word)
+        if relabeled != line:
+            out[start:end + 1] = bytes(CHAR_TO_BYTE[char] for char in relabeled)
             out[end] |= byte & QUOTE_END_BITS
         if byte & QUOTE_END_BITS == QUOTE_END_BITS:
             break
@@ -478,7 +492,7 @@ def written_offsets(settings_field: str) -> set[int]:
         runs = [*select_swap_off_runs(), *(run for runs in SETTINGS["select_swap"].values() for run in runs)]
     elif settings_field == "low_health_beep":
         return {LOW_HEALTH_BEEP_OPERAND_ADDRESS}
-    elif settings_field == "tunic_colours":
+    elif settings_field == "tunic_colors":
         return ({copy + slot for copy in (TUNIC_FILE_SELECT_COPY, TUNIC_PICKUP_COPY) for slot in range(TUNIC_SLOTS)}
                 | {plane + row for plane in (MARKER_DOT_LOW_PLANE, MARKER_DOT_HIGH_PLANE)
                    for row in range(MARKER_DOT_ROWS)})
@@ -488,8 +502,8 @@ def written_offsets(settings_field: str) -> set[int]:
         hint_regions = {offset for count in (NUM_QUOTES, CONSTERNATION_HINT_SLOTS)
                         for start, end in hint_text_regions(count) for offset in range(start, end)}
         return {*range(LEVEL_RECORD, LEVEL_RECORD + LEVEL_RECORD_SIZE), LEVEL_NUMBER_STORE_OPERAND, *hint_regions}
-    elif settings_field == "heart_colour":
-        return {LEVEL_INFO_ADDRESS + k * LEVEL_INFO_SIZE + HEART_COLOUR_OFFSET for k in range(LEVEL_INFORMATIONS)}
+    elif settings_field == "heart_color":
+        return {LEVEL_INFO_ADDRESS + k * LEVEL_INFO_SIZE + HEART_COLOR_OFFSET for k in range(LEVEL_INFORMATIONS)}
     else:
         runs = [run for runs in SETTINGS[settings_field].values() for run in runs]
     return {offset + i for offset, run in runs for i in range(piece_length(run))}
@@ -502,7 +516,7 @@ SWITCH_WORDS = {"off": False, "on": True}
 
 def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     """Command-line settings, each `name=value` with PlayerSettings' field names: a choice by
-    its value (music=off), reduce_flashing=on, statistics_screen=off, heart_colour=0x21, tunic_colours=0x29,0x32,0x16,
+    its value (music=off), reduce_flashing=on, statistics_screen=off, heart_color=0x21, tunic_colors=0x29,0x32,0x16,
     level_word=PALACE (any case), boss_sound_word=MEOW or boss_sound_word=random."""
     chosen: dict[str, object] = {}
     for pair in pairs:
@@ -512,9 +526,9 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
                 chosen[name] = SETTING_CHOICES[name](text)
             elif name in ("reduce_flashing", "statistics_screen"):
                 chosen[name] = SWITCH_WORDS[text]
-            elif name == "heart_colour":
+            elif name == "heart_color":
                 chosen[name] = int(text, 0)
-            elif name == "tunic_colours":
+            elif name == "tunic_colors":
                 chosen[name] = tuple(int(value, 0) for value in text.split(","))
             elif name == "level_word":
                 chosen[name] = normalized_level_word(text)
@@ -529,7 +543,7 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     return PlayerSettings(**chosen)  # type: ignore[arg-type]
 
 
-# The page's Cosmetic tab (web/zora-web.js PLAYER_CHOICES and PLAYER_COLOURS): its keys and
+# The page's Cosmetic tab (web/zora-web.js PLAYER_CHOICES and PLAYER_COLORS): its keys and
 # choice values, as PlayerSettings fields. The page's names are also Archipelago's (a recipe's
 # playerSettings, zora/archipelago.py).
 PAGE_CHOICES: dict[str, tuple[str, dict[str, Any]]] = {
@@ -550,7 +564,7 @@ PAGE_BOSS_SOUND_WORD = "bossSoundWord"
 
 def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
     """The page's playerSettings object as PlayerSettings. A key it leaves out
-    takes the default; an unknown choice or a colour that is not an NES palette
+    takes the default; an unknown choice or a color that is not an NES palette
     value (or is $0D) is refused with PlayerSettingError, never replaced."""
     defaults = PlayerSettings()
     chosen: dict[str, Any] = {}
@@ -560,7 +574,7 @@ def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
                 raise PlayerSettingError(f"{key}: unknown choice {values[key]!r}")
             chosen[field] = choices[values[key]]
     tunics = tuple(values.get(slot, default)
-                   for slot, default in zip(PAGE_TUNIC_SLOTS, defaults.tunic_colours, strict=True))
+                   for slot, default in zip(PAGE_TUNIC_SLOTS, defaults.tunic_colors, strict=True))
     if PAGE_LEVEL_WORD in values:
         if not isinstance(values[PAGE_LEVEL_WORD], str):
             raise PlayerSettingError(f"{PAGE_LEVEL_WORD}: {values[PAGE_LEVEL_WORD]!r} is not text")
@@ -569,5 +583,5 @@ def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
         if not isinstance(values[PAGE_BOSS_SOUND_WORD], str):
             raise PlayerSettingError(f"{PAGE_BOSS_SOUND_WORD}: {values[PAGE_BOSS_SOUND_WORD]!r} is not text")
         chosen["boss_sound_word"] = normalized_boss_sound_word(values[PAGE_BOSS_SOUND_WORD])
-    return PlayerSettings(tunic_colours=tunics, heart_colour=values.get(PAGE_HEART_SLOT, defaults.heart_colour),
+    return PlayerSettings(tunic_colors=tunics, heart_color=values.get(PAGE_HEART_SLOT, defaults.heart_color),
                           **chosen)

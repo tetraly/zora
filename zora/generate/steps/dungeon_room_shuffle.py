@@ -12,7 +12,9 @@ the late gate:
 
 Omitted: PS-XCHG-05's level Triforce-room pointer. The late gate rewrites
 the pointer before the ROM ships (its pointer fix), so the value this pass
-would store never survives.
+would store never survives. ZORA derives the pointer from the rooms when a
+level is written (serialize.levels.derive_triforce_room_ptr; a vanilla set
+drops PRG0's, dungeon_quest.vanilla_set).
 """
 from dataclasses import dataclass
 

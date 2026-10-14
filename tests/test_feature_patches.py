@@ -20,10 +20,12 @@ from tests.emulator import (
 )
 from zora.rom.code_patches import (
     SEED_CODE_LENGTH, SEED_CODE_ITEMS, SEED_CODE_ADDRESS, EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT,
-    code_patch_writes, exit_room_count,
+    code_patch_writes,
 )
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.revision import identify_rom
 from zora.model.enums import BossSound, Item, ItemPosition, RoomAction, WallType
+from zora.model.game_world import GameWorld
 from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
@@ -51,6 +53,11 @@ def vanilla() -> bytes:
     cand = Path(env) if env else BASE_ROM_PATH
     if not cand.exists():
         pytest.skip("vanilla ROM missing")
+    if env:
+        # Another release (the PRG1 emulator checks: ZORA_VANILLA_ROM names the PRG1 file); the
+        # tests that read PRG0's bytes at fixed offsets fail on it by design.
+        identify_rom(cand.read_bytes())
+        return cand.read_bytes()
     return verify_base_rom(cand).read_bytes()
 
 
@@ -127,11 +134,20 @@ def test_shutters_wait_while_a_door_command_is_pending() -> None:
 MOUNTAIN_MAZE_SCREEN = 0x1B
 
 
+def _prg0_world() -> GameWorld:
+    """PRG0's world with the level entry codes ZORA's code patches read, recorded as generation
+    records them (GameWorld.record_level_entry_codes): these worlds are written without a
+    generation, with the patches and without (the codes are written only with them)."""
+    world = parse_rom(vanilla())
+    world.record_level_entry_codes()
+    return world
+
+
 def _whirlwind_trip_end(features_b10: bool) -> int:
     """Level 1's whirlwind origin set to the mountain maze screen; play the
     recorder holding level 1's triforce and return the screen the trip
     ends on."""
-    world = parse_rom(vanilla())
+    world = _prg0_world()
     world.overworld.recorder_warp_destinations[0] = MOUNTAIN_MAZE_SCREEN
     emu = Emulator(serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=features_b10)))
     emu.new_game()
@@ -252,7 +268,7 @@ def test_exit_room_counts_on_prg0() -> None:
     """FP-ENTR-02's count on PRG0's quest-1 levels: the leading rooms of
     the block, from room 0, that belong to no level or to this one."""
     world = parse_rom(vanilla())
-    counts = {level.level_num: exit_room_count(world, level) for level in world.levels}
+    counts = {level.level_num: level.exit_room_count() for level in world.levels}
     for level in world.levels:
         count = counts[level.level_num]
         assert all(level.block.owner_of(n) in (None, level) for n in range(count))
@@ -293,7 +309,7 @@ def _take_book_in_level_1(features_b10: bool) -> tuple[bool, bool]:
     """The Book lies in level 1's start room, on Link's way north; walk
     up until he holds it. Return whether the map redraw was requested, and
     whether the status bar changed."""
-    world = parse_rom(vanilla())
+    world = _prg0_world()
     start_room = next(level for level in world.levels if level.level_num == 1).block.room(LEVEL_1_START_ROOM)
     start_room.item = Item.BOOK
     start_room.item_position = ITEM_SPOT_ON_LINKS_PATH
@@ -385,7 +401,7 @@ def _sword_thrusts(emu: Emulator) -> bool:
 def _overworld_start(features_b10: bool) -> tuple[tuple[int, int, int], bool, bool]:
     """PRG0's world serialized: Link's (X, Y, direction) at the start,
     whether the sword works at once, and whether it works after one move."""
-    rom = serialize_to_rom(parse_rom(vanilla()), vanilla(), config=GameConfig(features_b10=features_b10))
+    rom = serialize_to_rom(_prg0_world(), vanilla(), config=GameConfig(features_b10=features_b10))
     emu = Emulator(rom)
     emu.new_game()
     emu[ITEMS] = SWORD
@@ -423,7 +439,7 @@ def test_overworld_start_y_moves_out_of_level_information() -> None:
 
 
 def _dungeon_arrival(features_b10: bool) -> tuple[int, int, int]:
-    rom = serialize_to_rom(parse_rom(vanilla()), vanilla(), config=GameConfig(features_b10=features_b10))
+    rom = serialize_to_rom(_prg0_world(), vanilla(), config=GameConfig(features_b10=features_b10))
     emu = Emulator(rom)
     emu.new_game()
     emu.play_recorder(LEVEL_1_TRIFORCE)
@@ -451,7 +467,7 @@ def _power_triforce_pickup(features_b10: bool) -> dict[str, int]:
     as Ganon's death activates it. Walk up and take it; return the frames
     (from the start of the walk) of the pickup and of the shutter opening,
     and LastBossDefeated and ObjType slot 0 right after the pickup."""
-    world = parse_rom(vanilla())
+    world = _prg0_world()
     room = next(level for level in world.levels if level.level_num == 1).block.room(LEVEL_1_START_ROOM)
     room.item = Item.TRIFORCE_OF_POWER
     room.item_position = ITEM_SPOT_ON_LINKS_PATH
@@ -498,7 +514,7 @@ def _room_labels(features_b10: bool) -> tuple[bytes, bytes, bytes, bytes]:
     """Level 1's start room given a boss sound: the label on the
     overworld, in that room and in the room north of it, and the label's
     pixels on the overworld."""
-    world = parse_rom(vanilla())
+    world = _prg0_world()
     room = next(level for level in world.levels if level.level_num == 1).block.room(LEVEL_1_START_ROOM)
     room.boss_sound = BossSound.ROAR_AQUAMENTUS_GLEEOK_GANON
     emu = Emulator(serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=features_b10)))
@@ -539,7 +555,7 @@ BOOMERANG_SLOT, BOMB_SLOT, RECORDER_SLOT = 0, 1, 5
 def _armed_start(features_b10: bool) -> Emulator:
     """A new file on PRG0's world, holding the boomerang, bombs and the
     recorder, facing up."""
-    rom = serialize_to_rom(parse_rom(vanilla()), vanilla(), config=GameConfig(features_b10=features_b10))
+    rom = serialize_to_rom(_prg0_world(), vanilla(), config=GameConfig(features_b10=features_b10))
     emu = Emulator(rom)
     emu.new_game()
     emu.run(8, Button.UP)

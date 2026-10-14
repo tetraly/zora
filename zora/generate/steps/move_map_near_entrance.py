@@ -45,13 +45,13 @@ def _room_graph(level: Level) -> dict[int, list[tuple[int, int]]]:
     links: dict[int, list[tuple[int, int]]] = {room_number: [] for room_number in room_numbers}
     for room in level.rooms:
         for side in Side:
-            neighbour = room_grid.neighbour(room.room_num, side)
-            if neighbour is None or neighbour not in room_numbers:
+            neighbor = room_grid.neighbor(room.room_num, side)
+            if neighbor is None or neighbor not in room_numbers:
                 continue
             wall = room.walls[side]
             if wall == WallType.SOLID_WALL:       # solid: no traversal
                 continue
-            links[room.room_num].append((neighbour, _cost(wall)))
+            links[room.room_num].append((neighbor, _cost(wall)))
     for stair in level.block.staircases:
         first, second = stair.left_exit, stair.right_exit
         if (stair.room_type == RoomType.TRANSPORT_STAIRCASE and first is not None

@@ -60,7 +60,7 @@ def _row_level(cells: list[int], layouts: dict[int, int], num: int = 1,
 
 def test_swap_safety_rejects_after_1000_draws() -> None:
     # a $0E content has no legal home in a single row ending at column 15:
-    # every other home lacks a left or right same-level neighbour.
+    # every other home lacks a left or right same-level neighbor.
     level = _row_level([0x70, 0x71], {0x70: 0x21, 0x71: 0x0E})
     assert _redeal_contents(level, Rng(1)) is None
 
@@ -150,7 +150,7 @@ def test_shipped_gate_invariants() -> None:
         assert entrance.walls.west == D_WALL
         assert entrance.walls.north == D_OPEN
         # boss sound index 1, only in level 9: the gate marks Ganon's
-        # neighbours, and the later map move (SH-MAP-06) can carry a mark
+        # neighbors, and the later map move (SH-MAP-06) can carry a mark
         # to another level-9 room with the item byte
         assert any(room.enemy == Enemy.THE_BEAST for room in level9.rooms)
         for room in block.rooms:
@@ -163,7 +163,7 @@ def test_shipped_gate_invariants() -> None:
             for room in level.rooms:
                 if room.movable_block:
                     assert room.room_action in (4, 5) or room.layout_code in (0x5A, 0x60)
-        # $27 rooms: N/E/W pairs wall/wall where the neighbour is same-level.
+        # $27 rooms: N/E/W pairs wall/wall where the neighbor is same-level.
         # The pin follows the layout; B2's re-deal moves Zelda off it and
         # B3's exchange moves the layout between levels (level 9 may hold
         # none).

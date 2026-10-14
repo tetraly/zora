@@ -85,7 +85,7 @@ IS_UPDATING_MODE = 0x11
 TILE_BUF_SELECTOR = 0x14
 CUR_PPU_MASK = 0xFE
 GRAYSCALE = 0x01                     # CurPpuMask_2001 bit
-ENDING_BACKGROUND_COLOUR = 0x315     # DynTileBuf+19
+ENDING_BACKGROUND_COLOR = 0x315     # DynTileBuf+19
 ITEM_TYPE_TO_LIFT = 0x505
 ITEM_LIFT_TIMER = 0x506
 SONG_REQUEST = 0x600
@@ -103,7 +103,7 @@ END_LEVEL_MODE = 0x12
 LEVEL_PALETTE, WHITE_PALETTE = 0x18, 0x78        # TileBufSelector values of the flashes
 ENDING_FLASH_START = 0x40                        # ItemLiftTimer value the flash waits for
 ENDING_FLASH_END = 0xC0
-PRG0_ENDING_COLOURS = {0x0F, 0x12, 0x16, 0x2A}
+PRG0_ENDING_COLORS = {0x0F, 0x12, 0x16, 0x2A}
 BLACK = 0x0F
 WHITE_PIXEL_LEVEL = 230
 FLASH_PIXELS = 10_000                # white pixels in a frame of the white palette (PRG0: about 42,000)
@@ -129,6 +129,7 @@ def zora_rom(start_room_item: Item | None = None) -> bytes:
         if start_room_item == Item.TRIFORCE_OF_POWER:
             room.room_action = RoomAction.LAST_BOSS
     write_fixed_feature_data(world, CONTROL_SEED)
+    world.record_level_entry_codes()          # as generation records them, for the code patches
     return serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=True))
 
 
@@ -537,9 +538,9 @@ def test_reduce_flashing_power_triforce_fanfare() -> None:
     assert not on[0] & {LEVEL_PALETTE, WHITE_PALETTE} and on[1] < FLASH_PIXELS
 
 
-def _ending_colours(rom: bytes) -> list[int]:
+def _ending_colors(rom: bytes) -> list[int]:
     """Run the win sequence's flash (GameMode $13, submode 0, entered at its
-    update) and return the background colour entry ($0315) on each frame
+    update) and return the background color entry ($0315) on each frame
     from $40 frames on."""
     emu = Emulator(rom)
     emu.new_game()
@@ -548,20 +549,20 @@ def _ending_colours(rom: bytes) -> list[int]:
     emu[IS_UPDATING_MODE] = 1
     emu[GAME_SUBMODE] = 0
     emu[ITEM_LIFT_TIMER] = 0
-    colours = []
+    colors = []
     for _ in range(ENDING_FLASH_END - 1):
         emu.run(1)
         if emu[ITEM_LIFT_TIMER] >= ENDING_FLASH_START:
-            colours.append(emu[ENDING_BACKGROUND_COLOUR])
-    return colours
+            colors.append(emu[ENDING_BACKGROUND_COLOR])
+    return colors
 
 
 def test_reduce_flashing_ending() -> None:
-    """Site 2: off, the ending's background colour cycles $0F, $12, $16,
+    """Site 2: off, the ending's background color cycles $0F, $12, $16,
     $2A one per frame; on, it stays black ($0F)."""
-    off = _ending_colours(with_settings(zora_rom(), reduce_flashing="off"))
-    on = _ending_colours(with_settings(zora_rom(), reduce_flashing="on"))
-    assert set(off) == PRG0_ENDING_COLOURS and off[:4] == [0x0F, 0x12, 0x16, 0x2A]
+    off = _ending_colors(with_settings(zora_rom(), reduce_flashing="off"))
+    on = _ending_colors(with_settings(zora_rom(), reduce_flashing="on"))
+    assert set(off) == PRG0_ENDING_COLORS and off[:4] == [0x0F, 0x12, 0x16, 0x2A]
     assert set(on) == {BLACK}
 
 

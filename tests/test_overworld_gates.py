@@ -4,8 +4,10 @@ from functools import cache
 
 import pytest
 
+from zora.generate.acceptance_check import logic_rules
 from zora.generate.steps import overworld_gates as gates
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.vanilla_overworld.walkability import ScreenGraph, screen_graph, screen_tiles
 
 pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
@@ -43,6 +45,28 @@ def beyond(world: ScreenGraph, closed: frozenset[tuple[int, str]], start: int = 
     return world.reach(start) - world.reach(start, closed)
 
 
+@cache
+def entrance_columns() -> dict[int, range]:
+    """Each cave screen's entrance square, as Link's left-foot columns (LevelBlockAttrsA's exit
+    X, which stays with the screen whatever cave the shuffle puts there)."""
+    world = parse_rom(load_rom(verify_base_rom()))
+    return {screen.screen_num: range(2 * screen.exit_x_position, 2 * screen.exit_x_position + 2)
+            for screen in world.overworld.screens if screen.exit_x_position}
+
+
+def cut_off(world: ScreenGraph, closed: frozenset[tuple[int, str]] = frozenset(), start: int = START) -> set[int]:
+    """The screens whose cave entrance Link cannot walk to from the start: none of the screen's
+    regions is reached, or, on a screen a wall splits, none of those at its entrance square."""
+    reached = world.reach_regions(start, closed)
+    cut = set()
+    for screen, regions in world.screens.items():
+        columns = entrance_columns().get(screen)
+        candidates = regions.regions_in_columns(columns) if columns else set()
+        if not any((screen, region) in reached for region in candidates or range(regions.count)):
+            cut.add(screen)
+    return cut
+
+
 def test_the_map_reaches_what_the_game_does() -> None:
     """From the start screen everything but the raft's two islands; $0F only through $1F's false
     wall; the PRG0 mazes guard $0B (Lost Hills) and the west half (the Dead Woods, without the
@@ -54,19 +78,43 @@ def test_the_map_reaches_what_the_game_does() -> None:
     assert beyond(graph((), ladder=True), DEAD_WOODS_REPEATS) == set()
 
 
+def gated(world: ScreenGraph, closed: frozenset[tuple[int, str]]) -> set[int]:
+    """The screens whose cave entrance only the closed maze sides lead to."""
+    return cut_off(world, closed) - cut_off(world)
+
+
 @pytest.mark.parametrize("blocks", [(), ("raft", "bracelet")])
 def test_the_maze_sets_come_from_the_map(blocks: tuple[str, ...]) -> None:
+    """By each cave's entrance square: $72's cave is past the Dead Woods though most of $72 is
+    not (a wall splits it; the entrance's side opens only to $71)."""
     edits = ("lost_hills", "dead_woods", *blocks)
     walk, ladder = graph(edits), graph(edits, ladder=True)
-    assert beyond(walk, LOST_HILLS_REPEATS) == beyond(ladder, LOST_HILLS_REPEATS) == gates.LOST_HILLS_GATED
+    assert gated(walk, LOST_HILLS_REPEATS) == gated(ladder, LOST_HILLS_REPEATS) == gates.LOST_HILLS_GATED
     # Dead Woods randomized: the forest leaves only south; the pocket needs its hint, and the west
     # half (the forest's old west exit closed too) needs the ladder.
-    assert beyond(ladder, DEAD_WOODS_REPEATS) == gates.DEAD_WOODS_GATED
+    assert gated(ladder, DEAD_WOODS_REPEATS) == gates.DEAD_WOODS_GATED
     no_west = DEAD_WOODS_REPEATS | {(gates.DEAD_WOODS_SCREEN, "W")}
-    unreached_blocks = set(range(128)) - walk.reach(START)          # entered by raft or bracelet
-    assert beyond(walk, no_west) == (gates.DEAD_WOODS_GATED | gates.DEAD_WOODS_WEST) - unreached_blocks
+    unreached_blocks = cut_off(walk)                                # entered by raft or bracelet
+    assert gated(walk, no_west) == (gates.DEAD_WOODS_GATED | gates.DEAD_WOODS_WEST) - unreached_blocks
     if blocks:
-        assert unreached_blocks == {0x2F, 0x45, 0x11} | gates.RAFT_BLOCK_SCREENS | gates.BRACELET_BLOCK_SCREENS
+        assert unreached_blocks == gates.RAFT_ENCLOSED_SCREENS | gates.BRACELET_ENCLOSED_SCREENS
+
+
+def test_the_cave_on_72_needs_the_dead_woods_hint() -> None:
+    """The acceptance check's rules: with Randomize Dead Woods on, a cave on $72 needs the maze's
+    hint like $70's and $71's."""
+    rules = logic_rules(False, False, gates.OverworldGates(dead_woods=True))
+    assert gates.DEAD_WOODS_HINT in rules.needs(0x72)
+    assert gates.DEAD_WOODS_HINT not in logic_rules(False, False).needs(0x72)
+
+
+@pytest.mark.parametrize(("blocks", "enclosed"), [(("raft",), gates.RAFT_ENCLOSED_SCREENS),
+                                                  (("bracelet",), gates.BRACELET_ENCLOSED_SCREENS)])
+def test_each_block_flag_walls_in_its_enclosed_screens(blocks: tuple[str, ...], enclosed: frozenset[int]) -> None:
+    """The screens the start-screen draw leaves out (start_barred) are the ones each flag's edits
+    cut off from $77, PRG0's raft islands with them ($23 by its west part, where its cave is)."""
+    assert cut_off(graph(())) == {0x2F, 0x45}
+    assert cut_off(graph(blocks)) == {0x2F, 0x45} | enclosed
 
 
 def test_no_start_screen_gates_more() -> None:

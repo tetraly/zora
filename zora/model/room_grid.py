@@ -19,7 +19,7 @@ def room_number(row: int, column: int) -> int:
     return row * COLUMNS + column
 
 
-def _neighbour_on_grid(room_number: int, side: Side) -> int | None:
+def _neighbor_on_grid(room_number: int, side: Side) -> int | None:
     """The room next to this one on the side, or None past the grid's edge."""
     grid_row, grid_column = row(room_number), column(room_number)
     if side == Side.NORTH and grid_row == 0:
@@ -33,18 +33,18 @@ def _neighbour_on_grid(room_number: int, side: Side) -> int | None:
     return room_number + side.delta
 
 
-# neighbour() is called ~30M times per 200 seeds: the block's rooms are
-# served from a precomputed table (the same values as _neighbour_on_grid).
-_NEIGHBOURS: tuple[tuple[int | None, ...], ...] = tuple(
-    tuple(_neighbour_on_grid(number, side) for side in Side) for number in range(ROOMS)
+# neighbor() is called ~30M times per 200 seeds: the block's rooms are
+# served from a precomputed table (the same values as _neighbor_on_grid).
+_NEIGHBORS: tuple[tuple[int | None, ...], ...] = tuple(
+    tuple(_neighbor_on_grid(number, side) for side in Side) for number in range(ROOMS)
 )
 
 
-def neighbour(room_number: int, side: Side) -> int | None:
+def neighbor(room_number: int, side: Side) -> int | None:
     """The room next to this one on the side, or None at the grid's edge."""
     if 0 <= room_number < ROOMS:
-        return _NEIGHBOURS[room_number][side]
-    return _neighbour_on_grid(room_number, side)
+        return _NEIGHBORS[room_number][side]
+    return _neighbor_on_grid(room_number, side)
 
 
 def step(room_number: int, side: Side) -> int | None:

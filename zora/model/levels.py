@@ -21,6 +21,11 @@ GANON_ITEM_BYTE = 0x8E             # Ganon room's whole item byte: dark room, Tr
 Cell = Room | StaircaseRoom
 
 LEVEL_BLOCK_ROOMS = 128
+# FP-ENTR-01's arrival codes (level information +$3D), which ZORA's code patches place Link by:
+# the overworld's, and a dungeon's from below (the start-room swap's 1, 3 and 4 are its own,
+# PS-START-03)
+ARRIVAL_OVERWORLD = 0
+ARRIVAL_DUNGEON = 2
 
 
 @dataclass
@@ -129,11 +134,21 @@ class Level:
     # 3 left, 4 right, the side of the start room that is open) and the room a move through that
     # side reaches (+$23, with bit 7 set), as a parsed ROM holds them too. None: FP-ENTR-01's
     # dungeon code 2 and FP-ENTR-02's count.
+    # GameWorld.record_level_entry_codes sets the others' at the end of generation: code 2 and
+    # the count (exit_room_count).
     arrival_code: int | None = None
     exit_room: int | None = None
 
     def __post_init__(self) -> None:
         self.block.levels.append(self)
+
+    def exit_room_count(self) -> int:
+        """FP-ENTR-02: how many rooms of the level's block, counting from room 0, belong to no
+        level or to this one. A dungeon move into the room with this number leaves the level."""
+        count = 0
+        while count < LEVEL_BLOCK_ROOMS and self.block.owner_of(count) in (None, self):
+            count += 1
+        return count
 
     @property
     def rooms(self) -> list[Room]:

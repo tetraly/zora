@@ -75,7 +75,7 @@ FIELDS: tuple[dict[str, Any], ...] = (
         ("four_potion_inventory", "Four Potion Inventory",
          "You can carry four potions instead of two."),
         ("auto_show_letter", "Auto Show Letter",
-         "The old woman takes the letter as soon as you have it, without using it."),
+         "The letter is taken as soon as you have it, without using it."),
         ("like_like_eats_rupees", "Like-Like Eats Rupees",
          "A Like-Like drains rupees instead of eating the magical shield."),
         ("magical_boomerang_damage", "Magical Boomerang Does 1 HP Damage",
@@ -103,7 +103,7 @@ L4_SWORD_HELP = (
     "upgrade is added to level 9 as a floor item (a room item). Taken with the magical sword, it gives a "
     "level-4 sword. Needs Progressive Items.")
 LEVEL_9_ENTRANCE_HELP = (
-    "Triforce pieces: the old man at level 9's entrance lets you in with the triforce pieces, as always. "
+    "Triforce pieces: the NPC at level 9's entrance lets you in with the triforce pieces, as always. "
     "Level 4 sword: level 9 opens for a level-4 sword only; no triforce pieces are needed. Needs Add L4 "
     "Sword = Level 2 and the wooden sword in its cave.")
 _L4_SWORD_FIELDS = (

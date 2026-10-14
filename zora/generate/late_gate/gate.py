@@ -73,7 +73,7 @@ class GateStats:
 # Survey switches — instrumentation for measurement runs only. SURVEY records
 # per-attempt facts without drawing randomness or touching state, so it never
 # changes output. REPAIR_ENABLED=False is a counterfactual used only by survey
-# scripts (it DOES change behaviour); production keeps it True.
+# scripts (it DOES change behavior); production keeps it True.
 SURVEY = False
 REPAIR_ENABLED = True
 

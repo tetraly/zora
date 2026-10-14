@@ -25,6 +25,9 @@ from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
 CASES = {**FLAG_CASES, "all swords no boards": (ASNB_FLAGS, ASNB_ZORA_FLAGS)}
 SCAN_SEEDS = range(100)
+# The sweep runs as chunks of 10 seeds, so no one test holds a worker for minutes at the end of
+# the slow suite (docs/design/test-speed.md 3.3): the same seeds and the same check in all
+SCAN_CHUNKS = [SCAN_SEEDS[start:start + 10] for start in range(0, len(SCAN_SEEDS), 10)]
 # The default options' FALSE places before the logic walk, by cause (the report's seeds).
 REPORTED: dict[int, dict[str, str]] = {
     0: {"Level 9 Room 37 Cellar": "after Ganon"},     # stair room faces Zelda's room
@@ -127,9 +130,10 @@ def test_a_place_behind_ganons_shutters_requires_the_triforce_of_power(base: byt
 
 
 @pytest.mark.slow
+@pytest.mark.parametrize("chunk", SCAN_CHUNKS, ids=lambda chunk: f"seeds {chunk[0]}-{chunk[-1]}")
 @pytest.mark.parametrize("case", list(CASES))
-def test_no_false_rule_over_100_seeds(base: bytes, case: str) -> None:
-    """No FALSE place, event or goal in seeds 0-99 of any case."""
-    found = {seed: names for seed in SCAN_SEEDS
+def test_no_false_rule_over_100_seeds(base: bytes, case: str, chunk: range) -> None:
+    """No FALSE place, event or goal in seeds 0-99 of any case (ten seeds per test)."""
+    found = {seed: names for seed in chunk
              if (names := false_rules(archipelago.build_from_strings(*CASES[case], seed, base)))}
     assert not found, found

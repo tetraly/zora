@@ -56,7 +56,7 @@ def test_toll_writes_round_trip() -> None:
     back = parse_rom(out)
     assert (back.life_or_money_toll, back.bomb_upgrade_levels) == \
         (gw.life_or_money_toll, gw.bomb_upgrade_levels)
-    # "LEAVE YOUR MAX BOMBS" / "OR MONEY", centred with the $25 pad tile
+    # "LEAVE YOUR MAX BOMBS" / "OR MONEY", centered with the $25 pad tile
     text = out[0x04CC0:0x04CC0 + 38]
     assert text[:2] == bytes([0x25, 0x25]) and text[21] & 0xC0 == 0x80
     assert text[-1] & 0xC0 == 0xC0

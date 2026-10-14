@@ -3,7 +3,7 @@
 data.
 
 P3: player_setting_fields() describes every setting finish() and rom_from_recipe accept: each
-key (a recipe's playerSettings key), its default, every choice, colour and listed word accepted,
+key (a recipe's playerSettings key), its default, every choice, color and listed word accepted,
 the word rules agreeing with zora/rom/player_settings.py, and the page (web/zora-web.js, read
 only) using the same keys, labels, choices and defaults.
 
@@ -54,7 +54,7 @@ SEED = 1
 AP_NAME = b"Link"
 # Each setting's PlayerSettings field (written_offsets' name).
 FIELD = {**{key: field for key, (field, _values) in PAGE_CHOICES.items()},
-         **dict.fromkeys(PAGE_TUNIC_SLOTS, "tunic_colours"), PAGE_HEART_SLOT: "heart_colour",
+         **dict.fromkeys(PAGE_TUNIC_SLOTS, "tunic_colors"), PAGE_HEART_SLOT: "heart_color",
          PAGE_LEVEL_WORD: "level_word", PAGE_BOSS_SOUND_WORD: "boss_sound_word"}
 CUSTOM_WORDS = {PAGE_LEVEL_WORD: ("X", "PALACE", "ZORA1", "A-B.C"), PAGE_BOSS_SOUND_WORD: ("?!?!", "ZZ9Z")}
 SPECS = {spec.key: spec for spec in archipelago.player_setting_fields()}
@@ -70,9 +70,9 @@ def test_every_setting_once_with_its_default() -> None:
 
 
 def values_of(spec: archipelago.PlayerSettingSpec) -> list[str | int]:
-    """Every value the spec lists: its choices or colours, and for a word its listed words and a
+    """Every value the spec lists: its choices or colors, and for a word its listed words and a
     few custom ones."""
-    values: list[str | int] = list(spec.colours) if spec.kind == archipelago.COLOUR else \
+    values: list[str | int] = list(spec.colors) if spec.kind == archipelago.COLOR else \
         [value for value, _label in spec.choices]
     return values + list(CUSTOM_WORDS.get(spec.key, ()))
 
@@ -82,12 +82,12 @@ def test_every_listed_value_is_accepted_and_nothing_else(key: str) -> None:
     spec = SPECS[key]
     for value in values_of(spec):
         player_settings_from_page({key: value})
-    refused: dict[str, list[object]] = {archipelago.CHOICE: ["bogus", 1], archipelago.COLOUR: [0x0D, 0x40, -1, "0x16"],
+    refused: dict[str, list[object]] = {archipelago.CHOICE: ["bogus", 1], archipelago.COLOR: [0x0D, 0x40, -1, "0x16"],
                                         archipelago.WORD: [7]}
     for wrong in refused[spec.kind]:
         with pytest.raises(PlayerSettingError):
             player_settings_from_page({key: wrong})
-    assert spec.label and (spec.kind != archipelago.COLOUR or 0x0D not in spec.colours)
+    assert spec.label and (spec.kind != archipelago.COLOR or 0x0D not in spec.colors)
 
 
 def allowed_by_rule(rule: archipelago.TextRule, text: str) -> bool:
@@ -123,7 +123,7 @@ def page_source() -> str:
 
 def test_the_page_shows_the_same_settings() -> None:
     """The page's Cosmetic tab: each choice's key, label, default and [value, label] pairs, each
-    colour slot's key, label and default, and the word rows' keys and names."""
+    color slot's key, label and default, and the word rows' keys and names."""
     page = page_source()
     for key, spec in SPECS.items():
         if spec.kind == archipelago.CHOICE:
@@ -132,7 +132,7 @@ def test_the_page_shows_the_same_settings() -> None:
             assert entry, key
             pairs = tuple(re.findall(r'\["([^"]+)", "([^"]+)"\]', entry.group(3)))
             assert (entry.group(1), entry.group(2), pairs) == (spec.label, spec.default, spec.choices), key
-        elif spec.kind == archipelago.COLOUR:
+        elif spec.kind == archipelago.COLOR:
             entry = re.search(rf'\{{ key: "{key}", label: "([^"]+)", default: (0x[0-9A-Fa-f]+)', page)
             assert entry and (entry.group(1), int(entry.group(2), 16)) == (spec.label, spec.default), key
         else:

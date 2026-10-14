@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from ..model.enums import Item, RoomAction, RoomType, Side
 from ..model.levels import GANON_LIST, L9_ENTRY_PERSON_LIST, MERCHANT_LIST, ZELDA_LIST, Level
-from ..model.room_grid import neighbour
+from ..model.room_grid import neighbor
 from ..model.rooms import (
     DIAMOND_STAIRS_PUSH,
     ITEM_MASK,
@@ -337,7 +337,7 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
             door = here.walls[side.direction]
             if door == D_WALL or (door == D_SHUTTER and not are_shutters_open):
                 continue
-            behind = neighbour(room, side)
+            behind = neighbor(room, side)
             if behind is not None and behind in room_numbers:
                 found[side] = [behind]
         if are_stairs_usable(here, is_blocked):

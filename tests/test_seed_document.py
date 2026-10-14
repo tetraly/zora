@@ -86,7 +86,7 @@ def test_making_the_report_changes_no_rom(flags: str, zora: str) -> None:
 def test_the_player_settings_do_not_change_the_document() -> None:
     plain = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 4, base()).rom
     dressed = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 4, base(),
-                           PlayerSettings(tunic_colours=(0x21, 0x22, 0x23), heart_colour=0x24)).rom
+                           PlayerSettings(tunic_colors=(0x21, 0x22, 0x23), heart_color=0x24)).rom
     assert plain != dressed
     assert seed_document_for(plain, MVP_BASELINE_LEVEL_ENCODING_OFF, 4) == \
         seed_document_for(dressed, MVP_BASELINE_LEVEL_ENCODING_OFF, 4)
@@ -132,7 +132,7 @@ def test_one_time_wares_follow_the_flags() -> None:
 
 
 def test_the_map_column_is_the_minimap_bitmap_middle() -> None:
-    """SH-MAP-01: the level sits centred in its 16-column map bitmap (pad = (16 - width) // 2),
+    """SH-MAP-01: the level sits centered in its 16-column map bitmap (pad = (16 - width) // 2),
     and the map shows the bitmap's middle eight columns, so the level's leftmost room is in
     column pad - 3, and the columns keep the grid's order and spacing."""
     for level in document(MVP_BASELINE_LEVEL_ENCODING_OFF, 2, "")["levels"]:
@@ -172,7 +172,7 @@ def test_the_log_fits_80_columns_and_lists_what_the_document_holds(flags: str, z
     doc = document(flags, 1, zora)
     log = spoiler_log(doc)
     assert all(len(line) <= WIDTH for line in log.splitlines())
-    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 4"
+    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 5"
     words = " ".join(log.split())          # wrapping may break a line anywhere between words
     assert f"Seed: {doc['seed']['number']}" in log and doc["seed"]["flags"] in log
     for cave in doc["caves"]:

@@ -81,7 +81,7 @@ def test_no_patch_writes_there(family: str, patches: dict[str, tuple]) -> None:
 
 
 @pytest.mark.parametrize("setting", ["select_swap", "low_health_beep", "death_warp", "reduce_flashing",
-                                     "tunic_colours", "heart_colour", "music", "boss_sound_word"])
+                                     "tunic_colors", "heart_color", "music", "boss_sound_word"])
 def test_no_player_setting_writes_there(setting: str) -> None:
     """The level word (not listed) rewrites hint lines in place, in both regions: the hints'
     own text, which keeps its length and pointer."""

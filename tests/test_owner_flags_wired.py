@@ -1,5 +1,5 @@
 """The owner's 2.0 flags wired (docs/design/zora-flags-2.0.md; owner decisions 2026-10-07): each
-flag's behaviour on generated seeds. The 1,000-seed beatability runs and the QA sweep are reported
+flag's behavior on generated seeds. The 1,000-seed beatability runs and the QA sweep are reported
 in the commit; here a few seeds each, judged on the finished ROM (tests/owner_flags_replay.py)."""
 from functools import cache
 from pathlib import Path

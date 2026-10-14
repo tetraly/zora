@@ -15,9 +15,9 @@ Entrance, from zora/rom/asnb_patch_data.py, a verbatim copy of asnb_data.py.
   sword-cap     3b: the sword line tops out at level 4 in the three ResolveProgressive copies,
                 switched by the per-seed operand ZORA_B<bank>_SwordLineToL4 (one value, three
                 places). Its hooks are inside fp-prog-01's and fp-prog-02's routines.
-  level-9-gate  3c: the man at level 9's entrance opens the shutters for sword level 4.
+  level-9-gate  3c: the person at level 9's entrance opens the shutters for sword level 4.
   l4-sword-look Add L4 Sword's look (docs/design/l4-sword.md Q2): level 4 draws as the magical
-                sword in the white sword's colours, through two in-place hooks with their
+                sword in the white sword's colors, through two in-place hooks with their
                 tables in bank 7 and LookSwordInWorld, one copy at $BFC0 in each of banks 0-6.
 
 `build` assembles the ZORA build, then each patch on it, and records what changed as pieces

@@ -44,12 +44,12 @@ import hashlib
 import random
 import sys
 from collections import Counter
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field, replace
 from functools import cache
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -57,6 +57,7 @@ sys.path.insert(0, str(REPO))
 from zora_web.api import (  # noqa: E402
     PAGE_BOSS_SOUND_WORD, PAGE_CHOICES, PAGE_HEART_SLOT, PAGE_LEVEL_WORD, PAGE_TUNIC_SLOTS, player_settings_from_page,
 )
+from zora_measure.progress import track  # noqa: E402
 from zora.flags import zora_flags  # noqa: E402
 from zora.flags.codec import decode, encode  # noqa: E402
 from zora.flags.dependencies import check_dependencies, correct_merchant_toll  # noqa: E402
@@ -99,10 +100,11 @@ ZORA_STRINGS = ("", "1.2", "1.D", "1.F")
 # Encode level data (B82) is on or off, never "?" (owner ruling, 2026-10-06). Without the
 # level-encoding module (zora/rom/level_encoding.py) only off can be built, so only off is drawn.
 ENCODING_CHOICES = (ThreeState.OFF, ThreeState.ON) if level_encoding.is_available() else (ThreeState.OFF,)
-PALETTE_COLOURS = tuple(colour for colour in range(PALETTE_SIZE) if colour != BLACKER_THAN_BLACK)
+PALETTE_COLORS = tuple(color for color in range(PALETTE_SIZE) if color != BLACKER_THAN_BLACK)
 SEED_LIMIT = 1 << 64
 # The exceptions that refuse input with a message for the player.
 REFUSALS = (FlagsRefused, PlayerSettingError, SeedRefused)
+T = TypeVar("T")
 
 
 @cache
@@ -158,10 +160,10 @@ def draw_settings(rng: random.Random) -> Settings:
 
 
 def draw_page_settings(rng: random.Random) -> dict[str, Any]:
-    """Player settings as the page sends them: every choice key, colour slot and both words."""
+    """Player settings as the page sends them: every choice key, color slot and both words."""
     values: dict[str, Any] = {key: rng.choice(sorted(choices)) for key, (_, choices) in PAGE_CHOICES.items()}
     for slot in (*PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT):
-        values[slot] = rng.choice(PALETTE_COLOURS)
+        values[slot] = rng.choice(PALETTE_COLORS)
     values[PAGE_LEVEL_WORD] = rng.choice(LEVEL_WORD_CHOICES)
     values[PAGE_BOSS_SOUND_WORD] = rng.choice([RANDOM_BOSS_SOUND_WORD, *BOSS_SOUND_WORDS])
     return values
@@ -400,8 +402,8 @@ def check_returned_to_page(config: Config, asked: Settings, encoded: bool, finis
 
 def check_round_trip(chosen: GenerationPlan, world: GameWorld, rom: bytes, fail: Callable[[str], None]) -> None:
     """Parse and re-serialize byte for byte, then the finished-ROM checks. An encoded ROM is
-    checked through its plain build, whose level data its own must decode to (plain_level_data
-    folds a second-quest set's block first, as the encoding does)."""
+    checked through its plain build, whose level data its own must decode to (a second-quest
+    set's block is in its first-quest slot in both: GameWorld.store_second_quest_sets_in_first_quest_slots)."""
     if chosen.config.level_encoding is not None:
         plain = serialize_to_rom(world, base_rom(), config=replace(chosen.config, level_encoding=None))
         if level_encoding.decode_level_data(rom, chosen.config.level_encoding) \
@@ -546,8 +548,8 @@ class BadInput:
     seed: int = 1
 
 
-# How a refusal names each colour slot (zora.rom.player_settings); choice keys are named as sent.
-SETTING_NAMES = dict(zip((*PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT), ("green tunic", "blue ring", "red ring", "heart colour"),
+# How a refusal names each color slot (zora.rom.player_settings); choice keys are named as sent.
+SETTING_NAMES = dict(zip((*PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT), ("green tunic", "blue ring", "red ring", "heart color"),
                          strict=True))
 
 
@@ -677,19 +679,23 @@ def main(argv: list[str]) -> int:
     args = parser.parse_args(argv)
     if not level_encoding.is_available():
         print("qa_sweep: the level-encoding module is not in this tree; level encoding stays off", file=sys.stderr)
+    def tracked(results: Iterable[T], total: int, unit: str = "configs") -> list[T]:
+        """RESULTS, collected with progress (zora_measure/progress.py)."""
+        return list(track(results, f"qa_sweep: {args.mode}", total=total, unit=unit))
+
     with ProcessPoolExecutor(args.workers) as pool:
         count = 100 if args.count is None else args.count
         if args.mode == "random":
             configs = [random_config(index) for index in range(args.start, args.start + count)]
-            return _summarise(list(pool.map(check_config, configs, chunksize=4)))
+            return _summarise(tracked(pool.map(check_config, configs, chunksize=4), len(configs)))
         if args.mode == "fixed":
             fixed = list(fixed_configs(args.seeds))[args.start:]
             fixed = fixed if args.count is None else fixed[:args.count]
-            return _summarise(list(pool.map(check_config, fixed, chunksize=4)))
+            return _summarise(tracked(pool.map(check_config, fixed, chunksize=4), len(fixed)))
         if args.mode == "progressive":
             batch = list(progressive_configs(args.seeds))[args.start:]
             batch = batch if args.count is None else batch[:args.count]
-            outcomes = list(pool.map(check_config, batch, chunksize=4))
+            outcomes = tracked(pool.map(check_config, batch, chunksize=4), len(batch))
             for label in dict.fromkeys(outcome.config.label for outcome in outcomes):
                 ran = [outcome for outcome in outcomes if outcome.config.label == label]
                 print(f"{label}: {sum(not outcome.failures for outcome in ran)} of {len(ran)} accepted and beatable")
@@ -697,10 +703,10 @@ def main(argv: list[str]) -> int:
         if args.mode == "alternatives":
             batch = list(alternative_configs(args.seeds))[args.start:]
             batch = batch if args.count is None else batch[:args.count]
-            return _summarise_alternatives(list(pool.map(check_alternative, batch, chunksize=4)))
+            return _summarise_alternatives(tracked(pool.map(check_alternative, batch, chunksize=4), len(batch)))
         if args.mode == "emulator":
             configs = [random_config(index) for index in range(args.start, args.start + count)]
-            results = list(pool.map(emulate, configs))
+            results = tracked(pool.map(emulate, configs), len(configs), "ROMs")
             for label, problems in results:
                 for problem in problems:
                     print(f"FAIL {label}: {problem}")

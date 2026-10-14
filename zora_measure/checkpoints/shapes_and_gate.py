@@ -9,9 +9,10 @@ from zora.model import room_grid
 from zora.model.enums import Enemy, Item, RoomAction, RoomType, Side, TollOption, WallType
 from zora.model.game_world import GameWorld
 from zora.model.levels import L9_ENTRY_PERSON_LIST, Level
-from zora.model.room_grid import neighbour
+from zora.model.room_grid import neighbor
 from zora.model.rooms import MONSTER_BIT, PERSON_LISTS, Room
 from zora_measure.checkpoints.summaries import (
+    BOMB_UPGRADE_LIST,
     LEVELS_1_6,
     LEVELS_7_9,
     POOL_ITEMS,
@@ -155,6 +156,13 @@ def bomb_operands(gw: GameWorld) -> tuple[bool, bool, bool]:
     return True, all(level_num in holders for level_num in levels), levels[0] == levels[1]
 
 
+def bomb_upgrade_person_levels(gw: GameWorld) -> tuple[int, ...]:
+    """The level of each person-flag $0F room (FL-OFF-04's B29 off Check), in level order: (5, 7)
+    for one in each of levels 5 and 7, (7, 7) for both in level 7."""
+    return tuple(level.level_num for level in gw.levels for room in level.rooms
+                 if room.has_monster_bit and room.monster_list == BOMB_UPGRADE_LIST and room.count_index == 0)
+
+
 def summarize_bomb(values: list[tuple[bool, bool, bool]]) -> str:
     return " / ".join(f"{sum(v[i] for v in values)}/{len(values)}" for i in range(3))
 
@@ -296,7 +304,7 @@ def internal_pairs(gw: GameWorld) -> list[tuple[WallType, WallType]]:
         owned = set(level.room_nums)
         for room in level.rooms:
             for side in (Side.EAST, Side.SOUTH):
-                other = neighbour(room.room_num, side)
+                other = neighbor(room.room_num, side)
                 if other in owned:
                     facing = level.block.room(other).walls[side.opposite]
                     pairs.append((room.walls[side], facing))
@@ -331,8 +339,8 @@ def layout_bytes(gw: GameWorld) -> Counter[int]:
     return Counter(layout_byte(room) for block in gw.level_blocks for room in block.rooms)
 
 
-def zelda_neighbour_push(gw: GameWorld) -> Counter[int]:
-    """Non-Ganon trigger-3 rooms (Zelda's neighbours, A32) still holding a
+def zelda_neighbor_push(gw: GameWorld) -> Counter[int]:
+    """Non-Ganon trigger-3 rooms (Zelda's neighbors, A32) still holding a
     push block, by whole layout byte."""
     return Counter(layout_byte(room) for level in gw.levels for room in level.rooms
                    if room.room_action == RoomAction.LAST_BOSS
@@ -408,7 +416,7 @@ def ganon_on_own_layout(gw: GameWorld) -> bool:
 
 def pin_pairs(gw: GameWorld, layout: int, sides: tuple[Side, ...]) -> tuple[int, int]:
     """Rooms of this layout (monster bit ignored): facing pairs on the given
-    sides with a same-level neighbour, and how many ship wall/wall."""
+    sides with a same-level neighbor, and how many ship wall/wall."""
     wall_wall = cases = 0
     for level in gw.levels:
         owned = set(level.room_nums)
@@ -416,7 +424,7 @@ def pin_pairs(gw: GameWorld, layout: int, sides: tuple[Side, ...]) -> tuple[int,
             if room.layout_code != layout:
                 continue
             for side in sides:
-                other = neighbour(room.room_num, side)
+                other = neighbor(room.room_num, side)
                 if other not in owned:
                     continue
                 cases += 1
@@ -439,7 +447,7 @@ def person_north_pairs(gw: GameWorld) -> tuple[int, int]:
     for level in gw.levels[:8]:
         owned = set(level.room_nums)
         for room in level.rooms:
-            other = neighbour(room.room_num, Side.NORTH)
+            other = neighbor(room.room_num, Side.NORTH)
             if (layout_byte(room) != PERSON_PIN_LAYOUT_BYTE
                     or room.monster_list not in PERSON_PIN_LISTS or other not in owned):
                 continue
@@ -481,7 +489,7 @@ def level9_entrance_side_pairs(gw: GameWorld) -> dict[str, tuple[int, int]]:
     entrance = level9.block.room(level9.entrance_room)
     pairs = {}
     for side in (Side.EAST, Side.WEST):
-        other = neighbour(entrance.room_num, side)
+        other = neighbor(entrance.room_num, side)
         wall_wall = cases = 0
         if other in owned:
             cases = 1

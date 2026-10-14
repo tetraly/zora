@@ -27,7 +27,7 @@ from ..rom.player_settings import (
     LEVEL_WORD_CHOICES,
     LEVEL_WORD_DASH_MAX_LENGTH,
     LEVEL_WORD_MAX_LENGTH,
-    MARKER_HIDING_COLOURS,
+    MARKER_HIDING_COLORS,
     RANDOM_BOSS_SOUND_WORD,
 )
 from ..version import PLAYER_VERSION
@@ -61,7 +61,7 @@ from .fields import (
     ThreeState,
     ToggleField,
 )
-from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF, ZORA_PRESETS
+from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, ZORA_PRESETS
 from .support import ENCODE_LEVEL_DATA_NOT_RANDOM, Support, mvp_baseline_settings, support
 from .zora_form import zora_flags_from_values, zora_metadata, zora_state
 
@@ -73,17 +73,18 @@ TOLL_NEEDS_MERCHANTS_TEXT = f"Needs {MONEY_OR_LIFE_ROOMS.id} ({MONEY_OR_LIFE_ROO
 TOLL_TURNED_OFF_NOTE = (f"FL-DEP-06: {MONEY_OR_LIFE_TOLL.id} was turned off because "
                         f"{MONEY_OR_LIFE_ROOMS.id} is off")
 
-# Owner ruling: the page may call the MVP baseline "Consternation".
-PRESET_LABELS = {"MVP baseline": "Consternation"}
+# Owner rulings: the page may call the MVP baseline "Consternation", and calls published variants A
+# and C by their community names, "Consternation Remastered" and "Hopla" (presets.HOPLA; beta 5),
+# both with level encoding on as published.
+PRESET_LABELS = {"MVP baseline": "Consternation", "Published variant A": "Consternation Remastered",
+                 "Published variant C": "Hopla"}
+# Kept in presets.py but not on the menu (owner, beta 5): Random%, published variant B, which ZORA
+# does not produce in full.
+HIDDEN_PRESETS = frozenset({"Published variant B"})
 # CP-5: the MVP baseline with level encoding off. Listed with the presets so
 # a build without level encoding has a preset it can produce.
 LEVEL_ENCODING_OFF_PRESET = ("MVP baseline, level encoding off", "Consternation without level encoding",
                              MVP_BASELINE_LEVEL_ENCODING_OFF)
-# Published variant A with level encoding off (owner approval, 2026-10-10: the page offers variant
-# A, which C01 = 2 and C06 = 2 made producible; a build without level encoding needs this form).
-VARIANT_A_LEVEL_ENCODING_OFF_PRESET = ("Published variant A, level encoding off",
-                                       "Published variant A without level encoding",
-                                       PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF)
 
 # The dependency rules as the page lists them; the check itself is flags.check_dependencies.
 DEPENDENCY_RULES = (
@@ -178,6 +179,10 @@ VALUE_NOTES: dict[tuple[str, int], str] = {
 # zora/flags/names.json by scripts/flag_names.py. A field or value without
 # one keeps its spec label; Encode level data always keeps its own label.
 OWNER_NAMES_FILE = "names.json"
+# Switches the page names in ZORA's own words, not the community's (owner decision,
+# 2026-10-12: neutral wording); scripts/flag_names.py reference keeps them. Their
+# Archipelago keys stay as beta 3 froze them (zora/archipelago.py KEPT_KEYS).
+OWN_SWITCH_NAMES = {"B29": "Shuffle Bomb Upgraders", "B48": "Book to Understand NPCs"}
 
 
 @cache
@@ -268,12 +273,14 @@ def generation_refusals(flag_string: str, zora_flag_string: str = "") -> list[st
 
 
 def presets() -> list[dict[str, Any]]:
-    """FL-PRE-01 to FL-PRE-04, plus CP-5 and variant A with level encoding off, then ZORA's own
+    """The page's preset menu: FL-PRE-01 to FL-PRE-04 but HIDDEN_PRESETS, plus CP-5, then ZORA's own
     presets (ZORA_PRESETS: All Swords No Boards), each with its ZORA string (`zoraFlags`, empty for
-    the Z1R presets); each disabled with its reasons when ZORA cannot produce it."""
-    entries = [(name, PRESET_LABELS.get(name, name), string, "") for name, string in PRESETS.items()]
+    the Z1R presets); each disabled with its reasons when ZORA cannot produce it. Variant A is on it
+    with level encoding on only (owner, beta 5); presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF
+    stays for the code that needs it."""
+    entries = [(name, PRESET_LABELS.get(name, name), string, "") for name, string in PRESETS.items()
+               if name not in HIDDEN_PRESETS]
     entries.append((*LEVEL_ENCODING_OFF_PRESET, ""))
-    entries.append((*VARIANT_A_LEVEL_ENCODING_OFF_PRESET, ""))
     entries += [(name, name, string, zora) for name, (string, zora) in ZORA_PRESETS.items()]
     out = []
     for name, label, string, zora in entries:
@@ -325,8 +332,8 @@ def metadata() -> dict[str, Any]:
         "alphabet": ALPHABET,
         "zora": zora_metadata(),
         "version": PLAYER_VERSION,
-        # The tunic colours that switch the map marker to Link's skin colour (the page's note).
-        "markerHidingColours": sorted(MARKER_HIDING_COLOURS),
+        # The tunic colors that switch the map marker to Link's skin color (the page's note).
+        "markerHidingColors": sorted(MARKER_HIDING_COLORS),
         # The level label's word (FP-LEVEL-01): the page's list and its custom-word rule.
         "levelWord": {"default": DEFAULT_LEVEL_WORD, "choices": list(LEVEL_WORD_CHOICES),
                       "maxLength": LEVEL_WORD_MAX_LENGTH, "dashMaxLength": LEVEL_WORD_DASH_MAX_LENGTH,
@@ -364,7 +371,7 @@ def _blocked_values(settings: Settings, field: FieldDef, refused: set[str]) -> d
 def _field_state(settings: Settings, field: FieldDef, refused: set[str]) -> dict[str, Any]:
     value = _value_of(settings, field)
     if field == MONEY_OR_LIFE_TOLL and settings.toggle(MONEY_OR_LIFE_ROOMS) is ThreeState.OFF:
-        # FL-DEP-06: greyed out and shown off while the merchants are off
+        # FL-DEP-06: grayed out and shown off while the merchants are off
         return {"value": value, "disabled": True, "reason": TOLL_NEEDS_MERCHANTS_TEXT, "problem": False,
                 "blocked": {str(v): TOLL_NEEDS_MERCHANTS_TEXT for v in field_values(field) if v != value}}
     blocked = _blocked_values(settings, field, refused)

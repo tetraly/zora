@@ -79,7 +79,7 @@ def hearts_in_cellars(gw: GameWorld) -> tuple[int, int]:
 
 
 def _flat_text(text: str) -> str:
-    """A hint text as one line of words: line breaks and the centring blanks dropped."""
+    """A hint text as one line of words: line breaks and the centering blanks dropped."""
     return " ".join(text.replace("~", " ").replace("|", " ").split())
 
 

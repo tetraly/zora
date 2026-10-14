@@ -18,8 +18,9 @@
         2026-10-10: ZORA adopts the community's names): each option field's
         value names, and each on/off/random field's name. The option fields'
         names stay (the original randomizer has none), and so does Encode level data's
-        label (the original randomizer's B82 is another field, Race ROM). Then run
-        import. A switch's states are named by zora/flags/fields.py
+        label (the original randomizer's B82 is another field, Race ROM), and the
+        two switches ZORA names in its own words (zora/flags/form.py
+        OWN_SWITCH_NAMES). Then run import. A switch's states are named by zora/flags/fields.py
         THREE_STATE_LABELS, not the table.
 
 The CSV is UTF-8 with a byte-order mark, so Excel and Numbers both open it
@@ -151,7 +152,7 @@ WHAT_IT_DOES = {
     "B25": "With it on, important items can be inside level 9; with it off, they can't.",
     "B26": "With it on, a dungeon can start in a different room; with it off, each dungeon starts in its "
            "usual room.",
-    "B27": "With it on, the dungeons get different colours; with it off, they keep their usual colours.",
+    "B27": "With it on, the dungeons get different colors; with it off, they keep their usual colors.",
     "B28": "With it on, the hungry goriya that wants food can be in a different dungeon room; with it "
            "off, it stays in its usual room.",
     "B29": "With it on, the people who sell bomb upgrades in dungeons are moved around; with it off, they "
@@ -181,7 +182,7 @@ WHAT_IT_DOES = {
     "B46": "With it on, every boss has the most health possible; with it off, boss health is as usual.",
     "B47": "With it on, the Book of Magic turns the wand's fire into an explosion; with it off, it makes "
            "fire as usual.",
-    "B48": "With it on, carrying the Book of Magic lets the player understand old men; with it off, it "
+    "B48": "With it on, carrying the Book of Magic lets the player understand NPCs; with it off, it "
            "doesn't.",
     "B49": "With it on, holding the Book of Magic counts as having every dungeon's map; with it off, each "
            "map has to be found.",
@@ -354,7 +355,7 @@ def reference_names(path: Path = REFERENCE_PATH) -> dict[str, dict[str, str]]:
                 raise NamesError(f"{path.name}: {field.id} does not list values 0 to {field.count - 1}")
             names[field.id] = {"values": VALUE_SEPARATOR.join(row["value_name"] for row in field_rows)}
         elif field != ENCODE_LEVEL_DATA:
-            names[field.id] = {"name": field_rows[0]["field_name"]}
+            names[field.id] = {"name": flag_form.OWN_SWITCH_NAMES.get(field.id, field_rows[0]["field_name"])}
     return names
 
 

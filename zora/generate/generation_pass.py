@@ -104,7 +104,7 @@ from .steps.recorder_to_new_dungeons import recorder_to_new_dungeons
 from .steps.remove_most_open_stairs import remove_most_open_stairs
 from .steps.shop_items_in_pool import shop_items_in_pool
 from .steps.shuffle_armos import shuffle_armos
-from .steps.shuffle_bomb_upgrade_men import shuffle_bomb_upgrade_men
+from .steps.shuffle_bomb_upgraders import shuffle_bomb_upgraders
 from .steps.shuffle_bosses import bosses_beaten_by_planted_items, shuffle_bosses
 from .steps.shuffle_caves import enrolled_entries, prg0_armos_screen, shuffle_caves
 from .steps.shuffle_dungeon_drops import shuffle_dungeon_drops, snapshot_shapes
@@ -118,7 +118,12 @@ from .steps.shuffle_items import shuffle_items, shuffle_items_within_levels
 from .steps.shuffle_monsters_between_levels import VANILLA_ENEMY_TIER, level_quests, shuffle_monsters_between_levels
 from .steps.shuffle_overworld_monsters import shuffle_overworld_monsters
 from .steps.shuffle_shop_items import extra_candles, shuffle_shop_items
-from .steps.shuffle_start_screen import FULL_START_SCREENS, shuffle_start_screen, start_on_wood_sword_screen
+from .steps.shuffle_start_screen import (
+    FULL_START_SCREENS,
+    START_SCREENS,
+    shuffle_start_screen,
+    start_on_wood_sword_screen,
+)
 from .steps.speed_up_text import speed_up_text
 from .steps.start_with_four_hearts import start_with_four_hearts
 from .steps.swap_start_rooms import swap_start_rooms
@@ -163,6 +168,7 @@ def generate_shapes(gw: GameWorld, rng: Rng, opts: ShapeOptions,
         context = GenerationContext(gw, settings, rng, result, pools, pre_tile)
         restart_reason = run_attempt(context)
         if restart_reason is None:
+            gw.record_level_entry_codes()          # FP-ENTR-01/02: the rooms' owners are final
             return result
         result.restart_reasons.append(restart_reason)
     raise RuntimeError(
@@ -334,9 +340,9 @@ def shuffle_hungry_goriya_step(context: GenerationContext) -> None:
     shuffle_hungry_goriya(context.sets.levels, context.item_shuffle_result, context.rng)
 
 
-def shuffle_bomb_upgrade_men_step(context: GenerationContext) -> None:
+def shuffle_bomb_upgraders_step(context: GenerationContext) -> None:
     """PS-BOMB: the bomb-upgrade person move."""
-    shuffle_bomb_upgrade_men(context.sets.levels, context.item_shuffle_result, context.rng)
+    shuffle_bomb_upgraders(context.sets.levels, context.item_shuffle_result, context.rng)
 
 
 def _first_quest_block_levels(context: GenerationContext) -> list[Level]:
@@ -363,7 +369,7 @@ def assign_hints_for_hint_type_step(context: GenerationContext) -> None:
     """post-shapes-b25.md (no draws), over the two first-quest blocks (PS-VAN-07). PS-HINT-02's
     record is the person-kind table as the bomb-upgrade move left it; with the move off (Dungeon
     Quest, SH-SRC-08) that is PRG0's, which marks levels 1, 2, 5 and 7."""
-    recorded = (context.item_shuffle_result.bomb_levels if context.settings.steps.shuffle_bomb_upgrade_men
+    recorded = (context.item_shuffle_result.bomb_levels if context.settings.steps.shuffle_bomb_upgraders
                 else PRG0_RECORDED_LEVELS)
     context.hint_assignment = assign_hints_for_hint_type(_first_quest_block_levels(context), recorded)
 
@@ -638,15 +644,19 @@ def shuffle_start_screen_step(context: GenerationContext) -> None:
     """OW-START-01: after the gate and level 9's record step, before map
     relocation; the exchange itself is written when the attempt ships. Full Start Shuffle
     (C04 = 2) draws over OW-START-02's 90 screens; Wood Sword Screen (C04 = 3) starts on the
-    wooden-sword cave's screen (OW-START-03)."""
+    wooden-sword cave's screen (OW-START-03). Either draw leaves out the screens the ZORA block
+    flags wall in and the screens past each randomized maze (OverworldGates.start_barred; of
+    OW-START-01's 51, only Randomize Dead Woods' $70-$72); the wooden-sword cave never moves
+    onto a gated screen (wood_sword_barred)."""
     alternatives = context.settings.alternatives
+    barred = context.settings.extras.gates.start_barred()
     if alternatives.start_on_wood_sword_screen:
         assert context.overworld is not None
         context.start = start_on_wood_sword_screen(context.overworld, context.rng)
     elif alternatives.full_start_shuffle:
-        context.start = shuffle_start_screen(context.rng, FULL_START_SCREENS)
+        context.start = shuffle_start_screen(context.rng, FULL_START_SCREENS - barred)
     else:
-        context.start = shuffle_start_screen(context.rng)
+        context.start = shuffle_start_screen(context.rng, START_SCREENS - barred)
 
 
 def move_last_boss_room_items_step(context: GenerationContext) -> None:
@@ -861,10 +871,10 @@ def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hin
     cave_text = magical_sword_cave_text(gw, names) if extras.randomize_magical_sword else None
     if alternatives.generate_community_hint_text:
         return generate_community_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names,
-                                            maze_offers, book_needed=alternatives.book_to_understand_old_men)
+                                            maze_offers, book_needed=alternatives.book_to_understand_npcs)
     return generate_hint_text(gw, item_shuffle_result, hint_assignment, rng, cave_text, names, maze_offers,
                               extras.gates, every_helpful_hint=alternatives.show_every_helpful_hint,
-                              book_needed=alternatives.book_to_understand_old_men)
+                              book_needed=alternatives.book_to_understand_npcs)
 
 
 def shuffle_dungeon_text_step(context: GenerationContext) -> None:
@@ -938,8 +948,8 @@ STEPS: tuple[Step, ...] = (
          lambda s: s.post_shapes and s.steps.shuffle_dungeon_drops),
     Step("shuffle_hungry_goriya", "B28", shuffle_hungry_goriya_step,
          lambda s: s.post_shapes and s.steps.shuffle_hungry_goriya),
-    Step("shuffle_bomb_upgrade_men", "B29", shuffle_bomb_upgrade_men_step,
-         lambda s: s.post_shapes and s.steps.shuffle_bomb_upgrade_men),
+    Step("shuffle_bomb_upgraders", "B29", shuffle_bomb_upgraders_step,
+         lambda s: s.post_shapes and s.steps.shuffle_bomb_upgraders),
     Step("add_money_or_life_rooms", "B22", add_money_or_life_rooms_step,
          lambda s: s.post_shapes and s.steps.add_money_or_life_rooms),
     # B2.5 and B5

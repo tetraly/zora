@@ -3,8 +3,8 @@
 The walk moves between (room, side) states; sides are N, E, S, W and St
 (the room's staircase).
 - Leaving a room through a side needs the room's OWN side to be passable:
-  not a wall, and not a closed shutter. The neighbour's facing side is
-  never consulted, so edges are one-sided. Only same-level neighbours
+  not a wall, and not a closed shutter. The neighbor's facing side is
+  never consulted, so edges are one-sided. Only same-level neighbors
   count. East and west sides connect across row edges (room 15 to 16)
   with no wrap guard (A26). Rooms off the level join only as stair links.
 - Open, walk-through, locked and bombable sides are passable. Keys and bombs
@@ -176,7 +176,7 @@ def build_graph(level: Level, boss_alive: bool = False) -> Graph:
     (thousands of times a seed), so the loop reads each room's four sides
     once and keeps to plain tuples and dicts."""
     # A26: the open walk steps across rows
-    neighbour_of = room_grid.neighbour if boss_alive else room_grid.step
+    neighbor_of = room_grid.neighbor if boss_alive else room_grid.step
     room_numbers = set(level.room_nums)
     # an owned room number always holds a Room (see gate._room_table)
     block_rooms = cast("list[Room]", level.block.cells)
@@ -194,8 +194,8 @@ def build_graph(level: Level, boss_alive: bool = False) -> Graph:
         for side in Side:
             if is_east_cut and side == Side.EAST:
                 continue
-            neighbour = neighbour_of(room_number, side)
-            if neighbour is None or neighbour not in room_numbers:
+            neighbor = neighbor_of(room_number, side)
+            if neighbor is None or neighbor not in room_numbers:
                 continue
             side_type = walls[side]
             if side_type == D_WALL:
@@ -208,9 +208,9 @@ def build_graph(level: Level, boss_alive: bool = False) -> Graph:
             key = (room_number, side)
             links = edges.get(key)
             if links is None:
-                edges[key] = [(neighbour, side.opposite)]
+                edges[key] = [(neighbor, side.opposite)]
             else:
-                links.append((neighbour, side.opposite))
+                links.append((neighbor, side.opposite))
             exits.append(key)
     cellar_links: list[tuple[State, State]] = []
     for stair in level.staircase_rooms:

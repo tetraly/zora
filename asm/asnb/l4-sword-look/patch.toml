@@ -1,5 +1,5 @@
 # Add L4 Sword's look (docs/design/l4-sword.md Q2, owner decision 2026-10-12): sword level 4 looks
-# like the magical sword in the white sword's colours. PRG0 picks a sword's palette row as its level
+# like the magical sword in the white sword's colors. PRG0 picks a sword's palette row as its level
 # minus 1, so level 4 fell on row 3, the level's own sprite palette, and its icon was the wooden and
 # white swords'. With this patch:
 #   - the swing: level 4 takes row 1, the white sword's (the swing has one shape for every sword);

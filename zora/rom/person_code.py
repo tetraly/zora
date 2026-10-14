@@ -52,7 +52,7 @@ COST_TEXT_TENS = LIFE_OR_MONEY_COST_TEXT_ADDRESS + 11
 ICON_TILES = (0x24, 0x62)                                 # blank, "x"
 
 TOLL_LINE_WIDTH = 24
-# Lines are centred with the blank pad tile $25, not the space $24 that
+# Lines are centered with the blank pad tile $25, not the space $24 that
 # separates words (final corpus: 1,000/1,000 toll texts; the spec's
 # "spaces" is this tile — QUESTIONS #50.1).
 TEXT_PAD_TILE = CHAR_TO_BYTE["~"]

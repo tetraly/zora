@@ -95,6 +95,8 @@ def test_metadata_support_matrix_matches_flags_module() -> None:
             expected |= {index for index, outcomes in flags_fields.OPTIONS_BY_ID[field_id].random_choices.items()
                          if set(outcomes) <= expected}
             assert entry["supportedValues"] == sorted(expected)
+        elif field_id in support.TURN_OFF_TOGGLES_NOT_RANDOM:
+            assert entry["supportedValues"] == [ThreeState.OFF, ThreeState.ON]     # B29: no "?" (FL-SUP-01)
         elif (field_id in support.TURN_OFF_TOGGLES or field_id in support.OWNER_TURN_OFF_TOGGLES
               or field_id in support.ALTERNATIVE_TOGGLES) and field_id != "B23":
             assert entry["supportedValues"] == both
@@ -112,29 +114,32 @@ def test_metadata_level_encoding_text_is_the_owners(build: str) -> None:
 
 
 def test_metadata_presets_are_the_spec_presets(build: str) -> None:
+    """The menu (owner, beta 5): the MVP baseline and variants A and C as Consternation,
+    Consternation Remastered and Hopla, each with level encoding on as published; then CP-5
+    (Consternation without level encoding) and All Swords No Boards. Random% (variant B, which ZORA
+    does not produce in full) and variant A without level encoding stay in presets.py, off the
+    menu."""
     presets = worker_metadata()["presets"]
-    assert [p["name"] for p in presets[:4]] == list(flags_presets.PRESETS)
-    assert [p["flags"] for p in presets[:4]] == [codec.canonicalize(s) for s in flags_presets.PRESETS.values()]
-    assert presets[0]["label"] == "Consternation"
-    assert presets[4]["flags"] == flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF and presets[4]["available"]
-    # variant A without level encoding: every build produces it (owner approval, 2026-10-10)
-    assert presets[5]["flags"] == flags_presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF and presets[5]["available"]
-    variant_a = presets[1]
-    variant_b, variant_c = presets[2:4]
-    # variant B has fields ZORA does not produce
-    assert not variant_b["available"] and variant_b["reasons"][0].startswith("not produced: ")
-    assert variant_b["reason"] == "Not produced by ZORA yet"
+    assert [(p["name"], p["label"]) for p in presets] == [
+        ("MVP baseline", "Consternation"), ("Published variant A", "Consternation Remastered"),
+        ("Published variant C", "Hopla"), ("MVP baseline, level encoding off", "Consternation without level encoding"),
+        ("All Swords No Boards", "All Swords No Boards")]
+    encoded = presets[:3]
+    assert [p["flags"] for p in encoded] == [codec.canonicalize(flags_presets.PRESETS[p["name"]]) for p in encoded]
+    assert all(codec.decode(p["flags"]).toggle(flags_fields.ENCODE_LEVEL_DATA) is ThreeState.ON for p in encoded)
+    assert presets[3]["flags"] == flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF and presets[3]["available"]
+    shown = {p["flags"] for p in presets}
+    assert flags_presets.PUBLISHED_VARIANT_B not in shown and flags_presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF not in shown
+    # variant B still has fields ZORA does not produce
+    assert flag_form.generation_refusals(flags_presets.PUBLISHED_VARIANT_B, "")[0].startswith("not produced: ")
     # variants A (C01 = 2 and C06 = 2) and C (Hopla: Mixed + Shapes, C02 = 4, with level encoding on
     # second-quest dungeons since 2026-10-12) are produced and encode their level data, as
     # Consternation does
     if build == "installed":
-        assert presets[0]["available"] and presets[0]["reason"] is None
-        assert variant_a["available"] and variant_a["reason"] is None
-        assert variant_c["available"] and variant_c["reason"] is None
+        assert all(p["available"] and p["reason"] is None for p in encoded)
     else:
         assert presets[0]["reason"] == "Encode level data: not available in this build"
-        assert not variant_a["available"] and variant_a["reason"] == presets[0]["reason"]
-        assert not variant_c["available"] and variant_c["reason"] == presets[0]["reason"]
+        assert all(not p["available"] and p["reason"] == presets[0]["reason"] for p in encoded)
 
 
 def test_metadata_lists_every_rule_the_check_can_give() -> None:
@@ -189,9 +194,9 @@ def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> N
             assert field["disabled"] and field["reason"] == "Not produced by ZORA yet", field_id
 
 
-def test_fl_dep_06_b23_is_greyed_while_b22_is_off_and_the_string_is_corrected() -> None:
+def test_fl_dep_06_b23_is_grayed_while_b22_is_off_and_the_string_is_corrected() -> None:
     """FL-DEP-06: a string with B22 off and B23 on is shown as the canonical string with both off,
-    with a note, B23 greyed and displayed off; it is not refused."""
+    with a note, B23 grayed and displayed off; it is not refused."""
     cp5 = codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)
     pasted = codec.encode(cp5.updated(toggles={"B22": ThreeState.OFF}))
     pair = codec.encode(cp5.updated(toggles={"B22": ThreeState.OFF, "B23": ThreeState.OFF}))
@@ -213,7 +218,7 @@ def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused() ->
 @pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
 def test_published_variant_c_is_produced() -> None:
     """Every value of variant C (Hopla) is produced since Mixed + Shapes (C02 = 4), and its level
-    encoding works with second-quest dungeons since 2026-10-12 (level_encoding.fold_second_quest_blocks),
+    encoding works with second-quest dungeons since 2026-10-12 (GameWorld.store_second_quest_sets_in_first_quest_slots),
     so variant C generates."""
     state = worker_state(flags_presets.PUBLISHED_VARIANT_C)
     assert all(field["reason"] != flag_form.CURRENT_NOT_PRODUCED_TEXT for field in state["fields"].values())

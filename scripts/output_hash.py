@@ -185,8 +185,10 @@ def main() -> int:
     args = ap.parse_args()
     if args.compare:
         return compare(*args.compare)
-    # The matrix's cases are this checkout's, read before --code puts another revision first
+    # The matrix's cases are this checkout's, read before --code puts another revision first; and
+    # progress (zora_measure/progress.py), imported here, in this process only, never in a worker
     jobs = matrix_jobs()[:args.matrix_jobs] if args.matrix else []
+    from zora_measure.progress import track
     if args.code:
         if problem := code_dir_problem(args.code):
             print(f"output_hash: {problem}", file=sys.stderr)
@@ -197,12 +199,14 @@ def main() -> int:
     # spawn: workers import zora afresh, from the --code folder, never this process's copy
     with multiprocessing.get_context("spawn").Pool(args.workers) as pool:
         if args.matrix:
-            result[MATRIX] = dict(pool.map(matrix_hash, jobs))
+            result[MATRIX] = dict(track(pool.imap(matrix_hash, jobs), "output_hash: the ROM matrix",
+                                        total=len(jobs), unit="ROMs"))
             entries = [json.dumps(result[MATRIX][entry], sort_keys=True) for entry in sorted(result[MATRIX])]
             print(f"{MATRIX}: {len(jobs)} ROMs, combined sha1 {combined(entries)}")
         else:
             for mode, post_shapes in MODES.items():
-                result[mode] = pool.map(seed_hash, [(seed, post_shapes) for seed in range(args.seeds)])
+                result[mode] = list(track(pool.imap(seed_hash, [(seed, post_shapes) for seed in range(args.seeds)]),
+                                          f"output_hash: {mode}", total=args.seeds, unit="seeds"))
                 print(f"{mode}: {args.seeds} seeds, combined sha1 {combined(result[mode])}")
     if args.json:
         args.json.parent.mkdir(parents=True, exist_ok=True)

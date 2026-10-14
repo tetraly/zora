@@ -54,7 +54,7 @@ from zora_measure.checkpoints.dungeon_room_shuffle import (
     LEVEL9_PERSON_SIDE_KEYS,
     LEVEL9_PERSON_TRIGGER_KEYS,
     ROMS_PER_LEVEL,
-    ZELDA_NEIGHBOUR_COUNTS,
+    ZELDA_NEIGHBOR_COUNTS,
     level1_arriving_layouts,
     level9_cellar_progression,
     level9_person_any_shutter,
@@ -62,8 +62,8 @@ from zora_measure.checkpoints.dungeon_room_shuffle import (
     level9_person_trigger,
     level9_room_progression,
     levels_with_layout,
-    zelda_neighbour_count,
-    zelda_neighbours_trigger3,
+    zelda_neighbor_count,
+    zelda_neighbors_trigger3,
 )
 from zora_measure.checkpoints.dungeon_text import (
     HELPFUL_LEVEL_COUNTS,
@@ -319,7 +319,7 @@ from zora_measure.checkpoints.shapes_and_gate import (
     unowned_count,
     unowned_off_bottom_row,
     unowned_on_six_level_grid,
-    zelda_neighbour_push,
+    zelda_neighbor_push,
     zelda_on_own_layout,
     zelda_side_shuttered,
 )
@@ -447,8 +447,8 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
                transport_exits_differ, ratio_total),
     Checkpoint("A33", "non-Ganon trigger-3 rooms with trigger byte exactly $03",
                "1717/1717", SPEC_GATE, trigger3_rooms_exact, ratio_total),
-    Checkpoint("A32", "Zelda-neighbour trigger-3 rooms keeping a push block",
-               "$5A 134 $60 57 $DA 53", SPEC_GATE, zelda_neighbour_push,
+    Checkpoint("A32", "Zelda-neighbor trigger-3 rooms keeping a push block",
+               "$5A 134 $60 57 $DA 53", SPEC_GATE, zelda_neighbor_push,
                per_thousand_by_code(PUSH_EXEMPT_LAYOUTS)),
     Checkpoint("A3", "ROMs with a shuttered Zelda side", "0/1000", SPEC_GATE,
                zelda_side_shuttered, count_true),
@@ -596,10 +596,10 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
                "north/east/west; trigger 1; other (trigger 0 total in 369-461)",
                "163/196/56/585/0", SPEC_GATE_19, level9_person_trigger,
                distribution(LEVEL9_PERSON_TRIGGER_KEYS)),
-    Checkpoint("A48", "Zelda's same-level neighbours 1 / 2 / 3 / 4", "41/174/412/373",
-               SPEC_GATE, zelda_neighbour_count, distribution(ZELDA_NEIGHBOUR_COUNTS)),
-    Checkpoint("A48", "Zelda's neighbours with trigger byte $03", "1801/3117", SPEC_GATE,
-               zelda_neighbours_trigger3, ratio_total),
+    Checkpoint("A48", "Zelda's same-level neighbors 1 / 2 / 3 / 4", "41/174/412/373",
+               SPEC_GATE, zelda_neighbor_count, distribution(ZELDA_NEIGHBOR_COUNTS)),
+    Checkpoint("A48", "Zelda's neighbors with trigger byte $03", "1801/3117", SPEC_GATE,
+               zelda_neighbors_trigger3, ratio_total),
     Checkpoint("VA-REJ-20", "items in level 9's non-Ganon trigger-3 rooms, per 1,000 ROMs",
                "key 394 bombs 176 five rupees 125 map 42 compass 0 other 0 (0.737 per ROM)", SPEC_GATE_20,
                last_boss_room_items, per_thousand_by_key(LAST_BOSS_ROOM_ITEM_KEYS)),
@@ -733,7 +733,7 @@ CHECKPOINTS = (
                _hint_record("inside_dungeon_outcomes"), _inside_dungeon_summary()),
     Checkpoint("HT-HINT-01/02", "entry 10's name form when shown (wording-free); entries 12 / 10 / 11 "
                "shown (slots 3 / 6 / 7)",
-               "SAME 127 HUMAN 82 OLD MAN 48 OLD WOMAN 66 MERCHANT 69 MOBLIN 98; shown 514 / 490 / 473",
+               "SAME 127 HUMAN 82 $58 48 $59 66 $5A 69 $5B 98; shown 514 / 490 / 473",
                SPEC_HINT, _hint_record("name_shown"), NAME_SUMMARY),
     Checkpoint("HT-HINT-01/02", "level-9 trio shown by slot (wording-free)",
                "35 silver 511; 36 ganon 351, zelda 166; 37 zelda 166, compass 337", SPEC_HINT,
@@ -1054,7 +1054,7 @@ OPEN_STAIRS_CHECKPOINTS = (
 )
 
 
-# HT-BOOK with Book To Understand Old Men (B48), against its corpus; then every CP-5 row, where
+# HT-BOOK with Book to Understand NPCs (B48), against its corpus; then every CP-5 row, where
 # HT-TEXT-02's slot-0 row shows HT-BOOK-02 (slot 0 is never the greeting)
 BOOK_CHECKPOINTS = (
     Checkpoint("HT-BOOK-01", "text-pointer load at 0x04847: B48's call $20 $30 $9F / PRG0's $B9 $00 $80",

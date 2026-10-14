@@ -237,7 +237,7 @@ START_ITEM_LIMIT = OptionField("C17", "Limit on starting items", 26, 23,
                                {START_ITEM_LIMIT_RANDOM: START_ITEM_LIMIT_RANDOM_CHOICES})
 STARTING_PIECES = OptionField("C18", "Starting triforce pieces", 13, 10,
                               {STARTING_PIECES_RANDOM: _indices(MAX_TRIFORCE_PIECES)})
-RED_BUBBLE = OptionField("C19", "Red bubble behaviour", 7, 4, {RedBubble.RANDOM: _indices(2)})
+RED_BUBBLE = OptionField("C19", "Red bubble behavior", 7, 4, {RedBubble.RANDOM: _indices(2)})
 WHITE_SWORD_LOWEST = OptionField("C20", "White-sword hearts, lowest", 6, 3)
 WHITE_SWORD_HIGHEST = OptionField("C21", "White-sword hearts, highest", 6, 3)
 MAGICAL_SWORD_LOWEST = OptionField("C22", "Magical-sword hearts, lowest", 8, 5)
@@ -297,7 +297,7 @@ _TOGGLE_SETTINGS = (
     "Hide the dungeon numbers",                                     # B24
     "Allow important items inside level 9",                         # B25
     "Allow the dungeon start room to move",                         # B26
-    "Shuffle dungeon colours",                                      # B27
+    "Shuffle dungeon colors",                                       # B27
     "Shuffle the hungry goriya",                                    # B28
     "Shuffle the bomb-upgrade persons",                             # B29
     "Remove most open stairs",                                      # B30
@@ -318,7 +318,7 @@ _TOGGLE_SETTINGS = (
     "Maximum enemy health",                                         # B45
     "Maximum boss health",                                          # B46
     "Replace the Book's fire with an explosion",                    # B47
-    "The Book lets the player understand old men",                  # B48
+    "The Book lets the player understand NPCs",                     # B48
     "The Book counts as the map of every level",                    # B49
     "Blackout",                                                     # B50
     "Print quest information",                                      # B51
@@ -381,7 +381,7 @@ MONEY_OR_LIFE_TOLL = TOGGLES_BY_ID["B23"]
 IMPORTANT_ITEMS_IN_LEVEL_9 = TOGGLES_BY_ID["B25"]
 START_ROOM_MAY_MOVE = TOGGLES_BY_ID["B26"]
 MOST_OPEN_STAIRS_REMOVED = TOGGLES_BY_ID["B30"]
-BOOK_TO_UNDERSTAND_OLD_MEN = TOGGLES_BY_ID["B48"]
+BOOK_TO_UNDERSTAND_NPCS = TOGGLES_BY_ID["B48"]
 HUNGRY_GORIYA_SHUFFLE = TOGGLES_BY_ID["B28"]
 BOMB_UPGRADE_PERSON_SHUFFLE = TOGGLES_BY_ID["B29"]
 DUNGEON_MONSTER_SHUFFLE = TOGGLES_BY_ID["B32"]

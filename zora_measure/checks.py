@@ -12,7 +12,7 @@ from itertools import pairwise
 from zora.model.enums import Enemy, Item, RoomType, Side, WallType
 from zora.model.game_world import GameWorld
 from zora.model.levels import Level
-from zora.model.room_grid import neighbour
+from zora.model.room_grid import neighbor
 from zora.model.rooms import Room, StaircaseRoom
 
 STAIR_POOL_LAYOUTS = (RoomType.TRANSPORT_STAIRCASE, RoomType.ITEM_STAIRCASE)
@@ -73,7 +73,7 @@ def level_pieces(level: Level) -> list[set[int]]:
         while stack:
             room = stack.pop()
             for side in Side:
-                other = neighbour(room, side)
+                other = neighbor(room, side)
                 if other in rooms and other not in piece:
                     piece.add(other)
                     stack.append(other)
@@ -271,7 +271,7 @@ def check_door_sync(gw: GameWorld) -> CheckResult:
 
 
 def check_entrances(gw: GameWorld) -> CheckResult:
-    """SH-ENT-01/03: start rooms south open, own-level neighbour, layout $21,
+    """SH-ENT-01/03: start rooms south open, own-level neighbor, layout $21,
     item none."""
     bad = []
     for level in gw.levels:
@@ -288,7 +288,7 @@ def check_entrances(gw: GameWorld) -> CheckResult:
             bad.append((level.level_num, "item not none"))
         if not any(level.block.owner_of(n) is level
                    for n in (ent - 16, ent + 16, ent - 1, ent + 1) if 0 <= n <= 0x7F):
-            bad.append((level.level_num, "no same-level neighbour"))
+            bad.append((level.level_num, "no same-level neighbor"))
     return CheckResult("SH-ENT-01/03", not bad, f"problems: {bad[:6]}")
 
 

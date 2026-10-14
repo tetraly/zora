@@ -33,6 +33,7 @@ from zora.generate.rng import Rng
 from zora.model.enums import Item
 from zora.model.game_world import GameWorld
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
+from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH
 from zora.rom.layout import (
     CAVE_PRICE_DATA_ADDRESS,
     EXT_HINT_DATA_ROM_END,
@@ -180,7 +181,12 @@ def test_recomposed_hint_text_with_builds_draws_is_builds(base: bytes, case: str
     for field in HINT_FIELDS:
         assert getattr(world, field) == getattr(built.world, field), field
     assert _hint_shop_prices(world) == _hint_shop_prices(built.world)
-    assert finish_unchecked(built, base, identity(built), recompute=False) == finish(built, base)
+    # Apart from the seed code, which covers External mode's configuration (its one-time places)
+    external, zora_mode = (bytearray(rom) for rom in (finish_unchecked(built, base, identity(built), recompute=False),
+                                                       finish(built, base)))
+    for rom in (external, zora_mode):
+        rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = bytes(SEED_CODE_LENGTH)
+    assert external == zora_mode
 
 
 # --- the recompute follows the new items ----------------------------------------------------------

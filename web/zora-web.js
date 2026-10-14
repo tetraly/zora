@@ -46,6 +46,27 @@ const PASTED_FLAGS = "pasted flags";
 // The player's own presets: this many slots, kept in this browser.
 const CUSTOM_PRESETS_KEY = "zora.customPresets";
 const CUSTOM_SLOT_COUNT = 4;
+// How the player plays: single player (the default: generate a ROM here) or multiworld (export an
+// Archipelago YAML, zora_web/multiworld.py). A shared link carries it, with both flag strings:
+// ?flags=...&zora=...&mode=multiworld (and &seed=... in single player, LINK_SEED below); a default
+// part is left out, so the default page's address stays bare.
+const SINGLE = "single";
+const MULTIWORLD = "multiworld";
+const LINK_FLAGS = "flags";
+const LINK_ZORA_FLAGS = "zora";
+const LINK_MODE = "mode";
+// The seed a shared link names (single player only): a decimal whole number below ZORA's limit,
+// 2^64 (zora/generate/pipeline.py SEED_LIMIT); anything else is ignored and the seed stays random.
+const LINK_SEED = "seed";
+const SEED_LIMIT = 2n ** 64n;
+const SHARED_LINK = "the shared link";
+// zora.apworld's link comes with the metadata (zora_web.multiworld.apworld_url: this version's GitHub
+// release asset). The Archipelago guide is a page beside this one (scripts/guide_page.py, from
+// docs/archipelago-guide.md); a single file opened from disk has none beside it, so it links the site's.
+const SITE_URL = "https://zora.gg/";
+const GUIDE_PAGE = "archipelago-guide.html";
+const ARCHIPELAGO_GUIDE_URL = location.protocol === "file:" ? SITE_URL + GUIDE_PAGE : GUIDE_PAGE;
+const PLAYER_NAME_KEY = "zora.playerName";
 
 const $ = (id) => document.getElementById(id);
 window.zoraTimings = { seeds: [] };
@@ -68,7 +89,8 @@ const worker = startWorker();
 const pending = new Map();      // request id -> {resolve, reject}
 let nextId = 0;
 let ready = false;
-let baseRom = null;             // Uint8Array of the verified base ROM
+let baseRom = null;             // Uint8Array of the recognized base ROM
+let romIdentity = null;         // its zora_web.api.identify_rom answer
 let metadata = null;            // zora.flag_form.metadata()
 let form = null;                // the current zora.flag_form.form_state()
 // The state the changed-dots compare with: the last preset or pasted string
@@ -98,11 +120,20 @@ worker.onmessage = (event) => {
     window.zoraTimings.python = message.python;
     window.zoraTimings.pyodide = message.pyodide;
     metadata = message.metadata;
+    metadata.multiworld = message.multiworld;
+    showWorldLinks();
     flagTabsRequest.then((flagTabs) => {
       buildForm(flagTabs);
       status(`Ready in ${(window.zoraTimings.readyMs / 1000).toFixed(1)} s ` +
-             `(Pyodide ${message.pyodide}, Python ${message.python}). Choose the base ROM.`);
-      loadFlags(metadata.defaultFlags, { rewrite: true, start: true });
+             `(Pyodide ${message.pyodide}, Python ${message.python}). ` +
+             (mode === MULTIWORLD ? "Choose your settings and player name." : "Choose the base ROM."));
+      if (sharedLink.flags !== null || sharedLink.zoraFlags !== null) {
+        $("zora-flags").value = sharedLink.zoraFlags || "";
+        loadFlags(sharedLink.flags || metadata.defaultFlags, { rewrite: true, start: true, name: SHARED_LINK });
+      } else {
+        loadFlags(metadata.defaultFlags, { rewrite: true, start: true });
+      }
+      checkPlayerName();
     });
     return;
   }
@@ -241,7 +272,7 @@ function noteIn(values, value) {
   return (entry && entry.note) || "";
 }
 
-// A segmented control: one button per value, labelled by `labelOf`.
+// A segmented control: one button per value, labeled by `labelOf`.
 function segments(name, values, labelOf, onPick) {
   const group = element("div", { className: "seg", role: "group", ariaLabel: name });
   const buttons = new Map();
@@ -299,7 +330,7 @@ function addTab(name) {
                                      id: `tab-${slug(name)}`, textContent: name });
   button.setAttribute("aria-controls", panelId);
   const panel = element("div", { id: panelId, role: "tabpanel", hidden: true });
-  panel.setAttribute("aria-labelledby", button.id);
+  panel.setAttribute("aria-labeledby", button.id);
   $("tabs").append(button);
   $("panels").append(panel);
   return panel;
@@ -451,8 +482,17 @@ function showZoraState(zora, { rewrite }) {
     control.value = zora.values[name];
     if (control.kind === "select") control.input.value = String(control.value);
     else paintSegments(control.buttons, control.value);
-    control.row.classList.remove("setting--problem");
-    control.reason.textContent = "";
+    // Multiworld mode: the values Archipelago does not take yet; single-player mode offers every one.
+    const choices = control.kind === "select" ? [...control.input.options] : [...control.buttons.values()];
+    const values = control.kind === "select" ? choices.map((option) => Number(option.value)) : [...control.buttons.keys()];
+    choices.forEach((choice, index) => {
+      const why = values[index] === control.value ? undefined : multiworldReason(name, values[index]);
+      choice.disabled = why !== undefined;
+      choice.title = why || "";
+    });
+    const refusedHere = multiworldReason(name, control.value);
+    control.row.classList.toggle("setting--problem", refusedHere !== undefined);
+    control.reason.textContent = refusedHere !== undefined ? `${refusedHere} Choose another value to export.` : "";
     markChanged(control, startState !== null && startState.zora[name] !== control.value);
   }
   const messages = new Map();      // setting -> the conflicts that name it
@@ -476,7 +516,7 @@ function currentZoraFlags() {
 // Player settings (the Look and feel tab)
 // ---------------------------------------------------------------------------
 
-// The Look and feel tab: the player's own settings (buttons, sound, colours).
+// The Look and feel tab: the player's own settings (buttons, sound, colors).
 // They are not part of the flag string, so two players can race the same
 // flags with different settings; the page remembers them per browser, and
 // they are not part of a preset. The page sends them with each generate
@@ -486,7 +526,7 @@ function currentZoraFlags() {
 // The NES (2C02) palette, entries $00 to $3F as RGB, emphasis bits off. Source:
 // the first 64 entries of PALETTE_COLORS in src/ppu.cpp of cynes (the emulator
 // ZORA's tests use), https://github.com/Youlixx/cynes, commit 6f8d3a4 (read
-// 2026-10-06). Used under cynes' licence, which follows:
+// 2026-10-06). Used under cynes' license, which follows:
 //
 // MIT License
 //
@@ -521,7 +561,7 @@ const NES_PALETTE = [
 ];
 // $0D is darker than black; some TVs take it for the sync signal.
 const BLACKER_THAN_BLACK = 0x0D;
-const EXCLUDED_COLOURS = { [BLACKER_THAN_BLACK]: "Not used: can upset TV picture sync" };
+const EXCLUDED_COLORS = { [BLACKER_THAN_BLACK]: "Not used: can upset TV picture sync" };
 
 const PLAYER_SETTINGS_KEY = "zora-player-settings";
 
@@ -546,32 +586,32 @@ const PLAYER_CHOICES = [
   { key: "statisticsScreen", label: "Statistics screen", default: "off", choices: [["on", "On"], ["off", "Off"]],
     help: "After the credits, Start shows a screen with your times per level, when you found the key items, deaths, sword stabs and bombs used. Off leaves the original ending." },
 ];
-// The colour slots, as NES palette indexes, under their headings.
-const PLAYER_COLOURS = [
-  { heading: "Tunic colours", slots: [
+// The color slots, as NES palette indexes, under their headings.
+const PLAYER_COLORS = [
+  { heading: "Tunic colors", slots: [
     { key: "greenTunic", label: "Green tunic", default: 0x29,
-      help: "The colour of Link's tunic before he finds a ring." },
+      help: "The color of Link's tunic before he finds a ring." },
     { key: "blueRingTunic", label: "Blue ring", default: 0x32,
-      help: "The colour of Link's tunic with the blue ring." },
+      help: "The color of Link's tunic with the blue ring." },
     { key: "redRingTunic", label: "Red ring", default: 0x16,
-      help: "The colour of Link's tunic with the red ring." },
+      help: "The color of Link's tunic with the red ring." },
   ] },
-  { heading: "Heart colour", slots: [{ key: "heart", label: "Hearts", default: 0x16,
-                                       help: "The colour of the hearts in the life meter." }] },
+  { heading: "Heart color", slots: [{ key: "heart", label: "Hearts", default: 0x16,
+                                       help: "The color of the hearts in the life meter." }] },
 ];
-const COLOUR_SLOTS = PLAYER_COLOURS.flatMap((group) => group.slots);
+const COLOR_SLOTS = PLAYER_COLORS.flatMap((group) => group.slots);
 
 function defaultPlayerSettings() {
   const settings = {};
   for (const choice of PLAYER_CHOICES) settings[choice.key] = choice.default;
-  for (const slot of COLOUR_SLOTS) settings[slot.key] = slot.default;
+  for (const slot of COLOR_SLOTS) settings[slot.key] = slot.default;
   settings.levelWord = "LEVEL";        // metadata.levelWord.default
   settings.bossSoundWord = "ROAR";     // metadata.bossSoundWord.default
   return settings;
 }
 
-function isPickableColour(value) {
-  return Number.isInteger(value) && value >= 0 && value < NES_PALETTE.length && !(value in EXCLUDED_COLOURS);
+function isPickableColor(value) {
+  return Number.isInteger(value) && value >= 0 && value < NES_PALETTE.length && !(value in EXCLUDED_COLORS);
 }
 
 // The saved settings, each value checked; anything unknown or missing takes its default.
@@ -583,8 +623,8 @@ function loadPlayerSettings() {
   for (const choice of PLAYER_CHOICES) {
     if (choice.choices.some(([value]) => value === saved[choice.key])) settings[choice.key] = saved[choice.key];
   }
-  for (const slot of COLOUR_SLOTS) {
-    if (isPickableColour(saved[slot.key])) settings[slot.key] = saved[slot.key];
+  for (const slot of COLOR_SLOTS) {
+    if (isPickableColor(saved[slot.key])) settings[slot.key] = saved[slot.key];
   }
   // Checked against metadata.levelWord when the panel is built (the worker sends the rule).
   if (typeof saved.levelWord === "string") settings.levelWord = saved.levelWord;
@@ -596,6 +636,7 @@ const playerSettings = loadPlayerSettings();
 
 function savePlayerSettings() {
   try { localStorage.setItem(PLAYER_SETTINGS_KEY, JSON.stringify(playerSettings)); } catch { /* not remembered */ }
+  refreshMultiworld();      // the YAML carries them: check them again
 }
 
 // A copy for the generate message.
@@ -603,7 +644,7 @@ function currentPlayerSettings() {
   return { ...playerSettings };
 }
 
-// Fills the Look and feel panel: the choices as selects, then the colour slots.
+// Fills the Look and feel panel: the choices as selects, then the color slots.
 function buildLookPanel(panel) {
   panel.append(element("p", { className: "panel-note",
     textContent: "Look and feel settings change only how the game looks and sounds, so they are not part " +
@@ -620,13 +661,13 @@ function buildLookPanel(panel) {
   }
   grid.append(levelWordRow());
   grid.append(bossSoundWordRow());
-  const markerNote = element("p", { id: "marker-note", className: "panel-note colour-note", textContent: MARKER_NOTE });
-  for (const group of PLAYER_COLOURS) {
-    grid.append(element("h3", { className: "colour-heading", textContent: group.heading }));
+  const markerNote = element("p", { id: "marker-note", className: "panel-note color-note", textContent: MARKER_NOTE });
+  for (const group of PLAYER_COLORS) {
+    grid.append(element("h3", { className: "color-heading", textContent: group.heading }));
     for (const slot of group.slots) {
       const host = element("span", { className: "setting-control" });
       initColorPicker(host, {
-        palette: NES_PALETTE, excluded: EXCLUDED_COLOURS, value: playerSettings[slot.key],
+        palette: NES_PALETTE, excluded: EXCLUDED_COLORS, value: playerSettings[slot.key],
         label: `${group.heading}: ${slot.label}`,
         onChange: (index) => {
           playerSettings[slot.key] = index;
@@ -743,14 +784,14 @@ function wordChoiceRow({ key, name, help, maxLength, defaultWord, options, probl
   return row;
 }
 
-// The map marker note (docs/reports/minimap-marker.md): shown while any tunic colour is one
-// zora/ draws the marker in Link's skin colour for (metadata.markerHidingColours, the same set).
+// The map marker note (docs/reports/minimap-marker.md): shown while any tunic color is one
+// zora/ draws the marker in Link's skin color for (metadata.markerHidingColors, the same set).
 const MARKER_NOTE = "Note: Because one of the selected tunic colors is dark, the player's minimap color " +
                     "will be lighter to ensure it stays visible.";
 const TUNIC_SLOTS = ["greenTunic", "blueRingTunic", "redRingTunic"];
 
 function showMarkerNote(note) {
-  note.hidden = !TUNIC_SLOTS.some((key) => metadata.markerHidingColours.includes(playerSettings[key]));
+  note.hidden = !TUNIC_SLOTS.some((key) => metadata.markerHidingColors.includes(playerSettings[key]));
 }
 
 // ---------------------------------------------------------------------------
@@ -896,12 +937,30 @@ function isNotImplemented(control, value) {
   return control.field.values.some((entry) => entry.value === value) && !control.supported.has(value);
 }
 
+// Multiworld mode: why Archipelago does not take this value of a field (a Z1R field's id, a ZORA
+// flag's name), or undefined when it does. Always undefined in single-player mode.
+function multiworldReason(id, value) {
+  if (mode !== MULTIWORLD) return undefined;
+  const fixed = metadata.multiworld.fixed[id];
+  if (fixed) return value === fixed.value ? undefined : fixed.reason;
+  const offered = metadata.multiworld.offered[id];
+  return !offered || offered.includes(value) ? undefined : metadata.multiworld.notOffered;
+}
+
+// Why a field offers only its value. In multiworld mode Archipelago's reason comes first (each value's
+// own reason lists it first): a field it never offers, or one whose other values it does not take.
+function lockedReason(id, field, reasons) {
+  if (mode !== MULTIWORLD) return field.reason || reasons[0] || "";
+  const fixed = metadata.multiworld.fixed[id];
+  return fixed ? fixed.reason : reasons[0] || field.reason || "";
+}
+
 function showField(id, control, field) {
   control.value = field.value;
   const reasons = [];      // why the other values cannot be picked
   let pickable = 0;
   const offer = (value) => {
-    const why = value === field.value ? undefined : blockedReason(id, field, value);
+    const why = value === field.value ? undefined : multiworldReason(id, value) ?? blockedReason(id, field, value);
     if (why !== undefined) reasons.push(why);
     else if (value !== field.value) pickable++;
     return why;
@@ -924,14 +983,18 @@ function showField(id, control, field) {
       button.title = why ? plainText(why) : control.supported.has(value) ? "" : NOT_IMPLEMENTED;
     }
   }
-  const locked = pickable === 0 && !field.problem;
+  // Multiworld mode: a value Archipelago does not take needs changing, like a refused one.
+  const refusedHere = multiworldReason(id, field.value);
+  const problem = field.problem || refusedHere !== undefined;
+  const locked = pickable === 0 && !problem;
   control.row.classList.toggle("setting--locked", locked);
-  control.row.classList.toggle("setting--problem", field.problem);
+  control.row.classList.toggle("setting--problem", problem);
   // A hidden field shows itself while its value needs changing (a pasted string).
-  control.row.hidden = !control.shown && !field.problem;
+  control.row.hidden = !control.shown && !problem;
   control.reason.textContent = field.problem
     ? (isNotImplemented(control, field.value) ? NOT_IMPLEMENTED : plainText(field.reason))
-    : locked ? plainText(field.reason || reasons[0] || "") : "";
+    : refusedHere !== undefined ? `${refusedHere} Choose another value to export.`
+    : locked ? plainText(lockedReason(id, field, reasons)) : "";
   markChanged(control, startState !== null && startState.fields[id] !== field.value);
 }
 
@@ -978,13 +1041,28 @@ function showState(state, { rewrite, start = false, name = "" }) {
   $("start-limit-note").hidden = !startItemsAllDropped(startRules, state.fields);
   showZoraState(state.zora, { rewrite });
 
-  const notes = [...state.refusals.map((text) => `Rule: ${plainText(text)}`), ...state.adjustments.map(plainText)];
-  const refusals = state.generateRefusals.filter((text) => !state.refusals.includes(text)
-                                                       && !text.startsWith(NOT_PRODUCED_REFUSAL));
-  $("problems").replaceChildren(...[...notImplementedLines(state), ...notes,
-                                    ...refusals.map((text) => `Cannot generate: ${plainText(text)}`)]
-    .map((text) => element("li", { textContent: text })));
+  showProblems();
+  updateLink();
   updateButton();
+  refreshMultiworld();
+}
+
+// The list under the button: in single-player mode what blocks generation; in multiworld mode what
+// blocks the export (multiworldVerdict, from Python).
+function showProblems() {
+  if (!form) return;
+  const notes = [...form.refusals.map((text) => `Rule: ${plainText(text)}`), ...form.adjustments.map(plainText)];
+  let lines;
+  if (mode === MULTIWORLD) {
+    const reasons = multiworldVerdict ? multiworldVerdict.reasons : [];
+    lines = [...notes, ...reasons.filter((text) => !form.refusals.some((rule) => text.includes(rule)))
+      .map((text) => `Cannot export: ${plainText(text)}`)];
+  } else {
+    const refusals = form.generateRefusals.filter((text) => !form.refusals.includes(text)
+                                                        && !text.startsWith(NOT_PRODUCED_REFUSAL));
+    lines = [...notImplementedLines(form), ...notes, ...refusals.map((text) => `Cannot generate: ${plainText(text)}`)];
+  }
+  $("problems").replaceChildren(...lines.map((text) => element("li", { textContent: text })));
 }
 
 let flagsRequest = 0;
@@ -1039,6 +1117,162 @@ function onFlagsCommitted() {
 }
 
 // ---------------------------------------------------------------------------
+// The shared link: both flag strings, the mode and (single player) the seed, in the page's address
+// ---------------------------------------------------------------------------
+
+// A seed as a link may carry it, without leading zeros; null unless it is one ZORA takes.
+function validSeed(text) {
+  if (!text || !/^\d{1,20}$/.test(text)) return null;
+  const seed = BigInt(text);
+  return seed < SEED_LIMIT ? seed.toString() : null;
+}
+
+// What a link's query asks for: each flag string (null when absent), the mode, and the seed (null
+// when absent, not valid, or in multiworld mode, where Archipelago draws the seed).
+function linkSettings(search) {
+  const params = new URLSearchParams(search);
+  const mode = params.get(LINK_MODE) === MULTIWORLD ? MULTIWORLD : SINGLE;
+  return { flags: params.get(LINK_FLAGS), zoraFlags: params.get(LINK_ZORA_FLAGS), mode,
+           seed: mode === SINGLE ? validSeed(params.get(LINK_SEED)) : null };
+}
+
+// The query for these settings, keeping any other parameter (?pyodide=) first: the default flag
+// string, an empty ZORA string and no seed are left out ("" when nothing is left). The last
+// parameter can never end in "!" (owner, beta 5): chat apps often drop a trailing "!", which would
+// silently change a flag string. So once the query names any setting it ends with the seed (single
+// player, after a generation) or else the mode, written even when single player. Links are read in
+// any order (linkSettings).
+function linkSearch(search, { flags, zoraFlags, mode, seed = null }, defaultFlags) {
+  const params = new URLSearchParams(search);
+  for (const name of [LINK_FLAGS, LINK_ZORA_FLAGS, LINK_MODE, LINK_SEED]) params.delete(name);
+  if (flags && flags !== defaultFlags) params.append(LINK_FLAGS, flags);
+  if (zoraFlags) params.append(LINK_ZORA_FLAGS, zoraFlags);
+  if (mode === SINGLE && seed) params.append(LINK_SEED, seed);
+  else if (params.has(LINK_FLAGS) || params.has(LINK_ZORA_FLAGS) || mode === MULTIWORLD) params.append(LINK_MODE, mode);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+const sharedLink = linkSettings(location.search);
+
+// The address now names the page's settings, so copying it shares them: with the seed of the last
+// generation (or the seed the link brought, until the seed changes), none before.
+function updateLink() {
+  if (!form || !metadata) return;
+  const search = linkSearch(location.search, { flags: form.flags, zoraFlags: form.zora.ok ? form.zora.flags : "", mode,
+                                               seed: linkSeed }, metadata.defaultFlags);
+  if (search === location.search) return;
+  try {
+    history.replaceState(history.state, "", `${location.pathname}${search}${location.hash}`);
+  } catch { /* a page opened from disk may refuse; the strings still copy */ }
+}
+
+// ---------------------------------------------------------------------------
+// Single player or multiworld (Archipelago)
+// ---------------------------------------------------------------------------
+
+let mode = sharedLink.mode;
+let linkSeed = sharedLink.seed;     // the seed the address names: the link's, then each generation's
+let multiworldVerdict = null;   // zora_web.multiworld.check() for the current settings, in multiworld mode
+let multiworldRequest = 0;
+let playerNameProblem = "type a player name";
+
+function setMode(next) {
+  mode = next;
+  const multiworld = mode === MULTIWORLD;
+  $("mode-single").setAttribute("aria-pressed", String(!multiworld));
+  $("mode-multiworld").setAttribute("aria-pressed", String(multiworld));
+  $("step-rom").hidden = multiworld;
+  $("step-apworld").hidden = !multiworld;
+  $("generate-row").hidden = multiworld;
+  $("export-row").hidden = !multiworld;
+  $("player-name-error").hidden = !multiworld;
+  $("step-generate-title").textContent = multiworld ? "Export your Archipelago YAML" : "Generate the game";
+  // Each mode keeps its own last result: a generated ROM, an exported YAML.
+  $("generate-result").hidden = multiworld || !$("download").hasChildNodes();
+  $("export-result").hidden = !multiworld || !$("yaml-download").hasChildNodes();
+  markStepDone("step-generate-num", 3, !$(multiworld ? "export-result" : "generate-result").hidden);
+  multiworldVerdict = null;
+  if (ready) {
+    status(multiworld ? "Multiworld: choose your settings and player name, then export your YAML."
+      : baseRom ? romStepText(romIdentity).status : "Choose the base ROM.");
+  }
+  if (form) showState(form, { rewrite: false });
+  updateLink();
+}
+
+// The world's links, or the placeholders until they exist (zora.apworld's once Python has started).
+function showWorldLinks() {
+  const apworldUrl = metadata && metadata.multiworld.apworldUrl;
+  if (apworldUrl) $("apworld-link").replaceChildren(element("a", { href: apworldUrl, textContent: "Download zora.apworld" }));
+  $("guide-link").replaceChildren(
+    element("a", { href: ARCHIPELAGO_GUIDE_URL, target: "_blank", rel: "noopener", className: "guide-link",
+                   textContent: "The Archipelago guide for ZORA" }),
+    ": how to install the world, generate, host and play.");
+  $("export-guide-link").href = ARCHIPELAGO_GUIDE_URL;
+}
+
+// Asks Python whether the current settings and player settings can become a YAML; shows the answer.
+async function refreshMultiworld() {
+  if (mode !== MULTIWORLD || !form || !ready) return;
+  const request = ++multiworldRequest;
+  const { verdict } = await ask("multiworldCheck", { flags: form.flags, zoraFlags: form.zora.ok ? form.zora.flags : "",
+                                                     playerSettings: currentPlayerSettings() });
+  if (request !== multiworldRequest || mode !== MULTIWORLD) return;
+  multiworldVerdict = verdict;
+  showProblems();
+  updateButton();
+}
+
+function savedPlayerName() {
+  try { return localStorage.getItem(PLAYER_NAME_KEY) || ""; } catch { return ""; }
+}
+
+let nameRequest = 0;
+let nameTouched = false;
+async function checkPlayerName() {
+  if (!ready) return;
+  const name = $("player-name").value;
+  try { localStorage.setItem(PLAYER_NAME_KEY, name); } catch { /* not remembered */ }
+  const request = ++nameRequest;
+  const { problem } = await ask("nameProblem", { name });
+  if (request !== nameRequest) return;
+  playerNameProblem = problem;
+  const shown = problem && (nameTouched || name.trim() !== "");
+  $("player-name-error").textContent = shown ? `Player name: ${problem}.` : "";
+  $("player-name").classList.toggle("seed-input--error", Boolean(shown));
+  updateButton();
+}
+
+function canExport() {
+  return ready && form && !flagsPending && $("flags-error").textContent === "" && form.zora.ok
+    && playerNameProblem === null && multiworldVerdict !== null && multiworldVerdict.ok;
+}
+
+async function onExport() {
+  const button = $("export");
+  button.disabled = true;
+  $("export-result").hidden = true;
+  markStepDone("step-generate-num", 3, false);
+  const answer = await ask("exportYaml", { name: $("player-name").value, flags: form.flags,
+                                           zoraFlags: form.zora.flags, playerSettings: currentPlayerSettings() });
+  if (!answer.ok) {
+    status(`Not exported: ${answer.reasons.map(plainText).join("; ")}`, "error");
+    updateButton();
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([answer.yaml], { type: "text/yaml" }));
+  $("yaml-download").replaceChildren(element("a", { id: "yaml-link", className: "btn btn-teal", href: url,
+                                                    download: answer.fileName, title: answer.fileName,
+                                                    textContent: "Download YAML" }));
+  $("yaml-preview").textContent = answer.yaml;
+  $("export-result").hidden = false;
+  markStepDone("step-generate-num", 3, true);
+  status(`Exported ${answer.fileName}.`, "ready");
+  updateButton();
+}
+
+// ---------------------------------------------------------------------------
 // Seed, ROM, generation
 // ---------------------------------------------------------------------------
 
@@ -1048,6 +1282,13 @@ function randomSeed() {
   updateButton();
 }
 
+// The player changed the seed: the address names a seed again only after the next generation.
+function onSeedChanged() {
+  linkSeed = null;
+  updateButton();
+  updateLink();
+}
+
 function canGenerate() {
   return ready && baseRom && form && !flagsPending && $("flags-error").textContent === ""
     && form.zora.ok && form.generateRefusals.length === 0
@@ -1055,6 +1296,7 @@ function canGenerate() {
 }
 
 function updateButton() {
+  $("export").disabled = !canExport();
   $("generate").disabled = !canGenerate();
   $("seed").classList.toggle("seed-input--error", !/^\d*$/.test($("seed").value.trim()));
 }
@@ -1070,24 +1312,42 @@ function markStepDone(id, number, done) {
   else circle.textContent = String(number);
 }
 
+// What the ROM step shows for identify_rom's answer (zora_web.api, zora/rom/revision.py): an
+// unmodified release quietly ("PRG1 ROM recognized"), modified graphics in Python's words ("This is
+// a PRG0 ROM with modified graphics"), anything else refused with Python's message.
+function romStepText(identity) {
+  if (!identity.recognized) return { note: "", error: identity.message, status: "Choose the base ROM." };
+  const graphics = identity.modifiedGraphics ? ", modified graphics" : "";
+  return { note: identity.modifiedGraphics ? identity.message : `${identity.revision} ROM recognized`,
+           error: "", status: `Base ROM verified (${identity.revision}${graphics}).` };
+}
+
+// PRG0 or PRG1, with or without modified graphics, is accepted; generation takes its bytes as
+// they are (generate_rom identifies the ROM again itself). A refused ROM leaves Generate off.
 async function onRomChosen() {
   baseRom = null;
+  romIdentity = null;
   markStepDone("step-rom-num", 1, false);
+  $("rom-identity").textContent = "";
   $("rom-error").textContent = "";
   updateButton();
   const file = $("rom").files[0];
   if (!file || !ready) return;
   const data = new Uint8Array(await file.arrayBuffer());
-  if ((await ask("check", { bytes: data })).ok) {
+  const { identity } = await ask("check", { bytes: data });
+  if ($("rom").files[0] !== file) return;       // another file was chosen meanwhile
+  const shown = romStepText(identity);
+  $("rom-label").textContent = file.name;
+  $("rom-identity").textContent = shown.note;
+  $("rom-error").textContent = shown.error;
+  if (identity.recognized) {
     baseRom = data;
-    $("rom-label").textContent = `${file.name} · verified PRG0`;
+    romIdentity = identity;
     $("rom-btn").textContent = "Change";
     markStepDone("step-rom-num", 1, true);
-    status("Base ROM verified (PRG0).");
+    status(shown.status);
   } else {
-    $("rom-label").textContent = file.name;
-    $("rom-error").textContent = "That file is not the PRG0 release of The Legend of Zelda (USA); refused.";
-    status("Choose the base ROM.", "error");
+    status(shown.status, "error");
   }
   updateButton();
 }
@@ -1236,6 +1496,8 @@ async function onGenerate() {
     $("generate-result").hidden = false;
     markStepDone("step-generate-num", 3, true);
     status(`Seed ${result.seed} generated.`, "ready");
+    linkSeed = String(result.seed);
+    updateLink();
   } catch (err) {
     const notProduced = err.message.indexOf(NOT_PRODUCED_REFUSAL);
     status(notProduced < 0 ? `Generation failed: ${err.message}`
@@ -1256,14 +1518,23 @@ $("presets").addEventListener("click", (event) => {
   const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
   if (event.target === $("presets") && outside) closePresets();
 });
-$("seed").addEventListener("input", updateButton);
-$("new-seed").addEventListener("click", randomSeed);
+$("seed").addEventListener("input", onSeedChanged);
+$("new-seed").addEventListener("click", () => { randomSeed(); onSeedChanged(); });
 $("flags").addEventListener("input", onFlagsTyped);
 $("flags").addEventListener("change", onFlagsCommitted);
 $("zora-flags").addEventListener("input", onFlagsTyped);
 $("zora-flags").addEventListener("change", onFlagsCommitted);
 $("generate").addEventListener("click", onGenerate);
+$("mode-single").addEventListener("click", () => { if (mode !== SINGLE) setMode(SINGLE); });
+$("mode-multiworld").addEventListener("click", () => { if (mode !== MULTIWORLD) setMode(MULTIWORLD); });
+$("player-name").value = savedPlayerName();
+$("player-name").addEventListener("input", checkPlayerName);
+$("player-name").addEventListener("blur", () => { nameTouched = true; checkPlayerName(); });
+$("export").addEventListener("click", onExport);
+showWorldLinks();
+if (mode === MULTIWORLD) setMode(MULTIWORLD);
 randomSeed();
+if (linkSeed) $("seed").value = linkSeed;            // a shared link's seed (single player)
 const bootStart = performance.now();
 if (EMBEDDED_INFO) {
   worker.postMessage({ type: "init", version: PYODIDE_VERSION, wheelBytes: embeddedWheel(), classic: true });

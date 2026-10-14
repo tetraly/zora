@@ -63,7 +63,7 @@ BATCH_CHUNKS = range(5)              # 50 seeds (owner, 2026-10-08: the QA sweep
 BATCH_CHUNK_SEEDS = 10
 SWORD_SLOT, SWORD_LEVEL_4 = 0x00, 4
 GATE_FRAMES = 120
-LEVEL_9_ENTRANCE_PERSON = 0x4B       # the man at level 9's entrance (object type)
+LEVEL_9_ENTRANCE_PERSON = 0x4B       # the person at level 9's entrance (object type)
 MONSTER_SLOTS = range(1, 0x0C)
 LINK_INVINCIBILITY_TIMER, INVINCIBLE = 0x4F0, 0xFF
 ITEM_CAVE_WARE = 1
@@ -414,7 +414,7 @@ EMULATOR_SEED = 1
 
 
 def meets_the_man(console: SwordConsole) -> bool:
-    """Whether the level-9 man lets Link in: he leaves and the shutters open."""
+    """Whether the level-9 person lets Link in: the person leaves and the shutters open."""
     console.emu.load(console.start)
     console.emu[INV_TRIFORCE] = 0
     level9 = next(level for level in parse_rom(asnb_rom(EMULATOR_SEED)).levels if level.level_num == 9)

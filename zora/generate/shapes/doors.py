@@ -4,7 +4,7 @@ Runs after numbering so weights can key off the level number.
 """
 from ...model import room_grid
 from ...model.enums import Side
-from ...model.room_grid import neighbour
+from ...model.room_grid import neighbor
 from ..rng import Rng
 from .options import ShapeOptions
 from .tables import T1_FIRST_QUEST, T1_SECOND_QUEST
@@ -87,7 +87,7 @@ def place_doors(world: SetWorld, rng: Rng, opts: ShapeOptions) -> None:
             continue
         row, col = room_grid.row(cell), room_grid.column(cell)
         for d in Side:
-            adj = neighbour(cell, d)
+            adj = neighbor(cell, d)
             if adj is None or world.blob_of[adj] != blob:
                 world.plans[cell].walls[d] = W_WALL
 

@@ -7,7 +7,7 @@ from ...model.rooms import MONSTER_BIT_CODE, EnemyInfo, SecretInfo
 from ..rng import IntRng
 from ..shapes.world import D_KEY1, D_OPEN, D_SHUTTER, set_side, side_of
 from .item_shuffle_result import ItemShuffleResult, _level_rooms
-from .shuffle_bomb_upgrade_men import BOMB_UPGRADE_CODE
+from .shuffle_bomb_upgraders import BOMB_UPGRADE_CODE
 from .shuffle_hungry_goriya import _level9_entry_north
 
 # --- PS-MERCH --------------------------------------------------------------

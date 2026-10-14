@@ -42,9 +42,9 @@ from .generate.places import Place, PlaceKind, read_item
 from .model.enums import Item
 from .model.item_names import ITEM_NAMES, ITEMS_BY_NAME
 from .rom import inventory, slot_identity
-from .rom.base_rom import BaseRomMismatch, NoPlayerRom, is_prg0, player_rom, remember_base_rom
+from .rom.base_rom import NoPlayerRom, player_rom, remember_base_rom
 from .rom.code_patches import SHOPS_BY_NUMBER
-from .rom.player_settings import BLACKER_THAN_BLACK as REFUSED_COLOUR
+from .rom.player_settings import BLACKER_THAN_BLACK as REFUSED_COLOR
 from .rom.player_settings import (
     BOSS_SOUND_WORD_CHARACTERS,
     BOSS_SOUND_WORD_LENGTH,
@@ -64,6 +64,7 @@ from .rom.player_settings import (
     PlayerSettings,
     player_settings_from_page,
 )
+from .rom.revision import identify_rom
 from .version import PLAYER_NAME, ZORA_VERSION
 
 __all__ = [
@@ -157,14 +158,15 @@ NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS})
 # Shuffle Dungeon Start Room (B26, PS-START) on and Random passed on 2026-10-11 (100 of 100 seeds
 # at each, with the baseline's dungeons and with 2nd Quest's), once its row-7 fix landed (4aa8fc5).
 # Remove Most Open Stairs (B30, PS-OSTAIR) on and Random passed on 2026-10-12 (100 of 100 seeds at
-# each), and Book To Understand Old Men (B48, HT-BOOK) on and Random the same day (100 of 100 at
+# each), and Book to Understand NPCs (B48, HT-BOOK) on and Random the same day (100 of 100 at
 # each), and Dungeon Quest Mixed + Shapes (C02 = 4, SH-SRC-01 to SH-SRC-06) the same day (100 of 100,
-# alone and with B26 on). A value ZORA newly generates waits here for its scan: Oops All Enemies'
-# and Oops All Bosses' values (ZORA extras, keyed by their names; owner, 2026-10-12: not offered
-# until the second clean session's scan).
-HELD_BACK: dict[str, frozenset[int]] = {"oops_all_enemies": frozenset({1, 2, 3}), "oops_all_bosses": frozenset({1})}
+# alone and with B26 on). Shuffle Bomb Upgraders Off (B29 = 0, FL-OFF-04), Oops All Enemies'
+# Wizzrobes, Keese and Bouncers and Oops All Bosses' Dodongos (ZORA extras, keyed by their names)
+# passed on 2026-10-13 (100 of 100 seeds at each; beta 5). A value ZORA newly generates waits here
+# for its scan.
+HELD_BACK: dict[str, frozenset[int]] = {}
 CHOICE, THREE_STATE, SWITCH = "choice", "three_state", "switch"
-# A switch's two values; every on/off/random value is labelled as on the page (zora/flags/fields.py).
+# A switch's two values; every on/off/random value is labeled as on the page (zora/flags/fields.py).
 SWITCH_STATES = (ThreeState.OFF, ThreeState.ON)
 
 
@@ -206,6 +208,9 @@ class OptionsConflict(ValueError):
 # Words a key spells differently from the community's flag names (owner, before beta 3 froze the
 # keys): force_ganon_fight, shuffle_ganon_and_zelda, set_ganon_hp_to_0.
 KEY_SPELLINGS = {"gannon": "ganon"}
+# Fields the owner renamed on the page after beta 3 froze the keys (owner decision, 2026-10-12:
+# neutral wording): each keeps its beta-3 key, so a player's YAML still works.
+KEPT_KEYS = {"B29": "shuffle_bomb_upgrade_men", "B48": "book_to_understand_old_men"}
 
 
 def key_of(name: str) -> str:
@@ -220,7 +225,9 @@ def option_key(field: flag_form.FieldDef) -> str:
     Stable from beta 3 on: tests/test_archipelago_option_keys.py pins every key, so renaming a
     flag on the page never renames an option. A key spells a word as the game does
     (KEY_SPELLINGS: the community's "Gannon" is Ganon in a key); the page's labels keep the
-    community's wording."""
+    community's wording. A field the owner renamed since keeps its old key (KEPT_KEYS)."""
+    if field.id in KEPT_KEYS:
+        return KEPT_KEYS[field.id]
     name = str(flag_form.owner_names().get(field.id, {}).get("name") or flag_form.spec_field_label(field))
     return "_".join(KEY_SPELLINGS.get(word, word) for word in key_of(name).split("_"))
 
@@ -404,8 +411,8 @@ def flag_strings(values: Mapping[str, object]) -> tuple[str, str]:
 
 # --- player settings (P3) ----------------------------------------------------------------------------
 
-COLOUR, WORD = "colour", "word"
-# The page's labels (web/zora-web.js PLAYER_CHOICES, PLAYER_COLOURS and the two word rows, its
+COLOR, WORD = "color", "word"
+# The page's labels (web/zora-web.js PLAYER_CHOICES, PLAYER_COLORS and the two word rows, its
 # Cosmetic tab); tests/test_archipelago_player_settings.py reads the page and checks it says the same.
 # Keys, values, defaults and rules come from zora/rom/player_settings.py, which finish() reads.
 PLAYER_SETTING_LABELS = {
@@ -425,7 +432,7 @@ PLAYER_CHOICE_LABELS = {
 }
 RANDOM_WORD_LABEL = "Random"
 # Every NES palette value but $0D (FP-SET-02, FP-SET-03; player_settings.check_palette_value).
-ALLOWED_COLOURS = tuple(value for value in range(PALETTE_SIZE) if value != REFUSED_COLOUR)
+ALLOWED_COLORS = tuple(value for value in range(PALETTE_SIZE) if value != REFUSED_COLOR)
 
 
 @dataclass(frozen=True)
@@ -444,10 +451,10 @@ class TextRule:
 @dataclass(frozen=True)
 class PlayerSettingSpec:
     """One player setting as data: its key (as a recipe's playerSettings holds it; finish() also
-    takes it), label and kind: "choice" (one of `choices`, (value, label) pairs), "colour" (one of
-    `colours`, NES palette values) or "word" (one of `choices`, or any word `rule` allows); and
+    takes it), label and kind: "choice" (one of `choices`, (value, label) pairs), "color" (one of
+    `colors`, NES palette values) or "word" (one of `choices`, or any word `rule` allows); and
     its default. yaml_key is its name in a player's YAML and value_keys pairs each listed value
-    with its YAML name (a choice's in underscore words, a colour's as hex, a listed word's in
+    with its YAML name (a choice's in underscore words, a color's as hex, a listed word's in
     lowercase, the boss-sound label's Random as random_word), both stable from beta 3 on;
     finish() and recipe() take either form (page_player_settings)."""
     key: str
@@ -455,7 +462,7 @@ class PlayerSettingSpec:
     kind: str
     default: str | int
     choices: tuple[tuple[str, str], ...] = ()
-    colours: tuple[int, ...] = ()
+    colors: tuple[int, ...] = ()
     rule: TextRule | None = None
     yaml_key: str = ""
     value_keys: tuple[tuple[str | int, str], ...] = ()
@@ -476,14 +483,14 @@ PLAYER_SETTING_KEYS = {
 RANDOM_WORD_KEY = "random_word"           # the boss-sound label's RANDOM, which the recipe keeps
 
 
-def colour_key(colour: int) -> str:
-    """A colour's value key: its NES palette value in hex ("0x29")."""
-    return f"0x{colour:02X}"
+def color_key(color: int) -> str:
+    """A color's value key: its NES palette value in hex ("0x29")."""
+    return f"0x{color:02X}"
 
 
 def _player_value_keys(kind: str, key: str, values: Iterable[str | int]) -> tuple[tuple[str | int, str], ...]:
-    if kind == COLOUR:
-        return tuple((value, colour_key(int(value))) for value in values)
+    if kind == COLOR:
+        return tuple((value, color_key(int(value))) for value in values)
     if kind == WORD:
         return tuple((value, RANDOM_WORD_KEY if key == PAGE_BOSS_SOUND_WORD and value == RANDOM_BOSS_SOUND_WORD
                       else str(value).lower()) for value in values)
@@ -491,7 +498,7 @@ def _player_value_keys(kind: str, key: str, values: Iterable[str | int]) -> tupl
 
 
 def player_setting_fields() -> list[PlayerSettingSpec]:
-    """Every player setting, in the page's order (P3): the choices, the tunic and heart colours,
+    """Every player setting, in the page's order (P3): the choices, the tunic and heart colors,
     the level name and the boss-sound label. A player's YAML gives each by its key; a recipe's
     playerSettings holds them as given, and finish() and rom_from_recipe accept exactly these."""
     defaults = PlayerSettings()
@@ -501,8 +508,8 @@ def player_setting_fields() -> list[PlayerSettingSpec]:
         default = next(value for value, setting in values.items() if setting == getattr(defaults, field))
         specs.append(PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], CHOICE, default,
                                        tuple((value, PLAYER_CHOICE_LABELS[key][value]) for value in values)))
-    slots = (*zip(PAGE_TUNIC_SLOTS, defaults.tunic_colours, strict=True), (PAGE_HEART_SLOT, defaults.heart_colour))
-    specs += [PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], COLOUR, default, colours=ALLOWED_COLOURS)
+    slots = (*zip(PAGE_TUNIC_SLOTS, defaults.tunic_colors, strict=True), (PAGE_HEART_SLOT, defaults.heart_color))
+    specs += [PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], COLOR, default, colors=ALLOWED_COLORS)
               for key, default in slots]
     specs.append(PlayerSettingSpec(PAGE_LEVEL_WORD, PLAYER_SETTING_LABELS[PAGE_LEVEL_WORD], WORD, defaults.level_word,
                                    tuple((word, word) for word in LEVEL_WORD_CHOICES), rule=LEVEL_WORD_RULE))
@@ -511,7 +518,7 @@ def player_setting_fields() -> list[PlayerSettingSpec]:
     specs.append(PlayerSettingSpec(PAGE_BOSS_SOUND_WORD, PLAYER_SETTING_LABELS[PAGE_BOSS_SOUND_WORD], WORD,
                                    defaults.boss_sound_word, boss_words, rule=BOSS_SOUND_WORD_RULE))
     return [replace(spec, yaml_key=PLAYER_SETTING_KEYS[spec.key], value_keys=_player_value_keys(
-        spec.kind, spec.key, spec.colours if spec.kind == COLOUR else (value for value, _label in spec.choices)))
+        spec.kind, spec.key, spec.colors if spec.kind == COLOR else (value for value, _label in spec.choices)))
         for spec in specs]
 
 
@@ -542,8 +549,8 @@ def _page_value(spec: PlayerSettingSpec, value: Any) -> Any:
     if not isinstance(value, str):
         return value
     listed = {key: page_value for page_value, key in spec.value_keys}
-    if spec.kind == COLOUR:
-        return {key.lower(): colour for key, colour in listed.items()}.get(value.lower(), value)
+    if spec.kind == COLOR:
+        return {key.lower(): color for key, color in listed.items()}.get(value.lower(), value)
     if spec.kind == WORD:
         return listed[value] if value == RANDOM_WORD_KEY and value in listed else value
     return listed.get(value, value)
@@ -586,23 +593,23 @@ def place_info(place: Place) -> PlaceInfo:
 
 
 def checked_rom(rom: bytes) -> bytes:
-    """The player's ROM, refused unless it is the PRG0 release, and remembered for ZORA's reads
-    of the original game's bytes (base_rom)."""
-    if not is_prg0(rom):
-        raise BaseRomMismatch("not The Legend of Zelda (USA, PRG0): ZORA needs that exact ROM "
-                              "(MD5 337bd6f1a1163df31bf2633665589ab0)")
+    """The player's ROM, refused unless it is a release ZORA knows (PRG0 or PRG1, with or without
+    modified graphics; revision.identify_rom raises RomNotRecognized), and remembered for the
+    client's reads of the game's own tables (base_rom). Generation reads only the ROM it is
+    passed, so each player bakes from their own."""
+    identify_rom(rom)
     remember_base_rom(rom)
     return rom
 
 
 def build(values: Mapping[str, object], seed: int, rom: bytes) -> BuildResult:
     """BUILD from Archipelago's option values (flag_strings) and ZORA's seed number, which the
-    Archipelago world draws from its own random generator, with the player's PRG0 ROM."""
+    Archipelago world draws from its own random generator, with the player's ROM (PRG0 or PRG1)."""
     return build_from_strings(*flag_strings(values), seed, rom)
 
 
 def build_from_strings(flag_string: str, zora_flag_string: str, seed: int, rom: bytes) -> BuildResult:
-    """BUILD from ZORA's two flag strings and seed number, with the player's PRG0 ROM."""
+    """BUILD from ZORA's two flag strings and seed number, with the player's ROM."""
     built = build_seed(plan(flag_string, seed, zora_flag_string), checked_rom(rom))
     return BuildResult(places=tuple(place_info(place) for place in built.places), logic=logic_model(built),
                        pool=tuple(ITEM_NAMES[read_item(built.world, place)] for place in built.places), state=built)
@@ -650,7 +657,7 @@ def finish(result: BuildResult, assignment: Mapping[str, str | Foreign], receive
     rule broken), AssignmentUnbeatable (the sanity check) or SlotNameRefused, never a ROM that
     ZORA's walk rejects."""
     record = b"" if ap_name is None else slot_identity.slot_identity_record(ap_name, FORMAT_VERSION_NUMBERS)
-    return finish_seed(result.state, player_rom(), assigned_items(assignment),
+    return finish_seed(result.state, result.state.base_rom, assigned_items(assignment),
                        player_settings_from_page(page_player_settings(player_settings or {})),
                        received=received_items(received), check=True, slot_identity=record)
 
@@ -708,7 +715,7 @@ def _assignment_json(assignment: Mapping[str, str | Foreign]) -> dict[str, Any]:
 
 def recipe(result: BuildResult, assignment: Mapping[str, str | Foreign], received: Iterable[str] = (),
            player_settings: Mapping[str, Any] | None = None, ap_name: bytes | None = None) -> dict[str, Any]:
-    """The recipe a player's machine rebuilds this ROM from with its own PRG0 ROM
+    """The recipe a player's machine rebuilds this ROM from with its own ROM (PRG0 or PRG1)
     (rom_from_recipe): plain JSON data, no ROM bytes. The producer and seed blocks are the seed
     document's (docs/seed-format/), with this copy's source hash; items by the seed format's
     names; another player's item as {"foreign": true}; the slot name as hex (apName, null
@@ -759,7 +766,7 @@ def check_recipe(data: Mapping[str, Any]) -> None:
 
 
 def rom_from_recipe(data: Mapping[str, Any], rom: bytes) -> bytes:
-    """The ROM a recipe names, made from the player's own PRG0 ROM: BUILD and FINISH as at
+    """The ROM a recipe names, made from the player's own ROM (PRG0 or PRG1): BUILD and FINISH as at
     generation, with the same sanity check (RecipeNotReproduced if it now fails)."""
     check_recipe(data)
     seed = data["seed"]
@@ -831,8 +838,8 @@ class ClientNotReady(NoPlayerRom):
 
 
 def client_ready(rom: bytes) -> None:
-    """Make this process ready to receive items: `rom` is the player's PRG0 ROM (the one
-    Archipelago's settings name, not the finished .nes), refused as by build (BaseRomMismatch)
+    """Make this process ready to receive items: `rom` is the player's ROM (the one
+    Archipelago's settings name, not the finished .nes), refused as by build (RomNotRecognized)
     and remembered, since receive reads the game's own item tables from it. A client calls it
     once, before its first receive(), whenever it starts on its own or restarts mid-game; a
     process that built or finished a seed (build, rom_from_recipe) has remembered it already."""
@@ -853,7 +860,7 @@ def receive(item: str, ram: Mapping[int, int], rules: inventory.GiveRules = NO_R
     try:
         return inventory.give(given, ram, rules)
     except NoPlayerRom as missing:
-        raise ClientNotReady("receive() needs the player's PRG0 ROM: call "
+        raise ClientNotReady("receive() needs the player's ROM: call "
                              "archipelago.client_ready(rom) once before the first receive()") from missing
 
 
@@ -946,7 +953,7 @@ def client_tables_of(result: BuildResult) -> ClientTables:
 
 
 def client_tables(recipe_data: Mapping[str, Any]) -> ClientTables:
-    """A recipe's client tables (ZORA's tests): its seed rebuilt with the PRG0 ROM this process
+    """A recipe's client tables (ZORA's tests): its seed rebuilt with the player ROM this process
     remembered (client_ready, or a build)."""
     check_recipe(recipe_data)
     seed = recipe_data["seed"]

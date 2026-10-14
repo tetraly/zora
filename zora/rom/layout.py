@@ -411,8 +411,8 @@ BOSS_SET_EXPANSION_SPRITES_SIZE = 0x200
 # ---------------------------------------------------------------------------
 # Player (Link) sprite data block addresses (file offsets)
 #
-# CHR tile regions for alternate player sprite poses (Link/Zelda swap, old
-# man swap, etc.). Some later write destinations fall inside boss_set_c and
+# CHR tile regions for alternate player sprite poses (Link/Zelda swap,
+# person swap, etc.). Some later write destinations fall inside boss_set_c and
 # are handled through that bank — they are NOT duplicated here.
 # ---------------------------------------------------------------------------
 

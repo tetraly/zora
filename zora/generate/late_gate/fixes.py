@@ -113,7 +113,7 @@ def _tail(gate_block: GateBlock) -> None:
     block (quest 1 only: the quest-2 half is MAY, omitted — shipped ROMs are
     locked to quest 1): Ganon's-room door shutters on every $3E room;
     life-or-money merchant shutters; each $0B person room with the monster
-    high bit opens, for every one of ITS OWN shutter sides, the NEIGHBOUR's
+    high bit opens, for every one of ITS OWN shutter sides, the NEIGHBOR's
     facing side (north/east/west skipped toward a monster-bit-less Ganon
     room; south never skipped — A30); trigger-4 rooms without a shutter
     lose the push block. Then every staircase's exit position is set from
@@ -135,21 +135,21 @@ def _tail(gate_block: GateBlock) -> None:
                 # numbered one above/below (wrapping across a row end),
                 # north/south sixteen below/above, whatever holds them. A
                 # top-row north or bottom-row south write falls outside the
-                # 128-room table (UNKNOWN in the spec) and is not modelled.
+                # 128-room table (UNKNOWN in the spec) and is not modeled.
                 # A43: the write acts on the raw bytes — on a staircase or
                 # item cellar it clears the same bits of its exit bytes; on
                 # an unowned cell it clears that side of the walls the
                 # shapes stage wrote there (SH-GRID-17).
-                neighbour_number = room.room_num + _RAW_STEP[side]
-                if not 0 <= neighbour_number < BLOCK_ROOMS:
+                neighbor_number = room.room_num + _RAW_STEP[side]
+                if not 0 <= neighbor_number < BLOCK_ROOMS:
                     continue
-                neighbour_cell = block[neighbour_number]
-                if isinstance(neighbour_cell, StaircaseRoom):
-                    stair_writes.append((neighbour_cell, *_EXIT_FIELD[side.opposite]))
+                neighbor_cell = block[neighbor_number]
+                if isinstance(neighbor_cell, StaircaseRoom):
+                    stair_writes.append((neighbor_cell, *_EXIT_FIELD[side.opposite]))
                     continue
-                if side != Side.SOUTH and neighbour_cell.enemy == GANON_LIST:
+                if side != Side.SOUTH and neighbor_cell.enemy == GANON_LIST:
                     continue
-                set_side(neighbour_cell, side.opposite, D_OPEN)
+                set_side(neighbor_cell, side.opposite, D_OPEN)
     for room in gate_block.owned_rooms:
         if room.room_action == RoomAction.BLOCK_DOOR and room.movable_block and not _has_shutter(room):
             _clear_push_block(room)
@@ -160,7 +160,7 @@ def _tail(gate_block: GateBlock) -> None:
 
 def _wipe_boss_sound(level: Level) -> None:
     """Step 4 (A1): clear the boss-sound bits on EVERY room of the level
-    before any special-room fixing; step 5 re-marks Ganon's neighbours."""
+    before any special-room fixing; step 5 re-marks Ganon's neighbors."""
     for room in _rooms(level):
         if room.item_info.boss_sound != BossSound.NONE:
             room.boss_sound = BossSound.NONE
@@ -190,9 +190,9 @@ def _first_special_room_fix(gate_block: GateBlock, level: Level) -> None:
             room.item_info = GANON_ITEM                # $8E
             _set_trigger(room, RoomAction.LAST_BOSS)
             for side in Side:
-                neighbour = room_grid.neighbour(room.room_num, side)
-                if neighbour is not None and neighbour in room_numbers:
-                    beside = level.block.room(neighbour)
+                neighbor = room_grid.neighbor(room.room_num, side)
+                if neighbor is not None and neighbor in room_numbers:
+                    beside = level.block.room(neighbor)
                     beside.boss_sound = BossSound(beside.boss_sound | BOSS_SOUND_20)
     if level.level_num in LEVELS_7_TO_9:
         _force_level9_entry(gate_block)
@@ -201,9 +201,9 @@ def _first_special_room_fix(gate_block: GateBlock, level: Level) -> None:
 def _force_level9_entry(gate_block: GateBlock) -> None:
     """Step 5's level-9 forcings: the $4B person room's south side open and
     its other sides shutter unless wall; the entrance's own north/south
-    open, own east/west wall, and the east/west neighbours' facing sides
-    wall, only on a neighbour that is a level-9 room in the same row (A63): a
-    neighbour of another level keeps its door byte, so a data level 7 or 8
+    open, own east/west wall, and the east/west neighbors' facing sides
+    wall, only on a neighbor that is a level-9 room in the same row (A63): a
+    neighbor of another level keeps its door byte, so a data level 7 or 8
     start room beside the entrance keeps its open side (B26, PS-START-02)."""
     level9 = gate_block.level9
     if level9 is None:
@@ -220,9 +220,9 @@ def _force_level9_entry(gate_block: GateBlock) -> None:
     entrance.walls.north = entrance.walls.south = D_OPEN
     entrance.walls.east = entrance.walls.west = D_WALL
     for side in (Side.EAST, Side.WEST):
-        neighbour = room_grid.neighbour(entrance.room_num, side)
-        if neighbour is not None and neighbour in level9.room_nums:
-            set_side(gate_block.room(neighbour), side.opposite, D_WALL)
+        neighbor = room_grid.neighbor(entrance.room_num, side)
+        if neighbor is not None and neighbor in level9.room_nums:
+            set_side(gate_block.room(neighbor), side.opposite, D_WALL)
 
 
 def _reforce_level9_person_sides(level: Level) -> None:
@@ -252,10 +252,10 @@ def _open_shutters(room: Room) -> None:
 
 
 def _open_pair(block: LevelBlock, room_number: int, side: Side, wall_type: WallType = D_OPEN) -> None:
-    neighbour = room_grid.neighbour(room_number, side)
+    neighbor = room_grid.neighbor(room_number, side)
     set_side(block.room(room_number), side, wall_type)
-    if neighbour is not None:
-        set_side(block.room(neighbour), side.opposite, wall_type)
+    if neighbor is not None:
+        set_side(block.room(neighbor), side.opposite, wall_type)
 
 
 def _second_special_room_fix(gate_block: GateBlock, level: Level,
@@ -307,12 +307,12 @@ def _clear_block_push(gate_block: GateBlock) -> None:
 
 
 def _pair_key(room_number: int, side: Side) -> DoorPair | None:
-    neighbour = room_grid.neighbour(room_number, side)
-    if neighbour is None:
+    neighbor = room_grid.neighbor(room_number, side)
+    if neighbor is None:
         return None
     if side in (Side.EAST, Side.SOUTH):
-        return DoorPair(room_number, neighbour, side)
-    return DoorPair(neighbour, room_number, side.opposite)
+        return DoorPair(room_number, neighbor, side)
+    return DoorPair(neighbor, room_number, side.opposite)
 
 
 class _PlacementGrid:
@@ -328,14 +328,14 @@ class _PlacementGrid:
     def is_wall(self, room_number: int, side: Side) -> bool:
         return side_of(self.room_at(room_number), side) == D_WALL
 
-    def same_level_neighbour(self, room_number: int, side: Side) -> int | None:
-        neighbour = room_grid.neighbour(room_number, side)
-        return neighbour if neighbour is not None and neighbour in self.room_numbers else None
+    def same_level_neighbor(self, room_number: int, side: Side) -> int | None:
+        neighbor = room_grid.neighbor(room_number, side)
+        return neighbor if neighbor is not None and neighbor in self.room_numbers else None
 
     def try_open(self, room_number: int, side: Side) -> bool:
-        """Open a solid wall towards a same-level neighbour where a recorded
+        """Open a solid wall towards a same-level neighbor where a recorded
         wall pair sits there; True when this rule opened it."""
-        if self.same_level_neighbour(room_number, side) is None or not self.is_wall(room_number, side):
+        if self.same_level_neighbor(room_number, side) is None or not self.is_wall(room_number, side):
             return False
         if _pair_key(room_number, side) not in self.recorded_pairs:
             return False
@@ -403,15 +403,15 @@ def _is_placeable(grid: _PlacementGrid, room: Room) -> bool:
 
 
 def _copy_turnstile_sides(grid: _PlacementGrid, room: Room) -> None:
-    """(f): each same-level neighbour's facing non-wall side is copied onto
+    """(f): each same-level neighbor's facing non-wall side is copied onto
     this room's side, a shutter as open. Quirk (A21/A31): the zero guard is on
     the ABOVE direction only: room 0 is never copied from above, but it can
-    be copied as room 1's left neighbour."""
+    be copied as room 1's left neighbor."""
     for side in Side:
-        neighbour = grid.same_level_neighbour(room.room_num, side)
-        if neighbour is None or (side == Side.NORTH and neighbour == 0):
+        neighbor = grid.same_level_neighbor(room.room_num, side)
+        if neighbor is None or (side == Side.NORTH and neighbor == 0):
             continue
-        facing = side_of(grid.room_at(neighbour), side.opposite)
+        facing = side_of(grid.room_at(neighbor), side.opposite)
         if facing != D_WALL:
             set_side(room, side, D_OPEN if facing == D_SHUTTER else facing)
 
@@ -426,7 +426,7 @@ def zelda_cell(rooms: list[Room]) -> int | None:
 def _zelda_rewrite(gate_block: GateBlock, level: Level) -> bool:
     """Step 8 (level 9, Ganon must be beaten — always on under the preset):
     the rewrite around Zelda's room, then the Zelda-room cleanup and the
-    block push-block clear again. False = rejected (a trigger-4/5 neighbour
+    block push-block clear again. False = rejected (a trigger-4/5 neighbor
     BELOW a $12 Zelda room)."""
     room_numbers = set(level.room_nums)
     block = gate_block.block
@@ -435,11 +435,11 @@ def _zelda_rewrite(gate_block: GateBlock, level: Level) -> bool:
         return True
     zelda = block.room(zelda_number)
     for side in (Side.NORTH, Side.EAST, Side.SOUTH, Side.WEST):
-        neighbour = room_grid.neighbour(zelda_number, side)
-        if neighbour is None or neighbour not in gate_block.owned_set:
+        neighbor = room_grid.neighbor(zelda_number, side)
+        if neighbor is None or neighbor not in gate_block.owned_set:
             continue
-        beside = block.room(neighbour)
-        is_same_level = neighbour in room_numbers
+        beside = block.room(neighbor)
+        is_same_level = neighbor in room_numbers
         is_below = side == Side.SOUTH
         # a person room: monster byte exactly $0B; BELOW also requires the
         # layout's monster high bit (A17/A29).
@@ -450,7 +450,7 @@ def _zelda_rewrite(gate_block: GateBlock, level: Level) -> bool:
             _open_pair(block, zelda_number, side, D_WALL)
             continue
         # trigger 4/5: no level check above/left/right (can wall off a
-        # level-7/8 neighbour); below is a same-level neighbour.
+        # level-7/8 neighbor); below is a same-level neighbor.
         if (beside.room_action in (RoomAction.BLOCK_DOOR, RoomAction.BLOCK_STAIRS)
                 and (is_same_level or not is_below)):
             _open_pair(block, zelda_number, side, D_WALL)

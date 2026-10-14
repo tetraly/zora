@@ -13,7 +13,7 @@ cell order (deterministic).
 """
 from ...model import room_grid
 from ...model.enums import Side
-from ...model.room_grid import neighbour
+from ...model.room_grid import neighbor
 from ..errors import GenerationFailure
 from ..rng import Rng
 from .options import ShapeOptions
@@ -38,7 +38,7 @@ def spatial_pieces_of(cells: set[int]) -> list[list[int]]:
             c = stack.pop()
             comp.append(c)
             for d in Side:
-                nb = neighbour(c, d)
+                nb = neighbor(c, d)
                 if nb in cells and nb not in seen:
                     seen.add(nb)
                     stack.append(nb)
@@ -63,7 +63,7 @@ def _would_split(world: SetWorld, blob: int, cell: int,
         while stack:
             c = stack.pop()
             for d in Side:
-                nb = neighbour(c, d)
+                nb = neighbor(c, d)
                 if nb in rest and nb not in seen:
                     seen.add(nb)
                     stack.append(nb)

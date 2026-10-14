@@ -7,8 +7,9 @@ The block screens are the document's. The maze sets are derived from the overwor
 from PRG0's start screen $77; tests/test_overworld_gates.py derives them again. The engine's
 mazes (aldonunez CheckMazes): leaving a maze screen repeats it unless the step matches the
 sequence (the fourth match leaves in its direction) or the side is the maze's free exit
-(Lost Hills: west; Dead Woods: east). A different start screen (OW-START-01) only makes fewer
-screens gated, so the sets hold for every start.
+(Lost Hills: west; Dead Woods: east). The sets are judged from a start outside them: the
+start-screen draw (OW-START-01, -02) leaves out the screens past each randomized maze and the
+screens the raft and bracelet edits wall in (start_barred).
 """
 from dataclasses import dataclass
 
@@ -19,6 +20,12 @@ from ...model.enums import Destination, Item
 RAFT_BLOCK_SCREENS = frozenset({0x0E, 0x0F, 0x1E, 0x1F, 0x34, 0x44})
 # Extra Power Bracelet Blocks (§4): bomb to bracelet-and-bomb on West Death Mountain.
 BRACELET_BLOCK_SCREENS = frozenset({0x00, 0x01, 0x02, 0x03, 0x10, 0x12, 0x13})
+# The screens each block flag's layout edits wall in: Link cannot walk out of them without the
+# raft or the bracelet. The raft's two islands (with PRG0's $2F and $45), and West Death
+# Mountain's pocket (with $11, and $23's west part, its cave's and Link's start spot's, which
+# opens only north into the pocket; both entrances already need the bracelet).
+RAFT_ENCLOSED_SCREENS = RAFT_BLOCK_SCREENS | {0x2F, 0x45}
+BRACELET_ENCLOSED_SCREENS = BRACELET_BLOCK_SCREENS | {0x11, 0x23}
 
 LOST_HILLS_SCREEN = 0x1B              # MountainMazeDirs' maze (CheckMazes)
 DEAD_WOODS_SCREEN = 0x61              # ForestMazeDirs' maze
@@ -26,8 +33,9 @@ DEAD_WOODS_SCREEN = 0x61              # ForestMazeDirs' maze
 # fixed last step is up, to $0B); the ladder does not help.
 LOST_HILLS_GATED = frozenset({0x0B, 0x0C, 0x0D})
 # Randomize Dead Woods: the fixed last step is south (owner decision), to $71; with its patch's
-# edit $70-$71 are reached only through the maze.
-DEAD_WOODS_GATED = frozenset({0x70, 0x71})
+# edit $70-$71 are reached only through the maze, and so is $72's cave: a wall splits $72, and the
+# part with its entrance opens only west, to $71 (Link's start spot is in the open part).
+DEAD_WOODS_GATED = frozenset({0x70, 0x71, 0x72})
 # ... and the forest no longer leads west: the west half of the map, reached in PRG0 only through
 # the forest's west exit or with the ladder over a one-square river, then needs the ladder.
 DEAD_WOODS_WEST = frozenset({
@@ -87,6 +95,22 @@ class OverworldGates:
         """Screens the wooden-sword cave may not move to: every gated screen (the sword is the
         start's; never behind a maze, owner decision)."""
         return self.gated_screens()
+
+    def start_barred(self) -> frozenset[int]:
+        """Screens the start-screen draw leaves out: the ones a block flag walls in, where Link
+        would start shut in until he holds the raft or the bracelet, and the screens past each
+        randomized maze, reached otherwise only by solving it (owner decision, 2026-10-13: only
+        those; Dead Woods' west half, which the logic gates by the ladder, stays a start)."""
+        barred: frozenset[int] = frozenset()
+        if self.raft_blocks:
+            barred |= RAFT_ENCLOSED_SCREENS
+        if self.bracelet_blocks:
+            barred |= BRACELET_ENCLOSED_SCREENS
+        if self.lost_hills:
+            barred |= LOST_HILLS_GATED
+        if self.dead_woods:
+            barred |= DEAD_WOODS_GATED
+        return barred
 
     def barred_for(self, code: Destination) -> frozenset[int]:
         """Screens a cave may not move to: a hint shop never behind its own maze."""

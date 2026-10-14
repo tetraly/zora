@@ -37,7 +37,7 @@ from ..flags.dependencies import (
     resolve,
 )
 from ..flags.fields import (
-    BOOK_TO_UNDERSTAND_OLD_MEN,
+    BOOK_TO_UNDERSTAND_NPCS,
     BOSS_HIT_POINTS,
     DUNGEON_LAYOUT_SOURCE,
     DUNGEON_ROOM_SHUFFLE,
@@ -74,8 +74,9 @@ from ..flags.support import (
     unsupported_fields,
 )
 from ..flags.zora_flags import ZoraFlags, ZoraFlagStringError
+from ..model.enums import DungeonNothingCode
 from ..rom import level_encoding
-from ..rom.game_config import DungeonNothingCode, GameConfig, HintMode, LevelEncodingKey
+from ..rom.game_config import GameConfig, HintMode, LevelEncodingKey
 from ..rom.player_settings import DEFAULT_PLAYER_SETTINGS, PlayerSettings
 from .alternative_values import AlternativeValues
 from .extra_options import ExtraOptions
@@ -260,7 +261,7 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             hint_mode=HINT_STYLE_MODES[settings.option(HINT_STYLE)],
             features_b10=True,
             book_is_an_atlas=settings.is_on(BOOK_IS_AN_ATLAS),
-            book_to_understand_old_men=settings.is_on(BOOK_TO_UNDERSTAND_OLD_MEN),
+            book_to_understand_npcs=settings.is_on(BOOK_TO_UNDERSTAND_NPCS),
             level_encoding=(LevelEncodingKey(seed, zora_flags.level_encoding_text(canonical, zora_canonical))
                             if encode_level_data else None),
             # a magical sword may lie in a dungeon room: "no item" becomes $0E (docs/zora-extras.md section 6)
@@ -313,7 +314,7 @@ def flag_steps(settings: Settings) -> FlagSteps:
         change_money_or_life_toll=on("B23"),
         shuffle_dungeon_palettes=on("B27"),
         shuffle_hungry_goriya=on("B28"),
-        shuffle_bomb_upgrade_men=on("B29"),
+        shuffle_bomb_upgraders=on("B29"),
         shuffle_overworld_monsters=on("B31"),
         shuffle_bosses=on("B34"),
         shuffle_monsters_between_levels=on("B36"),
@@ -347,7 +348,7 @@ def alternative_values(settings: Settings) -> AlternativeValues:
         dungeon_quest=DungeonLayoutSource(settings.option(DUNGEON_LAYOUT_SOURCE)),
         important_items_in_level_9=settings.is_on(IMPORTANT_ITEMS_IN_LEVEL_9),
         remove_most_open_stairs=settings.is_on(MOST_OPEN_STAIRS_REMOVED),
-        book_to_understand_old_men=settings.is_on(BOOK_TO_UNDERSTAND_OLD_MEN),
+        book_to_understand_npcs=settings.is_on(BOOK_TO_UNDERSTAND_NPCS),
     )
 
 
@@ -364,22 +365,33 @@ def shape_options(settings: Settings) -> ShapeOptions:
 
 
 def generate_world(chosen: GenerationPlan, base_rom: bytes) -> tuple[GameWorld, GenerationResult]:
-    """The generated world for a plan, on the PRG0 base (not yet serialized)."""
-    from ..rom.base_rom import remember_base_rom
+    """The generated world for a plan, on the player's base ROM (not yet serialized): either
+    release, with or without modified graphics (revision.identify_rom; RomNotRecognized for
+    any other). Both releases parse into the same world, so the generation never knows which."""
+    from ..rom.base_rom import player_rom_of, remember_base_rom, using_player_rom
     from ..rom.parse.rom_file import parse_rom
     from .generation_pass import generate_shapes
     from .rng import Rng
-    # Before any read: the patches' original bytes come from this ROM (base_rom.player_rom).
+    player = player_rom_of(base_rom)
+    # The process's fallback for reading the finished ROM afterwards (the web page's seed
+    # report parses it); this call itself reads only its own ROM.
     remember_base_rom(base_rom)
-    world = parse_rom(base_rom)
-    result = generate_shapes(world, Rng(chosen.generation_seed), chosen.shape_options, post_shapes=chosen.post_shapes,
-                             feature_data=chosen.config.features_b10, seed=chosen.seed, steps=chosen.steps,
-                             extras=extra_options(chosen), alternatives=chosen.alternatives)
+    with using_player_rom(player):
+        world = parse_rom(base_rom)
+        result = generate_shapes(world, Rng(chosen.generation_seed), chosen.shape_options,
+                                 post_shapes=chosen.post_shapes, feature_data=chosen.config.features_b10,
+                                 seed=chosen.seed, steps=chosen.steps, extras=extra_options(chosen),
+                                 alternatives=chosen.alternatives)
+    # the "no item" code the engine compares, the one the room bytes are written in
+    world.dungeon_nothing_code = chosen.config.dungeon_nothing_code
+    if chosen.encode_level_data:
+        world.store_second_quest_sets_in_first_quest_slots()
     return world, result
 
 
 def extra_options(chosen: GenerationPlan) -> ExtraOptions:
     """The ZORA extras' switches and the heart figures the magical sword's check needs."""
+    from ..model.enums import Item
     return ExtraOptions(
         randomize_magical_sword=chosen.zora.randomize_magical_sword,
         randomize_letter=chosen.zora.randomize_letter,
@@ -394,6 +406,8 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         level_9_entrance_sword=chosen.zora_resolved.level_9_entrance_sword,
         eleven_screen_recorder_set=chosen.alternatives.second_quest_secrets,
         important_items_in_level_9=chosen.alternatives.important_items_in_level_9,
+        maze_hints_need_book=(chosen.alternatives.book_to_understand_npcs
+                              and Item.BOOK not in chosen.alternatives.start_items),
         oops_all_enemies=chosen.zora_resolved.oops_all_enemies,
         oops_all_bosses=chosen.zora_resolved.oops_all_bosses,
         oops_all_seed=zora_flags.oops_all_seed(chosen.seed, chosen.flag_string, chosen.zora_flag_string),
@@ -417,13 +431,16 @@ class Built:
     world: GameWorld
     result: GenerationResult
     places: list[Place]
+    # The player's base ROM it was built on, which FINISH writes over (Archipelago keeps one
+    # Built per player, each with its own ROM and release).
+    base_rom: bytes = b""
 
 
 def build(chosen: GenerationPlan, base_rom: bytes) -> Built:
     """BUILD: generate_world, unchanged, and the item places of the world it made."""
     from .places import all_item_places
     world, result = generate_world(chosen, base_rom)
-    return Built(chosen, world, result, all_item_places(world, extra_options(chosen)))
+    return Built(chosen, world, result, all_item_places(world, extra_options(chosen)), base_rom)
 
 
 def finish(built: Built, base_rom: bytes, assignment: Assignment | None = None,
@@ -433,11 +450,13 @@ def finish(built: Built, base_rom: bytes, assignment: Assignment | None = None,
     the built world, which only reads it, so one build can be finished more than once. With one
     (External mode) the items go into a copy of the world first (finish_world); `slot_identity`
     is Archipelago's record for the slot (zora/rom/slot_identity.py), written only with one."""
+    from ..rom.base_rom import player_rom_of, using_player_rom
     from ..rom.serialize.rom_file import serialize_to_rom
     if assignment is None:
         assert not slot_identity, "a slot identity is External mode's"
         return serialize_to_rom(built.world, base_rom, config=built.plan.config, player_settings=player_settings)
-    world, finished = finish_world(built, assignment, recompute, received, check)
+    with using_player_rom(player_rom_of(base_rom)):
+        world, finished = finish_world(built, assignment, recompute, received, check)
     config = replace(finished.config, slot_identity=slot_identity)
     return serialize_to_rom(world, base_rom, config=config, player_settings=player_settings)
 
@@ -457,7 +476,7 @@ def finish_world(built: Built, assignment: Assignment, recompute: bool = True, r
 def generate_rom(flag_string: str, seed: int, base_rom: bytes,
                  player_settings: PlayerSettings = DEFAULT_PLAYER_SETTINGS, zora_flag_string: str = "") -> GeneratedRom:
     """One finished ROM for a flag string, a ZORA flag string and a seed, on
-    the PRG0 base, with the player settings applied last (FP-SET-01: after
+    the player's base ROM, with the player settings applied last (FP-SET-01: after
     the level encoding and the seed's code, which they never change):
     BUILD, then FINISH with no assignment (ZORA mode)."""
     from ..rom.code_patches import seed_code

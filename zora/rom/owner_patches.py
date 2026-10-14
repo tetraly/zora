@@ -10,7 +10,7 @@ All Swords No Boards' patches (docs/design/asnb.md section 3) come the same way 
 (asnb_patch_data.py, a verbatim copy of asm/asnb/asnb_data.py; tests/test_asnb_wired.py keeps
 them equal): take-l4, sword-cap, which patches over fp-prog-01's and fp-prog-02's
 ResolveProgressive copies, and l4-sword-look (level 4 looks like the magical sword in the white
-sword's colours; docs/design/l4-sword.md Q2), with Add L4 Sword on (Level 2 or Level 9), and
+sword's colors; docs/design/l4-sword.md Q2), with Add L4 Sword on (Level 2 or Level 9), and
 level-9-gate with Level 9 Entrance = Level 4 sword. take-l4 retires l4-sword-take (3a): it gives
 level 4 on every pickup path, so l4-sword-take's bytes and hook are no longer written.
 Credits (docs/credits.md): Speed Up Heart Fill by snarfblam, Recorder Kills Dungeon Pols Voice by

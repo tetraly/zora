@@ -67,7 +67,7 @@ GRADED_TAKE_HOOK = 0x06D04             # HandleClass2: LDA $0A / CMP Items, Y
 LEVEL_9_GATE_HOOK = 0x04AB1            # InitUnderworldPersonC: LDA InvTriforce / CMP #$FF / BNE @Exit
 HANDLE_CLASS_2 = 0xACF4                # bank 1, in the RAM code block
 ITEM_SLOT_SWORD = 0x00
-ITEM_SLOT_RING = 0x0B                  # HandleClass2 recolours Link after a ring: not run here
+ITEM_SLOT_RING = 0x0B                  # HandleClass2 recolors Link after a ring: not run here
 MAGICAL_SWORD_GRADE, L4_SWORD_LEVEL = 0x03, 0x04
 GRADE_ADDRESS = 0x0A                   # [0A]: the grade TakeItem takes
 CMP_IMMEDIATE, LDA_ABSOLUTE, BCC = 0xC9, 0xAD, 0x90
@@ -258,7 +258,7 @@ def test_the_gate_reads_the_sword_level() -> None:
                                BCC, original[LEVEL_9_GATE_HOOK + 6]])
 
 
-# --- l4-sword-look: level 4 looks like the magical sword in the white sword's colours ----------------
+# --- l4-sword-look: level 4 looks like the magical sword in the white sword's colors ----------------
 
 def look_rom() -> bytes:
     """ZORA's output (seed 1) with the progressive patches and l4-sword-look alone."""

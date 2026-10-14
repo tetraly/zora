@@ -1,17 +1,36 @@
-"""PRG0 base-ROM verification (single source of truth).
+"""The base ROM: the repo's PRG0 file for scripts and tests (verify_base_rom), and the
+player's ROM that generation reads the original game's bytes from (PlayerRom).
 
-Every script and test that reads the vanilla base ROM MUST verify it through
-this module; anything that does not hash to the PRG0 set is refused.
-See AGENTS.md for the recorded hashes.
+Every script and test that reads the repo's vanilla base ROM verifies it through this
+module; anything that does not hash to the PRG0 set is refused. See AGENTS.md for the
+recorded hashes. The player's ROM may be either release (revision.identify_rom).
 """
 import hashlib
 import zlib
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import NamedTuple
+
+from .revision import (
+    IdentifiedRom,
+    Revision,
+    back_to_revision,
+    headered,
+    identify_rom,
+    in_prg0_layout,
+    recognized,
+)
 
 REPO = Path(__file__).resolve().parent.parent.parent
 BASE_ROM_NAME = "Legend of Zelda, The (USA).nes"
 BASE_ROM_PATH = REPO / BASE_ROM_NAME
+# PRG1 (Rev 1), beside it for the tests and the release scan (never committed, never shipped)
+PRG1_ROM_NAME = "Legend of Zelda, The (USA) (Rev 1).nes"
+PRG1_ROM_PATH = REPO / PRG1_ROM_NAME
 
 EXPECTED_MD5 = "337bd6f1a1163df31bf2633665589ab0"
 EXPECTED_SHA1 = "dab79c84934f9aa5db4e7dad390e5d0c12443fa2"
@@ -45,39 +64,90 @@ def verify_base_rom(path: Path | None = None) -> Path:
     return p
 
 
-def is_prg0(data: bytes) -> bool:
-    """True iff `data` hashes as the PRG0 release."""
-    return (hashlib.md5(data).hexdigest(), hashlib.sha1(data).hexdigest(),
-            zlib.crc32(data) & 0xFFFFFFFF) == (EXPECTED_MD5, EXPECTED_SHA1, EXPECTED_CRC32)
+def verify_prg1_rom(path: Path | None = None) -> Path:
+    """Return `path` (default: the repo-root PRG1 ROM) iff it is the unmodified PRG1 release (its
+    ROM data's hashes; revision.identify_rom)."""
+    p = path or PRG1_ROM_PATH
+    if not p.is_file():
+        raise BaseRomMismatch(f"PRG1 ROM missing: {p}")
+    if identify_rom(p.read_bytes()) != IdentifiedRom(Revision.PRG1, modified_graphics=False):
+        raise BaseRomMismatch(f"{p.name}: not the PRG1 (Rev 1) release")
+    return p
 
 
 # The original game's bytes are never shipped: what ZORA keeps or moves of them is read from
-# the player's own PRG0 ROM when it is needed. generate_rom/generate_world, parse_rom and
-# serialize_to_rom remember the ROM they are given (once verified) before reading anything.
-# Without one, player_rom() refuses: generation never falls back to a file on disk, which
-# Archipelago (zora/ copied in as worlds.zora.zora, perhaps from a zip) does not have.
+# the player's own ROM when it is needed, PRG0 or PRG1, with or without modified graphics
+# (revision.identify_rom). Each generation, parse and serialization is passed its ROM and reads
+# it within its own call (using_player_rom), so that Archipelago players baking from different
+# releases in one process each read their own. Without one, player_rom() refuses: generation
+# never falls back to a file on disk, which Archipelago (zora/ copied in as worlds.zora.zora,
+# perhaps from a zip) does not have.
 #
-# The remembered ROM is process-global, not per call: Archipelago generates several players'
-# worlds in one process, one after another, and every player's base is the same PRG0 ROM
-# (refused otherwise), so whichever call remembered it last leaves the same bytes. Scripts and
-# tests that parse finished or corpus ROMs before any generation call
-# remember_repo_base_rom() first (it is never called on the generation path).
-class _PlayerRom:
-    data: bytes | None = None
+# Scripts and tests that parse finished or corpus ROMs outside any generation call
+# remember_repo_base_rom() first, and Archipelago's client remembers the player's ROM
+# (client_ready): the process's fallback, never read while a call has its own.
 
 
-_player = _PlayerRom()
+@dataclass(frozen=True)
+class PlayerRom:
+    """The player's base ROM: the file (headered), which release it is, and the same in PRG0's
+    layout, where ZORA reads and writes (revision.in_prg0_layout; the file itself on PRG0)."""
+    data: bytes
+    identity: IdentifiedRom
+    layout: bytes
+
+    @property
+    def revision(self) -> Revision:
+        return self.identity.revision
+
+    def finished(self, image: bytes) -> bytes:
+        """The ROM ZORA wrote in PRG0's layout (`image`), on the player's own release."""
+        return back_to_revision(self.data, self.revision, self.layout, image)
+
+
+@lru_cache(maxsize=16)
+def player_rom_of(data: bytes) -> PlayerRom:
+    """The player's ROM for `data`; RomNotRecognized unless revision.identify_rom knows it."""
+    identity = identify_rom(data)
+    rom = headered(data)
+    return PlayerRom(rom, identity, in_prg0_layout(rom, identity.revision))
+
+
+def recognized_player_rom(data: bytes) -> PlayerRom | None:
+    """player_rom_of, or None for a ROM that is no release (a finished or corpus ROM)."""
+    return player_rom_of(data) if recognized(data) else None
+
+
+_scoped: ContextVar[PlayerRom | None] = ContextVar("zora_player_rom", default=None)
+
+
+class _Remembered:
+    player: PlayerRom | None = None
+
+
+_remembered = _Remembered()
 
 
 class NoPlayerRom(RuntimeError):
     pass
 
 
+@contextmanager
+def using_player_rom(player: PlayerRom) -> Iterator[PlayerRom]:
+    """Within the block, the original game's bytes are read from `player`."""
+    token = _scoped.set(player)
+    try:
+        yield player
+    finally:
+        _scoped.reset(token)
+
+
 def remember_base_rom(data: bytes) -> None:
-    """Keep `data` as the source of original bytes, if it is PRG0 (a corpus or finished ROM
-    passed as a base is ignored)."""
-    if data is not _player.data and is_prg0(data):
-        _player.data = bytes(data)
+    """The process's fallback player ROM, for reads outside a generation call (scripts, tests,
+    Archipelago's client); a ROM that is no release (a finished ROM) is ignored."""
+    player = recognized_player_rom(data)
+    if player is not None:
+        _remembered.player = player
 
 
 def remember_repo_base_rom() -> bytes:
@@ -87,17 +157,24 @@ def remember_repo_base_rom() -> bytes:
     return data
 
 
-def player_rom() -> bytes:
-    """The player's verified PRG0 ROM, the one last remembered; NoPlayerRom if none was."""
-    if _player.data is None:
-        raise NoPlayerRom("no PRG0 base ROM remembered: pass it to generate_rom (or parse_rom) first; "
+def current_player_rom() -> PlayerRom:
+    """The ROM of the call in progress, else the remembered one; NoPlayerRom if neither."""
+    player = _scoped.get() or _remembered.player
+    if player is None:
+        raise NoPlayerRom("no base ROM: pass it to generate_rom (or parse_rom) first; "
                           "scripts and tests call base_rom.remember_repo_base_rom()")
-    return _player.data
+    return player
+
+
+def player_rom() -> bytes:
+    """The player's ROM file (current_player_rom)."""
+    return current_player_rom().data
 
 
 def original_bytes(offset: int, length: int) -> bytes:
-    """`length` bytes of the original game from file offset `offset`, read from the player's ROM."""
-    return player_rom()[offset:offset + length]
+    """`length` bytes of the original game from PRG0's file offset `offset`, read from the
+    player's ROM in PRG0's layout."""
+    return current_player_rom().layout[offset:offset + length]
 
 
 class Original(NamedTuple):

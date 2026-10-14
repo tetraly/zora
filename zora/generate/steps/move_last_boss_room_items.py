@@ -1,7 +1,7 @@
 """VA-REJ-20: after the gate, level 9's last-boss shutter rooms keep only small items.
 
 The rooms on the last-boss trigger (3) open only once Ganon is beaten: Ganon's room and the
-neighbours that face Zelda with a shutter (VA-REJ-03 step 8). Any item there other than a key,
+neighbors that face Zelda with a shutter (VA-REJ-03 step 8). Any item there other than a key,
 bombs, five rupees or (in Ganon's room) the Triforce of Power moves over the small item of a
 random other level-9 room; that small item is lost. Runs once per pass, after the start-screen
 pass and before the map move (SH-MAP-05 may still put the map behind those shutters).

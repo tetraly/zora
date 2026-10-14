@@ -41,8 +41,8 @@ NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "low_health_beep": (LowHealthBeep.KEPT,),
     "death_warp": (DeathWarp.CONTROLLER2_UP_A, DeathWarp.CONTROLLER1_UP_SELECT),
     "reduce_flashing": (True,),
-    "tunic_colours": ((VIVID, 0x32, 0x16), (0x29, VIVID, 0x16), (0x29, 0x32, VIVID)),
-    "heart_colour": (VIVID,),
+    "tunic_colors": ((VIVID, 0x32, 0x16), (0x29, VIVID, 0x16), (0x29, 0x32, VIVID)),
+    "heart_color": (VIVID,),
     "music": (Music.OFF,),
     "level_word": ("DEN", "PALACE"),
     "boss_sound_word": ("MEOW", "RANDOM", "HI !"),
@@ -138,7 +138,7 @@ def test_no_setting_changes_the_code_or_the_encoded_range(name: str, value: Any)
 
 
 def test_generate_rom_applies_the_settings_and_keeps_the_code() -> None:
-    settings = PlayerSettings(music=Music.OFF, heart_colour=VIVID)
+    settings = PlayerSettings(music=Music.OFF, heart_color=VIVID)
     plain = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 4, base())
     styled = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 4, base(), settings)
     assert styled.rom == apply_player_settings(plain.rom, settings) != plain.rom
@@ -148,10 +148,10 @@ def test_generate_rom_applies_the_settings_and_keeps_the_code() -> None:
 @pytest.mark.parametrize("value", [0x0D, 0x40, -1, 0x100])
 def test_palette_values_outside_the_choices_are_refused(value: int) -> None:
     with pytest.raises(PlayerSettingError):
-        PlayerSettings(heart_colour=value)
+        PlayerSettings(heart_color=value)
     with pytest.raises(PlayerSettingError):
-        PlayerSettings(tunic_colours=(0x29, value, 0x16))
-    assert PlayerSettings(heart_colour=0x0F).heart_colour == 0x0F      # every other black is allowed
+        PlayerSettings(tunic_colors=(0x29, value, 0x16))
+    assert PlayerSettings(heart_color=0x0F).heart_color == 0x0F      # every other black is allowed
 
 
 def test_the_pages_settings_map_to_player_settings() -> None:
@@ -204,12 +204,12 @@ def test_select_swap_off_is_prg0s_pause() -> None:
 
 
 @pytest.mark.slow
-def test_colours_reach_the_loaded_palette() -> None:
+def test_colors_reach_the_loaded_palette() -> None:
     """FP-SET-02 and FP-SET-03: in play, the loaded level information's palette (WRAM
     LevelInfo, $6B7E) holds the green tunic's value (entry +20, copied in on every load) and the
-    heart colour (entry +8)."""
+    heart color (entry +8)."""
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEEDS[0], base(),
-                       PlayerSettings(tunic_colours=(VIVID, 0x32, 0x16), heart_colour=0x21)).rom
+                       PlayerSettings(tunic_colors=(VIVID, 0x32, 0x16), heart_color=0x21)).rom
     emu = Emulator(rom)
     emu.new_game()
     emu.run(30, Button.UP)
@@ -223,12 +223,12 @@ def test_colours_reach_the_loaded_palette() -> None:
 def test_command_line_settings() -> None:
     from zora.rom.player_settings import parse_player_settings
     assert parse_player_settings([]) == PlayerSettings()
-    assert parse_player_settings(["select_swap=off", "music=off", "reduce_flashing=on", "heart_colour=0x21",
-                                  "tunic_colours=0x24,0x32,0x16", "death_warp=controller2_up_a", "level_word=lair",
+    assert parse_player_settings(["select_swap=off", "music=off", "reduce_flashing=on", "heart_color=0x21",
+                                  "tunic_colors=0x24,0x32,0x16", "death_warp=controller2_up_a", "level_word=lair",
                                   "boss_sound_word=random", "statistics_screen=on"]) == \
         PlayerSettings(SelectSwap.OFF, LowHealthBeep.REMOVED, DeathWarp.CONTROLLER2_UP_A, True,
                        (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM", True)
-    for bad in (["music=loud"], ["heart_colour=0x0D"], ["volume=11"], ["reduce_flashing=maybe"],
+    for bad in (["music=loud"], ["heart_color=0x0D"], ["volume=11"], ["reduce_flashing=maybe"],
                 ["statistics_screen=yes"],
                 ["level_word=FORTRESS"], ["level_word=A~B"], ["boss_sound_word=GROWL"]):
         with pytest.raises(PlayerSettingError):

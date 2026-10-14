@@ -37,6 +37,7 @@ from zora.model.overworld import (
 from zora.rom.base_rom import piece_length, verify_base_rom
 from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import BOOK_IS_AN_ATLAS, overworld_start_y
+from zora.rom.layout import PERSON_UPDATE_BRANCH_ADDRESS
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 
@@ -51,9 +52,10 @@ SLOT_ORDER = sorted(SHUFFLED_SLOTS)
 # FL-OFF-04, B42: the goriya tile that ships without the group pass
 GORIYA_TILES_WITHOUT_GROUPS = {0xA0, 0xA4, 0xA8, 0xAC, 0xB0, 0xB4}
 PRE_SHAPE_TILES = {0xA0, 0xA8, 0xAC, 0xB0}       # PS-GRUM-03's draw before the shape stage
-# B27: the colour set is the palette transfer buffer without its last byte, which
+# B27: the color set is the palette transfer buffer without its last byte, which
 # FP-ENTR-02 replaces with the level's exit-room count (bit 7 still ends the buffer)
 PALETTE_BUFFER_END = -1
+BOMB_SELLER_CODE_LENGTH = 8                     # B29: the branch and both level operands
 CHAMBER_LAYOUT = 0x28                            # FL-OFF-06, C14: the low seven bits checked
 
 
@@ -174,8 +176,8 @@ def no_merchants(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
                 if room.monster_byte == MERCHANT_LIST and room.is_person]
 
 
-def colour_sets_are_prg0(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
-    """B27: the nine levels' two colour sets equal PRG0."""
+def color_sets_are_prg0(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
+    """B27: the nine levels' two color sets equal PRG0."""
     for ours, theirs in zip(gw.levels, prg0().levels, strict=True):
         assert ours.palette_raw[:PALETTE_BUFFER_END] == theirs.palette_raw[:PALETTE_BUFFER_END]
         assert ours.fade_palette_raw == theirs.fade_palette_raw
@@ -184,6 +186,13 @@ def colour_sets_are_prg0(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
 def one_grumble_room(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
     """B28: exactly one grumble room per ROM."""
     assert sum(room.enemy == Enemy.HUNGRY_GORIYA for level in gw.levels for room in level.rooms) == 1
+
+
+def bomb_sellers_are_prg0(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
+    """B29: the seller branch and both level operands, and the person-kind table, equal PRG0."""
+    span = slice(PERSON_UPDATE_BRANCH_ADDRESS, PERSON_UPDATE_BRANCH_ADDRESS + BOMB_SELLER_CODE_LENGTH)
+    assert rom[span] == base_rom()[span]
+    assert gw.person_inits == prg0().person_inits
 
 
 def boss_banks_are_prg0(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
@@ -258,8 +267,10 @@ TURN_OFF_CHECKS: dict[str, tuple[dict[str, ThreeState], dict[str, int], Callable
     "B15": ({"B15": ThreeState.OFF}, {}, triforce_pointers_name_triforce_rooms),
     "B19": ({"B19": ThreeState.OFF}, {}, hint_pointers_ascend),
     "B22+B23": ({"B22": ThreeState.OFF, "B23": ThreeState.OFF}, {}, no_merchants),
-    "B27": ({"B27": ThreeState.OFF}, {}, colour_sets_are_prg0),
+    "B27": ({"B27": ThreeState.OFF}, {}, color_sets_are_prg0),
     "B28": ({"B28": ThreeState.OFF}, {}, one_grumble_room),
+    "B29": ({"B29": ThreeState.OFF}, {}, bomb_sellers_are_prg0),
+    "B29+B28": ({"B29": ThreeState.OFF, "B28": ThreeState.OFF}, {}, bomb_sellers_are_prg0),
     "B34": ({"B34": ThreeState.OFF}, {}, boss_banks_are_prg0),
     "B36": ({"B36": ThreeState.OFF}, {}, enemy_banks_are_prg0),
     "B40": ({"B40": ThreeState.OFF}, {}, accepted),

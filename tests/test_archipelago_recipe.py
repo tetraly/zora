@@ -180,7 +180,7 @@ def test_one_changed_byte_changes_the_hash_and_refuses_the_recipe(base: bytes, t
     package = copy_package(tmp_path / "copy")
     changed = package / "generate" / "logic.py"
     source = bytearray(changed.read_bytes())
-    source[-1] ^= ord("\n") ^ ord(" ")             # the last newline becomes a space: same behaviour
+    source[-1] ^= ord("\n") ^ ord(" ")             # the last newline becomes a space: same behavior
     changed.write_bytes(bytes(source))
     data, _rom = round_tripped("baseline", 1)
     (tmp_path / "recipe.json").write_text(json.dumps(data))

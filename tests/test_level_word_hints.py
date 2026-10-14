@@ -3,7 +3,7 @@ relabel_hint_text).
 
 Hint text is written at generation, before the player settings, so the setting rewrites it in
 place. Each hint line holding a level label ("LEVEL-3") gets the word's label ("LAIR-3",
-"PALACE3"), is centred again on the box's width and padded at its end to its old length. A label
+"PALACE3"), is centered again on the box's width and padded at its end to its old length. A label
 is never longer than LEVEL-n, so every line only gets shorter and every hint still fits: each text
 keeps its length, place and pointer.
 
@@ -113,9 +113,9 @@ def test_the_texts_cover_every_item_region_level_and_opener() -> None:
 def test_every_hint_takes_the_word_and_still_fits(word: str) -> None:
     for text, lines in hint_texts():
         body = bytes(encode_text(lines))
-        relabelled = relabel_hint_text(body, word)
-        assert len(relabelled) == len(body)
-        new_lines = decoded_lines(relabelled)
+        relabeled = relabel_hint_text(body, word)
+        assert len(relabeled) == len(body)
+        new_lines = decoded_lines(relabeled)
         assert len(new_lines) == len(lines) <= MAX_LINES
         assert all(len(line) <= LINE_WIDTH for line in new_lines), (word, new_lines)
         assert " ".join(line.strip(PAD) for line in new_lines) == with_word(text, word)
@@ -123,7 +123,7 @@ def test_every_hint_takes_the_word_and_still_fits(word: str) -> None:
             if old != new:
                 shown = new.strip(PAD)
                 assert new.startswith(PAD * ((LINE_WIDTH - len(shown)) // 2) + shown), (word, new)
-        assert relabelled[-1] & QUOTE_END_BITS == QUOTE_END_BITS
+        assert relabeled[-1] & QUOTE_END_BITS == QUOTE_END_BITS
 
 
 def test_no_other_text_says_level() -> None:
@@ -146,9 +146,9 @@ def finished(seed: int, zora_flag_string: str) -> bytes:
 def test_generated_hints_take_the_word(seed: int, zora_flag_string: str) -> None:
     rom = finished(seed, zora_flag_string)
     offsets = hint_text_offsets(rom)
-    labelled = [offset for offset in offsets
+    labeled = [offset for offset in offsets
                 if HINT_LEVEL_LABEL.search(" ".join(decoded_lines(text_body(rom, offset))))]
-    assert labelled, "no location hint in this seed"
+    assert labeled, "no location hint in this seed"
     pointers = rom[QUOTE_DATA_ADDRESS:offsets[0]]
     for word in ("LAIR", "PALACE"):
         new = apply_player_settings(rom, PlayerSettings(level_word=word))

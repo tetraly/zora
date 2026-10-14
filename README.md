@@ -8,7 +8,7 @@
 **ZORA (Zelda One Randomizer App)** is an open-source randomizer for
 *The Legend of Zelda*.
 
-**Play it:** https://tetraly.github.io/zora/
+**Play it:** https://zora.gg/
 
 ZORA is built on the notion that there isn't one right way to play a game.
 It aims to support as many ways to reimagine, randomize, and replay Zelda 1
@@ -56,9 +56,9 @@ you're welcome here.
 
 *It's dangerous to go alone. Take this.*
 
-## Known limitations (2.0 beta 4)
+## Known limitations (2.0 beta 5)
 
-- Some flag values are not made yet: the page shows them greyed out as "Not yet implemented".
+- Some flag values are not made yet: the page shows them grayed out as "Not yet implemented".
 - "Encode level data" is not available in the public build.
 - This beta has not been playtested by hand. Its seeds are checked by automated tests only.
 - To report a bug, give the seed, the flags, the version and the spoiler log (the page's
@@ -71,9 +71,9 @@ them). The web page lives in `web/`, and the ROM patches in `asm/`. Further docs
 (`docs/flag-names.md`), the seed document and spoiler log (`docs/seed-format/`) and the notes for
 beta testers (`docs/beta-testers.md`). A public developer guide is still to be written.
 
-## Licence
+## License
 
-ZORA is released under the MIT licence; see `LICENSE`. Third-party material (community
+ZORA is released under the MIT license; see `LICENSE`. Third-party material (community
 features, fonts, the NES palette) is credited in `docs/credits.md`.
 
 ## Credits

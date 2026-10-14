@@ -78,7 +78,7 @@ def heart_container_places(levels: list[Level], state: ItemShuffleResult,
     """Every place of the pool holding a heart container except the
     magical-sword cave: level rooms and item cellars, the three
     special-cave slots, the other extras' caves and the shop wares joined
-    by Shop Items in the Item Pool (rupees are not modelled). Other shop
+    by Shop Items in the Item Pool (rupees are not modeled). Other shop
     wares and the take-any caves are not pool places and never appear."""
     places: list[PoolPlace] = [place for place in dungeon_places(levels) if place.get() == Item.HEART_CONTAINER]
     places += [CaveSlotPlace(slot, state) for slot in CAVE_SLOTS]

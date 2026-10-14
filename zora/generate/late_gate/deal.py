@@ -88,16 +88,16 @@ def _internal_slots(room_numbers: set[int]) -> list[DoorPair]:
     slots: list[DoorPair] = []
     for room_number in sorted(room_numbers):
         for side in Side:
-            neighbour = room_grid.neighbour(room_number, side)
-            if neighbour is not None and neighbour in room_numbers and room_number < neighbour:
-                slots.append(DoorPair(room_number, neighbour, side))
+            neighbor = room_grid.neighbor(room_number, side)
+            if neighbor is not None and neighbor in room_numbers and room_number < neighbor:
+                slots.append(DoorPair(room_number, neighbor, side))
     return slots
 
 
 # VA-REJ-03 step 3 pin families, switched on one at a time (each needs the
 # step-5 forcings and the step-9 walk to be joinable):
 #   "drop27"     layout-$27 room: its north, east and west pairs
-#   "stair1b"    layout-$1B room: the pair with its right-hand neighbour
+#   "stair1b"    layout-$1B room: the pair with its right-hand neighbor
 #   "l9entrance" level-9 entrance ($21): its east and west pairs
 #   "person"     person room ($26 + person flag, no push block; L1-8 codes
 #                11-18 except 17, L9 codes 12-18 unless the room above is

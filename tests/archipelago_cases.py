@@ -6,6 +6,7 @@ from dataclasses import replace
 from tests.test_coop_reserved import BASELINE_FOR_OWNER_FLAGS, FINISHED_CASES, OWNER_FLAGS_ON, z1r_with
 from zora.flags import zora_flags
 from zora.flags.fields import DungeonLayoutSource, HintStyle, OverworldQuest, StartScreen, ThreeState
+from zora.flags.zora_flags import OopsAllBosses, OopsAllEnemies
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.support import START_ITEM_TOGGLES
 
@@ -50,9 +51,16 @@ FLAG_CASES: dict[str, tuple[str, str]] = {
     # B30 on (PS-OSTAIR): passed 2026-10-12, 100 of 100 seeds at on and Random
     "remove most open stairs": (z1r_with(toggles={"B30": ThreeState.ON}), ""),
     # B48 on (HT-BOOK): passed 2026-10-12, 100 of 100 seeds at on and Random
-    "book to understand old men": (z1r_with(toggles={"B48": ThreeState.ON}), ""),
+    "book to understand npcs": (z1r_with(toggles={"B48": ThreeState.ON}), ""),
     # C02 = 4 (SH-SRC): passed 2026-10-12, 100 of 100 seeds, alone and with B26 on
     "mixed and shapes dungeons": (z1r_with(options={"C02": DungeonLayoutSource.MIXED_WITH_SHAPES}), ""),
     **{f"start item {field}": (z1r_with(options={"C17": 0}, toggles={field: ThreeState.ON}), "")
        for field in START_ITEM_TOGGLES},
+    # Passed 2026-10-13 (beta 5), 100 of 100 seeds at each value: B29 Off (FL-OFF-04; Off is the new
+    # value, On the baseline's), and each Oops All value (ZORA extras, docs/design/oops-all.md)
+    "bomb upgraders not shuffled": (z1r_with(toggles={"B29": ThreeState.OFF}), ""),
+    **{f"oops all {family.name.lower()}": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
+        replace(zora_flags.DEFAULT, oops_all_enemies=family))) for family in OopsAllEnemies if family},
+    "oops all dodongos": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
+        replace(zora_flags.DEFAULT, oops_all_bosses=OopsAllBosses.DODONGOS))),
 }

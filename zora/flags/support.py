@@ -5,8 +5,7 @@ from __future__ import annotations
 from enum import Enum
 
 from .fields import (
-    BOMB_UPGRADE_PERSON_SHUFFLE,
-    BOOK_TO_UNDERSTAND_OLD_MEN,
+    BOOK_TO_UNDERSTAND_NPCS,
     BOSS_HIT_POINTS,
     CAVE_SHUFFLE,
     DUNGEON_LAYOUT_SOURCE,
@@ -81,11 +80,14 @@ def mvp_baseline_settings() -> Settings:
     return Settings.zero().updated(options=MVP_BASELINE_OPTIONS, toggles=dict.fromkeys(MVP_BASELINE_ON, ThreeState.ON))
 
 
-# FL-OFF-07: the three-state fields with a turn-off value (off; 22 fields).
+# FL-OFF-07: the three-state fields with a turn-off value (off; 23 fields).
 TURN_OFF_TOGGLES: tuple[str, ...] = (
     "B01", "B08", "B09", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B19", "B22", "B23", "B27", "B28",
-    "B31", "B34", "B36", "B40", "B42", "B49", "B54",
+    "B29", "B31", "B34", "B36", "B40", "B42", "B49", "B54",
 )
+# Turn-off fields whose "?" is not produced, though their off is: Shuffle Bomb Upgraders (B29)
+# (FL-SUP-01: FL-DEP-02 rule 4 meets its "?" under supported values; owner, beta 5).
+TURN_OFF_TOGGLES_NOT_RANDOM: tuple[str, ...] = ("B29",)
 # ZORA's own off values for fields the spec gives none (owner rulings), beside FL-OFF-07's:
 #   B04 (2026-10-07): the four take-any-road caves keep their PRG0 screens, so that Extra Power
 #   Bracelet Blocks, which conflicts with B04 on, can be used.
@@ -99,6 +101,9 @@ TURN_OFF_OPTIONS: dict[str, frozenset[int]] = {
     START_ITEM_LIMIT.id: frozenset(range(START_ITEM_LIMIT.count)) - {MVP_BASELINE_OPTIONS[START_ITEM_LIMIT.id]},
 }
 # The start-item fields FL-SUP-03 supports on (FP-START-02, FP-START-05).
+# TODO(Start Book, B67): before adding it here, check the logic that reads the book: with Book to
+# Understand NPCs (B48) the maze hints need it unless it is a start item (pipeline.extra_options,
+# LogicRules.maze_hints_need_book; tests/test_maze_hints.py covers the start-item case).
 START_ITEM_TOGGLES: tuple[str, ...] = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78")
 # FL-SUP-03's further three-state values (2026-10-10 export): Force Overworld Block (B81) on and
 # "?" (OW-CAVE-08; "?" is a coin per seed, FL-DEP-04), Allow OW Blocks of Wood Sword (B03) on.
@@ -117,8 +122,8 @@ ALTERNATIVE_TOGGLES: dict[str, frozenset[ThreeState]] = {
     START_ROOM_MAY_MOVE.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
     # Remove Most Open Stairs (B30) on (PS-OSTAIR), and "?" (FL-SUP-03, L25; FL-DEP-04)
     MOST_OPEN_STAIRS_REMOVED.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
-    # Book To Understand Old Men (B48) on (HT-BOOK-01, HT-BOOK-02), and "?" (FL-SUP-03, L26; FL-DEP-04)
-    BOOK_TO_UNDERSTAND_OLD_MEN.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    # Book to Understand NPCs (B48) on (HT-BOOK-01, HT-BOOK-02), and "?" (FL-SUP-03, L26; FL-DEP-04)
+    BOOK_TO_UNDERSTAND_NPCS.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
 }
 # FL-DEP-02 item 4: the dungeon quests that turn the hungry-goriya and bomb-upgrade moves off
 # (dependencies.LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES applies the rule)
@@ -185,11 +190,8 @@ def _toggle_supported(settings: Settings, toggle: ToggleField, baseline: ThreeSt
         return True
     if value in ALTERNATIVE_TOGGLES.get(toggle.id, frozenset()):
         return True
-    if (toggle == BOMB_UPGRADE_PERSON_SHUFFLE and value is ThreeState.OFF
-            and settings.option(DUNGEON_LAYOUT_SOURCE) in DUNGEON_QUESTS_WITHOUT_PERSON_MOVES):
-        # SH-SRC-08/09 and FL-DEP-02 item 4: these dungeon quests turn the bomb-upgrade moves off,
-        # and the bomb-upgrade path keeps PRG0's code (levels 5 and 7)
-        return True
+    if value is ThreeState.POSSIBLE and toggle.id in TURN_OFF_TOGGLES_NOT_RANDOM:
+        return False
     if toggle.id not in TURN_OFF_TOGGLES and toggle.id not in OWNER_TURN_OFF_TOGGLES:
         return False
     if toggle == MONEY_OR_LIFE_TOLL:

@@ -13,9 +13,9 @@ from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
-from ..model.enums import Destination, Item
+from ..model.enums import Destination, DungeonNothingCode, Item
 from ..model.overworld import Shop
-from ..rom.game_config import DungeonNothingCode, GameConfig
+from ..rom.game_config import GameConfig
 from .places import Place, PlaceKind, major_pool, read_item, write_item
 from .rng import IntRng, Rng
 from .steps.item_shuffle_result import (
@@ -323,6 +323,7 @@ def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng
     config = replace(built.plan.config, one_time_places=one_time_places(places))
     if needs_remap(places, assignment):
         config = replace(config, dungeon_nothing_code=DungeonNothingCode.ZORA_REMAP)
+        world.dungeon_nothing_code = DungeonNothingCode.ZORA_REMAP
     tracking = rebuild_tracking(world, built)
     if recompute:
         assert built.result.item_shuffle_result is not None

@@ -1,4 +1,4 @@
-// Generic widget behaviour for the page (docs/ui-provenance.md): first
+// Generic widget behavior for the page (docs/ui-provenance.md): first
 // adapted from the presentation-only app-skeleton.js, now styled by zora.css.
 // No option list, no flag logic: zora-web.js supplies those.
 
@@ -59,7 +59,7 @@ function initTabs(bar, storageKey = "zora-tab") {
   show(saved >= 0 ? saved : 0);
 }
 
-// A popover (the colour picker's panel); Escape and a click outside close it.
+// A popover (the color picker's panel); Escape and a click outside close it.
 function initPopover(button, popover, anchor) {
   button.addEventListener("click", (event) => {
     event.stopPropagation();
@@ -72,7 +72,7 @@ function initPopover(button, popover, anchor) {
   return close;
 }
 
-// A "?" help tooltip, centred above its circle (zora.css .tip); moved
+// A "?" help tooltip, centered above its circle (zora.css .tip); moved
 // sideways when that would put it past an edge of the window.
 function initHelpTip(wrap, tip) {
   const place = () => {
@@ -93,11 +93,11 @@ function setStatusDot(dot, state) {
   dot.className = "status-dot" + (state ? ` status-dot--${state}` : "");
 }
 
-// The gap an open colour panel keeps from the window's edge.
+// The gap an open color panel keeps from the window's edge.
 const VIEWPORT_MARGIN_PX = 8;
 
-// The swatch-grid colour picker (zora.css): a toggle filled
-// with the current colour opens a panel of every palette entry, 16 per row.
+// The swatch-grid color picker (zora.css): a toggle filled
+// with the current color opens a panel of every palette entry, 16 per row.
 // excluded maps an index to the tooltip saying why it cannot be picked; such
 // a swatch stays in the grid (aria-disabled, so its tooltip still shows).
 // Returns a function that sets the shown value.

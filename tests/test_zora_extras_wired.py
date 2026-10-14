@@ -57,7 +57,7 @@ FIRST_CAVE_CODE, CAVE_PERSON_BASE = 0x10, 0x6A   # the cave person's object type
 LEVEL_START_ROOM = 0x1943B           # LevelInfo_StartRoomId of level 1; one level information apart
 LEVEL_INFO_SIZE = 252
 LEVEL_LOAD_FRAMES, SETTLE_FRAMES, CAVE_FRAMES = 900, 20, 120
-TEXT_PAD = "~"                       # a parsed line's centring
+TEXT_PAD = "~"                       # a parsed line's centering
 
 
 @cache
@@ -316,7 +316,8 @@ def _takes_the_room_item(emu: Emulator) -> bool:
 def test_a_magical_sword_in_a_dungeon_room_is_taken() -> None:
     """The $0E change (docs/zora-extras.md section 6): a room whose item is the magical sword
     starts with it active, and Link takes it. Control: the same world written with PRG0's $03
-    "no item" code starts it deactivated, and Link cannot."""
+    "no item" code (the room bytes' and the engine's, GameWorld.dungeon_nothing_code) starts it
+    deactivated, and Link cannot."""
     for seed in range(40):
         chosen, world, _ = generated(SWORD, seed)
         visible = [(level.level_num, room.room_num) for level in world.levels for room in level.rooms
@@ -328,8 +329,9 @@ def test_a_magical_sword_in_a_dungeon_room_is_taken() -> None:
     emu = _start_in_room(remapped, level_num, room_num)
     assert emu[ROOM_ID] == room_num and emu[OBJ_STATE + ROOM_ITEM_SLOT] == 0
     assert _takes_the_room_item(emu)
-    prg0_code = serialize_to_rom(world, base(), config=replace(chosen.config,
-                                                                dungeon_nothing_code=DungeonNothingCode.VANILLA))
+    prg0_world = replace(world, dungeon_nothing_code=DungeonNothingCode.VANILLA)
+    prg0_code = serialize_to_rom(prg0_world, base(), config=replace(chosen.config,
+                                                                     dungeon_nothing_code=DungeonNothingCode.VANILLA))
     control = _start_in_room(prg0_code, level_num, room_num)
     assert control[OBJ_STATE + ROOM_ITEM_SLOT] != 0 and not _takes_the_room_item(control)
 

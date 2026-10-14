@@ -13,7 +13,8 @@ from zora.generate.finish import FOREIGN
 from zora.generate.pipeline import finish
 from zora.generate.places import all_place_names
 from zora.model.item_names import ITEM_NAMES
-from zora.rom.base_rom import BASE_ROM_PATH, BaseRomMismatch, remember_repo_base_rom
+from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
+from zora.rom.revision import NOT_RECOGNIZED, RomNotRecognized
 
 SEEDS = (1, 2)
 
@@ -72,5 +73,5 @@ def test_finish_refuses_an_unknown_name(base: bytes) -> None:
 
 
 def test_build_refuses_another_rom(base: bytes) -> None:
-    with pytest.raises(BaseRomMismatch, match="PRG0"):
+    with pytest.raises(RomNotRecognized, match=NOT_RECOGNIZED):
         archipelago.build_from_strings(*FLAG_CASES["baseline"], 1, base[:-1] + b"\x00")

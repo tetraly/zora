@@ -216,7 +216,7 @@
  },
  "B27": {
   "tab": "Dungeons",
-  "help": "With it on, the dungeons get different colours; with it off, they keep their usual colours."
+  "help": "With it on, the dungeons get different colors; with it off, they keep their usual colors."
  },
  "B28": {
   "tab": "Dungeons",
@@ -300,7 +300,7 @@
  },
  "B48": {
   "tab": "Items",
-  "help": "With it on, carrying the Book of Magic lets the player understand old men; with it off, it doesn't."
+  "help": "With it on, carrying the Book of Magic lets the player understand NPCs; with it off, it doesn't."
  },
  "B49": {
   "tab": "Items",

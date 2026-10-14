@@ -1,9 +1,9 @@
-ZORA 2.0 beta 4 spoiler log
+ZORA 2.0 beta 5 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Clock, Bait, Recorder, Fairy
+Seed code: Magical Key, Triforce, Wooden Arrow, Blue Ring
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -66,7 +66,7 @@ B25   Allow Important Items in 9 ........................................... Off
 B26   Shuffle Dungeon Start Room ........................................... Off
 B27   Shuffle Dungeon Palettes ......................................... ? -> On
 B28   Shuffle Hungry Goriya ................................................. On
-B29   Shuffle Bomb Upgrade Men .............................................. On
+B29   Shuffle Bomb Upgraders ................................................ On
 B30   Remove Most Open Stairs .............................................. Off
 B31   Shuffle Overworld Monsters ...................................... ? -> Off
 B32   Shuffle Dungeon Monsters .............................................. On
@@ -85,7 +85,7 @@ B44   Randomize Item Drop Rate ............................................. Off
 B45   Maximum Enemy Health ................................................. Off
 B46   Maximum Boss Health .................................................. Off
 B47   Replace Book Fire with Explosion ..................................... Off
-B48   Book To Understand Old Men ........................................... Off
+B48   Book to Understand NPCs .............................................. Off
 B49   Book is an Atlas ...................................................... On
 B50   Blackout ............................................................. Off
 B51   Print Quest Info ..................................................... Off
@@ -236,7 +236,7 @@ Texts: the game's texts in its order, with who says them
      said by Money Making Game
  5.  YOU HAVE BEEN RECRUITED BY THE STAR LEAGUE
      said by Door Repair
- 6.  SHOW THE OLD WOMAN SOMETHING
+ 6.  SHOW THE ELDER SOMETHING
      said by Letter Cave
  7.  MEET THE MERCHANT NEAR START
      said by Dead Woods Hint

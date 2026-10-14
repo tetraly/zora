@@ -4,7 +4,7 @@ Runs after doors so the entrance's south side can be forced open.
 """
 from ...model import room_grid
 from ...model.enums import RoomAction, RoomType, Side
-from ...model.room_grid import neighbour
+from ...model.room_grid import neighbor
 from ...model.rooms import NO_ITEM_CODE
 from ..errors import GenerationFailure
 from ..rng import Rng
@@ -24,7 +24,7 @@ def place_entrances(world: SetWorld, rng: Rng, opts: ShapeOptions) -> None:
             row = room_grid.row(cell)
             same_level_neighbors = any(
                 world.blob_of[nb] == blob
-                for nb in (neighbour(cell, d) for d in Side)
+                for nb in (neighbor(cell, d) for d in Side)
                 if nb is not None
             )
             if not same_level_neighbors:
@@ -34,7 +34,7 @@ def place_entrances(world: SetWorld, rng: Rng, opts: ShapeOptions) -> None:
             if opts.start_room_swap and row != GRID_ROWS - 1:
                 # Unless on the bottom row, the room below must be a
                 # different level (SH-ENT-01).
-                below = neighbour(cell, Side.SOUTH)
+                below = neighbor(cell, Side.SOUTH)
                 if below is not None and world.blob_of[below] == blob:
                     continue
             candidates.append(cell)

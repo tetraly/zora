@@ -36,7 +36,7 @@ PAD = "~"
 
 
 def _lines(text: str) -> tuple[str, ...]:
-    """A shown text's lines without the centring pad."""
+    """A shown text's lines without the centering pad."""
     return tuple(line.strip(PAD) for line in text.split("|"))
 
 

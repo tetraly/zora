@@ -54,9 +54,9 @@ def test_edges_are_listed_in_room_order_up_down_left_right() -> None:
     assert edges == sorted(edges, key=lambda edge: (edge.room, (Side.NORTH, Side.SOUTH, Side.WEST,
                                                                 Side.EAST).index(edge.side)))
     for edge in edges:
-        neighbour = room_grid.neighbour(edge.room, edge.side)
-        owner = None if neighbour is None else level.block.owner_of(neighbour)
-        assert edge.room in level.room_nums and (neighbour is None or owner not in (None, level))
+        neighbor = room_grid.neighbor(edge.room, edge.side)
+        owner = None if neighbor is None else level.block.owner_of(neighbor)
+        assert edge.room in level.room_nums and (neighbor is None or owner not in (None, level))
 
 
 def test_level_9_lists_only_downward_edges_below_its_own_rooms() -> None:
@@ -117,6 +117,7 @@ def test_the_exit_room_reads_back(exit_room: int) -> None:
     base = remember_repo_base_rom()
     world = parse_rom(base)
     world.levels[0].arrival_code, world.levels[0].exit_room = 4, exit_room
+    world.record_level_entry_codes()                  # the other levels', as generation sets them
     config = GameConfig(features_b10=True)
     level = parse_rom(serialize_to_rom(world, base, config=config), config).levels[0]
     assert (level.arrival_code, level.exit_room) == (4, exit_room)
@@ -129,6 +130,7 @@ def test_the_overworld_start_y_reads_back_beside_the_side_patch() -> None:
     base = remember_repo_base_rom()
     world = parse_rom(base)
     world.levels[0].arrival_code = 4
+    world.record_level_entry_codes()
     world.overworld.start_position_y = world.overworld.start_position_y - 0x10
     config = GameConfig(features_b10=True)
     rom = serialize_to_rom(world, base, config=config)
@@ -157,6 +159,7 @@ def test_link_enters_by_the_arrival_code(code: int) -> None:
     base = remember_repo_base_rom()
     world = parse_rom(base)
     world.levels[0].arrival_code = None if code == 2 else code
+    world.record_level_entry_codes()                  # code 2 where none is set
     emu = Emulator(serialize_to_rom(world, base, config=GameConfig(features_b10=True)))
     emu.new_game()
     emu.play_recorder(LEVEL_1_TRIFORCE)

@@ -1,5 +1,5 @@
 """Archipelago's slot identity in the ROM (Archipelago Phase 4c; docs/archipelago.md "Interface",
-docs/rom-map.md "Archipelago slot identity"). AP's BizHawk client recognises its game and logs in
+docs/rom-map.md "Archipelago slot identity"). AP's BizHawk client recognizes its game and logs in
 to the right slot by reading bytes the patch wrote into PRG ROM; ZORA writes them into 32 bytes
 of bank 0's free space, only in External mode with a slot name (ZORA mode writes nothing there).
 

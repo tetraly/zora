@@ -106,8 +106,8 @@ def test_a_fresh_client_without_client_ready_is_told_to_call_it() -> None:
     assert "client_ready(rom)" in result.stdout.decode()
 
 
-def test_client_ready_refuses_a_rom_that_is_not_prg0(base: bytes) -> None:
+def test_client_ready_refuses_a_rom_it_does_not_recognize(base: bytes) -> None:
     from zora import archipelago
-    from zora.rom.base_rom import BaseRomMismatch
-    with pytest.raises(BaseRomMismatch):
+    from zora.rom.revision import RomNotRecognized
+    with pytest.raises(RomNotRecognized):
         archipelago.client_ready(base[:-1] + bytes([base[-1] ^ 1]))

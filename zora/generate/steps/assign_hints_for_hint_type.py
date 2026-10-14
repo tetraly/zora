@@ -27,7 +27,7 @@ UNHELPFUL_SKIPS = {0x0F: 0x10, 0x11: 0x12}
 class HintAssignmentResult:
     """What the pass decided outside the room blocks."""
     helpful: set[int] = field(default_factory=set)
-    old_man_levels: list[int] = field(default_factory=list)   # kept $0F rooms' levels
+    kept_person_levels: list[int] = field(default_factory=list)   # kept $0F rooms' levels
     listed: int = 0
     # (level, hint id) of each listed room as PS-HINT-05 wrote it, in list order; the
     # hint-room selectors (HT-SEL-01) walk it.
@@ -60,7 +60,7 @@ def collect_hint_rooms(levels: list[Level], bomb_levels: set[int],
     counts = dict.fromkeys(HINT_LEVELS, 0)
     for room, level in _person_rooms(levels):
         if room.monster_list == BOMB_UPGRADE_CODE and level in bomb_levels:
-            state.old_man_levels.append(level)       # kept; not listed, not counted
+            state.kept_person_levels.append(level)       # kept; not listed, not counted
             continue
         counts[level] += 1
         if room.monster_list != MERCHANT_LIST:
@@ -73,11 +73,11 @@ def _half_start(level: int) -> int:
 
 
 def move_helpful_markers(state: HintAssignmentResult) -> None:
-    """PS-HINT-03: each old-man level ends unhelpful; a helpful one first
+    """PS-HINT-03: each kept-person level ends unhelpful; a helpful one first
     moves its marker to the first level from its half's start up to 8 that
     is not helpful, not itself and not the previous entry's level."""
     previous: int | None = None
-    for level in state.old_man_levels:
+    for level in state.kept_person_levels:
         if level in state.helpful:
             target = next((other for other in range(_half_start(level), HINT_LEVELS.stop)
                            if other not in state.helpful and other not in (level, previous)),
@@ -98,7 +98,7 @@ def balance_levels(state: HintAssignmentResult, counts: dict[int, int]) -> None:
         if total in BALANCED_UNHELPFUL_ROOMS:
             return
         if total > max(BALANCED_UNHELPFUL_ROOMS):
-            flip = next((level for level in unhelpful if level not in state.old_man_levels), None)
+            flip = next((level for level in unhelpful if level not in state.kept_person_levels), None)
             if flip is None:
                 return
             state.helpful.add(flip)

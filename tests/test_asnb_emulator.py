@@ -62,7 +62,7 @@ SWORD_CAVE_WARE = 1                  # where those caves show their item
 CELLAR_MODE = 0x09
 CELLAR_SOURCE_ROOM = 0x527           # the room a cellar returns to
 LEVEL_9 = 9
-LEVEL_9_ENTRANCE_PERSON = 0x4B       # the man at level 9's entrance (object type)
+LEVEL_9_ENTRANCE_PERSON = 0x4B       # the person at level 9's entrance (object type)
 MONSTER_SLOTS = range(1, 0x0C)
 GATE_FRAMES = 120
 ALL_TRIFORCE_PIECES = 0xFF
@@ -238,14 +238,14 @@ def test_with_the_byte_off_a_shop_hides_its_sword_at_level_3() -> None:
 
 @cache
 def level_9_entry_room() -> int:
-    """The room one row north of level 9's entrance, where the man stands (VA-WALK-08)."""
+    """The room one row north of level 9's entrance, where the person stands (VA-WALK-08)."""
     level = next(level for level in parse_rom(finished()).levels if level.level_num == LEVEL_9)
     return level.entrance_room - 0x10
 
 
 def meet_the_level_9_man(sword_level: int, triforce: int) -> tuple[bool, bool, bool]:
-    """Enter the man's room with this sword level and these triforce pieces; return whether he
-    is still there, whether the shutters were triggered and whether the room's doors opened."""
+    """Enter the person's room with this sword level and these triforce pieces; return whether the
+    person is still there, whether the shutters were triggered and whether the room's doors opened."""
     game = new_game()()
     SWORD.set_level(game.emu, sword_level)
     game.emu[INV_TRIFORCE] = triforce

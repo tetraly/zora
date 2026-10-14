@@ -8,17 +8,20 @@ the patched code reads per seed is written here too.
 """
 import hashlib
 from collections.abc import Collection
+from dataclasses import replace
 
+from ..model.canonical import canonical_bytes
 from ..model.enums import Destination, Item
 from ..model.game_world import GameWorld
-from ..model.levels import Level
 from ..model.overworld import POTION_SHOP_MIDDLE
+from ..model.sprites import SpriteData
 from .base_rom import piece_bytes, piece_length
 from .code_patch_data import PATCHES, SYMBOLS
+from .game_config import GameConfig
 from .layout import CAVE_NOTHING_CODE
+from .revision import Revision
 from .serialize.caves import CAVE_ITEM_CODE_MASK, WARES_PER_CAVE, cave_ware_tables
 
-ROOMS_PER_BLOCK = 128
 # FP-ENTR-02: level information +$23, the last byte of the palette transfer
 # buffer, holds the exit-room count with bit 7 set (bit 7 still ends that
 # buffer; PRG0 has $FF).
@@ -40,14 +43,14 @@ SEED_CODE_NAMES: dict[int, str] = {
 SEED_CODE_ITEMS = tuple(SEED_CODE_NAMES)
 SEED_CODE_LENGTH = 4
 SEED_CODE_ADDRESS = SYMBOLS["ZORA_B2_CodeIcons"]      # the asm label keeps its name
+SEED_CODE_DOMAIN = b"ZORA seed code\x00"             # what the hash is of, before the model
 
 
 # FP-ENTR-01: the arrival code at level information +$3D (the cellar
-# array's unused last entry; PRG0 $FF), and Link's overworld start Y, which
-# the patch reads from its own byte so LevelInfo_StartY keeps PRG0's $8D.
+# array's unused last entry; PRG0 $FF; the codes are model.levels.ARRIVAL_*),
+# and Link's overworld start Y, which the patch reads from its own byte so
+# LevelInfo_StartY keeps PRG0's $8D.
 LEVEL_INFO_ARRIVAL_CODE = 0x3D
-ARRIVAL_OVERWORLD = 0
-ARRIVAL_DUNGEON = 2
 OVERWORLD_START_Y = SYMBOLS["ZORA_B5_OverworldStartY"]
 ENTR_01 = "fp-entr-01"
 # FP-ENTR-01's codes 1, 3 and 4 (B26, PS-START-03): written only when a start room moved, so a
@@ -60,8 +63,8 @@ SIDE_ARRIVAL_CODES = frozenset({1, 3, 4})
 # FP-BOOK-01, the patch of Book is an Atlas (B49); with B49 off (FL-OFF-05)
 # it is left out and its sites keep PRG0's code.
 BOOK_IS_AN_ATLAS = "fp-book-01"
-# HT-BOOK-01, the patch of Book To Understand Old Men (B48): written only with B48 on.
-BOOK_TO_UNDERSTAND_OLD_MEN = "ht-book-01"
+# HT-BOOK-01, the patch of Book to Understand NPCs (B48): written only with B48 on.
+BOOK_TO_UNDERSTAND_NPCS = "ht-book-01"
 
 # PI-CODE-01 (docs/design/progressive-items-plan.md; docs/progressive-patches.md):
 # fp-prog-01 (bank 1: caves and shops) is written with Progressive Items or Shop
@@ -95,7 +98,7 @@ ONE_TIME_POTION_SHOP_WARE = (SHOPS_BY_NUMBER.index(Destination.POTION_SHOP), POT
 
 def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items_in_pool: bool,
                      potion_shop_in_pool: bool = False, start_items: bool = False,
-                     start_rooms_moved: bool = False, book_to_understand_old_men: bool = False) -> tuple[str, ...]:
+                     start_rooms_moved: bool = False, book_to_understand_npcs: bool = False) -> tuple[str, ...]:
     """The code patches a seed's settings leave out (FL-OFF-05, PI-CODE-01; fp-prog-01's buy-once
     rule also with Shuffle Blue Potion on; fp-start-02 unless a seed starts with other items than
     PRG0's, FP-START-02; fp-entr-01-sides unless the start-room swap ran, PS-START; ht-book-01
@@ -111,8 +114,8 @@ def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items
         left_out.append(START_ITEMS)
     if not start_rooms_moved:
         left_out.append(ENTR_01_SIDES)
-    if not book_to_understand_old_men:
-        left_out.append(BOOK_TO_UNDERSTAND_OLD_MEN)
+    if not book_to_understand_npcs:
+        left_out.append(BOOK_TO_UNDERSTAND_NPCS)
     return tuple(left_out)
 
 
@@ -166,9 +169,14 @@ def code_patch_writes(world: GameWorld | None = None, left_out: Collection[str] 
 def seed_data(world: GameWorld, progressive_items: bool = False,
               one_time_places: Collection[tuple[int, int]] = ()) -> dict[int, int]:
     """The bytes inside the patches that a seed sets: file offset -> value. fp-prog-01's
-    on/off byte is 1 with Progressive Items on (0 keeps only the buy-once rule, PI-CODE-01)."""
+    on/off byte is 1 with Progressive Items on (0 keeps only the buy-once rule, PI-CODE-01);
+    with start items, fp-start-02's table is the seed's (FP-START-03), as the serializer writes it."""
+    from .start_items import start_table  # start_items reads this module's constants
     data = {OVERWORLD_START_Y: world.overworld.start_position_y, PROGRESSIVE_ITEMS_BYTE: int(progressive_items)}
     data.update(enumerate(one_time_wares(world, one_time_places), start=ONE_TIME_WARES))
+    if world.start_items:
+        data.update(enumerate(start_table(world.start_items, world.new_file_heart_containers,
+                                          world.new_file_full_hearts), start=START_ITEMS_TABLE))
     return data
 
 
@@ -187,40 +195,23 @@ def overworld_start_y(rom: bytes) -> int | None:
     return rom[data_byte]
 
 
-def exit_room_count(world: GameWorld, level: Level) -> int:
-    """FP-ENTR-02: how many rooms of the level's block, counting from room
-    0, belong to no level or to this one. A dungeon move into the room with
-    this number leaves the level."""
-    count = 0
-    while count < ROOMS_PER_BLOCK and level.block.owner_of(count) in (None, level):
-        count += 1
-    return count
+def seed_code_items(world: GameWorld, config: GameConfig) -> bytes:
+    """FP-HASH-01: the seed's code, a function of the generated game alone (owner ruling, beta 5):
+    a SHA-256 of ZORA's model of the seed, written out in its fixed form (model/canonical.py),
+    and of the game configuration, picks each of the four items. The model leaves out the tile
+    patterns (the player's graphics) and the configuration its release and graphics fields, and
+    the player settings are never in either, so one seed and its flags show the same code on PRG0
+    and PRG1, with any graphics and any player settings. Any change to the game changes it,
+    Archipelago's slot identity (each slot's code differs) and the level encoding included."""
+    game = replace(config, revision=Revision.PRG0, modified_graphics=False)
+    digest = hashlib.sha256(SEED_CODE_DOMAIN + canonical_bytes(world, left_out=(SpriteData,))
+                            + canonical_bytes(game)).digest()
+    return bytes(SEED_CODE_ITEMS[byte % len(SEED_CODE_ITEMS)] for byte in digest[:SEED_CODE_LENGTH])
 
 
-def write_level_info_data(world: GameWorld, level: Level, info: bytearray) -> None:
-    """The per-level bytes the patched code reads, into the dungeon's
-    level-information block `info`."""
-    exit_room = exit_room_count(world, level) if level.exit_room is None else level.exit_room
-    info[LEVEL_INFO_EXIT_ROOM_COUNT] = exit_room | EXIT_ROOM_COUNT_FLAG
-    info[LEVEL_INFO_ARRIVAL_CODE] = ARRIVAL_DUNGEON if level.arrival_code is None else level.arrival_code
-
-
-def write_overworld_level_info_data(info: bytearray) -> None:
-    """The overworld's level-information byte the patched code reads."""
-    info[LEVEL_INFO_ARRIVAL_CODE] = ARRIVAL_OVERWORLD
-
-
-def stamp_seed_code(rom: bytearray) -> None:
-    """FP-HASH-01: the seed's code, ZORA's function of the build: a SHA-256
-    of the finished ROM (code bytes zeroed) picks each of the four items.
-    Two builds of one seed and flags show the same code; any change to the
-    generated ROM changes it. Player settings are applied after it and never
-    change it (FP-SET-01)."""
-    rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = bytes(SEED_CODE_LENGTH)
-    digest = hashlib.sha256(rom).digest()
-    rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = bytes(
-        SEED_CODE_ITEMS[byte % len(SEED_CODE_ITEMS)] for byte in digest[:SEED_CODE_LENGTH]
-    )
+def stamp_seed_code(rom: bytearray, world: GameWorld, config: GameConfig) -> None:
+    """Write the seed's code (seed_code_items) into its four bytes."""
+    rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = seed_code_items(world, config)
 
 
 def seed_code(rom: bytes) -> tuple[str, ...]:

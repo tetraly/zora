@@ -1,5 +1,5 @@
 # ZORA 2.0 Auto Show Letter (docs/design/zora-flags-2.0.md section 9): in the potion shop
-# the old woman takes the letter as soon as Link holds it (InvLetter 1), without the player
+# the shopkeeper takes the letter as soon as Link holds it (InvLetter 1), without the player
 # selecting and using it. asm/README.md and asm/flags2/build.py describe this file.
 
 [[hook]]

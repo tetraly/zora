@@ -123,7 +123,7 @@ it. Where the flag's name would make an awkward identifier, the mapping is:
 
 The others follow their names directly: C06 `shuffle_items`, B15
 `shuffle_dungeon_drops`, B28 `shuffle_hungry_goriya`, B29
-`shuffle_bomb_upgrade_men`, B22 `add_money_or_life_rooms`, B19
+`shuffle_bomb_upgraders`, B22 `add_money_or_life_rooms`, B19
 `shuffle_dungeon_text` (the pointer exchange, HT-TEXT-04), C03
 `assign_hints_for_hint_type` (the hint assignment, post-shapes-b25.md), B27 `shuffle_dungeon_palettes`, B34
 `shuffle_bosses`, B36 `shuffle_monsters_between_levels`, B32

@@ -13,7 +13,7 @@ from types import ModuleType
 
 import pytest
 
-from zora.rom.base_rom import BASE_ROM_PATH
+from zora.rom.base_rom import BASE_ROM_PATH, PRG1_ROM_PATH
 from zora.version import ZORA_VERSION, player_version
 
 REPO = Path(__file__).resolve().parent.parent
@@ -21,6 +21,7 @@ SCAN = REPO / "scripts" / "release_scan.py"
 # A run of the ROM file's bytes (offset as the release check reports it) that is not filler; the
 # release check found it written in a released file once
 PLANTED_RUN_OFFSET, PLANTED_RUN_LENGTH = 0x1EF76, 11
+PRG1_ONLY_OFFSET = 0x1A2D3
 # Joined at run time: this file is released too, and the scan must not find the mention in it
 PRIVATE_REPO = "-".join(("zora", "private"))
 PLANTED_MENTION = f"built beside {PRIVATE_REPO}"
@@ -78,6 +79,18 @@ def test_a_planted_byte_run_fails(checkout: Path) -> None:
     done = _scan(checkout)
     assert done.returncode == 1
     assert f"notes/data.py:1: {PLANTED_RUN_LENGTH} bytes = PRG0" in done.stdout
+
+
+@pytest.mark.skipif(not PRG1_ROM_PATH.exists(), reason="no PRG1 ROM")
+def test_a_planted_run_of_prg1_only_bytes_fails(checkout: Path) -> None:
+    """PRG1's game-over warning records (its transfer buffers before the moved story screen),
+    which PRG0 does not have."""
+    run = PRG1_ROM_PATH.read_bytes()[PRG1_ONLY_OFFSET:PRG1_ONLY_OFFSET + PLANTED_RUN_LENGTH]
+    assert BASE_ROM_PATH.read_bytes().find(run) < 0
+    (checkout / "notes" / "data.py").write_text(f'TABLE = bytes.fromhex("{run.hex()}")\n')
+    done = _scan(checkout)
+    assert done.returncode == 1
+    assert f"notes/data.py:1: {PLANTED_RUN_LENGTH} bytes = PRG1" in done.stdout
 
 
 def test_files_a_release_leaves_out_are_not_scanned(checkout: Path) -> None:

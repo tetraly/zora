@@ -40,6 +40,10 @@ class ExtraOptions:
     eleven_screen_recorder_set: bool = False
     # Allow Important Items in 9 (B25, VA-REJ-08): level 9's items need level-9 entry, not the long items
     important_items_in_level_9: bool = False
+    # Not a ZORA extra: Book to Understand NPCs (B48, HT-BOOK-01) without the book among the start
+    # items, so the maze paths the hint shops sell need the book (LogicRules.maze_hints_need_book).
+    # Start Book (B67) is not produced yet; see the TODO at flags/support.py START_ITEM_TOGGLES.
+    maze_hints_need_book: bool = False
     # Oops All Enemies and Oops All Bosses (docs/design/oops-all.md), and the key of their own
     # random stream (zora_flags.oops_all_seed)
     oops_all_enemies: OopsAllEnemies = OopsAllEnemies.OFF
@@ -69,7 +73,8 @@ class ExtraOptions:
                            level_9_by_swords=self.level_9_entrance_sword,
                            magical_sword_cave_counts=not self.randomize_magical_sword,
                            eleven_screen_recorder_set=self.eleven_screen_recorder_set,
-                           important_items_in_level_9=self.important_items_in_level_9)
+                           important_items_in_level_9=self.important_items_in_level_9,
+                           maze_hints_need_book=self.maze_hints_need_book)
 
 
 # Every ZORA extra off: the default where none are given.

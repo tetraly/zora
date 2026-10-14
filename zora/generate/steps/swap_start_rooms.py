@@ -37,7 +37,7 @@ def level_edges(level: Level) -> list[Edge]:
         for side in EDGE_SIDES:
             if level.level_num == LEVEL_9 and not (side == Side.SOUTH and _above_is_level_9(level, room)):
                 continue
-            next_room = room_grid.neighbour(room, side)
+            next_room = room_grid.neighbor(room, side)
             owner = None if next_room is None else block.owner_of(next_room)
             if next_room is None or (owner is not None and owner is not level):
                 edges.append(Edge(room, side))
@@ -45,7 +45,7 @@ def level_edges(level: Level) -> list[Edge]:
 
 
 def _above_is_level_9(level: Level, room: int) -> bool:
-    above = room_grid.neighbour(room, Side.NORTH)
+    above = room_grid.neighbor(room, Side.NORTH)
     return above is not None and level.block.owner_of(above) is level
 
 

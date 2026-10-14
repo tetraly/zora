@@ -216,7 +216,7 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
         # PS-ITEM-02: low five bits $1A, a room of a level, not yet pooled.
         places += heart_rooms(levels, places)
     # Minor items (bombs, rupees, keys) join only in minor-items mode: off
-    # for the preset and not modelled.
+    # for the preset and not modeled.
 
     count = len(places)
     pool_items = [place.get() for place in places]

@@ -89,13 +89,15 @@ def test_values_wait_for_the_logic_scan() -> None:
     C04 = 2 and 3, B81 and B03 (on and Random), Helpful hints (C03 = 1), and on 2026-10-11 Dungeon
     Quest 1st Quest (C02 = 0), the nine start items, Allow Important Items in 9 (B25, on and
     Random), Dungeon Quest 2nd Quest (C02 = 1), Shuffle Dungeon Start Room (B26, on and Random)
-    and on 2026-10-12 Remove Most Open Stairs (B30) and Book To Understand Old Men (B48), on and
-    Random, and Dungeon Quest Mixed + Shapes (C02 = 4) have. Oops All Enemies and Oops All Bosses
-    (ZORA extras, 2026-10-12) wait, offering Off only; a held value is refused by name."""
+    and on 2026-10-12 Remove Most Open Stairs (B30) and Book to Understand NPCs (B48), on and
+    Random, and Dungeon Quest Mixed + Shapes (C02 = 4) have, and on 2026-10-13 (beta 5) Shuffle
+    Bomb Upgraders Off (B29 = 0), Oops All Enemies' Wizzrobes, Keese and Bouncers and Oops All
+    Bosses' Dodongos. None waits; a held value would be refused by name."""
     start_items = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78")
-    assert archipelago.HELD_BACK == {"oops_all_enemies": frozenset({1, 2, 3}), "oops_all_bosses": frozenset({1})}
+    assert archipelago.HELD_BACK == {}
     offered = {spec.id: spec.values for spec in SPECS}
-    assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0,), (0,))
+    assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0, 1, 2, 3), (0, 1))
+    assert offered["B29"] == (ThreeState.OFF, ThreeState.ON)
     assert offered["C01"] == (0, 1, 2, 3, 4)
     assert offered["C04"] == (0, 1, 2, 3)
     assert offered["C02"] == (0, 1, 3, 4)

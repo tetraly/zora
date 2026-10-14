@@ -1,4 +1,4 @@
-"""Book To Understand Old Men (B48; hints-behavior.md HT-BOOK): the Checks measured on finished ROMs,
+"""Book to Understand NPCs (B48; hints-behavior.md HT-BOOK): the Checks measured on finished ROMs,
 against the original randomizer's b48 corpus (corpus("b48"); hash manifest in docs/spec/)."""
 from zora.model.game_world import GameWorld
 

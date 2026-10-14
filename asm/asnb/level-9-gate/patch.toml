@@ -1,7 +1,7 @@
-# ASNB, the level-9 gate (docs/design/asnb.md 3c, Level 9 Entrance = Level 4 sword): the man at
+# ASNB, the level-9 gate (docs/design/asnb.md 3c, Level 9 Entrance = Level 4 sword): the person at
 # level 9's entrance (object $4B, InitUnderworldPersonC) opens the shutters for sword level 4 or
 # more instead of all eight triforce pieces; the pieces are not read. In place, no new space.
-# His refusal is person text 34, whose text is written at 0x04546 (bank 1 $8536, 72 bytes, the
+# The refusal is person text 34, whose text is written at 0x04546 (bank 1 $8536, 72 bytes, the
 # pointer in PersonTextAddrs at 0x04054: FP-TRIF-01's REFUSAL_TEXT_ADDRESS in zora/rom/layout.py);
 # the generator writes the ASNB text there. asm/README.md and asm/asnb/build.py describe this file.
 
