@@ -1,0 +1,86 @@
+### Highlights
+- Pegasus Boots: the boomerangs become boots; hold B and a direction to run.
+- Expanded Dungeon Locations: the nine dungeons are dealt across fifteen entrances from both quests, on either overworld.
+- Dozens more Z1R settings were re-implemented: every Cave Shuffle, Dungeon Quest and Item Shuffle value, Swords (including Swordless), Enemy and Boss HP (including 0 HP), OHKO, Permanent Sword Beam, every start item.
+- New presets added: OHK0HPla Remastered, TTP5: Muffle Rug and TTP5: Pick 5. The remaining TTP5 flagset is not completely re-implemented yet.
+- ZORA 1.0 features are back: Triforces in Stairways, Shuffle Wood Sword, and bait in the shop item pool.
+- Multiworld: Nearly every setting now works in Archipelago, plus a choice of how other players’ items look, a sound when items arrive, clearer location names, and rings sent from other players immediately change Link's palette.
+- Highlight No-Drop Rooms: Blocks in rooms that "don't drop" (i.e. can never hold an item) use the level’s other block color as a friendly reminder for players who haven't memorized their drop rooms.
+- Quality of life: The statistics screen is always on (without music, and listing the bow), finishing a game saves your file so you can return to a completed seed, copy buttons for bug reports and the seed code, seed-code pictures on the web page, 8 preset slots, a settings file, and a Vanilla preset.
+- Important fixes, including for rare unbeatable seeds (Ganon’s room behind its own shutters), maze hints that could be unreachable, items hidden in level 9, and sword-cave hearts counted too early.
+- Flag strings stay backwards compatible from now on: Seeds may generate differently between versions, but a flag string from beta 6 will keep meaning the same settings.
+- A new https://zora.gg/test test channel allows previewing and testing new releases before they replace the current release on https://zora.gg
+
+### New Features
+The following Z1R flags have been re-implemented in ZORA:
+- **Cave Shuffle:** Vanilla, Dungeons Only, Non-Dungeons Only, and Random
+- **Dungeon Quest:** Mixed Quest, Random No Shapes, and Random
+- **Item Shuffle:** None, Item Only, and Random
+- **Allow Universal Drops In Shapes**
+- **Start items:** every start item that wasn't re-implemented yet, including the Bow, Ladder, swords, arrows, rings and Magical Shield
+- **"Most" Enemy HP and Boss HP:** +/- 4, 0 HP, and Random
+- **Set Gannon HP to 0**
+- **Permanent Sword Beam**
+- **OHKO**
+- **Do Not Sort Shapes:** On and Random
+- **Swords:** Wood Sword Only, No Wood Sword, Swordless, and Random
+- **Pinned items:** Armos Item, White Sword Item, and Level 9 Items (including Non-Heart)
+- **Starting Hearts:** every value, plus Random (1 to 5 hearts)
+- **Starting Triforce pieces**
+- **White Sword Hearts and Magical Sword Hearts (min/max)**
+
+The following ZORA features were added:
+- **Allow Triforces in Stairways:** before the items are shuffled, each level’s Triforce picks one of its own level’s major item spots, each equally likely (an item staircase, a major item’s room, or its own room), so it can sit in a stairway. It never leaves its level, and it works with every Item Shuffle setting.
+- **Shuffle Wood Sword:** the wood sword joins the item pool! A sword or the wand is always waiting in a cave you can walk into from the start. (Not available in Multiworld mode, since Archipelago places the items itself.)
+- **Three community presets:** OHK0HPla Remastered, TTP5: Muffle Rug and TTP5: Pick 5 are on the preset menu.
+- **Vanilla preset:** every flag Off, the closest to the original game ZORA can make. The overworld, its caves and their items are the original's. Still different: each dungeon's rooms are rearranged within the dungeon (Dungeon Room Shuffle has no Vanilla value yet) and its monsters shuffled within the level, the hints are community hints, and ZORA's fixes, title screen, statistics screen and Auto Show Letter are in.
+- **Copy bug-report info:** after a seed is generated, a button copies everything a bug report needs to make the same game again: ZORA's version, the seed, both flag strings, your ROM (PRG0 or PRG1, and whether it has modified graphics) and the seed code.
+- **Copy seed code:** a second button copies just the seed code's four item names, ready to paste into a race room such as racetime.gg.
+- **Settings file:** the Presets window can save everything the page remembers (your flags, mode, cosmetic settings, presets, player name and theme) to one YAML file, and load it again in another browser or after clearing this one's data. A file from a newer ZORA is refused with a message saying so.
+- **Seed code pictures:** after a seed generates, each seed-code item shows its picture beside its name, drawn from your ROM as the file-select screen draws it, so custom sprites, the Pegasus Boots and your tunic color show as they will in the game. The names stay as text for screen readers and copying.
+- **Pegasus Boots** (ZORA Extras): the boomerang and magical boomerang become the Pegasus Boots and Magical Boots. With them on B, hold B and a direction to run: the Pegasus Boots charge for about half a second, then run about a third faster than walking; the Magical Boots run about three quarters faster at once. Cannot be combined with Magical Boomerang Does 1 HP Damage.
+- **Expanded Dungeon Locations** (ZORA Extras, designed with Bogie): the nine dungeons are dealt onto 9 of 15 entrances (the first quest’s nine plus six second-quest entrances: 2Q2, 2Q4, 2Q6, 2Q7, 2Q8, 2Q9), so the recorder, raft, ladder and power bracelet may each be needed or not. Works with Overworld Quest: 1st Quest or 2nd Quest. With Cave Shuffle: Dungeons Only (Expanded Brackets), only the dungeons move: unchosen entrances stay closed or hold a cave, and a shop on a chosen entrance moves to a free open cave. With Cave Shuffle: All Caves (Expanded + shuffle everything else), the dungeons stay on their dealt entrances and every other cave is shuffled. With Dungeons Only, turning on Shuffle Wood Sword Cave or Shuffle Take Any Road Caves makes about half the seeds shuffle every cave, and the page says so.
+- **Highlight No-Drop Rooms** (ZORA Extras): in the dungeons, a room with blocks that can never hold an item draws its blocks in the level's other block color, and every other room with blocks in the usual one, so you can tell which rooms can never have an item. No colors change: in a level whose two block colors match, the difference doesn't show. Rooms without blocks look as before. Does nothing with Allow Universal Drops In Shapes on.
+- **Sound when an item arrives** (Archipelago, Multiworld mode): when another player sends you an item, the game plays a sound: by default the one for an item appearing in a room, or the one for picking up an item, or none. It plays over the music and never stops Link.
+- **Other players' items look like** (Archipelago, Multiworld mode): items for other players can look like a rupee, as before, or like the Archipelago logo. With the logo, picking one up gives you nothing, and the shops' magical shields become fairies (20 to 40 rupees). Logo sprite by binarybrain11.
+
+### Changes
+- Shuffle Wood Sword Cave can now be turned off.
+- **Shop Items in the Item Pool** now also puts bait in the item pool, one for each hungry Goriya in the seed, returning to ZORA 1.0's definition. In seeds with only one hungry Goriya, the spare bait's shop slot sells a fairy instead.
+- Add L4 Sword, Randomize Magical Sword, Shuffle Wood Sword and Progressive Items can't be combined with a Swords setting other than Normal.
+- The Presets window has 8 slots for your own presets instead of 4. Presets you've already saved stay where they are.
+- Hints now say a level lies "BY THE COAST" instead of "BY THE SHORE".
+- The White Sword and Magical Sword caves' own text now always tells you how many heart containers the cave needs, with one of the heart-number quotes ("HIGH FIVE") or, where there's none for that number, "13 HEARTS NEEDED". With Randomize Magical Sword on, the Magical Sword cave's text no longer names its item (the item is in plain view).
+- The title screen always leaves a space between SEED and the seed number, and shows at most 19 digits: a 20-digit seed (Archipelago can draw one) shows its first 19. With the Random boss sound word, such a seed's word now comes from those 19 digits.
+- The statistics screen is always on and is no longer a setting: after the credits, Start shows your times per level, when you found the key items, deaths, sword stabs and bombs used. Old Archipelago YAML files and saved page settings that mention it still work (the setting is ignored).
+- Auto Show Letter is always on and is no longer a setting: the potion shop takes the letter as soon as you have it. Flag strings and Archipelago YAML files that set it still work (the setting is ignored).
+- Pressing Start after the ending now saves your file, as SAVE does after a death, and returns to the file-select screen. The file used to be cleared; now it loads with all your items, triforce pieces and hearts, so you can keep exploring the finished seed.
+- The statistics screen also lists when you found the bow, with the other key items. The counters below the list (deaths, hearts, stabs, bombs) are one row lower to make room.
+- The ending's music stops when the statistics screen comes up, so the screen is quiet. Sound effects still play, and your file starts with its usual music after you leave.
+- Archipelago location names in dungeons end in Floor (the room's own item) or Stairway (the item down its stairs), as in "Level 3 Room 4B Floor" and "Level 3 Room 4B Stairway", and use the level number the status bar shows. With 2nd Quest dungeons, the old names could point to the wrong level. Location IDs don't change, but a YAML that names locations (exclude_locations, priority_locations) needs the new names.
+- The spoiler log names each dungeon item by its place, as players do: "Level 3, room 4B (column 4, row 5), floor item: Heart Container" for an item in the room, and "stairway item" for the item down its stairs. Items that appear when the room's foes or Ganon are beaten say so in parentheses.
+- In Archipelago games, an item for another player now looks like one rupee and gives one rupee when picked up, instead of five.
+- Change Leave Your Rooms is no longer switched off when Add Money or Life Rooms is off, matching the original randomizer: with 2nd Quest dungeons, it gives the original money-or-life merchants a proper offer. The TTP5: Muffle Rug preset now loads its published string unchanged.
+
+### Bug Fixes
+- Fixed a bug where, with both Randomize Lost Hills and Randomize Dead Woods on, the cave shuffle could put the Lost Hills hint shop behind the Dead Woods and the Dead Woods hint shop behind the Lost Hills, so neither maze's path could be learned without solving the other maze first. Such seeds are now rejected and regenerated.
+- Fixed a bug where, with Randomize Dead Woods on and the non-dungeon caves left in place (Cave Shuffle: Vanilla or Dungeons Only), the hint shop selling the Dead Woods path stood behind the Dead Woods itself, so the path could only be learned by solving the maze. The two path-selling hint shops now trade places in those seeds: the Dead Woods path is sold at the Lost Hills hint shop's spot, outside both mazes, and the Lost Hills path behind the Dead Woods.
+- Fixed a bug where, with Dungeon Quest: Mixed + Shapes, generated levels beside 2nd Quest dungeons held the book in level 8 and the wand in level 6 as usual, so one of the two was missing and the other doubled until the item shuffle replaced them. As in the original randomizer, they now hold the book in level 6 and the wand in level 8's first cellar.
+- Fixed a bug where one of the seed's code icons could be drawn in the middle of the screen instead of beside the others, and stray sprites could appear, when Link held most of the items. It affected betas 3 to 5; the file-select screen's icons were never affected.
+- Fixed seeds that could never be made ("generation failed after 2000 attempts") when Level 9 Item 1 or 2 was set to the Book or the White Sword. The Book is refused while Book to Understand NPCs is On or Random and a randomized Lost Hills or Dead Woods is On or Random: the maze's path is sold only to a player with the Book, and a dungeon past the maze can hold a Triforce that level 9 needs. The White Sword is refused with Level 9 Entrance set to Level 4 sword, which needs the White Sword to open level 9. Both show in red on the page. No seed changes.
+- Fixed a crash ("n must be positive, got 0") when the Magical-sword hearts cap was below Magical Sword Hearts (min) with Change Sword Hearts set to Random: the settings passed the check, and the seed failed once Random came up On. That combination is now refused, in red on the page, before a seed is made. No seed changes.
+- Fixed a rare bug where Ganon's room could be reached only through Zelda's room, whose shutters open only once you take the Triforce of Power, Ganon's own drop, so the seed could not be beaten. ZORA now rejects such a layout and tries again. None turned up in 1,000 seeds of the default flags or in 1,000 seeds of random settings; a Multiworld scan found 9. Only those seeds change.
+- Fixed a rare bug where the White Sword Cave could hold an item you need, such as the Ladder, behind more hearts than you can collect without it, so the seed could not be beaten. ZORA now counts the hearts you can reach first and tries again when they fall short. It turned up in 2 of 1,000 seeds of Expanded Brackets on the 2nd Quest overworld; there and with Expanded + shuffle everything else, 6 of 2,000 seeds change (hearts are counted cautiously, as Multiworld counts them). None of 200 seeds of the default flags change, on either overworld.
+- Fixed a bug where the logic counted the Take Any caves that only exist in the other quest (in a 1st Quest overworld, the three 2nd Quest-only caves), which can never be entered. The White Sword and Magical Sword caves' heart requirements could be met three hearts early, with Randomize Magical Sword on or Level 9 Entrance set to Level 4 sword, and in Multiworld mode. Only the Take Any caves the seed's overworld shows now count. Some seeds with those settings change; seeds without them don't.
+- Fixed a bug where, with Recorder Kills Dungeon Pols Voice on, the recorder made no sound in a dungeon room with Pols Voices: they died the moment it was played, and the sound of their deaths replaced its tune. The tune now plays in full, and the Pols Voices die when it ends.
+- Fixed a bug where an item could lie hidden, never to appear, in a level 9 room beside Zelda's whose shutter opens only with the Triforce of Power: the level's map in about 7 seeds in 100, and a key, bombs or five rupees in over half of all seeds. Those rooms are now always empty: the map stays in a room you can reach, and the small items move to other level 9 rooms. No required item was ever affected. Most seeds change.
+- Fixed a bug in Archipelago games where a ring sent by another player didn't change Link's tunic color. ZORA's own seeds don't change.
+
+## Archipelago
+
+zora.apworld, ZORA's Archipelago world, is published beside the test page:
+
+- world version: 0.6.0
+- ZORA version: 2.0.0b6
+- source hash: sha256:90bff7451c9ca6fb0ce23dc4e05f136c385ee87229b6adaf5a3bf985e83e7625
+- SHA-256 of zora.apworld: 6c96586f7f3173f4176735bbf64127217b6b4b178d8aedd38e00130f6436a645
