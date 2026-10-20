@@ -321,6 +321,9 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 }
 .tab:hover { color: var(--ink); background: var(--track); }
 .tab[aria-selected="true"] { background: var(--teal); color: var(--on-teal); }
+/* A tab holding one of the settings of a conflict (showZoraState): red, selected or not. */
+.tab--conflict { color: var(--error); box-shadow: inset 0 0 0 2px var(--error); }
+.tab--conflict[aria-selected="true"] { color: var(--on-teal); box-shadow: inset 0 0 0 3px var(--error); }
 .panel-note { margin: 0 0 10px; font-size: 13px; color: var(--muted); }
 /* A note the player should act on (Starting Items' Max Start Items at 0): the beta banner's amber. */
 .callout {
@@ -465,8 +468,11 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .seed-code-label { font-size: 13px; color: var(--deep-text); }
 .seed-code-items { display: flex; gap: 6px; flex-wrap: wrap; }
 .seed-code-item {
+  display: inline-flex; align-items: center; gap: 8px;
   font-size: 13px; font-weight: 600; background: #1450A8; border-radius: 8px; padding: 6px 10px;
 }
+/* The file-select screen's own pixels, doubled: no smoothing. */
+.seed-code-icon { width: 32px; height: 32px; image-rendering: pixelated; border-radius: 2px; }
 .result-list {
   display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 13px;
 }
@@ -476,7 +482,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .result-actions .btn { min-height: 48px; padding: 0 22px; font-size: 15px; }
 .btn-outline { color: #FFFFFF; background: transparent; border: 1.5px solid var(--deep-outline); }
 .btn-outline:hover { border-color: #FFFFFF; }
-.after-seed { margin: 0; font-size: 13px; color: var(--deep-text); }
+.after-seed { margin: 0; font-size: 13px; color: var(--deep-text); white-space: pre-line; }
 .after-seed:empty { display: none; }
 .after-seed.error { color: #FFB4AB; }
 .after-seed.ready { color: var(--deep-label); }
@@ -528,6 +534,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .slot-name:focus-visible { outline: none; border-bottom: 1.5px solid var(--action); }
 .slot-actions { display: flex; gap: 8px; }
 .preset-footnote { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.preset-footnote--error { color: var(--error); }
 
 /* ---------------------------------------------------------------------------
    Narrow screens (phone width, 375 px)
@@ -572,6 +579,23 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
   outline: 2px solid var(--beta-link);
   outline-offset: 2px;
 }
+/* The test channel's banner (docs/releasing.md "Channels"), above the beta banner: written into the
+   test page only, by scripts/build_site.py --channel test. Purple, apart from the beta banner's amber;
+   white on --random is 5.1:1. */
+.channel-banner {
+  background: var(--random);
+  color: #FFFFFF;
+  padding: 10px 16px;
+}
+.channel-banner p {
+  max-width: 960px;
+  margin: 0 auto;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.channel-banner a { color: #FFFFFF; text-decoration: underline; }
+.channel-banner a:focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
 .page-footer a { color: var(--ink); text-decoration: underline; }   /* ink: --action is 4.46:1 on the dark page */
 
 /* ---------------------------------------------------------------------------
@@ -708,7 +732,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 <p>A multiworld can mix any games Archipelago supports, and it can have several ZORA players.</p>
 <p>In ZORA:</p>
 <ul>
-<li><strong>Your own items look and work as usual.</strong> An item that belongs to another player looks like a five-rupee item.</li>
+<li><strong>Your own items look and work as usual.</strong> An item that belongs to another player looks like a single rupee, or like the Archipelago logo if you choose it on ZORA's page.</li>
 <li><strong>Items sent to you arrive during normal play,</strong> never in the middle of a screen scroll, on the item screen, or while text is showing.</li>
 <li><strong>Your goal</strong> is to rescue Zelda. The server is told when you do.</li>
 </ul>
@@ -780,11 +804,13 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 <p><strong>If BizHawk doesn't open by itself:</strong> start EmuHawk, choose <strong>File → Open ROM</strong> and pick the <code>.nes</code> next to your <code>.apzora</code>. Then choose <strong>Tools → Lua Console</strong>, <strong>Script → Open Script</strong>, and pick <code>connector_bizhawk_generic.lua</code> from Archipelago's <code>data/lua</code> folder. Finally, open the <strong>BizHawk Client</strong> from the Launcher.</p>
 <h3 id="good-to-know-while-playing">Good to know while playing</h3>
 <ul>
-<li><strong>Items that look like five rupees</strong> belong to another player. Picking one up sends it to them.</li>
-<li><strong>Items sent to you</strong> wait until normal play, then arrive one at a time. The client's log lists each one, for example <code>ZORA: gave received item #3, Raft</code>.</li>
+<li><strong>Items that look like a single rupee</strong> (the flashing one) belong to another player. Picking one up sends it to them, and gives you one rupee. With <strong>Other players' items look like</strong> set to the Archipelago logo on ZORA's page, they show the logo instead and give you nothing; shops then sell a fairy where the magical shield was.</li>
+<li><strong>Items sent to you</strong> wait until normal play, then arrive one at a time, each with the sound of an item appearing. (On ZORA's page, <strong>Sound when an item arrives</strong> chooses that sound, the sound of picking up an item, or none.) The client's log lists each one, for example <code>ZORA: gave received item #3, Raft</code>.</li>
 <li><strong>Nothing is reported or given</strong> on the title or file-select screens: the client waits until you're playing.</li>
 <li><strong>To save:</strong> with the default Death-warp setting, open the item screen (Start), then hold Up and press A on controller 1. (If you changed Death-warp on ZORA's page, use the buttons you chose.) Losing all your hearts also brings up the menu. Choose <strong>SAVE</strong>.</li>
-<li><strong>Some items stay in your own game:</strong> rupees, hearts, fairies, maps, compasses, Triforce pieces and the clock are never sent between players. They stay where ZORA puts them.</li>
+<li><strong>Some items stay in your own game:</strong> rupees, hearts, fairies, maps, compasses, Triforce pieces and the clock are never sent between players. They stay where ZORA puts them. With <strong>Allow Triforces in Stairways</strong> on, each level's Triforce may be in any of that level's item spots, on a room's floor or down a stairway; the spoiler log lists where each one is.</li>
+<li><strong>Heart containers from Take Any caves stay in your game and aren't reported.</strong> Those caves aren't Archipelago locations; the heart containers in boss rooms and by the coast are.</li>
+<li><strong>With Progressive Items on,</strong> Archipelago names the upgrades by their line: Sword Upgrade, Candle Upgrade, Arrow Upgrade, Ring Upgrade and Boomerang Upgrade. Each one gives the next level of that item.</li>
 <li><strong>In-game hints</strong> name only your own items; the others say ANOTHER PLAYER'S ITEM. Archipelago's <code>!hint</code> command, typed in the client, covers the rest.</li>
 </ul>
 <h2 id="7-if-something-goes-wrong">7. If something goes wrong</h2>
@@ -800,6 +826,8 @@ BizHawk's Lua Console must be open and running <code>connector_bizhawk_generic.l
 BizHawk has a plain Zelda ROM loaded, not your ZORA game. Load the <code>.nes</code> built next to your <code>.apzora</code>.</p>
 <p><strong>Generating says an option or value isn't known.</strong><br>
 The YAML was exported from another ZORA version than the installed <code>zora.apworld</code>. Export it again from the page of the version you installed, or install the matching <code>zora.apworld</code>.</p>
+<p><strong>Generating says Shuffle Wood Sword is not offered.</strong><br>
+ZORA's Archipelago logic assumes the wooden sword from the start, so this flag is always off there. Remove <code>shuffle_wood_sword</code> from the YAML, or set it to <code>off</code>.</p>
 <p><strong>The client says the game was generated by another ZORA world version, or the ROM was made by another recipe format.</strong><br>
 Install the <code>zora.apworld</code> the game was generated with. Everyone in a game uses the same one.</p>
 <p><strong>An item doesn't arrive.</strong><br>
@@ -822,13 +850,31 @@ Ask in the <a href="https://discord.gg/DVyPXcG5v">ZORA Discord</a>. It helps to 
 // adapted from the presentation-only app-skeleton.js, now styled by zora.css.
 // No option list, no flag logic: zora-web.js supplies those.
 
+// The release channel (docs/releasing.md "Channels"): the test page, https://zora.gg/test/, carries
+// <meta name="zora-channel" content="test"> (scripts/build_site.py --channel test); any other page
+// is the regular channel's. The test page keeps its own browser storage, each key behind
+// TEST_STORAGE_PREFIX, so testing never changes the regular page's presets or settings.
+const REGULAR_CHANNEL = "regular";
+const TEST_CHANNEL = "test";
+const TEST_STORAGE_PREFIX = "zora-test:";
+const PAGE_CHANNEL = document.querySelector('meta[name="zora-channel"]')?.content || REGULAR_CHANNEL;
+function channelKey(key, channel = PAGE_CHANNEL) {
+  return channel === TEST_CHANNEL ? TEST_STORAGE_PREFIX + key : key;
+}
+// localStorage under this channel's keys; it throws where localStorage does.
+const pageStorage = {
+  getItem: (key) => localStorage.getItem(channelKey(key)),
+  setItem: (key, value) => localStorage.setItem(channelKey(key), value),
+  removeItem: (key) => localStorage.removeItem(channelKey(key)),
+};
+
 // Per-viewer conveniences (the theme, the open tab); memory when storage is blocked.
 const widgetMemory = {};
 function getSetting(key) {
-  try { return localStorage.getItem(key); } catch { return widgetMemory[key] ?? null; }
+  try { return pageStorage.getItem(key); } catch { return widgetMemory[key] ?? null; }
 }
 function setSetting(key, value) {
-  try { localStorage.setItem(key, value); } catch { widgetMemory[key] = value; }
+  try { pageStorage.setItem(key, value); } catch { widgetMemory[key] = value; }
 }
 
 // Light or dark, remembered; follows the system until the viewer chooses.
