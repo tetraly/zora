@@ -25,7 +25,7 @@ from zora_measure.checkpoints.start_rooms import (
     start_rooms_open_on_their_side,
 )
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEEDS = range(6)
 # b26 seeds whose data level 8 (44) or 7 (147) start room opens west or east onto level 9's

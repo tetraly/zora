@@ -3,7 +3,7 @@
 
 web/zora-worker.js runs Python glue inside Pyodide that needs exactly these
 names: the flag form, the base ROM's expected hashes and identify_rom, generate_rom, the
-page's player settings, the seed report (the seed document and spoiler
+seed code's icons, the page's player settings, the seed report (the seed document and spoiler
 log) and multiworld mode's Archipelago YAML (zora_web.multiworld). Keep
 them importable from here whenever modules move.
 """
@@ -23,6 +23,7 @@ from zora.rom.player_settings import (
     PlayerSettings,
     player_settings_from_page,
 )
+from zora.rom.seed_code_icons import seed_code_icons
 from zora_export.seed_document import EncodedSeedRefused, seed_document_for
 from zora_export.spoiler_log import spoiler_file_name, spoiler_log
 from zora_web import multiworld
@@ -31,8 +32,8 @@ from zora_web import multiworld
 # re-exported here under the names web/zora-worker.js and the scripts use.
 __all__ = ["EXPECTED_CRC32", "EXPECTED_MD5", "EXPECTED_SHA1", "PAGE_BOSS_SOUND_WORD", "PAGE_CHOICES",
            "PAGE_HEART_SLOT", "PAGE_LEVEL_WORD", "PAGE_TUNIC_SLOTS", "EncodedSeedRefused", "PlayerSettingError",
-           "PlayerSettings", "flag_form", "generate_rom", "identify_rom", "multiworld", "player_settings_from_page",
-           "seed_report"]
+           "PlayerSettings", "code_icons", "flag_form", "generate_rom", "identify_rom", "multiworld",
+           "player_settings_from_page", "seed_report"]
 
 
 def identify_rom(data: bytes) -> dict[str, object]:
@@ -46,6 +47,12 @@ def identify_rom(data: bytes) -> dict[str, object]:
         return {"recognized": False, "message": str(refused)}
     return {"recognized": True, "revision": identity.revision.value,
             "modifiedGraphics": identity.modified_graphics, "message": identity.message}
+
+
+def code_icons(rom: bytes) -> list[list[list[int]]]:
+    """A finished ROM's seed code as its file-select screen draws it (zora.rom.seed_code_icons): four
+    icons in screen order, each 16 rows of 16 NES palette values, for the page to paint."""
+    return [[list(row) for row in icon.pixels] for icon in seed_code_icons(rom)]
 
 
 def seed_report(rom: bytes, flag_string: str, seed: int, zora_flag_string: str = "") -> dict[str, str]:

@@ -6,7 +6,9 @@ Phase 3 test 5:
     ZORA leaves it out.
 Where they differ, the difference is the heart check's own rule, which the model does not copy
 (docs/archipelago.md "Leniencies"): it counts the potion shop's heart container once its door is
-reached; the closure (E1), and so the model, also asks for the letter (the model is stricter)."""
+reached; the closure (E1), and so the model, also asks for the letter (the model is stricter). And
+the walks differ: the heart check walks the dungeons by the spec, the model by the measured logic
+walk, which may reach more (the model looser; the heart check on the logic walk agrees)."""
 import copy
 from functools import cache
 
@@ -15,6 +17,7 @@ import pytest
 from tests.archipelago_cases import FLAG_CASES
 from tests.shared_builds import prebuild
 from tests.test_assignment import _built, identity, permuted
+from zora.generate.acceptance_check import logic_walk_rules
 from zora.generate.finish import CAVE_SLOTS, Foreign, rebuild_tracking, with_tracking, written_item
 from zora.generate.logic import LETTER_EVENT, HeartsTerm, LogicModel, Swept, logic_model, sweep
 from zora.generate.pipeline import Built, extra_options
@@ -35,7 +38,7 @@ WHITE_SWORD_CAVE = "White Sword Cave"
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -49,9 +52,10 @@ def hearts_required(built: Built, name: str) -> int:
     return place.requires[0].hearts
 
 
-def zora_verdict(built: Built, assignment: dict[str, Item | Foreign]) -> bool:
+def zora_verdict(built: Built, assignment: dict[str, Item | Foreign], logic_walk: bool = False) -> bool:
     """check_magical_sword_hearts on the assigned world: the world and BUILD's result copied
-    together (the extras' wares keep pointing into the copy), the items written into both."""
+    together (the extras' wares keep pointing into the copy), the items written into both. With
+    `logic_walk`, on the model's walk (logic_walk_rules) instead of generation's spec walk."""
     world, result = copy.deepcopy((built.world, built.result))
     assert result.item_shuffle_result is not None and result.extra_pool_items is not None
     assert result.overworld is not None
@@ -66,17 +70,22 @@ def zora_verdict(built: Built, assignment: dict[str, Item | Foreign]) -> bool:
     sword_caves = [world.overworld.get_cave(cave, ItemCave)
                    for cave in (Destination.MAGICAL_SWORD_CAVE, Destination.WHITE_SWORD_CAVE)]
     magical, white = (cave.heart_requirement for cave in sword_caves if cave is not None)
+    rules = logic_walk_rules(extras.logic_rules) if logic_walk else extras.logic_rules
     return check_magical_sword_hearts(world.levels, state, result.extra_pool_items, world.overworld, result.overworld,
-                                      magical, extras.starting_heart_containers, white, extras.logic_rules)
+                                      magical, extras.starting_heart_containers, white, rules)
 
 
 def explained(built: Built, assignment: dict[str, Item | Foreign], swept: Swept, zora: bool) -> bool:
     """A disagreement the heart check's own rule accounts for (the module docstring): the model
-    stricter, the potion shop holding a heart container and no letter held."""
+    stricter, the potion shop holding a heart container and no letter held. Or the model looser
+    only by its walk: generation's check walks the dungeons by VA-REJ-17/18 as written, the model by
+    the measured logic walk (docs/archipelago.md "The two walks"), which can reach heart containers
+    the spec walk cannot; on the logic walk the heart check agrees (seed 9, since 114f280)."""
     has_letter = swept.items[Item.LETTER] > 0 or LETTER_EVENT in swept.events
-    return zora and not has_letter and any(place.kind == PlaceKind.POTION_SHOP and
-                                           assignment[place.name] == Item.HEART_CONTAINER
-                                           for place in built.places)
+    if not zora:
+        return zora_verdict(built, assignment, logic_walk=True)
+    return not has_letter and any(place.kind == PlaceKind.POTION_SHOP and assignment[place.name] == Item.HEART_CONTAINER
+                                  for place in built.places)
 
 
 def compare(case: str, seed: int) -> list[tuple[int, bool]]:

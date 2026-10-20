@@ -91,7 +91,7 @@ def _all_hashes(runs: dict[str, tuple[str, str, str]]) -> dict[str, dict[str, li
 
 def test_outputs_identical_across_interpreters_and_hash_seeds() -> None:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     SCRATCH.mkdir(parents=True, exist_ok=True)
     found = interpreters()
     wanted = {f"{version} h{HASH_SEEDS[0]}": (python, version, HASH_SEEDS[0])

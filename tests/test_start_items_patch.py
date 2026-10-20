@@ -18,9 +18,9 @@ from zora.generate.pipeline import generate_rom
 from zora.rom.base_rom import original_bytes
 from zora.rom.code_patches import PRG0_START_ITEMS, START_ITEMS_SIZE, start_items_writes
 from zora.rom.parse.rom_file import parse_rom
-from zora.rom.player_settings import PlayerSettings
+from zora.rom.player_settings import PlayerSettings, apply_player_settings
 
-STATS_BLOCK, STATS_MAGIC, STATS_STABS = 0x7F00, 0xA5, 0x38
+STATS_BLOCK, STATS_MAGIC, STATS_STABS = 0x7F00, 0xA5, 0x3A
 IS_UPDATING_MODE = 0x11
 WIN_MODE, SAVE_MODE, LAST_WIN_SUBMODE = 0x13, 0x0D, 4
 
@@ -33,8 +33,9 @@ SEED_TABLE = bytes(SEED_CHANGES.get(offset, value) for offset, value in enumerat
 
 @cache
 def finished(statistics_screen: bool = True) -> bytes:
-    return generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, vanilla(),
-                        PlayerSettings(statistics_screen=statistics_screen)).rom
+    """Seed 1's ROM, with the statistics screen (every ROM's) or without it (the co-op hook)."""
+    rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, vanilla()).rom
+    return rom if statistics_screen else apply_player_settings(rom, PlayerSettings(), coop=True)
 
 
 @cache
@@ -85,9 +86,10 @@ def test_a_seeds_table_starts_a_new_file() -> None:
 
 
 @pytest.mark.parametrize("statistics_screen", [True, False], ids=["stats-screen", "no-stats-screen"])
-def test_the_second_quest_starts_with_the_table(statistics_screen: bool) -> None:
-    """After the win, Start (twice with the statistics screen: it shows, then leaves) switches the
-    slot to the second quest, whose Items block is the table whatever the first quest held."""
+def test_the_win_keeps_the_file_and_never_reaches_the_table(statistics_screen: bool) -> None:
+    """After the win, Start (twice with the statistics screen: it shows, then leaves) goes to the
+    save mode and keeps the file's Items block (FP-SAVE-01, 2026-10-17): it no longer switches the
+    slot to the second quest, so fp-start-02's second-quest table is never reached."""
     emu = new_game(with_table(SEED_TABLE, statistics_screen))
     emu.run(10)
     for offset in range(START_ITEMS_SIZE):
@@ -98,6 +100,6 @@ def test_the_second_quest_starts_with_the_table(statistics_screen: bool) -> None
     emu.run_until(lambda: emu[OBJ_TIMER] == 0, limit=2000)
     emu.run(5)
     for _ in range(2 if statistics_screen else 1):
-        emu.press(Button.START, after=4)
+        emu.press(Button.START, after=1)                        # the save mode takes a few frames
     assert emu[GAME_MODE] == SAVE_MODE
-    assert items(emu) == SEED_TABLE
+    assert items(emu) == bytes([0x01]) * START_ITEMS_SIZE

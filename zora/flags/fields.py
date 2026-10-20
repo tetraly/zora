@@ -192,7 +192,6 @@ class RedBubble(IntEnum):
 # Index-to-value arithmetic of FL-DEP-03.
 STARTING_HEARTS_RANDOM = 16          # C16: index 16 is a random number from 1 to 5
 STARTING_HEARTS_RANDOM_CHOICES = _indices(4)   # indices 0 to 4 give 1 to 5 hearts
-FOUR_STARTING_HEARTS = 3             # C16: index i gives i + 1 hearts (FL-ALT-02's value)
 START_ITEM_LIMIT_ALL_CHOSEN = 0      # C17: index 0 allows every chosen start item
 START_ITEM_LIMIT_RANDOM = 22         # C17: index 22 is a random limit from 0 to 20
 START_ITEM_LIMIT_RANDOM_CHOICES = _indices(21, start=1)   # indices 1 to 21 give limits 0 to 20
@@ -387,8 +386,15 @@ BOMB_UPGRADE_PERSON_SHUFFLE = TOGGLES_BY_ID["B29"]
 DUNGEON_MONSTER_SHUFFLE = TOGGLES_BY_ID["B32"]
 GANON_AND_ZELDA_SHUFFLE = TOGGLES_BY_ID["B33"]
 MONSTERS_BETWEEN_LEVELS = TOGGLES_BY_ID["B36"]
+GANON_HIT_POINTS_ZERO = TOGGLES_BY_ID["B41"]
+PERMANENT_SWORD_BEAM = TOGGLES_BY_ID["B52"]
+ONE_HIT_KNOCK_OUT = TOGGLES_BY_ID["B53"]
+DO_NOT_SORT_SHAPES = TOGGLES_BY_ID["B86"]
+RIVER_BRIDGES = TOGGLES_BY_ID["B87"]
+LOST_WOODS_SHORTCUT = TOGGLES_BY_ID["B88"]
 FORCE_OVERWORLD_BLOCK = TOGGLES_BY_ID["B81"]
 ENCODE_LEVEL_DATA = TOGGLES_BY_ID["B82"]
+UNIVERSAL_DROPS_IN_SHAPES = TOGGLES_BY_ID["B91"]
 # FL-DEP-03: the chosen start items are B57 to B78 and B85.
 START_ITEM_FIELDS: tuple[ToggleField, ...] = (*(TOGGLES_BY_ID[f"B{n:02d}"] for n in range(57, 79)),
                                               TOGGLES_BY_ID["B85"])

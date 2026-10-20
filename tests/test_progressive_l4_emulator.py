@@ -35,6 +35,7 @@ L4_SWORD_LEVEL = 4
 INV_FOOD = ITEMS + 0x06              # the bait: one step back from the recorder ($05)
 LEVEL_WITH_ROOM_ITEMS = 1
 ARMOS_REVEAL_FRAMES = (150, 300)     # walking down onto the statue, then up
+STEP_BACK_FRAMES = 12
 
 
 def reveal_armos_item(game: Game, item: int) -> None:
@@ -47,9 +48,14 @@ def reveal_armos_item(game: Game, item: int) -> None:
         return game.emu[ROOM_ITEM_ID] == item and game.emu[OBJ_STATE + ROOM_ITEM_SLOT] == ITEM_ACTIVE
     try:
         game.emu.run_until(revealed, buttons=Button.DOWN, limit=ARMOS_REVEAL_FRAMES[0])
+        back = Button.UP
     except AssertionError:
         game.emu.run_until(revealed, buttons=Button.UP, limit=ARMOS_REVEAL_FRAMES[1])
-    game.emu.run(60)
+        back = Button.DOWN
+    # Step back off the statue's square, so Link does not step onto the item while it settles (on
+    # some Armos screens he stood on it and took it, since 114f280 moved seed 1's)
+    game.emu.run(STEP_BACK_FRAMES, back)
+    game.emu.run(60 - STEP_BACK_FRAMES)
 
 
 def assert_sword_kept_at_level_4(game: Game, path: str) -> None:

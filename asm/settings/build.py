@@ -89,6 +89,9 @@ SETTINGS = (
     # default is "off" until the screen is better tested, "on" an option (zora/rom/player_settings.py;
     # owner ruling, beta 3).
     Setting("statistics_screen", "FP-STATS-01", {"off": None, "on": "../fp-stats-01"}, default="off"),
+    # FP-LEVEL-02, the 8-tile level label: its own patch folder asm/fp-level-02/ (not in
+    # asm/series.txt), written by level_word only for a 7-character label text.
+    Setting("level_label", "FP-LEVEL-02", {"short": None, "long": "../fp-level-02"}, default="short"),
 )
 
 CHOICE_FOLDERS = [folder for setting in SETTINGS for folder in setting.choices.values() if folder]

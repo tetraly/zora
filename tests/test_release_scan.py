@@ -26,7 +26,7 @@ PRG1_ONLY_OFFSET = 0x1A2D3
 PRIVATE_REPO = "-".join(("zora", "private"))
 PLANTED_MENTION = f"built beside {PRIVATE_REPO}"
 
-pytestmark = [pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="no base ROM"),
+pytestmark = [pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM"),
               # a release leaves out the scan and make_release.py (release/allowlist.txt)
               pytest.mark.skipif(not (SCAN.exists() and (REPO / "scripts" / "make_release.py").exists()),
                                  reason="no release scripts here")]
@@ -102,12 +102,15 @@ def test_files_a_release_leaves_out_are_not_scanned(checkout: Path) -> None:
 
 
 def test_verify_scans_before_the_suite() -> None:
-    """A hit fails verify (set -e) before the long test run, not after it."""
+    """A hit fails verify before the long test run, not after it: the scan is one of the static
+    checks (scripts/verify_static.sh), which verify runs before the suite lock and the tests."""
+    static = (REPO / "scripts" / "verify_static.sh").read_text().splitlines()
+    scan = next(n for n, line in enumerate(static) if line.strip().startswith("python3 scripts/release_scan.py ||"))
+    assert static[scan - 1].strip() == "if [ -f release/allowlist.txt ]; then"
     verify = (REPO / "scripts" / "verify.sh").read_text().splitlines()
-    scan = next(n for n, line in enumerate(verify) if line.strip() == "python3 scripts/release_scan.py")
-    assert verify[scan - 1].strip() == "if [ -f release/allowlist.txt ]; then"
-    suite = next(n for n, line in enumerate(verify) if line.strip().startswith("python3 -m pytest"))
-    assert scan < suite
+    checks = next(n for n, line in enumerate(verify) if line.strip() == "sh scripts/verify_static.sh")
+    suite = next(n for n, line in enumerate(verify) if line.strip().startswith("python3 -m pytest tests"))
+    assert checks < suite
 
 
 def _make_release() -> ModuleType:

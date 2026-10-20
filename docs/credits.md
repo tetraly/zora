@@ -19,6 +19,10 @@ Third-party material keeps its own license, given with it.
 These features are included with credit to their authors; the owner will remove them if their
 authors ask. ZORA's patches for them are its own code, written from the disassembly.
 
+## Sprite art
+
+- **The Pegasus Boots sprite** by Irenepunmaster. 
+
 ## Fonts and colors
 
 - **Fonts:** DM Sans and DM Mono, under the SIL Open Font License 1.1. The license text ships with
@@ -30,7 +34,12 @@ authors ask. ZORA's patches for them are its own code, written from the disassem
 
 - **Archipelago** (archipelago.gg, MIT license), the multiworld randomizer framework: ZORA's
   Archipelago world (`archipelago/`, released as `zora.apworld`) is written for it and runs inside
-  it, using its world, patch and BizHawk client interfaces. No Archipelago code is copied into ZORA.
+  it, using its world, patch and BizHawk client interfaces. No Archipelago code is copied into ZORA,
+  the logo sprite below aside.
+- **The Archipelago logo sprite** by binarybrain11 (Zachary Gorman), from their Archipelago fork's
+  Legend of Zelda world (github.com/binarybrain11/Archipelago, commit c478ba8; MIT license): the
+  32 bytes of tile data an Archipelago game draws another player's item with when its player
+  chooses "Other players' items look like: The Archipelago logo" (`zora/rom/archipelago_logo.py`).
 - **Archipelago's The Legend of Zelda world**, for research: how it handles the player's ROM and
   the patch file informed the world's ROM handling. Nothing was copied from it.
 

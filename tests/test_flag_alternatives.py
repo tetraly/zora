@@ -11,6 +11,7 @@ import pytest
 spec = pytest.importorskip("tests.flags_spec_fixture", reason="the spec tables are not in this tree")
 from zora.flags.codec import decode, encode
 from zora.flags.fields import (
+    CAVE_SHUFFLE,
     DUNGEON_LAYOUT_SOURCE,
     HINT_STYLE,
     ITEM_SHUFFLE_SCOPE,
@@ -20,10 +21,10 @@ from zora.flags.fields import (
     WHITE_SWORD_LOWEST,
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.flags.support import ALTERNATIVE_OPTIONS
+from zora.flags.support import ALTERNATIVE_OPTIONS, LEVEL_9_PINS
 from zora.generate.pipeline import extra_options, generate_rom, plan
 from zora.generate.rng import ScriptedRng
-from zora.generate.steps.change_sword_hearts import change_sword_hearts, change_sword_hearts_from_five_hearts
+from zora.generate.steps.change_sword_hearts import change_sword_hearts
 from zora.generate.steps.hint_text import SLOT_COUNT, select_final_texts
 from zora_measure.alternative_values import (
     HELPFUL_TEXT_SLOTS,
@@ -42,7 +43,7 @@ from zora.rom.layout import NEW_FILE_HEART_VALUES_OPERAND_ADDRESS, SECOND_QUEST_
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEEDS = (1, 2)
 CP5 = decode(MVP_BASELINE_LEVEL_ENCODING_OFF)
@@ -82,10 +83,18 @@ def test_the_spec_names_the_three_values() -> None:
     """FL-ALT-01: "C16 = 3, C20 = 1 and C03 = 2", the values the support matrix produces."""
     assert spec.ALTERNATIVE_VALUES == "C16 = 3, C20 = 1 and C03 = 2"
     # and FL-SUP-02's specified C01 = 2 and C06 = 2 (spec change L15: OW-MIX, PS-ITW) and C03 = 1
-    # (HT-HINT-04), produced the same way; Dungeon Quest 1st Quest, 2nd Quest and Mixed + Shapes
-    assert ALTERNATIVE_OPTIONS == {STARTING_HEARTS.id: {3}, WHITE_SWORD_LOWEST.id: {1}, HINT_STYLE.id: {1, 2},
-                                   ITEM_SHUFFLE_SCOPE.id: {2}, OVERWORLD_QUEST.id: {1, 2, 3}, START_SCREEN.id: {2, 3},
-                                   DUNGEON_LAYOUT_SOURCE.id: {0, 1, 4}}
+    # (HT-HINT-04), produced the same way; Dungeon Quest 1st Quest, 2nd Quest, Mixed Quest and Mixed +
+    # Shapes; Cave Shuffle's other values (OW-CAVE-09, beta 6); Item Shuffle's None and Item Only
+    # (PS-ITEM-09, PS-ITEM-10); the November settings' hit points (PS-HP); every sword-heart value
+    # (FL-ALT-05); the start pieces and the piece-count range (FL-ALT-06); every starting-hearts
+    # value (FL-ALT-07); the pins (PS-ITEM-12); the wooden-sword states (FP-WOOD-01)
+    assert ALTERNATIVE_OPTIONS == {STARTING_HEARTS.id: set(range(17)) - {2}, WHITE_SWORD_LOWEST.id: {1, 2}, HINT_STYLE.id: {1, 2},
+                                   ITEM_SHUFFLE_SCOPE.id: {0, 1, 2}, OVERWORLD_QUEST.id: {1, 2, 3}, START_SCREEN.id: {2, 3},
+                                   DUNGEON_LAYOUT_SOURCE.id: {0, 1, 2, 4}, CAVE_SHUFFLE.id: {0, 1, 2},
+                                   "C09": {2, 3}, "C10": {2, 3}, "C21": {1, 2}, "C22": {1, 2, 3, 4},
+                                   "C23": {1, 2, 3, 4}, "C18": set(range(1, 10)), "C24": set(range(1, 9)),
+                                   "C25": set(range(1, 9)), "C11": set(range(1, 17)), "C13": set(range(1, 17)),
+                                   "C26": set(LEVEL_9_PINS), "C27": set(LEVEL_9_PINS), "C07": {1, 2, 3}}
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +168,7 @@ def test_fl_alt_03_keeps_the_draws() -> None:
     for white_draw in range(2):
         for magical_draw in range(5):
             world = parse_rom(_base())
-            change_sword_hearts_from_five_hearts(world.overworld, ScriptedRng([white_draw, magical_draw]))
+            change_sword_hearts(world.overworld, ScriptedRng([white_draw, magical_draw]), white_sword_hearts=range(5, 7))
             white = world.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
             magical = world.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
             assert white is not None and magical is not None

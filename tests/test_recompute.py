@@ -33,7 +33,7 @@ from zora.generate.rng import Rng
 from zora.model.enums import Item
 from zora.model.game_world import GameWorld
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
-from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH
+from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, SEED_DIGITS_LENGTH, STATS_SEED_DIGITS
 from zora.rom.layout import (
     CAVE_PRICE_DATA_ADDRESS,
     EXT_HINT_DATA_ROM_END,
@@ -47,6 +47,7 @@ from zora.rom.layout import (
     UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE,
 )
 from zora.rom.parse.rom_file import parse_rom
+from zora.rom.owner_patches import archipelago_patch_writes
 
 REPO = Path(__file__).resolve().parent.parent
 SEEDS = (1, 2, 3)
@@ -71,7 +72,7 @@ ALLOWED = ALLOWED_WITHOUT_RECOMPUTE | R3_REGIONS
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -181,11 +182,16 @@ def test_recomposed_hint_text_with_builds_draws_is_builds(base: bytes, case: str
     for field in HINT_FIELDS:
         assert getattr(world, field) == getattr(built.world, field), field
     assert _hint_shop_prices(world) == _hint_shop_prices(built.world)
-    # Apart from the seed code, which covers External mode's configuration (its one-time places)
+    # Apart from the seed code, which covers External mode's configuration (its one-time places),
+    # the statistics screen's seed number, which External mode does not stamp (0d986e3), and the
+    # ring check every Archipelago game's ROM has (asm/flags2/ring-color)
     external, zora_mode = (bytearray(rom) for rom in (finish_unchecked(built, base, identity(built), recompute=False),
                                                        finish(built, base)))
     for rom in (external, zora_mode):
         rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = bytes(SEED_CODE_LENGTH)
+        rom[STATS_SEED_DIGITS:STATS_SEED_DIGITS + SEED_DIGITS_LENGTH] = bytes(SEED_DIGITS_LENGTH)
+    for offset, data in archipelago_patch_writes():
+        zora_mode[offset:offset + len(data)] = data
     assert external == zora_mode
 
 
@@ -243,4 +249,7 @@ def test_an_all_foreign_world_tracks_nothing(base: bytes) -> None:
     _, finished = finish_world_unchecked(built, {place.name: FOREIGN for place in built.places})
     assert finished.tracking.tracked == []
     assert built.result.item_shuffle_result is not None
-    assert len(finished.tracking.elsewhere) >= len(built.result.item_shuffle_result.tracked)
+    # With Shuffle Blue Potion the letter is tracked only while the potion shop's ware is
+    # (rebuild_tracking), and here no ware is: BUILD's letter record may have no counterpart
+    tracked = [record for record in built.result.item_shuffle_result.tracked if record.item != Item.LETTER]
+    assert len(finished.tracking.elsewhere) >= len(tracked)

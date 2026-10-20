@@ -195,9 +195,12 @@ WRITABLE_CHANGED = (
 # - Music: Off's `JSR $9D46` (bank 0's moved audio code; $9D42 on PRG1);
 # - Select Swap's TransferBufAddrs entry: Swap only restores PRG0's pointer, $A316, to a
 #   transfer buffer PRG1 moves ($A3A1); "off" reads the player's own (an Original), "toggle"
-#   points at RAM.
+#   points at RAM;
+# - Pegasus Boots' `JSR BootsSpeed` in InitLinkSpeed: BootsSpeed is in WieldBoomerang's old body
+#   ($8E3E), inside bank 5's moved code ($8E48 on PRG1).
 # tests/test_revision.py scans every patch for other operands.
-MOVED_POINTERS = (0x02028, TRANSFER_BUF_ADDRS_SELECT_SWAP)
+PEGASUS_BOOTS_SPEED_CALL = 0x17377
+MOVED_POINTERS = (0x02028, TRANSFER_BUF_ADDRS_SELECT_SWAP, PEGASUS_BOOTS_SPEED_CALL)
 
 # The title screen (GameTitleTransferBuf; FP-TITLE-01's rows): PRG1 draws its "TM" glyph
 # (tile $30) beside the logo, at row 8, column 23. ZORA's rows and its boss tiles in tile $30

@@ -18,6 +18,8 @@ class FlagSteps:
     shuffle_shop_items: bool = True              # B08, OW-SHOP-02 to OW-SHOP-04
     extra_candles: bool = True                   # B09, OW-SHOP-05
     shuffle_armos: bool = True                   # B13, OW-CAVE-05
+    # B02, OW-CAVE-02 step 2 and OW-CAVE-03 rule (b); off: OW-CAVE-12, the wooden-sword cave stays
+    move_wood_sword_cave: bool = True
     # B04, OW-CAVE-04's take-any-road caves; off is ZORA's own value (owner ruling, 2026-10-07):
     # the four take-any-road caves keep their PRG0 screens
     shuffle_take_any_road_caves: bool = True

@@ -1,6 +1,7 @@
 """Finished-ROM tests for B10 DATA items (docs/spec/features-behavior.md)."""
 import pytest
 
+from tests.needs import needs_base_rom
 from zora.rom.base_rom import verify_base_rom
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.generate.rng import Rng
@@ -22,6 +23,7 @@ def _generated_world(base_rom: bytes, seed: int = 12345) -> "GameWorld":
     return gw
 
 
+@needs_base_rom
 def test_fp_lock_02_credits_pointers_differ_from_vanilla(base_rom):
     gw = _generated_world(base_rom)
     assert gw.credits_pointers[:3] != (0xAD33, 0xAD4D, 0xAD59)
@@ -29,6 +31,7 @@ def test_fp_lock_02_credits_pointers_differ_from_vanilla(base_rom):
     assert gw.credits_pointers[3] == 0xAD72
 
 
+@needs_base_rom
 def test_fp_mmg_01_amounts_in_ranges(base_rom):
     gw = _generated_world(base_rom)
     mmg = gw.overworld.get_cave(Destination.MONEY_MAKING_GAME, MoneyMakingGameCave)
@@ -40,6 +43,7 @@ def test_fp_mmg_01_amounts_in_ranges(base_rom):
     assert 25 <= mmg.win_large <= 75
 
 
+@needs_base_rom
 def test_fp_sword_01_heart_requirements_in_ranges(base_rom):
     gw = _generated_world(base_rom)
     ws = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
@@ -49,6 +53,7 @@ def test_fp_sword_01_heart_requirements_in_ranges(base_rom):
     assert 10 <= ms.heart_requirement <= 14
 
 
+@needs_base_rom
 def test_fp_bomb_01_price_and_capacity_in_ranges(base_rom):
     gw = _generated_world(base_rom)
     bu = gw.overworld.bomb_upgrade
@@ -56,28 +61,33 @@ def test_fp_bomb_01_price_and_capacity_in_ranges(base_rom):
     assert 2 <= bu.count <= 6
 
 
+@needs_base_rom
 def test_fp_trif_01_refusal_text_states_eight(base_rom):
     gw = _generated_world(base_rom)
     assert "EIGHT" in gw.level9_refusal_text
 
 
+@needs_base_rom
 def test_fp_title_01_seed_number_on_title(base_rom):
     gw = _generated_world(base_rom, seed=999)
     assert gw.title_seed_number == 999
     assert gw.title_version_line
 
 
+@needs_base_rom
 def test_fp_level_01_dash_tile(base_rom):
     gw = _generated_world(base_rom)
     assert gw.level_dash_tile == 0x2F
 
 
+@needs_base_rom
 def test_fp_person_01_cave_animations_in_range(base_rom):
     gw = _generated_world(base_rom)
     assert len(gw.cave_person_animations) == 17
     assert all(0x58 <= b <= 0x5B for b in gw.cave_person_animations)
 
 
+@needs_base_rom
 def test_fp_constants(base_rom):
     gw = _generated_world(base_rom)
     assert gw.reset_controller1 == 0xFA   # FP-RESET-01
@@ -87,6 +97,7 @@ def test_fp_constants(base_rom):
     assert gw.q2_room_trigger_value == 0x01  # FP-Q2R-01
 
 
+@needs_base_rom
 def test_fp_start_01_starting_vector(base_rom):
     gw = _generated_world(base_rom)
     vector = bytes(24) + bytes([0x22, 0xFF]) + bytes(11) + bytes([0x08]) + bytes(2)

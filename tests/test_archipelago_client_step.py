@@ -15,7 +15,7 @@ the second file and plays it: every report is a place the loaded file has taken,
 made in play, and each file gets each server item once, its own items found in it counted, not
 given again."""
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import cache
 
 import pytest
@@ -58,13 +58,13 @@ from zora.rom import inventory
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.player_settings import PlayerSettingError
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 COUNT = archipelago.RECEIVED_COUNT
 HEARTS = inventory.ITEMS + inventory.HEART_VALUES_SLOT
 LADDER = inventory.ITEMS + 0x0C
 RAFT = inventory.ITEMS + 0x09
-MAX_WRITES, MAX_GUARDS = 2, 11
+MAX_WRITES, MAX_GUARDS = 3, 12      # the item, the arrival sound and the count
 POLL_FRAMES = 30                      # the world polls every 0.125 s
 NO_BUTTONS = Button(0)
 
@@ -78,6 +78,7 @@ TABLES = ClientTables({PLACE_A: RamCheck(FLAG_A, inventory.ITEM_TAKEN),
 IN_PLAY = {inventory.GAME_MODE: inventory.PLAY_MODE, inventory.IS_UPDATING_MODE: 1, inventory.CUR_SAVE_SLOT: 0,
            inventory.TRANSFERRED_COMMON_PATTERNS: inventory.SET_UP, inventory.SKIPPED_DEMO: inventory.SET_UP}
 STARTING_HEARTS = 0x22                # three containers, three hearts
+SOUND = inventory.TUNE1_REQUEST
 
 
 def loaded(changes: dict[int, int] | None = None) -> dict[int, int]:
@@ -119,7 +120,8 @@ def test_the_read_plan() -> None:
     assert READ_RANGES == ((0x0657, 252), (0x0753, 172))
     assert all(length <= archipelago.MAX_READ_LENGTH for _start, length in READ_RANGES)
     assert len(STATE_ADDRESSES) <= archipelago.MAX_READ_LENGTH
-    assert set(STATE_ADDRESSES) == {*archipelago.CHECKS_STATE, *archipelago.RECEIVE_STATE, *archipelago.GOAL_STATE}
+    assert set(STATE_ADDRESSES) == {*archipelago.CHECKS_STATE, *archipelago.RECEIVE_STATE, *archipelago.GOAL_STATE,
+                                    inventory.TUNE1_REQUEST}
     covered = set(ClientTables({}, inventory.GiveRules()).addresses())
     assert set(range(inventory.ITEMS, inventory.WORLD_FLAGS + 3 * inventory.WORLD_FLAGS_SIZE)) <= covered
     assert all(check.address in covered for check in archipelago.client_tables_of(result()).checks.values())
@@ -130,8 +132,10 @@ def test_the_json_tables_round_trip() -> None:
     text = json.dumps(data)
     assert archipelago.client_tables_from_json(json.loads(text)) == archipelago.client_tables_of(result())
     assert data["format"] == archipelago.CLIENT_TABLES_FORMAT and data["version"] == archipelago.CLIENT_TABLES_VERSION
-    for refused in ({**data, "version": 2}, {**data, "format": "other"}, {**data, "checks": [["x", 1]]},
-                    {key: value for key, value in data.items() if key != "rules"}):
+    for refused in ({**data, "version": 1}, {**data, "format": "other"}, {**data, "checks": [["x", 1]]},
+                    {key: value for key, value in data.items() if key != "rules"},
+                    {**data, "rules": {key: value for key, value in data["rules"].items() if key != "arrivalSound"}},
+                    {**data, "rules": {**data["rules"], "arrivalSound": 0x40}}):
         with pytest.raises(ClientTablesRefused):
             archipelago.client_tables_from_json(refused)
 
@@ -172,14 +176,85 @@ def test_reports_once_until_the_server_has_them() -> None:
     assert step(ram, ServerView(), NO_MEMORY).report == (PLACE_A,)            # a restarted client sends again
 
 
+@pytest.mark.parametrize(("choice", "sound"), list(archipelago.ARRIVAL_SOUNDS.items()))
+def test_a_give_plays_the_arrival_sound(choice: str, sound: int) -> None:
+    """item_arrival_sound (owner decision 2026-10-18): a give writes the chosen Tune1Request value
+    before the count, guarded on Tune1Request's 0; none writes and guards nothing there."""
+    tables = archipelago.client_tables_from_json(
+        archipelago.client_tables_to_json(result(), {"item_arrival_sound": choice.replace("-", "_")}))
+    assert tables.arrival_sound == sound
+    ram = loaded()
+    decision = client_step(ram, state_of(ram), ServerView((ReceivedItem("Ladder"),)), replace(TABLES, arrival_sound=sound))
+    assert decision.gives == "Ladder"
+    guards = dict(decision.guards)
+    if sound:
+        assert decision.writes == ((LADDER, 1), (SOUND, sound), (COUNT, 1)) and guards[SOUND] == 0
+    else:
+        assert decision.writes == ((LADDER, 1), (COUNT, 1)) and SOUND not in guards
+    assert len(decision.writes) <= MAX_WRITES and len(decision.guards) <= MAX_GUARDS
+
+
+def test_no_arrival_sound_without_a_give_or_over_a_pending_one() -> None:
+    """No sound for a skip (the game gave the item already) or an item ZORA cannot give, and none
+    over a sound the game has requested this frame: the item comes without it."""
+    held = loaded({FLAG_A: inventory.ITEM_TAKEN})
+    skip = step(held, ServerView((ReceivedItem("Ladder", PLACE_A),)))
+    assert skip.skips == "Ladder" and skip.writes == ((COUNT, 1),)
+    cannot = step(loaded(), ServerView((ReceivedItem("Triforce"),)))
+    assert cannot.cannot_give == "Triforce" and cannot.writes == ((COUNT, 1),)
+    pending = loaded({SOUND: inventory.ITEM_TAKEN_SOUND})
+    given = step(pending, ServerView((ReceivedItem("Ladder"),)))
+    assert given.gives == "Ladder" and given.writes == ((LADDER, 1), (COUNT, 1)) and SOUND not in dict(given.guards)
+    for decision in (skip, cannot):
+        assert SOUND not in dict(decision.guards)
+
+
+TUNE1, SONG = 0x0607, 0x0609          # the playing tune-1 sound and song (the audio driver's RAM)
+
+
+@pytest.mark.parametrize("sound", [inventory.ITEM_APPEARS_SOUND, inventory.ITEM_TAKEN_SOUND])
+def test_the_arrival_sound_plays_over_the_music(sound: int) -> None:
+    """In the emulator, on an Archipelago game's ROM, in the overworld and in level 1: client_step's
+    guarded writes give the item, the sound starts at the next frame and the song keeps playing
+    (whether it is heard over the music is the owner's ear's to confirm)."""
+    from tests.test_ring_color import DEFAULT_COLORS, archipelago_rom, enter_level_1
+    from zora.rom.revision import Revision
+    emu = Emulator(archipelago_rom(Revision.PRG0, DEFAULT_COLORS))
+    emu.new_game()
+    emu.run(PLAY_FRAMES)
+    tables = ClientTables({}, inventory.GiveRules(), sound)
+    received = (ReceivedItem("Raft"), ReceivedItem("Ladder"))
+    for place in ("overworld", "level 1"):
+        if place == "level 1":
+            enter_level_1(emu)
+        ram = {address: emu[address] for address in tables.addresses()}
+        decision = client_step(ram, state_of(ram), ServerView(received), tables)
+        assert decision.gives and (SOUND, sound) in decision.writes, place
+        song = emu[SONG]
+        assert guarded_write_on(emu, decision)
+        emu.run(1)
+        assert (emu[TUNE1], emu[SONG]) == (sound, song) and song, place
+
+
+def guarded_write_on(emu: Emulator, decision: Decision) -> bool:
+    """guarded_write on the console's RAM."""
+    if any(emu[address] != value for address, value in decision.guards):
+        return False
+    for address, value in decision.writes:
+        emu[address] = value
+    return True
+
+
 def test_one_item_per_poll_with_its_guards() -> None:
     ram = loaded()
     server = ServerView((ReceivedItem("Heart Container"), ReceivedItem("Ladder")))
     decision = step(ram, server)
     assert decision.gives == "Heart Container" and decision.skips is None
-    assert decision.writes == ((HEARTS, STARTING_HEARTS + 0x11), (COUNT, 1))     # the count last
+    assert decision.writes == ((HEARTS, STARTING_HEARTS + 0x11), (SOUND, inventory.ITEM_APPEARS_SOUND),
+                               (COUNT, 1))                                     # the count last
     guards = dict(decision.guards)
-    assert set(guards) == {*archipelago.RECEIVE_STATE, COUNT, HEARTS} and guards[COUNT] == 0
+    assert set(guards) == {*archipelago.RECEIVE_STATE, COUNT, HEARTS, SOUND} and guards[COUNT] == 0
+    assert guards[SOUND] == 0
     assert len(decision.writes) <= MAX_WRITES and len(decision.guards) <= MAX_GUARDS
     assert decision.memory.awaiting_count == 1
     assert guarded_write(ram, decision)
@@ -290,8 +365,10 @@ def test_player_setting_checks() -> None:
     for key, value in (("greenTunic", 0x0D), ("selectButton", "sideways"), ("level_word", 7), ("nope", 1)):
         assert archipelago.player_setting_problem(key, value)
     archipelago.check_player_settings({"select_button": "toggle", "hearts": "0x16", "levelWord": "palace"})
+    # the retired statistics_screen (always on since 2026-10-17): accepted with any value, ignored
+    archipelago.check_player_settings({"music": "off", "statistics_screen": "maybe", "statisticsScreen": "on"})
     with pytest.raises(PlayerSettingError):
-        archipelago.check_player_settings({"music": "off", "statistics_screen": "maybe"})
+        archipelago.check_player_settings({"music": "off", "volume": "11"})
     with pytest.raises(PlayerSettingError):
         archipelago.check_player_settings({"music": "off", "Music": "off"})
 

@@ -28,7 +28,7 @@ def build(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch) -> st
     if request.param == "absent":
         monkeypatch.setattr(level_encoding, "_ENCODER", None)
     elif not level_encoding.is_available():
-        pytest.skip("the private level-encoding module is not installed")
+        pytest.skip("needs the encoder")
     return str(request.param)
 
 
@@ -81,7 +81,7 @@ def test_metadata_fields_match_flags_module() -> None:
 def test_metadata_support_matrix_matches_flags_module() -> None:
     """The baseline value, the turn-off values (FL-OFF-07), the alternative values (FL-ALT, owner
     ruling) and, where both values of a three-state field are supported, its "?"; B23's off and "?"
-    need B22 off, so they are not offered here."""
+    need B22 off, so they are not offered on the baseline."""
     baseline = support.mvp_baseline_settings()
     both = [ThreeState.OFF, ThreeState.ON, ThreeState.POSSIBLE]
     for entry in worker_metadata()["fields"]:
@@ -96,7 +96,7 @@ def test_metadata_support_matrix_matches_flags_module() -> None:
                          if set(outcomes) <= expected}
             assert entry["supportedValues"] == sorted(expected)
         elif field_id in support.TURN_OFF_TOGGLES_NOT_RANDOM:
-            assert entry["supportedValues"] == [ThreeState.OFF, ThreeState.ON]     # B29: no "?" (FL-SUP-01)
+            assert entry["supportedValues"] == [ThreeState.OFF, ThreeState.ON]     # B29, B02: no "?" (FL-SUP-01)
         elif (field_id in support.TURN_OFF_TOGGLES or field_id in support.OWNER_TURN_OFF_TOGGLES
               or field_id in support.ALTERNATIVE_TOGGLES) and field_id != "B23":
             assert entry["supportedValues"] == both
@@ -116,14 +116,17 @@ def test_metadata_level_encoding_text_is_the_owners(build: str) -> None:
 def test_metadata_presets_are_the_spec_presets(build: str) -> None:
     """The menu (owner, beta 5): the MVP baseline and variants A and C as Consternation,
     Consternation Remastered and Hopla, each with level encoding on as published; then CP-5
-    (Consternation without level encoding) and All Swords No Boards. Random% (variant B, which ZORA
-    does not produce in full) and variant A without level encoding stay in presets.py, off the
+    (Consternation without level encoding), All Swords No Boards and Vanilla (2026-10-17), then
+    OHK0HPla Remastered, TTP5: Muffle Rug and TTP5: Pick 5 (2026-10-18). Random% (variant B, which
+    ZORA does not produce in full) and variant A without level encoding stay in presets.py, off the
     menu."""
     presets = worker_metadata()["presets"]
     assert [(p["name"], p["label"]) for p in presets] == [
         ("MVP baseline", "Consternation"), ("Published variant A", "Consternation Remastered"),
         ("Published variant C", "Hopla"), ("MVP baseline, level encoding off", "Consternation without level encoding"),
-        ("All Swords No Boards", "All Swords No Boards")]
+        ("All Swords No Boards", "All Swords No Boards"), ("Vanilla", "Vanilla"),
+        ("OHK0HPla Remastered", "OHK0HPla Remastered"), ("TTP5: Muffle Rug", "TTP5: Muffle Rug"),
+        ("TTP5: Pick 5", "TTP5: Pick 5")]
     encoded = presets[:3]
     assert [p["flags"] for p in encoded] == [codec.canonicalize(flags_presets.PRESETS[p["name"]]) for p in encoded]
     assert all(codec.decode(p["flags"]).toggle(flags_fields.ENCODE_LEVEL_DATA) is ThreeState.ON for p in encoded)
@@ -148,12 +151,13 @@ def test_metadata_lists_every_rule_the_check_can_give() -> None:
     breaking = [
         zero.updated(options={"C12": flags_fields.PinnedItem.LADDER}),
         zero.updated(options={"C11": 3, "C13": 3}),
-        zero.updated(toggles={"B02": ThreeState.ON}),
         zero.updated(toggles={"B26": ThreeState.ON}),
         zero.updated(toggles={"B36": ThreeState.ON}),
     ]
     given = {refusal.rule for settings in breaking for refusal in dependencies.check_dependencies(settings)}
-    assert given == listed - {"FL-DEP-02 rule 4"}
+    # rules 1 and 4 change settings instead of refusing (rule 1's coin, OW-CAVE-10)
+    assert given == listed - {"FL-DEP-02 rule 1", "FL-DEP-02 rule 4"}
+    assert not dependencies.check_dependencies(zero.updated(toggles={"B02": ThreeState.ON}))
 
 
 @pytest.mark.parametrize("name", [*flags_presets.PRESETS, "CP-5"])
@@ -178,7 +182,8 @@ def test_pasted_string_is_shown_canonical_and_bad_strings_show_the_decoders_erro
 def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> None:
     state = worker_state(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)
     assert state["generateRefusals"] == []
-    selectable = {*support.TURN_OFF_TOGGLES, *support.OWNER_TURN_OFF_TOGGLES, *support.TURN_OFF_OPTIONS,
+    selectable = {*support.TURN_OFF_TOGGLES, *support.SPEC_TURN_OFF_TOGGLES, *support.OWNER_TURN_OFF_TOGGLES,
+                  *support.TURN_OFF_OPTIONS,
                   *support.ALTERNATIVE_OPTIONS, *support.ALTERNATIVE_TOGGLES} - {"B23"}
     for field_id, field in state["fields"].items():
         if field_id == flags_fields.ENCODE_LEVEL_DATA.id:
@@ -194,17 +199,18 @@ def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> N
             assert field["disabled"] and field["reason"] == "Not produced by ZORA yet", field_id
 
 
-def test_fl_dep_06_b23_is_grayed_while_b22_is_off_and_the_string_is_corrected() -> None:
-    """FL-DEP-06: a string with B22 off and B23 on is shown as the canonical string with both off,
-    with a note, B23 grayed and displayed off; it is not refused."""
+def test_fl_dep_06_b23_can_be_set_while_b22_is_off_and_is_kept_as_given() -> None:
+    """FL-DEP-06: with B22 off the string is kept as pasted, with no note, and B23 can be set to
+    each of its values; with B22 on, B23's off and "?" stay blocked."""
     cp5 = codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)
-    pasted = codec.encode(cp5.updated(toggles={"B22": ThreeState.OFF}))
-    pair = codec.encode(cp5.updated(toggles={"B22": ThreeState.OFF, "B23": ThreeState.OFF}))
-    state = worker_state(pasted)
-    assert state["flags"] == pair != pasted
-    assert state["adjustments"][0] == flag_form.TOLL_TURNED_OFF_NOTE
-    assert state["fields"]["B23"]["value"] == ThreeState.OFF and state["fields"]["B23"]["disabled"]
-    assert state["generateRefusals"] == [] and worker_state(pair)["adjustments"] == []
+    for toll in ThreeState:
+        pasted = codec.encode(cp5.updated(toggles={"B22": ThreeState.OFF, "B23": toll}))
+        state = worker_state(pasted)
+        assert state["flags"] == pasted and state["adjustments"] == [] and state["generateRefusals"] == []
+        b23 = state["fields"]["B23"]
+        assert b23["value"] == toll and not b23["disabled"] and not b23["problem"] and b23["blocked"] == {}
+    b23 = worker_state(codec.encode(cp5))["fields"]["B23"]
+    assert set(b23["blocked"]) == {str(int(ThreeState.OFF)), str(int(ThreeState.POSSIBLE))}
 
 
 def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused() -> None:
@@ -215,7 +221,7 @@ def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused() ->
     assert state["generateRefusals"][0].startswith("not produced: C03 (Hint style): ?, ")
 
 
-@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+@pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 def test_published_variant_c_is_produced() -> None:
     """Every value of variant C (Hopla) is produced since Mixed + Shapes (C02 = 4), and its level
     encoding works with second-quest dungeons since 2026-10-12 (GameWorld.store_second_quest_sets_in_first_quest_slots),
@@ -225,7 +231,7 @@ def test_published_variant_c_is_produced() -> None:
     assert state["generateRefusals"] == []
 
 
-@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+@pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 def test_published_variant_a_is_produced() -> None:
     """C01 = 2 and C06 = 2 (spec change L15) and the alternative values (FL-ALT-02 to FL-ALT-04,
     owner ruling) are produced, so variant A generates."""
@@ -239,7 +245,8 @@ def test_a_choice_that_breaks_a_rule_is_blocked_with_the_rules_message() -> None
     # From the zero string: pinning the Ladder to the coast cave breaks FL-DEP-01 rule 1.
     state = worker_state("0")
     assert state["fields"]["C12"]["blocked"]["5"] == "FL-DEP-01 rule 1: the Ladder cannot be pinned to the coast cave"
-    assert state["fields"]["B02"]["blocked"]["1"].startswith("FL-DEP-02 rule 1: ")
+    # FL-DEP-02 rule 1 flips a coin per seed (OW-CAVE-10) and never blocks
+    assert "1" not in state["fields"]["B02"]["blocked"]
     values = controls_from(worker_metadata(), state)
     values["C12"] = "5"
     changed = flag_form.form_change("0", values)

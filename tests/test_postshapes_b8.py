@@ -10,6 +10,7 @@ from zora.rom.game_config import GameConfig, HintMode
 from zora_measure.checkpoints.overworld_monsters_and_hp import (
     boss_hp_walk, enemy_hp_walk, level9_records_match, owm_no_barred_placement, owm_non_candidates_kept,
 )
+from zora.flags.fields import HitPointChange
 from zora.model.enums import Enemy
 from zora.model.game_world import GameWorld
 from zora.rom.parse.rom_file import load_rom, parse_rom
@@ -30,7 +31,7 @@ def _vanilla() -> bytes:
     env = os.environ.get("ZORA_VANILLA_ROM")
     path = Path(env) if env else BASE_ROM_PATH
     if not path.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     verify_base_rom(path)
     return load_rom(path)
 
@@ -48,10 +49,10 @@ def finished() -> list[GameWorld]:
 
 def test_hp_step_rule() -> None:
     """PS-HP-01: change |r mod 3|, up when bit 5 is set, clamped 0..15."""
-    assert _step(5, ScriptedRng([HP_UP_BIT | 0x02])) == 6     # $22 mod 3 = 1, up
-    assert _step(5, ScriptedRng([HP_UP_BIT | 0x01])) == 5     # $21 mod 3 = 0: a spent draw
-    assert _step(1, ScriptedRng([0x02])) == 0                 # down 2, clamped at 0
-    assert _step(15, ScriptedRng([HP_UP_BIT | 0x05])) == 15   # up 1, clamped at 15
+    assert _step(5, 2, ScriptedRng([HP_UP_BIT | 0x02])) == 6     # $22 mod 3 = 1, up
+    assert _step(5, 2, ScriptedRng([HP_UP_BIT | 0x01])) == 5     # $21 mod 3 = 0: a spent draw
+    assert _step(1, 2, ScriptedRng([0x02])) == 0                 # down 2, clamped at 0
+    assert _step(15, 2, ScriptedRng([HP_UP_BIT | 0x05])) == 15   # up 1, clamped at 15
 
 
 def test_finished_output(finished: list[GameWorld]) -> None:
@@ -90,7 +91,7 @@ def test_gleeok_head_draw_position() -> None:
     before_head = visiting_order(BOSS_HP_TYPES).index(Enemy.GLEEOK_2) + 1
     rng = ScriptedRng(seed + [unchanged] * before_head + [4]
                       + [unchanged] * (len(BOSS_HP_TYPES) - before_head))
-    change_boss_hp(state, rng)
+    change_boss_hp(state, HitPointChange.UP_TO_2, rng)
     # misplaced, the 4 would move a value down by 1 ($04 mod 3 = 1, bit 5 clear)
     assert state.gleeok_head == 4 + 4 and state.hp == enemies.hp
 

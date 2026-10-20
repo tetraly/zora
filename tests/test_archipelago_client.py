@@ -50,7 +50,7 @@ LINE_LEVELS = {SWORD: range(4), CANDLE: range(3), ARROW: range(3), RING: range(3
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 

@@ -1,0 +1,38 @@
+# ZORA Archipelago ring colors (owner decision 2026-10-18; the spec "ZORA Archipelago beta 5
+# fixes", item 1; prototype Archipelago/zora-plans/e2e/ring_rom_fix_proto.py). Written only in
+# Archipelago ROMs (GameConfig.archipelago_rom, set by FINISH), so ZORA's own seeds keep their
+# output. A ring the client gives by writing InvRing alone left Link's tunic the old color: the
+# game's own pickup (HandleClass2) also patches the palettes. Each frame of play, RingColorAndClock
+# repaints Link from the game's own color table whenever his ring and his tunic color disagree, as
+# HandleClass2 does. In ZORA's own seeds the two always agree, so the check would never fire.
+# asm/README.md and asm/flags2/build.py describe this file.
+
+[[segment]]
+name = "ZORA_F2_RING_COLOR"
+bank = 5
+start = 0xBC80              # bank 5 free space, after fp-entr-01-sides' slot (docs/rom-map.md)
+
+[imports]
+bank_05 = ["SaveSlotToPaletteRowOffset", "LinkColors_CommonCode", "MenuPalettesTransferBuf"]
+bank_07 = ["RingColorAndClock"]
+
+[exports]
+bank_01 = ["LinkColors_CommonCode"]
+bank_05 = ["RingColorAndClock"]
+
+[[hook]]
+name = "begin-update-world"
+offset = 0x1EC8A
+length = 14
+note = "BeginUpdateWorld's clock check (LDA InvClock / BEQ / LDA ObjInvincibilityTimer / CLC / ADC #$10 / STA ObjInvincibilityTimer) becomes a call to bank 5's RingColorAndClock, which does the check first and the clock's invincibility after. Bank 5 is left switched in, where any bank could be before (as in the prototype; the emulator tests play the overworld, a level, scrolls and a death with it)."
+code = """
+    LDA #$05
+    JSR SwitchBank
+    JSR RingColorAndClock
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+"""

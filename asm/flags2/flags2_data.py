@@ -57,7 +57,7 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
     ),
     "recorder-pols-voice": (
         (0x11BB2, bytes.fromhex("2000baea")),
-        (0x13A10, bytes.fromhex("ad1b05f00ebd85048507a901850920547c686860")),
+        (0x13A10, bytes.fromhex("ad1b05f012a53cd00ebd85048507a901850920547c686860")),
     ),
     "four-potions": (
         (0x06C70, bytes.fromhex("05")),
@@ -85,5 +85,32 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
     ),
     "dead-woods": (
         (0x15B08, bytes.fromhex("29")),
+    ),
+    "pegasus-boots": (
+        (0x06B89, bytes.fromhex("02")),
+        (0x06D8B, bytes.fromhex("51")),
+        (0x06D8C, Original(0x06D8C, 3)),
+        (0x06D8F, bytes.fromhex("51")),
+        (0x07154, bytes.fromhex("2525")),
+        (0x07181, bytes.fromhex("1c")),
+        (0x071CE, bytes.fromhex("1c")),
+        (0x0824F, bytes.fromhex("183e7f7f5d515151")),
+        (0x08257, Original(0x08257, 1)),
+        (0x08258, bytes.fromhex("18360c222e2e2e5151719fa1ade13f2e2e0e605e521e")),
+        (0x09358, bytes.fromhex("24240b18181d1c2424")),
+        (0x0936F, bytes.fromhex("24240b18181d1c2424")),
+        (0x14E48, bytes.fromhex("a9208d8f0360a060ad5606d02924fa5025ad7506d01ead7406f01bad8f")),
+        (0x14E65, Original(0x14E65, 1)),
+        (0x14E66, bytes.fromhex("f011ce8f03f007a9008df803f00aa90220806da0792ca0")),
+        (0x14E7D, Original(0x14E7D, 1)),
+        (0x14E7E, bytes.fromhex("840060")),
+        (0x17376, bytes.fromhex("203e8eea")),
+        (0x1F4F5, bytes.fromhex("fdfefffefdfefffee4")),
+        (0x1F716, bytes.fromhex("a000ea")),
+    ),
+    "ring-color": (
+        (0x17C90, bytes.fromhex("a616bc0eeaae6206bd2573d90468f00ea614d00aa21886149904688d926bad6c06f009a910186df004"
+                                "8df00460")),
+        (0x1EC8A, bytes.fromhex("a90520acff2080bceaeaeaeaeaea")),
     ),
 }

@@ -15,6 +15,9 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x09F6A, bytes.fromhex("4c6e9f")),
         (0x0AF9C, bytes.fromhex("eaeaea")),
     ),
+    "fp-save-01": (
+        (0x0ABC5, bytes.fromhex("60eaea")),
+    ),
     "fp-fix-05": (
         (0x14AC1, bytes.fromhex("15ad5400d02b")),
         (0x14AC7, Original(0x14AC2, 33)),

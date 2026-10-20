@@ -10,6 +10,7 @@ from functools import cache
 
 import pytest
 
+from tests.needs import needs_base_rom
 from zora.flags.codec import decode, encode
 from zora.flags.fields import ENCODE_LEVEL_DATA, DungeonLayoutSource, ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
@@ -30,6 +31,7 @@ from zora.rom.final_steps import FINAL_STEPS
 from zora.rom.game_config import GameConfig
 from zora.rom.layout import ASM_NOTHING_CODE_PATCH_OFFSET, LEVEL_INFO_ADDRESS, LEVEL_INFO_SIZE
 from zora.rom.parse.rom_file import original_bins_from_rom, parse_rom
+from zora.rom.player_settings import DEFAULT_PLAYER_SETTINGS
 from zora.rom.serialize.game_world import serialize_game_world
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora_measure.checkpoints.start_items import START_ITEMS_ALL_FLAGS
@@ -62,6 +64,7 @@ def finished(name: str) -> tuple[Built, bytes]:
     return built, finish(built, base)
 
 
+@needs_base_rom
 @pytest.mark.parametrize("name", CASE_NAMES)
 def test_generation_sets_the_values(name: str) -> None:
     built, _ = finished(name)
@@ -75,6 +78,7 @@ def test_generation_sets_the_values(name: str) -> None:
     assert bool(world.start_items) == (name == "start items")
 
 
+@needs_base_rom
 @pytest.mark.parametrize("name", CASE_NAMES)
 def test_the_serializer_writes_them_and_the_parser_reads_them_back(name: str) -> None:
     """The model's serialization alone (no final step) holds the finished ROM's bytes."""
@@ -103,6 +107,7 @@ def test_the_serializer_writes_them_and_the_parser_reads_them_back(name: str) ->
     assert set(parsed.start_items) == set(world.start_items)
 
 
+@needs_base_rom
 @pytest.mark.parametrize("name", CASE_NAMES)
 def test_a_finished_rom_round_trips_over_prg0(name: str) -> None:
     """Parse the finished ROM, write the world over the PRG0 base with the build's config: every
@@ -110,7 +115,9 @@ def test_a_finished_rom_round_trips_over_prg0(name: str) -> None:
     built, rom = finished(name)
     config = built.plan.config
     world = parse_rom(rom, config)
-    again = serialize_to_rom(world, remember_repo_base_rom(), config=config)
+    # with the default player settings, as finish() writes them: they write the statistics screen,
+    # which every ROM has (2026-10-17) and the world does not hold
+    again = serialize_to_rom(world, remember_repo_base_rom(), config=config, player_settings=DEFAULT_PLAYER_SETTINGS)
     # The seed's code is the generated world's (owner ruling, beta 5: code_patches.seed_code_items);
     # a world parsed back is not the generated one, so over the base it gets its own code. Written
     # over the finished ROM itself (below), the code the ROM shows is kept.
@@ -122,9 +129,10 @@ def test_a_finished_rom_round_trips_over_prg0(name: str) -> None:
 
 def test_no_final_step_writes_game_data() -> None:
     assert [step.name for step in FINAL_STEPS] == ["code_patches", "encode_level_data", "slot_identity",
-                                                   "stamp_seed_code", "player_settings"]
+                                                   "stamp_seed_code", "stamp_seed_number", "player_settings"]
 
 
+@needs_base_rom
 def test_the_code_patches_need_the_entry_codes() -> None:
     """A world no generation finished (PRG0's, parsed) has no entry codes: writing ZORA's code
     patches, which read them, is refused until they are recorded."""

@@ -15,7 +15,7 @@ from ...model.enums import Destination, Enemy, QuestVisibility
 from ...model.overworld import Overworld
 from ...model.rooms import EnemySpec
 from ..rng import IntRng
-from .cave_entries import ENROLLED_SCREENS, Entry
+from .cave_entries import ENROLLED_SCREENS, POND_RECORDER_ENTRY, RECORDER_ENTRY_OFF, Entry
 
 # OW-APP-A7: the first-quest secret positions (PRG0 quest field 1), in OW-MIX-02's order, then the
 # second-quest positions (field 2 with a nonzero code; screen 57 has code 0 and is none).
@@ -40,7 +40,7 @@ WOOD_SWORD_SCREEN = 119
 WOOD_SWORD_LIST_INDEX = ENROLLED_SCREENS.index(123)
 
 # OW-MIX-04: the list byte that matches no screen, and screen 60's second-quest layout
-NO_SCREEN = 0x80
+NO_SCREEN = RECORDER_ENTRY_OFF
 SCREEN_60 = 60
 SCREEN_60_LAYOUT = 0x7B              # LevelBlockAttrsD[60] bits 6-0 (bit 7 is the monster passes')
 SCREEN_60_EXIT_ROW = 1               # LevelBlockAttrsF[60] = $01: exit row 1, quest field 0, index 0
@@ -156,22 +156,37 @@ def prepare_second_quest_screen_11(overworld: Overworld) -> None:
     screen.enemy_quantity = overworld.qty_table[0]
 
 
-def second_quest_entries(overworld: Overworld) -> list[Entry]:
-    """OW-QST-03: the 61 regular entries without screens 11 and 66 (59), then the 20 second-quest
-    positions in ascending order with their PRG0 cave bytes; the seven second-quest codes join
-    their entries and their screens' cave bytes; OW-CAVE-02 step 2 exchanges the wooden-sword
-    entry with the last (114). No draws."""
-    regular = [_entry(overworld, screen) for screen in ENROLLED_SCREENS[:REGULAR_ENTRY_COUNT]]
-    regular[WOOD_SWORD_LIST_INDEX] = _entry(overworld, WOOD_SWORD_SCREEN)      # PRG0's order, before step 2
-    entries = with_second_quest_codes(
-        [entry for entry in regular if entry.screen not in SECOND_QUEST_LEFTOVER_SCREENS]
-        + [_entry(overworld, screen) for screen in SECOND_QUEST_SECRET_POSITIONS])
+def second_quest_entry_screens() -> list[int]:
+    """OW-QST-03's list order: the 61 regular entries without screens 11 and 66 (59), then the 20
+    second-quest positions in ascending order; OW-CAVE-02 step 2 exchanges the wooden-sword entry
+    with the last (114)."""
+    regular = list(ENROLLED_SCREENS[:REGULAR_ENTRY_COUNT])
+    regular[WOOD_SWORD_LIST_INDEX] = WOOD_SWORD_SCREEN       # PRG0's order, before step 2
+    screens = [screen for screen in regular if screen not in SECOND_QUEST_LEFTOVER_SCREENS]
+    screens += SECOND_QUEST_SECRET_POSITIONS
+    sword = screens.index(WOOD_SWORD_SCREEN)
+    screens[sword], screens[-1] = screens[-1], screens[sword]
+    return screens
+
+
+def write_second_quest_codes(overworld: Overworld) -> None:
+    """OW-QST-02 and OW-QST-03: the seven second-quest codes on their screens' cave bytes."""
     for screen_num in SECOND_QUEST_REGULAR_CODES:
         screen = overworld.screens[screen_num]
         screen.destination, screen.inner_palette = _second_quest_code(screen_num)
-    sword = next(index for index, entry in enumerate(entries) if entry.screen == WOOD_SWORD_SCREEN)
-    entries[sword], entries[-1] = entries[-1], entries[sword]
-    return entries
+
+
+def second_quest_entries(overworld: Overworld) -> list[Entry]:
+    """OW-QST-03: the list (second_quest_entry_screens), each entry with its screen's PRG0 cave
+    byte, the seven second-quest codes joining their entries and their screens' cave bytes. No
+    draws."""
+    write_second_quest_codes(overworld)
+    return staged_second_quest_entries(overworld)
+
+
+def staged_second_quest_entries(overworld: Overworld) -> list[Entry]:
+    """The second quest's list, each entry with its screen's cave byte as staged."""
+    return [_entry(overworld, screen) for screen in second_quest_entry_screens()]
 
 
 def show_second_quest(overworld: Overworld) -> None:
@@ -202,20 +217,43 @@ def second_quest_overworld(overworld: Overworld) -> list[Entry]:
     return entries
 
 
+def show_second_quest_overworld(overworld: Overworld) -> None:
+    """second_quest_overworld's codes and looks without the list, for Expanded Dungeon Locations,
+    which deals onto them before the monster pass and lists them at the cave pass
+    (staged_second_quest_entries)."""
+    write_second_quest_codes(overworld)
+    show_second_quest(overworld)
+
+
 SHOWN = (QuestVisibility.BOTH_QUESTS, QuestVisibility.FIRST_QUEST)
 
 
 def is_second_quest_overworld(overworld: Overworld) -> bool:
     """2nd Quest's mark in any finished world: the recorder list's first entry (screen 66)
-    switched off (OW-QST-04 step 1; OW-QST-06 reads it the same way)."""
-    return overworld.recorder_secret_screens[FIRST_RECORDER_ENTRY] == NO_SCREEN
+    switched off (OW-QST-04 step 1; OW-QST-06 reads it the same way), the pond entry ($3C) kept.
+    Expanded Dungeon Locations may switch the first entry off too: under a 1st Quest overworld always
+    the pond entry with it; under a 2nd it keeps the pond entry while 2Q3 holds a dungeon, and such
+    a world reads as 2nd Quest (second_quest_leftovers then still finds every door)."""
+    entries = overworld.recorder_secret_screens
+    return entries[FIRST_RECORDER_ENTRY] == NO_SCREEN and entries[POND_RECORDER_ENTRY] != NO_SCREEN
+
+
+def second_quest_leftovers(overworld: Overworld) -> frozenset[int]:
+    """The shown screens that keep a dungeon code but are not doors: under 2nd Quest, screens 11 and
+    66 (OW-QST-05). Expanded Dungeon Locations clears both codes unless the spot is chosen, and a
+    chosen 1Q5 keeps its first-quest doorway, so screen 11 is a leftover only while it shows the
+    fountain (a chosen 1Q7 turns entry 0 on, so its world never reads as 2nd Quest)."""
+    if not is_second_quest_overworld(overworld):
+        return frozenset()
+    return frozenset(screen for screen in SECOND_QUEST_LEFTOVER_SCREENS
+                     if screen != SCREEN_11 or overworld.screens[SCREEN_11].screen_code == SCREEN_11_LAYOUT)
 
 
 def door_screen(overworld: Overworld, level: int) -> int | None:
     """A level's door: the lowest-numbered shown screen holding its code, except that under
     2nd Quest screens 11 and 66 keep dungeon codes 5 and 7 but are not doors (OW-QST-05: every
-    rule that looks for a door uses the entry door)."""
-    leftovers = SECOND_QUEST_LEFTOVER_SCREENS if is_second_quest_overworld(overworld) else frozenset()
+    rule that looks for a door uses the entry door; second_quest_leftovers)."""
+    leftovers = second_quest_leftovers(overworld)
     return next((screen.screen_num for screen in overworld.screens
                  if screen.destination.is_level and screen.destination.level_num == level
                  and screen.quest_visibility in SHOWN and screen.screen_num not in leftovers), None)

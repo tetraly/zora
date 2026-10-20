@@ -50,7 +50,7 @@ from zora.rom.owner_patches import LEVEL_9_ENTRANCE, PATCHES_BY_FLAG, owner_patc
 from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checks import finished_rom_checks, run_checks
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 REPO = Path(__file__).resolve().parent.parent
 ON, OFF, MAYBE = ThreeState.ON, ThreeState.OFF, ThreeState.POSSIBLE
@@ -157,8 +157,12 @@ def test_level_2_needs_generated_shapes(layout: DungeonLayoutSource) -> None:
 
 @pytest.mark.parametrize("state", [state for state in WoodenSwordState if state != WoodenSwordState.NORMAL])
 def test_the_entrance_needs_the_normal_wooden_sword(state: WoodenSwordState) -> None:
-    assert refusals(ASNB, z1r_with(C07=int(state))) == [zora_flags.ENTRANCE_NEEDS_NORMAL_SWORD]
-    assert refusals(LEVEL_2, z1r_with(C07=int(state))) == []
+    """With Swords at any value but Normal, the level-4-sword entrance is refused, and (owner
+    decision 2026-10-17) so are Add L4 Sword and Progressive Items themselves."""
+    sword_flags = [zora_flags.sword_state_message(zora_flags.SWORD_FLAG_LABELS[name])
+                   for name in ("add_l4_sword", "progressive_items")]
+    assert refusals(ASNB, z1r_with(C07=int(state))) == [zora_flags.ENTRANCE_NEEDS_NORMAL_SWORD, *sword_flags]
+    assert refusals(LEVEL_2, z1r_with(C07=int(state))) == sword_flags
 
 
 def test_progressive_items_still_refuses_extra_candles() -> None:
@@ -231,10 +235,14 @@ def test_l4_sword_take_is_retired() -> None:
 
 
 def test_no_byte_is_written_by_two_owner_patches() -> None:
+    """Each flag's patches, and the ones every ROM gets (owner_patches.ALWAYS_WRITTEN, which
+    owner_patch_writes adds whatever the flags), write no byte in common."""
     every = [*zora_flags.OWNER_2_0_FIELDS, LEVEL_9_ENTRANCE]
-    seen: dict[int, str] = {}
+    always = written(owner_patch_writes([]))
+    assert always
+    seen: dict[int, str] = dict.fromkeys(always, "every ROM")
     for flag in every:
-        for offset in written(owner_patch_writes([flag])):
+        for offset in written(owner_patch_writes([flag])) - always:
             assert offset not in seen, (hex(offset), seen.get(offset), flag)
             seen[offset] = flag
 
@@ -410,7 +418,9 @@ def carry_inventory(console: SwordConsole) -> None:
     console.start = console.emu.save()
 
 
-EMULATOR_SEED = 1
+# A seed whose white sword and level-2 sword are in places take_at visits (a cave, a room or a
+# cellar; not the Armos or the Coast). Seed 1's white sword moved to the Coast with 114f280.
+EMULATOR_SEED = 2
 
 
 def meets_the_man(console: SwordConsole) -> bool:

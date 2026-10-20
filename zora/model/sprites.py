@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import ClassVar
 
+from .canonical import OMITTED_AT_DEFAULT
 from .enums import Enemy, EnemySpriteSet
 
 TILE_BYTES = 16                 # one 8x8 pattern tile
@@ -111,6 +112,9 @@ class EnemyData:
     gleeok_neck_hp: int     = 0   # 0x120C6 — Gleeok neck HP (InitGleeok)
     gleeok_head_hp: int     = 0   # 0x12735 — Gleeok flying-head HP (Gleeok_CheckCollisions)
     ganon_hp: int           = 0   # 0x12F27 — Ganon HP (Ganon_CheckCollisions)
+    # Set Ganon HP to 0 (B41; PS-HP-06): the whole byte at 0x12F27, $41, which is no value times 16.
+    # None writes ganon_hp times 16, as ever (and leaves the seed's code as it was, model/canonical.py).
+    ganon_return_hp: int | None = field(default=None, metadata=OMITTED_AT_DEFAULT)
     moldorm_segment_hp: int = 0   # 0x114D5 — Moldorm segment HP (UpdateMoldorm)
     lamnola_segment_hp: int = 0   # 0x12A45 — Lanmola segment HP (UpdateLamnola)
     # InitRope's hit points, quest 1 and quest 2 (0x112D3, 0x112DF; PS-HP-01);

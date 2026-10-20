@@ -18,7 +18,7 @@ from zora.rom.game_config import GameConfig
 from zora.rom.layout import QUOTE_DATA_ADDRESS
 from zora.rom.parse.rom_file import parse_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 # The b48 corpus's string: the MVP baseline's with B48 on (HT-BOOK-01's Check)
 BOOK_FLAGS = "8iaDYa1PX9GK!pC9GIQIO5JJE!UJ3A"

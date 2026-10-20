@@ -18,6 +18,9 @@ class ItemShuffleOptions:
     armos_item: int = 0          # FORCED_ITEM_OPTIONS index
     white_sword_item: int = 0
     coast_item: int = 0
+    # PS-ITEM-12 (C26, C27): FORCED_ITEM_OPTIONS indices for the first and the second pool place, in
+    # PS-ITEM-04's walk order, that lies in level 9 when the deal starts
+    level_9_items: tuple[int, int] = (0, 0)
     # SH-SRC: each set's source; a vanilla set gives PS-VAN-03's fixed item rooms
     set_sources: SetSources = ALL_SHAPES
 
@@ -42,9 +45,11 @@ class TrackedPlace:
 # keeps its tracked record, moved to the extra's cave.
 MAGICAL_SWORD_SLOT = "magical_sword"
 LETTER_SLOT = "letter"
+WOOD_SWORD_SLOT = "wood_sword"           # Shuffle Wood Sword (docs/zora-extras.md section 13)
 EXTRA_SLOT_CAVES: dict[str, Destination] = {
     MAGICAL_SWORD_SLOT: Destination.MAGICAL_SWORD_CAVE,
     LETTER_SLOT: Destination.LETTER_CAVE,
+    WOOD_SWORD_SLOT: Destination.WOOD_SWORD_CAVE,
 }
 
 SHOP_WARE_SLOT_PREFIX = "shop "
@@ -81,8 +86,17 @@ class ItemShuffleResult:
     # scope was dealt; the hints then name heart containers in requirement texts (PS-ITW-05)
     within_levels_iterations: int = 0
     items_within_levels: bool = False
+    # Whether PS-ITEM-02's heart rooms joined the pool (full scope, C06 = 3). Under every other scope
+    # the hints may name a heart container in a requirement text (HT-HINT-01, PS-ITEM-09, PS-ITW-05)
+    heart_rooms_pooled: bool = True
     # VA-REJ-07's fifteen tracked items, which are also PS-BOSS-05's planted-item records
     tracked: list[TrackedPlace] = field(default_factory=list)
+    # PS-ITEM-12: the level places the deal pinned (an item forced there, or Non-Heart), as
+    # (level, room or cellar number), which the ZORA extras' later exchanges leave alone
+    pinned_level_places: frozenset[tuple[int, int]] = frozenset()
+    # Allow Triforces in Stairways (steps/place_triforces.py): each Triforce's trade before the
+    # shuffle, (set index, the spot's cell) -> the old Triforce room
+    triforce_origins: dict[tuple[int, int], int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

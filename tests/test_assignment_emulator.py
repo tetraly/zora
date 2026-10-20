@@ -33,6 +33,7 @@ from zora.generate.finish import Foreign
 from zora.generate.pipeline import Built, build, finish, plan
 from zora.generate.places import Place, PlaceKind
 from zora.model.enums import Destination, Item, RoomAction
+from zora.model.rooms import Room
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
 IS_UPDATING_MODE = 0x11
@@ -62,7 +63,7 @@ SEED = 1
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -78,9 +79,16 @@ def _room_action(built: Built, place: Place) -> RoomAction:
 
 
 def floor_room(built: Built) -> Place:
-    """A room place whose item stands on the floor (no drop trigger)."""
+    """A room place whose item stands on the floor (no drop trigger), not in a boss's room, whose
+    item the tests' emptied monster slots would never show."""
     return next(place for place in built.places
-                if place.kind == PlaceKind.ROOM and _room_action(built, place) != RoomAction.ALL_DEAD_ITEM)
+                if place.kind == PlaceKind.ROOM and _room_action(built, place) != RoomAction.ALL_DEAD_ITEM
+                and not _room(built, place).enemy.is_boss)
+
+
+def _room(built: Built, place: Place) -> Room:
+    assert place.level is not None and place.room_num is not None
+    return built.world.levels[place.level - 1].block.room(place.room_num)
 
 
 def places_of_each_kind(built: Built) -> dict[str, Place]:

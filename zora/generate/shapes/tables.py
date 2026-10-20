@@ -75,10 +75,23 @@ def stair_budget(level: int, level_2_sword_cellar: bool = False) -> int:
     return STAIR_BUDGET[level] + (level_2_sword_cellar and level == LEVEL_2_SWORD_LEVEL)
 
 
-def cellar_items(level: int, level_2_sword_cellar: bool = False) -> list[int]:
-    """SH-STAIR-03's cellar contents, with ASNB's level-2 sword."""
+# SH-STAIR-03: "with mixed quests, level 6 gets the book and level 8's first cellar gets the wand".
+# Read as: when the other set is second quest (Mixed + Shapes), whose levels 1-6 hold the book and
+# no wand (or 7-9 the wand and no book), so the twelve items stay one each (PS-VAN-03; PS-ITEM-10's
+# vanilla-levels Check: each item once in every ROM with one shapes set, 7372b34).
+MIXED_QUEST_CELLAR_ITEMS: dict[int, list[int]] = {
+    6: [0x11],        # book
+    8: [0x10, 0x0B],  # wand, magic key
+}
+
+
+def cellar_items(level: int, level_2_sword_cellar: bool = False, beside_second_quest: bool = False) -> list[int]:
+    """SH-STAIR-03's cellar contents, with ASNB's level-2 sword, and the mixed-quest swap when the
+    other set is second quest."""
     if level_2_sword_cellar and level == LEVEL_2_SWORD_LEVEL:
         return [LEVEL_2_SWORD_ITEM]
+    if beside_second_quest and level in MIXED_QUEST_CELLAR_ITEMS:
+        return MIXED_QUEST_CELLAR_ITEMS[level]
     return CELLAR_ITEMS.get(level, [])
 
 

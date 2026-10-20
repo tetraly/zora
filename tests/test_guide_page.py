@@ -158,24 +158,33 @@ def test_the_single_file_guide_inlines_its_styles(tmp_path: Path) -> None:
 
 # --- the generator's links ----------------------------------------------------------------------
 
-def _guide_links(protocol: str) -> dict[str, str]:
-    """showWorldLinks run on a stubbed page: where each guide link points."""
+WIDGETS_SCRIPT = (REPO / "web" / "widgets.js").read_text()
+
+
+def _guide_links(protocol: str, channel: str = "regular") -> dict[str, str]:
+    """showWorldLinks run on a stubbed page of CHANNEL: where each guide link points (on the test
+    channel, the zora.apworld and notes links too)."""
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node is not installed")
-    constants = "\n".join(line for line in PAGE_SCRIPT.splitlines()
-                          if re.match(r"const (SITE_URL|GUIDE_PAGE|ARCHIPELAGO_GUIDE_URL) =", line))
+    names = "SITE_URL|CHANNEL_URL|GUIDE_PAGE|TEST_CHANNEL_ASSETS|besideThisPage|ARCHIPELAGO_GUIDE_URL"
+    constants = "\n".join(line for line in PAGE_SCRIPT.splitlines() if re.match(rf"const ({names}) =", line))
+    channels = "\n".join(line for line in WIDGETS_SCRIPT.splitlines()
+                          if re.match(r"const (REGULAR_CHANNEL|TEST_CHANNEL) =", line))
     functions = [re.search(rf"^function {name}\(.*?^}}\n", PAGE_SCRIPT, re.MULTILINE | re.DOTALL)
                  for name in ("element", "showWorldLinks")]
-    assert all(functions) and constants.count("const ") == 3
-    prelude = f"const location = {{ protocol: {json.dumps(protocol)} }};"
+    assert all(functions) and constants.count("const ") == 6 and channels.count("const ") == 2
+    prelude = (f"const location = {{ protocol: {json.dumps(protocol)} }};\n{channels}\n"
+               f"const PAGE_CHANNEL = {json.dumps(channel)};")
     harness = """
 const metadata = null;
 const nodes = {};
 const $ = (id) => (nodes[id] ||= { replaceChildren(...children) { this.children = children; } });
 const document = { createElement: (tag) => ({ tag, append() {} }) };
 showWorldLinks();
-console.log(JSON.stringify({ world: nodes["guide-link"].children[0].href, export: nodes["export-guide-link"].href }));
+const world = nodes["apworld-link"] ? nodes["apworld-link"].children.filter((child) => child.href).map((a) => a.href) : [];
+console.log(JSON.stringify({ world: nodes["guide-link"].children[0].href, export: nodes["export-guide-link"].href,
+                             ...(world.length ? { apworld: world } : {}) }));
 """
     source = "\n".join([prelude, constants, *(match.group(0) for match in functions if match), harness])
     shown: dict[str, str] = json.loads(subprocess.run([node, "-e", source], capture_output=True, text=True,
@@ -188,6 +197,17 @@ def test_both_multiworld_steps_link_the_guide() -> None:
     # A single file opened from disk has no guide beside it: the site's
     site_guide = "https://zora.gg/archipelago-guide.html"
     assert _guide_links("file:") == {"world": site_guide, "export": site_guide}
+
+
+def test_the_test_channel_links_its_own_guide_world_and_notes() -> None:
+    """docs/releasing.md "Channels": beside the page under /test/ (no GitHub release before promotion);
+    opened from disk, the test channel's on the site."""
+    assert _guide_links("https:", "test") == {"world": "archipelago-guide.html", "export": "archipelago-guide.html",
+                                              "apworld": ["zora.apworld", "zora-apworld-notes.txt"]}
+    test_site = "https://zora.gg/test/"
+    assert _guide_links("file:", "test") == {
+        "world": test_site + "archipelago-guide.html", "export": test_site + "archipelago-guide.html",
+        "apworld": [test_site + "zora.apworld", test_site + "zora-apworld-notes.txt"]}
 
 
 def test_the_links_sit_in_the_multiworld_steps_only() -> None:

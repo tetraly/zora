@@ -122,7 +122,9 @@ def test_the_note_shows_while_max_start_items_keeps_none() -> None:
                         f"const rules = startItemRules({json.dumps(FLAG_TABS)});",
                         f"const states = {json.dumps(states)};",
                         "console.log(JSON.stringify(states.map((fields) => startItemsAllDropped(rules, fields))));"])
-    shown = json.loads(subprocess.run([node, "-e", script], capture_output=True, text=True, check=True).stdout)
+    # The script on stdin, not as one argument: the form states outgrow the kernel's limit on a
+    # single argument (MAX_ARG_STRLEN, 128 KiB on Linux)
+    shown = json.loads(subprocess.run([node, "-"], input=script, capture_output=True, text=True, check=True).stdout)
     assert shown == [expected for _, _, expected in NOTE_CASES]
 
 

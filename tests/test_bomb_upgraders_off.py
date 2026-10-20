@@ -23,7 +23,7 @@ from zora.rom.parse.rom_file import parse_rom
 from zora.rom.person_code import FIRST_BOMB_LEVEL_OPERAND, SECOND_BOMB_LEVEL_OPERAND
 from zora_measure.checkpoints.shapes_and_gate import bomb_upgrade_person_levels
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 OFF = ThreeState.OFF
 PRG0_BRANCH = bytes([0x90, 0x08])                 # BCC: the bomb-upgrade path behind a branch

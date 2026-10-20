@@ -80,7 +80,7 @@ def test_canonical_form_drops_leading_zeros_and_all_default_payloads() -> None:
     assert canonicalize("1.0") == ""
 
 
-@pytest.mark.parametrize("string", ["D", "1D", "0.1", "01.1", "1.", ".1", "6.1", "1.?", "1.1 ", "1.O"])
+@pytest.mark.parametrize("string", ["D", "1D", "0.1", "01.1", "1.", ".1", "99.1", "1.?", "1.1 ", "1.O"])
 def test_malformed_strings_are_refused(string: str) -> None:
     with pytest.raises(ZoraFlagStringError):
         decode(string)
@@ -182,8 +182,39 @@ def test_the_derived_seed_depends_on_every_input() -> None:
 def test_the_module_lists_one_field_per_flag() -> None:
     assert [field.name for field in zora_flags.FIELDS] == [
         "randomize_magical_sword", "randomize_letter", "magical_sword_hearts_highest",
-        "progressive_items", "shop_items_in_pool", *zora_flags.OWNER_2_0_FIELDS,
-        "l4_sword_in_level_2", "level_9_entrance_sword", "oops_all_enemies", "oops_all_bosses"]
+        "progressive_items", "shop_items_in_pool", *zora_flags.OWNER_2_0_SLOTS,
+        "l4_sword_in_level_2", "level_9_entrance_sword", "oops_all_enemies", "oops_all_bosses",
+        *zora_flags.ZORA_1_0_FIELDS, "pegasus_boots", "expanded_dungeon_locations", "highlight_no_drop_rooms"]
+
+
+@pytest.mark.parametrize("asked", [ThreeState.ON, ThreeState.POSSIBLE], ids=["on", "random"])
+def test_version_8_holds_expanded_dungeon_locations_off_by_default(asked: ThreeState) -> None:
+    """Version 8's one field, On / Off / ?, Off by default: a version-7 string decodes with it off
+    and keeps its spelling; on or "?" it spells as version 8. It is produced: what it is refused with
+    is a conflict (tests/test_expanded_dungeon_locations.py)."""
+    field = zora_flags.FIELDS[-2]
+    assert (field.name, field.slots, field.version) == ("expanded_dungeon_locations", 3, 8)
+    version_7 = encode(ZoraFlags(pegasus_boots=ThreeState.ON, randomize_letter=True))
+    assert version_7.startswith("7.") and decode(version_7).expanded_dungeon_locations is ThreeState.OFF
+    assert canonicalize(version_7) == version_7
+    flags = ZoraFlags(expanded_dungeon_locations=asked)
+    assert encode(flags).startswith("8.") and decode(encode(flags)) == flags
+    assert zora_flags.unproduced_fields(flags) == zora_flags.unproduced_fields(DEFAULT) == []
+
+
+@pytest.mark.parametrize("asked", [ThreeState.ON, ThreeState.POSSIBLE], ids=["on", "random"])
+def test_version_9_holds_highlight_no_drop_rooms_off_by_default(asked: ThreeState) -> None:
+    """Version 9's one field, On / Off / ?, Off by default: a version-8 string decodes with it off
+    and keeps its spelling; on or "?" it spells as version 9, and it is produced
+    (tests/test_highlight_no_drop_rooms.py)."""
+    field = zora_flags.FIELDS[-1]
+    assert (field.name, field.slots, field.version) == ("highlight_no_drop_rooms", 3, 9)
+    version_8 = encode(ZoraFlags(expanded_dungeon_locations=ThreeState.ON, randomize_letter=True))
+    assert version_8.startswith("8.") and decode(version_8).highlight_no_drop_rooms is ThreeState.OFF
+    assert canonicalize(version_8) == version_8
+    flags = ZoraFlags(highlight_no_drop_rooms=asked)
+    assert encode(flags).startswith("9.") and decode(encode(flags)) == flags
+    assert zora_flags.unproduced_fields(flags) == zora_flags.unproduced_fields(DEFAULT) == []
 
 
 # --- PI-FLAG-03: Progressive Items refuses Extra Candles ----------------------

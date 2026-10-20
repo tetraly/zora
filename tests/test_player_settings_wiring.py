@@ -22,12 +22,13 @@ from zora_web.api import player_settings_from_page
 from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom, generate_world, plan
 from zora.rom import level_encoding
-from zora.rom.base_rom import verify_base_rom
+from zora.rom.base_rom import piece_bytes, verify_base_rom
 from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, seed_code
 from zora.rom.player_settings import (
     DeathWarp, LowHealthBeep, Music, PlayerSettingError, PlayerSettings, SelectSwap, apply_player_settings,
     written_offsets,
 )
+from zora.rom.layout import LEVEL_LABEL_RECORD, LEVEL_LABEL_RECORD_SIZE
 from zora.rom.serialize.rom_file import serialize_to_rom
 
 REPO = Path(__file__).resolve().parent.parent
@@ -46,8 +47,10 @@ NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "music": (Music.OFF,),
     "level_word": ("DEN", "PALACE"),
     "boss_sound_word": ("MEOW", "RANDOM", "HI !"),
-    "statistics_screen": (True,),
 }
+# What every ROM gets besides the settings: the statistics screen (FP-STATS-01; a setting up to 2.0
+# beta 6), left out only by the co-op hook (write_player_settings' coop).
+STATISTICS_SCREEN = "statistics_screen"
 CASES = [(name, value) for name, values in NON_DEFAULTS.items() for value in values]
 CASE_IDS = [f"{name}={getattr(value, 'value', value)}" for name, value in CASES]
 
@@ -86,23 +89,21 @@ def test_every_setting_has_its_defaults_and_one_function() -> None:
     assert {field.name for field in fields(PlayerSettings)} == set(NON_DEFAULTS)
 
 
-# The defaults (the statistics screen, FP-STATS-01, off by default since beta 3): a finished ROM
-# as serialized, before any setting is written.
+# The defaults: with the co-op hook, a finished ROM as serialized, before any setting is written.
 UNSET = PlayerSettings()
 
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_defaults_leave_finished_roms_byte_identical(seed: int) -> None:
-    """The defaults (the statistics screen off) change no byte; the screen on only its own."""
+    """The defaults change only the statistics screen's bytes, which every ROM has; with the co-op
+    hook they change none."""
     for flags in (MVP_BASELINE_LEVEL_ENCODING_OFF, *((MVP_BASELINE,) if level_encoding.is_available() else ())):
         rom = unset(flags, seed)
-        assert apply_player_settings(rom, UNSET) == rom
-        assert generate_rom(flags, seed, base(), UNSET).rom == rom
-        assert generate_rom(flags, seed, base()).rom == rom
-        styled = generate_rom(flags, seed, base(), PlayerSettings(statistics_screen=True)).rom
-        assert styled == apply_player_settings(rom, PlayerSettings(statistics_screen=True))
+        assert apply_player_settings(rom, UNSET, coop=True) == rom
+        styled = generate_rom(flags, seed, base()).rom
+        assert styled == generate_rom(flags, seed, base(), UNSET).rom == apply_player_settings(rom, UNSET)
         differing = {i for i, (a, b) in enumerate(zip(rom, styled, strict=True)) if a != b}
-        assert differing and differing <= written_offsets("statistics_screen")
+        assert differing and differing <= written_offsets(STATISTICS_SCREEN)
 
 
 @pytest.mark.parametrize(("name", "value"), CASES, ids=CASE_IDS)
@@ -117,8 +118,8 @@ def test_each_setting_changes_only_its_own_bytes(name: str, value: Any) -> None:
 
 
 def test_settings_never_share_a_byte() -> None:
-    for first in NON_DEFAULTS:
-        for second in NON_DEFAULTS:
+    for first in (*NON_DEFAULTS, STATISTICS_SCREEN):
+        for second in (*NON_DEFAULTS, STATISTICS_SCREEN):
             if first < second:
                 assert not written_offsets(first) & written_offsets(second), (first, second)
 
@@ -128,7 +129,7 @@ def test_no_setting_changes_the_code_or_the_encoded_range(name: str, value: Any)
     """FP-SET-01, FP-HASH-01, FP-TOURNEY-01: the seed's code and, with level encoding on, every
     byte the encoding may change are the same whatever the settings."""
     if not level_encoding.is_available():
-        pytest.skip("level encoding not installed")
+        pytest.skip("needs the encoder")
     rom = unset(MVP_BASELINE, SEEDS[0])
     changed = apply_player_settings(rom, replace(PlayerSettings(), **{name: value}))
     assert seed_code(changed) == seed_code(rom)
@@ -158,18 +159,38 @@ def test_the_pages_settings_map_to_player_settings() -> None:
     page = {"selectButton": "swap", "lowHealthBeep": "kept", "deathWarp": "p1-up-select", "reduceFlashing": "on",
             "music": "off", "greenTunic": 0x21, "blueRingTunic": 0x22, "redRingTunic": 0x23, "heart": 0x24,
             "levelWord": " palace ", "bossSoundWord": "meow", "statisticsScreen": "on"}
+    # statisticsScreen: retired (every ROM has the screen), read by no one
     assert player_settings_from_page(page) == PlayerSettings(
         SelectSwap.SWAP_ONLY, LowHealthBeep.KEPT, DeathWarp.CONTROLLER1_UP_SELECT, True, (0x21, 0x22, 0x23),
-        0x24, Music.OFF, "PALACE", "MEOW", True)
+        0x24, Music.OFF, "PALACE", "MEOW")
     defaults = {"selectButton": "toggle", "lowHealthBeep": "removed", "deathWarp": "p1-up-a",
                 "reduceFlashing": "off", "music": "on", "greenTunic": 0x29, "blueRingTunic": 0x32,
                 "redRingTunic": 0x16, "heart": 0x16, "statisticsScreen": "off"}
     assert player_settings_from_page(defaults) == PlayerSettings() == player_settings_from_page({})
     assert player_settings_from_page({"selectButton": "off"}).select_swap is SelectSwap.OFF
-    for bad in ({"music": "loud"}, {"heart": 0x0D}, {"deathWarp": 3}, {"levelWord": "DUNGEON"},
+    for bad in ({"music": "loud"}, {"heart": 0x0D}, {"deathWarp": 3}, {"levelWord": "DUNGEONS"},
                 {"levelWord": 7}, {"levelWord": ""}, {"bossSoundWord": "MOO"}, {"bossSoundWord": "A~BC"}):
         with pytest.raises(PlayerSettingError):
             player_settings_from_page(bad)
+
+
+# FP-LEVEL-02's label (asm/settings/build.py level_label) is no field of its own: the level word
+# picks it, "long" for a seven-character label text (d579ad5). The word also goes into the label's
+# record (the patch's own is a placeholder) and the hints, so a long word is compared on the
+# patch's runs, its record aside; the default word gives the short label's ROM exactly.
+LEVEL_LABEL = "level_label"
+LABEL_WORDS = {"short": PlayerSettings().level_word, "long": "DUNGEON"}
+
+
+def _check_level_label(rom: bytes, choice: str, assembled: bytes | bytearray,
+                       runs: tuple[tuple[int, Any], ...]) -> None:
+    wired = apply_player_settings(rom, replace(UNSET, level_word=LABEL_WORDS[choice]), coop=True)
+    if choice == "short":
+        assert wired == bytes(assembled), (LEVEL_LABEL, choice)
+        return
+    record = range(LEVEL_LABEL_RECORD, LEVEL_LABEL_RECORD + LEVEL_LABEL_RECORD_SIZE)
+    offsets = [offset + i for offset, piece in runs for i in range(len(piece_bytes(piece)))]
+    assert [hex(at) for at in offsets if at not in record and wired[at] != assembled[at]] == [], (LEVEL_LABEL, choice)
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -183,9 +204,17 @@ def test_wired_path_writes_the_assembled_bytes(seed: int) -> None:
         "select_swap": SelectSwap, "death_warp": DeathWarp, "music": Music}
     for name, choices in data.SETTINGS.items():
         for choice in choices:
-            value: Any = (choice == "on") if name in ("reduce_flashing", "statistics_screen") \
-                else fields_of[name](choice)
-            wired = apply_player_settings(rom, replace(UNSET, **{name: value}))
+            if name == STATISTICS_SCREEN:           # always on; off only through the co-op hook
+                wired = apply_player_settings(rom, UNSET, coop=choice == "off")
+                assert wired == bytes(build.apply_settings(rom, {name: choice}, data.SETTINGS)), (name, choice)
+                continue
+            if name == LEVEL_LABEL:
+                _check_level_label(rom, choice, build.apply_settings(rom, {name: choice}, data.SETTINGS),
+                                   data.SETTINGS[name][choice])
+                continue
+            value: Any = (choice == "on") if name == "reduce_flashing" else fields_of[name](choice)
+            # the build writes this setting alone: the co-op hook keeps the screen out of the wired ROM
+            wired = apply_player_settings(rom, replace(UNSET, **{name: value}), coop=True)
             assert wired == bytes(build.apply_settings(rom, {name: choice}, data.SETTINGS)), (name, choice)
 
 
@@ -227,9 +256,10 @@ def test_command_line_settings() -> None:
                                   "tunic_colors=0x24,0x32,0x16", "death_warp=controller2_up_a", "level_word=lair",
                                   "boss_sound_word=random", "statistics_screen=on"]) == \
         PlayerSettings(SelectSwap.OFF, LowHealthBeep.REMOVED, DeathWarp.CONTROLLER2_UP_A, True,
-                       (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM", True)
+                       (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM")
+    # the retired statistics_screen is ignored, whatever its value
+    assert parse_player_settings(["statistics_screen=yes"]) == PlayerSettings()
     for bad in (["music=loud"], ["heart_color=0x0D"], ["volume=11"], ["reduce_flashing=maybe"],
-                ["statistics_screen=yes"],
                 ["level_word=FORTRESS"], ["level_word=A~B"], ["boss_sound_word=GROWL"]):
         with pytest.raises(PlayerSettingError):
             parse_player_settings(bad)

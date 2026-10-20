@@ -6,6 +6,11 @@ name = "ZORA_SET_MUSIC_OFF"
 bank = 0
 start = 0xA000
 
+[[segment]]
+name = "ZORA_SET_MUSIC_OFF_STATS"
+bank = 2
+start = 0xB7A0              # bank 2 free space after the statistics screen's seed number ($B780-$B793)
+
 [[hook]]
 name = "song-request"
 offset = 0x01C7B

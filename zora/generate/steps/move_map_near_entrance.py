@@ -11,6 +11,10 @@ documented off-by-one: first instance weight +1, last instance weight -1
 sound and dark flag, SH-MAP-05/06) with the map room. Four times in five, the map's new
 room gets the kill-for-item trigger if it had none or plain kill-all; the test draws a number
 whatever the trigger.
+
+Owner-ruled deviation (ZORA, 2026-10-17; docs/deviations.md): a room on the last-boss trigger
+(3) is never a candidate. Its item never appears outside Ganon's room, and in the spec the
+map could end there, behind Zelda's shutters, where the player cannot collect it.
 """
 from collections import deque
 
@@ -24,11 +28,12 @@ from ..shapes.tables import (
     MAP_MOVE_TRIGGER_PROB_NUM,
     T3_REPLACEABLE,
 )
+from .move_last_boss_room_items import is_last_boss_room
 
 BOMBABLE_OR_WALK = frozenset({WallType.WALK_THROUGH_WALL_1, WallType.WALK_THROUGH_WALL_2,
                               WallType.BOMB_HOLE})
 # SH-MAP-03: the rooms a map may move to hold bombs, five rupees, a key, the
-# compass or the map
+# compass or the map (and are not on the last-boss trigger, is_last_boss_room)
 CANDIDATE_ITEMS = frozenset(Item(code) for code in T3_REPLACEABLE | MAP_MOVE_TRIGGER_CODES)
 # SH-MAP-05: the triggers the map's new room may trade for kill-for-item
 REPLACEABLE_TRIGGERS = (RoomAction.NONE, RoomAction.ALL_DEAD)
@@ -96,7 +101,8 @@ def move_map_near_entrance(level: Level, rng: Rng) -> None:
     block = level.block
     entries: list[tuple[int, int]] = []      # (room number, weight)
     for room_number in sorted(links):
-        if room_number not in distance or block.room(room_number).item not in CANDIDATE_ITEMS:
+        room = block.room(room_number)
+        if room_number not in distance or room.item not in CANDIDATE_ITEMS or is_last_boss_room(room):
             continue
         grid_distance = (abs(room_grid.row(room_number) - room_grid.row(entrance))
                          + abs(room_grid.column(room_number) - room_grid.column(entrance)))
@@ -120,7 +126,7 @@ def move_map_near_entrance(level: Level, rng: Rng) -> None:
     # items.
     map_room.item_info, chosen.item_info = chosen.item_info, map_room.item_info
     # SH-MAP-05: the four-in-five test draws one number whatever the trigger; only trigger 0 or
-    # 1 changes. A last-boss room (trigger 3, VA-REJ-20) keeps its trigger and the map with it.
+    # 1 changes.
     gets_item_trigger = rng.chance(MAP_MOVE_TRIGGER_PROB_NUM, MAP_MOVE_TRIGGER_PROB_DEN)
     if gets_item_trigger and chosen.room_action in REPLACEABLE_TRIGGERS:
         chosen.room_action = RoomAction.ALL_DEAD_ITEM

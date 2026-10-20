@@ -38,6 +38,7 @@ from .item_shuffle_result import (
     EXTRA_SLOT_CAVES,
     LETTER_SLOT,
     MAGICAL_SWORD_SLOT,
+    WOOD_SWORD_SLOT,
     ItemShuffleOptions,
     ItemShuffleResult,
     TrackedPlace,
@@ -46,7 +47,8 @@ from .item_shuffle_result import (
 from .shuffle_items import CAVE_SLOTS, FORCED_ITEM_OPTIONS, RANDOM_ITEM
 
 # The item each extra brings into the pool (its cave's vanilla item).
-JOINED_ITEMS: dict[str, Item] = {MAGICAL_SWORD_SLOT: Item.MAGICAL_SWORD, LETTER_SLOT: Item.LETTER}
+JOINED_ITEMS: dict[str, Item] = {MAGICAL_SWORD_SLOT: Item.MAGICAL_SWORD, LETTER_SLOT: Item.LETTER,
+                                  WOOD_SWORD_SLOT: Item.WOOD_SWORD}
 
 
 @dataclass
@@ -62,6 +64,9 @@ class ExtraPoolItems:
     # price a ware keeps when it holds its own item or an unpriced one. Recorded only, for FINISH
     # (Archipelago Phase 2), which prices the wares again for an assigned world.
     slot_prices: list[int] = field(default_factory=list)
+    # The extras' caves no later join may draw (Shuffle Wood Sword's starting weapon, pinned as a
+    # forced special-cave slot is)
+    pinned: set[str] = field(default_factory=set)
 
 
 def extra_cave(overworld: Overworld, slot: str) -> ItemCave:
@@ -212,21 +217,29 @@ def _forced_slots(opts: ItemShuffleOptions) -> frozenset[str]:
     return frozenset(slot for slot, index in choice.items() if FORCED_ITEM_OPTIONS[index] != RANDOM_ITEM)
 
 
+def _cell(place: LevelRoomPlace | ItemCellarPlace) -> tuple[int, int]:
+    """(level, room or cellar), as the deal records its pinned places (PS-ITEM-12)."""
+    if isinstance(place, LevelRoomPlace):
+        return place.level.level_num, place.room.room_num
+    return place.level.level_num, place.cellar.room_num
+
+
 def pool_places(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,
                 opts: ItemShuffleOptions) -> list[PoolPlace]:
     """The pool's places an extra may exchange with, in a fixed order: the
-    dungeon places holding a pool item, the special-cave slots (less the
-    forced ones), the extras' caves in the order they joined, then the shop
+    dungeon places holding a pool item (less those the deal pinned, PS-ITEM-12), the special-cave
+    slots (less the forced ones), the extras' caves in the order they joined, then the shop
     wares joined so far."""
     codes = pool_items(state, extras, opts)
     # Within each dungeon (C06 = 2, PS-ITW-01) no heart container leaves its level: the coast
     # heart's record names heart containers too, so they are left out of the dungeon places
     dungeon_codes = codes if opts.dungeon_hearts else codes - {Item.HEART_CONTAINER}
     places: list[PoolPlace] = [place for place in dungeon_places(levels)
-                               if int(place.get()) & ITEM_MASK in dungeon_codes and place.get() != Item.NOTHING]
+                               if int(place.get()) & ITEM_MASK in dungeon_codes and place.get() != Item.NOTHING
+                               and _cell(place) not in state.pinned_level_places]
     forced = _forced_slots(opts)
     places += [CaveSlotPlace(slot, state) for slot in CAVE_SLOTS if slot not in forced]
-    places += [ExtraSlotPlace(slot, extras) for slot in extras.caves]
+    places += [ExtraSlotPlace(slot, extras) for slot in extras.caves if slot not in extras.pinned]
     places += extras.shop_wares
     return places
 
@@ -275,12 +288,17 @@ def exchange_with_drawn(own: PoolPlace, places: list[PoolPlace], state: ItemShuf
     if drawn == len(places):
         return None
     place = places[drawn]
+    exchange(own, place, state)
+    return place
+
+
+def exchange(own: PoolPlace, place: PoolPlace, state: ItemShuffleResult) -> None:
+    """Two places exchange items, and the items their tracked records."""
     joining, displaced = own.get(), place.get()
     own.put(displaced)
     place.put(joining)
     _retrack(state, displaced, place.tracked(displaced), own.tracked(displaced))
     _retrack(state, joining, own.tracked(joining), place.tracked(joining))
-    return place
 
 
 # ---------------------------------------------------------------------------

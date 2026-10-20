@@ -1,6 +1,7 @@
-"""The full verification tier's stamp (scripts/full_tier.py; docs/design/test-speed.md 3.2): a
-tree is stamped only when it is exactly a commit, a release needs HEAD's tree stamped, and any
-change to the tree needs the full tier again. A throwaway git repository with the script."""
+"""The batch run's stamp (scripts/full_tier.py; docs/design/test-speed.md 3.2): a tree is stamped
+only when it is exactly a commit, and a release needs HEAD's tree stamped, or the release gate's
+relaxation: only low-risk changes (Markdown, the version string) since the newest stamped commit,
+with the quick check passed on HEAD. A throwaway git repository with the script."""
 import importlib.util
 import os
 import shutil
@@ -102,7 +103,75 @@ def test_a_release_without_the_stamp_is_refused(repo: Path, monkeypatch: pytest.
     for name in SETTINGS:                       # make_release runs in the checkout it releases
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(make_release, "REPO", repo)
-    with pytest.raises(SystemExit, match="release refused: full tier: HEAD's tree .* has NO stamp"):
+    with pytest.raises(SystemExit, match="release refused: release gate: NO batch-run stamp"):
         make_release.check_full_tier()
     _full_tier(repo, "stamp", "7")
     make_release.check_full_tier()
+
+
+VERSION_SOURCE = '"""ZORA\'s version."""\n\nZORA_VERSION = "2.0.0b5"\nPLAYER_NAME = "ZORA"\n'
+
+
+def _commit(repo: Path, message: str, **files: str) -> None:
+    for name, text in files.items():
+        (repo / name).parent.mkdir(parents=True, exist_ok=True)
+        (repo / name).write_text(text)
+    _git(repo, "add", "--all")
+    _git(repo, "commit", "--quiet", "--no-verify", "-m", message)
+
+
+@pytest.fixture
+def stamped_repo(repo: Path) -> Path:
+    """REPO with zora/version.py, stamped by a batch run."""
+    _commit(repo, "version", **{"zora/version.py": VERSION_SOURCE})
+    assert "stamped" in _full_tier(repo, "stamp", "7").stdout
+    assert _full_tier(repo, "release-check").returncode == 0
+    return repo
+
+
+def test_docs_only_changes_since_the_stamp_pass_with_the_quick_check(stamped_repo: Path) -> None:
+    _commit(stamped_repo, "notes", **{"docs/notes.md": "# Notes\n", "README.md": "readme\n"})
+    refused = _full_tier(stamped_repo, "release-check")
+    assert refused.returncode == 1 and "the quick check has not passed on HEAD" in refused.stdout
+    assert "recorded" in _full_tier(stamped_repo, "quick-stamp").stdout
+    accepted = _full_tier(stamped_repo, "release-check")
+    assert accepted.returncode == 0, accepted.stdout
+    assert "docs/notes.md: Markdown" in accepted.stdout
+
+
+def test_a_version_only_bump_passes(stamped_repo: Path) -> None:
+    _commit(stamped_repo, "bump", **{"zora/version.py": VERSION_SOURCE.replace("2.0.0b5", "2.0.0b6")})
+    _full_tier(stamped_repo, "quick-stamp")
+    accepted = _full_tier(stamped_repo, "release-check")
+    assert accepted.returncode == 0 and "zora/version.py: the version bump" in accepted.stdout
+
+
+@pytest.mark.parametrize("files", [
+    {"game.txt": "two\n"},                                                          # code or data
+    {"zora/version.py": VERSION_SOURCE.replace('"ZORA"', '"ZORB"')},                 # more than the version
+    {"zora/version.py": VERSION_SOURCE + "EXTRA = 1\n"},
+    {"docs/table.csv": "a,b\n"},                                                    # docs/ data, read by tests
+    {"docs/notes.md": "# Notes\n", "game.txt": "two\n"},                             # docs beside a risky file
+])
+def test_any_other_change_since_the_stamp_needs_a_new_batch_run(stamped_repo: Path, files: dict[str, str]) -> None:
+    _commit(stamped_repo, "change", **files)
+    _full_tier(stamped_repo, "quick-stamp")
+    refused = _full_tier(stamped_repo, "release-check")
+    assert refused.returncode == 1 and "not low-risk" in refused.stdout and "a new batch run" in refused.stdout
+
+
+def test_the_newest_stamp_is_the_one_measured_from(stamped_repo: Path) -> None:
+    """An older stamp with a risky change after it does not refuse what a newer stamp covers."""
+    _commit(stamped_repo, "code", **{"game.txt": "two\n"})
+    _full_tier(stamped_repo, "stamp", "7")
+    _commit(stamped_repo, "notes", **{"docs/notes.md": "# Notes\n"})
+    _full_tier(stamped_repo, "quick-stamp")
+    assert _full_tier(stamped_repo, "release-check").returncode == 0
+
+
+def test_a_quick_check_with_uncommitted_changes_records_nothing(stamped_repo: Path) -> None:
+    _commit(stamped_repo, "notes", **{"docs/notes.md": "# Notes\n"})
+    (stamped_repo / "docs" / "notes.md").write_text("# Changed\n")
+    assert "not recorded" in _full_tier(stamped_repo, "quick-stamp").stdout
+    (stamped_repo / "docs" / "notes.md").write_text("# Notes\n")
+    assert _full_tier(stamped_repo, "release-check").returncode == 1

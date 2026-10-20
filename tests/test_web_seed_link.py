@@ -95,7 +95,8 @@ const addresses = [];
 const location = { pathname: "/", search: "", hash: "" };
 const history = { state: null, replaceState(state, title, url) { addresses.push(url); location.search = url.includes("?") ? url.slice(url.indexOf("?")) : ""; } };
 const URL = { createObjectURL: () => "blob:rom" };
-const status = () => {}, showAfterSeed = () => {}, markStepDone = () => {}, addSeedReportButtons = () => {};
+const status = () => {}, showAfterSeed = () => {}, markStepDone = () => {}, addSeedReportButtons = () => {},
+      addCopyButtons = () => {}, romIdentity = null;
 const updateButton = () => {};
 const NOT_PRODUCED_REFUSAL = "not produced", NOT_IMPLEMENTED = "Not implemented";
 const generateSeed = async (seed) => ({ bytes: new Uint8Array(1), seed, code: [], ms: 1 });

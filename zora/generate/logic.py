@@ -56,6 +56,7 @@ if TYPE_CHECKING:
 ARROW = "Arrow"
 CANDLE = "Candle"
 SWORD = "Sword"                   # ASNB: level-9 entry is Sword 4 (docs/design/asnb.md section 5)
+BAIT = "Bait"                     # Shop Items in the Item Pool: every bait held (docs/zora-extras.md 10)
 MAGICAL_SWORD_CAVE_EVENT = "Magical Sword Cave"
 LEVEL9_ENTRY_EVENT = "Level 9 Entry"
 # Ganon's fixed drop ($0E): never shuffled, never a place, never in the pool. Taking it opens the
@@ -273,8 +274,10 @@ class Universes:
     @classmethod
     def of(cls, rules: LogicRules) -> Universes:
         screen = frozenset(need for _screens, need in rules.screen_needs)
+        # Shop Items in the Item Pool's bait: a hungry Goriya's room opens once every bait is held
+        bait = frozenset({Item.BAIT}) if rules.bait_in_pool else frozenset()
         return cls(screen=screen, entry=screen | LONG_ITEMS | {LEVEL9_ENTRY},
-                   inside=family_items(rules.family_lists) | {Item.LADDER},
+                   inside=family_items(rules.family_lists) | {Item.LADDER} | bait,
                    cave=screen | {Item.LADDER, Item.LETTER})
 
     def inside_level(self, level: int) -> frozenset[int]:
@@ -295,15 +298,24 @@ def logic_model(built: Built) -> LogicModel:
     check = AcceptanceCheck(world.levels, built.result.item_shuffle_result, world.overworld,
                             built.result.overworld, rules)
     universes = Universes.of(rules)
+    # the closure's start: the wood sword, unless Shuffle Wood Sword put it in the pool
+    always_held = frozenset() if rules.wood_sword_in_pool else frozenset({Item.WOOD_SWORD})
+    held_derive = partial(derive, always_held=always_held)
     events: dict[str, Rule] = {}
     named = dict(PSEUDO_TERMS)
     if extras.shuffle_blue_potion and Item.LETTER not in major_pool(extras):
         # the potion shop's middle ware needs the letter, which stays in its own cave (Randomize
         # Letter off), where the closure collects it (a tracked record): an event, not an item to place
         named[Item.LETTER] = EventTerm(LETTER_EVENT)
-        events[LETTER_EVENT] = derive(partial(check.collects, TrackedPlace(Item.LETTER, slot=LETTER_SLOT)),
+        events[LETTER_EVENT] = held_derive(partial(check.collects, TrackedPlace(Item.LETTER, slot=LETTER_SLOT)),
                                       universes.cave, LETTER_EVENT)
-    entry = {level: derive(partial(check.can_enter, level), universes.entry, f"Level {level} entry")
+    lines = {LINE_NAMES[line]: Line(frozenset(Item(code) for code in line)) for line, _ware, _counts in LINE_SHOP_WARES}
+    if rules.bait_in_pool:
+        # the closure holds the bait (usable) once every bait record is collected: a count of them
+        baits = sum(record.item == Item.BAIT for record in built.result.item_shuffle_result.tracked)
+        named[Item.BAIT] = CountTerm(BAIT, baits)
+        lines[BAIT] = Line(frozenset({Item.BAIT}))
+    entry = {level: held_derive(partial(check.can_enter, level), universes.entry, f"Level {level} entry")
              for level in DUNGEONS}
 
     def place_rule(place: Place) -> Rule:
@@ -313,27 +325,28 @@ def logic_model(built: Built) -> LogicModel:
     def reach_rule(place: Place) -> Rule:
         if place.level is not None and place.room_num is not None:
             reaches = check.can_reach_room if place.kind == PlaceKind.ROOM else check.reaches_cellar
-            inside = derive(partial(reaches, place.level, place.room_num), universes.inside_level(place.level),
-                            place.name)
+            inside = held_derive(partial(reaches, place.level, place.room_num), universes.inside_level(place.level),
+                            place.name, named=named)
             return conjoin(entry[place.level], inside)
         # the item code is never read for a cave or shop slot
-        return derive(partial(check.collects, tracked_place(place, Item.WOOD_SWORD)), universes.cave, place.name,
+        return held_derive(partial(check.collects, tracked_place(place, Item.WOOD_SWORD)), universes.cave, place.name,
                       named=named)
 
     for level in TRIFORCE_LEVELS:
         events[triforce_event(level)] = conjoin(
-            entry[level], derive(partial(check.completes, level), universes.inside, triforce_event(level)))
-    lines = {LINE_NAMES[line]: Line(frozenset(Item(code) for code in line)) for line, _ware, _counts in LINE_SHOP_WARES}
+            entry[level], held_derive(partial(check.completes, level), universes.inside, triforce_event(level),
+                                 named=named))
     if rules.level_9_by_swords:
         # ASNB: level-9 entry is four swords (the closure's sword_count); the magical-sword cave's
         # own sword is an event with its cave's hearts (R2), as the game asks
-        lines[SWORD] = Line(frozenset(Item(code) for code in SWORD_LINE), starting=HELD_FROM_START_SWORDS)
+        lines[SWORD] = Line(frozenset(Item(code) for code in SWORD_LINE),
+                            starting=0 if rules.wood_sword_in_pool else HELD_FROM_START_SWORDS)
         if rules.magical_sword_cave_counts:
             cave = world.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
             assert cave is not None
             hearts = cave.heart_requirement
             events[MAGICAL_SWORD_CAVE_EVENT] = conjoin(
-                derive(partial(check.reaches_cave, Destination.MAGICAL_SWORD_CAVE), universes.screen,
+                held_derive(partial(check.reaches_cave, Destination.MAGICAL_SWORD_CAVE), universes.screen,
                        MAGICAL_SWORD_CAVE_EVENT),
                 rule_of(HeartsTerm(hearts, take_any=True)))
             lines[SWORD] = replace(lines[SWORD], ware_event=MAGICAL_SWORD_CAVE_EVENT)
@@ -345,11 +358,11 @@ def logic_model(built: Built) -> LogicModel:
         assert isinstance(hint_event, EventTerm)
         # with Book to Understand NPCs (B48) the path also needs the book (knows_maze_path)
         hint_universe = universes.screen | ({Item.BOOK} if rules.maze_hints_need_book else frozenset())
-        events[hint_event.name] = derive(partial(check.knows_maze_path, hint_shop), hint_universe,
+        events[hint_event.name] = held_derive(partial(check.knows_maze_path, hint_shop), hint_universe,
                                          hint_event.name)
     if rules.counts_lines and rules.counts_shop_wares:
         for line, ware, _counts in LINE_SHOP_WARES:
-            events[ware_event(ware)] = derive(partial(check.ware_door_reached, ware), universes.screen,
+            events[ware_event(ware)] = held_derive(partial(check.ware_door_reached, ware), universes.screen,
                                               ware_event(ware))
             lines[LINE_NAMES[line]] = replace(lines[LINE_NAMES[line]], ware_event=ware_event(ware))
     # The sword caves' hearts (R2): ZORA's heart check (check_magical_sword_hearts), which counts
@@ -357,12 +370,12 @@ def logic_model(built: Built) -> LogicModel:
     # containers between worlds.
     take_any_events = tuple(take_any_event(screen) for screen in take_any_heart_screens(world.overworld))
     for screen, name in zip(take_any_heart_screens(world.overworld), take_any_events, strict=True):
-        events[name] = derive(partial(check.reaches_screen, screen), universes.screen, name)
+        events[name] = held_derive(partial(check.reaches_screen, screen), universes.screen, name)
     # The Triforce of Power, Ganon's fixed drop: level 9 entered (its door, the long items and
     # level-9 entry), Ganon's room reached on the logic walk and his family list unblocked (the bow
     # and the silver arrows; two arrow upgrades under Progressive Items, PI-LOGIC-02).
-    events[TRIFORCE_OF_POWER_EVENT] = conjoin(entry[LEVEL_9], derive(check.reaches_ganon, universes.inside,
-                                                                    TRIFORCE_OF_POWER_EVENT))
+    events[TRIFORCE_OF_POWER_EVENT] = conjoin(entry[LEVEL_9], held_derive(check.reaches_ganon, universes.inside,
+                                                                    TRIFORCE_OF_POWER_EVENT, named=named))
     # Zelda: E3 (VA-REJ-09), a walk on the layout alone, and the Triforce of Power (her shutters).
     events[ZELDA_EVENT] = conjoin(TRUE if check.is_zelda_reachable() else FALSE,
                                   rule_of(EventTerm(TRIFORCE_OF_POWER_EVENT)))

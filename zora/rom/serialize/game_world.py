@@ -199,12 +199,12 @@ def _serialize_overworld_data(game_world: GameWorld, original_bins_bytes: dict[s
     _serialize_cave_data(game_world.overworld, patch)
     _serialize_mmg_prizes(game_world.overworld, patch)
     _serialize_bomb_upgrade(game_world.overworld, patch)
-    _serialize_new_file_hearts(game_world, patch)
-    if cfg.features_b10 and game_world.start_items:
-        # FP-START-03: fp-start-02's table, with the start hearts (the patch's own copy is PRG0's
-        # start, so the code patches carry this table too: code_patches.seed_data)
+    _serialize_new_file_hearts(game_world, patch, start_table_written=cfg.features_b10 and game_world.uses_start_table)
+    if cfg.features_b10 and game_world.uses_start_table:
+        # FP-START-03: fp-start-02's table, with the start hearts and pieces (the patch's own copy is
+        # PRG0's start, so the code patches carry this table too: code_patches.seed_data)
         patch.add(START_ITEMS_TABLE, start_table(game_world.start_items, game_world.new_file_heart_containers,
-                                                 game_world.new_file_full_hearts))
+                                                 game_world.new_file_full_hearts, game_world.start_triforce_pieces))
     if cfg.features_b10:
         _serialize_b10_constants(game_world, patch)
         _serialize_credits(game_world, patch)
@@ -262,7 +262,7 @@ def _serialize_person_code(game_world: GameWorld, cfg: GameConfig, hint_mode: Hi
     group passes' operand bytes (PS-EGRP-05/-06)."""
     for address, data in person_code.encode(game_world.life_or_money_toll,
                                             game_world.bomb_upgrade_levels,
-                                            game_world.starting_hearts):
+                                            game_world.new_file_heart_containers):
         patch.add(address, data)
     for address, data in person_code.text_pointer_write(game_world.life_or_money_toll):
         patch.add(address, data)

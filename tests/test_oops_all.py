@@ -49,7 +49,7 @@ from zora.model.sprites import TILE_BYTES, PatternBlock
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="no base ROM")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 E = Enemy
 FAMILY_CHOICES = tuple(FAMILIES)
@@ -71,7 +71,8 @@ def base_world() -> GameWorld:
 def test_both_fields_are_version_5_and_off_by_default() -> None:
     added = {field.name: field for field in zora_flags.FIELDS if field.version == 5}
     assert {name: field.slots for name, field in added.items()} == {"oops_all_enemies": 4, "oops_all_bosses": 2}
-    assert zora_flags.FIELDS[-2:] == tuple(added.values())             # appended last
+    up_to_5 = tuple(field for field in zora_flags.FIELDS if field.version <= 5)
+    assert up_to_5[-2:] == tuple(added.values())                       # appended last in version 5
     assert (ZoraFlags().oops_all_enemies, ZoraFlags().oops_all_bosses) == (OopsAllEnemies.OFF, OopsAllBosses.OFF)
     assert [int(value) for value in OopsAllEnemies] == [0, 1, 2, 3]
 

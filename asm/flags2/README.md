@@ -15,13 +15,15 @@ pinned disassembly includes as a binary. The version-3 ZORA flags write them
 | `bracelet-blocks` | Extra Power Bracelet Blocks (4) | 10 bytes of RoomLayoutsOW: layouts 18, 19, 34, 50 (screens $13, $14, $23, $33) |
 | `fast-dungeon-scroll` | Speed Up Dungeon Transitions (5) | 0x141F3, 0x1426B, 0x1446B, 0x14478, 0x144AD (2 bytes each) |
 | `fast-heart-fill` | Speed Up Heart Fill (6), credit snarfblam | 0x17203 and 0x17208 (1 byte each): World_FillHearts' threshold and step |
-| `recorder-pols-voice` | Recorder Kills Dungeon Pols Voice (7), credit Stratoform | 0x11BB2 (4 bytes): the call in UpdatePolsVoice; bank 4 $BA00-$BA13 (0x13A10, 20 bytes): `KillPolsVoiceAfterRecorder` |
+| `recorder-pols-voice` | Recorder Kills Dungeon Pols Voice (7), credit Stratoform | 0x11BB2 (4 bytes): the call in UpdatePolsVoice; bank 4 $BA00-$BA17 (0x13A10, 24 bytes): `KillPolsVoiceAfterRecorder` |
 | `four-potions` | Four Potion Inventory (8) | 0x6C70 and 0x6C74 (1 byte each) |
-| `auto-show-letter` | Auto Show Letter (9) | 0x4708 (13 bytes) |
+| `auto-show-letter` | Auto Show Letter (9; written in every ROM since 2026-10-17, no longer a flag) | 0x4708 (13 bytes) |
 | `like-like-rupees` | Like-Like Eats Rupees (10) | 0x11D45 and 0x11D47 (1 byte each) |
 | `magic-boomerang-damage` | Magical Boomerang Does 1 HP Damage (11) | 0x7478 (30 bytes) |
 | `lost-hills` | Randomize Lost Hills (12) | 11 bytes of RoomLayoutsOW: layouts 10-12, 27, 28 (screens $0B, $3C, $0C, $0D, $1C, $1D) |
 | `dead-woods` | Randomize Dead Woods (13) | 0x15B08 (1 byte): layout 110 (screen $73) |
+| `pegasus-boots` | Pegasus Boots (ZORA string version 7; owner spec 2026-10-17) | bank 5 0x14E48 (57 bytes: `WieldBoomerang`'s body, three hooks: `BootsPressB`, `BootsSpeed`; L1 speed operand 0x14E7A, L2's 0x14E7D) and 0x17376 (4 bytes: `InitLinkSpeed` calls `BootsSpeed`, in z1rr-coop's reserved hook); bank 1 0x06B84 (8 bytes: `ItemSlotToPaletteOffsetsOrValues`, L1 in the red palette), 0x0714F, 0x0717C (8 bytes each: the icon's frame tables) and 0x071CD (2 bytes: narrow tiles from $1C); bank 7 0x1F4F5 (9 bytes: `BoomerangFrameCycle`) and 0x1F716 (3 bytes: Goriya boomerangs keep their palette); data: sprite tiles $1C/$1D at 0x0824F (32 bytes, the boot) and the attract text at 0x09358 and 0x0936F (9 bytes each, BOOTS) |
+| `ring-color` | no flag: Archipelago games' ROMs only (`GameConfig.archipelago_rom`; owner 2026-10-18, the beta 5 fixes spec item 1) | bank 7 0x1EC8A (14 bytes: `BeginUpdateWorld`'s clock check calls bank 5's `RingColorAndClock`); bank 5 $BC80-$BCAC (0x17C90, 45 bytes): `RingColorAndClock`, Link repainted when a ring given through RAM disagrees with his tunic |
 
 RoomLayoutsOW is bank 5 $9418, file 0x15428-0x15BB7: 16 column descriptors per layout. A
 layout may serve several screens (layout 10 serves $0B and $3C). The maze sequences
@@ -31,9 +33,10 @@ Free space (docs/rom-map.md has the rows):
 
 | Segment | Bank | Slot | Used |
 |---|---|---|---|
-| `ZORA_F2_POLS_VOICE` (recorder-pols-voice) | 4 | $BA00-$BA3F, after fp-prog-02's Armos slot and before the overworld Wizzrobe routine ($BF00); was $B500 up to 2.0 beta 1, moved off z1rr-coop's reserved $B46F-$B882 | 20 bytes |
+| `ZORA_F2_POLS_VOICE` (recorder-pols-voice) | 4 | $BA00-$BA3F, after fp-prog-02's Armos slot and before the overworld Wizzrobe routine ($BF00); was $B500 up to 2.0 beta 1, moved off z1rr-coop's reserved $B46F-$B882 | 24 bytes |
 | `ZORA_F2_L4_TAKE_FIXED` (l4-sword-take) | 7 | $FF43-$FF4F, bank 7's last free gap | 10 of 13 bytes |
 | `ZORA_F2_L4_TAKE` (l4-sword-take) | 1 | $BFC0-$BFDF, between the ISR copy's code and its vectors | 15 bytes |
+| `ZORA_F2_RING_COLOR` (ring-color) | 5 | $BC80-$BCBF, after fp-entr-01-sides' slot | 45 bytes |
 
 ## Commands
 

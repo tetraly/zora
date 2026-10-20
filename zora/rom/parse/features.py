@@ -24,7 +24,7 @@ from ..layout import (
     TITLE_SEED_ROW_ADDRESS,
     TITLE_VERSION_ROW_ADDRESS,
 )
-from ..start_items import items_in_table
+from ..start_items import TRIFORCE_INDEX, items_in_table
 from ..text_encoding import BYTE_TO_CHAR as _BYTE_TO_CHAR
 
 ITEMS_BLOCK_SIZE = 40                # Items, RAM $0657-$067E
@@ -146,6 +146,8 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
         "new_file_full_hearts": new_file_hearts[1],
         # FP-START-03: the start items the new-file table holds (PRG0's routine: none)
         "start_items": () if new_file_items is None else items_in_table(new_file_items),
+        # FL-ALT-06: the start pieces the table holds (PRG0's routine: none)
+        "start_triforce_pieces": 0 if new_file_items is None else new_file_items[TRIFORCE_INDEX],
         "starting_items_second_quest": _starting_items(
             rom_bytes, SECOND_QUEST_START_STATE_ADDRESS, SECOND_QUEST_STORES, SECOND_QUEST_OPERANDS
         ),

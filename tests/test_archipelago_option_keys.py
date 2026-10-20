@@ -55,10 +55,15 @@ KEYS = {
     "extra_raft_blocks": "extra_raft_blocks", "extra_power_bracelet_blocks": "extra_power_bracelet_blocks",
     "speed_up_dungeon_transitions": "speed_up_dungeon_transitions", "speed_up_heart_fill": "speed_up_heart_fill",
     "recorder_kills_pols_voice": "recorder_kills_pols_voice", "four_potion_inventory": "four_potion_inventory",
-    "auto_show_letter": "auto_show_letter", "like_like_eats_rupees": "like_like_eats_rupees",
+    "like_like_eats_rupees": "like_like_eats_rupees",
     "magical_boomerang_damage": "magical_boomerang_damage", "randomize_lost_hills": "randomize_lost_hills",
     "randomize_dead_woods": "randomize_dead_woods",
     "oops_all_enemies": "oops_all_enemies", "oops_all_bosses": "oops_all_bosses",
+    "allow_triforces_in_stairways": "allow_triforces_in_stairways",
+    "pegasus_boots": "pegasus_boots",
+    "expanded_dungeon_locations": "expanded_dungeon_locations",
+    "highlight_no_drop_rooms": "highlight_no_drop_rooms",
+    # Shuffle Wood Sword is never offered (archipelago.ZORA_FORCED_OFF, owner ruling 2026-10-17): no key
 }
 CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")
 
@@ -76,7 +81,8 @@ def test_the_key_rules() -> None:
         assert re.fullmatch(r"[a-z0-9]+(?:_[a-z0-9]+)*", key), key
         assert not CODE.search(key), key
     for field in zora_form.FIELDS:
-        assert KEYS[field["name"]] == field["name"]
+        if field["name"] not in archipelago.NOT_OFFERED:
+            assert KEYS[field["name"]] == field["name"]
 
 
 def test_ganon_is_spelled_as_the_game_does_and_the_label_keeps_the_communitys() -> None:

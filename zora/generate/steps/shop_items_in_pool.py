@@ -40,6 +40,10 @@ HEART_CONTAINER_PRICES = (20, 40)
 # Priced like heart containers: cheap. The letter reaches a shop ware only with Randomize Letter on
 # (owner decision, 6 Oct 2026).
 CHEAP_ITEMS = frozenset({Item.HEART_CONTAINER, Item.LETTER})
+# A fairy costs 20-40 wherever it is sold (owner decision, 2026-10-19): the spare bait's fairy
+# (bait_in_pool), the logo look's shield fairies (finish.shields_to_fairies) and any ware the
+# price classes reach.
+FAIRY_PRICES = (20, 40)
 # Needed to beat the game: the four overworld progression items, the bow, and every candle-line
 # and arrow-line item (a candle burns the bushes, two arrow upgrades beat Ganon).
 PROGRESSION_ITEMS = frozenset({Item.LADDER, Item.RAFT, Item.POWER_BRACELET, Item.RECORDER, Item.BOW,
@@ -53,6 +57,7 @@ PRICES_BY_ITEM: dict[Item, tuple[int, int]] = {
     **dict.fromkeys(PROGRESSION_ITEMS, PROGRESSION_PRICES),
     **dict.fromkeys(NOT_NEEDED_ITEMS, NOT_NEEDED_PRICES),
     **dict.fromkeys(CHEAP_ITEMS, HEART_CONTAINER_PRICES),
+    Item.FAIRY: FAIRY_PRICES,
 }
 
 

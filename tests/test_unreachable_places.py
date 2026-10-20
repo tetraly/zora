@@ -15,6 +15,7 @@ from dataclasses import replace
 import pytest
 
 from tests.archipelago_cases import FLAG_CASES
+from tests.seed_rotation import chunk_id, chunks, sweep_seeds
 from zora import archipelago
 from zora.flags.presets import ASNB_FLAGS, ASNB_ZORA_FLAGS
 from zora.generate.logic import FALSE, TRIFORCE_OF_POWER_EVENT, ZELDA_EVENT, EventTerm, sweep
@@ -24,19 +25,20 @@ from zora.model.item_names import ITEM_NAMES
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
 CASES = {**FLAG_CASES, "all swords no boards": (ASNB_FLAGS, ASNB_ZORA_FLAGS)}
+# The sweep's range; each run checks a rotated block of 20 of it (tests/seed_rotation.py), as chunks
+# of 10 seeds, so no one test holds a worker for minutes (docs/design/test-speed.md 3.3)
 SCAN_SEEDS = range(100)
-# The sweep runs as chunks of 10 seeds, so no one test holds a worker for minutes at the end of
-# the slow suite (docs/design/test-speed.md 3.3): the same seeds and the same check in all
-SCAN_CHUNKS = [SCAN_SEEDS[start:start + 10] for start in range(0, len(SCAN_SEEDS), 10)]
+SCAN_CHUNKS = chunks(sweep_seeds(SCAN_SEEDS))
 # The default options' FALSE places before the logic walk, by cause (the report's seeds).
+# Seeds 0 and 2 moved with 114f280 (their cellars went); 82 and 370 hold the same causes now.
 REPORTED: dict[int, dict[str, str]] = {
-    0: {"Level 9 Room 37 Cellar": "after Ganon"},     # stair room faces Zelda's room
-    2: {"Level 9 Room 21 Cellar": "turnstile"},
-    6: {"Level 9 Room 73 Cellar": "after Ganon"},     # behind Ganon's room
-    32: {"Level 2 Room 15": "ladder"},                # double moat by N
-    83: {"Level 5 Room 3C": "ladder"},                # horizontal moat by N
-    87: {"Level 9 Room 0B Cellar": "after Ganon"},
-    93: {"Level 9 Room 20 Cellar": "after Ganon", "Level 9 Room 46 Cellar": "after Ganon"},
+    82: {"Level 9 Room 43 Stairway": "after Ganon"},
+    370: {"Level 9 Room 04 Stairway": "turnstile"},     # past a turnstile, by its measured line only
+    6: {"Level 9 Room 73 Stairway": "after Ganon"},     # behind Ganon's room
+    32: {"Level 2 Room 15 Floor": "ladder"},                # double moat by N
+    83: {"Level 5 Room 3C Floor": "ladder"},                # horizontal moat by N
+    87: {"Level 9 Room 0B Stairway": "after Ganon"},
+    93: {"Level 9 Room 20 Stairway": "after Ganon", "Level 9 Room 46 Stairway": "after Ganon"},
 }
 # The first seed of each other case that had a FALSE place, and two of ASNB's.
 OTHER_SEEDS = {"every owner flag on": 15, "every turn-off value, every owner flag on": 0,
@@ -47,7 +49,7 @@ QUICK = [("baseline", seed) for seed in REPORTED] + list(OTHER_SEEDS.items()) + 
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -78,13 +80,16 @@ def test_no_false_rule(base: bytes, case: str, seed: int) -> None:
 
 
 @pytest.mark.parametrize(("case", "seed"), QUICK)
-def test_every_place_and_the_goal_stay_reachable(base: bytes, case: str, seed: int) -> None:
+def test_every_place_event_and_the_goal_stay_reachable(base: bytes, case: str, seed: int) -> None:
     """With every item of the pool received (each place's item), the sweep collects every place
-    and reaches Zelda: no place's rule needs more than the pool holds (the Triforce of Power is
-    an event, never received)."""
+    and every event and reaches Zelda: no rule needs more than the pool holds (the Triforce of
+    Power is an event, never received). Every event, not only the Triforce of Power: Archipelago
+    makes each event a location it must reach (owner, 2026-10-15, after Randomize Dead Woods with
+    Cave Shuffle Vanilla left the Dead Woods Hint event unreached and a multiworld refused)."""
     result = built(case, seed, base)
     swept = sweep(result.logic, {}, [read_item(result.state.world, place) for place in result.state.places])
     assert swept.places == set(result.logic.places)
+    assert set(result.logic.events) - set(swept.events) == set()
     assert swept.reaches_goal and TRIFORCE_OF_POWER_EVENT in swept.events
 
 
@@ -120,7 +125,7 @@ def test_a_place_behind_ganons_shutters_requires_the_triforce_of_power(base: byt
     the Triforce of Power; with the event's own requirements (and everything else) met but the event
     left out, the place is not collected."""
     result = built("baseline", 6, base)
-    name = "Level 9 Room 73 Cellar"
+    name = "Level 9 Room 73 Stairway"
     assert requires_triforce_of_power(result.logic.places[name])
     pool = [read_item(result.state.world, place) for place in result.state.places]
     without = replace(result.logic, events={event: rule for event, rule in result.logic.events.items()
@@ -130,10 +135,11 @@ def test_a_place_behind_ganons_shutters_requires_the_triforce_of_power(base: byt
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("chunk", SCAN_CHUNKS, ids=lambda chunk: f"seeds {chunk[0]}-{chunk[-1]}")
+@pytest.mark.parametrize("chunk", SCAN_CHUNKS, ids=chunk_id)
 @pytest.mark.parametrize("case", list(CASES))
-def test_no_false_rule_over_100_seeds(base: bytes, case: str, chunk: range) -> None:
-    """No FALSE place, event or goal in seeds 0-99 of any case (ten seeds per test)."""
+def test_no_false_rule_over_the_sweep(base: bytes, case: str, chunk: range) -> None:
+    """No FALSE place, event or goal in this run's block of seeds 0-99 of any case (ten seeds per
+    test; tests/seed_rotation.py)."""
     found = {seed: names for seed in chunk
              if (names := false_rules(archipelago.build_from_strings(*CASES[case], seed, base)))}
     assert not found, found

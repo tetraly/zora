@@ -27,6 +27,7 @@ from typing import Any
 
 import pytest
 
+from tests.seed_rotation import chunk_id, chunks, sweep_seeds
 from tests.test_coop_reserved import BASELINE_FOR_OWNER_FLAGS, z1r_with
 from zora import archipelago
 from zora.flags import zora_flags
@@ -42,7 +43,9 @@ from zora.model.enums import Destination, Item
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora_web.api import generate_rom, seed_report
 
-PLAYER_FLAGS = ("8hq4BeR1JXo7ygQD!vLBwTXdKSUJ3A", "4.Ea9wH")   # the report's strings
+# The report's strings. Its ZORA string has Auto Show Letter on, retired since 2026-10-17: it still
+# decodes, now spelled 4.EXeEZ, so its seeds (mixed with the spelling) generate other worlds.
+PLAYER_FLAGS = ("8hq4BeR1JXo7ygQD!vLBwTXdKSUJ3A", "4.Ea9wH")
 PLAYER_SEED = 1109332123
 OWNER_Z1R = z1r_with(toggles=BASELINE_FOR_OWNER_FLAGS)
 GATE_FLAGS = ("extra_raft_blocks", "extra_power_bracelet_blocks", "randomize_lost_hills", "randomize_dead_woods")
@@ -57,10 +60,10 @@ CASES = {**{name: with_gates(name) for name in GATE_FLAGS}, "every gate": with_g
          "the report's flags": PLAYER_FLAGS, "no gate": (MVP_BASELINE_LEVEL_ENCODING_OFF, ""),
          "mixed overworld quest": (z1r_with(options={"C01": OverworldQuest.MIXED_FIRST_QUEST_VARIANT}), "")}
 QUICK_SEEDS = range(3)
+# The sweep's range; each run checks a rotated block of 20 of it (tests/seed_rotation.py), as chunks
+# of 10 seeds, so no one test holds a worker for minutes (docs/design/test-speed.md 3.3)
 SWEEP_SEEDS = range(100)
-# The sweep runs as chunks of 10 seeds, so no one test holds a worker for minutes at the end of
-# the slow suite (docs/design/test-speed.md 3.3): the same seeds and the same check in all
-SWEEP_CHUNKS = [SWEEP_SEEDS[start:start + 10] for start in range(0, len(SWEEP_SEEDS), 10)]
+SWEEP_CHUNKS = chunks(sweep_seeds(SWEEP_SEEDS))
 MEANS = {Form.RAFT: Item.RAFT, Form.LADDER: Item.LADDER, Form.BRACELET: Item.POWER_BRACELET,
          Form.RECORDER: Item.RECORDER, Form.BOW: Item.BOW, Form.NO_RAFT: Item.RAFT,
          Form.NO_BRACELET: Item.POWER_BRACELET}
@@ -70,7 +73,7 @@ TRIFORCE_LEVELS = range(1, 9)
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -150,17 +153,30 @@ def built_case(case: str, seed: int, base: bytes) -> archipelago.BuildResult:
 
 
 def test_the_reported_seed(base: bytes) -> None:
-    """Level 2's door is on raft block $1F (and level 7's on bracelet block $12): no NEEDS NO
-    RAFT (or BRACELET) candidate; level 2's item is said to need the raft; every claim holds."""
+    """The player's seed: every claim holds. (Its layout, level 2's door on raft block $1F and
+    level 7's on bracelet block $12, moved when Shop Items in the Item Pool took the bait,
+    2026-10-17, and again with the Dead Woods' west half open, beta 7; test_a_door_on_a_gate_block
+    keeps both.)"""
     result = built_case("the report's flags", PLAYER_SEED, base)
+    assert false_requirements(result.state, result.logic) == []
+
+
+@pytest.mark.parametrize(("seed", "level", "door", "fallback", "means"), [
+    (92, 2, 0x1F, Form.NO_RAFT, Form.RAFT),             # the report's level 2, on raft block $1F (was 30, 163)
+    (190, 7, 0x12, Form.NO_BRACELET, None),             # the report's level 7, on bracelet block $12 (was 146, 11)
+])
+def test_a_door_on_a_gate_block(base: bytes, seed: int, level: int, door: int, fallback: str,
+                                means: str | None) -> None:
+    """A level's door on a gate block: no fallback says its means is not needed; level 2's item is
+    said to need the raft; every claim holds."""
+    result = built_case("the report's flags", seed, base)
     built = result.state
-    assert built.result.overworld is not None
-    assert built.result.overworld.entry_door(2) == 0x1F and built.result.overworld.entry_door(7) == 0x12
+    assert built.result.overworld is not None and built.result.overworld.entry_door(level) == door
     level_items, found = candidates(built)
-    forms = {candidate.form for candidate in found}
-    assert Form.NO_RAFT not in forms and Form.NO_BRACELET not in forms
-    level_2_items = {item for item, level in level_items if level == 2}
-    assert any(candidate.form == Form.RAFT and candidate.item in level_2_items for candidate in found)
+    assert fallback not in {candidate.form for candidate in found}
+    if means is not None:
+        items = {item for item, item_level in level_items if item_level == level}
+        assert any(candidate.form == means and candidate.item in items for candidate in found)
     assert false_requirements(built, result.logic) == []
 
 
@@ -174,8 +190,8 @@ def test_the_reported_seeds_hints(base: bytes) -> None:
 
 @pytest.mark.parametrize(("case", "seed", "level", "door", "fallback"), [
     ("randomize_dead_woods", 10, 2, 0x70, Form.NO_RAFT),     # Hint Shop 2 behind the raft
-    ("the report's flags", 267, 3, 0x0B, Form.NO_BRACELET),   # Lost Hills -> Hint Shop 1 behind
-    ("the report's flags", 320, 1, 0x71, Form.NO_RAFT),       # Dead Woods, Hint Shop 2 behind Lost
+    ("the report's flags", 104, 3, 0x0B, Form.NO_BRACELET),   # Lost Hills -> Hint Shop 1 behind (was 28, 120)
+    ("the report's flags", 206, 1, 0x71, Form.NO_RAFT),       # Dead Woods (was 22, 76), Hint Shop 2 behind Lost
 ])                                                            # Hills, Hint Shop 1 behind the raft
 def test_a_door_behind_a_maze_needs_what_its_hint_needs(base: bytes, case: str, seed: int, level: int, door: int,
                                                         fallback: str) -> None:
@@ -235,10 +251,11 @@ def test_every_requirement_hint_holds(base: bytes, case: str, seed: int) -> None
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("chunk", SWEEP_CHUNKS, ids=lambda chunk: f"seeds {chunk[0]}-{chunk[-1]}")
+@pytest.mark.parametrize("chunk", SWEEP_CHUNKS, ids=chunk_id)
 @pytest.mark.parametrize("case", list(CASES))
-def test_every_requirement_hint_holds_over_100_seeds(base: bytes, case: str, chunk: range) -> None:
-    """Every requirement hint holds in seeds 0-99 of every case (ten seeds per test)."""
+def test_every_requirement_hint_holds_over_the_sweep(base: bytes, case: str, chunk: range) -> None:
+    """Every requirement hint holds in this run's block of seeds 0-99 of every case (ten seeds per
+    test; tests/seed_rotation.py)."""
     found = {}
     for seed in chunk:
         result = archipelago.build_from_strings(*CASES[case], seed, base)

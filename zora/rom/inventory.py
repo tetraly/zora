@@ -79,10 +79,14 @@ def room_flags(level: int) -> int:
 @dataclass(frozen=True)
 class GiveRules:
     """The seed's flags that change how an item is taken: Progressive Items (fp-prog: the line's
-    next level), Add L4 Sword (a sword at level 3 gives level 4) and Four Potion Inventory."""
+    next level), Add L4 Sword (a sword at level 3 gives level 4) and Four Potion Inventory; and
+    Pegasus Boots, which names the boomerangs' items (the Archipelago world's Pegasus Boots,
+    Magical Boots and Boots Upgrade; owner decision 2026-10-18) and gives them as the boomerangs'
+    slots, unchanged."""
     progressive_items: bool = False
     l4_sword: bool = False
     four_potions: bool = False
+    pegasus_boots: bool = False
 
 
 def next_level(code: int, ram: Mapping[int, int]) -> int:
@@ -147,6 +151,11 @@ LINK_STATE = 0xAC                        # ObjState, slot 0 (Link)
 ITEM_LIFT_TIMER = 0x0506
 PLAY_MODE = 0x05
 HALTED_MASK, HALTED = 0xC0, 0x40
+# Tune1Request ($0602): the game's request for a tune-1 sound, which DriveAudio reads and clears each
+# frame; the client's arrival sound (archipelago.client_step) is written only while it reads 0.
+TUNE1_REQUEST = 0x0602
+ITEM_APPEARS_SOUND = 0x02             # a room's item appearing; taking the Triforce of Power
+ITEM_TAKEN_SOUND = 0x08               # picking up a floor item; a fairy
 RECEIVE_STATE = (IS_UPDATING_MODE, GAME_MODE, GAME_SUBMODE, PAUSED, MENU_STATE, LINK_STATE, ITEM_LIFT_TIMER)
 
 

@@ -7,9 +7,13 @@ from ..names import ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID
 
 NOT_ARCHIPELAGO_ITEMS = ("Rupee", "5 Rupees", "Heart", "Fairy", "Map", "Compass", "Triforce", "Triforce of Power",
                          "Clock")
-# As world 0.2.3 and 0.3.0 numbered them
-PINNED_ITEMS = {"Raft": 13, "Heart Container": 27, "Blue Potion": 32}
-PINNED_LOCATIONS = {"Level 4 Room 05": 779}
+# As world 0.2.3 and 0.3.0 numbered them; the renamed items as world 0.5.0 numbered them
+PINNED_ITEMS = {"Raft": 13, "Heart Container": 27, "Blue Potion": 32,
+                "Sword Upgrade": 101, "Candle Upgrade": 102, "Arrow Upgrade": 103, "Ring Upgrade": 104,
+                "Boomerang Upgrade": 105, "Bomb Upgrade": 106, "Boots Upgrade": 107,
+                "Pegasus Boots": 108, "Magical Boots": 109}
+# ID 779 was "Level 4 Room 05" until ZORA added Floor and Stairway (be3250a): the name moved, not the ID
+PINNED_LOCATIONS = {"Level 4 Room 05 Floor": 779, "Level 4 Room 05 Stairway": 780}
 
 
 class TestIds(unittest.TestCase):

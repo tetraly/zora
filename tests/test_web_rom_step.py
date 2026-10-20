@@ -25,7 +25,7 @@ FLAGS = api.flag_form.metadata()["defaultFlags"]
 SEED = 2535214729
 LEVEL_DATA_BYTE = NES_HEADER_SIZE + 0x18710      # outside every graphics block
 
-needs_prg0 = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+needs_prg0 = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 needs_prg1 = pytest.mark.skipif(not PRG1_ROM_PATH.exists(), reason="PRG1 ROM not found")
 
 

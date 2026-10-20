@@ -21,7 +21,7 @@ from zora.generate.steps import overworld_gates as gates
 from zora.model.enums import Item
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 WITH_BOOK = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={"B48": ThreeState.ON}))
 MAZES = zora_flags.encode(ZoraFlags(randomize_lost_hills=ThreeState.ON, randomize_dead_woods=ThreeState.ON))

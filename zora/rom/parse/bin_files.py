@@ -55,6 +55,7 @@ from ..layout import (
     GLEEOK_HEAD_SPRITE_PTR_B_ADDRESS,
     GLEEOK_HEAD_SPRITE_PTR_C_ADDRESS,
     GLEEOK_NECK_HP_ADDRESS,
+    HEART_METER_BLANK_BRANCH_ADDRESS,
     HINT_SHOP_QUOTES_ADDRESS,
     ITEM_CARRIER_OPERAND_ADDRESSES,
     LAMNOLA_SEGMENT_HP_ADDRESS,
@@ -202,6 +203,7 @@ class RawBinFiles:
     life_or_money_payment:    bytes = b""   # 0x21 bytes at 0x04C1C
     start_hearts:             bytes = b""   # 1 byte at 0x0A868
     continue_hearts_operand:  bytes = b""   # 1 byte at 0x14B83
+    heart_meter_blank_branch: bytes = b""   # 1 byte at 0x06731 (FL-ALT-07)
     # Hint-text selector tables (hints-behavior.md HT-SEL-01).
     underworld_text_selectors_a: bytes = b""  # 8 bytes at 0x4A2B
     underworld_text_selectors_b: bytes = b""  # 8 bytes at 0x4A71
@@ -353,6 +355,7 @@ def load_bin_files_from_rom(rom_bytes: bytes) -> RawBinFiles:
         life_or_money_payment    = s(LIFE_OR_MONEY_PAYMENT_ADDRESS,    LIFE_OR_MONEY_PAYMENT_SIZE),
         start_hearts             = s(START_HEARTS_ADDRESS,             1),
         continue_hearts_operand  = s(CONTINUE_HEARTS_OPERAND_ADDRESS,  1),
+        heart_meter_blank_branch = s(HEART_METER_BLANK_BRANCH_ADDRESS, 1),
         underworld_text_selectors_a = s(UNDERWORLD_PERSON_TEXT_SELECTORS_A_ADDRESS,
                                         UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE),
         underworld_text_selectors_b = s(UNDERWORLD_PERSON_TEXT_SELECTORS_B_ADDRESS,

@@ -1,20 +1,21 @@
 """z1rr-coop's SRAM page, $7F00-$7FFF (docs/rom-map.md "Reserved for z1rr-coop"): its EverDrive patch
 uses the whole page (freeze slots, staging, flags, its USB message buffer), so ZORA must write
-nothing there. The one exception is the statistics screen's counters, while that player setting
-is On (STATS_ALLOWED; by owner ruling the statistics screen and co-op are incompatible for now, and a
-co-op ROM must have the Statistics screen Off).
+nothing there. The one exception is the statistics screen's counters (STATS_ALLOWED), which every
+ROM has since 2026-10-17 except a co-op ROM: by owner ruling the statistics screen and co-op are
+incompatible, and the future co-op mode leaves the screen out (player_settings.write_player_settings'
+coop hook).
 
 Two checks:
   - statically, every patch ZORA can write (the series, ASNB, the 2.0 flag patches, the overworld
     Wizzrobe routine and every choice of every player setting) holds no write instruction whose
-    absolute operand can reach the page; with the Statistics screen On, its operands lie in
-    STATS_ALLOWED. Bytes a patch keeps or moves from the original game (Original pieces) are not
-    ZORA's and are not scanned; writes through a zero-page pointer cannot be read statically and
+    absolute operand can reach the page; the statistics screen's operands lie in STATS_ALLOWED. Bytes a patch keeps or moves from the original game (Original pieces) are not
+    ZORA's and are not scanned, nor are tile patterns (the Pegasus Boots' boot), which never run as
+    code; writes through a zero-page pointer cannot be read statically and
     are the emulator check's;
   - in the emulator, a finished seed is booted, the page is filled with a sentinel pattern, and
     every frame of a played session (registering a file, play with sword stabs and bombs, the item
     screen, saving, a reset and Continue, and the win mode with Start) is checked for a change on
-    the page outside STATS_ALLOWED (with the setting Off: anywhere). Each run is made twice, with
+    the page outside STATS_ALLOWED (in a co-op ROM: anywhere). Each run is made twice, with
     complementary patterns, so any write shows in one of them.
 
 The original game itself writes $A5 to $7FFF at every power-on and reset (InitializeGameOrMode,
@@ -34,13 +35,14 @@ from zora.generate.pipeline import generate_rom
 from zora.rom import asnb_patch_data, code_patch_data, flags2_patch_data, player_settings_data
 from zora.rom.base_rom import BASE_ROM_PATH, Piece
 from zora.rom.layout import OVERWORLD_WIZZROBE_PATCH
-from zora.rom.player_settings import PlayerSettings
+from zora.rom.player_settings import PlayerSettings, apply_player_settings
+from zora.rom.revision import GRAPHICS_BLOCKS, NES_HEADER_SIZE
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 COOP_PAGE = range(0x7F00, 0x8000)
-# The statistics screen's counters: the only bytes of the page ZORA may write, and only with the
-# setting On. The one place to change when the counters move.
+# The statistics screen's counters: the only bytes of the page ZORA may write, and never in a co-op
+# ROM. The one place to change when the counters move.
 STATS_ALLOWED = range(STATS_BLOCK, STATS_BLOCK + STATS_SIZE)
 STATS_SETTING, STATS_ON = "statistics_screen", "on"
 SAVE_RAM_END, SAVE_RAM_END_MARKER = 0x7FFF, 0xA5      # PRG0's own write at power-on and reset
@@ -52,6 +54,14 @@ SAVE_RAM_END, SAVE_RAM_END_MARKER = 0x7FFF, 0xA5      # PRG0's own write at powe
 ABSOLUTE_WRITES = frozenset({0x8D, 0x8E, 0x8C, 0xEE, 0xCE, 0x0E, 0x4E, 0x2E, 0x6E})
 INDEXED_WRITES = frozenset({0x9D, 0x99, 0xFE, 0xDE, 0x1E, 0x5E, 0x3E, 0x7E})
 INDEX_REACH = 0xFF
+# The tile-pattern blocks, by file offset: graphics, never run, so their bytes are not instructions
+# (the boot's bottom row, 7E 7F 7F 7F, would read as ROR $7F7F,X).
+PATTERN_BYTES = tuple(range(NES_HEADER_SIZE + start, NES_HEADER_SIZE + start + size)
+                      for _name, start, size in GRAPHICS_BLOCKS)
+
+
+def is_pattern_byte(offset: int) -> bool:
+    return any(offset in block for block in PATTERN_BYTES)
 
 
 def patch_tables() -> Iterator[tuple[str, tuple[tuple[int, Piece], ...]]]:
@@ -66,12 +76,15 @@ def patch_tables() -> Iterator[tuple[str, tuple[tuple[int, Piece], ...]]]:
 
 def page_writes(writes: tuple[tuple[int, Piece], ...]) -> list[tuple[int, int, int]]:
     """(file offset, opcode, operand) of each write instruction in the patch's own bytes whose
-    operand, or for an indexed one any address up to $FF past it, falls on the co-op page."""
+    operand, or for an indexed one any address up to $FF past it, falls on the co-op page. Tile
+    patterns are skipped."""
     found = []
     for offset, piece in writes:
         if not isinstance(piece, bytes):
             continue                                  # the original game's bytes, kept or moved
         for at in range(len(piece) - 2):
+            if is_pattern_byte(offset + at):
+                continue
             opcode, operand = piece[at], piece[at + 1] | piece[at + 2] << 8
             reach = INDEX_REACH if opcode in INDEXED_WRITES else 0 if opcode in ABSOLUTE_WRITES else None
             if reach is not None and operand <= COOP_PAGE[-1] and operand + reach >= COOP_PAGE[0]:
@@ -80,7 +93,7 @@ def page_writes(writes: tuple[tuple[int, Piece], ...]) -> list[tuple[int, int, i
 
 
 def test_no_patch_writes_the_coop_page() -> None:
-    """With the Statistics screen Off, and in every other patch of any configuration, no write
+    """Off (a co-op ROM's statistics screen), and in every other patch of any configuration, no write
     instruction can reach $7F00-$7FFF."""
     found = {name: hits for name, writes in patch_tables()
              if name != f"{STATS_SETTING}/{STATS_ON}" and (hits := page_writes(writes))}
@@ -88,8 +101,8 @@ def test_no_patch_writes_the_coop_page() -> None:
 
 
 def test_the_statistics_screen_writes_only_its_counters() -> None:
-    """With the Statistics screen On, every write operand on the page is in STATS_ALLOWED (and the
-    scan finds its writes, so it reads the patch's code)."""
+    """The statistics screen's every write operand on the page is in STATS_ALLOWED (and the scan
+    finds its writes, so it reads the patch's code)."""
     hits = page_writes(player_settings_data.SETTINGS[STATS_SETTING][STATS_ON])
     assert hits
     assert [hit for hit in hits if hit[2] not in STATS_ALLOWED] == []
@@ -97,11 +110,11 @@ def test_the_statistics_screen_writes_only_its_counters() -> None:
 
 # --- the emulator run -----------------------------------------------------------------------------
 
-SEED = 1
-EMULATOR_CASES = {           # (flag case, Statistics screen on)
-    "baseline, screen off": ("baseline", False),
-    "baseline, screen on": ("baseline", True),
-    "every owner flag on, screen off": ("every owner flag on", False),
+SEED = 2                     # seed 1's scripted walk no longer opens the item screen (the bait, 2026-10-17)
+EMULATOR_CASES = {           # (flag case, statistics screen in the ROM: False through the co-op hook)
+    "baseline, co-op": ("baseline", False),
+    "baseline": ("baseline", True),
+    "every owner flag on, co-op": ("every owner flag on", False),
 }
 PATTERN_STEP, PATTERN_START = 37, 0x5B
 WIN_FRAMES = 300
@@ -142,8 +155,8 @@ class PageWatch(Emulator):
 @cache
 def finished(case: str, screen_on: bool) -> bytes:
     flag_string, zora_flag_string = FINISHED_CASES[case]
-    return generate_rom(flag_string, SEED, vanilla(), PlayerSettings(statistics_screen=screen_on),
-                        zora_flag_string=zora_flag_string).rom
+    rom = generate_rom(flag_string, SEED, vanilla(), zora_flag_string=zora_flag_string).rom
+    return rom if screen_on else apply_player_settings(rom, PlayerSettings(), coop=True)
 
 
 def play_and_win(emu: PageWatch) -> None:

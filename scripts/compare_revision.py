@@ -2,7 +2,7 @@
 (scripts/output_hash.py, the same script and inputs for both). scripts/verify.sh REV runs it.
 
     python3 scripts/compare_revision.py REV [--seeds N] [--matrix-jobs N] [--workers N]
-                                            [--head-hashes FILE]
+                                            [--head-hashes FILE] [--no-lock]
     python3 scripts/compare_revision.py REV --resolve-only
 
 REV is resolved in the source checkout: this one, or, in a clean copy (scripts/clean_copy.py),
@@ -18,7 +18,14 @@ with --code. --head-hashes reuses this checkout's 20-seed hashes from a run alre
 REV's hashes are cached in the source checkout's temp/verify/base-cache/
 (docs/design/test-speed.md 3.2). The key is everything they depend on (base_hash_key_parts:
 REV's tree, this checkout's output_hash.py and matrix cases, the seed count, the base ROM, the
-private module and the interpreter), so a change to any of them hashes REV afresh.
+private module and the interpreter), so a change to any of them hashes REV afresh. This
+checkout's own hashes are stored under the same key for its working tree (the tree a commit of
+every file here would have; `git write-tree` from a private index), when the tree did not change
+while they were made: after a commit of exactly what was checked, the next check finds its
+parent's hashes already made.
+
+It takes the suite lock (its hashing runs use every core) unless --no-lock: the quick check
+(scripts/verify.sh) runs it with --no-lock --workers 2, beside any held lock.
 
 Exit status: 0 identical, 1 the output differs, 2 no comparison was made (REV unknown, or
 either side's output could not be produced). Never "identical" without both sides hashed.
@@ -35,6 +42,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+from contextlib import nullcontext
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -142,10 +150,37 @@ def _matrix_cases() -> str:
     return json.dumps(module.matrix_jobs())
 
 
+def working_tree() -> str | None:
+    """The tree a commit of every file in this checkout would have (tracked and untracked, ignored
+    files aside), from a private copy of the index, so the shared one is untouched; None when git
+    cannot say."""
+    index = OUT / f"working-tree.{os.getpid()}.index"
+    OUT.mkdir(parents=True, exist_ok=True)
+    git_dir = subprocess.run(["git", "-C", str(REPO), "rev-parse", "--absolute-git-dir"], capture_output=True,
+                             text=True, check=False, env=_git_environment()).stdout.strip()
+    try:
+        if git_dir and (Path(git_dir) / "index").is_file():
+            shutil.copyfile(Path(git_dir) / "index", index)    # its file stats spare rehashing every file
+        environment = {**_git_environment(), "GIT_INDEX_FILE": str(index)}
+        for command in (["add", "--all"], ["write-tree"]):
+            done = subprocess.run(["git", "-C", str(REPO), *command], capture_output=True, text=True, check=False,
+                                  env=environment)
+            if done.returncode != 0:
+                return None
+        return done.stdout.strip() or None
+    finally:
+        index.unlink(missing_ok=True)
+
+
 def base_hash_key_parts(commit: str, seeds: int, matrix_jobs: int | None) -> dict[str, str]:
     """Everything REV's hashes depend on: a cached result is reused only when all of it matches."""
+    return tree_hash_key_parts(_git_output("rev-parse", f"{commit}^{{tree}}"), seeds, matrix_jobs)
+
+
+def tree_hash_key_parts(tree: str, seeds: int, matrix_jobs: int | None) -> dict[str, str]:
+    """base_hash_key_parts for a tree: a commit's, or this checkout's working tree."""
     return {
-        "revision tree": _git_output("rev-parse", f"{commit}^{{tree}}"),
+        "revision tree": tree,
         "output_hash.py": _file_digest(OUTPUT_HASH),
         "matrix cases": hashlib.sha256(_matrix_cases().encode()).hexdigest(),
         "seeds": str(seeds),
@@ -198,6 +233,7 @@ def compare(label: str, base: Path, head: Path) -> bool:
 def compare_revision(rev: str, seeds: int, matrix_jobs: int | None, workers: int | None,
                      head_hashes: Path | None) -> bool:
     commit = resolve(rev)
+    worktree_before = working_tree()
     common = [*(["--workers", str(workers)] if workers else [])]
     matrix = ["--matrix", *(["--matrix-jobs", str(matrix_jobs)] if matrix_jobs else []), *common]
     seed_options = ["--seeds", str(seeds), *common]
@@ -218,10 +254,15 @@ def compare_revision(rev: str, seeds: int, matrix_jobs: int | None, workers: int
         finally:
             shutil.rmtree(base_tree, ignore_errors=True)
         store_base(parts, {name: path.read_text() for name, path in base_files.items()})
+    hashed_here = head_hashes is None       # both of this checkout's hash files made by this run
     if head_hashes is None:
         head_hashes = OUT / "head.json"
         hash_run("seeds, this checkout", head_hashes, seed_options)
     hash_run("matrix, this checkout", OUT / "head-matrix.json", matrix)
+    if worktree_before and hashed_here and working_tree() == worktree_before:
+        # This checkout's hashes, for the check whose parent is a commit of exactly these files
+        store_base(tree_hash_key_parts(worktree_before, seeds, matrix_jobs),
+                   {"seeds": head_hashes.read_text(), "matrix": (OUT / "head-matrix.json").read_text()})
     seeds_same = compare(f"seeds: {rev} vs this checkout", base_files["seeds"], head_hashes)
     matrix_same = compare(f"matrix: {rev} vs this checkout", base_files["matrix"], OUT / "head-matrix.json")
     return seeds_same and matrix_same
@@ -240,14 +281,17 @@ def main() -> int:
     parser.add_argument("--matrix-jobs", type=int, help="only the first N matrix ROMs")
     parser.add_argument("--workers", type=int, help="processes per hashing run (default one per core)")
     parser.add_argument("--head-hashes", type=Path, help="this checkout's seed hashes, already made")
+    parser.add_argument("--no-lock", action="store_true",
+                        help="take no suite lock (the quick check, with --workers 2)")
     args = parser.parse_args()
     try:
         commit = resolve(args.rev)
         if args.resolve_only:
             print(f"compare_revision: {args.rev} is {commit[:12]} in {source_repo()}")
             return IDENTICAL
-        # Up to four hashing runs across every core: one heavy run at a time (inside verify.sh, already held)
-        with suite_lock(f"compare_revision.py {args.rev}"):
+        # Up to four hashing runs across every core: one heavy run at a time (inside verify.sh's fast
+        # suite, already held); the quick check's runs, at 2 workers, take none
+        with nullcontext() if args.no_lock else suite_lock(f"compare_revision.py {args.rev}"):
             same = compare_revision(args.rev, args.seeds, args.matrix_jobs, args.workers, args.head_hashes)
     except NotCompared as error:
         print(f"compare_revision: FAILED, no comparison made: {error}", file=sys.stderr)

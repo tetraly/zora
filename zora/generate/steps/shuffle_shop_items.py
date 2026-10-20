@@ -118,6 +118,17 @@ def shuffle_shop_items(overworld: Overworld, rng: IntRng) -> None:
     redraw_extra_prices(overworld, rng)
 
 
+def bomb_shop_door_failure(overworld: Overworld, caves: CaveShuffle, also_barred: frozenset[int] = frozenset()) -> bool:
+    """VA-REJ-22's E6, under Swordless: the last of the four shops (in code order) whose stock holds
+    bombs needs a movable entrance off the Raft, Recorder, Ladder and Bracelet sets, as the arrow
+    shop does (E5). True when it has none."""
+    bomb_shops = [shop.destination for shop in _shops(overworld) if any(ware.item == Item.BOMBS for ware in shop.items)]
+    if not bomb_shops:
+        return False
+    barred = ARROW_DOOR_BARRED | recorder_screens(overworld) | also_barred
+    return not any(screen not in barred for screen in caves.movable_screens(bomb_shops[-1]))
+
+
 def _shop_selling(overworld: Overworld, item: Item) -> Destination:
     sellers = [shop.destination for shop in _shops(overworld)
                if any(ware.item == item for ware in shop.items)]

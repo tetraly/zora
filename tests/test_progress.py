@@ -137,6 +137,47 @@ def test_a_pytest_run_reports_its_test_count(tmp_path: Path) -> None:
     assert reports and all("test_slow_probe.py" in line and "/4 tests)" in line for line in reports), done.stdout
 
 
+def test_the_time_left_weighs_each_remaining_test_by_its_recorded_duration(folder: Path) -> None:
+    """Nine one-second tests done in 9 s and a 100-second one left: about 100 s, not the 1 s the count
+    alone gives (owner request, 2026-10-16: the estimate stuck low when slow tests came last)."""
+    status = {"name": "pytest tests", "started": 1000.0, "updated": 1009.0, "state": "running", "done": 9,
+              "total": 10, "unit": "tests", "work_done": 9.0, "work_total": 109.0}
+    line = progress.describe(status, now=1009.0)
+    assert "about 1:40 left (from recorded test times)" in line and "(9/10 tests)" in line
+    counted = progress.describe({**status, "work_done": 0.0, "work_total": None}, now=1009.0)
+    assert "about 0:01 left" in counted
+
+
+def test_a_test_without_a_record_counts_as_the_mean_of_those_with_one() -> None:
+    record = {"a": [1.0, False], "b": [3.0, True]}
+    assert progress.expected_work(["a", "b", "c"], record) == {"a": 1.0, "b": 3.0, "c": 2.0}
+    assert progress.expected_work(["c", "d"], record) is None          # nothing recorded: the count
+
+
+def test_a_pytest_run_records_its_passing_tests_and_estimates_from_them(tmp_path: Path) -> None:
+    """tests/progress_plugin.py keeps each passing test's duration (not a failing or skipped one's),
+    and the next run weighs its tests by them."""
+    probe, jobs = tmp_path / "probe", tmp_path / "jobs"
+    probe.mkdir()
+    (probe / "conftest.py").write_text("pytest_plugins = ['tests.progress_plugin']\n")
+    (probe / "test_record_probe.py").write_text(
+        "import time\nimport pytest\n\n\ndef test_quick() -> None:\n    pass\n\n\n"
+        "def test_long() -> None:\n    time.sleep(0.3)\n\n\n@pytest.mark.slow\ndef test_heavy() -> None:\n    pass\n\n\n"
+        "def test_failing() -> None:\n    assert False\n\n\n"
+        "@pytest.mark.skip(reason='probe')\ndef test_skipped() -> None:\n    pass\n")
+    command = [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", "-m", "", "test_record_probe.py"]
+    first = subprocess.run(command, cwd=probe, capture_output=True, text=True, check=False, env=_environment(jobs))
+    assert first.returncode == 1, first.stdout + first.stderr
+    record = json.loads((jobs / "test-durations.json").read_text())
+    assert set(record) == {f"test_record_probe.py::{name}" for name in ("test_quick", "test_long", "test_heavy")}
+    assert record["test_record_probe.py::test_long"][0] >= 0.3
+    assert record["test_record_probe.py::test_heavy"][1] is True and record["test_record_probe.py::test_quick"][1] is False
+    subprocess.run(command, cwd=probe, capture_output=True, text=True, check=False, env=_environment(jobs))
+    finished = [json.loads(path.read_text()) for path in jobs.glob("*.json") if path.name.startswith(tuple("0123456789"))]
+    latest = max(finished, key=lambda status: status["started"])
+    assert latest["work_total"] and latest["work_total"] >= 0.3 and latest["work_done"] >= 0.3
+
+
 # --- queued for the suite lock (owner, 2026-10-13): QUEUED, its place, 0%, no estimate ----------
 
 def test_a_queued_job_shows_queued_its_place_and_no_progress(folder: Path) -> None:
@@ -214,12 +255,13 @@ def _dead_pid() -> int:
     return gone.pid
 
 
-def _start_job(folder: Path, body: str) -> subprocess.Popen[str]:
-    """A Python process that starts a job named "signaled", says "started", then runs BODY."""
+def _start_job(folder: Path, body: str, session: str | None = None) -> subprocess.Popen[str]:
+    """A Python process that starts a job named "signaled", says "started", then runs BODY; with
+    SESSION, the job is that session's."""
     script = ("import sys, time\nfrom zora_measure import progress\n"
               "job = progress.Job('signaled').start()\nprint('started', flush=True)\n" + body)
-    process = subprocess.Popen([sys.executable, "-c", script], env=_environment(folder), stdout=subprocess.PIPE,
-                               text=True)
+    process = subprocess.Popen([sys.executable, "-c", script], env=_in_session(_environment(folder), session),
+                               stdout=subprocess.PIPE, text=True)
     assert process.stdout is not None and process.stdout.readline().strip() == "started"
     return process
 
@@ -288,3 +330,104 @@ def test_job_run_passes_sigterm_to_its_command_and_marks_the_job(folder: Path, t
         time.sleep(0.05)
     [status] = [status for status in progress.read_jobs() if status["name"] == "probe"]
     assert (status["state"], status["signal"]) == ("stopped", "SIGTERM")
+
+
+MY_SESSION, OTHER_SESSION = "a1b2c3d4-0000-4000-8000-000000000001", "e5f6a7b8-0000-4000-8000-000000000002"
+
+
+def _in_session(environment: dict[str, str], session: str | None) -> dict[str, str]:
+    """ENVIRONMENT as a shell of SESSION, or of no session."""
+    environment = {name: value for name, value in environment.items() if name != progress.SESSION_ID_ENV}
+    return {**environment, progress.SESSION_ID_ENV: session} if session else environment
+
+
+def _stop(folder: Path, job_id: str, session: str | None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run([sys.executable, str(REPO / "scripts" / "job.py"), "stop", job_id], capture_output=True,
+                          text=True, check=False, env=_in_session(_environment(folder), session))
+
+
+def _jobs(folder: Path, *options: str, session: str | None = MY_SESSION) -> subprocess.CompletedProcess[str]:
+    return subprocess.run([sys.executable, str(REPO / "scripts" / "jobs.py"), *options], capture_output=True,
+                          text=True, check=False, env=_in_session(_environment(folder), session))
+
+
+def test_a_job_records_its_sessions_full_id(folder: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(progress.SESSION_ID_ENV, MY_SESSION)
+    job = progress.Job("probe").start(tick=False)
+    status = json.loads(job.path.read_text())
+    job.finish()
+    assert status["session_id"] == MY_SESSION and progress.is_mine(status)
+    monkeypatch.setenv(progress.SESSION_ID_ENV, OTHER_SESSION)
+    assert not progress.is_mine(status)
+    monkeypatch.delenv(progress.SESSION_ID_ENV)
+    assert not progress.is_mine(status) and not progress.is_mine({**status, "session_id": None})
+
+
+def test_job_stop_stops_the_calling_sessions_own_job(folder: Path) -> None:
+    process = _start_job(folder, "time.sleep(30)", session=MY_SESSION)
+    [status] = progress.read_jobs()
+    done = _stop(folder, status["id"], MY_SESSION)
+    assert done.returncode == 0, done.stderr
+    assert process.wait(timeout=10) == -signal.SIGTERM
+    [status] = progress.read_jobs()
+    assert (status["state"], status["signal"]) == ("stopped", "SIGTERM")
+    again = _stop(folder, status["id"], MY_SESSION)
+    assert again.returncode == 1 and "already ended" in again.stdout
+
+
+@pytest.mark.parametrize(("owner", "caller"), [(OTHER_SESSION, MY_SESSION), (None, MY_SESSION), (MY_SESSION, None)],
+                         ids=["another session's job", "a job recording no session", "a caller without a session"])
+def test_job_stop_refuses_any_job_but_the_callers_own(folder: Path, owner: str | None, caller: str | None) -> None:
+    process = _start_job(folder, "time.sleep(30)", session=owner)
+    try:
+        [status] = progress.read_jobs()
+        done = _stop(folder, status["id"], caller)
+        assert done.returncode == 3 and "REFUSED" in done.stderr
+        time.sleep(0.3)
+        assert process.poll() is None, "a refused stop still ended the job"
+    finally:
+        process.kill()
+        process.wait()
+
+
+def test_job_stop_refuses_a_pid_a_later_process_was_given(folder: Path) -> None:
+    """The job's process is gone and its pid now names another process: never signal that one."""
+    later = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        now = time.time()
+        job_id = f"{later.pid}-reused"
+        status = {"id": job_id, "name": "verify.sh (fast tier)", "pid": later.pid, "parent": None,
+                  "session": "S", "session_id": MY_SESSION, "started": now - 3600, "updated": now,
+                  "state": "running", "done": 0, "total": None, "report_seconds": 60}
+        (folder / f"{job_id}.json").write_text(json.dumps(status))
+        done = _stop(folder, job_id, MY_SESSION)
+        assert done.returncode == 3 and "later process" in done.stderr
+        assert later.poll() is None
+    finally:
+        later.kill()
+        later.wait()
+
+
+def test_job_stop_names_a_missing_job(folder: Path) -> None:
+    assert _stop(folder, "1-missing", MY_SESSION).returncode == 2
+
+
+def test_jobs_mine_and_json_list_the_calling_sessions_jobs(folder: Path) -> None:
+    now = time.time()
+    mine = {"id": "1-mine", "name": "my verify", "pid": os.getpid(), "parent": None, "session": "session a1b2c3d4",
+            "session_id": MY_SESSION, "started": now - 100, "updated": now, "state": "running", "done": 0,
+            "total": None, "report_seconds": 60}
+    theirs = {**mine, "id": "2-theirs", "name": "their verify", "session": "session e5f6a7b8",
+              "session_id": OTHER_SESSION}
+    for status in (mine, theirs):
+        (folder / f"{status['id']}.json").write_text(json.dumps(status))
+    everyone = _jobs(folder).stdout
+    assert "job 1-mine" in everyone and "job 2-theirs" in everyone
+    only_mine = _jobs(folder, "--mine").stdout
+    assert "job 1-mine" in only_mine and "2-theirs" not in only_mine
+    listed = json.loads(_jobs(folder, "--json").stdout)
+    assert {job["id"]: job["mine"] for job in listed["jobs"]} == {"1-mine": True, "2-theirs": False}
+    assert set(listed["lock"]) == {"holder", "waiting"}
+    assert [job["id"] for job in json.loads(_jobs(folder, "--mine", "--json").stdout)["jobs"]] == ["1-mine"]
+    assert json.loads(_jobs(folder, "--mine", "--json", session=None).stdout)["jobs"] == []
+    assert _jobs(folder, "--bogus").returncode == 2

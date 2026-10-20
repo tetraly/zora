@@ -30,34 +30,48 @@ from ..flags import zora_flags
 from ..flags.codec import FlagStringError, decode, encode
 from ..flags.dependencies import (
     apply_dependencies,
+    boss_hit_point_change,
     check_dependencies,
-    correct_merchant_toll,
+    enemy_hit_point_change,
     generation_settings,
     is_resolved,
+    meet_cave_prerequisite,
     resolve,
+    starting_hearts,
+    white_sword_hearts,
 )
 from ..flags.fields import (
+    ARMOS_PIN,
     BOOK_TO_UNDERSTAND_NPCS,
     BOSS_HIT_POINTS,
+    CAVE_SHUFFLE,
+    DO_NOT_SORT_SHAPES,
     DUNGEON_LAYOUT_SOURCE,
     DUNGEON_ROOM_SHUFFLE,
     ENCODE_LEVEL_DATA,
     ENEMY_HIT_POINTS,
     FORCE_OVERWORLD_BLOCK,
-    FOUR_STARTING_HEARTS,
+    GANON_HIT_POINTS_ZERO,
     HINT_STYLE,
     IMPORTANT_ITEMS_IN_LEVEL_9,
     ITEM_SHUFFLE_SCOPE,
+    LEVEL_9_FIRST_PIN,
+    LEVEL_9_SECOND_PIN,
+    LOST_WOODS_SHORTCUT,
     MOST_OPEN_STAIRS_REMOVED,
+    ONE_HIT_KNOCK_OUT,
     OPTIONS_BY_ID,
     OVERWORLD_QUEST,
+    PERMANENT_SWORD_BEAM,
+    RIVER_BRIDGES,
     START_ROOM_MAY_MOVE,
     START_SCREEN,
-    STARTING_HEARTS,
     TOGGLES_BY_ID,
-    WHITE_SWORD_FROM_FIVE_HEARTS,
-    WHITE_SWORD_LOWEST,
+    UNIVERSAL_DROPS_IN_SHAPES,
+    WHITE_SWORD_CAVE_PIN,
     WOOD_SWORD_CAVE_BEHIND_BLOCKS,
+    WOODEN_SWORD_STATE,
+    CaveShuffle,
     DungeonLayoutSource,
     DungeonRoomShuffle,
     HintStyle,
@@ -67,6 +81,7 @@ from ..flags.fields import (
     Settings,
     StartScreen,
     ThreeState,
+    WoodenSwordState,
 )
 from ..flags.support import (
     ENCODE_LEVEL_DATA_NOT_RANDOM,
@@ -83,14 +98,16 @@ from .extra_options import ExtraOptions
 from .flag_steps import FlagSteps
 from .rng import Rng
 from .shapes.options import ShapeOptions
+from .steps.expanded_dungeon_locations import expanded_dungeon_locations_seed
 from .steps.overworld_gates import OverworldGates
-from .steps.start_items import start_items
+from .steps.start_items import resolve_start_item_coins, start_state
+from .steps.sword_states import BOMB_UPGRADE_STATES
 
 if TYPE_CHECKING:
     from ..model.enums import Item
     from ..model.game_world import GameWorld
     from .context import GenerationResult
-    from .finish import Assignment, Finished
+    from .finish import Assignment, Finished, ForeignLook
     from .places import Place
 
 # C03 (hint style): mixed (index 4), helpful (index 1, HT-HINT-04) and community (index 2,
@@ -109,6 +126,8 @@ BOOK_IS_AN_ATLAS = TOGGLES_BY_ID["B49"]
 # The "?" stream's key: the seed number as eight bytes, and its own label.
 SEED_BYTES = 8
 QUESTION_MARK_STREAM = b"zora ? values"
+# FL-DEP-02 rule 1's coin (OW-CAVE-10): its own stream, so no other draw moves
+CAVE_PREREQUISITE_STREAM = b"zora cave coin"
 # The marker mixed into the generation seed when level encoding is on.
 ENCODED_GENERATION_STREAM = b"zora encoded"
 
@@ -197,22 +216,34 @@ def _unsupported_name(settings: Settings, field_id: str) -> str:
     return _option_name(field_id) + (": ?" if undecided else "")
 
 
-def question_mark_rng(seed: int, flag_string: str) -> Rng:
-    """The stream that resolves "?" values (FL-DEP-04): derived only from the seed number and the
-    canonical flag string, and separate from the generation's stream, whose draws it leaves
-    untouched."""
+def _flag_stream(seed: int, flag_string: str, person: bytes) -> Rng:
+    """A stream derived only from the seed number and the canonical flag string, separate from the
+    generation's stream, whose draws it leaves untouched."""
     key = hashlib.blake2b(flag_string.encode("utf-8"), key=seed.to_bytes(SEED_BYTES, "little"),
-                          digest_size=SEED_BYTES, person=QUESTION_MARK_STREAM).digest()
+                          digest_size=SEED_BYTES, person=person).digest()
     return Rng(int.from_bytes(key, "little"))
+
+
+def question_mark_rng(seed: int, flag_string: str) -> Rng:
+    """The stream that resolves "?" values (FL-DEP-04)."""
+    return _flag_stream(seed, flag_string, QUESTION_MARK_STREAM)
+
+
+def cave_prerequisite_rng(seed: int, flag_string: str) -> Rng:
+    """The stream of FL-DEP-02 rule 1's coin (OW-CAVE-10)."""
+    return _flag_stream(seed, flag_string, CAVE_PREREQUISITE_STREAM)
 
 
 def resolve_question_marks(settings: Settings, seed: int, flag_string: str) -> Settings:
     """FL-DEP-04: each "?" decided for this seed, a possible field by a fair coin and a random
-    index uniformly among its alternatives; then FL-DEP-06 again (a merchant coin that comes up
-    off takes the toll re-draw with it). The resolved values are never shown or returned."""
+    index uniformly among its alternatives; then FL-DEP-02 rule 4 again (C02 = 5 and 6 act through
+    their drawn value, SH-SRC-10: a drawn 1, 2 or 4 turns B28 and B29 off). B23 is kept as drawn
+    whatever B22's coin gives (FL-DEP-06). The resolved values are never shown or returned."""
     if is_resolved(settings):
         return settings
-    return correct_merchant_toll(resolve(settings, question_mark_rng(seed, flag_string)))
+    # FP-START-02: the start items' coins first, from their own stream, so "?" draws none for them
+    settings = resolve_start_item_coins(settings, seed, flag_string)
+    return apply_dependencies(resolve(settings, question_mark_rng(seed, flag_string)))
 
 
 def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationPlan:
@@ -222,7 +253,7 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     if not 0 <= seed < SEED_LIMIT:
         raise SeedRefused(seed)
     try:
-        decoded = correct_merchant_toll(decode(flag_string))         # FL-DEP-06
+        decoded = decode(flag_string)        # B23 kept as given, whatever B22 is (FL-DEP-06)
     except FlagStringError as exc:
         raise FlagsRefused(flag_string, [str(exc)]) from exc
     refused = check_dependencies(decoded)
@@ -242,7 +273,10 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     resolved = zora_flags.without_extra_candles(zora, resolve_question_marks(adjusted, seed, canonical), adjusted)
     zora_resolved, resolved = zora_flags.resolve_owner_dependencies(
         zora_flags.resolve_question_marks(zora, seed, canonical, zora_canonical), zora, resolved, adjusted)
+    resolved = meet_cave_prerequisite(resolved, cave_prerequisite_rng(seed, canonical))     # FL-DEP-02 rule 1
     settings = generation_settings(resolved)
+    # FP-START-02 and FL-ALT-06: the kept start items and the start pieces, from their own stream
+    start = start_state(settings, seed, canonical)
     encode_level_data = settings.is_on(ENCODE_LEVEL_DATA)
     if encode_level_data:
         level_encoding.require_available()
@@ -254,8 +288,8 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
         shape_options=replace(shape_options(settings),
                               level_2_sword_cellar=zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2),
         steps=flag_steps(settings),
-        # FP-START-02: the kept start items, from their own stream (no draw without start items)
-        alternatives=replace(alternative_values(settings), start_items=start_items(settings, seed, canonical)),
+        alternatives=replace(alternative_values(settings), start_items=start.items,
+                             start_triforce_pieces=start.triforce_pieces),
         post_shapes=True,                # every C02 value runs them (PS-VAN-01)
         config=GameConfig(
             hint_mode=HINT_STYLE_MODES[settings.option(HINT_STYLE)],
@@ -270,8 +304,16 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             progressive_items=zora.progressive_items,
             shop_items_in_pool=zora.shop_items_in_pool,
             potion_shop_in_pool=zora_resolved.is_on("shuffle_blue_potion"),
-            owner_flags=tuple(name for name in zora_flags.OWNER_2_0_FIELDS if zora_resolved.is_on(name)),
+            owner_flags=tuple(name for name in zora_flags.THREE_STATE_FIELDS if zora_resolved.is_on(name)),
             level_9_entrance_sword=zora_resolved.level_9_entrance_sword,
+            permanent_sword_beam=settings.is_on(PERMANENT_SWORD_BEAM),
+            one_hit_knock_out=settings.is_on(ONE_HIT_KNOCK_OUT),
+            river_bridges=settings.is_on(RIVER_BRIDGES),                  # FP-BRIDGE-01
+            lost_woods_shortcut=settings.is_on(LOST_WOODS_SHORTCUT),      # FP-WOODS-01
+            # FP-WOOD-02 and FP-WOOD-03
+            bomb_upgrade_item=settings.option(WOODEN_SWORD_STATE) in BOMB_UPGRADE_STATES,
+            wand_fights_ganon=settings.option(WOODEN_SWORD_STATE) == WoodenSwordState.SWORDLESS,
+            seed_number=seed,
         ),
         zora_flag_string=zora_canonical,
         zora=zora,
@@ -304,6 +346,7 @@ def flag_steps(settings: Settings) -> FlagSteps:
         shuffle_shop_items=on("B08"),
         extra_candles=on("B09"),
         shuffle_armos=on("B13"),
+        move_wood_sword_cave=on("B02"),
         shuffle_take_any_road_caves=on("B04"),
         change_sword_hearts=on("B10"),
         change_money_making_game=on("B11"),
@@ -333,11 +376,11 @@ def alternative_values(settings: Settings) -> AlternativeValues:
     value (supported values only reach here)."""
     quest = settings.option(OVERWORLD_QUEST)
     return AlternativeValues(
-        start_with_four_hearts=settings.option(STARTING_HEARTS) == FOUR_STARTING_HEARTS,
-        change_sword_hearts_from_five_hearts=settings.option(WHITE_SWORD_LOWEST) == WHITE_SWORD_FROM_FIVE_HEARTS,
+        starting_hearts=starting_hearts(settings),
+        white_sword_hearts=_inclusive(*white_sword_hearts(settings)),
         generate_community_hint_text=settings.option(HINT_STYLE) == HintStyle.COMMUNITY,
         show_every_helpful_hint=settings.option(HINT_STYLE) == HintStyle.HELPFUL,
-        shuffle_items_within_levels=settings.option(ITEM_SHUFFLE_SCOPE) == ItemShuffleScope.WITHIN_EACH_DUNGEON,
+        item_shuffle=ItemShuffleScope(settings.option(ITEM_SHUFFLE_SCOPE)),
         mix_overworld_quest=quest == OverworldQuest.MIXED_FIRST_QUEST_VARIANT,
         mix_overworld_quest_second_variant=quest == OverworldQuest.MIXED_SECOND_QUEST_VARIANT,
         second_quest_overworld=quest == OverworldQuest.SECOND_QUEST,
@@ -349,18 +392,30 @@ def alternative_values(settings: Settings) -> AlternativeValues:
         important_items_in_level_9=settings.is_on(IMPORTANT_ITEMS_IN_LEVEL_9),
         remove_most_open_stairs=settings.is_on(MOST_OPEN_STAIRS_REMOVED),
         book_to_understand_npcs=settings.is_on(BOOK_TO_UNDERSTAND_NPCS),
+        cave_shuffle=CaveShuffle(settings.option(CAVE_SHUFFLE)),
+        enemy_hit_points=enemy_hit_point_change(settings),
+        boss_hit_points=boss_hit_point_change(settings),
+        ganon_hit_points_zero=settings.is_on(GANON_HIT_POINTS_ZERO),
+        armos_pin=settings.option(ARMOS_PIN),
+        white_sword_pin=settings.option(WHITE_SWORD_CAVE_PIN),
+        level_9_pins=(settings.option(LEVEL_9_FIRST_PIN), settings.option(LEVEL_9_SECOND_PIN)),
+        wooden_sword_state=WoodenSwordState(settings.option(WOODEN_SWORD_STATE)),
     )
+
+
+def _inclusive(lowest: int, highest: int) -> range:
+    return range(lowest, highest + 1)
 
 
 def shape_options(settings: Settings) -> ShapeOptions:
     """The shapes generator's options from their three-state fields."""
     return ShapeOptions(
-        sort_shapes=not settings.is_on("B86"),
+        sort_shapes=not settings.is_on(DO_NOT_SORT_SHAPES),     # SH-NUM-04
         start_room_swap=settings.is_on(START_ROOM_MAY_MOVE),
         second_quest_doors=settings.is_on("B21"),
         second_quest_rooms=settings.is_on("B20"),
         second_quest_monsters=settings.is_on("B37"),
-        universal_drops=settings.is_on("B91"),
+        universal_drops=settings.is_on(UNIVERSAL_DROPS_IN_SHAPES),     # SH-ROOM-16
     )
 
 
@@ -399,27 +454,37 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         starting_heart_containers=zora_flags.starting_heart_containers(chosen.settings),
         progressive_items=chosen.zora.progressive_items,
         shop_items_in_pool=chosen.zora.shop_items_in_pool,
-        gates=overworld_gates(chosen.zora_resolved),
+        gates=overworld_gates(chosen.zora_resolved, chosen.settings),
         shuffle_blue_potion=chosen.zora_resolved.is_on("shuffle_blue_potion"),
         add_l4_sword=chosen.zora_resolved.is_on("add_l4_sword"),
         l4_sword_in_level_2=chosen.zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2,
         level_9_entrance_sword=chosen.zora_resolved.level_9_entrance_sword,
         eleven_screen_recorder_set=chosen.alternatives.second_quest_secrets,
         important_items_in_level_9=chosen.alternatives.important_items_in_level_9,
+        wooden_sword_state=chosen.alternatives.wooden_sword_state,
         maze_hints_need_book=(chosen.alternatives.book_to_understand_npcs
                               and Item.BOOK not in chosen.alternatives.start_items),
         oops_all_enemies=chosen.zora_resolved.oops_all_enemies,
         oops_all_bosses=chosen.zora_resolved.oops_all_bosses,
         oops_all_seed=zora_flags.oops_all_seed(chosen.seed, chosen.flag_string, chosen.zora_flag_string),
+        allow_triforces_in_stairways=chosen.zora_resolved.is_on("allow_triforces_in_stairways"),
+        shuffle_wood_sword=chosen.zora_resolved.is_on("shuffle_wood_sword"),
+        pegasus_boots=chosen.zora_resolved.is_on("pegasus_boots"),
+        expanded_dungeon_locations=chosen.zora_resolved.is_on("expanded_dungeon_locations"),
+        expanded_dungeon_locations_seed=expanded_dungeon_locations_seed(chosen.seed, chosen.flag_string,
+                                                                        chosen.zora_flag_string),
+        highlight_no_drop_rooms=chosen.zora_resolved.is_on("highlight_no_drop_rooms"),
     )
 
 
-def overworld_gates(zora: ZoraFlags) -> OverworldGates:
-    """The owner's 2.0 overworld gates a seed's resolved ZORA flags turn on."""
+def overworld_gates(zora: ZoraFlags, settings: Settings) -> OverworldGates:
+    """The owner's 2.0 overworld gates a seed's resolved ZORA flags turn on, and whether its
+    resolved Z1R settings open the river's west side (B87 or B88, FP-BRIDGE-01, FP-WOODS-01)."""
     return OverworldGates(raft_blocks=zora.is_on("extra_raft_blocks"),
                           bracelet_blocks=zora.is_on("extra_power_bracelet_blocks"),
                           lost_hills=zora.is_on("randomize_lost_hills"),
-                          dead_woods=zora.is_on("randomize_dead_woods"))
+                          dead_woods=zora.is_on("randomize_dead_woods"),
+                          river_west_open=settings.is_on(RIVER_BRIDGES) or settings.is_on(LOST_WOODS_SHORTCUT))
 
 
 @dataclass
@@ -445,31 +510,33 @@ def build(chosen: GenerationPlan, base_rom: bytes) -> Built:
 
 def finish(built: Built, base_rom: bytes, assignment: Assignment | None = None,
            player_settings: PlayerSettings = DEFAULT_PLAYER_SETTINGS, recompute: bool = True,
-           received: Collection[Item] = (), check: bool = True, slot_identity: bytes = b"") -> bytes:
+           received: Collection[Item] = (), check: bool = True, slot_identity: bytes = b"",
+           look: ForeignLook | None = None) -> bytes:
     """FINISH: the built world as a ROM. With no assignment (ZORA mode) it is serialize_to_rom on
     the built world, which only reads it, so one build can be finished more than once. With one
     (External mode) the items go into a copy of the world first (finish_world); `slot_identity`
-    is Archipelago's record for the slot (zora/rom/slot_identity.py), written only with one."""
+    is Archipelago's record for the slot (zora/rom/slot_identity.py), written only with one;
+    `look`, how another player's item looks (finish.ForeignLook; the rupee by default)."""
     from ..rom.base_rom import player_rom_of, using_player_rom
     from ..rom.serialize.rom_file import serialize_to_rom
     if assignment is None:
         assert not slot_identity, "a slot identity is External mode's"
         return serialize_to_rom(built.world, base_rom, config=built.plan.config, player_settings=player_settings)
     with using_player_rom(player_rom_of(base_rom)):
-        world, finished = finish_world(built, assignment, recompute, received, check)
-    config = replace(finished.config, slot_identity=slot_identity)
+        world, finished = finish_world(built, assignment, recompute, received, check, look)
+    config = replace(finished.config, slot_identity=slot_identity, archipelago_rom=True, seed_number=None)
     return serialize_to_rom(world, base_rom, config=config, player_settings=player_settings)
 
 
 def finish_world(built: Built, assignment: Assignment, recompute: bool = True, received: Collection[Item] = (),
-                 check: bool = True) -> tuple[GameWorld, Finished]:
+                 check: bool = True, look: ForeignLook | None = None) -> tuple[GameWorld, Finished]:
     """External mode before serialization: a deep copy of the built world with the assignment
     applied (finish.apply_assignment, which also takes `received` and `check`), on FINISH's own
     stream; the built world is left as it is."""
-    from .finish import apply_assignment, finish_rng
+    from .finish import ForeignLook, apply_assignment, finish_rng
     world = copy.deepcopy(built.world)
     finished = apply_assignment(world, built, assignment, finish_rng(built.plan.generation_seed), recompute,
-                                received, check)
+                                received, check, look or ForeignLook.RUPEE)
     return world, finished
 
 

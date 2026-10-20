@@ -18,7 +18,14 @@ A job started inside another (ZORA_JOB_ID, set for its children) records its par
 run shows the pytest run inside it. A process that cannot hold a Job object (a shell script's
 steps, a lock waiter) annotates the running job through side files: step_file and waiting_file.
 Without a total, the percent and time left come from the job's earlier runs of the same name
-(temp/jobs/history.json), when there are any.
+(temp/jobs/history.json), when there are any. A job whose items differ in length (a pytest run)
+can weigh each one by its recorded duration (`work_total`, `advance(work=...)`): the time left is
+then the recorded work still to do at the pace the done work actually took, so slow tests that
+come last no longer leave the estimate stuck low (tests/progress_plugin.py; owner request,
+2026-10-16). Each test's last passing duration is kept in temp/jobs/test-durations.json.
+
+A job records its session's full id (session_id), so a session can list its own jobs
+(scripts/jobs.py --mine) and stop only those (scripts/job.py stop).
 
 A job ended by SIGTERM or SIGHUP marks its status file stopped (with the signal) and removes its
 side files before the signal takes its course; one whose process exits without finishing is
@@ -77,6 +84,19 @@ def session_label() -> str:
     name = os.environ.get(SESSION_NAME_ENV)
     session = os.environ.get(SESSION_ID_ENV, "")
     return name or (f"session {session[:8]}" if session else "no session")
+
+
+def session_id() -> str | None:
+    """This session's full id, which a job records as its owner (the label above is for reading
+    and may be shared); None outside a session."""
+    return os.environ.get(SESSION_ID_ENV) or None
+
+
+def is_mine(status: dict[str, Any]) -> bool:
+    """Whether the job belongs to the calling session: its recorded session id is this one's. A job
+    without one (an older status file) or a caller without one belongs to no caller."""
+    own = session_id()
+    return own is not None and status.get("session_id") == own
 
 
 def clock(seconds: float) -> str:
@@ -220,15 +240,55 @@ def _record_history(name: str, seconds: float) -> None:
     _write_json(path, history)
 
 
+def durations_path() -> Path:
+    return jobs_folder() / "test-durations.json"
+
+
+def read_durations() -> dict[str, list[Any]]:
+    """Each test's last passing duration: {node id: [seconds, heavy]}, heavy when it is marked slow
+    or full_tier (the quick check never runs those); {} without a record."""
+    try:
+        data = json.loads(durations_path().read_text())
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def record_durations(durations: dict[str, tuple[float, bool]]) -> None:
+    """Merge one run's passing tests into the record (their latest duration replaces the old)."""
+    if not durations:
+        return
+    record = read_durations()
+    record.update({test: [round(seconds, 3), heavy] for test, (seconds, heavy) in durations.items()})
+    _write_json(durations_path(), record)
+
+
+def expected_work(tests: Iterable[str], record: dict[str, list[Any]]) -> dict[str, float] | None:
+    """Each test's expected seconds: its recorded duration, else the mean of the recorded ones
+    among TESTS (the run's own pace). None when none is recorded: the count alone estimates."""
+    tests = list(tests)
+    known = {test: float(record[test][0]) for test in tests if test in record}
+    if not known:
+        return None
+    fallback = sum(known.values()) / len(known)
+    return {test: known.get(test, fallback) for test in tests}
+
+
 @dataclass
 class Estimate:
     percent: float | None
     left: float | None
-    basis: str                  # "count" or "earlier runs" or ""
+    basis: str                  # "work", "count", "earlier runs" or ""
 
 
-def estimate(elapsed: float, done: int, total: int | None, typical: float | None) -> Estimate:
-    """From the count when there is one; else from the job's earlier runs (capped below 100 %)."""
+def estimate(elapsed: float, done: int, total: int | None, typical: float | None,
+             work_done: float | None = None, work_total: float | None = None) -> Estimate:
+    """From the recorded work when there is some (each item weighed by its recorded duration, at the
+    pace the done work took); else from the count; else from the job's earlier runs (capped below
+    100 %)."""
+    if work_total and work_done:
+        left_work = max(0.0, work_total - work_done)
+        return Estimate(min(100.0, 100.0 * work_done / work_total), elapsed / work_done * left_work, "work")
     if total:
         percent = 100.0 * done / total
         left = elapsed / done * (total - done) if done else None
@@ -256,7 +316,8 @@ def describe(status: dict[str, Any], now: float | None = None) -> str:
     queued = status.get("queued_seconds") or 0.0
     # The count is as of the job's last report: estimate from then, shown less the time since
     reported = status.get("updated", now) - status["started"] - queued
-    guess = estimate(max(0.0, reported), status.get("done", 0), status.get("total"), status.get("typical"))
+    guess = estimate(max(0.0, reported), status.get("done", 0), status.get("total"), status.get("typical"),
+                     status.get("work_done"), status.get("work_total"))
     if guess.left is not None:
         guess.left = max(0.0, guess.left - (elapsed - queued - reported))
     parts = [status["name"]]
@@ -266,7 +327,7 @@ def describe(status: dict[str, Any], now: float | None = None) -> str:
         parts.append(f"{guess.percent:.0f}%{count}")
     parts.append(f"{clock(elapsed)} elapsed" + (f" ({clock(queued)} of it queued)" if queued >= 1 else ""))
     if guess.left is not None and status.get("state") in (RUNNING, WAITING):
-        basis = " (from earlier runs)" if guess.basis == "earlier runs" else ""
+        basis = {"earlier runs": " (from earlier runs)", "work": " (from recorded test times)"}.get(guess.basis, "")
         parts.append(f"about {clock(guess.left)} left{basis}")
     elif status.get("state") in (RUNNING, WAITING):
         parts.append("time left unknown")
@@ -286,6 +347,8 @@ class Job:
                  stream: Any = None) -> None:
         self.name, self.total, self.unit = name, total, unit
         self.done = 0
+        self.work_done = 0.0                          # recorded seconds, when items are weighed
+        self.work_total: float | None = None
         self.stream = stream or sys.stderr
         self.id = f"{os.getpid()}-{uuid.uuid4().hex[:8]}"
         self.parent = os.environ.get(JOB_ID_ENV)
@@ -305,9 +368,11 @@ class Job:
     def status(self) -> dict[str, Any]:
         step, waiting = read_side_files(self.id)
         return {"id": self.id, "name": self.name, "pid": os.getpid(), "parent": self.parent,
-                "session": session_label(), "command": " ".join(sys.argv)[:300], "cwd": os.getcwd(),
+                "session": session_label(), "session_id": session_id(),
+                "command": " ".join(sys.argv)[:300], "cwd": os.getcwd(),
                 "started": self.started, "updated": time.time(), "state": self.state,
                 "done": self.done, "total": self.total, "unit": self.unit, "typical": self.typical,
+                "work_done": self.work_done, "work_total": self.work_total,
                 "step": step, **_waiting_fields(waiting), "report_seconds": report_seconds(),
                 "signal": self.signal_name, "finished_at": time.time() if self.state in ENDED else None}
 
@@ -376,8 +441,10 @@ class Job:
         while not self._stop.wait(report_seconds()):
             self.report()
 
-    def advance(self, count: int = 1) -> None:
+    def advance(self, count: int = 1, work: float = 0.0) -> None:
+        """COUNT more items done, weighing WORK recorded seconds (when work_total is set)."""
         self.done += count
+        self.work_done += work
 
     def step(self, text: str) -> None:
         note_step(text, self.id)
@@ -429,11 +496,13 @@ def read_jobs() -> list[dict[str, Any]]:
     """Every status file, with its side files' step and waiting folded in."""
     jobs = []
     for path in sorted(jobs_folder().glob("*.json")):
-        if path.name == "history.json":
+        if path.name in ("history.json", durations_path().name):
             continue
         try:
             status = json.loads(path.read_text())
         except (OSError, ValueError):
+            continue
+        if not isinstance(status, dict) or "id" not in status:      # not a job's status file
             continue
         if status.get("state") in (RUNNING, WAITING):
             step, waiting = read_side_files(status["id"])

@@ -52,10 +52,12 @@ from .extra_pool_items import (
     with_tracked,
 )
 from .item_shuffle_result import MAGICAL_SWORD_SLOT, ItemShuffleOptions, ItemShuffleResult
+from .mixed_overworld_quest import SHOWN
 from .shuffle_items import CAVE_SLOTS
 
 # The take-any caves the heart check lets the player spend on another choice.
 TAKE_ANY_CAVES_SPENT_ELSEWHERE = 2
+WHITE_SWORD_SLOT = "white_sword"
 
 
 def randomize_magical_sword(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,
@@ -95,7 +97,7 @@ class HeartReach(Protocol):
 
 
 def is_white_sword_slot(place: PoolPlace) -> bool:
-    return isinstance(place, CaveSlotPlace) and place.slot == "white_sword"
+    return isinstance(place, CaveSlotPlace) and place.slot == WHITE_SWORD_SLOT
 
 
 def count_reachable_heart_containers(places: Iterable[PoolPlace], reach: HeartReach, starting_hearts: int,
@@ -119,11 +121,19 @@ def has_enough_heart_containers(hearts_required: int, starting_hearts: int, reac
 
 def take_any_heart_screens(overworld: Overworld) -> list[int]:
     """The take-any caves' screens, when the take-any cave offers a heart container. Every
-    code-17 screen opens the same cave, so either all of them offer one or none does."""
+    code-17 screen opens the same cave, so either all of them offer one or none does.
+
+    Only the screens the seed's overworld shows count: the game always plays as the first quest,
+    and a screen whose quest field is the second quest's or neither's never opens (its secret
+    is not there, or IsQuestSecretMismatch keeps it shut). A first-quest overworld keeps PRG0's
+    second-quest Take Any screens $06, $20 and $3A hidden; the other overworld quests show their
+    own and hide the rest (bug fix, 2026-10-17: they once counted too, so the allowance counted
+    hearts no game can take)."""
     cave = overworld.get_cave(Destination.TAKE_ANY, TakeAnyCave)
     if cave is None or Item.HEART_CONTAINER not in cave.items:
         return []
-    return [screen.screen_num for screen in overworld.screens if screen.destination == Destination.TAKE_ANY]
+    return [screen.screen_num for screen in overworld.screens
+            if screen.destination == Destination.TAKE_ANY and screen.quest_visibility in SHOWN]
 
 
 def reachable_take_any_hearts(overworld: Overworld, held: frozenset[int], rules: LogicRules = DEFAULT_RULES) -> int:
@@ -140,7 +150,8 @@ def take_any_heart_allowance(take_any_caves: int) -> int:
 @dataclass
 class AcceptanceHeartReach:
     """HeartReach by the acceptance check's logic (VA-REJ-07), from the
-    closure it reaches when the magical-sword cave's item is left out.
+    closure it reaches when the magical-sword cave's item is left out (or,
+    for ZORA's E11, the white-sword cave's: left_out).
 
     Built from acceptance_check's and dungeon_walk's public names: a level
     is entered when its entry door's screen needs are held (level 9 also
@@ -154,13 +165,15 @@ class AcceptanceHeartReach:
     overworld: Overworld
     caves: CaveShuffle
     rules: LogicRules = DEFAULT_RULES
+    left_out: str = MAGICAL_SWORD_SLOT
     held: frozenset[int] = frozenset()
     _walks: dict[tuple[int, int | None], Walk] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        without_sword_cave = [place for place in self.state.tracked if place.slot != MAGICAL_SWORD_SLOT]
+        without_sword_cave = [place for place in self.state.tracked if place.slot != self.left_out]
         # ASNB: nor does the magical-sword cave's own sword count toward level 9's four swords
-        rules = replace(self.rules, magical_sword_cave_counts=False)
+        rules = (replace(self.rules, magical_sword_cave_counts=False) if self.left_out == MAGICAL_SWORD_SLOT
+                 else self.rules)
         check = AcceptanceCheck(self.levels, with_tracked(self.state, without_sword_cave), self.overworld,
                                 self.caves, rules)
         self.held = frozenset(check.closure()[0])
@@ -202,6 +215,28 @@ class AcceptanceHeartReach:
             return place.slot != MAGICAL_SWORD_SLOT and is_extra_slot_collected(place.slot, self.caves,
                                                                                 self.held, self.rules)
         raise TypeError(place)
+
+
+def white_sword_cave_hearts_met(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,
+                                overworld: Overworld, caves: CaveShuffle, hearts_required: int,
+                                starting_hearts: int, rules: LogicRules = DEFAULT_RULES) -> bool:
+    """ZORA's E11 (docs/deviations.md "The white-sword cave's hearts"): VA-REJ-07's closure never
+    counts hearts, but the game opens the white-sword cave only to a Link with hearts_required
+    heart containers. When the cave holds a tracked item, the hearts are counted as the heart
+    check counts them (check_magical_sword_hearts): the starting hearts, the heart containers
+    reachable without the cave's item, and the take-any caves reachable then, all but two. Short
+    of hearts_required, the cave's item is never taken, and E1's target must still be met
+    without it."""
+    if not any(place.slot == WHITE_SWORD_SLOT for place in state.tracked):
+        return True
+    reach = AcceptanceHeartReach(levels, state, extras, overworld, caves, rules, left_out=WHITE_SWORD_SLOT)
+    others = sum(reach.reaches(place) for place in heart_container_places(levels, state, extras)
+                 if not is_white_sword_slot(place))
+    take_any = take_any_heart_allowance(reachable_take_any_hearts(overworld, reach.held, rules))
+    if starting_hearts + others + take_any >= hearts_required:
+        return True
+    target = AcceptanceCheck(levels, state, overworld, caves, rules).target()
+    return target <= reach.held
 
 
 def check_magical_sword_hearts(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,

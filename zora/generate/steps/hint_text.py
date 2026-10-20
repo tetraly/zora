@@ -10,8 +10,7 @@ import re
 import textwrap
 from collections import Counter, defaultdict
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
-from functools import cache
+from dataclasses import dataclass, field, replace
 from typing import TypeVar
 
 from ...model.enums import Destination, Enemy, Item, RoomAction
@@ -272,6 +271,12 @@ UPGRADE_LINES: dict[int, str] = {
 }
 ARROW_LINE = frozenset(item for item, line in UPGRADE_LINES.items() if line == "ARROW")
 
+# Pegasus Boots (owner spec, 2026-10-17; names, owner decision 2026-10-18): the boomerangs' items are
+# the boots, each with its own verb (plural), and their upgrade line is the boots'.
+BOOTS_NAMES: dict[int, str] = {Item.WOOD_BOOMERANG: "PEGASUS BOOTS", Item.MAGICAL_BOOMERANG: "MAGICAL BOOTS"}
+BOOTS_VERBS: dict[int, str] = {Item.WOOD_BOOMERANG: "WAIT", Item.MAGICAL_BOOMERANG: "RACE"}
+BOOMERANG_LINE, BOOTS_LINE = "BOOMERANG", "BOOTS"
+
 
 # Archipelago (docs/archipelago.md, owner decisions 2026-10-08): how hint text names a place
 # holding another player's item, never by the code the ROM shows there. The apostrophe is the
@@ -294,27 +299,46 @@ class ItemNames:
     written as; a place holding it is named FOREIGN_NAME, as noun and phrase alike."""
     progressive_items: bool = False
     foreign_code: int | None = None
+    # Swords (C07) at Wood Sword Only or Swordless (FP-WOOD-02): item $02 is a bomb upgrade
+    bomb_upgrade: bool = False
+    # Pegasus Boots: the boomerangs' items are the boots (BOOTS_NAMES)
+    pegasus_boots: bool = False
 
     def is_foreign(self, code: int) -> bool:
         return self.foreign_code is not None and code == self.foreign_code
 
+    def is_boots(self, code: int) -> bool:
+        return self.pegasus_boots and code in BOOTS_NAMES
+
+    def name(self, code: int) -> str:
+        """The item's own name (HT-HINT-01's, or the boots')."""
+        return BOOTS_NAMES[code] if self.is_boots(code) else item_name(code)
+
+    def _is_bomb_upgrade(self, code: int) -> bool:
+        return self.bomb_upgrade and code == Item.WHITE_SWORD
+
     def _line(self, code: int) -> str | None:
-        return UPGRADE_LINES.get(code) if self.progressive_items else None
+        line = UPGRADE_LINES.get(code) if self.progressive_items else None
+        return BOOTS_LINE if line == BOOMERANG_LINE and self.pegasus_boots else line
 
     def label(self, code: int) -> str:
         """The item as a noun: SILVER ARROWS, or ARROW UPGRADE."""
         if self.is_foreign(code):
             return FOREIGN_NAME
+        if self._is_bomb_upgrade(code):
+            return BOMB_UPGRADE_NAME
         line = self._line(code)
-        return item_name(code) if line is None else f"{line} UPGRADE"
+        return self.name(code) if line is None else f"{line} UPGRADE"
 
     def phrase(self, code: int) -> str:
         """The item with its article: THE SILVER ARROWS, or AN ARROW UPGRADE."""
         if self.is_foreign(code):
             return FOREIGN_NAME
+        if self._is_bomb_upgrade(code):
+            return f"A {BOMB_UPGRADE_NAME}"
         line = self._line(code)
         if line is None:
-            return f"THE {item_name(code)}"
+            return f"THE {self.name(code)}"
         return f"{'AN' if line[0] in 'AEIOU' else 'A'} {line} UPGRADE"
 
     def fit(self, line: str, first: str, second: str) -> list[str]:
@@ -328,6 +352,8 @@ class ItemNames:
         return _fit(line, first, second)
 
 
+# FP-WOOD-02: item $02's name under Wood Sword Only and Swordless (the spec leaves the wording open)
+BOMB_UPGRADE_NAME = "BOMB UPGRADE"
 VANILLA_NAMES = ItemNames()
 PROGRESSIVE_NAMES = ItemNames(progressive_items=True)
 
@@ -351,14 +377,14 @@ ITEM_VERBS: dict[int, str] = {
 # With Progressive Items on, an upgrade-line item is named by its line (PI-TEXT-01), with its
 # article: "A SWORD UPGRADE SLUMBERS".
 LINE_VERBS: dict[str, str] = {"SWORD": "SLUMBERS", "ARROW": "AWAITS", "CANDLE": "FLICKERS", "RING": "RADIATES",
-                              "BOOMERANG": "BECKONS"}
+                              "BOOMERANG": "BECKONS", BOOTS_LINE: "AWAITS"}
 FOREIGN_VERB = "AWAITS"                  # ANOTHER PLAYER'S ITEM AWAITS (no "THE")
 FALLBACK_VERB = "WAITS"                  # an item the owner's list does not name
 
 # A level-location hint: "LEVEL-N LIES <PHRASE>." by the region of the level's door screen.
 REGION_PHRASES: dict[int, str] = {
     1: "HIGH IN DEATH MOUNTAIN", 2: "BY THE GRAVEYARD", 3: "IN THE DEAD WOODS", 4: "NEAR START",
-    5: "AROUND A LAKE", 6: "ALONG A RIVER", 7: "BY THE SHORE", 8: "HIDDEN IN A FOREST",
+    5: "AROUND A LAKE", 6: "ALONG A RIVER", 7: "BY THE COAST", 8: "HIDDEN IN A FOREST",
     9: "UP IN THE LOST HILLS", 10: "IN THE DRY DESERT",
 }
 
@@ -380,6 +406,8 @@ def item_location_sentence(code: int, level: int, names: ItemNames = VANILLA_NAM
     line = names._line(code)
     if line is not None:
         return f"{names.phrase(code)} {LINE_VERBS.get(line, FALLBACK_VERB)} IN LEVEL-{level}."
+    if names.is_boots(code):
+        return f"THE {names.name(code)} {BOOTS_VERBS[code]} IN LEVEL-{level}."
     if code in ITEM_VERBS:
         return f"THE {item_name(code)} {ITEM_VERBS[code]} IN LEVEL-{level}."
     return f"{names.phrase(code)} {FALLBACK_VERB} IN LEVEL-{level}."
@@ -551,6 +579,9 @@ ITEM_CODE_MASK = 0x3F                 # a ware byte's item code (top two bits: f
 REQUIREMENT_TEXT_COUNT = 10
 # The ten requirement texts' slots in drawn order (the third moves to 12, HT-HINT-02)
 REQUIREMENT_SLOTS = (24, 29, 38, 39, 40, 41, 42, 43, 26, 30)
+# Tracked items the hints never name (owner design, 2026-10-17; docs/zora-extras.md section 13):
+# Shuffle Major Shop Items' baits
+UNHINTED_ITEMS = frozenset({Item.BAIT})
 
 
 def _hidden_flag(screen: Screen) -> bool:
@@ -566,7 +597,7 @@ def _door_screen(gw: GameWorld, level: int) -> int | None:
 
 def _white_sword_screen(gw: GameWorld) -> int | None:
     for screen in gw.overworld.screens:
-        if screen.destination == Destination.WHITE_SWORD_CAVE:
+        if screen.destination == Destination.WHITE_SWORD_CAVE and not _hidden_flag(screen):
             return screen.screen_num
     return None
 
@@ -613,7 +644,8 @@ ScreenMeans = tuple[tuple[frozenset[int], str], ...]
 
 def gated_screens(gates: OverworldGates) -> dict[str, frozenset[int]]:
     """Bug fix (2.0 beta 2 report): the screens the owner's overworld gates put behind each
-    means (Extra Raft Blocks, Extra Power Bracelet Blocks, Randomize Dead Woods' west half;
+    means (Extra Raft Blocks, Extra Power Bracelet Blocks, Randomize Dead Woods' west half when no
+    shortcut or bridge opens it;
     overworld_gates.py, the acceptance check's own sets), empty for a means no gate asks for.
     HT-HINT-01's screen sets are PRG0's; without these a door on a new raft block got "THE
     PRINCESS NEEDS NO RAFT" (now "THE HERO'S PATH NEEDS NO RAFT")."""
@@ -942,6 +974,14 @@ class HintTextResult:
     underworld_selectors_b: bytes
     hint_shop_prices: tuple[int, ...]
     overlay_flags: tuple[bool, ...]
+    # The texts that tell where a level is, by the slot holding them: the player level they name
+    # (only those the helpful overlay chose), and the pool quote each gives way to inside that
+    # level (keep_level_hints_out_of_their_levels).
+    level_location_slots: dict[int, int] = field(default_factory=dict)
+    level_text_alternatives: dict[int, list[str]] = field(default_factory=dict)
+    # Each listed dungeon person room's player level and the slot it shows (HT-SEL-01), before
+    # B19's pointer exchange.
+    room_slots: tuple[tuple[int, int], ...] = ()
 
 
 # HT-HINT-01's three name pairs as (giver, target) cave person object types:
@@ -993,34 +1033,18 @@ def _build_selector_tables(gw: GameWorld, hint_assignment: HintAssignmentResult)
     return bytes(_replace_26_to_4c(bytes(tables[False]))), bytes(_replace_26_to_4c(bytes(tables[True])))
 
 
-# Randomize Magical Sword (ZORA): the cave's own text, PRG0's words without their last one,
-# then "THE" and the item it offers (PI-TEXT-01: an upgrade-line item, with its article).
-ITEM_ARTICLE = "THE"
-TEXT_PAD = "~"
+# The sword caves' own texts (owner decision, 2026-10-17): each cave shows a quote about the heart
+# containers it asks for, one of the pool's for that count, or this line when the pool has none (the
+# magical-sword cave's 13 and 14).
+HEARTS_NEEDED_TEXT = "{hearts} HEARTS NEEDED"
 
 
-@cache
-def magical_sword_cave_words() -> tuple[str, str]:
-    """PRG0's magical-sword cave text up to its last word: the first line, and the second
-    line without its last word. Read from the player's ROM, not stored here."""
-    from ...rom.base_rom import player_rom
-    from ...rom.parse.rom_file import parse_rom
-    text = parse_rom(player_rom()).quotes[MAGICAL_SWORD_TEXT_SLOT].text
-    first, second = (line.strip(TEXT_PAD) for line in text.split("|")[:2])
-    return first, second.rsplit(" ", 1)[0]
-
-
-def magical_sword_cave_text(gw: GameWorld, names: ItemNames = VANILLA_NAMES) -> list[str]:
-    """Randomize Magical Sword (ZORA; docs/zora-extras.md): the magical-sword cave's text names
-    the item the cave actually offers (its line with Progressive Items on, PI-TEXT-01; another
-    player's item by FOREIGN_NAME, on the third line likewise)."""
-    cave = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
-    assert cave is not None
-    code = cave.item & ITEM_CODE_MASK
-    first, second = magical_sword_cave_words()
-    if names.label(code) == item_name(code):
-        return [first, f"{second} {ITEM_ARTICLE}", item_name(code)]
-    return [first, second, names.phrase(code)]
+def sword_cave_heart_quotes(slot: int, hearts: int) -> list[list[str]]:
+    """The candidates of a sword cave's slot (WHITE_SWORD_TEXT_SLOT or MAGICAL_SWORD_TEXT_SLOT)
+    whose cave asks for `hearts`: the pool's heart-count quotes for it, in pool order, else
+    HEARTS_NEEDED_TEXT."""
+    return ([list(entry.lines) for entry in POOL if entry.hearts == (slot, hearts)]
+            or [[HEARTS_NEEDED_TEXT.format(hearts=hearts)]])
 
 
 # HT-HINT-01's level-location entries: the slot of each level's text, levels 1-9.
@@ -1031,9 +1055,6 @@ SHOW_SLOT, MEET_SLOT, HOLDER_SLOT = 6, 7, 3
 LEVEL9_TRIO_SLOTS = (35, 36, 37)
 # HT-HINT-02's relocation before the overlay: 38 -> 12, 19 -> 38, 19 emptied.
 RELOCATED_TO_12, RELOCATED_TO_38, EMPTIED_SLOT = 38, 19, 19
-# The white-sword cave's own pool quote names these items (HT-TEXT-02).
-WHITE_SWORD_CAVE_NAMED_ITEMS = (Item.RECORDER, Item.SILVER_ARROWS, Item.BOW, Item.RED_RING, Item.POWER_BRACELET)
-WHITE_SWORD_CAVE_SLOT = 19
 # HT-SEL-02: each hint-shop offer price is drawn uniformly from 10..60.
 HINT_PRICE_LOW, HINT_PRICE_CHOICES = 10, 51
 WHITE_SWORD_SELECTOR = 0x66
@@ -1047,16 +1068,19 @@ def relocate(texts: list[T | None]) -> None:
     texts[EMPTIED_SLOT] = None
 
 
+def hinted_level_records(item_shuffle_result: ItemShuffleResult) -> list[TrackedPlace]:
+    """The tracked records in a level that a requirement text may name: none of UNHINTED_ITEMS."""
+    return [record for record in item_shuffle_result.tracked
+            if record.level is not None and record.item not in UNHINTED_ITEMS]
+
+
 def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
-                       rng: Rng, cave_text_for_magical_sword: list[str] | None = None,
-                       names: ItemNames = VANILLA_NAMES,
+                       rng: Rng, names: ItemNames = VANILLA_NAMES,
                        maze_offers: dict[int, list[str]] | None = None,
                        gates: OverworldGates = NO_GATES,
                        every_helpful_hint: bool = False, book_needed: bool = False) -> HintTextResult:
     """HT-TEXT and HT-HINT. every_helpful_hint: Helpful hints (C03 = 1, HT-HINT-04), where every
-    slot with a helpful text shows it, with no overlay coin. cave_text_for_magical_sword
-    (Randomize Magical Sword) replaces the text drawn for the magical-sword cave's slot after every
-    draw, so the draws are unchanged. book_needed: Book to Understand NPCs (B48, HT-BOOK-02),
+    slot with a helpful text shows it, with no overlay coin. book_needed: Book to Understand NPCs (B48, HT-BOOK-02),
     slot 0's candidates are the lines in which the speaker cannot be understood.
     names: how the texts name items (PI-TEXT-01; the vanilla names give HT-HINT-01's).
     gates: the owner's overworld gates, for the requirement candidates.
@@ -1073,7 +1097,9 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     slot_texts: list[list[str] | None] = [None] * SLOT_COUNT
     # the reworded hints' sentences (item and level location), for their openers
     sentences: list[str | None] = [None] * SLOT_COUNT
-    write_level_location_texts(gw, slot_texts, sentences)
+    # the player level each level-location text names, by slot
+    level_slots: list[int | None] = [None] * SLOT_COUNT
+    write_level_location_texts(gw, slot_texts, sentences, level_slots)
     write_person_name_texts(gw, slot_texts, names)
 
     trio = level9_trio_texts(gw, item_shuffle_result, names)
@@ -1081,10 +1107,10 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     for slot, text in zip(LEVEL9_TRIO_SLOTS, trio, strict=True):
         slot_texts[slot] = text
 
-    records = [record for record in item_shuffle_result.tracked if record.level is not None]
+    records = hinted_level_records(item_shuffle_result)
     level_items = [(record.item, record.level) for record in records if record.level is not None]
     requirements = draw_requirements(
-        requirement_candidates(gw, level_items, names_hearts=item_shuffle_result.items_within_levels, gates=gates,
+        requirement_candidates(gw, level_items, names_hearts=not item_shuffle_result.heart_rooms_pooled, gates=gates,
                                records=records, walk_own_rooms=PAIRED_LEVELS_WALK_THEIR_OWN_ROOMS),
         rng)
     # fewer than ten candidates fill fewer slots (draw_requirements takes at most ten)
@@ -1097,20 +1123,22 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     # Relocation before overlay (HT-HINT-02), the sentences with their texts.
     relocate(slot_texts)
     relocate(sentences)
+    relocate(level_slots)
 
-    pool_candidates = route_pool_candidates(gw, rng, names, book_needed)
+    pool_candidates = route_pool_candidates(gw, rng, book_needed)
     final_texts, overlay_flags = select_final_texts(slot_texts, pool_candidates, rng, every_helpful_hint)
     add_openers(final_texts, overlay_flags, sentences, opener_rng)
-    if cave_text_for_magical_sword is not None:
-        final_texts[MAGICAL_SWORD_TEXT_SLOT] = cave_text_for_magical_sword
+    level_location_slots = {slot: level for slot, level in enumerate(level_slots)
+                            if level is not None and overlay_flags[slot]}
+    alternatives = level_text_alternatives(level_location_slots, pool_candidates, rng)
 
-    return _hint_text_result(gw, item_shuffle_result, hint_assignment, final_texts, overlay_flags,
-                             HINT_SHOP_OFFER_SELECTORS, tuple(hint_prices), maze_offers)
+    return replace(_hint_text_result(gw, item_shuffle_result, hint_assignment, final_texts, overlay_flags,
+                                     HINT_SHOP_OFFER_SELECTORS, tuple(hint_prices), maze_offers),
+                   level_location_slots=level_location_slots, level_text_alternatives=alternatives)
 
 
 def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
                                  hint_assignment: HintAssignmentResult, rng: Rng,
-                                 cave_text_for_magical_sword: list[str] | None = None,
                                  names: ItemNames = VANILLA_NAMES,
                                  maze_offers: dict[int, list[str]] | None = None,
                                  book_needed: bool = False) -> HintTextResult:
@@ -1126,13 +1154,11 @@ def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffle
     (owner quotes and numbered placeholders); slot 0, the wood sword cave, shows one of the
     owner's seven quotes, never the greeting; slot 9 has its three added quotes; place_pool's
     routing gives every shown slot a candidate, so the greeting fallback never happens.
-    cave_text_for_magical_sword, names and book_needed as in generate_hint_text.
+    names and book_needed as in generate_hint_text.
 
     The random draws, in order: the pool routing, then per slot the pool pick."""
-    pool_candidates = route_pool_candidates(gw, rng, names, book_needed)
+    pool_candidates = route_pool_candidates(gw, rng, book_needed)
     final_texts, overlay_flags = select_final_texts([None] * SLOT_COUNT, pool_candidates, rng)
-    if cave_text_for_magical_sword is not None:
-        final_texts[MAGICAL_SWORD_TEXT_SLOT] = cave_text_for_magical_sword
     assert gw.hint_shop_offer_selectors is not None, "the base ROM's hint-shop offer selectors"
     return _hint_text_result(gw, item_shuffle_result, hint_assignment, final_texts, overlay_flags,
                              gw.hint_shop_offer_selectors, tuple(hint_shop_prices(gw)), maze_offers)
@@ -1153,6 +1179,10 @@ def _hint_text_result(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hin
     encoded, pointers = encode_hint_texts(final_texts, item_shuffle_result)
     quotes = [Quote(quote_id=i, text="|".join(final_texts[i])) for i in range(SLOT_COUNT)]
     selectors_a, selectors_b = _build_selector_tables(gw, hint_assignment)
+    room_slots = tuple((_level(gw.levels, level).rom_level_num,
+                        (selectors_b if level in hint_assignment.helpful else selectors_a)[code - FIRST_PERSON_CODE]
+                        // SELECTOR_TO_SLOT)
+                       for level, code in hint_assignment.hint_ids if code - FIRST_PERSON_CODE < FAMILY_ENTRIES)
     return HintTextResult(
         quotes=quotes,
         pointers=tuple(pointers),
@@ -1163,7 +1193,85 @@ def _hint_text_result(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hin
         underworld_selectors_b=selectors_b,
         hint_shop_prices=hint_prices,
         overlay_flags=tuple(overlay_flags),
+        room_slots=room_slots,
     )
+
+
+# ZORA deviation (owner request, beta 7; docs/deviations.md "No level-N hints inside level N"): a
+# person inside a level never tells where that same level is. After B19's pointer exchange, a
+# dungeon person room that would show where its own level is trades its text pointer with another
+# dungeon person room's, so the text is still shown, in another level. Only when no room can trade
+# does the text give way to a pool quote for its slot, drawn on a copy of the hint step's stream,
+# so no other draw moves.
+
+def level_text_alternatives(level_location_slots: dict[int, int], pool_candidates: dict[int, list[list[str]]],
+                            rng: Rng) -> dict[int, list[str]]:
+    """Each level-location slot's pool quote, in slot order, from a copy of `rng`."""
+    alternative_rng = copy.deepcopy(rng)
+    return {slot: pool_candidates[slot][alternative_rng.below(len(pool_candidates[slot]))]
+            for slot in sorted(level_location_slots) if pool_candidates[slot]}
+
+
+def keep_level_hints_out_of_their_levels(hint_text: HintTextResult) -> HintTextResult:
+    """No dungeon person room shows where its own level is (no draws). Each room slot whose text
+    names a level some room showing that slot is in trades pointers with the first room slot, in
+    room order, where both texts then sit outside the levels they name; a slot no room can trade
+    with keeps its pointer and its text becomes its pool quote (the texts laid out again, the
+    pointers following them). Unchanged when no room shows its own level's text."""
+    original_slot_of = _original_slot_of(hint_text.text_bytes)
+    levels_showing: dict[int, set[int]] = defaultdict(set)
+    for level, slot in hint_text.room_slots:
+        levels_showing[slot].add(level)
+    room_slots = list(levels_showing)
+    pointers = list(hint_text.pointers)
+
+    def misplaced(slot: int, pointer: int) -> bool:
+        source = original_slot_of.get(pointer)
+        return source is not None and hint_text.level_location_slots.get(source) in levels_showing[slot]
+
+    stranded = []
+    for slot in room_slots:
+        if not misplaced(slot, pointers[slot]):
+            continue
+        partner = next((other for other in room_slots if other != slot
+                        and not misplaced(slot, pointers[other]) and not misplaced(other, pointers[slot])), None)
+        if partner is None:
+            stranded.append(original_slot_of[pointers[slot]])
+        else:
+            pointers[slot], pointers[partner] = pointers[partner], pointers[slot]
+    traded = replace(hint_text, pointers=tuple(pointers))
+    return _with_pool_quotes(traded, original_slot_of, sorted(set(stranded)))
+
+
+def _with_pool_quotes(hint_text: HintTextResult, original_slot_of: dict[int, int], slots: list[int]) -> HintTextResult:
+    """These slots' own texts replaced by their pool quotes (level_text_alternatives), the texts
+    laid out again and the pointers following them."""
+    slots = [slot for slot in slots if slot in hint_text.level_text_alternatives]
+    if not slots:
+        return hint_text
+    text_bytes, quotes = list(hint_text.text_bytes), list(hint_text.quotes)
+    overlay_flags = list(hint_text.overlay_flags)
+    for slot in slots:
+        lines = hint_text.level_text_alternatives[slot]
+        text_bytes[slot] = bytes(encode_text(lines))
+        quotes[slot] = Quote(quote_id=slot, text="|".join(lines))
+        overlay_flags[slot] = False
+    new_addresses = _text_addresses(text_bytes)
+    pointers = tuple(new_addresses[original_slot_of[pointer]] if pointer in original_slot_of else pointer
+                     for pointer in hint_text.pointers)
+    return replace(hint_text, pointers=pointers, text_bytes=tuple(text_bytes), quotes=quotes,
+                   overlay_flags=tuple(overlay_flags))
+
+
+def _text_addresses(text_bytes: Sequence[bytes]) -> list[int]:
+    """Each slot's own text's CPU address, as encode_hint_texts lays them out."""
+    return [cpu_address_in_bank1(offset)
+            for offset in place_hint_texts([len(body) for body in text_bytes], CONSTERNATION_HINT_SLOTS)]
+
+
+def _original_slot_of(text_bytes: Sequence[bytes]) -> dict[int, int]:
+    """The slot whose own text lies at each address (a pointer that is none, the toll's, is absent)."""
+    return {address: slot for slot, address in enumerate(_text_addresses(text_bytes))}
 
 
 def _hint_shops(gw: GameWorld) -> list[HintShop]:
@@ -1189,7 +1297,7 @@ def draw_hint_shop_prices(gw: GameWorld, rng: Rng) -> list[int]:
 
 
 def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None],
-                               sentences: list[str | None]) -> None:
+                               sentences: list[str | None], level_slots: list[int | None] | None = None) -> None:
     """HT-HINT-01's level-location entries, in ZORA's wording (no draws): entry N names player
     level N and the region of its door, the door of the data level shown as N (SH-NUM-03; for a
     second-quest level in a pair, its partner's door)."""
@@ -1199,6 +1307,8 @@ def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None]
         sentence = level_location_sentence(player_level, region_of_screen(screen))
         sentences[slot] = sentence
         slot_texts[slot] = hint_lines(sentence)
+        if level_slots is not None:
+            level_slots[slot] = player_level
 
 
 def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
@@ -1215,23 +1325,60 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
                         if screen_info.destination == Destination.MAGICAL_SWORD_CAVE
                         and not _hidden_flag(screen_info)), None)
     meet_region = region_of_screen(meet_screen) if meet_screen is not None else 0
-    slot_texts[MEET_SLOT] = [f"MEET {person_name(*pair11)}", region_phrase(meet_region)]
+    meet_lines = [f"MEET {person_name(*pair11)}", region_phrase(meet_region)]
+    magical_sword_cave = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
+    if magical_sword_cave is not None:
+        meet_lines.append(MEET_HEARTS_TEXT.format(hearts=magical_sword_cave.heart_requirement))
+    slot_texts[MEET_SLOT] = meet_lines
 
     white_sword_cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
-    white_sword_item = (names.phrase(white_sword_cave.item & ITEM_CODE_MASK) if white_sword_cave is not None
-                        else "THE ITEM")
     white_sword_screen = _white_sword_screen(gw)
     white_sword_region = region_of_screen(white_sword_screen) if white_sword_screen is not None else 0
     # the same form speaks of the giver itself: "I HAVE", not "ME HAS"
     holder_text = "I HAVE" if name_form(*pair12) == SAME_FORM else f"{person_name(*pair12)} HAS"
-    place = region_phrase(white_sword_region)
-    line = f"{holder_text} {white_sword_item} {place}"
-    if len(line) <= LINE_WIDTH:
-        slot_texts[HOLDER_SLOT] = [line]
+    if white_sword_cave is not None:
+        code = white_sword_cave.item & ITEM_CODE_MASK
+        slot_texts[HOLDER_SLOT] = holder_hearts_lines(holder_text, names.phrase(code), names.label(code),
+                                                      white_sword_region, white_sword_cave.heart_requirement)
     else:
-        second_line = f"{white_sword_item} {place}"
-        slot_texts[HOLDER_SLOT] = ([holder_text, second_line] if len(second_line) <= LINE_WIDTH
-                                   else [holder_text, white_sword_item, place])
+        slot_texts[HOLDER_SLOT] = holder_lines(holder_text, "THE ITEM", region_phrase(white_sword_region))
+
+
+# Owner request (beta 7): the hints that lead to the two sword caves say how many heart containers
+# each cave asks for, so the two can be told apart. The caves' own texts already say it.
+MEET_HEARTS_TEXT = "WITH {hearts} HEARTS"
+HOLDER_HEARTS_TEXT = "FOR {hearts} HEARTS"
+HOLDER_HEARTS_SHORT_TEXT = ", {hearts} HEARTS"      # the last resort: no "FOR"
+# The longest region phrases in fewer letters, for a holder text that does not fit three lines.
+SHORT_REGION_PHRASES: dict[int, str] = {1: "ON DEATH MOUNTAIN", 8: "IN A FOREST", 9: "IN THE LOST HILLS"}
+
+
+def holder_lines(holder_text: str, item_phrase: str, place: str) -> list[str]:
+    """The white-sword cave's holder text without a heart count: one line, else the holder, then
+    the item and the place on one or two lines."""
+    line = f"{holder_text} {item_phrase} {place}"
+    if len(line) <= LINE_WIDTH:
+        return [line]
+    second_line = f"{item_phrase} {place}"
+    return [holder_text, second_line] if len(second_line) <= LINE_WIDTH else [holder_text, item_phrase, place]
+
+
+def holder_hearts_lines(holder_text: str, item_phrase: str, item_label: str, region: int, hearts: int) -> list[str]:
+    """The white-sword cave's holder text with its heart count, wrapped: "THE ELDER HAS THE LADDER
+    BY THE COAST FOR 5 HEARTS". When that needs more than three lines: the shorter region phrase,
+    then the item without its article, then ", 5 HEARTS" for "FOR 5 HEARTS"; never reached with
+    the white-sword cave's counts (4 to 6), the count is left out as the very last resort."""
+    place = region_phrase(region)
+    short_place = SHORT_REGION_PHRASES.get(region, place)
+    count, short_count = HOLDER_HEARTS_TEXT.format(hearts=hearts), HOLDER_HEARTS_SHORT_TEXT.format(hearts=hearts)
+    for text in (f"{holder_text} {item_phrase} {place} {count}",
+                 f"{holder_text} {item_phrase} {short_place} {count}",
+                 f"{holder_text} {item_label} {short_place} {count}",
+                 f"{holder_text} {item_label} {short_place}{short_count}"):
+        lines = textwrap.wrap(text, LINE_WIDTH, break_on_hyphens=False)
+        if len(lines) <= MAX_LINES:
+            return lines
+    return holder_lines(holder_text, item_phrase, place)
 
 
 def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
@@ -1305,22 +1452,22 @@ def _arrow_upgrade_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
     return ["ARROW UPGRADES", "LIE ELSEWHERE"]
 
 
-def route_pool_candidates(gw: GameWorld, rng: Rng, names: ItemNames = VANILLA_NAMES,
-                          book_needed: bool = False) -> dict[int, list[list[str]]]:
+def route_pool_candidates(gw: GameWorld, rng: Rng, book_needed: bool = False) -> dict[int, list[list[str]]]:
     """The pool's candidate lists (place_pool's draws); heart-count quotes follow the sword
-    caves' requirements, and the white-sword cave's slot may also name the cave's item. With
-    book_needed (B48) slot 0 draws from the lines in which the speaker cannot be understood."""
+    caves' requirements. Each sword cave's own slot draws only from the quotes about its heart
+    count (sword_cave_heart_quotes; owner decision, 2026-10-17): the quotes place_pool routed
+    there otherwise are not shown. A slot still makes one pick, but a shorter list changes how
+    many words Rng.below takes (rejection sampling; none for a single candidate), so the later
+    slots' picks change with it.
+    With book_needed (B48) slot 0 draws from the lines in which the speaker cannot be understood."""
     white_sword_cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
     magical_sword_cave = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
     white_hearts = white_sword_cave.heart_requirement if white_sword_cave is not None else 0
     magical_hearts = magical_sword_cave.heart_requirement if magical_sword_cave is not None else 0
     pool_candidates = place_pool(rng, white_hearts, magical_hearts, book_needed)
-
-    white_sword_item_code = white_sword_cave.item & ITEM_CODE_MASK if white_sword_cave is not None else None
-    if white_sword_item_code in WHITE_SWORD_CAVE_NAMED_ITEMS:
-        phrase = names.phrase(white_sword_item_code)
-        pool_candidates[WHITE_SWORD_CAVE_SLOT].append(
-            names.fit(f"THE WHITE SWORD CAVE HOLDS {phrase}", "THE WHITE SWORD CAVE", f"HOLDS {phrase}"))
+    for cave, slot in ((white_sword_cave, WHITE_SWORD_TEXT_SLOT), (magical_sword_cave, MAGICAL_SWORD_TEXT_SLOT)):
+        if cave is not None:
+            pool_candidates[slot] = sword_cave_heart_quotes(slot, cave.heart_requirement)
     return pool_candidates
 
 

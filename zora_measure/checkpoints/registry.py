@@ -29,6 +29,7 @@ from zora_measure.checkpoints.acceptance import (
     tracked_in_level9,
 )
 from zora_measure.checkpoints.book import SPEC_HT_BOOK, person_text_pointer_load
+from zora_measure.checkpoints.cave_shuffle import CAVE_SHUFFLE_SETS
 from zora_measure.checkpoints.dungeon_quest import (
     HUNGRY_GORIYA_COUNTS,
     SOURCE_PAIR_SHARES,
@@ -139,6 +140,7 @@ from zora_measure.checkpoints.hint_text import (
     hint_shop_prices,
     underworld_selector_tables,
 )
+from zora_measure.checkpoints.item_shuffle import ITEM_SHUFFLE_SETS
 from zora_measure.checkpoints.items_within import (
     HEARTS_PER_LEVEL,
     SPEC_ITW,
@@ -373,6 +375,7 @@ from zora_measure.checkpoints.summaries import (
     per_thousand_roms,
     ratio_total,
 )
+from zora_measure.checkpoints.universal_drops import UNIVERSAL_DROPS_SETS
 from zora_measure.hint_information import BLANK, COMPOSED, GREETING, POOL_TEXT, SHOWN_SLOTS
 from zora_measure.statistics import b1_checkpoint
 
@@ -600,12 +603,14 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
                SPEC_GATE, zelda_neighbor_count, distribution(ZELDA_NEIGHBOR_COUNTS)),
     Checkpoint("A48", "Zelda's neighbors with trigger byte $03", "1801/3117", SPEC_GATE,
                zelda_neighbors_trigger3, ratio_total),
-    Checkpoint("VA-REJ-20", "items in level 9's non-Ganon trigger-3 rooms, per 1,000 ROMs",
+    Checkpoint("VA-REJ-20", "items in level 9's non-Ganon trigger-3 rooms, per 1,000 ROMs; "
+               "DIFFERS BY OWNER RULING: ZORA leaves none there (docs/deviations.md)",
                "key 394 bombs 176 five rupees 125 map 42 compass 0 other 0 (0.737 per ROM)", SPEC_GATE_20,
                last_boss_room_items, per_thousand_by_key(LAST_BOSS_ROOM_ITEM_KEYS)),
     Checkpoint("VA-REJ-20", "ROMs with the compass in a level-9 non-Ganon trigger-3 room", "0/1000",
                SPEC_GATE_20, last_boss_room_compass, count_true),
-    Checkpoint("SH-MAP-05", "level 9's map on trigger 7 / 1 / 3 / other", "872/86/42/0", SPEC_SHAPES_U30,
+    Checkpoint("SH-MAP-05", "level 9's map on trigger 7 / 1 / 3 / other; DIFFERS BY OWNER RULING: "
+               "ZORA never moves it onto 3 (docs/deviations.md)", "872/86/42/0", SPEC_SHAPES_U30,
                level9_map_trigger, distribution(MAP_TRIGGER_KEYS)),
     Checkpoint("SH-ROOM-13", "levels 1-8 item rooms (no triforce piece) on trigger 7", "53054/82760 (64.1%)",
                SPEC_SHAPES_U30, item_trigger7_levels_1_8, ratio_total),
@@ -1093,7 +1098,8 @@ CHECKPOINT_SETS = {"cp5": CHECKPOINTS, "b25": B25_CHECKPOINTS,
                                       FLAG_COUNTS),),
                    **dict.fromkeys(DUNGEON_QUEST_SETS, DUNGEON_QUEST_CHECKPOINTS),
                    "start-items-all": START_ITEMS_ALL_CHECKPOINTS, "start-items-rp6": START_ITEMS_RP6_CHECKPOINTS,
-                   "hopla-start": HOPLA_START_CHECKPOINTS, "hopla": HOPLA_CHECKPOINTS}
+                   "hopla-start": HOPLA_START_CHECKPOINTS, "hopla": HOPLA_CHECKPOINTS,
+                   **CAVE_SHUFFLE_SETS, **ITEM_SHUFFLE_SETS, **UNIVERSAL_DROPS_SETS}
 
 
 def measure_rom_for(set_name: str, gw: GameWorld) -> list[Any]:

@@ -9,11 +9,14 @@ without a change to this world:
 
 Archipelago's own `random` stays available everywhere: it picks one of the listed values. ZORA's
 random_per_seed is a value of its own, ZORA's draw for the seed.
+
+A ZORA flag Archipelago never offers (zora.archipelago.never_offered_fields: Shuffle Wood Sword) is a
+hidden option: a YAML may set it to off, and any other value is refused with ZORA's reason.
 """
 from dataclasses import make_dataclass
 from typing import Any
 
-from Options import Choice, PerGameCommonOptions, TextChoice
+from Options import Choice, OptionError, PerGameCommonOptions, TextChoice, Visibility
 
 from .zora import archipelago as zora_ap
 
@@ -93,13 +96,40 @@ def setting_class(spec: zora_ap.PlayerSettingSpec) -> type[Choice]:
     return register(class_name_of(spec.yaml_key), (Choice,), namespace)
 
 
+def never_offered_class(spec: zora_ap.OptionSpec) -> type[Choice]:
+    """A ZORA flag Archipelago never offers, as a hidden option (no template, page or spoiler line):
+    off passes (ZORA uses it anyway), anything else is refused when the YAML is read, with
+    zora.archipelago.never_offered_refusal's reason, which Archipelago shows under its "Error
+    generating option" line naming the player's file."""
+
+    def from_any(cls: type[Choice], data: Any) -> Choice:
+        if (refusal := zora_ap.never_offered_refusal(cls.zora_key, data)) is not None:
+            raise OptionError(refusal)
+        return cls(cls.default)
+
+    namespace: dict[str, Any] = {
+        "__doc__": spec.description,
+        "display_name": spec.name,
+        "default": spec.default,
+        "zora_key": spec.key,
+        "visibility": Visibility.none,
+        "from_any": classmethod(from_any),
+    }
+    namespace |= {f"option_{key}": value for value, key in spec.value_keys}
+    return register(class_name_of(spec.key), (Choice,), namespace)
+
+
 OPTION_SPECS: tuple[zora_ap.OptionSpec, ...] = tuple(zora_ap.option_fields())
 SETTING_SPECS: tuple[zora_ap.PlayerSettingSpec, ...] = tuple(zora_ap.player_setting_fields())
 OPTION_CLASSES: dict[str, type[Choice]] = {spec.key: flag_class(spec) for spec in OPTION_SPECS}
 SETTING_CLASSES: dict[str, type[Choice]] = {spec.yaml_key: setting_class(spec) for spec in SETTING_SPECS}
+NEVER_OFFERED_CLASSES: dict[str, type[Choice]] = {spec.key: never_offered_class(spec)
+                                                   for spec in zora_ap.never_offered_fields()}
 assert not set(OPTION_CLASSES) & set(SETTING_CLASSES), "a player setting shares an option's key"
+assert not set(NEVER_OFFERED_CLASSES) & (set(OPTION_CLASSES) | set(SETTING_CLASSES)), "a hidden option is offered"
 
-ZoraOptions = make_dataclass("ZoraOptions", [*OPTION_CLASSES.items(), *SETTING_CLASSES.items()],
+ZoraOptions = make_dataclass("ZoraOptions", [*OPTION_CLASSES.items(), *SETTING_CLASSES.items(),
+                                             *NEVER_OFFERED_CLASSES.items()],
                              bases=(PerGameCommonOptions,))
 
 

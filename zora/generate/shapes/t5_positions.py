@@ -85,15 +85,36 @@ T5_UNIVERSAL: dict[int, tuple[int, ...]] = {
 }
 
 
+def t5_row(screen_type: int, universal_drops: bool) -> "tuple[int, ...]":
+    """The screen type's T5 row, in order. SH-ROOM-16: with Allow Universal
+    Drops In Shapes (B91) on, the merged row: the base row, then the
+    universal positions not already in it, in the universal row's order (a
+    type with no base row gets its universal row)."""
+    base = T5_BASE.get(screen_type, ())
+    if not universal_drops:
+        return base
+    return base + tuple(position for position in T5_UNIVERSAL.get(screen_type, ()) if position not in base)
+
+
 def item_slots_for(screen_type: int, level_position_table: "list[int]",
                    universal_drops: bool) -> "tuple[int, ...]":
     """Indices (0-3) of the level's standard positions this screen type allows.
 
     SH-ROOM-11 model: T5 lists packed $XY screen positions per screen type;
     a room may hold an item only at slot i where level_table[i] is on the
-    screen type's list (base, plus universal additions when the option is
-    on — a type with no base row gets ONLY the universal list then)."""
-    vals = set(T5_BASE.get(screen_type, ()))
-    if universal_drops:
-        vals |= set(T5_UNIVERSAL.get(screen_type, ()))
-    return tuple(i for i, v in enumerate(level_position_table) if v in vals)
+    screen type's row (the merged row with B91 on, SH-ROOM-16)."""
+    row = set(t5_row(screen_type, universal_drops))
+    return tuple(i for i, v in enumerate(level_position_table) if v in row)
+
+
+def first_item_slot(screen_type: int, level_position_table: "list[int]",
+                    universal_drops: bool) -> "int | None":
+    """SH-ROOM-16 item 3 (and SH-STAIR-08): a staircase room's key position is
+    the FIRST match, taking the row's positions in order and, for each, the
+    level's four standard positions in order 0 to 3, so base positions win
+    over universal ones whenever one matches. None when nothing matches."""
+    for position in t5_row(screen_type, universal_drops):
+        for slot, standard in enumerate(level_position_table):
+            if standard == position:
+                return slot
+    return None

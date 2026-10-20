@@ -81,7 +81,7 @@ def test_misleading_values_have_notes() -> None:
              for code, field in page_fields().items() for value in field["values"] if "note" in value}
     assert notes == {
         **{(code, 0): ("Random", "No item pinned") for code in ("C11", "C12", "C13", "C26", "C27")},
-        ("C06", 1): ("Item Only", "Dungeon items only"),
+        ("C06", 1): ("Item Only", "Major items only; Heart Containers stay in place"),  # owner wording, 2026-10-15
         ("C16", 16): ("1-5 Hearts", "One random count from 1 to 5"),
         ("C08", 11): ("Other Item", "Level 9 opens for an item instead of Triforce pieces"),
     }

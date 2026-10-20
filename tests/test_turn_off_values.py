@@ -14,6 +14,7 @@ from typing import TypeVar
 
 import pytest
 
+from tests.needs import needs_base_rom
 from zora.flags.codec import decode, encode
 from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
@@ -267,6 +268,7 @@ TURN_OFF_CHECKS: dict[str, tuple[dict[str, ThreeState], dict[str, int], Callable
     "B15": ({"B15": ThreeState.OFF}, {}, triforce_pointers_name_triforce_rooms),
     "B19": ({"B19": ThreeState.OFF}, {}, hint_pointers_ascend),
     "B22+B23": ({"B22": ThreeState.OFF, "B23": ThreeState.OFF}, {}, no_merchants),
+    "B22": ({"B22": ThreeState.OFF}, {}, no_merchants),            # B23 on, kept as given (FL-DEP-06)
     "B27": ({"B27": ThreeState.OFF}, {}, color_sets_are_prg0),
     "B28": ({"B28": ThreeState.OFF}, {}, one_grumble_room),
     "B29": ({"B29": ThreeState.OFF}, {}, bomb_sellers_are_prg0),
@@ -291,6 +293,7 @@ ALL_VALUES_CHECKS = [check for name, (_, _, check) in TURN_OFF_CHECKS.items()
                      if "+" not in name or name == "B22+B23"]
 
 
+@needs_base_rom
 @pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.parametrize("value", list(TURN_OFF_CHECKS))
 def test_turn_off_value_check(value: str, seed: int) -> None:
@@ -302,6 +305,7 @@ def test_turn_off_value_check(value: str, seed: int) -> None:
 @pytest.mark.parametrize("change", [{"B14": ThreeState.OFF}, {"B16": ThreeState.OFF},
                                     {"B14": ThreeState.OFF, "B16": ThreeState.OFF}, {"C17": 0}, {"C17": 2},
                                     {"C17": 22}], ids=["B14", "B16", "B14+B16", "C17=0", "C17=2", "C17=22"])
+@needs_base_rom
 def test_values_without_an_effect_give_the_cp5_rom(change: dict[str, int], seed: int) -> None:
     """FL-OFF-03 (B14, B16) and FL-OFF-06 (C17): nothing changes. With level encoding off the
     flag string reaches no byte, so the finished ROM is CP-5's."""
@@ -312,6 +316,7 @@ def test_values_without_an_effect_give_the_cp5_rom(change: dict[str, int], seed:
     assert generated(flag_string, seed)[1] == generated(cp5_with(), seed)[1]
 
 
+@needs_base_rom
 @pytest.mark.parametrize("seed", SEEDS)
 def test_all_values_string_generates_and_every_site_check_holds(seed: int) -> None:
     """FL-OFF-01's Check (the spec: 60 of 60)."""
@@ -322,6 +327,7 @@ def test_all_values_string_generates_and_every_site_check_holds(seed: int) -> No
     assert set(goriya_tile(result[2])) <= PRE_SHAPE_TILES
 
 
+@needs_base_rom
 @pytest.mark.parametrize("seed", SEEDS)
 def test_b31_off_with_the_group_pass_and_start_shuffle_off_keeps_prg0_monsters(seed: int) -> None:
     """FL-OFF-04, B31's Check: with B31, B42 and B43 off and the start screen
@@ -348,6 +354,7 @@ def test_ps_boss_05_bars_the_bosses_beaten_by_the_first_and_last_planted_items()
     assert set(barred) == {1, 2}
 
 
+@needs_base_rom
 def test_ps_boss_05_records_are_the_fifteen_items_in_their_fixed_order() -> None:
     """PS-BOSS-05 (owner ruling, 2026-10-04): one record per ITEM, in the fixed order recorder,
     raft, wood boomerang, magical boomerang, ladder, wand, bow, red ring, magical key, red candle,
@@ -384,6 +391,7 @@ def test_ps_boss_05_applies_only_with_b40_off() -> None:
     assert replace(off, randomize_boss_groups=True) == on
 
 
+@needs_base_rom
 @pytest.mark.parametrize("seed", SEEDS)
 def test_ps_boss_05_bars_the_picks_with_b40_off(seed: int, monkeypatch: pytest.MonkeyPatch) -> None:
     """With B40 off, no boss the shuffle picks in levels 1 and 2 is beaten by an item at an end

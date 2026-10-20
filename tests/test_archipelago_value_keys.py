@@ -166,13 +166,16 @@ VALUE_KEYS = {
     "speed_up_heart_fill": THREE_STATE,
     "recorder_kills_pols_voice": THREE_STATE,
     "four_potion_inventory": THREE_STATE,
-    "auto_show_letter": THREE_STATE,
     "like_like_eats_rupees": THREE_STATE,
     "magical_boomerang_damage": THREE_STATE,
     "randomize_lost_hills": THREE_STATE,
     "randomize_dead_woods": THREE_STATE,
     "oops_all_enemies": ("off", "wizzrobes", "keese", "bouncers"),
     "oops_all_bosses": ("off", "dodongos"),
+    "allow_triforces_in_stairways": THREE_STATE,
+    "pegasus_boots": THREE_STATE,
+    "expanded_dungeon_locations": THREE_STATE,
+    "highlight_no_drop_rooms": THREE_STATE,
 }
 COLORS = tuple(f"0x{value:02X}" for value in range(0x40) if value != 0x0D)   # every NES palette value but $0D
 # page key -> (YAML key, each listed value's key in the page's order; a color's are COLORS)
@@ -182,7 +185,6 @@ PLAYER_KEYS = {
     "deathWarp": ("death_warp", ("p2_up_a", "p1_up_a", "p1_up_select")),
     "reduceFlashing": ("reduce_flashing", ("off", "on")),
     "music": ("music", ("on", "off")),
-    "statisticsScreen": ("statistics_screen", ("on", "off")),
     "greenTunic": ("green_tunic", COLORS),
     "blueRingTunic": ("blue_ring_tunic", COLORS),
     "redRingTunic": ("red_ring_tunic", COLORS),
@@ -194,6 +196,9 @@ PLAYER_KEYS = {
     "bossSoundWord": ("boss_sound_word", (
         "roar", "random_word", "rawr", "meow", "woof", "awoo", "oink", "weef", "honk", "aaaa", "goal", "ohai",
         "waah", "howl", "hiss", "purr", "bark", "hoot", "baaa", "grrr", "bonk", "eeek", "oops", "yaay")),
+    # Multiworld mode only (owner decision 2026-10-18)
+    "foreignItemLook": ("foreign_item_look", ("rupee", "logo")),
+    "itemArrivalSound": ("item_arrival_sound", ("item_appears", "item_taken", "none")),
 }
 SPECS = archipelago.option_fields()
 PLAYER_SPECS = {spec.key: spec for spec in archipelago.player_setting_fields()}
@@ -235,12 +240,13 @@ def test_a_value_key_chooses_what_its_number_does(spec: archipelago.OptionSpec) 
 
 
 def test_old_forms_and_refusals() -> None:
-    """Numbers and booleans keep working; a key of a value not offered (Dungeon Quest: Mixed
-    Quest), a label or Archipelago's "random" is refused, naming the offered keys."""
+    """Numbers and booleans keep working; a key of a value not offered (Swords: Swordless, which
+    takes away the sword Archipelago's player starts with), a label or Archipelago's "random" is refused, naming the offered
+    keys."""
     assert archipelago.flag_strings({"randomize_letter": True}) == archipelago.flag_strings({"randomize_letter": 1})
     assert archipelago.flag_strings({"overworld_quest": "mixed_quest_first", "B03": "random_per_seed"}) == \
         archipelago.flag_strings({"C01": 2, "allow_ow_blocks_of_wood_sword": 2})
-    for option, wrong in (("dungeon_quest", "mixed_quest"), ("overworld_quest", "Mixed Quest - 1st"),
+    for option, wrong in (("swords", "swordless"), ("overworld_quest", "Mixed Quest - 1st"),
                           ("start_raft", "random"), ("starting_hearts", "3")):
         with pytest.raises(archipelago.OptionsConflict, match="not one of"):
             archipelago.flag_strings({option: wrong})
@@ -271,13 +277,15 @@ YAML_FORM = {"select_button": "swap", "death_warp": "p1_up_select", "low_health_
              "green_tunic": "0x2A", "red_ring_tunic": "0x0f", "hearts": "0x16", "level_word": "palace",
              "boss_sound_word": "random_word", "statistics_screen": "off"}
 PAGE_FORM = {"selectButton": "swap", "deathWarp": "p1-up-select", "lowHealthBeep": "kept", "greenTunic": 0x2A,
-             "redRingTunic": 0x0F, "heart": 0x16, "levelWord": "palace", "bossSoundWord": RANDOM_BOSS_SOUND_WORD,
-             "statisticsScreen": "off"}
+             "redRingTunic": 0x0F, "heart": 0x16, "levelWord": "palace", "bossSoundWord": RANDOM_BOSS_SOUND_WORD}
+# YAML_FORM's statistics_screen is retired (every ROM has the screen since 2026-10-17): dropped, by
+# either key, so an older YAML or recipe still reads.
 
 
 def test_the_yaml_form_is_the_page_form() -> None:
     assert archipelago.page_player_settings(YAML_FORM) == PAGE_FORM
     assert archipelago.page_player_settings(PAGE_FORM) == PAGE_FORM          # an older recipe reads as it did
+    assert archipelago.page_player_settings({**PAGE_FORM, "statisticsScreen": "on"}) == PAGE_FORM
     assert player_settings_from_page(archipelago.page_player_settings(YAML_FORM)) == \
         player_settings_from_page(PAGE_FORM) != PlayerSettings()
     mixed = {"select_button": "toggle", "deathWarp": "p2_up_a", "bossSoundWord": "random_word", "heart": 22}
@@ -293,7 +301,7 @@ def test_a_setting_by_both_keys_or_a_wrong_value_is_refused() -> None:
             player_settings_from_page(archipelago.page_player_settings(wrong))
 
 
-@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 def test_finish_and_the_recipe_take_the_yaml_form() -> None:
     """The same ROM from either form; the recipe keeps the page form (RANDOM as RANDOM), so older
     copies of ZORA and older recipes read it unchanged."""

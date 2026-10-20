@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 
+from .canonical import OMITTED_AT_DEFAULT
 from .enums import VANILLA_PERSON_INITS, DungeonNothingCode, Item, UnderworldPersonInit
 from .levels import ARRIVAL_DUNGEON, ARRIVAL_OVERWORLD, Level, LevelBlock
 from .overworld import Overworld, Quote
@@ -63,8 +64,8 @@ class GameWorld:
     # PS-EGRP-05's red-Wizzrobe overworld patch: four fixed byte runs
     # (rom_layout.OVERWORLD_WIZZROBE_PATCH), written when True.
     overworld_wizzrobe_patch: bool = False
-    # The starting-hearts byte (read only): the life toll's cost derives
-    # from it.
+    # The byte at 0x0A868 (PRG0 $FF, free space), read only and no longer used: the life toll's
+    # heart count follows new_file_heart_containers (FL-ALT-07). Kept so seeds keep their codes.
     starting_hearts: int = 0xFF
     # FP-START-01: the Items block each starting-state routine sets
     # (new file; second-quest switch), read from the ROM; None if unrecognized
@@ -77,8 +78,16 @@ class GameWorld:
     # FP-START-02 and FP-START-03: the start items a new save file (and the second-quest switch)
     # holds; none writes PRG0's starting routines, any writes fp-start-02's table
     start_items: tuple[Item, ...] = ()
+    # FL-ALT-06 (C18): the Triforce pieces a new save file (and the second-quest switch) holds, one
+    # bit per level 1-8 (InvTriforce); any writes fp-start-02's table. 0 leaves the seed's code as
+    # it was (canonical.OMITTED_AT_DEFAULT)
+    start_triforce_pieces: int = field(default=0, metadata=OMITTED_AT_DEFAULT)
     # FP-START-01: the hearts a Continue restores (operand at 0x14B83)
     continue_hearts_operand: int = 0x02
+    # FL-ALT-07: FormatHeartsInTextBuf's BEQ @EmitSpace operand (0x06731), PRG0's $04 draws the meter
+    # blank for HeartValues $00; one starting heart sets it to $00. Omitted from the seed's code at
+    # PRG0's value (canonical.OMITTED_AT_DEFAULT)
+    heart_meter_blank_branch: int = field(default=0x04, metadata=OMITTED_AT_DEFAULT)
     # FP-RESET-01, FP-TEXT-01, FP-BEEP-01, FP-FIX-01, FP-Q2R-01, FP-LEVEL-01
     reset_controller1: int = 0xFB
     text_speed_value: int = 0x06
@@ -117,6 +126,12 @@ class GameWorld:
     level9_refusal_text: str = ""
     # FP-PERSON-01: the 17 cave-person animation bytes for object types $6B-$7B.
     cave_person_animations: tuple[int, ...] = ()
+
+    @property
+    def uses_start_table(self) -> bool:
+        """FP-START-03: fp-start-02's starting table is written, for start items or start pieces
+        (FL-ALT-06); otherwise PRG0's starting routines stay."""
+        return bool(self.start_items or self.start_triforce_pieces)
 
     @property
     def level_blocks(self) -> list[LevelBlock]:

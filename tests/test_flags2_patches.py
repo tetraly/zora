@@ -18,9 +18,10 @@ from zora.flags.codec import decode, encode
 from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
-from zora.rom.base_rom import Original, Piece, original_bytes, piece_length
+from zora.rom.base_rom import Original, Piece, original_bytes, piece_bytes, piece_length
 from zora.rom.code_patch_data import PATCHES as SERIES_PATCHES
 from zora.rom.layout import OVERWORLD_WIZZROBE_PATCH
+from zora.rom.owner_patches import ALWAYS_WRITTEN
 from zora.rom.vanilla_overworld.screens import read_screens
 from zora.rom.vanilla_overworld.tables import LAYOUT_COLUMNS, OW_LAYOUT_COUNT
 
@@ -44,6 +45,12 @@ settings = _module("zora.rom._asm_player_settings_data", REPO / "asm" / "setting
 
 # RoomLayoutsOW (bank 5 $9418): headered file offset of layout 0's first column descriptor.
 ROOM_LAYOUTS_OW_FILE = 0x15428
+# The other binary includes a data edit may change (src/bins.xml, headered file ranges), each named
+# in its edit's note: Pegasus Boots' boot tiles and its attract-mode text.
+OTHER_DATA_BINARIES = {
+    "CommonSpritePatterns": range(0x0808F, 0x0808F + 1792),
+    "DemoTextFields": range(0x092AA, 0x092AA + 531),
+}
 
 
 def written(pieces: tuple[tuple[int, Piece], ...]) -> set[int]:
@@ -85,9 +92,14 @@ def zora_output(seed: int, zora_flags: str) -> bytes:
 def test_every_replaced_byte_is_prg0_in_zora_output(seed: int, zora_flags: str) -> None:
     """Each patch replaces PRG0's bytes: ZORA's output (series patches, the serializer's writes;
     in the second case Progressive Items and Shop Items in the Item Pool on, Extra Candles off)
-    holds PRG0's bytes wherever a patch writes."""
+    holds PRG0's bytes wherever a patch writes, except the patches every ROM gets
+    (owner_patches.ALWAYS_WRITTEN: Auto Show Letter since 2026-10-17), which hold their own."""
     rom, original = zora_output(seed, zora_flags), vanilla()
     for name, pieces in data.PATCHES.items():
+        if name in ALWAYS_WRITTEN:
+            for offset, piece in pieces:
+                assert rom[offset:offset + piece_length(piece)] == piece_bytes(piece), f"{name} 0x{offset:05X}"
+            continue
         for offset in sorted(written(pieces)):
             assert rom[offset] == original[offset], f"{name} 0x{offset:05X}"
 
@@ -108,13 +120,19 @@ def test_no_two_patches_write_the_same_byte() -> None:
 
 def test_data_edits_are_where_their_notes_say() -> None:
     """Every data edit lies in RoomLayoutsOW, and its note names each layout it changes and
-    every screen that uses that layout."""
+    every screen that uses that layout; or wholly in one of OTHER_DATA_BINARIES, which its note
+    names."""
     screens_of: dict[int, list[int]] = {}
     for screen in read_screens(vanilla()):
         screens_of.setdefault(screen.layout, []).append(screen.room_id)
     for name in build.PATCHES:
         for edit in build.data_edits(name):
-            for offset in range(edit.offset, edit.offset + len(edit.data)):
+            edited = range(edit.offset, edit.offset + len(edit.data))
+            binary = next((binary for binary, where in OTHER_DATA_BINARIES.items() if edit.offset in where), None)
+            if binary is not None:
+                assert edited.stop - 1 in OTHER_DATA_BINARIES[binary] and binary in edit.note, (name, edit.note)
+                continue
+            for offset in edited:
                 layout = (offset - ROOM_LAYOUTS_OW_FILE) // LAYOUT_COLUMNS
                 assert 0 <= layout < OW_LAYOUT_COUNT, name
                 assert f"Layout {layout} (" in edit.note or f"layout {layout} (" in edit.note, (name, edit.note)

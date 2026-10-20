@@ -26,8 +26,8 @@ WORKER = (REPO / "web" / "zora-worker.js").read_text()
 DEFAULT_FLAGS = flag_form.metadata()["defaultFlags"]
 NAME = "Tetra"
 
-ITEM_SHUFFLE, ENCODE_LEVEL_DATA, DUNGEON_QUEST, EXTRA_CANDLES = "C06", "B82", "C02", "B09"
-MIXED_DUNGEONS = 2                       # Dungeon Quest: Mixed Quest (C02 = 2), which ZORA does not offer
+ITEM_SHUFFLE, ENCODE_LEVEL_DATA, DUNGEON_QUEST, EXTRA_CANDLES, SWORDS = "C06", "B82", "C02", "B09", "C07"
+SWORDLESS = 3                            # Swords: Swordless (C07 = 3), held back: Archipelago's player starts with a sword
 ITEM_ONLY = 1                            # Item Shuffle: Item Only (C06 = 1)
 
 
@@ -105,7 +105,7 @@ EXPORT_CASES: dict[str, tuple[str, str, dict[str, Any]]] = {
                     {}),
     "player settings": (DEFAULT_FLAGS, "",
                         {"selectButton": "swap", "lowHealthBeep": "kept", "deathWarp": "p2-up-a",
-                         "reduceFlashing": "on", "music": "off", "statisticsScreen": "on", "greenTunic": 0x1A,
+                         "reduceFlashing": "on", "music": "off", "greenTunic": 0x1A,
                          "blueRingTunic": 0x00, "redRingTunic": 0x3F, "heart": 0x30, "levelWord": "LAIR",
                          "bossSoundWord": "RANDOM"}),
     "typed words": (DEFAULT_FLAGS, "", {"levelWord": "ZQ-7", "bossSoundWord": "BZZT"}),
@@ -150,13 +150,15 @@ def test_the_worker_glue_exports_the_same_yaml() -> None:
 
 
 def test_the_metadata_is_archipelagos_offer() -> None:
-    """Each field's offered values are its option's; the two never-offered fields name the one
-    value Archipelago uses."""
+    """Each field's offered values are its option's; the never-offered fields (B82, C06 and Shuffle
+    Wood Sword) name the one value Archipelago uses."""
     meta = multiworld.metadata()
     assert meta["offered"] == {spec.id: list(spec.values) for spec in archipelago.option_fields()}
     assert meta["fixed"].keys() == archipelago.NOT_OFFERED
     assert meta["fixed"][ITEM_SHUFFLE]["value"] == int(archipelago.FIXED_OPTIONS[ITEM_SHUFFLE])
     assert meta["fixed"][ENCODE_LEVEL_DATA]["value"] == ThreeState.OFF
+    assert meta["fixed"]["shuffle_wood_sword"] == {"value": ThreeState.OFF,
+                                                   "reason": archipelago.ZORA_FORCED_OFF["shuffle_wood_sword"]}
     assert meta["nameMaxLength"] == 16
 
 
@@ -165,8 +167,10 @@ def test_the_metadata_is_archipelagos_offer() -> None:
 REFUSED_CASES = {
     "Encode level data on": (flags_with(toggles={ENCODE_LEVEL_DATA: ThreeState.ON}), "", "Always off in Archipelago"),
     "Item Shuffle not Full": (flags_with(options={ITEM_SHUFFLE: ITEM_ONLY}), "", "Always Full in Archipelago"),
-    "an unoffered value": (flags_with(options={DUNGEON_QUEST: MIXED_DUNGEONS}), "", "not offered in Archipelago yet"),
+    "an unoffered value": (flags_with(options={SWORDS: SWORDLESS}), "", "not offered in Archipelago yet"),
     "a conflict": (DEFAULT_FLAGS, zora_with(progressive_items=1), "Extra Candles"),
+    "Shuffle Wood Sword on": (DEFAULT_FLAGS, zora_with(shuffle_wood_sword=1),
+                              "Shuffle Wood Sword: Always off in Archipelago"),
 }
 
 

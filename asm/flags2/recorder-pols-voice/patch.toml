@@ -3,8 +3,9 @@
 # recorder has been played in a dungeon room (WieldFlute sets UsedFlute there, and only
 # there), each Pols Voice dies at its next update, through DealDamage as a kill by the sword
 # (WorldKillCount, help drops and the dying metastate as usual). The recorder's own effect is
-# unchanged; the overworld never sets UsedFlute. Object updates wait for the recorder's tune,
-# so the Pols Voices die when it ends. asm/README.md and asm/flags2/build.py describe this
+# unchanged; the overworld never sets UsedFlute. The routine waits for FluteTimer to run out, so
+# the Pols Voices die when the tune ends: objects still update on the frame the recorder is
+# played, and a kill there replaced the tune with the kill's sound (bug fix, 2026-10-17). asm/README.md and asm/flags2/build.py describe this
 # file.
 
 [[segment]]

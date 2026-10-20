@@ -9,7 +9,7 @@ from zora_measure.checks import check_grid_tiled
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.parse.rom_file import parse_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 # A level sealed off from the columns only it may grow into leaves that whole edge strip unowned
 # (seed 726 did so before the 2026-10-07 output change: 17 cells of the six-level grid). Such

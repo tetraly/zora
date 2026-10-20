@@ -7,6 +7,7 @@ import pytest
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.model.enums import Enemy
 from zora.rom.parse.rom_file import load_rom, parse_rom
+from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.generate.generation_pass import generate_shapes
@@ -27,7 +28,7 @@ def _vanilla() -> bytes:
     env = os.environ.get("ZORA_VANILLA_ROM")
     cand = Path(env) if env else BASE_ROM_PATH
     if not cand.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     verify_base_rom(cand)
     return load_rom(cand)
 
@@ -82,12 +83,13 @@ def test_enemy_packing_fixed_slots() -> None:
 
 def test_finished_rom_group_bytes() -> None:
     """PS-SPR-02's Gleeok bytes, Wallmaster's frames and the open-mouth
-    operand on shipped output."""
+    operand on shipped output. Written with the hint style every flag string gives (GameConfig's own
+    default writes the composed texts into the vanilla bank, which seed 500's overflowed since 114f280)."""
     rom = _vanilla()
     for seed in range(3):
         gw = parse_rom(rom)
         generate_shapes(gw, Rng(500 + seed), ShapeOptions())
-        out = parse_rom(serialize_to_rom(gw, rom))
+        out = parse_rom(serialize_to_rom(gw, rom, config=GameConfig(hint_mode=HintMode.CONSTERNATION)))
         enemies = out.enemies
         assert (enemies.gleeok_head_sprite_ptr_a, enemies.gleeok_head_sprite_ptr_b,
                 enemies.frame_bytes(199, 1)[0]) == (0xDA, 0xDC, 0xDE)

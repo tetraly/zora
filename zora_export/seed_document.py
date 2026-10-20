@@ -14,6 +14,7 @@ refused with EncodedSeedRefused.
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from enum import IntEnum
 from typing import Any
@@ -26,7 +27,7 @@ from zora.flags.form import ALL_FIELDS
 from zora.flags.zora_form import FIELDS as ZORA_FIELDS
 from zora.generate.pipeline import GenerationPlan, overworld_gates, resolve_question_marks
 from zora.generate.steps.add_l4_sword import L4_SWORD_ITEM
-from zora.generate.steps.mixed_overworld_quest import SECOND_QUEST_LEFTOVER_SCREENS, is_second_quest_overworld
+from zora.generate.steps.mixed_overworld_quest import second_quest_leftovers
 from zora.generate.steps.overworld_gates import DEAD_WOODS_HINT, LOST_HILLS_HINT
 from zora.generate.steps.randomize_mazes import DEAD_WOODS, LOST_HILLS
 from zora.model import room_grid
@@ -41,15 +42,14 @@ from zora.model.enums import (
     WallType,
 )
 from zora.model.game_world import GameWorld
-from zora.model.item_names import ITEM_NAMES
+from zora.model.item_names import ITEM_NAMES, item_names
 from zora.model.levels import LEVEL_9, Level
 from zora.model.overworld import DoorRepairCave, HintShop, ItemCave, OverworldItem, Shop, ShopItem, TakeAnyCave
 from zora.model.rooms import Room
 from zora.rom.code_patches import (
-    SEED_CODE_NAMES,
     SHOPS_BY_NUMBER,
     one_time_wares,
-    seed_code,
+    seed_code_values,
 )
 from zora.rom.parse.rom_file import parse_rom
 from zora.version import PLAYER_NAME, ZORA_VERSION
@@ -73,11 +73,12 @@ class EncodedSeedRefused(ValueError):
 NO_ITEMS = frozenset({Item.NOTHING, Item.OVERWORLD_NO_ITEM})
 
 
-def item_name(item: Item) -> str | None:
-    """The format's name for an item; None for no item."""
+def item_name(item: Item, names: Mapping[Item, str] = ITEM_NAMES) -> str | None:
+    """The format's name for an item (in `names`: item_names(), the boots' with Pegasus Boots
+    on); None for no item."""
     if item in NO_ITEMS:
         return None
-    return ITEM_NAMES.get(item) or f"Unknown Item {int(item):02X}"
+    return names.get(item) or f"Unknown Item {int(item):02X}"
 
 
 # --- dungeons -------------------------------------------------------------------------------
@@ -152,10 +153,10 @@ def room_enemies(level: Level, room: Room, selling: frozenset[int]) -> dict[str,
     return entry
 
 
-def room_item(room: Room) -> dict[str, Any] | None:
+def room_item(room: Room, names: Mapping[Item, str] = ITEM_NAMES) -> dict[str, Any] | None:
     """The room's item; `appears` (a ZORA extra) says when: "floor" at once, "foes" when the
     room's foes are beaten, "ganon" when Ganon is, or "never" (trigger 3 without Ganon)."""
-    name = item_name(room.item)
+    name = item_name(room.item, names)
     if name is None:
         return None
     if room.room_action == RoomAction.ALL_DEAD_ITEM:
@@ -167,14 +168,14 @@ def room_item(room: Room) -> dict[str, Any] | None:
     return {"name": name, "drop": room.room_action in DROP_ACTIONS, "appears": appears}
 
 
-def level_staircases(level: Level) -> dict[int, dict[str, Any]]:
+def level_staircases(level: Level, names: Mapping[Item, str] = ITEM_NAMES) -> dict[int, dict[str, Any]]:
     """Each room's staircase: the item cellar it leads down to, or its end of a transport
     staircase (numbered in the level's staircase order), which names the other end."""
     stairs: dict[int, dict[str, Any]] = {}
     transports = 0
     for stair in level.staircase_rooms:
         if stair.room_type == RoomType.ITEM_STAIRCASE and stair.return_dest is not None:
-            stairs[stair.return_dest] = {"kind": "item", "item": item_name(stair.item or Item.NOTHING)}
+            stairs[stair.return_dest] = {"kind": "item", "item": item_name(stair.item or Item.NOTHING, names)}
         elif stair.room_type == RoomType.TRANSPORT_STAIRCASE and None not in (stair.left_exit, stair.right_exit):
             transports += 1
             left, right = stair.left_exit, stair.right_exit
@@ -184,15 +185,15 @@ def level_staircases(level: Level) -> dict[int, dict[str, Any]]:
     return stairs
 
 
-def level_entry(level: Level, selling: frozenset[int]) -> dict[str, Any]:
-    stairs = level_staircases(level)
+def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str] = ITEM_NAMES) -> dict[str, Any]:
+    stairs = level_staircases(level, names)
     rooms = [{
         "number": room.room_num,
         "column": map_column(level, room.room_num),
         "row": room_grid.row(room.room_num) + 1,
         "type": display_name(room.room_type.name),
         "enemies": room_enemies(level, room, selling),
-        "item": room_item(room),
+        "item": room_item(room, names),
         "staircase": stairs.get(room.room_num),
         "doors": {side: DOORS[getattr(room.walls, side)] for side in ("north", "east", "south", "west")},
     } for room in level.rooms]
@@ -252,10 +253,10 @@ def level_door(destination: Destination, shown: dict[int, int]) -> dict[str, str
     return entry
 
 
-def overworld_entry(world: GameWorld) -> dict[str, Any]:
+def overworld_entry(world: GameWorld, names: Mapping[Item, str] = ITEM_NAMES) -> dict[str, Any]:
     # 2nd Quest's leftover dungeon codes on 11 and 66 are shown but cannot be entered (OW-QST-05;
     # the recorder reveals neither): not entrances
-    leftovers = SECOND_QUEST_LEFTOVER_SCREENS if is_second_quest_overworld(world.overworld) else frozenset()
+    leftovers = second_quest_leftovers(world.overworld)
     shown = shown_numbers(world)
     screens = [{
         "number": screen.screen_num,
@@ -267,35 +268,37 @@ def overworld_entry(world: GameWorld) -> dict[str, Any]:
         and screen.screen_num not in leftovers]
     spots = {cave.destination: cave.item for cave in world.overworld.caves if isinstance(cave, OverworldItem)}
     return {"screens": screens,
-            "armos": item_name(spots.get(Destination.ARMOS_ITEM, Item.OVERWORLD_NO_ITEM)),
-            "coast": item_name(spots.get(Destination.COAST_ITEM, Item.OVERWORLD_NO_ITEM))}
+            "armos": item_name(spots.get(Destination.ARMOS_ITEM, Item.OVERWORLD_NO_ITEM), names),
+            "coast": item_name(spots.get(Destination.COAST_ITEM, Item.OVERWORLD_NO_ITEM), names)}
 
 
-def sold_once(world: GameWorld, sells_once: bool) -> dict[tuple[Destination, int], bool]:
+def sold_once(world: GameWorld, sells_once: bool, bait_in_pool: bool = False) -> dict[tuple[Destination, int], bool]:
     """PI-CODE-04: the shop wares sold once, from the bytes the ROM holds (code_patches'
-    one_time_wares of the finished stock); none when the patch is not in the ROM."""
-    wares = one_time_wares(world) if sells_once else bytes(3)
+    one_time_wares of the finished stock, Shop Items in the Item Pool's bait included); none when
+    the patch is not in the ROM."""
+    wares = one_time_wares(world, bait_in_pool=bait_in_pool) if sells_once else bytes(3)
     return {(destination, position): bool(byte & (1 << number))
             for number, destination in enumerate(SHOPS_BY_NUMBER) for position, byte in enumerate(wares)}
 
 
-def cave_entries(world: GameWorld, sells_once: bool) -> list[dict[str, Any]]:
+def cave_entries(world: GameWorld, sells_once: bool, bait_in_pool: bool = False,
+                 names: Mapping[Item, str] = ITEM_NAMES) -> list[dict[str, Any]]:
     """The caves that give or sell items, in the model's cave order."""
-    once = sold_once(world, sells_once)
+    once = sold_once(world, sells_once, bait_in_pool)
     caves: list[dict[str, Any]] = []
     for cave in world.overworld.caves:
         name = place_name(cave.destination)
         if isinstance(cave, ItemCave):
             items = [cave.maybe_extra_candle, cave.item]
             caves.append({"name": name, "kind": "item",
-                          "wares": [{"item": item_name(item)} for item in items if item_name(item)]})
+                          "wares": [{"item": item_name(item, names)} for item in items if item_name(item)]})
         elif isinstance(cave, TakeAnyCave):
             caves.append({"name": name, "kind": "take-any",
-                          "wares": [{"item": item_name(item)} for item in cave.items if item_name(item)]})
+                          "wares": [{"item": item_name(item, names)} for item in cave.items if item_name(item)]})
         elif isinstance(cave, Shop):
             kind = "potion-shop" if cave.destination == Destination.POTION_SHOP else "shop"
             caves.append({"name": name, "kind": kind, "wares": [
-                {"item": item_name(ware.item), "price": ware.price,
+                {"item": item_name(ware.item, names), "price": ware.price,
                  "sellsOnce": once.get((cave.destination, position), False)}
                 for position, ware in shop_wares(cave) if item_name(ware.item)]})
     return caves
@@ -476,10 +479,16 @@ L4_SWORD_TEXT = {zora_flags.L4Sword.LEVEL_2: "level 2", zora_flags.L4Sword.LEVEL
 OOPS_ALL_FIELDS = tuple(zora_flags.ENUM_FIELDS)
 
 
+LISTED_WHEN_SET = frozenset((*zora_flags.ZORA_1_0_FIELDS, *zora_flags.PEGASUS_BOOTS_FIELDS,
+                            *zora_flags.EXPANDED_DUNGEON_LOCATIONS_FIELDS,
+                            *zora_flags.HIGHLIGHT_NO_DROP_ROOMS_FIELDS))
+
+
 def zora_entry_shown(flags: zora_flags.ZoraFlags, name: str) -> bool:
     if name == L4_SWORD_IN_LEVEL_2:
         return False
-    if name in OOPS_ALL_FIELDS:
+    if name in OOPS_ALL_FIELDS or name in LISTED_WHEN_SET:
+        # listed only when set, so the documents of seeds without them stay as they were
         return bool(getattr(flags, name))
     return name != LEVEL_9_ENTRANCE or flags.level_9_entrance_sword
 
@@ -507,7 +516,6 @@ def zora_value_text(value: bool | int | ThreeState | None) -> str:
 
 # --- the document --------------------------------------------------------------------------
 
-CODE_ITEMS = {name: Item(code) for code, name in SEED_CODE_NAMES.items()}
 
 
 def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
@@ -516,17 +524,19 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
         raise EncodedSeedRefused
     world = parse_rom(rom, chosen.config)
     sells_once = chosen.zora.progressive_items or chosen.zora.shop_items_in_pool or chosen.config.potion_shop_in_pool
+    # Pegasus Boots: the boomerangs' items are the boots, the seed code's $1D icon too (as the game draws it)
+    names = item_names(chosen.zora_resolved.is_on("pegasus_boots"))
     document = {
         "format": FORMAT,
         "formatVersion": FORMAT_VERSION,
         "producer": {"name": PRODUCER, "version": ZORA_VERSION},
         "seed": {"number": str(chosen.seed), "flags": chosen.flag_string, "zoraFlags": chosen.zora_flag_string,
-                 "code": [item_name(CODE_ITEMS[name]) or name for name in seed_code(rom)]},
+                 "code": [item_name(Item(value), names) for value in seed_code_values(rom)]},
         "progressiveItems": chosen.zora.progressive_items,
-        "levels": [level_entry(level, selling_levels(world))
+        "levels": [level_entry(level, selling_levels(world), names)
                    for level in sorted(world.levels, key=lambda level: level.level_num)],
-        "overworld": overworld_entry(world),
-        "caves": cave_entries(world, sells_once),
+        "overworld": overworld_entry(world, names),
+        "caves": cave_entries(world, sells_once, chosen.config.bait_in_pool, names),
         "hints": hint_entries(world),
         "requirements": requirements(world),
         "settings": setting_entries(chosen),
@@ -548,7 +558,7 @@ def zora_extras(world: GameWorld, chosen: GenerationPlan) -> dict[str, Any]:
     """The owner's 2.0 flags' results: each randomized maze's sequence and the hint shop offer
     selling it, each overworld gate's screens and what they need, and Add L4 Sword's room
     (docs/design/l4-sword.md R10). Empty with none on."""
-    gates = overworld_gates(chosen.zora_resolved)
+    gates = overworld_gates(chosen.zora_resolved, chosen.settings)
     extras: dict[str, Any] = {}
     mazes = []
     for on, maze, sequence in ((gates.lost_hills, LOST_HILLS, world.overworld.lost_hills_directions),

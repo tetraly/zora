@@ -40,6 +40,7 @@ from tests.emulator import (
     Emulator,
     Mode,
 )
+from tests.revision_layout import prg0_view, written_in_prg0_layout
 from tests.test_feature_patches import (
     BOMB_SLOT,
     BOOMERANG_SLOT,
@@ -134,7 +135,11 @@ def zora_rom(start_room_item: Item | None = None) -> bytes:
 
 
 def with_settings(rom: bytes, **chosen: str) -> bytes:
-    return bytes(build.apply_settings(rom, chosen, data.SETTINGS))
+    """`rom` with the chosen settings' bytes, written at PRG0's offsets (moved on to PRG1's in a
+    ROM made from it, tests/revision_layout.py)."""
+    def write(image: bytearray) -> None:
+        image[:] = build.apply_settings(bytes(image), chosen, data.SETTINGS)
+    return written_in_prg0_layout(rom, write)
 
 
 @cache
@@ -186,14 +191,19 @@ def test_every_choice_writes_the_same_bytes_and_settings_never_share_one() -> No
         claimed |= _setting_bytes(name)
 
 
+RETIRED_STATISTICS_SCREEN, ALWAYS_ON = "statistics_screen", "on"
+
+
 def test_zora_output_holds_every_default() -> None:
     """FP-SET-01: at the defaults the settings' bytes equal ZORA's current
     output (three finished seeds), so wiring them in at the defaults changes
-    nothing, and no seed-varying write lands on them."""
+    nothing, and no seed-varying write lands on them. The retired statistics screen is always on
+    since 18ee315 (asm/settings still assembles both choices)."""
     for seed in (1, 2, 3):
         rom = finished(seed)
         for name, default in data.DEFAULTS.items():
-            assert build.held_choices(rom, name, data.SETTINGS) == [default], (seed, name)
+            held = ALWAYS_ON if name == RETIRED_STATISTICS_SCREEN else default
+            assert build.held_choices(prg0_view(rom), name, data.SETTINGS) == [held], (seed, name)
 
 
 def test_music_off_code_sits_in_free_space() -> None:

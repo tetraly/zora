@@ -100,9 +100,9 @@ def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items
                      potion_shop_in_pool: bool = False, start_items: bool = False,
                      start_rooms_moved: bool = False, book_to_understand_npcs: bool = False) -> tuple[str, ...]:
     """The code patches a seed's settings leave out (FL-OFF-05, PI-CODE-01; fp-prog-01's buy-once
-    rule also with Shuffle Blue Potion on; fp-start-02 unless a seed starts with other items than
-    PRG0's, FP-START-02; fp-entr-01-sides unless the start-room swap ran, PS-START; ht-book-01
-    unless B48 is on, HT-BOOK-01)."""
+    rule also with Shuffle Blue Potion on; fp-start-02 unless a seed
+    starts with other items than PRG0's, FP-START-02; fp-entr-01-sides unless the start-room swap
+    ran, PS-START; ht-book-01 unless B48 is on, HT-BOOK-01)."""
     left_out = []
     if not book_is_an_atlas:
         left_out.append(BOOK_IS_AN_ATLAS)
@@ -126,19 +126,25 @@ def start_items_writes(table: bytes) -> list[tuple[int, bytes]]:
     return [*((offset, piece_bytes(piece)) for offset, piece in PATCHES[START_ITEMS]), (START_ITEMS_TABLE, table)]
 
 
-def one_time_wares(world: GameWorld, one_time_places: Collection[tuple[int, int]] = ()) -> bytes:
+def one_time_wares(world: GameWorld, one_time_places: Collection[tuple[int, int]] = (),
+                   bait_in_pool: bool = False) -> bytes:
     """PI-CODE-04's ZORA_B1_OneTimeWares from the final shop stock: per ware position (0-2),
     bit 1 << shop number for each ware that holds an item and is not re-buyable or is the potion
     shop's middle ware (ONE_TIME_POTION_SHOP_WARE), and for each
-    (shop number, position) of one_time_places (GameConfig.one_time_places)."""
+    (shop number, position) of one_time_places (GameConfig.one_time_places). With Shop Items in
+    the Item Pool's bait (bait_in_pool) every bait a shop sells is one of the pool's items, and so
+    is a blue potion that shops 1-4 sell (Shuffle Blue Potion's, in a joined ware), so each is sold
+    once, as Archipelago's ware places are."""
+    pool_only = {Item.BAIT, Item.BLUE_POTION} if bait_in_pool else set()
     caves = {cave.destination: cave for cave in world.overworld.caves}
     items, _ = cave_ware_tables(caves)
     wares = bytearray(WARES_PER_CAVE)
     for shop_number, destination in enumerate(SHOPS_BY_NUMBER):
         start = (destination - Destination.WOOD_SWORD_CAVE) * WARES_PER_CAVE   # caves $10 + index
+        rebuyable = REBUYABLE_ITEMS - pool_only if destination != Destination.POTION_SHOP else REBUYABLE_ITEMS
         for position, byte in enumerate(items[start:start + WARES_PER_CAVE]):
             item = byte & CAVE_ITEM_CODE_MASK
-            sold_once = item not in REBUYABLE_ITEMS or (shop_number, position) == ONE_TIME_POTION_SHOP_WARE
+            sold_once = item not in rebuyable or (shop_number, position) == ONE_TIME_POTION_SHOP_WARE
             if item != CAVE_NOTHING_CODE and sold_once:
                 wares[position] |= 1 << shop_number
     for shop_number, position in one_time_places:
@@ -148,11 +154,12 @@ def one_time_wares(world: GameWorld, one_time_places: Collection[tuple[int, int]
 
 def code_patch_writes(world: GameWorld | None = None, left_out: Collection[str] = (),
                       progressive_items: bool = False,
-                      one_time_places: Collection[tuple[int, int]] = ()) -> list[tuple[int, bytes]]:
+                      one_time_places: Collection[tuple[int, int]] = (),
+                      bait_in_pool: bool = False) -> list[tuple[int, bytes]]:
     """Every patch's changed bytes as (file offset, bytes), in build order,
     with `world`'s per-seed data in place (without it, the placeholders).
     The patches named in left_out are not written."""
-    data = seed_data(world, progressive_items, one_time_places) if world is not None else {}
+    data = seed_data(world, progressive_items, one_time_places, bait_in_pool) if world is not None else {}
     writes = []
     for name, pieces in PATCHES.items():
         if name in left_out:
@@ -167,16 +174,18 @@ def code_patch_writes(world: GameWorld | None = None, left_out: Collection[str] 
 
 
 def seed_data(world: GameWorld, progressive_items: bool = False,
-              one_time_places: Collection[tuple[int, int]] = ()) -> dict[int, int]:
+              one_time_places: Collection[tuple[int, int]] = (), bait_in_pool: bool = False) -> dict[int, int]:
     """The bytes inside the patches that a seed sets: file offset -> value. fp-prog-01's
     on/off byte is 1 with Progressive Items on (0 keeps only the buy-once rule, PI-CODE-01);
-    with start items, fp-start-02's table is the seed's (FP-START-03), as the serializer writes it."""
+    with start items or start pieces, fp-start-02's table is the seed's (FP-START-03), as the
+    serializer writes it."""
     from .start_items import start_table  # start_items reads this module's constants
     data = {OVERWORLD_START_Y: world.overworld.start_position_y, PROGRESSIVE_ITEMS_BYTE: int(progressive_items)}
-    data.update(enumerate(one_time_wares(world, one_time_places), start=ONE_TIME_WARES))
-    if world.start_items:
+    data.update(enumerate(one_time_wares(world, one_time_places, bait_in_pool), start=ONE_TIME_WARES))
+    if world.uses_start_table:
         data.update(enumerate(start_table(world.start_items, world.new_file_heart_containers,
-                                          world.new_file_full_hearts), start=START_ITEMS_TABLE))
+                                          world.new_file_full_hearts, world.start_triforce_pieces),
+                              start=START_ITEMS_TABLE))
     return data
 
 
@@ -203,10 +212,32 @@ def seed_code_items(world: GameWorld, config: GameConfig) -> bytes:
     the player settings are never in either, so one seed and its flags show the same code on PRG0
     and PRG1, with any graphics and any player settings. Any change to the game changes it,
     Archipelago's slot identity (each slot's code differs) and the level encoding included."""
-    game = replace(config, revision=Revision.PRG0, modified_graphics=False)
+    game = replace(config, revision=Revision.PRG0, modified_graphics=False, seed_number=None)
     digest = hashlib.sha256(SEED_CODE_DOMAIN + canonical_bytes(world, left_out=(SpriteData,))
                             + canonical_bytes(game)).digest()
     return bytes(SEED_CODE_ITEMS[byte % len(SEED_CODE_ITEMS)] for byte in digest[:SEED_CODE_LENGTH])
+
+
+# The statistics screen's seed number (asm/fp-stats-01/bank_02.s StatsSeedDigits, bank 2 $B780, free
+# space outside every patch, so the player settings never rewrite it): 20 tiles, the first 10
+# digits after "SEED " on row 1 and the rest under them on row 2, blank-padded. $FF (a ROM without
+# a seed number written) shows no seed row.
+STATS_SEED_DIGITS = 0x0B790
+SEED_DIGITS_PER_ROW = 10
+SEED_DIGIT_ROWS = 2
+SEED_DIGITS_LENGTH = SEED_DIGITS_PER_ROW * SEED_DIGIT_ROWS
+BLANK_TILE = 0x24                                       # digits are tiles 0-9
+
+
+def seed_digit_tiles(seed: int) -> bytes:
+    """The seed number as StatsSeedDigits holds it (at most 20 digits: seeds are below 2^64)."""
+    digits = str(seed)
+    assert len(digits) <= SEED_DIGITS_LENGTH, seed
+    return bytes(int(digit) for digit in digits).ljust(SEED_DIGITS_LENGTH, bytes([BLANK_TILE]))
+
+
+def stamp_seed_number(rom: bytearray, seed: int) -> None:
+    rom[STATS_SEED_DIGITS:STATS_SEED_DIGITS + SEED_DIGITS_LENGTH] = seed_digit_tiles(seed)
 
 
 def stamp_seed_code(rom: bytearray, world: GameWorld, config: GameConfig) -> None:
@@ -214,6 +245,27 @@ def stamp_seed_code(rom: bytearray, world: GameWorld, config: GameConfig) -> Non
     rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = seed_code_items(world, config)
 
 
+# Pegasus Boots (asm/flags2/pegasus-boots' icon-offsets hook; owner decision 2026-10-18): item slot $1D
+# draws Anim_ItemFrameTiles[$25], the boot, so the code's $1D icon is the boot and is named as the game
+# draws it. The code's value stays $1D.
+BOOMERANG_CODE = 0x1D
+BOOTS_CODE_NAME = "Pegasus Boots"
+BOOMERANG_FRAME_OFFSET = 0x07154        # Anim_ItemFrameOffsets[$1D], bank 1 (no PRG1 move)
+BOOT_FRAME_ENTRY = 0x25
+
+
+def draws_boots(rom: bytes) -> bool:
+    """The finished ROM draws item slot $1D as the boot (Pegasus Boots is on)."""
+    return rom[BOOMERANG_FRAME_OFFSET] == BOOT_FRAME_ENTRY
+
+
+def seed_code_values(rom: bytes) -> bytes:
+    """The seed's code as the four item values, in screen order."""
+    return rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH]
+
+
 def seed_code(rom: bytes) -> tuple[str, ...]:
-    """The seed's code as the four items' names, in screen order."""
-    return tuple(SEED_CODE_NAMES[item] for item in rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH])
+    """The seed's code as the four items' names, in screen order, as the game draws them."""
+    boots = draws_boots(rom)
+    return tuple(BOOTS_CODE_NAME if boots and item == BOOMERANG_CODE else SEED_CODE_NAMES[item]
+                 for item in seed_code_values(rom))

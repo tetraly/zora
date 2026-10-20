@@ -1,5 +1,6 @@
 """The four published presets (FL-PRE-01 to FL-PRE-04), CP-5's baseline and published variant A with
-level encoding off, and ZORA's own presets, which set the ZORA flag string too (ZORA_PRESETS)."""
+level encoding off, and ZORA's own presets, which set the ZORA flag string too, with three community
+flagsets (ZORA_PRESETS)."""
 from __future__ import annotations
 
 # ---------------------------------------------------------------------------
@@ -40,6 +41,23 @@ PRESETS: dict[str, str] = {
 # Extra Candles off, which Progressive Items refuses (PI-FLAG-03).
 ASNB_FLAGS = "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A"
 ASNB_ZORA_FLAGS = "4.T9Jvg"
+# Vanilla (owner, 2026-10-17): every flag Off, the closest to the original game ZORA produces. Every
+# Z1R field off or at its first value (Settings.zero), and every ZORA flag off, except where ZORA does
+# not produce that value: Hint Type Community (C03 = 2; Normal is not produced), Dungeon Room Shuffle
+# Within each dungeon (C14; Vanilla is not produced), Starting Hearts 3 (C16 = 2, the original's;
+# index 0 is 1 heart), and B18, B20, B32, B33, B35 and B43 on (their off is not produced).
+# tests/test_presets.py builds it from those values.
+VANILLA_FLAGS = "CEERPCkLslB6BApr1Him1SiR28Y"
+# Three community flagsets (owner, 2026-10-18), each a Z1R string alone, on the menu under these
+# names, each as published. TTP5: Muffle Rug has Add Money or Life Rooms (B22) off and Change Leave
+# Your Rooms (B23) on, kept as given (FL-DEP-06).
+OHK0HPLA_REMASTERED_FLAGS = "oIbnRjuQKp1DXiYCys9LwvSpzqZbXk1pRmZzr"
+TTP5_MUFFLE_RUG_FLAGS = "2487lt0moGMFLRug1ofQdxPuUBWnJVSsi7d202I"
+TTP5_PICK_5_FLAGS = "p8GIOeYEAonHy5131VdG6b94Ts3EMMvBaQoWR"
 ZORA_PRESETS: dict[str, tuple[str, str]] = {
     "All Swords No Boards": (ASNB_FLAGS, ASNB_ZORA_FLAGS),
+    "Vanilla": (VANILLA_FLAGS, ""),
+    "OHK0HPla Remastered": (OHK0HPLA_REMASTERED_FLAGS, ""),
+    "TTP5: Muffle Rug": (TTP5_MUFFLE_RUG_FLAGS, ""),
+    "TTP5: Pick 5": (TTP5_PICK_5_FLAGS, ""),
 }

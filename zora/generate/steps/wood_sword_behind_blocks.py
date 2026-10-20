@@ -12,8 +12,7 @@ BRACELET_SCREENS_WITH_32_33 = BRACELET_SCREENS | {32, 33}
 # slot accepts it)
 FREE_ITEMS = frozenset({Item.RECORDER, Item.RED_CANDLE, Item.RAFT, Item.POWER_BRACELET})
 CANDLES = frozenset({Item.BLUE_CANDLE, Item.RED_CANDLE})
-# FP-START-01's starting inventory holds none of the recorder, candle, raft, bracelet or ladder
-# under any produced value (the start-item fields B57-B78 are not produced)
+# FP-START-01's starting inventory, without start items (FP-START-04: the pass reads the kept ones)
 NO_STARTING_ITEMS: frozenset[Item] = frozenset()
 
 

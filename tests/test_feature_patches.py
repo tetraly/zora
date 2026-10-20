@@ -52,10 +52,10 @@ def vanilla() -> bytes:
     env = os.environ.get("ZORA_VANILLA_ROM")
     cand = Path(env) if env else BASE_ROM_PATH
     if not cand.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     if env:
-        # Another release (the PRG1 emulator checks: ZORA_VANILLA_ROM names the PRG1 file); the
-        # tests that read PRG0's bytes at fixed offsets fail on it by design.
+        # Another release (the PRG1 emulator checks: ZORA_VANILLA_ROM names the PRG1 file); tests
+        # that read or write PRG0's offsets do it through tests/revision_layout.py.
         identify_rom(cand.read_bytes())
         return cand.read_bytes()
     return verify_base_rom(cand).read_bytes()

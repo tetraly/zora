@@ -31,7 +31,7 @@ from zora.rom.code_patches import ONE_TIME_WARES, SHOPS_BY_NUMBER
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 CASE = "every owner flag on"             # Shuffle Blue Potion on, with the other owner flags
 SEED = 1

@@ -24,6 +24,7 @@ The checkpoints (zora_measure/checkpoints/) record the facts per ROM and classif
 in their Summary's cross-ROM `resolve` step.
 """
 import math
+import re
 from collections import Counter, defaultdict
 from collections.abc import Hashable
 from dataclasses import dataclass
@@ -267,9 +268,15 @@ def second_quest_inside_candidates(gw: GameWorld) -> Counter[str]:
 
 # --- classifying across ROMs ---------------------------------------------------
 
+# The sword-cave hints' heart counts (owner request, beta 7): the facts they are classified by name
+# no count, so texts differing only in it are one text.
+HEART_COUNT = re.compile(r"(?: WITH| FOR|,) \d+ HEARTS$")
+
+
 def hint_key(text: str) -> str:
-    """A text as the classifier compares it: one line of words, without a leading opener."""
-    flat = " ".join(text.replace(CENTERING_BLANK, " ").replace(LINE_BREAK, " ").split())
+    """A text as the classifier compares it: one line of words, without a leading opener or a
+    sword-cave hint's heart count."""
+    flat = HEART_COUNT.sub("", " ".join(text.replace(CENTERING_BLANK, " ").replace(LINE_BREAK, " ").split()))
     for opener in OPENERS:
         if flat.startswith(opener + " "):
             return flat[len(opener) + 1:]

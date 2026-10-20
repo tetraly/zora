@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
+from enum import Enum
 from typing import TYPE_CHECKING
 
 from ..model.enums import Destination, DungeonNothingCode, Item
@@ -21,12 +22,13 @@ from .rng import IntRng, Rng
 from .steps.item_shuffle_result import (
     LETTER_SLOT,
     MAGICAL_SWORD_SLOT,
+    WOOD_SWORD_SLOT,
     ItemShuffleResult,
     TrackedPlace,
     shop_ware_slot,
 )
 from .steps.potion_shop import BLUE_POTION_PRICES
-from .steps.shop_items_in_pool import PRICES_BY_ITEM
+from .steps.shop_items_in_pool import FAIRY_PRICES, PRICES_BY_ITEM
 
 if TYPE_CHECKING:
     from ..model.game_world import GameWorld
@@ -41,9 +43,23 @@ class Foreign:
 
 
 FOREIGN = Foreign()
-# Owner decision 4 (2026-10-08): another player's item shows as a rupee in v1, as Archipelago's
-# TLoZ world does. Phase 4a may give it its own look.
-FOREIGN_ITEM = Item.FIVE_RUPEES
+
+
+class ForeignLook(Enum):
+    """Other players' items look like (foreign_item_look; owner decision 2026-10-18, the spec "ZORA
+    Archipelago beta 5 fixes", item 4): a rupee, which gives one rupee and flashes, or the
+    Archipelago logo, drawn in the magical shield's tiles, which gives nothing (with the logo
+    every shop's real magical shield becomes a fairy; zora/rom/archipelago_logo.py)."""
+    RUPEE = "rupee"
+    LOGO = "logo"
+
+
+# The item code another player's item is written as. Both fit a dungeon room's five item bits, and
+# neither is a dungeon "no item" code ($03, or $0E with ZORA's remap).
+FOREIGN_ITEMS = {ForeignLook.RUPEE: Item.ITEM_0x18, ForeignLook.LOGO: Item.MAGICAL_SHIELD}
+FOREIGN_ITEM = FOREIGN_ITEMS[ForeignLook.RUPEE]           # the default look (five rupees up to beta 5)
+# With the logo: a shop's real magical shield becomes a fairy at a price drawn per seed.
+LOGO_SHOP_FAIRY_PRICES = FAIRY_PRICES
 
 Assignment = Mapping[str, Item | Foreign]
 
@@ -77,9 +93,9 @@ def finish_rng(generation_seed: int) -> Rng:
     return Rng(int.from_bytes(key, "little"))
 
 
-def written_item(value: Item | Foreign) -> Item:
-    """The item code the ROM gets for an assigned value."""
-    return FOREIGN_ITEM if isinstance(value, Foreign) else value
+def written_item(value: Item | Foreign, foreign_item: Item = FOREIGN_ITEM) -> Item:
+    """The item code the ROM gets for an assigned value: `foreign_item` (the look's) for FOREIGN."""
+    return foreign_item if isinstance(value, Foreign) else value
 
 
 def refusals(places: list[Place], assignment: Assignment, pool: frozenset[Item]) -> list[str]:
@@ -124,6 +140,7 @@ CAVE_SLOTS: dict[Destination, str] = {
     Destination.COAST_ITEM: "coast",
     Destination.MAGICAL_SWORD_CAVE: MAGICAL_SWORD_SLOT,
     Destination.LETTER_CAVE: LETTER_SLOT,
+    Destination.WOOD_SWORD_CAVE: WOOD_SWORD_SLOT,      # Shuffle Wood Sword
 }
 
 
@@ -223,14 +240,30 @@ def reprice_wares(world: GameWorld, built: Built, rng: IntRng) -> None:
             held.price = _uniform(rng, PRICES_BY_ITEM[held.item])
 
 
+def shields_to_fairies(world: GameWorld, foreign_wares: Collection[tuple[Destination, int]], rng: IntRng) -> None:
+    """The logo look: every shop ware holding a real magical shield (not another player's item,
+    which `foreign_wares` names as (shop, position)) sells a fairy instead, priced
+    LOGO_SHOP_FAIRY_PRICES from FINISH's stream, shop by shop in the overworld's cave order."""
+    foreign = {id(shop.ware(position)) for destination, position in foreign_wares
+               if (shop := world.overworld.get_cave(destination, Shop)) is not None}
+    for cave in world.overworld.caves:
+        if not isinstance(cave, Shop):
+            continue
+        for ware in cave.items:
+            if ware.item == Item.MAGICAL_SHIELD and id(ware) not in foreign:
+                ware.item = Item.FAIRY
+                ware.price = _uniform(rng, LOGO_SHOP_FAIRY_PRICES)
+
+
 # --- the hint text --------------------------------------------------------------------------
 
 def recompose_hint_text(world: GameWorld, built: Built, item_shuffle_result: ItemShuffleResult, rng: Rng,
-                        foreign: bool = False) -> None:
+                        foreign: bool = False, foreign_item: Item = FOREIGN_ITEM) -> None:
     """The hint text again on the assigned world: the hint text step (compose_hint_text), B19's
     pointer exchange when it ran, and ship_hint_text. foreign: the assignment holds another
     player's item; a hint naming a place that holds one says it is an item for another player
-    (owner decision, 2026-10-08), never what the ROM shows there, and never which item it is."""
+    (owner decision, 2026-10-08), never what the ROM shows there, and never which item it is;
+    foreign_item is the code it is written as."""
     from .generation_pass import compose_hint_text
     from .pipeline import extra_options
     from .ship import ship_hint_text
@@ -240,7 +273,7 @@ def recompose_hint_text(world: GameWorld, built: Built, item_shuffle_result: Ite
         return
     chosen = built.plan
     hint_text = compose_hint_text(world, item_shuffle_result, result.hint_assignment, rng, extra_options(chosen),
-                                  chosen.alternatives, result.maze_offers, FOREIGN_ITEM if foreign else None)
+                                  chosen.alternatives, result.maze_offers, foreign_item if foreign else None)
     if chosen.steps.shuffle_dungeon_text:
         hint_text = shuffle_dungeon_text(hint_text, rng)
     ship_hint_text(world, hint_text)
@@ -301,7 +334,8 @@ class Finished:
 
 
 def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng: Rng, recompute: bool = True,
-                     received: Collection[Item] = (), check: bool = True) -> Finished:
+                     received: Collection[Item] = (), check: bool = True,
+                     look: ForeignLook = ForeignLook.RUPEE) -> Finished:
     """Write the assignment into `world` (a copy of the built world), refusing it whole if any
     part breaks a rule (AssignmentRefused); then redo every output that depends on which item
     sits where (docs/archipelago.md, R3): the tracked items, the joined wares' prices and the hint
@@ -310,7 +344,9 @@ def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng
 
     received: this player's items that other worlds hold (Archipelago gives them). check: run
     the sanity check (R4, Sanity), raising AssignmentUnbeatable on a hard failure; off for tests
-    that write arbitrary permutations."""
+    that write arbitrary permutations. look: how another player's item looks (FOREIGN_ITEMS); with
+    the logo, the shops' real magical shields become fairies, drawn last from `rng`, so the rupee
+    look's draws are as before."""
     from .pipeline import extra_options
     places = built.places
     reasons = refusals(places, assignment, major_pool(extra_options(built.plan)))
@@ -318,9 +354,10 @@ def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng
         raise AssignmentRefused(reasons)
     for place in places:
         if place.name in assignment:
-            write_item(world, place, written_item(assignment[place.name]))
+            write_item(world, place, written_item(assignment[place.name], FOREIGN_ITEMS[look]))
     # every ware place is sold once, whatever it holds, so that buying it is a location check
-    config = replace(built.plan.config, one_time_places=one_time_places(places))
+    config = replace(built.plan.config, one_time_places=one_time_places(places),
+                     foreign_logo=look is ForeignLook.LOGO)
     if needs_remap(places, assignment):
         config = replace(config, dungeon_nothing_code=DungeonNothingCode.ZORA_REMAP)
         world.dungeon_nothing_code = DungeonNothingCode.ZORA_REMAP
@@ -330,7 +367,13 @@ def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng
         item_shuffle_result = with_tracking(built.result.item_shuffle_result, tracking, world, places)
         reprice_wares(world, built, rng)
         recompose_hint_text(world, built, item_shuffle_result, rng,
-                            foreign=any(isinstance(value, Foreign) for value in assignment.values()))
+                            foreign=any(isinstance(value, Foreign) for value in assignment.values()),
+                            foreign_item=FOREIGN_ITEMS[look])
+    if look is ForeignLook.LOGO:
+        foreign_wares = {(place.destination, place.position) for place in places
+                         if place.destination is not None and place.position is not None
+                         and isinstance(assignment.get(place.name), Foreign)}
+        shields_to_fairies(world, foreign_wares, rng)
     finished = Finished(config, tracking)
     if check:
         solo = not received and not any(isinstance(value, Foreign) for value in assignment.values())

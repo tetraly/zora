@@ -4,12 +4,14 @@ from ...model.game_world import GameWorld
 from ...version import PLAYER_NAME
 from ..heart_values import PRG0_START_HEART_VALUES, heart_values
 from ..layout import (
+    CONTINUE_HEARTS_OPERAND_ADDRESS,
     CREDITS_BLANK_TILE,
     CREDITS_FREE_SPACE_ADDRESS,
     CREDITS_LINE_12_INDEX,
     CREDITS_POINTERS_HI_ADDRESS,
     CREDITS_POINTERS_LO_ADDRESS,
     DMC_LEVEL_OPERAND_ADDRESS,
+    HEART_METER_BLANK_BRANCH_ADDRESS,
     LEVEL_NAME_DASH_OFFSET,
     LOW_HEALTH_BEEP_OPERAND_ADDRESS,
     NEW_FILE_HEART_VALUES_OPERAND_ADDRESS,
@@ -22,6 +24,8 @@ from ..layout import (
     SECOND_QUEST_HEART_VALUES_OPERAND_ADDRESS,
     TEXT_SPEED_OPERAND_ADDRESS,
     TITLE_ROW_LENGTH,
+    TITLE_SEED_DIGITS,
+    TITLE_SEED_LABEL,
     TITLE_SEED_ROW_ADDRESS,
     TITLE_VERSION_ROW_ADDRESS,
 )
@@ -48,14 +52,19 @@ def _serialize_b10_constants(game_world: GameWorld, patch: Patch) -> None:
     patch.add(LEVEL_NAME_DASH_OFFSET, bytes([game_world.level_dash_tile]))
 
 
-def _serialize_new_file_hearts(game_world: GameWorld, patch: Patch) -> None:
+def _serialize_new_file_hearts(game_world: GameWorld, patch: Patch, start_table_written: bool) -> None:
     """FP-START-01 and FL-ALT-02: the HeartValues a new save file and the second-quest switch
     store. PRG0's routines are left alone at PRG0's $22 (FP-START-01 allows it); another value
-    replaces the immediate in both, so every start sets the same hearts. With start items the
-    routines jump to fp-start-02's table instead, whose hearts byte holds the value (the start
-    table, which _serialize_overworld_data writes)."""
+    replaces the immediate in both, so every start sets the same hearts. With start items or
+    start pieces the routines jump to fp-start-02's table instead, whose hearts byte holds the
+    value (the start table, which _serialize_overworld_data writes only with the B10 data:
+    start_table_written; without it the immediates carry the hearts, or the ROM would start with
+    PRG0's three while the life toll counts the seed's)."""
+    # FL-ALT-07: the hearts a Continue restores, and the one-heart meter (PRG0's bytes otherwise)
+    patch.add(CONTINUE_HEARTS_OPERAND_ADDRESS, bytes([game_world.continue_hearts_operand]))
+    patch.add(HEART_METER_BLANK_BRANCH_ADDRESS, bytes([game_world.heart_meter_blank_branch]))
     value = heart_values(game_world.new_file_heart_containers, game_world.new_file_full_hearts)
-    if value == PRG0_START_HEART_VALUES or game_world.start_items:
+    if value == PRG0_START_HEART_VALUES or start_table_written:
         return
     patch.add(NEW_FILE_HEART_VALUES_OPERAND_ADDRESS, bytes([value]))
     patch.add(SECOND_QUEST_HEART_VALUES_OPERAND_ADDRESS, bytes([value]))
@@ -117,20 +126,19 @@ def _encode_title_row(text: str) -> bytes:
     return bytes(tiles)
 
 
+def title_seed_digits(seed: int) -> str:
+    """The seed number as the title screen shows it: at most TITLE_SEED_DIGITS digits, a longer
+    (20-digit) number's first ones, so a blank always follows SEED."""
+    return str(seed)[:TITLE_SEED_DIGITS]
+
+
 def _serialize_title(game_world: GameWorld, patch: Patch) -> None:
-    """FP-TITLE-01: seed number right-aligned, plus ZORA's version line."""
-    seed_str = str(game_world.title_seed_number)
-    # short label on the left; seed number right-aligned
-    label = "SEED"
-    available = TITLE_ROW_LENGTH - len(label)
-    seed_tiles = [_CHAR_TO_BYTE[ch] for ch in seed_str]
-    leading = available - len(seed_tiles)
-    row1 = ([_CHAR_TO_BYTE[ch] for ch in label]
-            + [CREDITS_BLANK_TILE] * leading
-            + seed_tiles)
-    if len(row1) > TITLE_ROW_LENGTH:
-        row1 = row1[:TITLE_ROW_LENGTH]
-    patch.add(TITLE_SEED_ROW_ADDRESS, bytes(row1))
+    """FP-TITLE-01: SEED on the left, the seed number right-aligned (title_seed_digits), plus
+    ZORA's version line."""
+    seed_tiles = [_CHAR_TO_BYTE[ch] for ch in title_seed_digits(game_world.title_seed_number)]
+    label_tiles = [_CHAR_TO_BYTE[ch] for ch in TITLE_SEED_LABEL]
+    blanks = [CREDITS_BLANK_TILE] * (TITLE_ROW_LENGTH - len(label_tiles) - len(seed_tiles))
+    patch.add(TITLE_SEED_ROW_ADDRESS, bytes(label_tiles + blanks + seed_tiles))
 
     version = game_world.title_version_line or PLAYER_NAME
     patch.add(TITLE_VERSION_ROW_ADDRESS, _encode_title_row(version))

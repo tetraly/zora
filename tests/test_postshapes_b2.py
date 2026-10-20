@@ -12,6 +12,7 @@ from zora.model.enums import BossSpriteSet
 from zora.model.game_world import GameWorld
 from zora.model.rooms import RoomPlace
 from zora.rom.parse.rom_file import load_rom, parse_rom
+from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng, ScriptedRng
 from zora.generate.shapes.enemies import monster_barred
@@ -31,7 +32,7 @@ def _vanilla_rom() -> bytes:
     env = os.environ.get("ZORA_VANILLA_ROM")
     cand = Path(env) if env else BASE_ROM_PATH
     if not cand.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     verify_base_rom(cand)
     return load_rom(cand)
 
@@ -106,9 +107,11 @@ def test_enemy_bank_deal_keeps_the_multiset() -> None:
 # --- finished-ROM invariants -----------------------------------------------------
 
 def _finished(rom: bytes, seed: int) -> GameWorld:
+    """Written with the hint style every flag string gives (GameConfig's own default writes the
+    composed texts into the vanilla bank, which seed 700's overflowed since 114f280)."""
     gw = parse_rom(rom)
     generate_shapes(gw, Rng(seed), ShapeOptions())
-    return parse_rom(serialize_to_rom(gw, rom))
+    return parse_rom(serialize_to_rom(gw, rom, config=GameConfig(hint_mode=HintMode.CONSTERNATION)))
 
 
 def test_b2_invariants_on_output() -> None:

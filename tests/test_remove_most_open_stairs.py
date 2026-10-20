@@ -17,7 +17,7 @@ from zora.rom.game_config import GameConfig
 from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checkpoints.open_stairs import OPEN_STAIRS_FLAGS, open_stairs_rooms, push_stairs_rooms
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 LEVEL_1_ROOM = 0x22          # a level-1 room of PRG0 ($5A, the Diamond stair room with its block)
 NO_LEVEL_ROOM = 0x00

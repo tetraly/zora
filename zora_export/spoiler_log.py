@@ -11,6 +11,7 @@ from __future__ import annotations
 import textwrap
 from typing import Any
 
+from zora.model.item_names import PEGASUS_BOOTS_NAMES
 from zora.version import player_version
 
 WIDTH = 80
@@ -21,15 +22,20 @@ MAJOR_ITEMS = frozenset({
     "Wood Sword", "White Sword", "Magical Sword", "Recorder", "Blue Candle", "Red Candle", "Wooden Arrow",
     "Silver Arrow", "Bow", "Magical Key", "Raft", "Ladder", "Wand", "Book", "Blue Ring", "Red Ring",
     "Power Bracelet", "Letter", "Boomerang", "Magical Boomerang", "Heart Container", "Triforce",
-    "Triforce of Power",
+    "Triforce of Power", *PEGASUS_BOOTS_NAMES.values(),
 })
-# When a room's item appears (the document's ZORA extra `appears`).
-APPEARS = {"floor": "on the floor", "foes": "drops when the room's foes are beaten",
-           "ganon": "appears when Ganon is beaten", "never": "never appears (trigger 3 without Ganon)"}
+# A room's own item is its floor item and an item cellar's its room's stairway item, the
+# community's words (owner decision, 2026-10-18; ZORA's code keeps "cellar", the disassembly's).
+FLOOR_ITEM, STAIRWAY_ITEM = "floor item", "stairway item"
+# When a floor item appears, if not at once (the document's ZORA extra `appears`).
+APPEARS = {"floor": None, "foes": "drops when the room's foes are beaten",
+           "ganon": "appears when Ganon is beaten", "never": "never appears: trigger 3 without Ganon"}
+DROPS = APPEARS["foes"]
 UPGRADE_LINES = {
     "Wood Sword": "Sword", "White Sword": "Sword", "Magical Sword": "Sword", "Blue Candle": "Candle",
     "Red Candle": "Candle", "Wooden Arrow": "Arrow", "Silver Arrow": "Arrow", "Blue Ring": "Ring",
     "Red Ring": "Ring", "Boomerang": "Boomerang", "Magical Boomerang": "Boomerang",
+    **dict.fromkeys(PEGASUS_BOOTS_NAMES.values(), "Boots"),
 }
 
 
@@ -45,6 +51,15 @@ def heading(title: str) -> list[str]:
 def wrapped(text: str, indent: str = "", first: str | None = None) -> list[str]:
     return textwrap.wrap(text, WIDTH, initial_indent=indent if first is None else first,
                          subsequent_indent=indent, break_long_words=True) or [first or indent]
+
+
+# Pegasus Boots' entry in the document's settings (zora_form's label; listed only when set)
+PEGASUS_BOOTS_LABEL = "Pegasus Boots"
+
+
+def has_pegasus_boots(document: dict[str, Any]) -> bool:
+    return any(setting.get("id") == "ZORA" and setting["name"] == PEGASUS_BOOTS_LABEL and setting["resolved"] == "on"
+               for setting in document.get("settings", []))
 
 
 def item_label(name: str, progressive: bool) -> str:
@@ -63,9 +78,10 @@ def header(document: dict[str, Any]) -> list[str]:
     lines.append(f"ZORA flags: {seed.get('zoraFlags') or '(none)'}")
     lines += wrapped(", ".join(seed.get("code", [])), " " * 11, "Seed code: ")
     if document.get("progressiveItems"):
-        lines += wrapped("Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the next "
-                         "level of its line that you lack. Items are listed as the ROM holds them, with "
-                         "their line.")
+        last_line = "boots" if has_pegasus_boots(document) else "boomerang"
+        lines += wrapped(f"Progressive Items is on: a sword, candle, arrow, ring or {last_line} "
+                         "gives the next level of its line that you lack. Items are listed as the ROM holds them, "
+                         "with their line.")
     return lines
 
 
@@ -87,6 +103,13 @@ def room_label(room: dict[str, Any]) -> str:
     return f"room {room['number']:02X} (column {room['column']}, row {room['row']})"
 
 
+def place_line(level: dict[str, Any], room: dict[str, Any], kind: str, item: str, when: str | None = None) -> str:
+    """One item place: "Level 3, room 4B (column 4, row 5), floor item: Heart Container", the
+    level by the number its status bar shows, and when the item appears if not at once."""
+    note = f" ({when})" if when else ""
+    return f"Level {level['shownNumber']}, {room_label(room)}, {kind}: {item}{note}"
+
+
 L4_SWORD_LABEL = "Level-4 sword (progressive sword)"
 
 
@@ -101,14 +124,13 @@ def major_items(document: dict[str, Any]) -> list[str]:
         for room in level["rooms"]:
             item = room["item"]
             if l4 and (level["number"], room["number"]) == (l4["level"], l4["room"]):
-                found.append(f"{room_label(room)}: {L4_SWORD_LABEL}, on the floor")
+                found.append(place_line(level, room, FLOOR_ITEM, L4_SWORD_LABEL))
             elif item and item["name"] in MAJOR_ITEMS:
-                how = APPEARS.get(item.get("appears", ""), "drops when the room's foes are beaten"
-                                  if item["drop"] else "on the floor")
-                found.append(f"{room_label(room)}: {item_label(item['name'], progressive)}, {how}")
+                when = APPEARS.get(item.get("appears", ""), DROPS if item["drop"] else None)
+                found.append(place_line(level, room, FLOOR_ITEM, item_label(item["name"], progressive), when))
             stair = room["staircase"]
             if stair and stair["kind"] == "item" and stair["item"] in MAJOR_ITEMS:
-                found.append(f"{room_label(room)}, down the stairs: {item_label(stair['item'], progressive)}")
+                found.append(place_line(level, room, STAIRWAY_ITEM, item_label(stair["item"], progressive)))
         lines.append(f"Level {level['shownNumber']}")
         lines += [line for entry in found for line in wrapped(entry, " " * 6, "    ")] or ["    (none)"]
     overworld = document["overworld"]

@@ -15,6 +15,7 @@ DATA_LAYER_TESTS = {
     "tests/test_person_code.py", "tests/test_revision.py",
     "tests/test_rom_layout.py", "tests/test_roundtrip.py",
     "tests/test_serializer_guards.py", "tests/test_overworld.py",
+    "tests/test_river_bridges_and_shortcut.py",     # zora/rom/overworld_crossings.py's offsets
 }
 # The parser's raw-slice entry points.
 RAW_ACCESS = re.compile(

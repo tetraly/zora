@@ -48,7 +48,7 @@ with open(sys.argv[2], "rb") as rom, open(sys.argv[3]) as recipe:
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 

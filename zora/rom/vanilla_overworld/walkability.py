@@ -14,7 +14,11 @@ line onto land. Raft docks, the recorder, bombable walls and the boulders are no
 they gate entrances, which the acceptance check's screen sets already handle.
 
 Two screens join where one's edge and the other's opposite edge are walkable at the same
-position. A region is a set of positions joined inside one screen.
+position. A region is a set of positions joined inside one screen. Link arriving on an edge
+position he could not stand on still walks on: the engine tests the square ahead of a moving Link,
+never the one he stands in (aldonunez GetCollidableTile), so he reaches the first position inward
+whose way there is open (features-behavior.md FP-WOODS-01: room $51's west edge into room $50,
+whose own east edge is rock). Such a join is one-way: that edge never leads back out.
 """
 from __future__ import annotations
 
@@ -73,6 +77,13 @@ class ScreenRegions:
     count: int
     edges: dict[str, dict[int, int | None]]
     positions: dict[tuple[int, int], int] = field(default_factory=dict)
+    # Per side, the region Link reaches arriving at an edge position he cannot stand on (one-way)
+    entries: dict[str, dict[int, int]] = field(default_factory=dict)
+
+    def arrival(self, side: str, position: int) -> int | None:
+        """The region Link reaches arriving at a side's edge position."""
+        region = self.edges[side][position]
+        return region if region is not None else self.entries.get(side, {}).get(position)
 
     def regions_in_columns(self, columns: range) -> set[int]:
         """The regions with a position whose left foot is in one of the columns (a cave entrance's
@@ -122,7 +133,32 @@ def screen_regions(tiles: Tiles, ladder: bool) -> ScreenRegions:
              "S": {c: region.get((ROWS - 1, c)) for c in range(POSITIONS)},
              "W": {r: region.get((r, 0)) for r in range(ROWS)},
              "E": {r: region.get((r, POSITIONS - 1)) for r in range(ROWS)}}
-    return ScreenRegions(count, edges, region)
+    entries: dict[str, dict[int, int]] = {side: {} for side in SIDES}
+    for side, at_edge in edges.items():
+        for edge_position, edge_region in at_edge.items():
+            if edge_region is None:
+                inward = _walk_in(tiles, side, edge_position, region)
+                if inward is not None:
+                    entries[side][edge_position] = inward
+    return ScreenRegions(count, edges, region, entries)
+
+
+def _walk_in(tiles: Tiles, side: str, position: int, region: dict[tuple[int, int], int]) -> int | None:
+    """The region Link reaches from an edge position he arrives on but cannot stand on, moving on
+    away from that edge: each step tests only what lies ahead (_steps), up to the first position he
+    can stand on."""
+    if side in "NS":
+        row = 1 if side == "N" else ROWS - 2
+        return region.get((row, position)) if _stands(tiles, row, position) else None
+    column, step = (POSITIONS - 1, -1) if side == "E" else (0, 1)
+    while 0 <= column + step < POSITIONS:
+        ahead = column - 1 if step < 0 else column + 2
+        if not is_walkable(tiles[position][ahead]):
+            return None
+        column += step
+        if (position, column) in region:
+            return region[(position, column)]
+    return None
 
 
 def neighbor(screen: int, side: str) -> int | None:
@@ -168,9 +204,9 @@ def screen_graph(rom: bytes, ladder: bool = False) -> ScreenGraph:
             other = neighbor(screen, side)
             if other is None:
                 continue
-            across = graph.screens[other].edges[opposite]
+            across = graph.screens[other]
             for position, region in regions.edges[side].items():
-                arrival = across.get(position)
+                arrival = across.arrival(opposite, position)
                 if region is not None and arrival is not None:
                     graph.exits.setdefault((screen, region, side), set()).add((other, arrival))
     return graph

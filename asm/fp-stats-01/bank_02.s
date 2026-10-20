@@ -6,25 +6,29 @@
 ; After the credits, UpdateMode13WinGame_Sub4 draws the triforce and waits for Start; its first
 ; instruction calls StatsFrame. While the screen is not shown, Start (once the wait is over)
 ; draws it instead of going on, and every other frame runs the submode as PRG0 does. While it
-; is shown, Start leaves the way PRG0's Start does (the save mode, then the second quest). The
-; whole screen is drawn in one frame with rendering off.
+; is shown, Start leaves the way the submode's Start does (the save mode; FP-SAVE-01 keeps the file). The
+; whole screen is drawn in one frame with rendering off. The ending's song keeps playing there with
+; music on; with music off (FP-SET-04) it stops (owner decision, 2026-10-19): Tune0 request $80,
+; the audio driver's own signal to silence the song only, which leaves the effects and the songs
+; the game requests later alone.
 
 STATS_BLOCK      = $7F00
 StatsMagic       = STATS_BLOCK + $00
 TotalSeconds     = STATS_BLOCK + $02
 AreaSeconds      = STATS_BLOCK + $06    ; 16 bits each: the overworld, levels 1-9
 LevelStamps      = STATS_BLOCK + $1A    ; 16 bits each, levels 1-9; the item stamps follow
-Stabs            = STATS_BLOCK + $38
-BombsUsed        = STATS_BLOCK + $3A
-PrevBombs        = STATS_BLOCK + $3C
-StatsScreenState = STATS_BLOCK + $3D    ; 0: not shown (bank 0 clears it outside the win mode)
+Stabs            = STATS_BLOCK + $3A
+BombsUsed        = STATS_BLOCK + $3C
+PrevBombs        = STATS_BLOCK + $3E
+StatsScreenState = STATS_BLOCK + $3F    ; 0: not shown (bank 0 clears it outside the win mode)
 STATS_SIZE       = $40
 STATS_MAGIC      = $A5
 SCREEN_SHOWN     = $01
 
 BUTTON_START     = $10
 ; UpdateMode13WinGame_Sub4's Start path, from its JSR EndGameMode on (save mode, video off, sound
-; off, then JMP SwitchProfileToSecondQuest). A label there would end the game's local scopes.
+; off, then PRG0's JMP SwitchProfileToSecondQuest, which FP-SAVE-01 makes an RTS). A label there
+; would end the game's local scopes.
 WIN_SUBMODE_START_PATH = $ABA5
 VIDEO_ON         = $1E                  ; CurPpuMask_2001: background and sprites, left columns too
 PPU_CONTROL_KEEP = $F8                  ; CurPpuControl_2000 without the nametable and increment bits
@@ -35,11 +39,22 @@ BLACK            = $0F
 SPACE            = $24
 FIRST_LETTER_TILE = $0A
 PERIOD           = $2C
+SILENCE_SONG     = $80                  ; Tune0Request: DriveTune0 runs SilenceSong
+; Music off's mark (asm/settings/music-off/bank_02.s writes SILENCE_SONG here; music on leaves
+; the free space's $FF): this patch is built apart from the music choices, so the address is
+; named in both.
+MUSIC_OFF_MARK   = $B7A0
+; The counters' small x: the screen writes its pattern over background tile $70, the first of the
+; level's own tiles ($1700-$1F1F), which every level and the overworld load again before they are
+; shown (the menus after the ending use only the common tiles).
+SMALL_X_TILE     = $70
+SMALL_X_PATTERN  = $1000 + SMALL_X_TILE * 16
 
 ; The status bar's level label record (LevelNumberTransferBuf, which power-on copies to RAM): the
 ; PPU address, the tile count, the tiles (the level word, maybe a dash, then the number), $FF. The
 ; screen's level labels take the word from it, so they read as the status bar does whatever level
-; word the player chose (FP-LEVEL-01).
+; word the player chose (FP-LEVEL-01). With FP-LEVEL-02's 8-tile label (asm/fp-level-02/) the record
+; is refilled from its own at each level load, so a long label reads here too.
 LEVEL_RECORD_RAM    = $681C
 LEVEL_RECORD_COUNT  = LEVEL_RECORD_RAM + 2
 LEVEL_RECORD_TILES  = LEVEL_RECORD_RAM + 3
@@ -48,13 +63,16 @@ LEVEL_RECORD_TILES  = LEVEL_RECORD_RAM + 3
 SPRITE_PALETTES     = LevelInfo_PalettesTransferBuf + 3 + 16
 
 LEVELS              = 9
-CANDIDATES          = LEVELS + 6        ; levels 1-9, then the six key items (bank 0's order)
-LIST_ROWS           = 16                ; the overworld and up to 15 candidates
+CANDIDATES          = LEVELS + 7        ; levels 1-9, then the seven key items (bank 0's order)
+LIST_ROWS           = 17                ; the overworld and up to 16 candidates
 LABEL_LENGTH        = 9
 TIME_LENGTH         = 7                 ; H.MM.SS
+; A list row from column 2: the label (columns 2-10), the time in (13-19), the completion time
+; (23-29; owner's layout, 2026-10-19), then blanks to the next row's column 2.
+TIME_GAP            = 2
+CLEARED_GAP         = 3
+LIST_ROW_END_BLANKS = 32 - LABEL_LENGTH - TIME_GAP - TIME_LENGTH - CLEARED_GAP - TIME_LENGTH
 NO_CANDIDATE        = $FF
-ITEM_IDS            = $24               ; a code icon is an item ID below this
-; CODE_ICON_COUNT, ITEM_DESCRIPTOR_VALUE_MASK and ITEM_DESCRIPTOR_VALUE_FF are fp-hash-01's (this file).
 SWORD_SLOT          = $00
 MAX_SWORD_VALUE     = $03
 POTION_SLOT         = $07
@@ -73,6 +91,7 @@ Number       = $08                      ; 16 bits, being formatted
 DigitShown   = $0A
 Stamp        = $0C                      ; 16 bits: the candidate's stamp
 RowIndex     = $0E
+BlanksAfter  = $0F                      ; PutCount: the columns left after the number
 
 ; --- entry ------------------------------------------------------------------------------------
 
@@ -85,6 +104,11 @@ StatsFrame:
     AND #BUTTON_START
     BEQ @AsPrg0
     JSR DrawStatsScreen
+    LDA MUSIC_OFF_MARK
+    CMP #SILENCE_SONG
+    BNE :+                          ; music on: the ending's song plays on
+    STA Tune0Request
+:
     LDA #SCREEN_SHOWN
     STA StatsScreenState
     PLA                             ; return past the rest of the submode
@@ -100,7 +124,7 @@ StatsFrame:
     LDA ButtonsPressed
     AND #BUTTON_START
     BEQ @Wait
-    ; PRG0's own Start path in the submode: the save mode, then the second quest.
+    ; The submode's own Start path: the save mode (which keeps the file, FP-SAVE-01).
     LDA #$00
     STA StatsScreenState
     JMP WIN_SUBMODE_START_PATH
@@ -144,6 +168,7 @@ DrawStatsScreen:
     AND #<~NMI_ENABLE
     STA PpuControl_2000
     JSR WritePalettes
+    JSR WriteSmallXPattern
     JSR WriteNameTable
     JSR DrawStatsSprites
     LDA #VIDEO_ON
@@ -172,6 +197,19 @@ WritePalettes:
     LDX #$01
 :
     LDA SPRITE_PALETTES, X
+    STA PpuData_2007
+    INX
+    CPX #16
+    BNE :-
+    RTS
+
+WriteSmallXPattern:
+    LDA #>SMALL_X_PATTERN
+    LDY #<SMALL_X_PATTERN
+    JSR SetPpuAddress
+    LDX #$00
+:
+    LDA SmallXPattern, X
     STA PpuData_2007
     INX
     CPX #16
@@ -221,38 +259,77 @@ WriteNameTable:
     LDA #NAME_TABLE_0
     LDY #$00
     JSR SetPpuAddress
-    ; Row 1: the file name.
+    ; Rows 1-9, the top (owner's layout, 2026-10-19): the seed number (rows 1-2), then on the left
+    ; the file name (row 3) and the counters (rows 4-7); on the right the passive items (sprites,
+    ; rows 1-2) and the B items in a blue box (rows 3-8, as the item screen draws them); the
+    ; headings (row 9).
     LDX #32 + 2
     JSR PutBlanks
+    LDA StatsSeedDigits
+    CMP #NO_SEED_NUMBER
+    BNE @SeedNumber
+    LDX #30 + 32 + 2
+    JSR PutBlanks
+    JMP @Name
+@SeedNumber:
+    ; Rows 1-2: SEED and the first 10 digits, the rest under them.
+    LDX #TextSeed - StatsText
+    LDY #TextSeedEnd - TextSeed
+    JSR PutText
+    LDY #$00
+:
+    LDA StatsSeedDigits, Y
+    STA PpuData_2007
+    INY
+    CPY #SEED_DIGITS_PER_ROW
+    BNE :-
+    LDX #32 - SEED_DIGITS_END_COLUMN + SEED_DIGITS_COLUMN
+    JSR PutBlanks
+:
+    LDA StatsSeedDigits, Y
+    STA PpuData_2007
+    INY
+    CPY #2 * SEED_DIGITS_PER_ROW
+    BNE :-
+    LDX #32 - SEED_DIGITS_END_COLUMN + 2
+    JSR PutBlanks
+@Name:
+    ; Row 3: the file name, and the box's top.
     LDX CurSaveSlot
     LDA StatsNameOffsets, X
     TAX
-    LDY #8
+    LDY #NAME_LENGTH
 :
     LDA Names, X
     STA PpuData_2007
     INX
     DEY
     BNE :-
-    ; Row 3: the headings.
-    LDX #22 + 32 + 12
+    LDX #BOX_LEFT_COLUMN - 2 - NAME_LENGTH
     JSR PutBlanks
-    LDX #TextHeadings - StatsText
-    LDY #TextHeadingsEnd - TextHeadings
-    JSR PutText
-    LDX #5 + 2
+    LDX #BoxTop - BoxTiles
+    JSR PutBoxRow
+    ; Rows 4-7: the counters, as Z2Randomizer draws its containers: each an icon (a sprite,
+    ; DrawCounterIcons) over two columns of two rows, then on the icon's lower row the small x and
+    ; the count. Deaths and stabs on row 5, heart containers and bombs on row 7.
+    LDX #BOX_LEFT_COLUMN - 2
     JSR PutBlanks
-    ; Rows 4-19: the list.
-    JSR WriteList
-    ; Rows 21-24: the counters, values right-aligned at column 13 (row 20's first two blanks are
-    ; written already).
-    LDX #30 + 2
-    JSR PutBlanks
+    JSR PutBoxSide
     LDX CurSaveSlot
     LDA DeathCounts, X
     LDY #$00
-    LDX #TextDeaths - StatsText
-    JSR PutCounterRow
+    LDX #SHORT_COUNT_COLUMNS
+    JSR PutCounterCell
+    LDA Stabs
+    LDY Stabs+1
+    LDX #COUNT_COLUMNS
+    JSR PutCounterCell
+    LDX #BOX_LEFT_COLUMN - COUNTERS_END_COLUMN
+    JSR PutBlanks
+    JSR PutBoxSide
+    LDX #BOX_LEFT_COLUMN - 2
+    JSR PutBlanks
+    JSR PutBoxSide
     LDA HeartValues                 ; heart containers: the high nibble, plus one
     LSR
     LSR
@@ -261,18 +338,32 @@ WriteNameTable:
     CLC
     ADC #$01
     LDY #$00
-    LDX #TextHearts - StatsText
-    JSR PutCounterRow
-    LDA Stabs
-    LDY Stabs+1
-    LDX #TextStabs - StatsText
-    JSR PutCounterRow
+    LDX #SHORT_COUNT_COLUMNS
+    JSR PutCounterCell
     LDA BombsUsed
     LDY BombsUsed+1
-    LDX #TextBombs - StatsText
-    JSR PutCounterRow
+    LDX #COUNT_COLUMNS
+    JSR PutCounterCell
+    LDX #BOX_LEFT_COLUMN - COUNTERS_END_COLUMN
+    JSR PutBlanks
+    JSR PutBoxSide
+    ; Row 8: the box's bottom.
+    LDX #BOX_LEFT_COLUMN - 2
+    JSR PutBlanks
+    LDX #BoxBottom - BoxTiles
+    JSR PutBoxRow
+    ; Row 9: the headings, over the time columns.
+    LDX #HEADINGS_COLUMN - 2
+    JSR PutBlanks
+    LDX #TextHeadings - StatsText
+    LDY #TextHeadingsEnd - TextHeadings
+    JSR PutText
+    LDX #32 - HEADINGS_COLUMN - (TextHeadingsEnd - TextHeadings) + 2
+    JSR PutBlanks
+    ; Rows 10-26: the list.
+    JSR WriteList
     ; Row 27: PUSH START BUTTON.
-    LDX #32 + 32 + 7 - 2            ; the counter rows' last two blanks are written already
+    LDX #7 - 2
     JSR PutBlanks
     LDX #TextPushStart - StatsText
     LDY #TextPushStartEnd - TextPushStart
@@ -289,35 +380,55 @@ WriteNameTable:
     BNE :-
     RTS
 
-; One counter row from column 2: the label at StatsText+X (6 tiles), a blank, the value (A low,
-; Y high) in 5 columns, then blanks to the next row's column 2.
-PutCounterRow:
+; A box row from its left column: the left tile, the inside's tiles, the right tile (BoxTiles+X),
+; then blanks to the next row's column 2.
+PutBoxRow:
+    LDA BoxTiles, X
+    STA PpuData_2007
+    LDA BoxTiles+1, X
+    LDY #BOX_INSIDE_COLUMNS
+:
+    STA PpuData_2007
+    DEY
+    BNE :-
+    LDA BoxTiles+2, X
+    STA PpuData_2007
+    LDX #32 - BOX_RIGHT_COLUMN - 1 + 2
+    JMP PutBlanks
+
+PutBoxSide:
+    LDX #BoxSide - BoxTiles
+    JMP PutBoxRow
+
+; One counter cell: blanks under the icon, the small x, then the value (A low, Y high) as PutCount
+; writes it in X columns (COUNTER_ICON_COLUMNS + 1 + X in all).
+PutCounterCell:
     STA Number
     STY Number+1
-    LDY #6
-    JSR PutText
-    LDX #1
+    DEX
+    STX BlanksAfter                 ; the columns after the ones, which are always shown
+    LDX #COUNTER_ICON_COLUMNS
     JSR PutBlanks
-    JSR PutCount
-    LDX #18 + 2
-    JMP PutBlanks
+    LDA #SMALL_X_TILE
+    STA PpuData_2007
+    JMP PutCount
 
 ; --- the list -----------------------------------------------------------------------------------
 
 ; The overworld, then the levels and key items with a stamp in stamp order (ties by index), then
-; the levels entered and not completed in level order, then blank rows: 16 rows.
+; the levels entered and not completed in level order, then blank rows: 17 rows.
 WriteList:
     LDX #TextOverworld - StatsText
     LDY #LABEL_LENGTH
     JSR PutText
-    LDX #1
+    LDX #TIME_GAP
     JSR PutBlanks
     LDA AreaSeconds
     STA Number
     LDA AreaSeconds+1
     STA Number+1
     JSR PutTime
-    LDX #1 + TIME_LENGTH + 5 + 2
+    LDX #CLEARED_GAP + TIME_LENGTH + LIST_ROW_END_BLANKS
     JSR PutBlanks
     LDA #$01
     STA RowsWritten
@@ -416,7 +527,7 @@ WriteList:
 @Done:
     RTS
 
-; Stamp = the stamp of candidate A (levels 0-8, items 9-14); Z set when it is 0.
+; Stamp = the stamp of candidate A (levels 0-8, items 9-15); Z set when it is 0.
 LoadStamp:
     ASL
     TAX
@@ -457,7 +568,7 @@ PutListRow:
     BEQ :+
     JSR PutBlanks
 :
-    LDX #1
+    LDX #TIME_GAP
     JSR PutBlanks
     LDA RowIndex
     ASL
@@ -486,11 +597,11 @@ PutListRow:
     TAX
     LDY #LABEL_LENGTH
     JSR PutText
-    LDX #1 + TIME_LENGTH
+    LDX #TIME_GAP + TIME_LENGTH
     JSR PutBlanks
 
 @Completion:
-    LDX #1
+    LDX #CLEARED_GAP
     JSR PutBlanks
     LDA RowIndex
     JSR LoadStamp
@@ -505,7 +616,7 @@ PutListRow:
     STA Number+1
     JSR PutTime
 @End:
-    LDX #5 + 2
+    LDX #LIST_ROW_END_BLANKS
     JMP PutBlanks
 
 ; --- numbers ------------------------------------------------------------------------------------
@@ -566,8 +677,18 @@ PutPeriodAndTwoDigits:
     STA PpuData_2007
     RTS
 
-; Number in 5 columns, right-aligned, leading zeros blank.
+; Number left-aligned, BlanksAfter + 1 columns, blanks after it; more than 9999 shows 9999.
 PutCount:
+    LDA Number
+    CMP #<(MAX_COUNT + 1)
+    LDA Number+1
+    SBC #>(MAX_COUNT + 1)
+    BCC :+
+    LDA #<MAX_COUNT
+    STA Number
+    LDA #>MAX_COUNT
+    STA Number+1
+:
     LDA #$00
     STA DigitShown
     LDX #$00
@@ -589,34 +710,40 @@ PutCount:
     TYA
     ORA DigitShown
     STA DigitShown
-    BNE :+
-    LDA #SPACE
-    STA PpuData_2007
-    JMP @NextPower
-:
+    BEQ @NextPower                  ; a leading zero: not written
     STY PpuData_2007
+    DEC BlanksAfter
 @NextPower:
     INX
-    CPX #4
+    CPX #COUNT_COLUMNS - 1
     BCC @Power
-    LDA Number                      ; the ones, always shown
+    LDA Number                      ; the ones
     STA PpuData_2007
+    LDX BlanksAfter
+    BEQ :+
+    JMP PutBlanks
+:
     RTS
 
+MAX_COUNT     = 9999
+COUNT_COLUMNS = 4
 PowersLo:
-    .BYTE <10000, <1000, <100, <10
+    .BYTE <1000, <100, <10
 PowersHi:
-    .BYTE >10000, >1000, >100, >10
+    .BYTE >1000, >100, >10
 
 ; --- sprites ------------------------------------------------------------------------------------
 
-; The seed's code (when the ROM has one) and the inventory in the item screen's arrangement: the
-; passive row above the two rows of B items, the sword beside them. Each item is a pair of the
-; rolling sprite indices, 2 per item (20 pairs, at most 19 used).
+; The counters' icons and the inventory in the item screen's arrangement (the passive row above,
+; the two rows of B items in their box). Each item is a pair of the rolling sprite indices, 2 per
+; item (the counters' sword and at most 15 items: 16 of SpriteOffsets' 20 pairs); Link, the heart
+; container and the counters' bomb are sprites 0-4, below SpriteOffsets' sprites. No scanline has
+; more than 8 sprites: the passive row alone (8), the first B row's 5 and the upper counters' 3,
+; the second B row's 4 and the lower counters' 3.
 DrawStatsSprites:
     LDA #$00
     STA RollingSpriteIndex
-    JSR DrawCodeIcons
+    JSR DrawCounterIcons
     LDX #STATS_ITEM_COUNT - 1
 @Item:
     TXA
@@ -637,18 +764,6 @@ DrawStatsSprites:
     TAX
     DEX
     BPL @Item
-    ; The sword, beside the first row (a level 4 sword is drawn as the magical sword).
-    LDA Items
-    BEQ @Boomerang
-    CMP #MAX_SWORD_VALUE + 1
-    BCC :+
-    LDA #MAX_SWORD_VALUE
-:
-    STA $04
-    LDA #STATS_SWORD_X
-    LDX #SWORD_SLOT
-    JSR DrawStatsItemInFirstRow
-@Boomerang:
     LDX #MAGIC_BOOMERANG_SLOT
     LDA Items, X
     BNE :+
@@ -658,7 +773,10 @@ DrawStatsSprites:
 :
     STA $04
     LDA #STATS_BOOMERANG_X
-    JSR DrawStatsItemInFirstRow
+    STA $00
+    LDA #STATS_FIRST_ROW_Y
+    STA $01
+    JSR DrawStatsItem
 @PotionOrLetter:
     LDX #POTION_SLOT
     LDA Items, X
@@ -676,93 +794,155 @@ DrawStatsSprites:
 @Done:
     RTS
 
-DrawStatsItemInFirstRow:
+; The counters' icons, over the cells PutCounterCell writes: Link (deaths), a heart container
+; (hearts) and a bomb (bombs used) as fixed sprites, and the sword Link holds (stabs; the wooden
+; sword without one, the magical sword for a level 4 sword) as the items are drawn.
+DrawCounterIcons:
+    LDX #COUNTER_SPRITES_SIZE - 1
+:
+    LDA CounterSprites, X
+    STA Sprites, X
+    DEX
+    BPL :-
+    LDA Items
+    BNE :+
+    LDA #WOOD_SWORD_VALUE
+:
+    CMP #MAX_SWORD_VALUE + 1
+    BCC :+
+    LDA #MAX_SWORD_VALUE
+:
+    STA $04
+    LDA #COUNTER_RIGHT_X
     STA $00
-    LDA #STATS_FIRST_ROW_Y
+    LDA #COUNTER_UPPER_Y
     STA $01
+    LDX #SWORD_SLOT
+    JMP DrawStatsItem
 
 ; Draw the item in slot X (value in [04]) at ([00], [01]), on the next pair of sprites.
+; DrawItemBySlot's sprite writer (Anim_WriteSpritePair, with object index $0F) itself moves
+; RollingSpriteIndex on by one for each sprite it writes, one for a half-width item and two for a
+; wide one, and wraps it only when it lands on exactly $28. So the pair is set here before each item
+; and the next one counted from it: adding 2 after the call drifted the index by 3 or 4 an item,
+; and with the code and a full inventory (20 items) it ran past SpriteOffsets' end, onto offsets
+; that are not a sprite's, rewriting earlier sprites' fields (a code icon drawn mid-screen).
 DrawStatsItem:
     TXA
     TAY
-    JSR DrawItemBySlot
-    INC RollingSpriteIndex
-    INC RollingSpriteIndex
-    RTS
-
-; As FP-HASH-01 draws them on the file-select screen, if all four bytes are item IDs (a ROM
-; without the code holds $FF there).
-DrawCodeIcons:
-    LDX #CODE_ICON_COUNT - 1
-:
-    LDA ZORA_B2_CodeIcons, X
-    CMP #ITEM_IDS
-    BCS @Done
-    DEX
-    BPL :-
-    LDX #CODE_ICON_COUNT - 1
-@Icon:
-    TXA
+    LDA RollingSpriteIndex
     PHA
-    LDA StatsCodeIconXs, X
-    STA $00
-    LDA #STATS_CODE_ICON_Y
-    STA $01
-    LDY ZORA_B2_CodeIcons, X
-    LDA ItemIdToDescriptor, Y
-    CMP #ITEM_DESCRIPTOR_VALUE_FF
-    BNE :+
-    LDA #$FF
-:
-    AND #ITEM_DESCRIPTOR_VALUE_MASK
-    STA $04
-    LDA ItemIdToSlot, Y
-    TAX
-    JSR DrawStatsItem
+    JSR DrawItemBySlot
     PLA
-    TAX
-    DEX
-    BPL @Icon
-@Done:
+    CLC
+    ADC #SPRITES_PER_ITEM
+    STA RollingSpriteIndex
     RTS
 
 ; --- data ---------------------------------------------------------------------------------------
 
+SPRITES_PER_ITEM    = 2                 ; a pair of rolling sprite indices (SpriteOffsets)
+
 ; Sprite Y is the row's top pixel minus one.
-STATS_CODE_ICON_Y   = 1 * 8 - 1         ; rows 1-2
-STATS_PASSIVE_ROW_Y = 21 * 8 - 1        ; rows 21-22
-STATS_FIRST_ROW_Y   = 23 * 8 - 1        ; rows 23-24
-STATS_SECOND_ROW_Y  = 25 * 8 - 1        ; rows 25-26
-STATS_SWORD_X       = $70
-STATS_BOOMERANG_X   = $80
-STATS_POTION_X      = $B0
+STATS_PASSIVE_ROW_Y = 1 * 8 - 1         ; rows 1-2, beside the seed number
+STATS_FIRST_ROW_Y   = 4 * 8 - 1         ; rows 4-5, in the box
+STATS_SECOND_ROW_Y  = 6 * 8 - 1         ; rows 6-7, in the box
+ITEMS_SHIFT         = $10               ; the item screen's Xs, one 16-pixel tile to the right
+STATS_BOOMERANG_X   = $80 + ITEMS_SHIFT
+STATS_POTION_X      = $B0 + ITEMS_SHIFT
 
-StatsCodeIconXs:
-    .BYTE $A8, $B8, $C8, $D8
-
-; The other items: their slot and place, the item screen's Xs (SubmenuItemXs).
+; The other items: their slot and place, the item screen's Xs (SubmenuItemXs) moved ITEMS_SHIFT
+; right, clear of the seed number (columns 2-16).
 STATS_ITEM_COUNT = 13
 StatsItemSlots:
     .BYTE $0E, $0D, $0C, $0B, $0A, $09  ; bracelet, magic key, ladder, ring, book, raft
-    .BYTE $04, $03, $02, $01            ; candle, bow, arrow, bombs
+    .BYTE $04, $03, $02, $01            ; candle, bow, arrow, bombs (when some are left)
     .BYTE $08, $06, $05                 ; rod, food, recorder
 StatsItemXs:
-    .BYTE $CC, $C0, $B0, $A0, $94, $80
-    .BYTE $C8, $B4, $AC, $98
-    .BYTE $C8, $98, $80
+    .BYTE $CC + ITEMS_SHIFT, $C0 + ITEMS_SHIFT, $B0 + ITEMS_SHIFT, $A0 + ITEMS_SHIFT, $94 + ITEMS_SHIFT, $80 + ITEMS_SHIFT
+    .BYTE $C8 + ITEMS_SHIFT, $B4 + ITEMS_SHIFT, $AC + ITEMS_SHIFT, $98 + ITEMS_SHIFT
+    .BYTE $C8 + ITEMS_SHIFT, $98 + ITEMS_SHIFT, $80 + ITEMS_SHIFT
 StatsItemYs:
     .BYTE STATS_PASSIVE_ROW_Y, STATS_PASSIVE_ROW_Y, STATS_PASSIVE_ROW_Y
     .BYTE STATS_PASSIVE_ROW_Y, STATS_PASSIVE_ROW_Y, STATS_PASSIVE_ROW_Y
     .BYTE STATS_FIRST_ROW_Y, STATS_FIRST_ROW_Y, STATS_FIRST_ROW_Y, STATS_FIRST_ROW_Y
     .BYTE STATS_SECOND_ROW_Y, STATS_SECOND_ROW_Y, STATS_SECOND_ROW_Y
 
+; The counters: two cells a row (columns 2-7 and 8-14, ending at COUNTERS_END_COLUMN, left of the
+; box), each an icon over its
+; first two columns and two rows, then the small x and the count on the lower row. The left cells'
+; counts (deaths, at most 255; heart containers, at most 16) take 3 columns, the right ones 4.
+NAME_LENGTH         = 8
+COUNTERS_END_COLUMN = 15
+COUNTER_ICON_COLUMNS = 2
+SHORT_COUNT_COLUMNS = 3
+COUNTER_LEFT_X      = 2 * 8
+COUNTER_RIGHT_X     = (2 + COUNTER_ICON_COLUMNS + 1 + SHORT_COUNT_COLUMNS) * 8
+COUNTER_UPPER_Y     = 4 * 8 - 1         ; rows 4-5: deaths, stabs
+COUNTER_LOWER_Y     = 6 * 8 - 1         ; rows 6-7: heart containers, bombs
+WOOD_SWORD_VALUE    = $01
+BOMB_TILE           = $34
+BOMB_PALETTE        = $01               ; ItemSlotToPaletteOffsetsOrValues' for the bombs
+HALF_WIDTH_CENTER   = 4                 ; a half-width item is drawn 4 pixels in, centered
+LINK_PALETTE        = $00
+RED_PALETTE         = $02
+FLIP_HORIZONTALLY   = $40
+SLIM_SEPARATION     = 7                 ; a slim item's sides overlap one pixel (Anim_WriteSpecificItemSprites)
+
+; Sprites 0-4 (Y, tile, attributes, X): Link facing down with his shield, as he stands in play, a
+; heart container, red, and a bomb, as the item screen draws them.
+CounterSprites:
+    .BYTE COUNTER_UPPER_Y, $5A, LINK_PALETTE, COUNTER_LEFT_X
+    .BYTE COUNTER_UPPER_Y, $08, LINK_PALETTE | FLIP_HORIZONTALLY, COUNTER_LEFT_X + 8
+    .BYTE COUNTER_LOWER_Y, $68, RED_PALETTE, COUNTER_LEFT_X
+    .BYTE COUNTER_LOWER_Y, $68, RED_PALETTE | FLIP_HORIZONTALLY, COUNTER_LEFT_X + SLIM_SEPARATION
+    .BYTE COUNTER_LOWER_Y, BOMB_TILE, BOMB_PALETTE, COUNTER_RIGHT_X + HALF_WIDTH_CENTER
+COUNTER_SPRITES_SIZE = * - CounterSprites
+
+; The small x, background color 1 (white), its strokes on the digits' middle rows.
+SmallXPattern:
+    .BYTE %00000000
+    .BYTE %00000000
+    .BYTE %01000100
+    .BYTE %00101000
+    .BYTE %00010000
+    .BYTE %00101000
+    .BYTE %01000100
+    .BYTE %00000000
+    .RES 8, $00
+
+; The seed number's 20 digit tiles (code_patches.STATS_SEED_DIGITS, written by generation in bank 2's
+; free space outside every patch): 10 on row 1 after SEED, the rest under them; $FF, none written.
+StatsSeedDigits     = $B780
+NO_SEED_NUMBER      = $FF
+SEED_DIGITS_PER_ROW = 10
+SEED_DIGITS_COLUMN  = 7
+SEED_DIGITS_END_COLUMN = SEED_DIGITS_COLUMN + SEED_DIGITS_PER_ROW
+HEADINGS_COLUMN     = 13
+
 ; Each save slot's name in Names (8 tiles a slot).
 StatsNameOffsets:
     .BYTE 0, 8, 16
 
-; Background palette 0 white text, 1 orange headings; 2 and 3 unused.
+; Background palette 0 white text; 1 the headings' orange text and the box's blue line (the font
+; draws in color 1, the box tiles in color 3), so the headings share an attribute cell with the
+; box's bottom; 2 white text and the box's blue line; 3 unused.
 StatsBackgroundPalettes:
-    .BYTE $0F, $30, $30, $30, $0F, $27, $27, $27, $0F, $30, $30, $30, $0F, $30, $30, $30
+    .BYTE $0F, $30, $30, $30, $0F, $27, $27, BOX_BLUE, $0F, $30, $30, BOX_BLUE, $0F, $30, $30, $30
+
+; The box around the B items, the status bar's own tiles (their lines in color 3), on columns
+; 17-29 of rows 3-8: the items' Xs $90-$E3 with 7 pixels to each line.
+BOX_LEFT_COLUMN     = 17
+BOX_RIGHT_COLUMN    = 29
+BOX_INSIDE_COLUMNS  = BOX_RIGHT_COLUMN - BOX_LEFT_COLUMN - 1
+BOX_BLUE            = $12
+BoxTiles:
+BoxTop:
+    .BYTE $69, $6A, $6B                 ; the corners and the line between them
+BoxSide:
+    .BYTE $6C, SPACE, $6C
+BoxBottom:
+    .BYTE $6E, $6A, $6D
 
 ; The texts, in ASCII (PutText draws each character's tile, zora/rom/text_encoding.py). The
 ; labels are 9 characters, space-padded: OVERWORLD, then the key items in bank 0's order, named as
@@ -777,28 +957,24 @@ TextOverworld:
     .BYTE "RAFT     "
     .BYTE "RECORDER "
     .BYTE "S.ARROWS "
+    .BYTE "BOW      "
 TextHeadings:
-    .BYTE "TIME IN CLEARED"
+    .BYTE "TIME IN   CLEARED"
 TextHeadingsEnd:
-TextDeaths:
-    .BYTE "DEATHS"
-TextHearts:
-    .BYTE "HEARTS"
-TextStabs:
-    .BYTE "STABS "
-TextBombs:
-    .BYTE "BOMBS "
+TextSeed:
+    .BYTE "SEED "
+TextSeedEnd:
 TextPushStart:
     .BYTE "PUSH START BUTTON"
 TextPushStartEnd:
 TextTimeCap:
     .BYTE "9.59.59"
 
-; Palette 1 under the headings (row 3, columns 12-27) and the counter labels (rows 21-24,
-; columns 2-7); palette 0 elsewhere.
+; Palette 2 under the box (rows 2-7, columns 16-29; row 2's column 16 holds only the seed's last
+; digit, white in either palette), palette 1 under the box's bottom and the headings (rows 8-9,
+; columns 12-29); palette 0 elsewhere.
 StatsAttributes:
-    .BYTE $00, $00, $00, $50, $50, $50, $50, $00
-    .RES 4 * 8, $00
-    .BYTE $44, $55, $00, $00, $00, $00, $00, $00
-    .BYTE $04, $05, $00, $00, $00, $00, $00, $00
-    .RES 8, $00
+    .BYTE $00, $00, $00, $00, $A0, $A0, $A0, $20
+    .BYTE $00, $00, $00, $00, $AA, $AA, $AA, $22
+    .BYTE $00, $00, $00, $05, $05, $05, $05, $01
+    .RES 5 * 8, $00

@@ -126,7 +126,8 @@ def _serialize_enemy_hp(game_world: GameWorld, patch: Patch) -> None:
     # Secondary boss HP bytes (HP stored in high nibble)
     patch.add(GLEEOK_NECK_HP_ADDRESS,     bytes([(ed.gleeok_neck_hp & 0x0F) << 4]))
     patch.add(GLEEOK_HEAD_HP_ADDRESS,     bytes([(ed.gleeok_head_hp & 0x0F) << 4]))
-    patch.add(GANON_HP_ADDRESS,           bytes([(ed.ganon_hp & 0x0F) << 4]))
+    ganon_byte = ed.ganon_return_hp if ed.ganon_return_hp is not None else (ed.ganon_hp & 0x0F) << 4
+    patch.add(GANON_HP_ADDRESS,           bytes([ganon_byte]))
     patch.add(MOLDORM_SEGMENT_HP_ADDRESS, bytes([(ed.moldorm_segment_hp & 0x0F) << 4]))
     patch.add(LAMNOLA_SEGMENT_HP_ADDRESS, bytes([(ed.lamnola_segment_hp & 0x0F) << 4]))
     if ed.rope_hp is not None:

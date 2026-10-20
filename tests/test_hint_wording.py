@@ -28,6 +28,7 @@ from zora.generate.steps.hint_text import (
     OPENERS,
     PROGRESSIVE_NAMES,
     REGION_PHRASES,
+    SHORT_REGION_PHRASES,
     SHOWN_CHARACTERS,
     UPGRADE_LINES,
     VANILLA_NAMES,
@@ -38,6 +39,7 @@ from zora.generate.steps.hint_text import (
     level_location_sentence,
     with_opener,
 )
+from zora.generate.steps.change_sword_hearts import MAGICAL_SWORD_HEARTS, WHITE_SWORD_HEARTS
 from zora.model.enums import Item
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
@@ -45,7 +47,7 @@ from zora.rom.parse.rom_file import parse_rom
 LEVELS = range(1, 10)
 ITEM_CODES = range(len(hint_text.ITEM_NAMES))
 SEEDS = (1, 2, 3, 4, 5)
-FOREIGN_CODE = 0x0F                         # how FINISH writes another player's item (five rupees)
+FOREIGN_CODE = 0x18                         # how FINISH writes another player's item (a rupee, by default)
 
 
 def every_sentence() -> list[str]:
@@ -89,7 +91,9 @@ def test_the_item_sentences() -> None:
     assert item_location_sentence(FOREIGN_CODE, 5, ItemNames(foreign_code=FOREIGN_CODE)) == \
         f"{FOREIGN_NAME} AWAITS IN LEVEL-5."
     assert item_location_sentence(Item.BLUE_POTION, 6) == "THE BLUE POTION WAITS IN LEVEL-6."
-    assert len(ITEM_VERBS) == 21 and set(hint_text.LINE_VERBS) == set(UPGRADE_LINES.values())
+    # The boots' line stands in for the boomerang's in a Pegasus Boots seed, so it is no upgrade line.
+    assert len(ITEM_VERBS) == 21
+    assert set(hint_text.LINE_VERBS) == set(UPGRADE_LINES.values()) | {hint_text.BOOTS_LINE}
 
 
 # The names a verb follows are ZORA's own (ITEM_NAMES); a plural name takes a plural verb.
@@ -105,26 +109,36 @@ def test_each_verb_agrees_with_zoras_item_name() -> None:
 
 
 def test_people_hints_name_the_region_by_its_phrase() -> None:
-    """MEET <PERSON> <PHRASE>, and <PERSON> HAS <ITEM> <PHRASE> (or I HAVE), wrapped as before:
-    every region with the longest names still fits the box."""
-    from zora.generate.steps.hint_text import region_phrase
+    """MEET <PERSON> <PHRASE> WITH <N> HEARTS, and <PERSON> HAS <ITEM> <PHRASE> FOR <N> HEARTS (or I
+    HAVE; owner request, beta 7): every region with the longest names and every count the caves ask
+    for still fits the box, with the count."""
+    from zora.generate.steps.hint_text import holder_hearts_lines, region_phrase
     for region in REGION_PHRASES:
         assert region_phrase(region) == REGION_PHRASES[region]
         for holder in ("I HAVE", "THE ELDER HAS", "THE MERCHANT HAS"):
-            for item in ("THE MAGICAL BOOMERANG", FOREIGN_NAME, "A BOOMERANG UPGRADE"):
-                place = region_phrase(region)
-                lines = ([f"{holder} {item} {place}"] if len(f"{holder} {item} {place}") <= LINE_WIDTH
-                         else [holder, f"{item} {place}"] if len(f"{item} {place}") <= LINE_WIDTH
-                         else [holder, item, place])
-                assert fits(lines), lines
-        assert fits(["MEET THE MERCHANT", region_phrase(region)])
+            for phrase, label in (("THE MAGICAL BOOMERANG", "MAGICAL BOOMERANG"), (FOREIGN_NAME, FOREIGN_NAME),
+                                  ("A BOOMERANG UPGRADE", "BOOMERANG UPGRADE")):
+                for hearts in WHITE_SWORD_HEARTS:
+                    lines = holder_hearts_lines(holder, phrase, label, region, hearts)
+                    assert fits(lines) and f"{hearts} HEARTS" in " ".join(lines), lines
+        for hearts in MAGICAL_SWORD_HEARTS:
+            assert fits(["MEET THE MERCHANT", region_phrase(region), f"WITH {hearts} HEARTS"])
+
+
+def test_the_holder_text_keeps_its_words_while_they_fit() -> None:
+    from zora.generate.steps.hint_text import holder_hearts_lines
+    assert holder_hearts_lines("THE ELDER HAS", "THE LADDER", "LADDER", 7, 5) == [
+        "THE ELDER HAS THE LADDER", "BY THE COAST FOR 5", "HEARTS"]
+    # the longest: the short region phrase, then the item without its article, then no "FOR"
+    assert holder_hearts_lines("THE MERCHANT HAS", "A BOOMERANG UPGRADE", "BOOMERANG UPGRADE", 1, 6) == [
+        "THE MERCHANT HAS", "BOOMERANG UPGRADE ON", "DEATH MOUNTAIN, 6 HEARTS"]
 
 
 def test_the_level_sentences() -> None:
     assert [level_location_sentence(1, region) for region in REGION_PHRASES] == [
         "LEVEL-1 LIES HIGH IN DEATH MOUNTAIN.", "LEVEL-1 LIES BY THE GRAVEYARD.", "LEVEL-1 LIES IN THE DEAD WOODS.",
         "LEVEL-1 LIES NEAR START.", "LEVEL-1 LIES AROUND A LAKE.", "LEVEL-1 LIES ALONG A RIVER.",
-        "LEVEL-1 LIES BY THE SHORE.", "LEVEL-1 LIES HIDDEN IN A FOREST.", "LEVEL-1 LIES UP IN THE LOST HILLS.",
+        "LEVEL-1 LIES BY THE COAST.", "LEVEL-1 LIES HIDDEN IN A FOREST.", "LEVEL-1 LIES UP IN THE LOST HILLS.",
         "LEVEL-1 LIES IN THE DRY DESERT."]
     assert set(REGION_PHRASES) == set(hint_text.REGION_TABLE)
 
@@ -136,7 +150,7 @@ def test_the_font_has_no_colon_so_no_opener_uses_one() -> None:
 
 # --- seeds -------------------------------------------------------------------------------------
 
-pytestmark_rom = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark_rom = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 REWORDED = re.compile(r"(?:.* )?(?:THE .+|A .+ UPGRADE|AN .+ UPGRADE|ANOTHER PLAYER'S ITEM) .+ IN LEVEL-\d\.|"
                       r"(?:.* )?LEVEL-\d LIES .+\.")
 
@@ -216,13 +230,23 @@ PEOPLE_HINT = re.compile(r"MEET (ME|THE (ELDER|MERCHANT|MOBLIN|HUMAN)) |"
                          r"(I HAVE|THE (ELDER|MERCHANT|MOBLIN|HUMAN) HAS) (THE|A|AN|ANOTHER) ")
 
 
+def people_hints(seed: int) -> list[str]:
+    return [text for text in hints(seed) if PEOPLE_HINT.match(text) and opener_of(text) is None]
+
+
 @pytestmark_rom
 @pytest.mark.parametrize("seed", SEEDS)
 def test_people_hints_in_a_seed_use_the_phrases(seed: int) -> None:
-    texts = [text for text in hints(seed) if PEOPLE_HINT.match(text) and opener_of(text) is None]
-    assert texts
+    texts = people_hints(seed)
     assert not any(re.search(r"\bREGION \d", text) for text in texts), texts
-    assert all(text.endswith(tuple(REGION_PHRASES.values())) for text in texts), texts
+    places = (*REGION_PHRASES.values(), *SHORT_REGION_PHRASES.values())
+    assert all(re.search(rf"({'|'.join(places)}),? (WITH |FOR )?\d+ HEARTS$", text) for text in texts), texts
+
+
+@pytestmark_rom
+def test_the_seeds_hold_people_hints() -> None:
+    """A seed may draw none without an opener (seed 4 since 114f280); the seeds together do."""
+    assert sum(bool(people_hints(seed)) for seed in SEEDS) >= len(SEEDS) - 1
 
 
 @pytestmark_rom

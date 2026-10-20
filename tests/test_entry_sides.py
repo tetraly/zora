@@ -120,7 +120,7 @@ RECORDS = """
 def _finals(seed: int) -> list[Level]:
     path = CORPUS / f"seed-{seed:04d}.nes"
     if not path.exists():
-        pytest.skip("corpus missing")
+        pytest.skip("needs the corpora")
     return parse_rom(load_rom(path)).levels
 
 
@@ -159,7 +159,7 @@ def test_inside_dungeon_probe_matches_the_spec_checkpoint() -> None:
 def test_level9_person_room_sides() -> None:
     """VA-REJ-19: north, east and west are shutter or wall, never all walls."""
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     rom = load_rom(verify_base_rom())
     for seed in range(3):
         gw = parse_rom(rom)

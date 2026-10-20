@@ -15,8 +15,11 @@ from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import (
     BOOK_TO_UNDERSTAND_NPCS, ENTR_01, ENTR_01_SIDES, EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT, ONE_TIME_WARES, PROGRESSIVE_CAVES,
     PROGRESSIVE_ITEMS_BYTE,
-    PROGRESSIVE_ROOM_ITEMS, START_ITEMS, left_out_patches, one_time_wares,
+    PROGRESSIVE_ROOM_ITEMS, SHOPS_BY_NUMBER, START_ITEMS, left_out_patches, one_time_wares,
 )
+from zora.flags import zora_flags
+from zora.model.enums import Item
+from zora.model.overworld import Shop
 from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.parse.rom_file import original_bins_from_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
@@ -201,9 +204,22 @@ def test_the_progressive_patches_follow_their_flags(zora: str, caves: bool, room
     else:
         assert rom[PROGRESSIVE_ITEMS_BYTE] == on_byte
         # PI-CODE-04: the one-time wares from the model's final shop stock are the ones the
-        # finished ROM's shop tables give (asm/progressive/build.py reads them from the ROM).
-        assert rom[ONE_TIME_WARES:ONE_TIME_WARES + 3] == _progressive_build().one_time_wares(rom)
-        assert rom[ONE_TIME_WARES:ONE_TIME_WARES + 3] == one_time_wares(parse_rom(rom))
+        # finished ROM's shop tables give (asm/progressive/build.py reads them from the ROM), and
+        # with Shop Items in the Item Pool the bait and blue potion shops 1-4 sell are pool items,
+        # sold once (code_patches.one_time_wares' bait_in_pool rule, which that builder does not
+        # know; seed 1 has a bait in shop 1 since the spare bait's fairy draws its price).
+        bait_in_pool = zora_flags.decode(zora).shop_items_in_pool
+        world = parse_rom(rom)
+        expected = bytearray(_progressive_build().one_time_wares(rom))
+        if bait_in_pool:
+            for shop_number, destination in enumerate(SHOPS_BY_NUMBER[1:], start=1):
+                shop = world.overworld.get_cave(destination, Shop)
+                assert shop is not None
+                for position, ware in enumerate(shop.items):
+                    if ware.item in (Item.BAIT, Item.BLUE_POTION):
+                        expected[position] |= 1 << shop_number
+        assert rom[ONE_TIME_WARES:ONE_TIME_WARES + 3] == bytes(expected)
+        assert rom[ONE_TIME_WARES:ONE_TIME_WARES + 3] == one_time_wares(world, bait_in_pool=bait_in_pool)
 
 
 def test_left_out_patches() -> None:

@@ -20,12 +20,12 @@ def test_the_changelog_ends_at_this_version() -> None:
     assert versions and versions[0] == PLAYER_VERSION
 
 
-@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 def test_the_title_screen_shows_the_version() -> None:
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, verify_base_rom().read_bytes()).rom
-    assert parse_rom(rom).title_version_line == f"ZORA {PLAYER_VERSION}".upper() == "ZORA 2.0 BETA 5"
+    assert parse_rom(rom).title_version_line == f"ZORA {PLAYER_VERSION}".upper() == "ZORA 2.0 BETA 7"
 
 
 def test_players_read_a_beta_as_beta_n() -> None:
-    assert ZORA_VERSION == "2.0.0b5" and PLAYER_VERSION == "2.0 beta 5"
+    assert ZORA_VERSION == "2.0.0b7" and PLAYER_VERSION == "2.0 beta 7"
     assert player_version("2.1.0b12") == "2.1 beta 12" and player_version("2.0.0") == "2.0.0"

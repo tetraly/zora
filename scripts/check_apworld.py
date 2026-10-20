@@ -44,7 +44,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
 
 import build_apworld  # noqa: E402 - the scripts folder above
-import make_release  # noqa: E402 - puts REPO on the path
+import make_release  # type: ignore[import-not-found, unused-ignore]  # noqa: E402 - puts REPO on the path; a release leaves it out
 from zora import archipelago as zora_ap  # noqa: E402
 from zora.flags import form as flag_form  # noqa: E402
 from zora.rom.base_rom import BASE_ROM_PATH, PRG1_ROM_PATH, verify_base_rom, verify_prg1_rom  # noqa: E402

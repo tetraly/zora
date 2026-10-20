@@ -27,6 +27,7 @@ from .steps.cave_entries import CaveShuffle, Entry
 from .steps.change_enemy_hp import EnemyHpResult
 from .steps.dungeon_quest import ALL_SHAPES, SetSources
 from .steps.dungeon_room_shuffle import DungeonRoomShuffleResult
+from .steps.expanded_dungeon_locations import ExpandedDeal
 from .steps.extra_pool_items import ExtraPoolItems
 from .steps.hint_text import HintTextResult
 from .steps.item_shuffle_result import ItemShuffleResult
@@ -65,6 +66,7 @@ class GenerationResult:
     room_shuffle: DungeonRoomShuffleResult | None = None     # the last pass's room exchange (PS-XCHG)
     groups: GroupShuffleResult | None = None    # the shipped pass's group passes (B4)
     overworld: CaveShuffle | None = None   # the shipped pass's cave shuffle (OW-CAVE)
+    expanded_deal: ExpandedDeal | None = None   # the shipped pass's Expanded Dungeon Locations deal
     extra_pool_items: ExtraPoolItems | None = None   # the shipped pass's ZORA extras' caves
     # acceptance.md: rejections by check (E1, E3, E4, E5)
     acceptance_rejections: Counter[str] = field(default_factory=Counter)
@@ -130,6 +132,7 @@ class GenerationContext:
     cave_entries: list[Entry] = field(default_factory=list)
     armos_screen: int | None = None
     caves: CaveShuffle | None = None
+    expanded_deal: ExpandedDeal | None = None    # Expanded Dungeon Locations' deal, on the staged overworld
     l1_gate_entry: tuple[int, int] | None = None
     start: StartScreen | None = None
     hint_text: HintTextResult | None = None

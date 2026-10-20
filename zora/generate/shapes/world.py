@@ -224,6 +224,9 @@ class SetWorld:
     zelda_room: int | None = None
     # cell -> the base ROM block's inner palette selector there (SH-DOOR-01)
     base_inner_palettes: list[int] = field(default_factory=list)
+    # SH-STAIR-03: the other set is second quest (Mixed + Shapes), so this set's cellars hold the
+    # book in level 6 and the wand in level 8's first cellar
+    beside_second_quest: bool = False
 
     def __post_init__(self) -> None:
         if not self.blob_of:

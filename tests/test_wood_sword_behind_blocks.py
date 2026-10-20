@@ -23,7 +23,7 @@ from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checkpoints.overworld_quests import WOOD_SWORD_BLOCKS_FLAGS, wood_sword_widened
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 
 @cache

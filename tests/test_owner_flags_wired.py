@@ -11,7 +11,7 @@ from zora.flags import zora_flags
 from zora.flags.codec import decode, encode
 from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.flags.zora_flags import OWNER_2_0_FIELDS, ZoraFlags
+from zora.flags.zora_flags import ZoraFlags
 from zora.generate.pipeline import generate_rom, generate_world, plan
 from zora.generate.steps import overworld_gates as gates
 from zora.model.enums import Destination, Item
@@ -21,7 +21,7 @@ from zora.rom.layout import MAZE_DIRECTIONS_ADDRESS
 from zora.rom.owner_patches import PATCHES_BY_FLAG, owner_patch_writes
 from zora.rom.parse.rom_file import load_rom, parse_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 REPO = Path(__file__).resolve().parent.parent
 ON, OFF, MAYBE = ThreeState.ON, ThreeState.OFF, ThreeState.POSSIBLE
@@ -29,6 +29,8 @@ BASELINE = MVP_BASELINE_LEVEL_ENCODING_OFF
 B04_OFF = encode(decode(BASELINE).updated(toggles={"B04": OFF}))
 WITHOUT_CANDLES = encode(decode(BASELINE).updated(toggles={"B04": OFF, "B09": OFF}))
 PRODUCED = sorted(zora_flags.PRODUCED_OWNER_FIELDS)
+# Every produced flag that can be on at once: Pegasus Boots refuses Magical Boomerang Does 1 HP Damage.
+COMBINABLE = [name for name in PRODUCED if name != "pegasus_boots"]
 MAZE_BYTES = 8
 
 
@@ -219,11 +221,12 @@ def test_t12_the_spoiler_log_lists_the_sword() -> None:
     document = seed_document_for(rom, WITHOUT_CANDLES, 6, flags)
     room = document["zoraExtras"]["l4Sword"]["room"]
     assert [room] == level9_swords(parse_rom(rom))
-    assert f"room {room:02X}" in spoiler_log(document) and L4_SWORD_LABEL in spoiler_log(document)
+    flat = " ".join(spoiler_log(document).split())               # a long entry wraps
+    assert f"room {room:02X}" in flat and f"floor item: {L4_SWORD_LABEL}" in flat
 
 
 def test_every_flag_is_mapped_to_its_patches() -> None:
-    assert set(PATCHES_BY_FLAG) == set(OWNER_2_0_FIELDS)
+    assert set(PATCHES_BY_FLAG) == set(zora_flags.PATCHED_OWNER_FIELDS)
 
 
 # --- the seed document and the spoiler log ----------------------------------------------------------
@@ -235,7 +238,7 @@ def test_the_document_and_log_carry_the_mazes_gates_and_potion_shop() -> None:
     from zora_export.spoiler_log import WIDTH, spoiler_log
     jsonschema = pytest.importorskip("jsonschema")
     schema = json.loads((REPO / "docs/seed-format/seed-format.schema.json").read_text())
-    flags = zora(**dict.fromkeys(PRODUCED, ON), progressive_items=True)
+    flags = zora(**dict.fromkeys(COMBINABLE, ON), progressive_items=True)
     rom = generate_rom(WITHOUT_CANDLES, 4, base(), zora_flag_string=flags).rom
     document = seed_document_for(rom, WITHOUT_CANDLES, 4, flags)
     assert not list(jsonschema.Draft202012Validator(schema).iter_errors(document))
@@ -245,7 +248,8 @@ def test_the_document_and_log_carry_the_mazes_gates_and_potion_shop() -> None:
         {0x08: "up", 0x04: "down", 0x01: "right"}[step] for step in world.overworld.lost_hills_directions]
     assert mazes["Dead Woods"]["sequence"][-1] == "south" and mazes["Dead Woods"]["hintShop"] == "Hint Shop 2"
     needs = {gate["needs"] for gate in document["zoraExtras"]["gates"]}
-    assert {"the raft", "the power bracelet", "the ladder"} <= needs
+    # no ladder gate: Randomize Dead Woods turns the Lost Woods Shortcut on, the way west (beta 7)
+    assert {"the raft", "the power bracelet"} <= needs and "the ladder" not in needs
     log = spoiler_log(document)
     assert "Mazes and overworld gates" in log and all(len(line) <= WIDTH for line in log.splitlines())
     potion = next(cave for cave in document["caves"] if cave["kind"] == "potion-shop")

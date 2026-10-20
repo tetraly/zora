@@ -293,6 +293,8 @@ NEW_FILE_HEART_VALUES_OPERAND_ADDRESS = NEW_FILE_START_STATE_ADDRESS + 3
 SECOND_QUEST_HEART_VALUES_OPERAND_ADDRESS = SECOND_QUEST_START_STATE_ADDRESS + 1
 BANK_2_FILE_START = 0x08010
 CONTINUE_HEARTS_OPERAND_ADDRESS = 0x14B83  # Continue hearts restore operand
+# FL-ALT-07: FormatHeartsInTextBuf's BEQ @EmitSpace operand (CPU $A721 bank 1; PRG0 $04)
+HEART_METER_BLANK_BRANCH_ADDRESS = 0x06731
 
 BOMB_DISPLAY_SPACE_TILE = 0x24   # leading-zero suppression tile (blank)
 
@@ -479,6 +481,11 @@ LEVEL_NAME_LENGTH = 6
 LEVEL_NAME_DASH_TILE = 0x62
 LEVEL_NAME_DASH_OFFSET = 0x19D1C  # sixth tile of the HUD level-name string
 FP_LEVEL_DASH_TILE = 0x2F          # FP-LEVEL-01 replacement dash tile
+# FP-LEVEL-02's 12-byte label record (bank 5 $BCC0, asm/fp-level-02/): drawn only when the patch
+# is written, for a 7-character label text (player_settings.level_label_is_long); otherwise the
+# record above is the label, and these bytes are free space.
+LEVEL_LABEL_RECORD = 0x17CD0
+LEVEL_LABEL_RECORD_SIZE = 12
 
 # ---------------------------------------------------------------------------
 
@@ -555,6 +562,10 @@ Q2_ROOM_3E_TRIGGER_VALUE = 0x01
 TITLE_SEED_ROW_ADDRESS = 0x1AAD3
 TITLE_VERSION_ROW_ADDRESS = TITLE_VERSION_OFFSET
 TITLE_ROW_LENGTH = 24
+TITLE_SEED_LABEL = "SEED"
+# The most digits the seed row shows: the label, at least one blank, then the number (owner,
+# 2026-10-17). A seed of 10^19 or more (20 digits; Archipelago draws them) shows its first 19.
+TITLE_SEED_DIGITS = TITLE_ROW_LENGTH - len(TITLE_SEED_LABEL) - 1
 
 # FP-PERSON-01
 def _animation_address(slot: int) -> int:

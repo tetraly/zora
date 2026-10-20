@@ -8,6 +8,7 @@ from .code_patches import PRG0_START_ITEMS, START_ITEMS_SIZE
 from .heart_values import heart_values
 
 HEART_VALUES_INDEX = 0x18            # HeartValues, RAM $066F
+TRIFORCE_INDEX = 0x1A                # InvTriforce, RAM $0671 (FL-ALT-06)
 
 # FP-START-03's table: each start item's slot in Items and its value. A slot keeps the larger of
 # its value and the item's, so two swords keep the better one and two candles the red.
@@ -35,14 +36,16 @@ ITEM_AT_SLOT_VALUE = {slot_value: item for item, slot_value in START_ITEM_SLOTS.
 ITEM_SLOTS = sorted({slot for slot, _ in START_ITEM_SLOTS.values()})
 
 
-def start_table(items: Iterable[Item], heart_containers: int, full_hearts: int) -> bytes:
-    """FP-START-03: FP-START-01's table with each item's slot raised to its value and the hearts
-    byte from the start hearts (FL-ALT-02)."""
+def start_table(items: Iterable[Item], heart_containers: int, full_hearts: int, triforce_pieces: int = 0) -> bytes:
+    """FP-START-03: FP-START-01's table with each item's slot raised to its value, the hearts
+    byte from the start hearts (FL-ALT-02, FL-ALT-07) and the Triforce byte from the start pieces
+    (FL-ALT-06)."""
     table = bytearray(PRG0_START_ITEMS)
     for item in items:
         slot, value = START_ITEM_SLOTS[item]
         table[slot] = max(table[slot], value)
     table[HEART_VALUES_INDEX] = heart_values(heart_containers, full_hearts)
+    table[TRIFORCE_INDEX] = triforce_pieces
     return bytes(table)
 
 

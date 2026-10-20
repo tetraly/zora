@@ -21,8 +21,15 @@ from zora.generate.steps import move_last_boss_room_items
 from zora.model.enums import Destination, Item, RoomAction, RoomType
 from zora.model.overworld import ItemCave
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
-from zora.rom.code_patches import ONE_TIME_WARES, SEED_CODE_ADDRESS, SEED_CODE_LENGTH
+from zora.rom.code_patches import (
+    ONE_TIME_WARES,
+    SEED_CODE_ADDRESS,
+    SEED_CODE_LENGTH,
+    SEED_DIGITS_LENGTH,
+    STATS_SEED_DIGITS,
+)
 from zora.rom.game_config import DungeonNothingCode, GameConfig
+from zora.rom.owner_patches import archipelago_patch_writes
 from zora.rom.layout import (
     ARMOS_ITEM_ADDRESS,
     ASM_NOTHING_CODE_PATCH_OFFSET,
@@ -51,7 +58,7 @@ ONE_TIME_WARES_SIZE = 3
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -95,7 +102,11 @@ def item_byte_offsets() -> set[int]:
 
 ALLOWED_WITHOUT_RECOMPUTE = (item_byte_offsets() | set(range(SEED_CODE_ADDRESS, SEED_CODE_ADDRESS + SEED_CODE_LENGTH))
                              | set(range(ONE_TIME_WARES, ONE_TIME_WARES + ONE_TIME_WARES_SIZE))
-                             | {ASM_NOTHING_CODE_PATCH_OFFSET})
+                             | {offset + i for offset, data in archipelago_patch_writes() for i in range(len(data))}
+                             | {ASM_NOTHING_CODE_PATCH_OFFSET}
+                             # External mode stamps no seed number: the statistics screen's digits
+                             # stay the player's ROM's (test 2)
+                             | set(range(STATS_SEED_DIGITS, STATS_SEED_DIGITS + SEED_DIGITS_LENGTH)))
 
 
 # --- test 2: the identity assignment is lossless ----------------------------------------------
@@ -108,11 +119,18 @@ def test_the_identity_assignment_gives_the_zora_mode_rom(base: bytes, case: str,
     expected = bytearray(zora_mode)
     for shop_number, position in one_time_places(built.places):
         expected[ONE_TIME_WARES + position] |= 1 << shop_number
+    for offset, data in archipelago_patch_writes():             # the ring check (asm/flags2/ring-color)
+        expected[offset:offset + len(data)] = data
     external = bytearray(finish_unchecked(built, base, identity(built), recompute=False))
     # The seed code covers the configuration, External mode's one-time places included, so it
     # follows (tests/test_revision.py proves it is the model's)
     seed_code = slice(SEED_CODE_ADDRESS, SEED_CODE_ADDRESS + SEED_CODE_LENGTH)
     external[seed_code] = expected[seed_code]
+    # External mode stamps no seed number (its seed is not one the player chose): the statistics
+    # screen's digits stay the player's ROM's, which reads as none
+    seed_digits = slice(STATS_SEED_DIGITS, STATS_SEED_DIGITS + SEED_DIGITS_LENGTH)
+    assert external[seed_digits] == base[seed_digits]
+    expected[seed_digits] = external[seed_digits]
     assert external == expected
 
 
@@ -181,7 +199,7 @@ def test_assignments_breaking_a_rule_are_refused(base: bytes) -> None:
     assert _refused(built, base, {cellar.name: Item.TRIFORCE_OF_POWER})
     assert _refused(built, base, {room.name: Item.MAGICAL_SHIELD}) == [
         f"{room.name}: MAGICAL_SHIELD is not in this seed's major pool"]
-    assert _refused(built, base, {"Level 1 Room 7F Cellar": Item.BOW, "Nowhere": Item.BOW})
+    assert _refused(built, base, {"Level 1 Room 7F Stairway": Item.BOW, "Nowhere": Item.BOW})
     # the letter and heart containers anywhere else, and FOREIGN anywhere, are fine
     finish_unchecked(built, base, {ware.name: Item.LETTER, room.name: Item.HEART_CONTAINER, potion.name: FOREIGN})
     finish_unchecked(built, base, {ware.name: Item.HEART_CONTAINER, potion.name: Item.HEART_CONTAINER})

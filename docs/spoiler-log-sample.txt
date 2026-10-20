@@ -1,9 +1,9 @@
-ZORA 2.0 beta 5 spoiler log
+ZORA 2.0 beta 7 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Magical Key, Triforce, Wooden Arrow, Blue Ring
+Seed code: Letter, Compass, Ladder, Magical Sword
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -142,7 +142,6 @@ ZORA  Speed Up Dungeon Transitions ......................................... off
 ZORA  Speed Up Heart Fill .................................................. off
 ZORA  Recorder Kills Dungeon Pols Voice .................................... off
 ZORA  Four Potion Inventory ................................................ off
-ZORA  Auto Show Letter ..................................................... off
 ZORA  Like-Like Eats Rupees ................................................ off
 ZORA  Magical Boomerang Does 1 HP Damage ................................... off
 ZORA  Randomize Lost Hills ................................................. off
@@ -152,47 +151,55 @@ ZORA  Randomize Dead Woods ................................................. off
 Major items by place
 ================================================================================
 Level 1
-    room 47 (column 4, row 5): Heart Container, on the floor
-    room 57 (column 4, row 6): Book, drops when the room's foes are beaten
-    room 67 (column 4, row 7), down the stairs: Heart Container
-    room 68 (column 5, row 7): Triforce, drops when the room's foes are beaten
+    Level 1, room 47 (column 4, row 5), floor item: Heart Container
+    Level 1, room 57 (column 4, row 6), floor item: Book (drops when the room's
+      foes are beaten)
+    Level 1, room 67 (column 4, row 7), stairway item: Heart Container
+    Level 1, room 68 (column 5, row 7), floor item: Triforce (drops when the
+      room's foes are beaten)
 Level 2
-    room 45 (column 4, row 5): Triforce, on the floor
-    room 64 (column 3, row 7): Arrow Upgrade (Wooden Arrow), drops when the
-      room's foes are beaten
-    room 66 (column 5, row 7): Arrow Upgrade (Silver Arrow), on the floor
+    Level 2, room 45 (column 4, row 5), floor item: Triforce
+    Level 2, room 64 (column 3, row 7), floor item: Arrow Upgrade (Wooden Arrow)
+      (drops when the room's foes are beaten)
+    Level 2, room 66 (column 5, row 7), floor item: Arrow Upgrade (Silver Arrow)
 Level 3
-    room 4C (column 5, row 5): Raft, on the floor
-    room 5B (column 4, row 6): Triforce, drops when the room's foes are beaten
-    room 6C (column 5, row 7), down the stairs: Bow
+    Level 3, room 4C (column 5, row 5), floor item: Raft
+    Level 3, room 5B (column 4, row 6), floor item: Triforce (drops when the
+      room's foes are beaten)
+    Level 3, room 6C (column 5, row 7), stairway item: Bow
 Level 4
-    room 19 (column 5, row 2), down the stairs: Ladder
-    room 37 (column 3, row 4): Boomerang Upgrade (Magical Boomerang), drops when
-      the room's foes are beaten
-    room 5A (column 6, row 6): Triforce, drops when the room's foes are beaten
+    Level 4, room 19 (column 5, row 2), stairway item: Ladder
+    Level 4, room 37 (column 3, row 4), floor item: Boomerang Upgrade (Magical
+      Boomerang) (drops when the room's foes are beaten)
+    Level 4, room 5A (column 6, row 6), floor item: Triforce (drops when the
+      room's foes are beaten)
 Level 5
-    room 2F (column 6, row 3): Triforce, on the floor
-    room 3F (column 6, row 4): Heart Container, drops when the room's foes are
-      beaten
-    room 4E (column 5, row 5), down the stairs: Ring Upgrade (Blue Ring)
+    Level 5, room 2F (column 6, row 3), floor item: Triforce
+    Level 5, room 3F (column 6, row 4), floor item: Heart Container (drops when
+      the room's foes are beaten)
+    Level 5, room 4E (column 5, row 5), stairway item: Ring Upgrade (Blue Ring)
 Level 6
-    room 02 (column 4, row 1): Triforce, drops when the room's foes are beaten
-    room 43 (column 5, row 5), down the stairs: Ring Upgrade (Red Ring)
-    room 73 (column 5, row 8): Recorder, drops when the room's foes are beaten
+    Level 6, room 02 (column 4, row 1), floor item: Triforce (drops when the
+      room's foes are beaten)
+    Level 6, room 73 (column 5, row 8), floor item: Recorder (drops when the
+      room's foes are beaten)
 Level 7
-    room 09 (column 5, row 1): Sword Upgrade (White Sword), drops when the
-      room's foes are beaten
-    room 58 (column 4, row 6), down the stairs: Magical Key
-    room 6A (column 6, row 7): Triforce, on the floor
+    Level 7, room 09 (column 5, row 1), floor item: Sword Upgrade (White Sword)
+      (drops when the room's foes are beaten)
+    Level 7, room 58 (column 4, row 6), stairway item: Magical Key
+    Level 7, room 6A (column 6, row 7), floor item: Triforce
 Level 8
-    room 1F (column 7, row 2): Triforce, drops when the room's foes are beaten
-    room 2B (column 3, row 3), down the stairs: Heart Container
-    room 4E (column 6, row 5), down the stairs: Candle Upgrade (Blue Candle)
-    room 5B (column 3, row 6): Power Bracelet, on the floor
+    Level 8, room 1F (column 7, row 2), floor item: Triforce (drops when the
+      room's foes are beaten)
+    Level 8, room 2B (column 3, row 3), stairway item: Heart Container
+    Level 8, room 4E (column 6, row 5), stairway item: Candle Upgrade (Blue
+      Candle)
+    Level 8, room 5B (column 3, row 6), floor item: Power Bracelet
 Level 9
-    room 11 (column 2, row 2), down the stairs: Heart Container
-    room 51 (column 2, row 6): Triforce of Power, appears when Ganon is beaten
-    room 60 (column 1, row 7), down the stairs: Heart Container
+    Level 9, room 11 (column 2, row 2), stairway item: Heart Container
+    Level 9, room 51 (column 2, row 6), floor item: Triforce of Power (appears
+      when Ganon is beaten)
+    Level 9, room 60 (column 1, row 7), stairway item: Heart Container
 Overworld
     Armos statue: Boomerang Upgrade (Boomerang)
     Coast: Letter
@@ -202,6 +209,7 @@ Overworld
     Magical Sword Cave: Sword Upgrade (Magical Sword)
     Letter Cave: Heart Container
     Shop 2: Heart Container for 36 rupees
+    Shop 3: Ring Upgrade (Red Ring) for 230 rupees
     Shop 3: Candle Upgrade (Red Candle) for 61 rupees
     Shop 4: Wand for 205 rupees
 
@@ -217,96 +225,96 @@ Potion Shop: Blue Potion (38 rupees); Red Potion (70 rupees)
 Shop 1: Shield (82 rupees); Key (65 rupees); Bombs (40 rupees)
 Shop 2: Shield (137 rupees); Heart Container (36 rupees, sold once); Key (108
     rupees)
-Shop 3: Bait (53 rupees); Candle Upgrade (Red Candle) (61 rupees, sold once);
-    Shield (159 rupees)
-Shop 4: Bait (95 rupees); Wand (205 rupees, sold once); Heart (11 rupees)
+Shop 3: Ring Upgrade (Red Ring) (230 rupees, sold once); Candle Upgrade (Red
+    Candle) (61 rupees, sold once); Shield (159 rupees)
+Shop 4: Fairy (24 rupees); Wand (205 rupees, sold once); Heart (11 rupees)
 
 ================================================================================
 Texts: the game's texts in its order, with who says them
 ================================================================================
- 0.  FINDING THE WOOD SWORD FILLS YOU WITH DETERMINATION
+ 0.  SPEAK SOFTLY AND CARRY A BIG STICK
      said by Wood Sword Cave
- 1.  INSERT COMMUNITY HINT 5
+ 1.  13 HEARTS NEEDED
      said by Magical Sword Cave
- 2.  THIS IS A LOST WOODS-BOUND EXPRESS TRAIN
+ 2.  I CHALLENGE YOU TO A STAIRING CONTEST!
      said by Any Road
- 3.  PRAISE THE SUN
+ 3.  I HAVE THE HEART CONTAINER NEAR START FOR 6 HEARTS
      said by Lost Hills Hint
- 4.  BONUS CHANCE PRESS 'A' BUTTON
+ 4.  THE HOUSE ALWAYS WINS
      said by Money Making Game
- 5.  YOU HAVE BEEN RECRUITED BY THE STAR LEAGUE
+ 5.  NOW I HAVE TO GO BACK TO HOME DEPOT
      said by Door Repair
- 6.  SHOW THE ELDER SOMETHING
+ 6.  HEY EVERYONE I'VE GOT PAPER!
      said by Letter Cave
- 7.  MEET THE MERCHANT NEAR START
+ 7.  INSERT COMMUNITY HINT 26
      said by Dead Woods Hint
- 8.  YOUR PRESCRIPTION IS READY
+ 8.  WE ONLY SERVE BEPIS PRODUCTS SORRY
      said by Potion Shop
- 9.  YOU'RE GONNA NEED A BIGGER BOAT
+ 9.  THIS IS NOT LEGAL ADVICE
      said by Hint Shop 1; Hint Shop 2
 10.  INSERT COMMUNITY HINT 8
-11.  YOU TEACH ME A SPELL
-12.  HEED THIS, YOUNG ONE, A BOOMERANG UPGRADE BECKONS IN LEVEL-4.
+11.  ARE YOU IN THE CATBIRD SEAT?
+12.  INSERT COMMUNITY HINT 7
      said by Hint Shop 1, hint 1
-13.  INSERT COMMUNITY HINT 22
-14.  GET IN, LOSER, WE'RE GOING SHOPPING
+13.  INSERT COMMUNITY HINT 6
+14.  DOWNLOAD OUR APP TO EARN DISCOUNTS ON FUTURE PURCHASES!
      said by Shop 1; Shop 2
-15.  THE MIDDLE ITEM IS MY FAMILY HEIRLOOM
+15.  SHOP TIL YOU DROP!
      said by Shop 3; Shop 4
-16.  RED, RED, WINE
+16.  EVERYWHERE YOU LOOK EVERYWHERE YOU GO THERE'S A HEART
      said by Take Any
-17.  IF YOU PICK THIS UP YOU'LL LOSE IT AT THE NEXT DOOR REPAIR
+17.  HERE'S SOME MONEY GO SEE A STAR WAR
      said by Medium Secret; Large Secret; Small Secret
-18.  THE SOUP IS FOR MY FAMILY.
+18.  IF YOU WERE A BURRITO, WHAT KIND OF A BURRITO WOULD YOU BE?
      said by Level 5, room 3C
-19.  INSERT COMMUNITY HINT 4
+19.  SIX SEVEN
      said by White Sword Cave
-20.  AN ELDER ONCE SAID THAT LEVEL-6 LIES HIGH IN DEATH MOUNTAIN.
-21.  THE WIND WHISPERS THAT LEVEL-1 LIES BY THE SHORE.
-22.  !LFG
+20.  WHAT THE FORK IS A CHIDI?
+21.  INSERT COMMUNITY HINT 11
+22.  TRAVELERS SAY THAT LEVEL-7 LIES AROUND A LAKE.
      said by Level 4, room 09
-23.  I HAVE HEARD THAT LEVEL-5 LIES BY THE GRAVEYARD.
+23.  YOU ARE THE WEAKEST LINK
      said by Level 5, room 3E
-24.  INSERT COMMUNITY HINT 12
+24.  INSERT COMMUNITY HINT 30
      said by Level 5, room 5E
-25.  SOMEONE SET UP US THE BOMB UPGRADE
+25.  SELLS FOR 255 RUPEES ON EBAY
      said by Level 3, room 0A; Level 7, room 0A
-26.  INSERT COMMUNITY HINT 15
+26.  AN ELDER ONCE SAID THAT THE POWER BRACELET PERSISTS IN LEVEL-8.
      said by Level 8, room 6F
 27.  LEAVE YOUR LIFE OR KEYS
      said by Level 2, room 65
-28.  READ THE WIKI ALREADY!
+28.  HEED THIS, YOUNG ONE, LEVEL-3 LIES AROUND A LAKE.
      said by Level 6, room 71
-29.  LEGEND TELLS THAT LEVEL-3 LIES AROUND A LAKE.
+29.  THE STONES REMEMBER THAT LEVEL-2 LIES NEAR START.
      said by Level 6, room 53
-30.  INSERT COMMUNITY HINT 16
-31.  THE STONES REMEMBER THAT LEVEL-8 LIES AROUND A LAKE.
+30.  AN OLD TALE SAYS THAT AN ARROW UPGRADE AWAITS IN LEVEL-2.
+31.  LEGEND TELLS THAT LEVEL-5 LIES BY THE GRAVEYARD.
      said by Level 7, room 19
-32.  AN OLD TALE SAYS THAT LEVEL-7 LIES AROUND A LAKE.
+32.  I HAVE HEARD THAT A SWORD UPGRADE SLUMBERS IN LEVEL-7.
      said by Level 7, room 45
-33.  TRAVELERS SAY THAT THE POWER BRACELET PERSISTS IN LEVEL-8.
+33.  INSERT COMMUNITY HINT 2
      said by Level 8, room 2C
 34.  YOU NEED EIGHT TRIFORCE PIECES.
      said by Level 9, room 64
-35.  INSERT COMMUNITY HINT 29
+35.  ARROW UPGRADES LIE ELSEWHERE
      said by Level 9, room 22
-36.  GANON IS IN THE SOUTH-WEST
+36.  INSERT COMMUNITY HINT 19
      said by Level 9, room 42
-37.  IF YOU CAN READ THIS YOU DON'T NEED NEW GLASSES
+37.  INSERT COMMUNITY HINT 36
      said by Level 9, room 34
-38.  MEOW MEOW MEOW MEOW
+38.  INSERT COMMUNITY HINT 46
      said by Level 1, room 14
-39.  INSERT COMMUNITY HINT 36
+39.  HEJ
      said by Hint Shop 1, hint 2
 40.  THE LETTER NEEDS THE LADDER
      said by Hint Shop 1, hint 3
-41.  MARK MY WORDS, A RING UPGRADE RADIATES IN LEVEL-6.
+41.  MEOW MEOW MEOW MEOW
      said by Hint Shop 2, hint 1
-42.  IT IS SAID THAT THE LADDER LIES IN LEVEL-4.
+42.  DOES SPEC ROCK WEAR GLASSES?
      said by Hint Shop 2, hint 2
-43.  INSERT COMMUNITY HINT 47
+43.  THE WIND WHISPERS THAT A BOOMERANG UPGRADE BECKONS IN LEVEL-4.
      said by Hint Shop 2, hint 3
-44.  INSERT COMMUNITY HINT 38
+44.  INSERT COMMUNITY HINT 22
 
 ================================================================================
 Requirements

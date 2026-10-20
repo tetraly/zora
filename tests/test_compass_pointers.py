@@ -57,7 +57,7 @@ ENCODED_CASES = [*QUEST_CASES, *((MIXED_WITH_SHAPES, seed) for seed in (1, 2, 7)
 # The player's seed (beta 4); its flag string isn't known, so the regression case is Mixed + Shapes on
 # the test baseline, which draws the same sets: levels 1-6 first quest, levels 7-9 second quest
 PLAYER_SEED = 2535214729
-ENCODED_ONLY = pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+ENCODED_ONLY = pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 
 
 def encoded(flags: str) -> str:

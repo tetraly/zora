@@ -10,6 +10,7 @@ switched by its own setting:
   encode_level_data      Encode level data (B82; zora/rom/level_encoding.py)
   slot_identity          Archipelago's slot name (External mode only; zora/rom/slot_identity.py)
   stamp_seed_code        the seed's code (FP-HASH-01), from the world and its configuration
+  stamp_seed_number      the seed number the statistics screen shows (ZORA mode)
   player_settings        the player's settings (FP-SET-01), never part of the seed
 
 The order matters: the level encoding comes after every write to the level
@@ -21,7 +22,16 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from ..model.game_world import GameWorld
-from . import code_patches, owner_patches, slot_identity
+from . import (
+    archipelago_logo,
+    bait_count,
+    code_patches,
+    overworld_crossings,
+    owner_patches,
+    slot_identity,
+    sword_and_harm,
+    sword_states,
+)
 from .game_config import GameConfig
 from .player_settings import PlayerSettings, write_player_settings
 
@@ -52,19 +62,49 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     """B10's CODE patches (features-behavior.md; docs/rom-map.md); the level-information bytes
     and the start table they read are the model's, which the serializer writes. Book is an Atlas
     (B49) off leaves its patch out (FL-OFF-05); the progressive patches are written only with
-    their ZORA flags on (PI-CODE-01), fp-start-02 only with start items (FP-START-03)."""
+    their ZORA flags on (PI-CODE-01), fp-start-02 only with start items (FP-START-03); with
+    Shop Items in the Item Pool on, bait is a count (bait_count); Permanent Sword Beam (B52) and OHKO
+    (B53) write their fixed patches (sword_and_harm), Add Bridges to the River (B87) and Add Lost
+    Woods Shortcut (B88) their overworld bytes (overworld_crossings), and so do the wooden-sword states (C07,
+    sword_states)."""
     config = settings.config
     left_out = code_patches.left_out_patches(config.book_is_an_atlas, config.progressive_items,
                                              config.shop_items_in_pool, config.potion_shop_in_pool,
-                                             start_items=bool(world.start_items),
+                                             start_items=world.uses_start_table,
                                              start_rooms_moved=any(level.arrival_code in code_patches.SIDE_ARRIVAL_CODES
                                                                    for level in world.levels),
                                              book_to_understand_npcs=config.book_to_understand_npcs)
     for address, data in code_patches.code_patch_writes(world, left_out, config.progressive_items,
-                                                        config.one_time_places):
+                                                        config.one_time_places, config.bait_in_pool):
         rom[address:address + len(data)] = data
-    for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword):
+    for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword,
+                                                          config.archipelago_rom):
         rom[address:address + len(data)] = data
+    if config.foreign_logo:
+        for address, data in archipelago_logo.logo_writes():
+            rom[address:address + len(data)] = data
+    if config.bait_in_pool:
+        for address, data in bait_count.bait_count_writes():
+            rom[address:address + len(data)] = data
+    if config.permanent_sword_beam:
+        for address, data in sword_and_harm.permanent_sword_beam_writes():
+            rom[address:address + len(data)] = data
+    if config.one_hit_knock_out:
+        for address, data in sword_and_harm.one_hit_knock_out_writes():
+            rom[address:address + len(data)] = data
+    if config.river_bridges:
+        for address, data in overworld_crossings.river_bridge_writes():
+            rom[address:address + len(data)] = data
+    if config.lost_woods_shortcut:
+        for address, data in overworld_crossings.lost_woods_shortcut_writes():
+            rom[address:address + len(data)] = data
+    if config.bomb_upgrade_item:
+        # after fp-book-01, whose routine it extends (sword_states)
+        for address, data in sword_states.bomb_upgrade_writes(config.book_is_an_atlas):
+            rom[address:address + len(data)] = data
+    if config.wand_fights_ganon:
+        for address, data in sword_states.wand_ganon_writes():
+            rom[address:address + len(data)] = data
 
 
 def encode_level_data(rom: bytearray, _world: GameWorld, settings: FinalSettings) -> None:
@@ -85,6 +125,12 @@ def stamp_seed_code(rom: bytearray, world: GameWorld, settings: FinalSettings) -
     code_patches.stamp_seed_code(rom, world, settings.config)
 
 
+def stamp_seed_number(rom: bytearray, _world: GameWorld, settings: FinalSettings) -> None:
+    """The statistics screen's seed number (code_patches.stamp_seed_number), a new ZORA seed's."""
+    assert settings.config.seed_number is not None
+    code_patches.stamp_seed_number(rom, settings.config.seed_number)
+
+
 def player_settings(rom: bytearray, _world: GameWorld, settings: FinalSettings) -> None:
     """FP-SET-01: after the level encoding and the seed's code, which they never change."""
     assert settings.player_settings is not None
@@ -98,6 +144,8 @@ FINAL_STEPS: tuple[FinalStep, ...] = (
     FinalStep("slot_identity", "Archipelago slot name", write_slot_identity, lambda s: bool(s.config.slot_identity)),
     FinalStep("stamp_seed_code", "B10 feature switch", stamp_seed_code,
               lambda s: s.config.features_b10 and s.new_seed),
+    FinalStep("stamp_seed_number", "B10 feature switch", stamp_seed_number,
+              lambda s: s.config.features_b10 and s.new_seed and s.config.seed_number is not None),
     FinalStep("player_settings", "player settings", player_settings, lambda s: s.player_settings is not None),
 )
 

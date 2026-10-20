@@ -78,6 +78,8 @@ PATCHES = (
     "magic-boomerang-damage",   # 11 Magical Boomerang Does 1 HP Damage
     "lost-hills",               # 12 Randomize Lost Hills
     "dead-woods",               # 13 Randomize Dead Woods
+    "pegasus-boots",            # Pegasus Boots (ZORA string version 7; owner spec 2026-10-17)
+    "ring-color",               # Archipelago ROMs only: a ring given through RAM repaints Link
 )
 
 # Community members who wrote a feature (the document's credits; docs/credits.md).
@@ -101,11 +103,13 @@ class FreeSpace:
 
 # Bank 4's gap runs $B46F-$BF4F: z1rr-coop reserves $B46F-$B882, fp-prog-02's Armos slot is
 # $B900-$B9FF and the overworld red Wizzrobe routine (PS-EGRP-05) starts at $BF00. Bank 7's $FF43-$FF4F is its last
-# free gap; bank 1's $BFC0-$BFF9 lies between the ISR copy's code and its vectors.
+# free gap; bank 1's $BFC0-$BFF9 lies between the ISR copy's code and its vectors. Bank 5's $BC80-$BCBF
+# follows fp-entr-01-sides' slot ($BC40-$BC7F) in bank 5's gap $B8A0-$BF4F.
 FREE_SPACE = {
     "ZORA_F2_POLS_VOICE": FreeSpace(4, 0xBA00, 0xBA3F),
     "ZORA_F2_L4_TAKE_FIXED": FreeSpace(7, 0xFF43, 0xFF4F),
     "ZORA_F2_L4_TAKE": FreeSpace(1, 0xBFC0, 0xBFDF),
+    "ZORA_F2_RING_COLOR": FreeSpace(5, 0xBC80, 0xBCBF),
 }
 
 

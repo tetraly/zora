@@ -78,7 +78,7 @@ def replay(flags: str, seed: int, zora: str, base: bytes) -> Replay:
         problems.append("E1 fails on the finished ROM")
     if not check.is_zelda_reachable():
         problems.append("E3 fails on the finished ROM")
-    problems += owner_flag_problems(world, overworld_gates(chosen.zora_resolved),
+    problems += owner_flag_problems(world, overworld_gates(chosen.zora_resolved, chosen.settings),
                                     chosen.zora_resolved.l4_sword is L4Sword.LEVEL_9,
                                     chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2)
     return Replay(rom, problems)

@@ -45,7 +45,7 @@ from zora_measure.checkpoints.mixed_overworld import (
     visible_code_multiset,
 )
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEEDS = (1, 2, 3, 4)
 

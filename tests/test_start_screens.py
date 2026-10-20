@@ -28,7 +28,7 @@ from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checkpoints.start_screens import FULL_START_FLAGS, WOOD_SWORD_START_FLAGS, wood_sword_start
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEEDS = (1, 2, 3, 4)
 NEVER_START = frozenset({14, 35, 47, 69, 98})

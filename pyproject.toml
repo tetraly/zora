@@ -51,7 +51,8 @@ markers = ["slow: flag-combination suites, many-seed and exhaustive sweeps, and 
 files = ["zora", "zora_export", "zora_measure", "zora_web", "tests", "scripts/check_imports.py",
          "scripts/compare_corpus.py", "scripts/compare_revision.py", "scripts/metrics.py", "scripts/output_hash.py",
          "scripts/flag_names.py", "scripts/encoder_check.py", "scripts/full_tier.py", "scripts/job.py",
-         "scripts/jobs.py", "scripts/build_apworld.py", "scripts/check_apworld.py", "scripts/guide_page.py"]
+         "scripts/jobs.py", "scripts/build_apworld.py", "scripts/check_apworld.py", "scripts/guide_page.py",
+         "scripts/affected_tests.py"]
 python_version = "3.11"
 strict = true
 

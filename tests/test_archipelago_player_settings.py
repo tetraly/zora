@@ -45,7 +45,7 @@ from zora.rom.player_settings import (
 )
 from zora.rom.text_encoding import CHAR_TO_BYTE
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 REPO = Path(__file__).resolve().parent.parent
 CASES = {"baseline": FLAG_CASES["baseline"], "progressive items": FLAG_CASES["every ZORA flag on"],
@@ -57,7 +57,14 @@ FIELD = {**{key: field for key, (field, _values) in PAGE_CHOICES.items()},
          **dict.fromkeys(PAGE_TUNIC_SLOTS, "tunic_colors"), PAGE_HEART_SLOT: "heart_color",
          PAGE_LEVEL_WORD: "level_word", PAGE_BOSS_SOUND_WORD: "boss_sound_word"}
 CUSTOM_WORDS = {PAGE_LEVEL_WORD: ("X", "PALACE", "ZORA1", "A-B.C"), PAGE_BOSS_SOUND_WORD: ("?!?!", "ZZ9Z")}
-SPECS = {spec.key: spec for spec in archipelago.player_setting_fields()}
+# The ROM's own settings, and the Archipelago games' settings (multiworld_only), which change no ROM
+# byte ZORA's player settings write.
+ALL_SPECS = {spec.key: spec for spec in archipelago.player_setting_fields()}
+SPECS = {key: spec for key, spec in ALL_SPECS.items() if not spec.multiworld_only}
+MULTIWORLD_SPECS = {key: spec for key, spec in ALL_SPECS.items() if spec.multiworld_only}
+# Multiworld settings the page has no row for yet (its rows in web/zora-web.js come next, emptying
+# this set; owner decision 2026-10-18).
+PAGE_PENDING: frozenset[str] = frozenset()
 CLIENT_FRAMES = 240
 RECEIVED = ("Bow", "Raft", "Ladder", "Recorder")
 
@@ -65,8 +72,24 @@ RECEIVED = ("Bow", "Raft", "Ladder", "Recorder")
 # --- P3: the fields ------------------------------------------------------------------------------------
 
 def test_every_setting_once_with_its_default() -> None:
-    assert list(SPECS) == [*PAGE_CHOICES, *PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT, PAGE_LEVEL_WORD, PAGE_BOSS_SOUND_WORD]
+    assert list(ALL_SPECS) == [*PAGE_CHOICES, *PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT, PAGE_LEVEL_WORD, PAGE_BOSS_SOUND_WORD,
+                               *archipelago.MULTIWORLD_SETTINGS]
     assert player_settings_from_page({key: spec.default for key, spec in SPECS.items()}) == PlayerSettings()
+
+
+@pytest.mark.parametrize("key", list(MULTIWORLD_SPECS))
+def test_a_multiworld_setting_takes_its_values_and_nothing_else(key: str) -> None:
+    """Each listed value by its page value or its value key, by page key or YAML key; anything else
+    refused (check_player_settings, as the world checks a YAML)."""
+    spec = MULTIWORLD_SPECS[key]
+    assert spec.kind == archipelago.CHOICE and spec.default in dict(spec.choices)
+    for (value, _label), (_value, value_key) in zip(spec.choices, spec.value_keys, strict=True):
+        for given in ({key: value}, {spec.yaml_key: value_key}):
+            archipelago.check_player_settings(given)
+            assert archipelago.multiworld_setting(given, key) == value
+    for wrong in ("bogus", 1):
+        with pytest.raises(PlayerSettingError):
+            archipelago.check_player_settings({key: wrong})
 
 
 def values_of(spec: archipelago.PlayerSettingSpec) -> list[str | int]:
@@ -123,9 +146,12 @@ def page_source() -> str:
 
 def test_the_page_shows_the_same_settings() -> None:
     """The page's Cosmetic tab: each choice's key, label, default and [value, label] pairs, each
-    color slot's key, label and default, and the word rows' keys and names."""
+    color slot's key, label and default, and the word rows' keys and names; the Multiworld
+    settings' rows likewise, but those still PAGE_PENDING."""
     page = page_source()
-    for key, spec in SPECS.items():
+    for key, spec in ALL_SPECS.items():
+        if key in PAGE_PENDING:
+            continue
         if spec.kind == archipelago.CHOICE:
             pattern = rf'\{{ key: "{key}", label: "([^"]+)", default: "([^"]+)",\s*choices: \[(.*?)\]\s*,\s*help'
             entry = re.search(pattern, page, re.S)
@@ -185,6 +211,19 @@ def test_a_setting_writes_only_its_own_bytes(case: str, key: str) -> None:
         assert archipelago.rom_identity(rom) == archipelago.rom_identity(base)
 
 
+@pytest.mark.parametrize("case", list(CASES))
+def test_the_arrival_sound_changes_no_rom_byte(case: str) -> None:
+    """item_arrival_sound reaches the client only (its tables): finish() and the recipe take it,
+    and every choice gives the defaults' ROM."""
+    for value in every_value_but_the_default(archipelago.PAGE_ITEM_ARRIVAL_SOUND):
+        assert rom_with(case, {archipelago.PAGE_ITEM_ARRIVAL_SOUND: value}) == default_rom(case)
+
+
+def every_value_but_the_default(key: str) -> list[str]:
+    spec = MULTIWORLD_SPECS[key]
+    return [value for value, _label in spec.choices if value != spec.default]
+
+
 def all_changed() -> dict[str, object]:
     """Every setting at once away from its default (the last listed other value)."""
     return {key: values[-1] for key, values in every_change().items()}
@@ -198,7 +237,8 @@ def test_every_setting_changed_keeps_what_archipelago_reads(case: str) -> None:
     base, rom = default_rom(case), rom_with(case, all_changed())
     allowed = set().union(*(written_offsets(field) for field in set(FIELD.values())))
     assert changed(base, rom) <= allowed
-    assert archipelago.rom_identity(rom) == archipelago.rom_identity(base) == archipelago.RomIdentity((1, 1), AP_NAME)
+    identity = archipelago.RomIdentity(archipelago.FORMAT_VERSION_NUMBERS, AP_NAME)
+    assert archipelago.rom_identity(rom) == archipelago.rom_identity(base) == identity
     assert placements(case, rom) == placements(case, base)
     plain = json.loads(json.dumps(archipelago.recipe(result, assignment, received, {}, AP_NAME)))
     dressed = json.loads(json.dumps(archipelago.recipe(result, assignment, received, all_changed(), AP_NAME)))

@@ -8,7 +8,6 @@ tests/test_stats_screen.py covers each counter on its own with poked state; this
 through. The clock runs about 0.5% short (it misses the frames the game runs without its NMI;
 test_stats_screen.test_the_clocks_error_over_a_session measures it), so the clock is checked
 against the frames played within CLOCK_TOLERANCE, never as an exact frame count."""
-from dataclasses import replace
 from functools import cache
 
 import pytest
@@ -34,7 +33,9 @@ from tests.test_stats_screen import (
     BOMBS,
     CUR_PPU_MASK,
     DEATH_COUNTS,
+    DEATHS_ROW,
     HEART_VALUES,
+    HEARTS_ROW,
     IS_UPDATING_MODE,
     LAST_WIN_SUBMODE,
     LEVEL_RECORD_RAM,
@@ -51,15 +52,16 @@ from tests.test_stats_screen import (
     WIN_MODE,
     block,
     cleared,
-    count_text,
+    counter_cells,
     expected_rows,
     nametable_rows,
+    seed_digits_in,
     seed_rom,
     time_text,
     word,
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.generate.pipeline import generate_rom, generate_world, plan
+from zora.generate.pipeline import generate_world, plan
 from zora.rom.base_rom import original_bytes, piece_length
 from zora.rom.player_settings import PlayerSettings, apply_player_settings, statistics_screen
 from zora.rom.player_settings_data import SETTINGS
@@ -122,15 +124,17 @@ def finish_and_show(emu: Emulator) -> None:
     emu.press(Button.START, after=6)
 
 
-def assert_the_screen_shows_the_block(emu: Emulator) -> None:
+def assert_the_screen_shows_the_block(emu: Emulator, rom: bytes) -> None:
     """The screen is up, in the win mode, and its nametable is the rows built from the block, the
-    file's name, the status bar's level record, the slot's deaths and the heart containers."""
+    file's name, the status bar's level record, the slot's deaths, the heart containers and the
+    ROM's seed number."""
     assert emu.mode == WIN_MODE and emu[STATS_BLOCK + SCREEN_STATE] == 1 and emu[CUR_PPU_MASK] == VIDEO_ON
     slot = emu[CUR_SAVE_SLOT]
     name = bytes(emu[NAMES + slot * NAME_LENGTH + i] for i in range(NAME_LENGTH))
     record = bytes(emu[LEVEL_RECORD_RAM + i] for i in range(LEVEL_RECORD_SIZE))
     hearts = (emu[HEART_VALUES] >> 4) + 1
-    assert nametable_rows(emu) == expected_rows(block(emu), name, record, emu[DEATH_COUNTS + slot], hearts)
+    assert nametable_rows(emu) == expected_rows(block(emu), name, record, emu[DEATH_COUNTS + slot], hearts,
+                                                seed_digits_in(rom))
 
 
 def screen_text(emu: Emulator) -> list[str]:
@@ -140,7 +144,8 @@ def screen_text(emu: Emulator) -> list[str]:
 def test_a_played_session_shows_on_the_screen() -> None:
     """Registration clears the block; the session's clock, overworld time, stabs and bombs are
     counted; the screen comes up only on Start after the credits and shows them; Start leaves."""
-    emu = Emulator(seed_rom())
+    rom = seed_rom()
+    emu = Emulator(rom)
     register_over_a_dirty_block(emu)
     assert block(emu) == cleared(emu[INV_BOMBS])
     emu.start_game()
@@ -151,11 +156,12 @@ def test_a_played_session_shows_on_the_screen() -> None:
     assert word(emu, AREAS) == word(emu, TOTAL) > 0             # all of it on the overworld
     assert (word(emu, STABS), word(emu, BOMBS)) == (STABS_SWUNG, BOMBS_PLACED)
     finish_and_show(emu)
-    assert_the_screen_shows_the_block(emu)
+    assert_the_screen_shows_the_block(emu, rom)
     text = screen_text(emu)
-    assert f"STABS  {count_text(STABS_SWUNG)}" in "".join(text)
-    assert f"BOMBS  {count_text(BOMBS_PLACED)}" in "".join(text)
-    assert any(row.strip().startswith(f"OVERWORLD {time_text(word(emu, AREAS))}") for row in text)
+    rows = nametable_rows(emu)
+    assert counter_cells(emu[DEATH_COUNTS + emu[CUR_SAVE_SLOT]], STABS_SWUNG) in rows[DEATHS_ROW]
+    assert counter_cells((emu[HEART_VALUES] >> 4) + 1, BOMBS_PLACED) in rows[HEARTS_ROW]
+    assert any(row.strip().startswith(f"OVERWORLD  {time_text(word(emu, AREAS))}") for row in text)
     emu.run(30)
     assert emu.mode == WIN_MODE                                 # it waits for Start
     emu.press(Button.START, after=1)
@@ -171,16 +177,17 @@ def unfinished_rom() -> bytes:
 
 
 def test_off_is_the_rom_without_the_feature() -> None:
-    """Off: the hooks hold PRG0's instructions, every byte the setting writes is the serialized
-    ROM's own, the finished ROM equals the build with the other player settings only, and On
-    differs from it only at the setting's bytes."""
-    off = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, vanilla(), PlayerSettings(statistics_screen=False)).rom
+    """Off (the co-op hook; every other ROM has the screen): the hooks hold PRG0's instructions,
+    every byte the patch writes is the serialized ROM's own, the finished ROM equals the build
+    with the other player settings only, and a ROM with the screen differs from it only at the
+    patch's bytes."""
+    off = apply_player_settings(seed_rom(), PlayerSettings(), coop=True)
     for offset, size in HOOKS.items():
         assert off[offset:offset + size] == original_bytes(offset, size), hex(offset)
     untouched = bytearray(unfinished_rom())
     statistics_screen(untouched, False)
     assert bytes(untouched) == unfinished_rom()
-    assert off == apply_player_settings(unfinished_rom(), replace(PlayerSettings(), statistics_screen=False))
+    assert off == apply_player_settings(unfinished_rom(), PlayerSettings(), coop=True)
     written = {offset + i for offset, piece in SETTINGS["statistics_screen"]["on"]
                for i in range(piece_length(piece))}
     on = seed_rom()
@@ -189,10 +196,9 @@ def test_off_is_the_rom_without_the_feature() -> None:
 
 
 def test_off_keeps_no_block_and_the_ending_goes_on() -> None:
-    """Off, through the same session: the block is never written and Start after the credits goes
-    straight to the save mode."""
-    emu = Emulator(generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, vanilla(),
-                                PlayerSettings(statistics_screen=False)).rom)
+    """Off (the co-op hook), through the same session: the block is never written and Start after
+    the credits goes straight to the save mode."""
+    emu = Emulator(apply_player_settings(seed_rom(), PlayerSettings(), coop=True))
     emu.new_game()                                              # the first power-on clears save RAM
     for offset in range(STATS_SIZE):
         emu[STATS_BLOCK + offset] = DIRTY
@@ -204,7 +210,7 @@ def test_off_keeps_no_block_and_the_ending_goes_on() -> None:
     emu[GAME_SUBMODE] = LAST_WIN_SUBMODE
     emu.run_until(lambda: emu[OBJ_TIMER] == 0, limit=2000)
     emu.run(5)
-    emu.press(Button.START, after=6)
+    emu.press(Button.START, after=1)                            # the save mode takes a few frames
     assert emu.mode == SAVE_MODE
     assert block(emu) == bytes([DIRTY]) * STATS_SIZE
 
@@ -213,7 +219,8 @@ def test_with_start_items_both_features_work() -> None:
     """fp-start-02's table (the white sword, 4 bombs, 5 hearts): registration copies it and still
     clears the stats block; the session needs no poke (the table's sword and bombs), is counted,
     and the screen shows it with the table's five heart containers."""
-    emu = Emulator(with_table(SEED_TABLE))
+    rom = with_table(SEED_TABLE)
+    emu = Emulator(rom)
     register_over_a_dirty_block(emu)
     assert block(emu) == cleared(emu[INV_BOMBS])
     emu.start_game()
@@ -223,5 +230,5 @@ def test_with_start_items_both_features_work() -> None:
     assert_the_clock_kept_time(played, counted)
     assert (word(emu, STABS), word(emu, BOMBS)) == (STABS_SWUNG, BOMBS_PLACED)
     finish_and_show(emu)
-    assert_the_screen_shows_the_block(emu)
-    assert f"HEARTS {count_text(5)}" in "".join(screen_text(emu))
+    assert_the_screen_shows_the_block(emu, rom)
+    assert counter_cells(5, BOMBS_PLACED) in nametable_rows(emu)[HEARTS_ROW]

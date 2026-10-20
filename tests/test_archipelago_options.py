@@ -5,8 +5,8 @@
   - only values ZORA generates are offered (the support matrix's, "?" only where it allows one):
     each value of each field alone generates, or is refused at flag_strings with a named
     dependency conflict, never refused later as not produced;
-  - each dependency rule is named when it refuses, and B23 with B22 off is corrected, as the page
-    does, with the page's note."""
+  - each dependency rule is named when it refuses, and B23 is kept as given while B22 is off
+    (FL-DEP-06)."""
 import pytest
 
 from zora import archipelago
@@ -14,7 +14,9 @@ from zora.archipelago import OptionsConflict, OptionSpec, flag_strings, option_c
 from zora.flags import form as flag_form
 from zora.flags import zora_flags, zora_form
 from zora.flags.codec import canonicalize, decode
-from zora.flags.fields import ENCODE_LEVEL_DATA, OptionField, ThreeState, ToggleField
+from zora.flags.support import LEVEL_9_PINS
+from zora.flags.fields import (ENCODE_LEVEL_DATA, HitPointChange, OptionField, PinnedItem, ThreeState, ToggleField,
+                               WoodenSwordState)
 from zora.generate.pipeline import build, plan
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
@@ -36,7 +38,7 @@ EXPECTED_CONFLICTS = {
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -72,9 +74,37 @@ def test_only_supported_values_are_offered() -> None:
             held = archipelago.HELD_BACK.get(spec.id, frozenset())
             assert spec.values == tuple(int(v) for v in flag_form.supported_values(flag_form.FIELDS_BY_ID[spec.id])
                                         if v not in held)
-    assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} - archipelago.NOT_OFFERED
-                                           | set(zora_form.FIELD_NAMES))
-    assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06"}
+    assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} | set(zora_form.FIELD_NAMES)
+                                           ) - archipelago.NOT_OFFERED
+    assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword"}
+
+
+def test_shuffle_wood_sword_is_never_offered_and_always_off() -> None:
+    """Owner ruling (2026-10-17): it pools the wooden sword, and the logic assumes the wooden sword,
+    so bombs, from the start (owner decision 1), so it is never offered rather than held back."""
+    assert "shuffle_wood_sword" not in archipelago.HELD_BACK
+    assert "sword" in archipelago.ZORA_FORCED_OFF["shuffle_wood_sword"]
+    assert zora_flags.decode(flag_strings({})[1]).shuffle_wood_sword is ThreeState.OFF
+    for value in ("on", ThreeState.ON, ThreeState.OFF):
+        with pytest.raises(OptionsConflict, match="shuffle_wood_sword is never offered: Always off in Archipelago"):
+            flag_strings({"shuffle_wood_sword": value})
+
+
+def test_a_yaml_naming_shuffle_wood_sword_gets_zoras_reason() -> None:
+    """The world keeps Shuffle Wood Sword as a hidden option (archipelago/options.py), so a YAML that
+    names it is not met with Archipelago's "not a valid option name" warning and a silent Off: off
+    passes, any other value is refused with the reason."""
+    [spec] = archipelago.never_offered_fields()
+    assert (spec.key, spec.kind, spec.default) == ("shuffle_wood_sword", "three_state", ThreeState.OFF)
+    assert spec.description == archipelago.ZORA_FORCED_OFF["shuffle_wood_sword"]
+    assert [key for _value, key in spec.value_keys] == ["off", "on", "random_per_seed"]
+    for off in ("off", "OFF", False, 0, int(ThreeState.OFF)):
+        assert archipelago.never_offered_refusal("shuffle_wood_sword", off) is None
+    for other in ("on", "random_per_seed", "random", True, 1, 2):
+        refusal = archipelago.never_offered_refusal("shuffle_wood_sword", other)
+        assert refusal is not None
+        assert refusal.startswith(f"Shuffle Wood Sword (shuffle_wood_sword): {other!r} is not offered. Always off")
+        assert refusal.endswith("Remove shuffle_wood_sword from the YAML (or set it to off).")
 
 
 def test_item_shuffle_is_never_offered_and_always_full() -> None:
@@ -92,15 +122,52 @@ def test_values_wait_for_the_logic_scan() -> None:
     and on 2026-10-12 Remove Most Open Stairs (B30) and Book to Understand NPCs (B48), on and
     Random, and Dungeon Quest Mixed + Shapes (C02 = 4) have, and on 2026-10-13 (beta 5) Shuffle
     Bomb Upgraders Off (B29 = 0), Oops All Enemies' Wizzrobes, Keese and Bouncers and Oops All
-    Bosses' Dodongos. None waits; a held value would be refused by name."""
-    start_items = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78")
-    assert archipelago.HELD_BACK == {}
+    Bosses' Dodongos, and on 2026-10-15 (beta 6) Shuffle Wood Sword Cave Off (B02 = 0) and Cave
+    Shuffle's Non-dungeons Only (C05 = 2), then its Vanilla, Dungeons Only and Random (C05 = 0, 1, 4)
+    once the Dead Woods Hint event stayed reachable with Randomize Dead Woods (3f35c57), and on
+    2026-10-16 Dungeon Quest's Mixed Quest, Random No Shapes and Random (C02 = 2, 5, 6) and Allow
+    Universal Drops In Shapes (B91) on and Random, and on 2026-10-17 Shop Items in the Item Pool's on
+    with ZORA 1.0's bait, and on 2026-10-18 (one scan of everything still held, then the released values
+    together) the other start items but the wooden sword's, Set Ganon HP to 0, OHKO and Do Not Sort
+    Shapes (B41, B53, B86), Pegasus Boots and Highlight No-Drop Rooms, on and Random, and "Most" Enemy
+    HP and Boss HP, the sword-heart ranges, the Triforce pieces, Starting Hearts, the pins and Swords:
+    Wood Sword Only at the values that passed, and once acceptance E10 and the sword-heart and level 9
+    pin refusals landed Start Wood Sword and Permanent Sword Beam (B68, B52) on and Random, Starting
+    Hearts 7, 9 and 15, Armos Item: Recorder, Magical Sword Hearts (min) 13 and 14 and Level 9 Items
+    Book and White Sword, once redesigned Allow Triforces in Stairways on and Random, and once
+    acceptance E11 landed Expanded Dungeon Locations on and Random, and on 2026-10-19 once the logic
+    reached the river's west side by them Add Bridges to the River and Add Lost Woods Shortcut (B87,
+    B88), on and Random. Still held (archipelago.HELD_BACK's comment): Swords' No Wood Sword, Swordless
+    and Random, which take away the sword Archipelago's player starts with. A held value is refused by name. Item Shuffle's values and Shuffle Wood Sword
+    are never held: neither is offered at all (NOT_OFFERED)."""
+    start_items = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78", "B58", "B62", "B65", "B66",
+                   "B67", "B69", "B70", "B71", "B72", "B74", "B75", "B76", "B85")
+    released_toggles = ("B41", "B53", "B86", "pegasus_boots", "highlight_no_drop_rooms", "B52", "B68",
+                        "allow_triforces_in_stairways", "expanded_dungeon_locations", "B87", "B88")
+    assert archipelago.HELD_BACK == {"C07": {WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS,
+                                             WoodenSwordState.RANDOM}}
+    assert all(offered_values(field_id) == tuple(int(state) for state in ThreeState) for field_id in released_toggles)
+    assert offered_values("C09") == offered_values("C10") == tuple(int(change) for change in HitPointChange)
+    assert (offered_values("C20"), offered_values("C21"), offered_values("C22"), offered_values("C23")) == (
+        (0, 1, 2), (0, 1, 2), (0, 1, 2, 3, 4), (0, 1, 2, 3, 4))
+    assert offered_values("C18") == tuple(range(10))
+    assert offered_values("C24") == offered_values("C25") == tuple(range(9))
+    assert offered_values("C16") == tuple(range(17))
+    assert offered_values("C11") == tuple(PinnedItem)
+    assert offered_values("C13") == tuple(PinnedItem)
+    assert offered_values("C26") == offered_values("C27") == tuple(sorted({0, *LEVEL_9_PINS}))
+    assert offered_values("C07") == (WoodenSwordState.NORMAL, WoodenSwordState.WOODEN_SWORD_ONLY)
+    assert offered_values("B91") == tuple(int(state) for state in ThreeState)
+    assert offered_values("B02") == (ThreeState.OFF, ThreeState.ON)
+    assert offered_values("C05") == (0, 1, 2, 3, 4)
     offered = {spec.id: spec.values for spec in SPECS}
     assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0, 1, 2, 3), (0, 1))
     assert offered["B29"] == (ThreeState.OFF, ThreeState.ON)
+    # Shop Items in the Item Pool's on, with the bait, passed its scan (2026-10-17)
+    assert offered["shop_items_in_pool"] == (ThreeState.OFF, ThreeState.ON)
     assert offered["C01"] == (0, 1, 2, 3, 4)
     assert offered["C04"] == (0, 1, 2, 3)
-    assert offered["C02"] == (0, 1, 3, 4)
+    assert offered["C02"] == (0, 1, 2, 3, 4, 5, 6)
     assert 1 in offered["C03"]
     assert all(offered[field_id] == tuple(int(state) for state in ThreeState)
                for field_id in ("B81", "B03", "B25", "B26", "B30", "B48", *start_items))
@@ -108,6 +175,10 @@ def test_values_wait_for_the_logic_scan() -> None:
         for value in values:
             with pytest.raises(OptionsConflict, match=option):
                 flag_strings({option: value})
+
+
+def offered_values(field_id: str) -> tuple[int, ...]:
+    return next(spec.values for spec in SPECS if spec.id == field_id)
 
 
 @pytest.mark.parametrize(("option", "value"), SINGLE_VALUES)
@@ -119,8 +190,7 @@ def test_each_value_alone_round_trips_or_is_a_named_conflict(option: str, value:
         assert EXPECTED_CONFLICTS.get((option, value), "\x00") in str(conflict), conflict
         return
     assert (option, value) not in EXPECTED_CONFLICTS
-    corrected = option == "B22" and value == ThreeState.OFF       # B23 off with it, the page's correction
-    assert value_in(strings, spec) == value or corrected
+    assert value_in(strings, spec) == value
     plan(strings[0], 1, strings[1])                                # no "not produced" refusal
 
 
@@ -140,11 +210,11 @@ def test_each_conflict_resolves_with_its_counterpart() -> None:
     flag_strings({"extra_power_bracelet_blocks": on, "B04": off})
 
 
-def test_merchant_toll_is_corrected_as_on_the_page() -> None:
+def test_merchant_toll_is_kept_as_given() -> None:
+    """FL-DEP-06: B22 off leaves B23 on (the one value offered for it), with no note."""
     flags, _zora = flag_strings({"B22": int(ThreeState.OFF)})
-    assert decode(flags).toggle("B23") is ThreeState.OFF
-    assert option_corrections({"B22": int(ThreeState.OFF)}) == [flag_form.TOLL_TURNED_OFF_NOTE]
-    assert option_corrections({}) == []
+    assert decode(flags).toggle("B23") is ThreeState.ON
+    assert option_corrections({"B22": int(ThreeState.OFF)}) == option_corrections({}) == []
 
 
 def test_values_must_be_offered() -> None:

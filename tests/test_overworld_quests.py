@@ -42,7 +42,7 @@ from zora_measure.checkpoints.overworld_quests import (
     second_quest_visible_caves,
 )
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEEDS = (1, 2, 3)
 

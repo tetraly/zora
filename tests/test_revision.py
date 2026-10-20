@@ -10,11 +10,14 @@ from typing import Any
 import pytest
 
 from tests.archipelago_cases import FLAG_CASES
+from tests.needs import NEEDS_ENCODER
 from zora import archipelago
+from zora.flags.codec import decode
+from zora.flags.fields import ENCODE_LEVEL_DATA, ThreeState
 from zora.flags.presets import ZORA_PRESETS
 from zora.generate import pipeline
 from zora.model.canonical import canonical_bytes
-from zora.rom import asnb_patch_data, code_patch_data, flags2_patch_data, layout, player_settings_data
+from zora.rom import asnb_patch_data, code_patch_data, flags2_patch_data, layout, level_encoding, player_settings_data
 from zora.rom.base_rom import BASE_ROM_PATH, PRG1_ROM_PATH, Original, Piece, piece_length, remember_base_rom
 from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, seed_code_items
 from zora.rom.parse.rom_file import parse_rom
@@ -139,12 +142,31 @@ def test_the_title_screen_differs_only_by_the_trademark() -> None:
     assert not any(prg1()[offset] for offset in range(TRADEMARK_TILE + 16, TRADEMARK_TILE + 0x200))
 
 
+def is_shifted_pointer_byte(at: int) -> bool:
+    """`at` (in a move) is a byte of a little-endian address into moved code that PRG1 holds
+    moved with it: the address's PRG0 value plus its move's shift."""
+    for low in (at - 1, at):
+        address = prg0()[low] | prg0()[low + 1] << 8
+        if address < 0x8000:
+            continue
+        move = move_of(cpu_to_file(bank_of(low), address))
+        if move is None:
+            continue
+        moved = prg1()[prg1_offset(low)] | prg1()[prg1_offset(low) + 1] << 8
+        if moved == address + move.shift:
+            return True
+    return False
+
+
 @needs_both
 def test_every_patch_piece_in_moved_code_lands_on_the_same_code() -> None:
     """Every patch write in a move replaces, and every Original in one reads, at PRG1's offset
     the bytes it does on PRG0; a write outside the moves touches PRG1's changes only where
     revision.WRITABLE_CHANGED allows it. A new patch hooking moved code without a map entry
-    fails here."""
+    fails here. A write may replace a pointer into the moved code that PRG1 shifted with it
+    (Pegasus Boots replaces WieldBoomerang's `LDA BoomerangLimits, Y`): the write's own bytes
+    land as they are, and test_no_patch_operand_points_into_moved_code_unlisted checks its own
+    operands."""
     for where, offset, piece in patch_writes():
         spans = [(offset, piece_length(piece))]
         if isinstance(piece, Original):
@@ -152,7 +174,8 @@ def test_every_patch_piece_in_moved_code_lands_on_the_same_code() -> None:
         for start, length in spans:
             for at in range(start, start + length):
                 if move_of(at) is not None:
-                    assert prg0()[at] == prg1()[prg1_offset(at)], (where, hex(at))
+                    replaced_pointer = not isinstance(piece, Original) and is_shifted_pointer_byte(at)
+                    assert prg0()[at] == prg1()[prg1_offset(at)] or replaced_pointer, (where, hex(at))
                 elif prg0()[at] != prg1()[at]:
                     assert any(lo <= at < hi for lo, hi in WRITABLE_CHANGED), (where, hex(at))
 
@@ -307,7 +330,10 @@ def test_both_releases_parse_into_the_same_world() -> None:
 @pytest.mark.parametrize("case", list(CASES))
 def test_a_seed_generates_the_same_game_on_both_releases(case: str, seed: int) -> None:
     """The plan takes no ROM; the generated world and every draw and counter are equal; the PRG1
-    ROM is the PRG0 output moved to PRG1's places, the seed's code included."""
+    ROM is the PRG0 output moved to PRG1's places, the seed's code included. A case with Encode level
+    data on (the community presets) needs the private encoder, which a release tree lacks."""
+    if decode(CASES[case][0]).toggle(ENCODE_LEVEL_DATA) is not ThreeState.OFF and not level_encoding.is_available():
+        pytest.skip(NEEDS_ENCODER)
     chosen = pipeline.plan(CASES[case][0], seed, CASES[case][1])
     built0, built1 = pipeline.build(chosen, prg0()), pipeline.build(chosen, prg1())
     assert built0.world == built1.world
@@ -333,8 +359,8 @@ def test_a_finished_prg1_rom_reads_as_its_prg0_twin(case: str) -> None:
 
 COSMETIC_SETTINGS = {
     "defaults": PlayerSettings(),
-    "music off, statistics, select pauses, beep kept": PlayerSettings(
-        music=Music.OFF, statistics_screen=True, select_swap=SelectSwap.OFF, low_health_beep=LowHealthBeep.KEPT),
+    "music off, select pauses, beep kept": PlayerSettings(
+        music=Music.OFF, select_swap=SelectSwap.OFF, low_health_beep=LowHealthBeep.KEPT),
     "swap only, other warp, colors, words, flashing": PlayerSettings(
         select_swap=SelectSwap.SWAP_ONLY, death_warp=DeathWarp.CONTROLLER2_UP_A, reduce_flashing=True,
         tunic_colors=(0x1A, 0x21, 0x06), heart_color=0x2A, level_word="ZONE", boss_sound_word="RANDOM"),

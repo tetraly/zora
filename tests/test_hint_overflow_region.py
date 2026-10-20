@@ -121,7 +121,7 @@ def _finished_pointers(seed: int) -> tuple[int, ...]:
     return world.hint_pointers
 
 
-@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_every_hint_pointer_points_at_a_hint_text(seed: int) -> None:
     """No PRG0 text in the region is still read: every pointer but the toll's and the

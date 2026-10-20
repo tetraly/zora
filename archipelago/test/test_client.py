@@ -20,16 +20,18 @@ from ..zora.rom import inventory
 
 RAM_SIZE = 0x800
 SLOT = 1
-PLACE_A, PLACE_B = "Level 4 Room 05", "Level 1 Room 1C"
+PLACE_A, PLACE_B = "Level 4 Room 05 Floor", "Level 1 Room 1C Floor"
 FLAG_A, FLAG_B = inventory.WORLD_FLAGS + 0x81, inventory.WORLD_FLAGS + 0x82
 TABLES = {"format": zora_ap.CLIENT_TABLES_FORMAT, "version": zora_ap.CLIENT_TABLES_VERSION,
           "checks": [[PLACE_A, FLAG_A, inventory.ITEM_TAKEN], [PLACE_B, FLAG_B, inventory.ITEM_TAKEN]],
-          "rules": {"progressiveItems": False, "l4Sword": False, "fourPotions": False}}
+          "rules": {"progressiveItems": False, "l4Sword": False, "fourPotions": False,
+                    "arrivalSound": inventory.ITEM_APPEARS_SOUND}}
 IN_PLAY = {inventory.GAME_MODE: inventory.PLAY_MODE, inventory.IS_UPDATING_MODE: 1, inventory.CUR_SAVE_SLOT: 0,
            inventory.TRANSFERRED_COMMON_PATTERNS: inventory.SET_UP, inventory.SKIPPED_DEMO: inventory.SET_UP}
 HEARTS = inventory.ITEMS + inventory.HEART_VALUES_SLOT
 STARTING_HEARTS = 0x22                  # three containers, three hearts
 BOMBS = inventory.ITEMS + 0x01
+SWORD = inventory.ITEMS + inventory.SWORD_SLOT
 RAFT = inventory.ITEMS + 0x09
 ITEM_ID_TO_NAME = {item_id: name for name, item_id in ITEM_NAME_TO_ID.items()}
 
@@ -155,3 +157,23 @@ class TestClient(unittest.TestCase):
             self.tick(2)
         self.tick(3)
         self.assertEqual(self.console.ram[RAFT], 1)
+
+    def test_an_upgrade_is_given_as_its_line_s_next_level(self) -> None:
+        self.ctx.slot_data = {"client_tables": {**TABLES, "rules": {**TABLES["rules"], "progressiveItems": True}}}
+        self.console.ram[SWORD] = 1                         # the wooden sword
+        self.ctx.items_received.append(NetworkItem(ITEM_NAME_TO_ID["Sword Upgrade"], -2, SLOT))
+        with self.assertLogs("Client", "INFO") as logs:
+            self.tick(4)
+        self.assertEqual(self.console.ram[SWORD], 2)        # the white sword
+        self.assertIn("gave received item #1, Sword Upgrade", "\n".join(logs.output))
+
+    def test_the_client_reads_the_recipe_format_zora_makes(self) -> None:
+        self.assertEqual(client_module.RECIPE_FORMAT, tuple(zora_ap.FORMAT_VERSION_NUMBERS))
+
+    def test_a_give_plays_the_arrival_sound(self) -> None:
+        """Through the same guarded write: the client tables' sound (item appears) at Tune1Request."""
+        self.ctx.items_received.append(NetworkItem(ITEM_NAME_TO_ID["Raft"], -2, SLOT))
+        self.tick(4)
+        self.assertEqual(self.console.ram[RAFT], 1)
+        self.assertEqual(self.console.ram[inventory.TUNE1_REQUEST], inventory.ITEM_APPEARS_SOUND)
+        self.assertEqual(self.console.writes, 1)

@@ -217,6 +217,7 @@ def _parse_person_code(bins: RawBinFiles, rom_bytes: bytes | None = None) -> dic
         "person_inits": person_code.person_inits(bins.person_init_jump_table),
         "starting_hearts": bins.start_hearts[0],
         "continue_hearts_operand": bins.continue_hearts_operand[0] if bins.continue_hearts_operand else 2,
+        "heart_meter_blank_branch": bins.heart_meter_blank_branch[0] if bins.heart_meter_blank_branch else 0x04,
         "item_carrier_operands": (bins.item_carrier_operands[0], bins.item_carrier_operands[1],
                                   bins.item_carrier_operands[2]),
         "object_type_operand_873d": bins.object_type_operand_873d[0],

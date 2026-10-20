@@ -1,0 +1,179 @@
+# ZORA Pegasus Boots (owner spec "Pegasus Boots for ZORA - Implementation Spec", 2026-10-17; the
+# owner's play-tested proof of concept, tetraly/zelda1-disassembly claude/amazing-newton-n5ozcb,
+# poc/pegasus-boots/). The wooden and magical boomerangs become L1 and L2 Pegasus Boots, in the
+# same inventory bytes (InvBoomerang $674, item $1D; InvMagicBoomerang $675, item $1E). With the
+# boots on B (SelectedItemSlot 0) and owned, holding B and a direction makes Link run: L1 after a
+# 32-frame charge at QSpeed $79 (about 1.34x), L2 at once at $A5 (about 1.73x). Releasing B walks
+# at PRG0's $60 again; stairs keep their $30. Space-neutral: every byte is rewritten in place.
+#
+# The L1 wind-up never sets speed 0 (the 2026-10-19 freeze at dungeon doors, whose walk-through
+# moves Link at room entry's speed until he reaches the grid): Link stands still at $60 with his
+# input cleared, and one whoosh plays at takeoff.
+# RAM: the L1 wind-up counter is ObjMovingLimit+15 ($038F), the player boomerang's slot, which only
+# the boomerang code wrote. The speed hook is z1rr-coop's reserved in-place hook at $B366-$B369
+# (co-op is not offered; tests/test_coop_reserved.py names this patch's exception). Goriya
+# boomerangs keep their vanilla graphics, spin, spark and palette. asm/README.md and
+# asm/flags2/build.py describe this file.
+
+[[hook]]
+name = "boots-press-b"
+offset = 0x14E48
+length = 17
+note = "WieldBoomerang's body (bank 5 $8E38-$8E70), up to PRG0's first anonymous label: BootsPressB, which WieldItem's slot-0 entry runs on each new B press and which starts the L1 wind-up, and BootsSpeed's first tests (the boots on B, B held). Three hooks, because two anonymous labels lie between PRG0's instructions there; the shared RTS at $8E71 (L14E71_Exit) stays."
+code = """
+L1_BOOTS_SPEED = $79            ; QSpeed: 1.78 px/frame, about 1.34x PRG0's walk
+L2_BOOTS_SPEED = $A5            ; QSpeed: 2.31 px/frame, about 1.73x
+PLAYER_WALK_SPEED = $60         ; InitLinkSpeed's own default
+L1_WIND_UP_FRAMES = $20
+BOOMERANG_EFFECT = $02
+STY_ZERO_PAGE = $84             ; BootsSpeed's last STY $00 is split over two hooks
+BootsCharge = ObjMovingLimit+15 ; the player boomerang's slot $0F, unused without a boomerang
+
+BootsPressB:
+    LDA #L1_WIND_UP_FRAMES      ; each new B press starts a 32-frame wind-up
+    STA BootsCharge
+    RTS
+
+; [00] := Link's QSpeed: PRG0's, or the boots' while they are owned, selected on B and B is held.
+; InitLinkSpeed's stairs check runs afterwards and still slows Link to $30.
+; The speed is never 0: room entry calls InitLinkSpeed once, and the walk through a door or
+; doorway moves Link at that speed until he reaches the grid, so a speed of 0 froze the game
+; there. The wind-up stops Link by clearing his input instead, so no transition can start.
+BootsSpeed:
+    LDY #PLAYER_WALK_SPEED
+    LDA SelectedItemSlot
+    BNE @Set                    ; the boots are not on B
+    BIT ButtonsDown
+    BVC @Set                    ; B (bit 6) is not held
+"""
+
+[[hook]]
+name = "boots-speed-levels"
+offset = 0x14E59
+length = 38
+note = "BootsSpeed's ownership test and speeds: L2 at once; L1 stands still for a 32-frame wind-up, then whooshes once and runs. The L1 speed's operand is at 0x14E7A, L2's at 0x14E7D. Ends with STY $00's opcode: PRG0's second anonymous label lies at 0x14E7F."
+code = """
+    LDA InvMagicBoomerang
+    BNE @L2
+    LDA InvBoomerang
+    BEQ @Set                    ; slot 0 with no boots: the selection of a player with no B items
+    LDA BootsCharge
+    BEQ @L1                     ; wound up: run
+    DEC BootsCharge
+    BEQ @Takeoff                ; the wind-up's last frame
+    LDA #$00                    ; winding up: Link stands still, at PRG0's speed
+    STA ObjInputDir
+    BEQ @Set
+@Takeoff:
+    LDA #BOOMERANG_EFFECT       ; one whoosh, at takeoff
+    JSR PlayEffect
+@L1:
+    LDY #L1_BOOTS_SPEED
+    .BYTE $2C                   ; BIT abs: skips the next LDY
+@L2:
+    LDY #L2_BOOTS_SPEED
+@Set:
+    .BYTE STY_ZERO_PAGE         ; STY $00, its operand in the next hook
+"""
+
+[[hook]]
+name = "boots-speed-return"
+offset = 0x14E7F
+length = 2
+note = "BootsSpeed's STY $00 operand and its RTS."
+code = """
+    .BYTE $00                   ; STY $00's operand: the speed goes to [00]
+    RTS
+"""
+
+[[hook]]
+name = "boots-speed"
+offset = 0x17376
+length = 4
+note = "InitLinkSpeed's LDA #$60 / STA $00 becomes a call to BootsSpeed, which leaves the speed in $00."
+code = """
+    JSR BootsSpeed
+    NOP
+"""
+
+[[hook]]
+name = "icon-offsets"
+offset = 0x0714F
+length = 8
+note = "Anim_ItemFrameOffsets' line of item slots $18-$1F: slots $1D and $1E (the boots) draw Anim_ItemFrameTiles[$25], the boot, instead of $22, the boomerang."
+code = """
+    .BYTE $1E, $1F, $20, $21, $1C, $25, $25, $26
+"""
+
+[[hook]]
+name = "icon-tile"
+offset = 0x0717C
+length = 8
+note = "Anim_ItemFrameTiles' line of entries $20-$27: entry $25 holds the boot's tile $1C instead of the boomerang spark's $3C (BoomerangFrameCycle finds the spark at entry 9 below)."
+code = """
+    .BYTE $6E, $F2, $36, $38, $3A, $1C, $56, $48
+"""
+
+[[hook]]
+name = "l1-red-palette"
+offset = 0x06B84
+length = 8
+note = "ItemSlotToPaletteOffsetsOrValues' line of item slots $18-$1F: slot $1D (the L1 boots) draws in sprite palette 2, the red one, instead of 0, Link's, so its colors never change with the rings; slot $1E (L2) keeps 1, the blue one. Every item sprite (menu, B box, shop, room item, held up) reads it through DrawItemBySlot; the Goriyas' boomerangs do not. Only entry $1D changes: the Archipelago logo writes entry $1F."
+code = """
+L1_BOOTS_PALETTE = $02          ; red
+    .BYTE $02, $02, $02, $02, $01, L1_BOOTS_PALETTE, $01, $00
+"""
+
+[[hook]]
+name = "narrow-from-1c"
+offset = 0x071CD
+length = 2
+note = "Anim_WriteSpecificItemSprites: narrow (half-width) tiles start at $1C instead of $20, so the boot draws half-width; no item drew tiles $1C-$1F before."
+code = """
+    CMP #$1C
+"""
+
+[[hook]]
+name = "mask-tile"
+offset = 0x06D8A
+length = 8
+note = "BlankPrioritySpriteTemplates: the 16 blank priority sprites WriteBlankPrioritySprites puts at X 0 in every dungeon room (8 on the top doorway's line, Y $3D, and 8 on the bottom's, Y $DD, so the 8-sprites-a-line limit hides Link in a doorway) drew PRG0's blank sprite tiles $1C/$1D, now the boot: shown behind the background at the room's left edge (the pink splotch the spec's beta tester reported). They draw the background table's blank pair $50/$51 instead (8x16 tile byte $51: bit 0 picks the table), blank on the overworld and in every level, past the boss tiles ZORA writes at $30-$4F."
+code = """
+MASK_TILE = $51                 ; background pattern table, tiles $50/$51
+    .BYTE $3D, MASK_TILE, $20, $00, $DD, MASK_TILE, $20, $00
+"""
+
+[[hook]]
+name = "goriya-frames"
+offset = 0x1F4F5
+length = 9
+note = "BoomerangFrameCycle: from the item slots' new base $25 the flying boomerang's frames wrap back to its PRG0 entries $22-$24, and its spark uses entry 9 (also tile $3C)."
+code = """
+    .BYTE $FD, $FE, $FF, $FE, $FD, $FE, $FF, $FE
+    .BYTE $E4
+"""
+
+[[hook]]
+name = "goriya-palette"
+offset = 0x1F716
+length = 3
+note = "CalcBoomerangFrame: every boomerang (now only Goriyas') keeps the wooden boomerang's palette, instead of turning blue once InvMagicBoomerang (the L2 boots) is owned."
+code = """
+    LDY #$00
+    NOP
+"""
+
+[[data]]
+offset = 0x0824F
+bytes = "18 3E 7F 7F 5D 51 51 51 00 18 36 0C 22 2E 2E 2E 51 51 71 9F A1 AD E1 3F 2E 2E 0E 60 5E 52 1E 00"
+note = "CommonSpritePatterns tiles $1C/$1D, blank in PRG0 and drawn by nothing: the boot (art by Irenepunmaster, 2026-10-19: outline color 1, fill color 2, highlight color 3). L1 draws it in the red palette (red outline, orange fill, white highlight), L2 in the blue one (dark-blue outline, light-blue fill, white highlight)."
+
+[[data]]
+offset = 0x09358
+bytes = "24 24 0B 18 18 1D 1C 24 24"
+note = "DemoTextFields, the attract mode's item list: the wooden boomerang's BOOMERANG becomes BOOTS, centered in the same nine tiles."
+
+[[data]]
+offset = 0x0936F
+bytes = "24 24 0B 18 18 1D 1C 24 24"
+note = "DemoTextFields: the BOOMERANG under MAGICAL becomes BOOTS, so it reads MAGICAL BOOTS."

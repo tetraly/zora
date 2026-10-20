@@ -33,17 +33,28 @@ from .layout import (
     FP_LEVEL_DASH_TILE,
     LEVEL_INFO_ADDRESS,
     LEVEL_INFO_SIZE,
+    LEVEL_LABEL_RECORD,
+    LEVEL_LABEL_RECORD_SIZE,
     LEVEL_NAME_OFFSET,
     LOW_HEALTH_BEEP_OPERAND_ADDRESS,
     NUM_QUOTES,
     QUOTE_DATA_ADDRESS,
     TITLE_ROW_LENGTH,
+    TITLE_SEED_LABEL,
     TITLE_SEED_ROW_ADDRESS,
     hint_text_regions,
 )
 from .player_settings_data import SETTINGS
 from .revision import Revision, back_to_revision, layout_of, moved_to_prg0_layout, prg1_offset
-from .text_encoding import BYTE_TO_CHAR, CHAR_TO_BYTE, QUOTE_BLANK, QUOTE_CHAR_MASK, QUOTE_END_BITS
+from .text_encoding import (
+    BYTE_TO_CHAR,
+    CHAR_TO_BYTE,
+    QUOTE_BLANK,
+    QUOTE_CHAR_MASK,
+    QUOTE_END_BITS,
+    QUOTE_LINE1_BIT,
+    QUOTE_LINE2_BIT,
+)
 
 # NES palette values (FP-SET-02): six bits, and $0D ("blacker than black",
 # never used by PRG0, can upset a TV's picture sync) is refused.
@@ -93,18 +104,21 @@ SELECT_SWAP_OFF_SITES = (0x0B010, 0x140E5, 0x1A040, 0x1EC46)
 # game). LevelNumberTransferBuf is one 11-byte PPU transfer record in bank 6's data block, which
 # power-on copies to RAM $67F0: the address ($2042, row 2 column 2), the tile count, the tiles,
 # $FF. InitMode3_Sub7 stores the level's number at its offset 9 (the seventh tile), and the next
-# table follows the record, so the label is at most 7 tiles: a word of up to 5 characters, the
-# dash and the number, or a 6-character word and the number without the dash ("PALACE1"). A
-# shorter word keeps the label left-aligned: the record gets fewer tiles and the number store's
-# operand moves with them (docs/rom-map.md "Other fixed-address writes").
+# table follows the record, so it holds at most 7 tiles. A shorter label keeps it left-aligned:
+# the record gets fewer tiles and the number store's operand moves with them (docs/rom-map.md
+# "Other fixed-address writes"). FP-LEVEL-02 (asm/fp-level-02/) gives the label 8 tiles: a word
+# of up to 6 characters keeps the dash ("CASTLE-1") and a 7-character word drops it
+# ("DUNGEON1"). Its patch is written only for a label text of 7 characters (the word and the
+# dash), which the 7-tile record cannot hold; every shorter label keeps PRG0's record and code.
 DEFAULT_LEVEL_WORD = "LEVEL"
 LEVEL_WORD_CHOICES = (
     "LEVEL", "BOARD", "ABODE", "LAIR", "SECTOR", "AREA", "PALACE", "VAULT", "CRYPT", "TOMB", "KEEP",
     "MAZE", "TOWER", "TEMPLE", "SHRINE", "CASTLE", "FORT", "HALL", "DEN", "NEST", "HOLD", "STAGE",
     "WORLD", "ZONE", "FLOOR", "RUIN", "PIT", "CAVE",
 )
-LEVEL_WORD_MAX_LENGTH = 6
-LEVEL_WORD_DASH_MAX_LENGTH = 5
+LEVEL_WORD_MAX_LENGTH = 7
+LEVEL_WORD_DASH_MAX_LENGTH = 6
+SHORT_LABEL_TEXT_MAX_LENGTH = 6           # PRG0's record: the label text and the number in 7 tiles
 # The font's characters (zora/rom/text_encoding.py) apart from "~", the text boxes' padding tile,
 # which shows as a blank.
 TEXT_PAD_CHARACTER = "~"
@@ -116,15 +130,18 @@ LEVEL_RECORD_PPU_ADDRESS = (0x20, 0x42)
 LEVEL_RECORD_RAM = 0x681C                                 # where power-on copies the record
 LEVEL_NUMBER_PLACEHOLDER = 0x00                           # PRG0's; InitMode3_Sub7 overwrites it
 TRANSFER_END = 0xFF
-# The hints name levels the same way ("THE RAFT RESTS IN LEVEL-3.", "LEVEL-3 LIES BY THE SHORE."),
-# and hint text is written at generation, before the player settings. A word's label is never
-# longer than "LEVEL-3" (5 characters and the dash, or 6 without it), so the setting rewrites each
+# The hints name levels the same way ("THE RAFT RESTS IN LEVEL-3.", "LEVEL-3 LIES BY THE COAST."),
+# and hint text is written at generation, before the player settings. The setting rewrites each
 # hint line holding a label in place: the label replaced, the line centered again on the box's
-# width, then padded at its end with the blank padding tile to its old length. Every text keeps
-# its length and place, the pointers stay, and a line only gets shorter, so every hint still fits
-# its box. PRG0's own texts and the community pool never say "LEVEL-".
+# width, then padded at its end with the blank padding tile to its old length, so every text
+# keeps its length and place and the pointers stay. A label is at most one character longer than
+# "LEVEL-3" ("CASTLE-3", "DUNGEON3"; FP-LEVEL-02), which takes a centering pad tile. A line
+# without one (its text 23 or 24 characters) has its text wrapped again in the text's length, or,
+# with no tile to spare there, at its own new length in the regions' free space, its pointer
+# moved with it. PRG0's own texts and the community pool never say "LEVEL-".
 HINT_LEVEL_LABEL = re.compile(r"(?<![A-Z0-9])LEVEL-([1-9])(?![0-9])")
 HINT_LINE_WIDTH = 24                      # hint_text.LINE_WIDTH: hint lines are centered on it
+HINT_MAX_LINES = 3                        # hint_text.MAX_LINES: the text box's lines
 POINTER_BANK_BIT = 0x80                   # a pointer's high byte in bank 1 ($8000-$BFFF)
 # InitMode3_Sub7's `STA LevelNumberTransferBuf+9` (8D 25 68 at 0x1703F): its operand's low byte.
 LEVEL_NUMBER_STORE_OPERAND = 0x17040
@@ -146,7 +163,6 @@ BOSS_SOUND_WORD_LENGTH = 4
 BOSS_SOUND_WORD_CHARACTERS = LEVEL_WORD_CHARACTERS          # the same font
 BOSS_SOUND_WORD_ADDRESS = SYMBOLS["ZORA_B5_BossSoundWord"]  # fp-roar-01's second label record
 BOSS_SOUND_WORD_STREAM = b"zora boss-sound word:"
-TITLE_SEED_LABEL = "SEED"
 
 
 class PlayerSettingError(ValueError):
@@ -182,8 +198,8 @@ class Music(Enum):
 @dataclass(frozen=True)
 class PlayerSettings:
     """The seven settings the MVP offers (FL-SUP-05), the level label's word (FP-LEVEL-01) and
-    the boss-sound label's word (FP-ROAR-01), testers' requests, and the statistics screen
-    (FP-STATS-01), at their defaults."""
+    the boss-sound label's word (FP-ROAR-01), and testers' requests, at their defaults. The
+    statistics screen (FP-STATS-01) is no longer a setting: every ROM has it (write_player_settings)."""
     select_swap: SelectSwap = SelectSwap.TOGGLE
     low_health_beep: LowHealthBeep = LowHealthBeep.REMOVED
     death_warp: DeathWarp = DeathWarp.CONTROLLER1_UP_A
@@ -194,7 +210,6 @@ class PlayerSettings:
     music: Music = Music.ON
     level_word: str = DEFAULT_LEVEL_WORD            # FP-LEVEL-01
     boss_sound_word: str = DEFAULT_BOSS_SOUND_WORD  # FP-ROAR-01's label: a word or RANDOM
-    statistics_screen: bool = False                 # FP-STATS-01 (owner ruling, beta 3: off by default for now)
 
     def __post_init__(self) -> None:
         check_level_word(self.level_word)
@@ -272,9 +287,10 @@ def random_boss_sound_word(seed: int) -> str:
 
 def title_seed_number(rom: bytes | bytearray) -> int:
     """The seed number the title screen shows (FP-TITLE-01: SEED, then the number right-aligned).
-    The row is 24 tiles: up to 19 digits leave blanks after SEED, but a 20-digit number (10^19
-    and up) fills the row, so the label and the number touch (SEED14089154938208861744). Read
-    in PRG0's layout (a ROM made from PRG1 has the row 139 bytes on; revision.layout_of)."""
+    The row is 24 tiles and shows at most 19 digits, a 20-digit seed's first 19 (since 2026-10-17;
+    before, its 20 digits touched the label: SEED14089154938208861744, which this still reads). So
+    Random's word for a seed of 10^19 or more is the shown number's. Read in PRG0's layout (a ROM
+    made from PRG1 has the row 139 bytes on; revision.layout_of)."""
     seed_row = TITLE_SEED_ROW_ADDRESS
     if layout_of(bytes(rom[:TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH + 0x100])) is Revision.PRG1:
         seed_row = prg1_offset(TITLE_SEED_ROW_ADDRESS)
@@ -291,21 +307,34 @@ def level_label(word: str) -> str:
     return f"{word}{'-' if len(word) <= LEVEL_WORD_DASH_MAX_LENGTH else ''}1"
 
 
+def level_label_is_long(word: str) -> bool:
+    """FP-LEVEL-02: does the label text (the word, and the dash for a word of up to 6
+    characters) take 7 tiles, so the number makes 8 and PRG0's record cannot hold it?"""
+    return len(level_label(word)) - 1 > SHORT_LABEL_TEXT_MAX_LENGTH
+
+
 # The spec's defaults: what a finished ROM gets when the player chooses nothing.
 DEFAULT_PLAYER_SETTINGS = PlayerSettings()
 
 
-def apply_player_settings(rom: bytes, settings: PlayerSettings) -> bytes:
+def apply_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = False) -> bytes:
     """A finished ROM with the player settings written; nothing else changes. A ROM made from
-    PRG1 is written in PRG0's layout and moved back (revision.layout_of)."""
+    PRG1 is written in PRG0's layout and moved back (revision.layout_of). coop: as in
+    write_player_settings."""
     if layout_of(rom) is Revision.PRG1:
         image = moved_to_prg0_layout(rom)
-        return back_to_revision(rom, Revision.PRG1, image, write_player_settings(image, settings))
-    return write_player_settings(rom, settings)
+        return back_to_revision(rom, Revision.PRG1, image, write_player_settings(image, settings, coop))
+    return write_player_settings(rom, settings, coop)
 
 
-def write_player_settings(rom: bytes, settings: PlayerSettings) -> bytes:
-    """apply_player_settings on an image in PRG0's layout (the final steps' image)."""
+def write_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = False) -> bytes:
+    """apply_player_settings on an image in PRG0's layout (the final steps' image), with the
+    statistics screen, which every ROM has (owner, 2026-10-17; it was a setting, off by default,
+    up to 2.0 beta 6).
+
+    coop: the hook for the future co-op mode, which nothing sets yet. z1rr-coop's patch uses the
+    statistics screen's SRAM page ($7F00-$7FFF; docs/rom-map.md "Reserved for z1rr-coop"), so a
+    co-op ROM leaves the screen out (statistics_screen with on=False: the ROM without it)."""
     out = bytearray(rom)
     select_swap(out, settings.select_swap)
     low_health_beep(out, settings.low_health_beep)
@@ -316,7 +345,7 @@ def write_player_settings(rom: bytes, settings: PlayerSettings) -> bytes:
     music(out, settings.music)
     level_word(out, settings.level_word)
     boss_sound_word(out, settings.boss_sound_word)
-    statistics_screen(out, settings.statistics_screen)
+    statistics_screen(out, on=not coop)
     return bytes(out)
 
 
@@ -390,9 +419,13 @@ def music(rom: bytearray, choice: Music) -> None:
 
 
 def level_word(rom: bytearray, word: str) -> None:
-    """FP-LEVEL-01: the label's word. The default writes nothing (PRG0's word, and the dash
-    generation wrote); another word rewrites the record, the number store's operand and the
-    hints' level labels."""
+    """FP-LEVEL-01: the label's word. FP-LEVEL-02's choice comes first: the 8-tile patch for a
+    long label, else PRG0's code and free space (what ZORA's output holds; it restores the number
+    store's operand, so the short record's operand is written after it). The default then writes
+    nothing more (PRG0's word, and the dash generation wrote); another word rewrites the hints'
+    level labels and its record: FP-LEVEL-02's, or PRG0's record and the number store's operand."""
+    long = level_label_is_long(word)
+    _write(rom, SETTINGS["level_label"]["long" if long else "short"])
     if word == DEFAULT_LEVEL_WORD:
         return
     level_word_in_hints(rom, word)
@@ -401,6 +434,11 @@ def level_word(rom: bytearray, word: str) -> None:
         tiles.append(FP_LEVEL_DASH_TILE)
     tiles.append(LEVEL_NUMBER_PLACEHOLDER)
     record = bytes([*LEVEL_RECORD_PPU_ADDRESS, len(tiles), *tiles, TRANSFER_END])
+    if long:
+        # The patch's routine stores the number itself; 0x17040 is now its JMP's operand.
+        rom[LEVEL_LABEL_RECORD:LEVEL_LABEL_RECORD + LEVEL_LABEL_RECORD_SIZE] = record.ljust(
+            LEVEL_LABEL_RECORD_SIZE, bytes([TRANSFER_END]))
+        return
     rom[LEVEL_RECORD:LEVEL_RECORD + LEVEL_RECORD_SIZE] = record.ljust(LEVEL_RECORD_SIZE, bytes([TRANSFER_END]))
     number_offset = LEVEL_RECORD_HEADER + len(tiles) - 1
     rom[LEVEL_NUMBER_STORE_OPERAND] = (LEVEL_RECORD_RAM + number_offset) & 0xFF
@@ -423,52 +461,121 @@ def statistics_screen(rom: bytearray, on: bool) -> None:
     _write(rom, SETTINGS["statistics_screen"]["on" if on else "off"])
 
 
-def relabel_hint_line(line: str, word: str) -> str:
+def relabel_hint_line(line: str, word: str, dash: bool = True) -> str | None:
     """One hint line (its characters, centering pad included) with each level label in `word`'s
-    form, centered again and padded at its end to the line's old length."""
-    text = HINT_LEVEL_LABEL.sub(lambda label: level_label(word).replace("1", label.group(1)),
-                                line.lstrip(TEXT_PAD_CHARACTER))
-    if text == line.lstrip(TEXT_PAD_CHARACTER):
+    form (dash False: without the dash), centered again and padded at its end to the line's old
+    length; None when it no longer fits that length."""
+    original = line.lstrip(TEXT_PAD_CHARACTER)
+    text = HINT_LEVEL_LABEL.sub(lambda label: hint_label(word, label.group(1), dash), original)
+    if text == original:
         return line
-    centered = TEXT_PAD_CHARACTER * max(0, (HINT_LINE_WIDTH - len(text)) // 2) + text
-    assert len(centered) <= len(line), (line, word)
-    return centered.ljust(len(line), TEXT_PAD_CHARACTER)
+    if len(text) > len(line):
+        return None
+    pad = min((HINT_LINE_WIDTH - len(text)) // 2, len(line) - len(text))
+    return (TEXT_PAD_CHARACTER * pad + text).ljust(len(line), TEXT_PAD_CHARACTER)
+
+
+def hint_label(word: str, number: str, dash: bool = True) -> str:
+    """A level's label in a hint: as the status bar shows it, or (dash False) without the dash."""
+    return f"{word}{'-' if dash and len(word) <= LEVEL_WORD_DASH_MAX_LENGTH else ''}{number}"
+
+
+def rewrapped_hint_lines(lines: list[str], word: str, length: int | None) -> list[str] | None:
+    """A hint whose relabeled line no longer fits its own length (an 8-character label in a line
+    of 23 or 24 characters, FP-LEVEL-02): its words with the word's labels wrapped again on the
+    box's width. With `length`, into at most as many lines, each centered as far as that length
+    allows and the spare length padding the lines' ends, the lines adding up to `length`; None when
+    the words need more lines or more room. Without it, into at most the box's lines, centered."""
+    words = [HINT_LEVEL_LABEL.sub(lambda label: hint_label(word, label.group(1)), text_word)
+             for text_word in " ".join(line.strip(TEXT_PAD_CHARACTER) for line in lines).split(" ")]
+    texts = [""]
+    for text_word in words:                 # a label is one word, even when `word` holds a space
+        joined = f"{texts[-1]} {text_word}" if texts[-1] else text_word
+        if len(joined) <= HINT_LINE_WIDTH:
+            texts[-1] = joined
+        else:
+            texts.append(text_word)
+    most_lines = len(lines) if length is not None else HINT_MAX_LINES
+    if len(texts) > most_lines or any(len(text) > HINT_LINE_WIDTH for text in texts):
+        return None
+    if length is None:
+        return [TEXT_PAD_CHARACTER * ((HINT_LINE_WIDTH - len(text)) // 2) + text for text in texts]
+    spare = length - sum(len(text) for text in texts)
+    if spare < 0:
+        return None
+    rewrapped = []
+    for text in texts:
+        pad = min((HINT_LINE_WIDTH - len(text)) // 2, spare)
+        spare -= pad
+        rewrapped.append(TEXT_PAD_CHARACTER * pad + text)
+    for index, line in enumerate(rewrapped):
+        extra = min(HINT_LINE_WIDTH - len(line), spare)
+        spare -= extra
+        rewrapped[index] = line + TEXT_PAD_CHARACTER * extra
+    return rewrapped if spare == 0 else None
 
 
 def relabel_hint_text(body: bytes, word: str) -> bytes:
     """An encoded hint text (lines whose last byte carries the line or end bits) with its level
-    labels in `word`'s form; the same length, each line's bits kept on its last byte."""
-    out = bytearray(body)
+    labels in `word`'s form. Each line is relabeled in place, keeping its bits on its last byte.
+    When a line has no room for a longer label (FP-LEVEL-02's 8 characters), the whole text is
+    wrapped again in its own length (rewrapped_hint_lines); failing that (about 1 template in 20
+    has no spare tile), at the length its centered lines take, longer than `body`: the caller
+    moves it (level_word_in_hints)."""
+    spans: list[tuple[int, int]] = []
     start = 0
     for end, byte in enumerate(body):
         if not byte & QUOTE_END_BITS:
             continue
-        line = "".join(BYTE_TO_CHAR.get(tile & QUOTE_CHAR_MASK, "?") for tile in body[start:end + 1])
-        relabeled = relabel_hint_line(line, word)
-        if relabeled != line:
-            out[start:end + 1] = bytes(CHAR_TO_BYTE[char] for char in relabeled)
-            out[end] |= byte & QUOTE_END_BITS
+        spans.append((start, end + 1))
         if byte & QUOTE_END_BITS == QUOTE_END_BITS:
             break
         start = end + 1
+    lines = ["".join(BYTE_TO_CHAR.get(tile & QUOTE_CHAR_MASK, "?") for tile in body[first:last])
+             for first, last in spans]
+    relabeled = [relabel_hint_line(line, word) for line in lines]
+    if None in relabeled:
+        rewrapped = rewrapped_hint_lines(lines, word, len(body)) or rewrapped_hint_lines(lines, word, None)
+        assert rewrapped is not None, (lines, word)
+        return encoded_hint_lines(rewrapped)
+    out = bytearray(body)
+    for (first, last), line, new in zip(spans, lines, relabeled, strict=True):
+        if new is not None and new != line:
+            out[first:last] = bytes(CHAR_TO_BYTE[char] for char in new)
+            out[last - 1] |= body[last - 1] & QUOTE_END_BITS
     return bytes(out)
+
+
+def encoded_hint_lines(lines: list[str]) -> bytes:
+    """Lines as an encoded hint text (hint_text.encode_text's bits: line 1's end, line 2's end,
+    the text's end)."""
+    out = bytearray()
+    for index, line in enumerate(lines):
+        out += bytes(CHAR_TO_BYTE[char] for char in line)
+        last = index == len(lines) - 1
+        out[-1] |= QUOTE_END_BITS if last else QUOTE_LINE1_BIT if index == 0 else QUOTE_LINE2_BIT
+    return bytes(out)
+
+
+def hint_pointer_count(rom: bytes | bytearray) -> int:
+    """45 pointers with Consternation's hint text (their high bytes all in bank 1), else PRG0's 38."""
+    extra = range(NUM_QUOTES, CONSTERNATION_HINT_SLOTS)
+    return CONSTERNATION_HINT_SLOTS if all(rom[QUOTE_DATA_ADDRESS + 2 * slot + 1] & POINTER_BANK_BIT
+                                           for slot in extra) else NUM_QUOTES
+
+
+def hint_text_offset(rom: bytes | bytearray, slot: int) -> int:
+    pointer = rom[QUOTE_DATA_ADDRESS + 2 * slot] | rom[QUOTE_DATA_ADDRESS + 2 * slot + 1] << 8
+    return EXT_BANK1_ROM_START + pointer - EXT_HINT_CPU_BASE
 
 
 def hint_text_offsets(rom: bytes | bytearray) -> list[int]:
     """The file offsets of the person and hint texts the pointer table addresses inside the hint
-    text regions: 45 pointers with Consternation's hint text (their high bytes all in bank 1),
-    else PRG0's 38."""
-    extra = range(NUM_QUOTES, CONSTERNATION_HINT_SLOTS)
-    count = CONSTERNATION_HINT_SLOTS if all(rom[QUOTE_DATA_ADDRESS + 2 * slot + 1] & POINTER_BANK_BIT
-                                            for slot in extra) else NUM_QUOTES
+    text regions (hint_pointer_count's pointers)."""
+    count = hint_pointer_count(rom)
     regions = hint_text_regions(count)
-    offsets = set()
-    for slot in range(count):
-        pointer = rom[QUOTE_DATA_ADDRESS + 2 * slot] | rom[QUOTE_DATA_ADDRESS + 2 * slot + 1] << 8
-        offset = EXT_BANK1_ROM_START + pointer - EXT_HINT_CPU_BASE
-        if any(start <= offset < end for start, end in regions):
-            offsets.add(offset)
-    return sorted(offsets)
+    return sorted({offset for slot in range(count) if any(start <= (offset := hint_text_offset(rom, slot)) < end
+                                                          for start, end in regions)})
 
 
 def text_body(rom: bytes | bytearray, offset: int) -> bytes:
@@ -480,10 +587,29 @@ def text_body(rom: bytes | bytearray, offset: int) -> bytes:
 
 
 def level_word_in_hints(rom: bytearray, word: str) -> None:
-    """The hints' level labels in `word`'s form, each text rewritten in place."""
-    for offset in hint_text_offsets(rom):
-        body = text_body(rom, offset)
-        rom[offset:offset + len(body)] = relabel_hint_text(body, word)
+    """The hints' level labels in `word`'s form, each text rewritten in place; a text that grew
+    (relabel_hint_text) goes to the hint text regions' free space after every text, and each
+    pointer to it follows (the regions hold about 3,000 bytes, the texts under 2,000)."""
+    count = hint_pointer_count(rom)
+    offsets = hint_text_offsets(rom)
+    bodies = {offset: text_body(rom, offset) for offset in offsets}
+    free = [(max([start, *(offset + len(bodies[offset]) for offset in offsets if start <= offset < end)]), end)
+            for start, end in hint_text_regions(count)]
+    moved: dict[int, int] = {}
+    for offset, body in bodies.items():
+        relabeled = relabel_hint_text(body, word)
+        if len(relabeled) == len(body):
+            rom[offset:offset + len(body)] = relabeled
+            continue
+        region = next(index for index, (start, end) in enumerate(free) if start + len(relabeled) <= end)
+        start, end = free[region]
+        rom[start:start + len(relabeled)] = relabeled
+        moved[offset] = start
+        free[region] = (start + len(relabeled), end)
+    for slot in range(count):
+        if (new := moved.get(hint_text_offset(rom, slot))) is not None:
+            pointer = new - EXT_BANK1_ROM_START + EXT_HINT_CPU_BASE
+            rom[QUOTE_DATA_ADDRESS + 2 * slot:QUOTE_DATA_ADDRESS + 2 * slot + 2] = pointer.to_bytes(2, "little")
 
 
 def written_offsets(settings_field: str) -> set[int]:
@@ -501,7 +627,12 @@ def written_offsets(settings_field: str) -> set[int]:
     elif settings_field == "level_word":
         hint_regions = {offset for count in (NUM_QUOTES, CONSTERNATION_HINT_SLOTS)
                         for start, end in hint_text_regions(count) for offset in range(start, end)}
-        return {*range(LEVEL_RECORD, LEVEL_RECORD + LEVEL_RECORD_SIZE), LEVEL_NUMBER_STORE_OPERAND, *hint_regions}
+        label_runs = [run for runs in SETTINGS["level_label"].values() for run in runs]
+        pointers = range(QUOTE_DATA_ADDRESS, QUOTE_DATA_ADDRESS + 2 * CONSTERNATION_HINT_SLOTS)
+        return {*range(LEVEL_RECORD, LEVEL_RECORD + LEVEL_RECORD_SIZE), LEVEL_NUMBER_STORE_OPERAND, *hint_regions,
+                *pointers,
+                *range(LEVEL_LABEL_RECORD, LEVEL_LABEL_RECORD + LEVEL_LABEL_RECORD_SIZE),
+                *(offset + i for offset, run in label_runs for i in range(piece_length(run)))}
     elif settings_field == "heart_color":
         return {LEVEL_INFO_ADDRESS + k * LEVEL_INFO_SIZE + HEART_COLOR_OFFSET for k in range(LEVEL_INFORMATIONS)}
     else:
@@ -512,19 +643,27 @@ def written_offsets(settings_field: str) -> set[int]:
 SETTING_CHOICES: dict[str, type[Enum]] = {"select_swap": SelectSwap, "low_health_beep": LowHealthBeep,
                                           "death_warp": DeathWarp, "music": Music}
 SWITCH_WORDS = {"off": False, "on": True}
+# Settings that are gone, by their command-line, YAML and page names: still accepted, with any value,
+# and ignored, so what named them before still reads (the statistics screen, always on since
+# 2026-10-17).
+RETIRED_SETTINGS = frozenset({"statistics_screen"})
+RETIRED_PAGE_SETTINGS = frozenset({"statisticsScreen"})
 
 
 def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     """Command-line settings, each `name=value` with PlayerSettings' field names: a choice by
-    its value (music=off), reduce_flashing=on, statistics_screen=off, heart_color=0x21, tunic_colors=0x29,0x32,0x16,
-    level_word=PALACE (any case), boss_sound_word=MEOW or boss_sound_word=random."""
+    its value (music=off), reduce_flashing=on, heart_color=0x21, tunic_colors=0x29,0x32,0x16,
+    level_word=PALACE (any case), boss_sound_word=MEOW or boss_sound_word=random. A retired
+    setting (RETIRED_SETTINGS) is ignored, whatever its value."""
     chosen: dict[str, object] = {}
     for pair in pairs:
         name, _, text = pair.partition("=")
         try:
+            if name in RETIRED_SETTINGS:
+                continue
             if name in SETTING_CHOICES:
                 chosen[name] = SETTING_CHOICES[name](text)
-            elif name in ("reduce_flashing", "statistics_screen"):
+            elif name == "reduce_flashing":
                 chosen[name] = SWITCH_WORDS[text]
             elif name == "heart_color":
                 chosen[name] = int(text, 0)
@@ -554,7 +693,6 @@ PAGE_CHOICES: dict[str, tuple[str, dict[str, Any]]] = {
                                  "p1-up-select": DeathWarp.CONTROLLER1_UP_SELECT}),
     "reduceFlashing": ("reduce_flashing", {"off": False, "on": True}),
     "music": ("music", {"on": Music.ON, "off": Music.OFF}),
-    "statisticsScreen": ("statistics_screen", {"on": True, "off": False}),
 }
 PAGE_TUNIC_SLOTS = ("greenTunic", "blueRingTunic", "redRingTunic")
 PAGE_HEART_SLOT = "heart"
@@ -565,7 +703,8 @@ PAGE_BOSS_SOUND_WORD = "bossSoundWord"
 def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
     """The page's playerSettings object as PlayerSettings. A key it leaves out
     takes the default; an unknown choice or a color that is not an NES palette
-    value (or is $0D) is refused with PlayerSettingError, never replaced."""
+    value (or is $0D) is refused with PlayerSettingError, never replaced. Other keys,
+    RETIRED_PAGE_SETTINGS among them, are not read."""
     defaults = PlayerSettings()
     chosen: dict[str, Any] = {}
     for key, (field, choices) in PAGE_CHOICES.items():

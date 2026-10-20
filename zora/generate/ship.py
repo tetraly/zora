@@ -15,7 +15,7 @@ from .steps.cave_entries import OverworldResult
 from .steps.change_enemy_hp import EnemyHpResult, apply_enemy_hp
 from .steps.dungeon_quest import ALL_SHAPES, SetSource, SetSources, vanilla_set
 from .steps.extra_pool_items import ExtraPoolItems, apply_extra_pool_items
-from .steps.hint_text import HintTextResult
+from .steps.hint_text import HintTextResult, keep_level_hints_out_of_their_levels
 from .steps.item_shuffle_result import ItemShuffleResult
 from .steps.monster_lists import MonsterShuffleResult
 from .steps.shuffle_dungeon_palettes import DungeonPaletteResult, apply_dungeon_palettes
@@ -110,7 +110,9 @@ def _displayed_quotes(hint_text: HintTextResult) -> list[Quote]:
 
 
 def ship_hint_text(gw: GameWorld, hint_text: HintTextResult) -> None:
-    """Write the composed hint text into the shipped GameWorld."""
+    """Write the composed hint text into the shipped GameWorld, after B19's pointer exchange: a
+    person never tells where its own level is (keep_level_hints_out_of_their_levels)."""
+    hint_text = keep_level_hints_out_of_their_levels(hint_text)
     gw.quotes = _displayed_quotes(hint_text)
     gw.quotes_raw = b""
     gw.hint_pointers = hint_text.pointers

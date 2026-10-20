@@ -16,6 +16,7 @@ from functools import cache
 import pytest
 
 from tests.archipelago_cases import FLAG_CASES
+from tests.seed_rotation import sweep_seeds
 from tests.shared_builds import prebuild
 from tests.test_assignment import _built, identity
 from zora.generate.acceptance_check import AcceptanceCheck
@@ -50,14 +51,15 @@ from zora.model.enums import Item
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
 SEEDS = range(1, 7)
-MANY_SEEDS = range(1, 41)
+# The sweep's range; each run checks a rotated block of 20 of it (tests/seed_rotation.py)
+MANY_SEEDS = sweep_seeds(range(1, 41))
 TRIFORCE_LEVELS = range(1, 9)
 
 
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -208,7 +210,8 @@ def test_shop_items_count_candles(base: bytes, case: str) -> None:
 @pytest.mark.parametrize("case", list(FLAG_CASES))
 def test_the_wooden_sword_is_never_a_place(base: bytes, case: str) -> None:
     """The model assumes a sword (hence bombs, owner decision 1) from the start: the wooden sword
-    is in no flag case's pool, no place holds it, and no rule names it."""
+    is in no flag case's pool, no place holds it, and no rule names it. (Shuffle Wood Sword, which
+    pools it, is never offered: archipelago.ZORA_FORCED_OFF, owner ruling 2026-10-17.)"""
     for seed in SEEDS:
         built = _built(case, seed)
         assert Item.WOOD_SWORD not in major_pool(extra_options(built.plan))

@@ -23,7 +23,13 @@ from zora.flags import zora_flags
 from zora.flags.codec import decode, encode
 from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.flags.support import ALTERNATIVE_OPTIONS, OWNER_TURN_OFF_TOGGLES, TURN_OFF_OPTIONS, TURN_OFF_TOGGLES
+from zora.flags.support import (
+    ALTERNATIVE_OPTIONS,
+    OWNER_TURN_OFF_TOGGLES,
+    SPEC_TURN_OFF_TOGGLES,
+    TURN_OFF_OPTIONS,
+    TURN_OFF_TOGGLES,
+)
 from zora.generate.pipeline import generate_rom
 from zora.rom import level_encoding
 from zora.rom.base_rom import Piece, piece_length
@@ -161,9 +167,21 @@ def test_no_series_patch_writes_a_reserved_byte(name: str) -> None:
     assert not hits(written(SERIES_PATCHES[name])), name
 
 
+# ZORA flag patches allowed on one co-op hook, because co-op is not offered yet (owner spec "Pegasus
+# Boots for ZORA", 2026-10-17): Pegasus Boots calls BootsSpeed from InitLinkSpeed's first two
+# instructions, z1rr-coop's in-place hook. Revisit when co-op ships (the boots could move to
+# InitLinkSpeed's @SetSpeed, $B387). Only these bytes are allowed; any other reserved byte fails.
+COOP_HOOK_SHARED_BY = {"pegasus-boots": Reserved(5, 0xB366, 0xB369, "in-place hook in InitLinkSpeed")}
+
+
 @pytest.mark.parametrize("name", list(FLAG_PATCHES))
 def test_no_zora_flag_patch_writes_a_reserved_byte(name: str) -> None:
-    assert not hits(written(FLAG_PATCHES[name])), name
+    offsets = written(FLAG_PATCHES[name])
+    if name in COOP_HOOK_SHARED_BY:
+        shared = COOP_HOOK_SHARED_BY[name]
+        assert shared in RESERVED and set(shared.file_range()) <= offsets, name
+        offsets -= set(shared.file_range())
+    assert not hits(offsets), name
 
 
 @pytest.mark.parametrize("setting", ["select_swap", "low_health_beep", "death_warp", "reduce_flashing",
@@ -230,7 +248,8 @@ def assert_reserved_bytes_are_prg0(rom: bytes, label: str) -> None:
 
 
 def every_turn_off_string() -> str:
-    return z1r_with(toggles=dict.fromkeys(TURN_OFF_TOGGLES + OWNER_TURN_OFF_TOGGLES, ThreeState.OFF),
+    turn_off_toggles = TURN_OFF_TOGGLES + SPEC_TURN_OFF_TOGGLES + OWNER_TURN_OFF_TOGGLES
+    return z1r_with(toggles=dict.fromkeys(turn_off_toggles, ThreeState.OFF),
                     options={field_id: min(values) for field_id, values in TURN_OFF_OPTIONS.items()})
 
 
@@ -250,7 +269,7 @@ def test_finished_roms_hold_prg0_in_the_reserved_ranges(case: str, seed: int) ->
 
 def test_level_encoding_leaves_the_reserved_ranges() -> None:
     if not level_encoding.is_available():
-        pytest.skip("the private level-encoding module is not installed")
+        pytest.skip("needs the encoder")
     flag_string = z1r_with(MVP_BASELINE, toggles=BASELINE_FOR_OWNER_FLAGS)
     assert_reserved_bytes_are_prg0(finished(flag_string, 1, EVERY_OWNER_FLAG_ON), "level encoding")
 
@@ -267,7 +286,7 @@ def produced_values() -> dict[str, tuple[str, str]]:
     value (FL-OFF-07, FL-ALT-02 to 04; C17's every limit) and each ZORA flag on (the version-1
     sword hearts cap at each choice)."""
     cases: dict[str, tuple[str, str]] = {}
-    for toggle in TURN_OFF_TOGGLES + OWNER_TURN_OFF_TOGGLES:
+    for toggle in TURN_OFF_TOGGLES + SPEC_TURN_OFF_TOGGLES + OWNER_TURN_OFF_TOGGLES:
         # B23 off is produced only together with B22 off (as in FL-OFF-01's Check string).
         off = ("B22", "B23") if toggle == "B23" else (toggle,)
         cases[f"{toggle} off"] = (z1r_with(toggles=dict.fromkeys(off, ThreeState.OFF)), "")

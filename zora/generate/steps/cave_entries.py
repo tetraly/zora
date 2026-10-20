@@ -28,6 +28,16 @@ RECORDER_SCREENS = frozenset({66})
 # OW-MIX-04 and OW-MIX-08: under a mixed overworld quest (C01 = 2) the recorder set is the eleven
 # screens of FluteRoomSecretsOW, those whose entry became $80 included
 MIXED_RECORDER_SCREENS = frozenset({66, 6, 41, 43, 48, 58, 60, 88, 96, 110, 114})
+# Expanded Dungeon Locations under a 1st Quest overworld: 1Q7's lake and 2Q6's graveyard, the only
+# recorder spots it can show (every other entry is off, so nothing else stands there). Under a 2nd
+# Quest overworld it reads the eleven, which keep the second quest's other recorder secrets.
+EXPANDED_RECORDER_SCREENS = frozenset({66, 48})
+# Their entries (1Q7's, 2Q6's) and the pond's: the pool's recorder entries
+EXPANDED_RECORDER_ENTRIES = frozenset({0, 4, 6})
+# A FluteRoomSecretsOW entry that matches no screen (OW-MIX-04), and the pond entry ($3C), which every
+# overworld quest keeps and Expanded Dungeon Locations always turns off
+RECORDER_ENTRY_OFF = 0x80
+POND_RECORDER_ENTRY = 6
 LADDER_SCREENS = frozenset({24, 25})
 BRACELET_SCREENS = frozenset({9, 17, 27, 29, 35, 73, 121})
 BURNABLE_SCREENS = frozenset({40, 70, 71, 72, 75, 77, 81, 83, 86, 91, 98, 99, 104, 106, 107,
@@ -81,5 +91,16 @@ class OverworldResult:
 
 def recorder_screens(overworld: Overworld) -> frozenset[int]:
     """OW-APP-A4's Recorder set for this overworld: screen 66, or under a mixed overworld quest,
-    whose first quest reveals every listed secret, the eleven of OW-MIX-04 (OW-MIX-08)."""
-    return MIXED_RECORDER_SCREENS if overworld.recorder_reveals_listed_secrets_in_first_quest else RECORDER_SCREENS
+    whose first quest reveals every listed secret, the eleven of OW-MIX-04 (OW-MIX-08). With the
+    first quest revealing the listed secrets, the pond entry off and every entry off the pool off
+    too, Expanded Dungeon Locations' two recorder spots under a 1st Quest overworld (ZORA's own: no
+    overworld quest turns the pond entry off); under a 2nd it keeps the second quest's other
+    entries, and reads the eleven."""
+    if not overworld.recorder_reveals_listed_secrets_in_first_quest:
+        return RECORDER_SCREENS
+    entries = overworld.recorder_secret_screens
+    if entries[POND_RECORDER_ENTRY] == RECORDER_ENTRY_OFF and all(
+            screen == RECORDER_ENTRY_OFF for entry, screen in enumerate(entries)
+            if entry not in EXPANDED_RECORDER_ENTRIES):
+        return EXPANDED_RECORDER_SCREENS
+    return MIXED_RECORDER_SCREENS

@@ -24,7 +24,7 @@ from zora.rom.slot_identity import (
     SLOT_IDENTITY_SIZE,
 )
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SLOT = range(SLOT_IDENTITY_ADDRESS, SLOT_IDENTITY_ADDRESS + SLOT_IDENTITY_SIZE)
 SEED_CODE = range(SEED_CODE_ADDRESS, SEED_CODE_ADDRESS + SEED_CODE_LENGTH)
@@ -54,7 +54,7 @@ def test_only_the_reserved_bytes_and_the_seed_code_differ(case: str, name: bytes
     changed = {offset for offset, (old, new) in enumerate(zip(plain, named, strict=True)) if old != new}
     assert changed & set(SLOT)
     assert changed <= set(SLOT) | set(SEED_CODE)
-    assert archipelago.rom_identity(named) == archipelago.RomIdentity((1, 1), name)
+    assert archipelago.rom_identity(named) == archipelago.RomIdentity(archipelago.FORMAT_VERSION_NUMBERS, name)
     assert named[SLOT_IDENTITY_ADDRESS:SLOT_IDENTITY_ADDRESS + len(MARKER)] == MARKER
 
 
@@ -84,7 +84,7 @@ def test_the_recipe_carries_the_name_and_rebuilds_the_rom(case: str, seed: int) 
     settings = {"music": "off"}
     rom = archipelago.finish(built(case, seed), chosen, received, settings, ap_name=name)
     data = json.loads(json.dumps(archipelago.recipe(built(case, seed), chosen, received, settings, ap_name=name)))
-    assert data["formatVersion"] == "1.1" and bytes.fromhex(data["apName"]) == name
+    assert data["formatVersion"] == archipelago.RECIPE_FORMAT_VERSION == "1.2" and bytes.fromhex(data["apName"]) == name
     assert archipelago.rom_from_recipe(data, remember_repo_base_rom()) == rom
     without = json.loads(json.dumps(archipelago.recipe(built(case, seed), chosen, received, settings)))
     assert without["apName"] is None

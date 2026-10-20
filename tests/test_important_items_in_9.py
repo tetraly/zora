@@ -12,7 +12,7 @@ from zora.rom.game_config import GameConfig
 from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checkpoints.acceptance import IMPORTANT_ITEMS_IN_9_FLAGS, long_items_in_level9_cellars
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 # Seeds 0-39 put a long item in a level-9 item cellar in some (VA-REJ-08's Check: 266 of 1,000)
 SEEDS = range(40)
 

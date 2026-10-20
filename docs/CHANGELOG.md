@@ -3,24 +3,16 @@
 What changed in each release of ZORA. The same version, flags and seed always make the same game,
 apart from the Cosmetic settings.
 
-## 2.0 beta 5 (2026-10-14)
+## 2.0 beta 7 (2026-10-20)
 
-### New Features
-- **Multiworld support:** The page now lets you choose between Single Player and Multiworld (Archipelago) modes. In Multiworld mode, the page asks for your player name, lets you choose most ZORA flags (including shapes dungeons), and exports an Archipelago YAML file instead of generating a ROM. Each release now includes the ZORA Archipelago world (zora.apworld), and a new step-by-step guide on the site explains how to set up, generate and join a game, and how to build your ROM from an .apzora file with the Archipelago Launcher. Multiworld currently requires Archipelago 0.6.8 and BizHawk 2.9 through 2.11, on Windows or Linux. All of ZORA’s flags are configurable in Multiworld mode except Encode Level Data (off so that Archipelago can understand the ROM format) and Item Shuffle (always Full since Archipelago places most items). 
-- **New domain:** ZORA now lives at <https://zora.gg>. Old links to the previous address redirect automatically.
-- **Specify seeds by URL:** You can now share a URL that sets up a specific flag string and seed. For example, <https://zora.gg/?flags=8hq4BeR1JXo7yjOOHjbxryVQW%21UJ3A&zora=4.T9Jvg&seed=12345> opens ZORA with the "All Swords No Boards" preset and seed 12345. In the future, this may be expanded with a short link or permalink feature.
-- **PRG1 ROM support:** ZORA now accepts the PRG1 (Rev 1) version of The Legend of Zelda ROM as well as PRG0. The same flags and seed generate the same game, with the same file-select code, on either ROM version and with any cosmetic settings. (Because of this change, every seed's code differs from beta 4's.)
-- **Custom sprite support:** ZORA now accepts ROMs with modified graphics for the playable character, enemies, and background tiles. ROMs that also change colors (palettes) aren’t accepted yet but support may be added in a future version if requested.
-- **Shuffle Bomb Upgraders can now be turned off:** When off, bomb upgrades are available in levels 5 and 7 like they are in the vanilla game.
-
-### Changes
-- Renamed the "Published variant" flag presets: they now appear as Consternation Remastered and Hopla (both with level encoding). The Hopla preset, listed in beta 4's notes, is now actually available in the menu.
-- Two flags now have gender-neutral names ("Book to Understand NPCs" and "Shuffle Bomb Upgraders").
-- Hints that mentioned the old man or old woman now say "THE ELDER", and hints like "THE PRINCESS NEEDS NO RAFT" now say "THE HERO'S PATH NEEDS NO RAFT", to make them gender-neutral.
-
-### Bug Fixes
-- Fixed a bug where the compass in non-shapes 1st Quest or 2nd Quest dungeons pointed at that dungeon's original Triforce room instead of the room the Triforce was moved to. Shoutouts to pdxrex for finding this and several other bugs fixed in this release.
-- Fixed a bug where the start screen could be in Westlake Mall, Casino Corner, or West Death Mountain, and the player couldn't leave without the raft or the power bracelet. Those screens are no longer start screens when their respective "Extra ___ Blocks" flag is on.
-- Fixed a bug where the start screen could be past a randomized maze in the Lost Hills or Dead Woods when Randomize Lost Hills or Randomize Dead Woods is on, letting the player skip the maze.
-- Fixed a bug where the 2Q Dead Woods Door Repair cave's screen (row 7, column 2), which can only be reached from behind the Dead Woods maze when it's randomized, wasn't treated as part of the restricted area. The logic now requires the maze's hint for it and Link never starts there.
-- Fixed a bug where the logic treated a maze's path hint as readable without the book when "Book to Understand NPCs" was on even though the hint shop's text can't be read until the book is found.
+- Statistics screen, a new layout: the seed number across the top (in place of the seed code, which the file-select screen still shows), your name and the counters on the left, the inventory on the right with the B items in a blue box as on the item screen, and the times below with wider columns. The counters are pictures, each followed by a small x and its count (Link for deaths, Link's sword for stabs, a heart container for hearts, a bomb for bombs used), as Zelda II Randomizer shows its containers; counts above 9999 show 9999. The inventory shows bombs when you have some left. Archipelago games show no seed number.
+- Pegasus Boots: holding B with the Pegasus Boots (L1) while walking through a dungeon door or doorway no longer freezes the game. The boots now whoosh once when they start running, instead of every few frames while charging.
+- Pegasus Boots: new boot art; the Pegasus Boots are red (they were drawn in Link's colors, which change with the rings), the Magical Boots stay blue.
+- Fairies in shops always cost 20-40 rupees: the fairy that takes a spare bait's place with Shop Items in the Item Pool (it kept the bait's price) and the fairies that replace the magical shield with the Archipelago logo look.
+- Statistics screen music follows your music setting: with music on, the ending's song keeps playing on the statistics screen (as before beta 6); with Turn music off, the screen is silent.
+- Hints: the hint that leads to the magical-sword cave ("MEET THE ... BY THE COAST") and the one that names the white-sword cave's item ("THE ELDER HAS THE LADDER ...") now also say how many heart containers that cave asks for ("WITH 12 HEARTS", "FOR 5 HEARTS"), so the two can be told apart.
+- Level name: up to seven characters. Words of up to six characters keep the dash (CASTLE-1), seven-character words drop it (DUNGEON1); shorter words show as before. Hints spell the level the same way, re-wrapping a hint where the longer name needs the room.
+- Hints: a person inside a level never tells you where that same level is. Such a hint now trades places with another dungeon person's hint, so it is shown in another level instead.
+- New Z1R settings: Add Bridges to the River (two bridges over the one-square river in screens $17 and $27, a way west without the ladder or the Lost Woods) and Add Lost Woods Shortcut (an opening on the west edge of the screen north of the Lost Woods, a one-way path around the maze), each Off, On or Random.
+- Randomize Dead Woods now turns Add Lost Woods Shortcut on: its maze always lets you out to the south, so the shortcut is the way west without the ladder. The page shows the shortcut as on while Randomize Dead Woods is on.
+- Logic with Randomize Dead Woods: the land west of the river no longer needs the ladder, since the Lost Woods Shortcut (or the bridges) leads there; only the screens reached solely through the maze ($70, $71 and the cave on $72) need the maze's hint. Items, caves and hints in those seeds can land differently.

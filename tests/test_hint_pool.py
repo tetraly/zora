@@ -6,6 +6,7 @@ import math
 
 import pytest
 
+from tests.needs import needs_base_rom
 from zora.rom.base_rom import BASE_ROM_PATH
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_world, plan
@@ -176,6 +177,7 @@ def test_texts_fill_the_bank_then_the_overflow_region() -> None:
     assert place_hint_texts([BANK, 1], EXTENDED_HINT_POINTERS)[1] == QUOTE_DATA_ADDRESS + 2 * EXTENDED_HINT_POINTERS
 
 
+@needs_base_rom
 def test_spilled_texts_round_trip_and_stay_in_their_regions() -> None:
     """Forty-five copies of the longest quote that still fits the regions need more than the
     bank: the rest go to the overflow region, and the parser reads them back in slot order."""
@@ -200,6 +202,7 @@ def test_spilled_texts_round_trip_and_stay_in_their_regions() -> None:
     assert rom[EXT_HINT_DATA_ROM_END:EXT_HINT_DATA_ROM_END + 0x80] == base[EXT_HINT_DATA_ROM_END:EXT_HINT_DATA_ROM_END + 0x80]
 
 
+@needs_base_rom
 def test_community_overflow_round_trips() -> None:
     """PI-HINT-02: COMMUNITY's 38 texts overflow into the old text area after its pointer
     table when they do not fit the bank, and the parser reads them back through the pointers."""

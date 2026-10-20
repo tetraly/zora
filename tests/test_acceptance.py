@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.needs import needs_base_rom
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.game_config import GameConfig, HintMode
 from zora_measure.checkpoints.acceptance import long_items_outside_level9
@@ -90,7 +91,7 @@ def test_pols_voice_groups_from_prg0() -> None:
     env = os.environ.get("ZORA_VANILLA_ROM")
     path = Path(env) if env else BASE_ROM_PATH
     if not path.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     verify_base_rom(path)
     enemies = parse_rom(load_rom(path)).enemies
     offsets = sorted(enemies.mixed_group_offsets.values())
@@ -105,7 +106,7 @@ def test_accepted_output_keeps_long_items_out_of_level9() -> None:
     env = os.environ.get("ZORA_VANILLA_ROM")
     path = Path(env) if env else BASE_ROM_PATH
     if not path.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     verify_base_rom(path)
     rom = load_rom(path)
     for seed in range(3):
@@ -130,7 +131,7 @@ def test_walk_accepts_every_corpus_target() -> None:
     from zora.generate.dungeon_walk import item_room, walk_level
     roms = sorted(CORPUS.glob("*.nes"))[:200]
     if not roms:
-        pytest.skip("corpus missing")
+        pytest.skip("needs the corpora")
     held = FAMILY_ITEMS | {Item.LADDER}
     for path in roms:
         for level in parse_rom(load_rom(path)).levels:
@@ -193,6 +194,7 @@ def test_pi_logic_02_ganon_needs_two_arrow_upgrades() -> None:
     assert is_family_blocked(_room(GANON), SWORD | {Item.BOW, TWO_ARROWS})
 
 
+@needs_base_rom
 def test_pi_logic_01_a_line_counts_its_held_items_and_the_reached_shop_ware() -> None:
     """The silver arrow plus the arrow shop's wooden arrow (its door reached) is two upgrades;
     with no door reached, or under Shop Items in the Item Pool (the ware joined), one."""
@@ -219,6 +221,7 @@ def test_pi_logic_04_a_burnable_screen_needs_a_candle() -> None:
     assert ONE_CANDLE not in DEFAULT_RULES.needs(bush) and ONE_CANDLE not in PROGRESSIVE.needs(bush)
 
 
+@needs_base_rom
 def test_pi_logic_05_front_doors_are_skipped_with_the_shop_items_in_the_pool(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """E4/E5 (OW-SHOP-06) judge the candle and arrow shops' doors unless Shop Items in the Item

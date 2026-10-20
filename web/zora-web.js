@@ -36,6 +36,7 @@ const FLAG_TABS = ["Overworld", "Dungeons", "Items", START_TAB, "Monsters", "Mis
 const FALLBACK_TAB = "Misc";
 const ZORA_TAB = "ZORA extras";
 const LOOK_TAB = "Look and feel";
+const CONFLICT_TAB_NOTE = "Holds a setting that conflicts with another; see the red note.";
 const FLAG_TABS_URL = "flag-tabs.json";
 const FLAG_TABS_EMBEDDED_ID = "zora-embedded-flag-tabs";
 // zora.generate.NOT_PRODUCED_PREFIX: the generator's refusal of values ZORA
@@ -43,9 +44,10 @@ const FLAG_TABS_EMBEDDED_ID = "zora-embedded-flag-tabs";
 const NOT_PRODUCED_REFUSAL = "not produced: ";
 const NOT_IMPLEMENTED = "Not yet implemented";
 const PASTED_FLAGS = "pasted flags";
-// The player's own presets: this many slots, kept in this browser.
+// The player's own presets: this many slots, kept in this browser. 8 since 2026-10-17 (owner; 4 before):
+// a list saved with fewer slots reads as its slots followed by empty ones (readCustomPresets).
 const CUSTOM_PRESETS_KEY = "zora.customPresets";
-const CUSTOM_SLOT_COUNT = 4;
+const CUSTOM_SLOT_COUNT = 8;
 // How the player plays: single player (the default: generate a ROM here) or multiworld (export an
 // Archipelago YAML, zora_web/multiworld.py). A shared link carries it, with both flag strings:
 // ?flags=...&zora=...&mode=multiworld (and &seed=... in single player, LINK_SEED below); a default
@@ -61,12 +63,20 @@ const LINK_SEED = "seed";
 const SEED_LIMIT = 2n ** 64n;
 const SHARED_LINK = "the shared link";
 // zora.apworld's link comes with the metadata (zora_web.multiworld.apworld_url: this version's GitHub
-// release asset). The Archipelago guide is a page beside this one (scripts/guide_page.py, from
-// docs/archipelago-guide.md); a single file opened from disk has none beside it, so it links the site's.
+// release asset). The test channel has no GitHub release until promotion: its page links the
+// zora.apworld and release notes published beside it (TEST_CHANNEL_ASSETS, from the same commit;
+// docs/releasing.md "Channels"). The Archipelago guide is a page beside this one (scripts/guide_page.py,
+// from docs/archipelago-guide.md); a single file opened from disk has none beside it, so it links its
+// channel's on the site.
 const SITE_URL = "https://zora.gg/";
+const CHANNEL_URL = PAGE_CHANNEL === TEST_CHANNEL ? `${SITE_URL}${TEST_CHANNEL}/` : SITE_URL;
 const GUIDE_PAGE = "archipelago-guide.html";
-const ARCHIPELAGO_GUIDE_URL = location.protocol === "file:" ? SITE_URL + GUIDE_PAGE : GUIDE_PAGE;
+const TEST_CHANNEL_ASSETS = { apworld: "zora.apworld", notes: "zora-apworld-notes.txt" };
+const besideThisPage = (file) => (location.protocol === "file:" ? CHANNEL_URL + file : file);
+const ARCHIPELAGO_GUIDE_URL = besideThisPage(GUIDE_PAGE);
 const PLAYER_NAME_KEY = "zora.playerName";
+const THEME_KEY = "zora-theme";         // widgets.js initThemeToggle
+const TAB_KEY = "zora-tab";             // widgets.js initTabs
 
 const $ = (id) => document.getElementById(id);
 window.zoraTimings = { seeds: [] };
@@ -469,9 +479,11 @@ function markChanged(control, changed) {
 
 // The ZORA box and tab. Each conflict (the sword hearts, Progressive Items
 // with Extra Candles) is shown at every setting it names (ZORA extras fields
-// and Z1R fields alike) and blocks generation; nothing is changed for the
-// player.
+// and Z1R fields alike), and every tab holding one of those settings turns
+// red, so the player can find both halves; it blocks generation, and nothing
+// is changed for the player.
 function showZoraState(zora, { rewrite }) {
+  markConflictTabs([]);
   $("zora-flags").classList.toggle("flag-bar-input--error", !zora.ok);
   $("zora-flags-error").textContent = zora.ok ? "" : plainText(zora.error);
   if (!zora.ok) return;
@@ -505,6 +517,60 @@ function showZoraState(zora, { rewrite }) {
     control.row.hidden = false;
     control.row.classList.add("setting--problem");
     control.reason.textContent = texts.join(" ");
+  }
+  showWarnings(zora.warnings || [], messages);
+  showForced(zora.forced || []);
+  markConflictTabs(conflictTabs(zora.conflicts));
+}
+
+// Z1R settings a ZORA setting sets whatever the Z1R string holds (Randomize Dead Woods turns Add Lost
+// Woods Shortcut on): shown at that value, locked, with the note. showState repaints every Z1R
+// setting first, so one no longer forced shows its own value again.
+function showForced(forced) {
+  for (const { field, value, message } of forced) {
+    const control = controls.get(field);
+    if (!control || control.kind === "select") continue;
+    paintSegments(control.buttons, value);
+    for (const button of control.buttons.values()) button.disabled = true;
+    control.row.hidden = false;
+    control.row.classList.add("setting--locked");
+    control.reason.textContent = plainText(message);
+  }
+}
+
+// Warnings: accepted settings worth a note beside each setting they name, in the plain note color (not
+// red). A setting a conflict names keeps only its red note; a note already shown is not repeated.
+function showWarnings(warnings, refused) {
+  for (const { message, fields } of warnings) {
+    const text = plainText(message);
+    for (const name of fields) {
+      const control = zoraControls.get(name) || controls.get(name);
+      if (!control || refused.has(name) || control.reason.textContent.includes(text)) continue;
+      control.row.hidden = false;
+      control.reason.textContent = [control.reason.textContent, text].filter(Boolean).join(" ");
+    }
+  }
+}
+
+// The tabs holding a setting some conflict names: ZORA extras for ZORA's own, the flag's tab for a Z1R one.
+function conflictTabs(conflicts) {
+  const tabs = new Set();
+  for (const { fields } of conflicts) {
+    for (const name of fields) {
+      if (zoraControls.has(name)) tabs.add(ZORA_TAB);
+      else if (controls.has(name)) tabs.add(controls.get(name).tab);
+    }
+  }
+  return [...tabs];
+}
+
+// The tabs named get the conflict mark; every other tab loses it.
+function markConflictTabs(tabNames) {
+  const marked = new Set(tabNames.map((name) => `tab-${slug(name)}`));
+  for (const tab of $("tabs").querySelectorAll(".tab")) {
+    const conflict = marked.has(tab.id);
+    tab.classList.toggle("tab--conflict", conflict);
+    tab.title = conflict ? CONFLICT_TAB_NOTE : "";
   }
 }
 
@@ -583,9 +649,9 @@ const PLAYER_CHOICES = [
     help: "Tones down the screen flashes, for players sensitive to flashing light." },
   { key: "music", label: "Music", default: "on", choices: [["on", "On"], ["off", "Off"]],
     help: "Turns the game's music on or off. Sound effects stay." },
-  { key: "statisticsScreen", label: "Statistics screen", default: "off", choices: [["on", "On"], ["off", "Off"]],
-    help: "After the credits, Start shows a screen with your times per level, when you found the key items, deaths, sword stabs and bombs used. Off leaves the original ending." },
 ];
+// The statistics screen is no longer a choice: every ROM has it (owner, 2026-10-17). A saved
+// statisticsScreen value is not loaded (loadPlayerSettings reads only these keys).
 // The color slots, as NES palette indexes, under their headings.
 const PLAYER_COLORS = [
   { heading: "Tunic colors", slots: [
@@ -600,10 +666,49 @@ const PLAYER_COLORS = [
                                        help: "The color of the hearts in the life meter." }] },
 ];
 const COLOR_SLOTS = PLAYER_COLORS.flatMap((group) => group.slots);
+// The Archipelago games' own settings (zora/archipelago.py MULTIWORLD_SETTINGS): shown and sent only
+// in multiworld mode, where the exported YAML carries them; they change nothing in the ROM.
+const MULTIWORLD_CHOICES = [
+  { key: "foreignItemLook", label: "Other players' items look like", default: "rupee",
+    choices: [["rupee", "A rupee"], ["logo", "The Archipelago logo"]],
+    help: "How items for other players look in your game. A rupee: picking one up gives you one rupee. The " +
+          "Archipelago logo: picking one up gives you nothing, and the shops' magical shields become fairies " +
+          "(20 to 40 rupees)." },
+  { key: "itemArrivalSound", label: "Sound when an item arrives", default: "item-appears",
+    choices: [["item-appears", "Item appears"], ["item-taken", "Item taken"], ["none", "None"]],
+    help: "When another player sends you an item, the game plays this sound. Item appears: the sound of an " +
+          "item appearing in a room. Item taken: the sound of picking up an item. It plays over the music " +
+          "and never stops Link." },
+];
+const ALL_CHOICES = [...PLAYER_CHOICES, ...MULTIWORLD_CHOICES];
+
+// The test channel's first load (docs/releasing.md "Channels"): the regular channel's saved settings,
+// copied into the test page's own keys in this page's format; the regular keys are only read, never
+// written. Marked done, so later loads (or a cleared test setting) copy nothing again.
+const COPIED_FROM_REGULAR_KEY = "copiedFromRegular";
+function copyRegularChannelSettings(storage = localStorage, channel = PAGE_CHANNEL) {
+  if (channel !== TEST_CHANNEL) return [];
+  const copied = [];
+  try {
+    if (storage.getItem(channelKey(COPIED_FROM_REGULAR_KEY, channel)) !== null) return copied;
+    const translate = {
+      [PLAYER_SETTINGS_KEY]: (value) => JSON.stringify(checkedPlayerSettings(JSON.parse(value))),
+      [CUSTOM_PRESETS_KEY]: (value) => JSON.stringify(checkedCustomPresets(JSON.parse(value))),
+      [PLAYER_NAME_KEY]: (value) => value, [THEME_KEY]: (value) => value, [TAB_KEY]: (value) => value,
+    };
+    for (const [key, newer] of Object.entries(translate)) {
+      const value = storage.getItem(channelKey(key, REGULAR_CHANNEL));
+      if (value === null || storage.getItem(channelKey(key, channel)) !== null) continue;
+      try { storage.setItem(channelKey(key, channel), newer(value)); copied.push(key); } catch { /* unreadable: left */ }
+    }
+    storage.setItem(channelKey(COPIED_FROM_REGULAR_KEY, channel), new Date().toISOString());
+  } catch { /* this browser keeps nothing for the page */ }
+  return copied;
+}
 
 function defaultPlayerSettings() {
   const settings = {};
-  for (const choice of PLAYER_CHOICES) settings[choice.key] = choice.default;
+  for (const choice of ALL_CHOICES) settings[choice.key] = choice.default;
   for (const slot of COLOR_SLOTS) settings[slot.key] = slot.default;
   settings.levelWord = "LEVEL";        // metadata.levelWord.default
   settings.bossSoundWord = "ROAR";     // metadata.bossSoundWord.default
@@ -616,11 +721,17 @@ function isPickableColor(value) {
 
 // The saved settings, each value checked; anything unknown or missing takes its default.
 function loadPlayerSettings() {
-  const settings = defaultPlayerSettings();
   let saved = null;
-  try { saved = JSON.parse(localStorage.getItem(PLAYER_SETTINGS_KEY) || "null"); } catch { saved = null; }
+  try { saved = JSON.parse(pageStorage.getItem(PLAYER_SETTINGS_KEY) || "null"); } catch { saved = null; }
+  return checkedPlayerSettings(saved);
+}
+
+// Player settings as this page keeps them, from any earlier page's saved object: each value checked,
+// anything unknown or missing at its default.
+function checkedPlayerSettings(saved) {
+  const settings = defaultPlayerSettings();
   if (!saved || typeof saved !== "object") return settings;
-  for (const choice of PLAYER_CHOICES) {
+  for (const choice of ALL_CHOICES) {
     if (choice.choices.some(([value]) => value === saved[choice.key])) settings[choice.key] = saved[choice.key];
   }
   for (const slot of COLOR_SLOTS) {
@@ -632,16 +743,30 @@ function loadPlayerSettings() {
   return settings;
 }
 
+copyRegularChannelSettings();
 const playerSettings = loadPlayerSettings();
 
 function savePlayerSettings() {
-  try { localStorage.setItem(PLAYER_SETTINGS_KEY, JSON.stringify(playerSettings)); } catch { /* not remembered */ }
+  try { pageStorage.setItem(PLAYER_SETTINGS_KEY, JSON.stringify(playerSettings)); } catch { /* not remembered */ }
   refreshMultiworld();      // the YAML carries them: check them again
 }
 
-// A copy for the generate message.
+// A copy for the worker's messages; the multiworld settings only in multiworld mode.
 function currentPlayerSettings() {
-  return { ...playerSettings };
+  const settings = { ...playerSettings };
+  if (mode !== MULTIWORLD) for (const choice of MULTIWORLD_CHOICES) delete settings[choice.key];
+  return settings;
+}
+
+// A choice's select, kept in playerSettings and this browser.
+function choiceRow(choice) {
+  const select = selectControl(`player-${choice.key}`, choice.label,
+                               choice.choices.map(([value, label]) => ({ value, label })), () => {
+                                 playerSettings[choice.key] = select.value;
+                                 savePlayerSettings();
+                               });
+  select.value = playerSettings[choice.key];
+  return settingRow(choice.label, choice.help, select).row;
 }
 
 // Fills the Look and feel panel: the choices as selects, then the color slots.
@@ -650,15 +775,7 @@ function buildLookPanel(panel) {
     textContent: "Look and feel settings change only how the game looks and sounds, so they are not part " +
                  "of the flag strings. This browser remembers them." }));
   const grid = settingGrid();
-  for (const choice of PLAYER_CHOICES) {
-    const select = selectControl(`player-${choice.key}`, choice.label,
-                                 choice.choices.map(([value, label]) => ({ value, label })), () => {
-                                   playerSettings[choice.key] = select.value;
-                                   savePlayerSettings();
-                                 });
-    select.value = playerSettings[choice.key];
-    grid.append(settingRow(choice.label, choice.help, select).row);
-  }
+  for (const choice of PLAYER_CHOICES) grid.append(choiceRow(choice));
   grid.append(levelWordRow());
   grid.append(bossSoundWordRow());
   const markerNote = element("p", { id: "marker-note", className: "panel-note color-note", textContent: MARKER_NOTE });
@@ -681,15 +798,27 @@ function buildLookPanel(panel) {
     if (group.slots.some((slot) => TUNIC_SLOTS.includes(slot.key))) grid.append(markerNote);
   }
   showMarkerNote(markerNote);
+  grid.append(element("h3", { className: "color-heading multiworld-only", textContent: "Multiworld" }));
+  for (const choice of MULTIWORLD_CHOICES) {
+    const row = choiceRow(choice);
+    row.classList.add("multiworld-only");
+    grid.append(row);
+  }
   panel.append(grid);
+  showMultiworldSettings();
+}
+
+// The multiworld settings' rows show only in multiworld mode.
+function showMultiworldSettings() {
+  for (const node of document.querySelectorAll(".multiworld-only")) node.hidden = mode !== MULTIWORLD;
 }
 
 // The level label's word (FP-LEVEL-01): a listed word or the player's own. The rule is
 // metadata.levelWord, zora/rom/player_settings.py's (tests/test_level_word.py runs this function
 // in Node against Python's level_word_problem).
 const LEVEL_WORD_HELP = "The word the status bar and the hints show before a level's number in place of LEVEL. " +
-                        "Words of up to five characters keep the dash (LAIR-1); six-character words drop it to " +
-                        "fit (PALACE1).";
+                        "Words of up to six characters keep the dash (CASTLE-1); seven-character words drop it to " +
+                        "fit (DUNGEON1).";
 
 function normalizedLevelWord(text) {
   return text.trim().toUpperCase();
@@ -714,7 +843,7 @@ function levelWordRow() {
     defaultWord: rule.default, options: rule.choices.map((word) => ({ value: word, label: word })),
     problem: (word) => levelWordProblem(word, rule),
     shows: (word) => `Shows as ${levelLabel(word, rule)}` +
-                     (word.length > rule.dashMaxLength ? " (six characters: no room for the dash)." : "."),
+                     (word.length > rule.dashMaxLength ? " (seven characters: no room for the dash)." : "."),
     keeps: (word) => levelLabel(word, rule),
   });
 }
@@ -826,21 +955,25 @@ function buildPresets() {
 function readCustomPresets() {
   try {
     const probe = `${CUSTOM_PRESETS_KEY}.probe`;
-    localStorage.setItem(probe, "1");
-    localStorage.removeItem(probe);
-    const saved = JSON.parse(localStorage.getItem(CUSTOM_PRESETS_KEY) || "[]");
-    const slots = Array.from({ length: CUSTOM_SLOT_COUNT }, (_, i) => (Array.isArray(saved) ? saved[i] : null));
-    return slots.map((slot) => (slot && typeof slot.name === "string" && typeof slot.flags === "string"
-      ? { name: slot.name, flags: slot.flags, zoraFlags: typeof slot.zoraFlags === "string" ? slot.zoraFlags : "" }
-      : null));
+    pageStorage.setItem(probe, "1");
+    pageStorage.removeItem(probe);
+    return checkedCustomPresets(JSON.parse(pageStorage.getItem(CUSTOM_PRESETS_KEY) || "[]"));
   } catch {
     return null;
   }
 }
 
+// The slots as this page keeps them, from any earlier page's saved list (fewer slots, no ZORA flags).
+function checkedCustomPresets(saved) {
+  const slots = Array.from({ length: CUSTOM_SLOT_COUNT }, (_, i) => (Array.isArray(saved) ? saved[i] : null));
+  return slots.map((slot) => (slot && typeof slot.name === "string" && typeof slot.flags === "string"
+    ? { name: slot.name, flags: slot.flags, zoraFlags: typeof slot.zoraFlags === "string" ? slot.zoraFlags : "" }
+    : null));
+}
+
 function writeCustomPresets(slots) {
   try {
-    localStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(slots));
+    pageStorage.setItem(CUSTOM_PRESETS_KEY, JSON.stringify(slots));
     return true;
   } catch {
     return false;
@@ -884,8 +1017,232 @@ function renderCustomPresets() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// The settings file (owner, 2026-10-17): everything this page remembers, as one YAML file a player
+// loads in another browser or after clearing site data. SETTINGS_FORMAT goes up only when a file
+// this page writes would be misread by an older page; a page refuses a newer format and keeps
+// reading every older one (tests/test_web_settings_file.py pins a format 1 file).
+// ---------------------------------------------------------------------------
+
+const SETTINGS_FORMAT_KEY = "zora_page_settings";
+const SETTINGS_FORMAT = 1;
+const THEMES = ["light", "dark"];
+const NOT_A_SETTINGS_FILE = "This isn't a ZORA settings file: it has no zora_page_settings line.";
+const YAML_KEY = /^([A-Za-z_][\w-]*)\s*:(?:\s+(.*))?$/;
+
+class SettingsFileError extends Error {}
+
+// What the file holds, in its order: the format and the page that saved it, then the settings.
+function pageSettings() {
+  return {
+    [SETTINGS_FORMAT_KEY]: SETTINGS_FORMAT,
+    saved_by: `ZORA ${$("version").textContent}`,
+    mode,
+    flags: form.flags,
+    zora_flags: form.zora.ok ? form.zora.flags : "",
+    player_settings: currentPlayerSettings(),
+    custom_presets: readCustomPresets() || [],
+    player_name: savedPlayerName(),
+    theme: getSetting(THEME_KEY),
+    open_tab: getSetting(TAB_KEY),
+  };
+}
+
+// A value as the file writes it: text double-quoted with JSON's escapes (which YAML reads the same),
+// a number or null bare.
+function yamlScalar(value) {
+  return typeof value === "string" ? JSON.stringify(value) : String(value);
+}
+
+function settingsYaml(settings) {
+  const lines = ["# ZORA settings: load this file in ZORA's Presets window (Load a file).",
+                 "# It holds your flags, mode, cosmetic settings, presets, player name and theme."];
+  const entries = (value) => Object.entries(value);
+  for (const [key, value] of entries(settings)) {
+    if (Array.isArray(value) && value.length) {
+      lines.push(`${key}:`);
+      for (const item of value) {
+        if (item !== null && typeof item === "object" && entries(item).length) {
+          entries(item).forEach(([field, inner], i) => lines.push(`${i ? "    " : "  - "}${field}: ${yamlScalar(inner)}`));
+        } else {
+          lines.push(`  - ${item !== null && typeof item === "object" ? "{}" : yamlScalar(item)}`);
+        }
+      }
+    } else if (value !== null && typeof value === "object" && entries(value).length) {
+      lines.push(`${key}:`);
+      for (const [field, inner] of entries(value)) lines.push(`  ${field}: ${yamlScalar(inner)}`);
+    } else {
+      lines.push(`${key}: ${Array.isArray(value) ? "[]" : value !== null && typeof value === "object" ? "{}" : yamlScalar(value)}`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+// Reads the YAML this page writes, and the same edited by hand or saved again by another YAML tool:
+// block maps and lists, values double-quoted, single-quoted or plain (a whole number, 0x hex, null,
+// true or false, else text), comments, and empty {} and []. Anything else is refused with its line.
+function parseSettingsYaml(text) {
+  const lines = [];
+  text.replace(/^﻿/, "").split(/\r?\n/).forEach((raw, index) => {
+    if (/^\s*(#|$)/.test(raw)) return;
+    if (/^ *\t/.test(raw)) throw new SettingsFileError(`Line ${index + 1}: YAML can't be indented with tabs.`);
+    lines.push({ number: index + 1, indent: raw.search(/\S/), text: raw.trim() });
+  });
+  if (!lines.length) throw new SettingsFileError(NOT_A_SETTINGS_FILE);
+  let at = 0;
+  const fail = (line, why) => { throw new SettingsFileError(`Line ${line.number}: ${why}`); };
+  const isItem = (line) => line.text === "-" || line.text.startsWith("- ");
+
+  function scalar(written, line) {
+    const quoted = /^"(?:[^"\\]|\\.)*"|^'(?:[^']|'')*'/.exec(written);
+    if (quoted) {
+      if (!/^(\s+#.*)?$/.test(written.slice(quoted[0].length))) fail(line, "text after the closing quote.");
+      if (quoted[0][0] === "'") return quoted[0].slice(1, -1).replace(/''/g, "'");
+      try { return JSON.parse(quoted[0]); } catch { fail(line, "this quoted text can't be read."); }
+    }
+    const plain = written.replace(/\s+#.*$/, "");
+    if (plain === "{}") return {};
+    if (plain === "[]") return [];
+    if (/^["'{[]/.test(plain)) fail(line, "this value can't be read.");
+    if (plain === "" || plain === "~" || plain === "null") return null;
+    if (plain === "true" || plain === "false") return plain === "true";
+    if (/^-?\d+$/.test(plain)) return Number(plain);
+    if (/^0x[0-9a-f]+$/i.test(plain)) return parseInt(plain, 16);
+    return plain;
+  }
+
+  // The value under a "name:" line with nothing after it: a deeper block, a list at the same
+  // indentation (as other YAML tools write lists), or null.
+  function nested(indent) {
+    if (at < lines.length && lines[at].indent > indent) return block(lines[at].indent);
+    if (at < lines.length && lines[at].indent === indent && isItem(lines[at])) return list(indent);
+    return null;
+  }
+
+  function map(indent) {
+    const out = {};
+    while (at < lines.length && lines[at].indent === indent && !isItem(lines[at])) {
+      const line = lines[at];
+      const match = YAML_KEY.exec(line.text);
+      if (!match) fail(line, "expected name: value.");
+      if (Object.hasOwn(out, match[1])) fail(line, `${match[1]} appears twice.`);
+      at++;
+      out[match[1]] = match[2] === undefined || match[2] === "" ? nested(indent) : scalar(match[2], line);
+    }
+    return out;
+  }
+
+  function list(indent) {
+    const out = [];
+    while (at < lines.length && lines[at].indent === indent && isItem(lines[at])) {
+      const line = lines[at];
+      const rest = line.text.slice(1).trimStart();
+      if (YAML_KEY.test(rest)) {
+        // "- name: value" opens a map whose other names line up under this first one.
+        lines[at] = { ...line, indent: line.indent + line.text.length - rest.length, text: rest };
+        out.push(map(lines[at].indent));
+      } else {
+        at++;
+        out.push(rest === "" ? nested(indent) : scalar(rest, line));
+      }
+    }
+    return out;
+  }
+
+  function block(indent) {
+    return isItem(lines[at]) ? list(indent) : map(indent);
+  }
+
+  const settings = block(lines[0].indent);
+  if (at < lines.length) fail(lines[at], "unexpected indentation.");
+  return settings;
+}
+
+// The file's settings, checked: its format first, then each part's kind. A part the file leaves
+// out keeps this page's own; each value is checked again where the page reads it
+// (loadPlayerSettings, readCustomPresets, the flag form as for a shared link).
+function checkedPageSettings(settings) {
+  const isMap = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+  if (!isMap(settings) || !Object.hasOwn(settings, SETTINGS_FORMAT_KEY)) throw new SettingsFileError(NOT_A_SETTINGS_FILE);
+  const format = settings[SETTINGS_FORMAT_KEY];
+  if (!Number.isInteger(format) || format < 1) {
+    throw new SettingsFileError(`${SETTINGS_FORMAT_KEY} must be a whole number from 1, not ${JSON.stringify(format)}.`);
+  }
+  if (format > SETTINGS_FORMAT) {
+    const by = typeof settings.saved_by === "string" ? ` (${settings.saved_by})` : "";
+    throw new SettingsFileError(`This file was saved by a newer ZORA page${by}, in settings format ${format}. ` +
+      `This page reads format ${SETTINGS_FORMAT} and older: load the file on the newer page, or use a newer ZORA.`);
+  }
+  const expect = (key, check, what) => {
+    if (settings[key] !== undefined && settings[key] !== null && !check(settings[key])) {
+      throw new SettingsFileError(`${key} must be ${what}.`);
+    }
+  };
+  expect("mode", (value) => value === SINGLE || value === MULTIWORLD, `${SINGLE} or ${MULTIWORLD}`);
+  for (const key of ["saved_by", "flags", "zora_flags", "player_name", "open_tab"]) {
+    expect(key, (value) => typeof value === "string", "text");
+  }
+  expect("theme", (value) => THEMES.includes(value), THEMES.join(" or "));
+  expect("player_settings", isMap, "a list of name: value lines");
+  expect("custom_presets", Array.isArray, "a list of presets");
+  return settings;
+}
+
+// Keeps the file's settings in this browser, as the page itself would, and returns the address that
+// opens the page on its flags and mode (linkSearch, as a shared link does).
+function applyPageSettings(settings) {
+  const kept = [[PLAYER_SETTINGS_KEY, settings.player_settings && JSON.stringify(settings.player_settings)],
+                [CUSTOM_PRESETS_KEY, settings.custom_presets && JSON.stringify(settings.custom_presets)],
+                [PLAYER_NAME_KEY, settings.player_name], [THEME_KEY, settings.theme], [TAB_KEY, settings.open_tab]];
+  try {
+    for (const [key, value] of kept) if (typeof value === "string") pageStorage.setItem(key, value);
+  } catch {
+    throw new SettingsFileError("This browser isn't keeping data for this page, so it can't load settings.");
+  }
+  const search = linkSearch(location.search, {
+    flags: settings.flags ?? form.flags, zoraFlags: settings.zora_flags ?? (form.zora.ok ? form.zora.flags : ""),
+    mode: settings.mode ?? mode }, metadata.defaultFlags);
+  return `${location.pathname}${search}${location.hash}`;
+}
+
+function showSettingsNote(text, kind = "") {
+  $("settings-file-note").textContent = text;
+  $("settings-file-note").className = `preset-footnote ${kind}`;
+}
+
+function saveSettingsFile() {
+  if (!form) return;
+  const url = URL.createObjectURL(new Blob([settingsYaml(pageSettings())], { type: "text/yaml" }));
+  const today = new Date();       // the player's own date, not UTC's
+  const date = [today.getFullYear(), today.getMonth() + 1, today.getDate()].map((part) => String(part).padStart(2, "0"));
+  const link = element("a", { href: url, download: `zora-settings-${date.join("-")}.yaml` });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showSettingsNote(`Saved ${link.download}.`);
+}
+
+async function loadSettingsFile() {
+  const file = $("settings-file").files[0];
+  $("settings-file").value = "";
+  if (!file || !form) return;
+  try {
+    const settings = checkedPageSettings(parseSettingsYaml(await file.text()));
+    const saved = readCustomPresets();
+    if (saved && saved.some(Boolean) && settings.custom_presets
+        && !window.confirm("Load the settings in this file? They replace this page's flags, cosmetic settings " +
+                           "and your saved presets.")) return;
+    location.replace(applyPageSettings(settings));
+  } catch (err) {
+    if (!(err instanceof SettingsFileError)) throw err;
+    showSettingsNote(`${file.name}: ${err.message}`, "preset-footnote--error");
+  }
+}
+
 function openPresets() {
   renderCustomPresets();
+  $("settings-save").disabled = !form;
   $("presets").showModal();
 }
 
@@ -1187,6 +1544,7 @@ function setMode(next) {
   $("generate-row").hidden = multiworld;
   $("export-row").hidden = !multiworld;
   $("player-name-error").hidden = !multiworld;
+  showMultiworldSettings();
   $("step-generate-title").textContent = multiworld ? "Export your Archipelago YAML" : "Generate the game";
   // Each mode keeps its own last result: a generated ROM, an exported YAML.
   $("generate-result").hidden = multiworld || !$("download").hasChildNodes();
@@ -1203,8 +1561,14 @@ function setMode(next) {
 
 // The world's links, or the placeholders until they exist (zora.apworld's once Python has started).
 function showWorldLinks() {
-  const apworldUrl = metadata && metadata.multiworld.apworldUrl;
-  if (apworldUrl) $("apworld-link").replaceChildren(element("a", { href: apworldUrl, textContent: "Download zora.apworld" }));
+  if (PAGE_CHANNEL === TEST_CHANNEL) {
+    $("apworld-link").replaceChildren(
+      element("a", { href: besideThisPage(TEST_CHANNEL_ASSETS.apworld), textContent: "Download zora.apworld" }),
+      " (", element("a", { href: besideThisPage(TEST_CHANNEL_ASSETS.notes), textContent: "release notes" }), ")");
+  } else {
+    const apworldUrl = metadata && metadata.multiworld.apworldUrl;
+    if (apworldUrl) $("apworld-link").replaceChildren(element("a", { href: apworldUrl, textContent: "Download zora.apworld" }));
+  }
   $("guide-link").replaceChildren(
     element("a", { href: ARCHIPELAGO_GUIDE_URL, target: "_blank", rel: "noopener", className: "guide-link",
                    textContent: "The Archipelago guide for ZORA" }),
@@ -1225,7 +1589,7 @@ async function refreshMultiworld() {
 }
 
 function savedPlayerName() {
-  try { return localStorage.getItem(PLAYER_NAME_KEY) || ""; } catch { return ""; }
+  try { return pageStorage.getItem(PLAYER_NAME_KEY) || ""; } catch { return ""; }
 }
 
 let nameRequest = 0;
@@ -1233,7 +1597,7 @@ let nameTouched = false;
 async function checkPlayerName() {
   if (!ready) return;
   const name = $("player-name").value;
-  try { localStorage.setItem(PLAYER_NAME_KEY, name); } catch { /* not remembered */ }
+  try { pageStorage.setItem(PLAYER_NAME_KEY, name); } catch { /* not remembered */ }
   const request = ++nameRequest;
   const { problem } = await ask("nameProblem", { name });
   if (request !== nameRequest) return;
@@ -1359,7 +1723,7 @@ async function generateSeed(seed, flags = form.flags, zoraFlags = form.zora.flag
                                          playerSettings: currentPlayerSettings() });
   window.zoraTimings.seeds.push({ seed: String(seed), ms: result.ms });
   return { bytes: result.rom, ms: result.ms, flags: result.flags, zoraFlags: result.zoraFlags, seed: result.seed,
-           encoded: result.encoded, code: result.code };
+           encoded: result.encoded, code: result.code, codeIcons: result.codeIcons };
 }
 window.zoraGenerateSeed = generateSeed;
 
@@ -1455,6 +1819,87 @@ function addSeedReportButtons(result) {
 }
 window.zoraViewInVisualizer = viewInVisualizer;
 
+// The seed code as its item names, comma-separated: what "Copy seed code" copies (for a race room
+// such as racetime.gg; owner, 2026-10-17) and the bug report's last line.
+function seedCodeText(code) {
+  return code.join(", ");
+}
+
+// The seed code as pictures (owner's backlog, 2026-10-18): each item as the player's own ROM draws it
+// on the file-select screen, its tiles and palette (zora.rom.seed_code_icons: custom sprites, the
+// Pegasus Boots and the tunic color show as in the game), beside its name, which stays the text that
+// screen readers read and copying copies.
+const SEED_CODE_ICON_SIZE = 16;
+
+// An icon's 16 rows of NES palette values as a canvas's RGBA pixels.
+function iconRgba(pixels) {
+  const rgba = new Uint8ClampedArray(SEED_CODE_ICON_SIZE * SEED_CODE_ICON_SIZE * 4);
+  pixels.flat().forEach((color, index) => {
+    const rgb = NES_PALETTE[color];
+    rgba.set([1, 3, 5].map((start) => parseInt(rgb.slice(start, start + 2), 16)).concat(255), index * 4);
+  });
+  return rgba;
+}
+
+// One seed-code item: its icon, when Python drew one, and its name.
+function seedCodeItem(name, pixels) {
+  const item = element("span", { className: "seed-code-item" });
+  if (pixels) {
+    const canvas = element("canvas", { className: "seed-code-icon", width: SEED_CODE_ICON_SIZE,
+                                       height: SEED_CODE_ICON_SIZE, ariaHidden: "true" });
+    canvas.getContext("2d").putImageData(new ImageData(iconRgba(pixels), SEED_CODE_ICON_SIZE), 0, 0);
+    item.append(canvas);
+  }
+  item.append(element("span", { className: "seed-code-name", textContent: name }));
+  return item;
+}
+
+// "Copy bug-report info" (owner's triage, 2026-10-17): one block a player pastes into a bug report,
+// enough to make the same game again: the page's version, the seed, both flag strings as asked for
+// (the page never shows what Random resolved to), the ROM and the seed code as its item names.
+function bugReportText(info) {
+  const graphics = info.identity.modifiedGraphics ? ", modified graphics" : "";
+  return [`ZORA ${info.version}`, `Seed: ${info.seed}`, `Z1R flags: ${info.flags}`,
+          `ZORA flags: ${info.zoraFlags || "(none)"}`, `ROM: ${info.identity.revision}${graphics}`,
+          `Seed code: ${info.code.length ? seedCodeText(info.code) : "(none)"}`].join("\n");
+}
+
+// The clipboard API, or, where the browser refuses it, a selected text area and the copy command.
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const area = element("textarea", { value: text, readOnly: true });
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.append(area);
+    area.select();
+    const copied = document.execCommand("copy");
+    area.remove();
+    return copied;
+  }
+}
+
+// A button that copies `text` and says so, or shows the text where the browser will not copy.
+function copyButton(id, label, text, copied) {
+  const button = element("button", { type: "button", id, className: "btn btn-outline", textContent: label });
+  button.addEventListener("click", async () => {
+    if (await copyText(text)) showAfterSeed(copied, "ready");
+    else showAfterSeed(`The browser would not copy. Select this and copy it yourself:\n${text}`, "error");
+  });
+  return button;
+}
+
+// "Copy bug-report info", then "Copy seed code" when the seed has one.
+function addCopyButtons(info) {
+  $("download").append(copyButton("copy-bug-report", "Copy bug-report info", bugReportText(info),
+                                  "Bug-report info copied. Paste it into your report."));
+  if (info.code.length) {
+    $("download").append(copyButton("copy-seed-code", "Copy seed code", seedCodeText(info.code), "Seed code copied."));
+  }
+}
+
 async function onGenerate() {
   const seed = $("seed").value.trim();
   // What the player asked for. Owner ruling: the page never shows what a
@@ -1486,10 +1931,14 @@ async function onGenerate() {
     if (requested.zoraFlags) {
       $("result").append(element("dt", { textContent: "ZORA flags" }), element("dd", { textContent: requested.zoraFlags }));
     }
-    // The seed code (four item names), once Python reports one.
-    if (Array.isArray(result.code) && result.code.length === SEED_CODE_LENGTH) {
-      $("seed-code").append(...result.code.map((item) => element("span", { className: "seed-code-item",
-                                                                            textContent: item })));
+    const code = Array.isArray(result.code) && result.code.length === SEED_CODE_LENGTH ? result.code : [];
+    // The ROM as identified when it was chosen: another chosen later does not change this seed's.
+    addCopyButtons({ version: $("version").textContent, seed: result.seed, flags: requested.flags,
+                         zoraFlags: requested.zoraFlags, identity: romIdentity, code });
+    // The seed code (four items, with their icons), once Python reports one.
+    if (code.length) {
+      const icons = Array.isArray(result.codeIcons) && result.codeIcons.length === code.length ? result.codeIcons : [];
+      $("seed-code").append(...code.map((name, index) => seedCodeItem(name, icons[index])));
       $("seed-code-row").hidden = false;
     }
     $("gen-time").textContent = `Generated in ${(result.ms / 1000).toFixed(1)} s`;
@@ -1512,6 +1961,9 @@ $("rom-btn").addEventListener("click", () => $("rom").click());
 $("rom").addEventListener("change", onRomChosen);
 $("presets-btn").addEventListener("click", openPresets);
 $("presets-close").addEventListener("click", closePresets);
+$("settings-save").addEventListener("click", saveSettingsFile);
+$("settings-load").addEventListener("click", () => $("settings-file").click());
+$("settings-file").addEventListener("change", loadSettingsFile);
 // A click on the dimmed page around the window closes it.
 $("presets").addEventListener("click", (event) => {
   const box = $("presets").getBoundingClientRect();

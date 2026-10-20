@@ -16,9 +16,9 @@ TenthPhase       = STATS_BLOCK + $05    ; 0-9: the tenth second of ten takes one
 AreaSeconds      = STATS_BLOCK + $06    ; 16 bits each: the overworld, levels 1-9 (CurLevel)
 LevelStamps      = STATS_BLOCK + $1A    ; 16 bits each, levels 1-9: TotalSeconds at completion
 ItemStamps       = STATS_BLOCK + $2C    ; 16 bits each: TotalSeconds when the key item was held
-BombsUsed        = STATS_BLOCK + $3A    ; 16 bits
-PrevBombs        = STATS_BLOCK + $3C    ; InvBombs last frame
-StatsScreenState = STATS_BLOCK + $3D    ; the screen's state (bank 2); 0 outside the win mode
+BombsUsed        = STATS_BLOCK + $3C    ; 16 bits (Stabs, bank 5, is at $3A)
+PrevBombs        = STATS_BLOCK + $3E    ; InvBombs last frame
+StatsScreenState = STATS_BLOCK + $3F    ; the screen's state (bank 2); 0 outside the win mode
 STATS_SIZE       = $40
 STATS_MAGIC      = $A5
 STATS_FINISHED   = $80
@@ -34,7 +34,7 @@ MODE_CELLAR        = $10
 MODE_WIN           = $13
 AREAS              = 10                 ; the overworld and levels 1-9
 TRIFORCE_LEVELS    = 8
-ITEM_STAMPS        = 6
+ITEM_STAMPS        = 7
 
 ; 601 frames per 10 seconds (NTSC runs at 60.0988 frames a second): 60 frames a second, the
 ; tenth second 61.
@@ -43,11 +43,11 @@ LONG_SECOND_PHASE  = 9
 PHASES             = 10
 
 ; The key items, in the screen's order: the slot (from Items) and the value at which the item is
-; held. Any sword; ladder; bracelet; raft; recorder; silver arrows.
+; held. Any sword; ladder; bracelet; raft; recorder; silver arrows; bow (owner, 2026-10-17).
 StampItemSlots:
-    .BYTE $00, $0C, $0E, $09, $05, $02
+    .BYTE $00, $0C, $0E, $09, $05, $02, $03
 StampItemThresholds:
-    .BYTE $01, $01, $01, $01, $01, $02
+    .BYTE $01, $01, $01, $01, $01, $02, $01
 
 StatsTick:
     LDA StatsMagic
@@ -203,7 +203,7 @@ StampItems:
     BCC @Next
     TXA
     ASL
-    ADC #ITEM_STAMP_OFFSET          ; carry is clear after the ASL (X < 6)
+    ADC #ITEM_STAMP_OFFSET          ; carry is clear after the ASL (X < 7)
     TAY
     JSR StampIfUnset
 @Next:

@@ -27,7 +27,7 @@ from zora import archipelago
 from zora.rom import inventory
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 RAM_SIZE = 0x800
 SAVE_RAM = range(0x6000, 0x8000)

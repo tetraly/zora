@@ -20,7 +20,7 @@ def _vanilla_gw() -> GameWorld:
     env = os.environ.get("ZORA_VANILLA_ROM")
     cand = Path(env) if env else BASE_ROM_PATH
     if not cand.exists():
-        pytest.skip("no vanilla ROM")
+        pytest.skip("needs the base ROM")
     verify_base_rom(cand)
     return parse_rom(load_rom(cand))
 

@@ -12,13 +12,14 @@ with or without modified graphics (rom.py). Each player's machine bakes from its
 """
 import base64
 import threading
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TextIO
 
 from BaseClasses import Item, ItemClassification, Location, MultiWorld, Region, Tutorial
 from worlds.AutoWorld import WebWorld, World
 
 from .client import ZoraClient  # noqa: F401  registers the BizHawk client
-from .names import FILLER_ITEMS, HEART_CONTAINER, ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID
+from .names import (FILLER_ITEMS, GIVEN_AS, HEART_CONTAINER, ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID, ItemNaming,
+                    zora_names)
 from .options import ZoraOptions, player_settings, zora_values
 from .rom import GAME, ZoraProcedurePatch, ZoraSettings, base_rom_bytes
 from .rules import state_rule
@@ -70,6 +71,7 @@ class ZoraWorld(World):
         seed = self.random.randrange(SEED_LIMIT)
         self.built = zora_ap.build_from_strings(flag_string, zora_flag_string, seed, base_rom_bytes())
         self.places, self.pool = list(self.built.places), list(self.built.pool)
+        self.naming = ItemNaming.of(zora_ap.give_rules(self.built))
         unexpected = sorted({name for name in self.pool if name not in ITEM_NAME_TO_ID})
         if unexpected:
             # receivable() is the item table; ZORA's pools never hold another item (its tests)
@@ -81,19 +83,19 @@ class ZoraWorld(World):
         model = self.built.logic
         for place in self.places:
             location = ZoraLocation(self.player, place.name, LOCATION_NAME_TO_ID[place.name], menu)
-            location.access_rule = state_rule(model.places[place.name], self.player, model)
-            forbidden = frozenset(place.forbids)
+            location.access_rule = state_rule(model.places[place.name], self.player, model, self.naming)
+            forbidden = frozenset(self.naming.archipelago_name(name) for name in place.forbids)
             location.item_rule = lambda item, forbidden=forbidden: (
                 item.player != self.player or item.name not in forbidden
             )
             menu.locations.append(location)
         for event, rule in model.events.items():
             location = ZoraLocation(self.player, event, None, menu)
-            location.access_rule = state_rule(rule, self.player, model)
+            location.access_rule = state_rule(rule, self.player, model, self.naming)
             location.place_locked_item(ZoraItem(event, ItemClassification.progression, None, self.player))
             menu.locations.append(location)
         self.multiworld.regions.append(menu)
-        goal = state_rule(model.goal, self.player, model)
+        goal = state_rule(model.goal, self.player, model, self.naming)
         self.multiworld.completion_condition[self.player] = goal
 
     def create_item(self, name: str) -> ZoraItem:
@@ -106,29 +108,37 @@ class ZoraWorld(World):
             # an item-link group's world, which has no build of its own: progression is the safe side
             return ItemClassification.progression
         progression = {ITEM_NAMES[item] for item in self.built.logic.progression}
-        if name in progression or name == HEART_CONTAINER:
+        progression |= {self.naming.archipelago_name(item) for item in progression}
+        if name in progression or GIVEN_AS.get(name) in progression or name == HEART_CONTAINER:
             return ItemClassification.progression
         return ItemClassification.useful
 
     def create_items(self) -> None:
-        self.multiworld.itempool += [self.create_item(name) for name in self.pool]
+        self.multiworld.itempool += [self.create_item(self.naming.archipelago_name(name)) for name in self.pool]
 
     def get_filler_item_name(self) -> str:
         return "Blue Potion"
 
     def generate_output(self, output_directory: str) -> None:
         try:
+            own: dict[str, str] = {}
             assignment: dict[str, str | zora_ap.Foreign] = {}
             for place in self.places:
                 item = self.multiworld.get_location(place.name, self.player).item
                 assert item is not None
-                assignment[place.name] = item.name if item.player == self.player else zora_ap.FOREIGN
-            received = [
+                if item.player == self.player:
+                    own[place.name] = item.name
+                assignment[place.name] = zora_ap.FOREIGN
+            received_names = [
                 location.item.name
                 for location in self.multiworld.get_filled_locations()
                 if location.item is not None and location.item.player == self.player
                 and location.item.code is not None and location.player != self.player
             ]
+            # Archipelago's names (Sword Upgrade, ...) back to the pool's own codes, which ZORA writes
+            zora_items = zora_names([*own.values(), *received_names], self.pool, self.naming)
+            assignment |= dict(zip(own, zora_items, strict=False))
+            received = zora_items[len(own):]
             ap_name = self.ap_name()
             # ZORA's sanity check (R4)
             zora_ap.finish(self.built, assignment, received, self.settings_values, ap_name=ap_name)
@@ -145,8 +155,17 @@ class ZoraWorld(World):
         multiworld by player number, and tied to the seed. ZORA takes 1-23 bytes."""
         return f"ZORA{self.player}_{self.multiworld.seed_name}".encode()[:AP_NAME_LENGTH]
 
+    def write_spoiler(self, spoiler_handle: TextIO) -> None:
+        # Where each Triforce is (ZORA places them, never Archipelago): the playthrough names only
+        # the events, "Level N Triforce"
+        spoiler_handle.write(f"\n\nZORA Triforces ({self.player_name}):\n\n")
+        for event, place in self.built.triforces:
+            spoiler_handle.write(f"{event}: {place}\n")
+
     def fill_slot_data(self) -> dict[str, Any]:
-        return {"client_tables": zora_ap.client_tables_to_json(self.built)}
+        # the player's settings: the client tables carry the ones the client needs at play time
+        # (Sound when an item arrives)
+        return {"client_tables": zora_ap.client_tables_to_json(self.built, self.settings_values)}
 
     def modify_multidata(self, multidata: dict[str, Any]) -> None:
         self.rom_name_available.wait()

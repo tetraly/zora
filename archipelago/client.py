@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any
 from NetUtils import ClientStatus
 from worlds._bizhawk.client import BizHawkClient
 
-from .names import LOCATION_NAME_TO_ID
+from .names import GIVEN_AS, LOCATION_NAME_TO_ID
 from .rom import GAME, rom_file_bytes
 from .zora import archipelago as zora_ap
 from .zora.rom.slot_identity import SLOT_IDENTITY_ADDRESS, SLOT_IDENTITY_SIZE
@@ -44,7 +44,7 @@ RAM = "RAM"
 PRG_ROM = "PRG ROM"
 PRG_SIZE = 0x20000
 NES_HEADER_SIZE = 0x10
-RECIPE_FORMAT = (1, 1)
+RECIPE_FORMAT = tuple(zora_ap.FORMAT_VERSION_NUMBERS)        # the recipe format this copy of ZORA makes
 WATCHER_TIMEOUT = 0.125
 LOCATION_ID_TO_NAME = {location_id: name for name, location_id in LOCATION_NAME_TO_ID.items()}
 
@@ -74,12 +74,18 @@ def snapshot(tables: zora_ap.ClientTables, values: list[bytes]) -> tuple[dict[in
     return ram, ram_after
 
 
+def zora_name(name: str) -> str:
+    return GIVEN_AS.get(name, name)
+
+
 def server_view(ctx: BizHawkClientContext) -> zora_ap.ServerView:
     """What the server has said: the received items in order (with the place, by name, only when
-    this slot found the item), this slot's checked places, and whether the goal was sent."""
+    this slot found the item), this slot's checked places, and whether the goal was sent. An item
+    Archipelago names its own way (Sword Upgrade, Bomb Upgrade) is passed as the code it is given
+    as (names.GIVEN_AS): the seed's give rules then give the line's next level."""
     received = tuple(
         zora_ap.ReceivedItem(
-            ctx.item_names.lookup_in_game(item.item),
+            zora_name(ctx.item_names.lookup_in_game(item.item)),
             LOCATION_ID_TO_NAME.get(item.location) if item.player == ctx.slot else None)
         for item in ctx.items_received)
     checked = frozenset(LOCATION_ID_TO_NAME[location] for location in ctx.checked_locations
@@ -184,11 +190,15 @@ class ZoraClient(BizHawkClient):
             if not written:
                 return              # the game moved on since the read: decided again next tick
             count = dict(decision.writes)[zora_ap.RECEIVED_COUNT]
+            # the server's name for it (Sword Upgrade), not the code it was given as
+            shown = (ctx.item_names.lookup_in_game(ctx.items_received[count - 1].item)
+                     if 0 < count <= len(ctx.items_received) else None)
             if decision.gives:
-                logger.info(f"ZORA: gave received item #{count}, {decision.gives}")
+                logger.info(f"ZORA: gave received item #{count}, {shown or decision.gives}")
             elif decision.skips:
-                logger.info(f"ZORA: received item #{count}, {decision.skips}, was taken in this file (already held)")
+                logger.info(f"ZORA: received item #{count}, {shown or decision.skips}, was taken in this file "
+                            f"(already held)")
             elif decision.cannot_give:
-                logger.warning(f"ZORA: received item #{count}, {decision.cannot_give}, isn't an item ZORA gives; "
-                               f"skipped")
+                logger.warning(f"ZORA: received item #{count}, {shown or decision.cannot_give}, isn't an item ZORA "
+                               f"gives; skipped")
         self.memory = decision.memory

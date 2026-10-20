@@ -123,13 +123,23 @@ def test_classify_reads_an_opener_and_its_wrapping_as_the_same_hint() -> None:
     assert all(verdict == ("requirement", "boss", 0x0C, 3) for verdict in verdicts[:22])
 
 
+def test_the_sword_cave_hints_heart_counts_are_one_text() -> None:
+    """The facts name no heart count, so the counts do not split a text (owner request, beta 7)."""
+    assert {hint_key(f"MEET THE ELDER|BY THE COAST|WITH {hearts} HEARTS") for hearts in (10, 14)} == {
+        "MEET THE ELDER BY THE COAST"}
+    assert {hint_key(text) for text in ("THE ELDER HAS THE LADDER|BY THE COAST FOR 5|HEARTS",
+                                        "THE ELDER HAS THE LADDER|BY THE COAST, 6 HEARTS")} == {
+        "THE ELDER HAS THE LADDER BY THE COAST"}
+    assert hint_key("12 HEARTS NEEDED") == "12 HEARTS NEEDED"
+
+
 def _prg0_world() -> GameWorld:
     from zora.rom.base_rom import remember_repo_base_rom
     from zora.rom.parse.rom_file import parse_rom
     return parse_rom(remember_repo_base_rom())
 
 
-@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 def test_composed_texts_rank_the_extended_bank_before_the_overflow_region() -> None:
     """ZORA lays the texts out in slot order, the extended bank first, then the overflow region
     below it: an overflowed slot's text is still its own slot's."""
@@ -179,7 +189,7 @@ def test_b10_refusal_text_leaves_every_hint_slot_in_place() -> None:
     from zora.rom.parse.rom_file import load_rom, parse_rom
     from zora.rom.serialize.rom_file import serialize_to_rom
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     base = load_rom(verify_base_rom())
     seed = 3
     for b10 in (False, True):

@@ -199,6 +199,17 @@
     <p class="preset-footnote" id="custom-presets-note">Save stores the current settings in that slot, under the
       name you type. Your presets are kept in this browser.</p>
   </div>
+  <div class="preset-group">
+    <span class="preset-group-label">Settings file</span>
+    <div class="slot-actions">
+      <button id="settings-save" class="btn btn-tint btn-small" type="button" disabled>Save to a file</button>
+      <button id="settings-load" class="btn btn-tint btn-small" type="button">Load a file</button>
+      <input id="settings-file" type="file" accept=".yaml,.yml" hidden>
+    </div>
+    <p class="preset-footnote" id="settings-file-note" role="status">Everything this page remembers, in one file:
+      your flags, mode, cosmetic settings, presets, player name and theme. Load it in another browser, or after
+      clearing this one's data.</p>
+  </div>
 </dialog>
 
 <script src="widgets.js"></script>

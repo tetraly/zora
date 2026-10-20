@@ -9,7 +9,7 @@ import pytest
 from zora.flags.codec import decode, encode
 from zora.flags.fields import ITEM_SHUFFLE_SCOPE, ItemShuffleScope
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.generate.pipeline import FlagsRefused, build, generate_rom, plan
+from zora.generate.pipeline import build, generate_rom, plan
 from zora.generate.rng import Rng
 from zora.generate.steps.hint_text import requirement_candidates
 from zora.generate.steps.item_shuffle_result import ItemShuffleResult
@@ -22,7 +22,7 @@ from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checkpoints.acceptance import CAVE_SLOT, item_places
 from zora_measure.checkpoints.items_within import ITEMS_WITHIN_FLAGS, hearts_per_level, tracked_in_levels
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEEDS = (1, 2, 3, 4)
 # C06 = 2 with Extra Candles off, so every ZORA extra that joins the pool can be on: Randomize
@@ -54,15 +54,6 @@ def test_the_within_finals_string_is_cp5_with_c06_2() -> None:
 def test_plan_switches_the_two_deals_on_only_for_c06_2() -> None:
     assert plan(ITEMS_WITHIN_FLAGS, 1).alternatives.shuffle_items_within_levels
     assert not plan(MVP_BASELINE_LEVEL_ENCODING_OFF, 1).alternatives.shuffle_items_within_levels
-
-
-@pytest.mark.parametrize("scope", [ItemShuffleScope.NONE, ItemShuffleScope.DUNGEON_ITEMS_ONLY,
-                                   ItemShuffleScope.RANDOM])
-def test_the_other_unspecified_scopes_are_still_refused(scope: ItemShuffleScope) -> None:
-    """C06 = 0 and 1 have no entry; C06 = 4 can resolve to them (FL-SUP-01)."""
-    flags = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(options={"C06": scope}))
-    with pytest.raises(FlagsRefused, match="C06"):
-        plan(flags, 1)
 
 
 # --- PS-ITW-03: the second deal ----------------------------------------------------------------

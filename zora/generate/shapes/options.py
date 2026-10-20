@@ -15,7 +15,6 @@ from ...rom.game_config import reject_blocked_options
 # option name -> what it waits on
 BLOCKED_OPTIONS = {
     "second_quest_doors": "QUESTIONS #2",
-    "mixed_quests": "implementation of SH-STAIR-03's mixed-quest cellar items",
     "seed_placement": "QUESTIONS #29-33",
 }
 
@@ -43,9 +42,6 @@ class ShapeOptions:
     second_quest_monsters: bool = False
     # SH-ROOM-11: extra allowed item positions ("universal drops in shapes").
     universal_drops: bool = False
-    # SH-STAIR-03: mixed-quest cellar items (L6 book, L8 first cellar wand).
-    # Blocked: nothing reads it yet.
-    mixed_quests: bool = False
     # SH-GRID-06 seed-cell placement. Blocked: nothing reads it; gridgen
     # always uses the SH-GRID-06 draw (QUESTIONS #29-33).
     seed_placement: str = "reference"

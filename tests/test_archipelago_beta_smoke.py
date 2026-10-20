@@ -27,11 +27,12 @@ from tests.test_assignment_emulator import (
     floor_room,
 )
 from zora import archipelago
-from zora.generate.places import Place
+from zora.generate.places import Place, read_item
+from zora.model.enums import Item
 from zora.rom import inventory
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 RANDOM_SEED = 2026
 SERVER_ITEMS = ("Heart Container",)          # what the server holds for this player, in order
@@ -144,6 +145,8 @@ def test_one_check_one_item_nothing_twice() -> None:
     assert client.sent == [] and client.given == 1   # the server's item, once in play
     start = containers(emu) - 1
     place = floor_room(built())
+    # the floor item may be a heart container too, which adds one more
+    floor_heart = read_item(built().world, place) == Item.HEART_CONTAINER
     take_floor_item(emu, place)
     emu.run(PLAY_FRAMES)
     assert client.sent == [place.name]
@@ -155,5 +158,5 @@ def test_one_check_one_item_nothing_twice() -> None:
     emu.run(PLAY_FRAMES)
     assert client.sent == [place.name]
     assert client.given == 1
-    assert (emu[COUNT], containers(emu)) == (1, start + 1)
+    assert (emu[COUNT], containers(emu)) == (1, start + 1 + floor_heart)
     assert emu[checks()[place.name].address] & checks()[place.name].mask

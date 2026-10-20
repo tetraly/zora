@@ -22,7 +22,9 @@ from zora.generate.context import GenerationResult
 from zora.generate.generation_pass import has_magical_sword_hearts
 from zora.generate.pipeline import FlagsRefused, GenerationPlan, extra_options, generate_rom, generate_world, plan
 from zora.generate.steps.change_sword_hearts import MAGICAL_SWORD_HEARTS
-from zora.generate.steps.hint_text import ITEM_ARTICLE, MAGICAL_SWORD_TEXT_SLOT, item_name, magical_sword_cave_words
+from zora.generate.steps.hint_text import (
+    HEARTS_NEEDED_TEXT, MAGICAL_SWORD_TEXT_SLOT, WHITE_SWORD_TEXT_SLOT, quote_problems, sword_cave_heart_quotes,
+)
 from zora.generate.steps.item_shuffle_result import EXTRA_SLOT_CAVES
 from zora.generate.steps.cave_entries import OverworldResult
 from zora.generate.steps.randomize_magical_sword import (
@@ -108,14 +110,14 @@ def test_a_zora_flag_changes_the_rom_and_its_code(zora: str) -> None:
 
 def test_the_level_encoding_key_covers_both_strings() -> None:
     if not level_encoding.is_available():
-        pytest.skip("level encoding not installed")
+        pytest.skip("needs the encoder")
     for zora, text in (("", MVP_BASELINE), (LETTER, f"{MVP_BASELINE} {LETTER}")):
         key = plan(MVP_BASELINE, 3, zora).config.level_encoding
         assert key is not None and key.flag_string == text
 
 
 def test_a_bad_zora_string_is_refused_with_the_decoders_reason() -> None:
-    for bad, reason in (("1", "expected <version>.<flags>"), ("6.1", "newer"), ("1.O", "beyond")):
+    for bad, reason in (("1", "expected <version>.<flags>"), ("99.1", "newer"), ("1.O", "beyond")):
         with pytest.raises(FlagsRefused, match=reason):
             plan(FLAGS, 0, bad)
     with pytest.raises(FlagsRefused, match="ZORA flag string"):
@@ -171,17 +173,27 @@ def test_the_page_shows_the_extra_candles_conflict_at_both_settings() -> None:
 
 
 def test_the_tab_controls_spell_the_zora_string() -> None:
-    from zora.flags.zora_flags import OWNER_2_0_FIELDS
+    from zora.flags.zora_flags import (
+        EXPANDED_DUNGEON_LOCATIONS_FIELDS,
+        HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
+        OWNER_2_0_FIELDS,
+        PEGASUS_BOOTS_FIELDS,
+        ZORA_1_0_FIELDS,
+    )
     values = {"randomize_magical_sword": "1", "randomize_letter": "0", "magical_sword_hearts_highest": "3",
               "progressive_items": "0", "shop_items_in_pool": "0", **dict.fromkeys(OWNER_2_0_FIELDS, "0"),
-              "level_9_entrance_sword": "0", "oops_all_enemies": "0", "oops_all_bosses": "0"}
+              "level_9_entrance_sword": "0", "oops_all_enemies": "0", "oops_all_bosses": "0",
+              **dict.fromkeys(ZORA_1_0_FIELDS, "0"), **dict.fromkeys(PEGASUS_BOOTS_FIELDS, "0"),
+              **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, "0"), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, "0")}
     assert flag_form.zora_form_change(FLAGS, values)["zora"]["flags"] == SWORD
     off = dict.fromkeys(values, "0")
     assert flag_form.zora_form_change(FLAGS, off)["zora"]["flags"] == ""
     assert flag_form.form_state(FLAGS, BOTH)["zora"]["values"] == {
         "randomize_magical_sword": 1, "randomize_letter": 1, "magical_sword_hearts_highest": 3,
         "progressive_items": 0, "shop_items_in_pool": 0, **dict.fromkeys(OWNER_2_0_FIELDS, 0),
-        "level_9_entrance_sword": 0, "oops_all_enemies": 0, "oops_all_bosses": 0}
+        "level_9_entrance_sword": 0, "oops_all_enemies": 0, "oops_all_bosses": 0,
+        **dict.fromkeys(ZORA_1_0_FIELDS, 0), **dict.fromkeys(PEGASUS_BOOTS_FIELDS, 0),
+        **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, 0), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, 0)}
     assert set(field["name"] for field in flag_form.metadata()["zora"]["fields"]) == set(values)
 
 
@@ -244,8 +256,10 @@ def test_the_heart_check_counts_all_but_two_reachable_take_any_caves() -> None:
     take_any = world.overworld.caves[[c.destination for c in world.overworld.caves].index(Destination.TAKE_ANY)]
     assert set(getattr(take_any, "items")) == {Item.RED_POTION, Item.BLUE_CANDLE, Item.HEART_CONTAINER}
     every_need = frozenset({Item.RAFT, Item.RECORDER, Item.LADDER, Item.POWER_BRACELET})
-    assert reachable_take_any_hearts(world.overworld, every_need) == 7       # seven code-17 screens
-    assert reachable_take_any_hearts(world.overworld, frozenset()) <= 7
+    # the four code-17 screens a first-quest overworld shows; PRG0's second-quest three ($06, $20,
+    # $3A) never open in it (tests/test_take_any_quest.py)
+    assert reachable_take_any_hearts(world.overworld, every_need) == 4
+    assert reachable_take_any_hearts(world.overworld, frozenset()) <= 4
     assert [take_any_heart_allowance(k) for k in range(5)] == [0, 0, 0, 1, 2]
     assert TAKE_ANY_CAVES_SPENT_ELSEWHERE == 2
     # N = 12, M = 3: four reachable heart containers and five take-any caves are enough, three are not
@@ -253,18 +267,26 @@ def test_the_heart_check_counts_all_but_two_reachable_take_any_caves() -> None:
     assert not has_enough_heart_containers(12, 3, 4 + take_any_heart_allowance(6))
 
 
-def test_the_caves_own_text_names_the_item_it_offers() -> None:
-    for seed in (1, 2):
-        chosen, world, _ = generated(SWORD, seed)
-        offered = cave(world, Destination.MAGICAL_SWORD_CAVE).item
-        rom = generate_rom(FLAGS, seed, base(), zora_flag_string=SWORD).rom
-        shown = parse_rom(rom, config=chosen.config).quotes[MAGICAL_SWORD_TEXT_SLOT].text
-        first, second = magical_sword_cave_words()
-        assert [line.strip(TEXT_PAD) for line in shown.split("|")] == [first, f"{second} {ITEM_ARTICLE}",
-                                                                       item_name(offered)]
-    # without the flag the slot keeps its drawn text
-    _, world, _ = generated("", 1)
-    assert not world.quotes[MAGICAL_SWORD_TEXT_SLOT].text.startswith(magical_sword_cave_words()[0])
+@pytest.mark.parametrize("zora", ["", SWORD])
+def test_each_sword_caves_text_speaks_of_its_hearts(zora: str) -> None:
+    """Owner decision (2026-10-17): each sword cave's own text is a quote about the heart
+    containers it asks for, with Randomize Magical Sword on too (the magical-sword cave's text
+    no longer names its item)."""
+    for seed in (1, 2, 3):
+        _, world, _ = generated(zora, seed)
+        for destination, slot in ((Destination.WHITE_SWORD_CAVE, WHITE_SWORD_TEXT_SLOT),
+                                  (Destination.MAGICAL_SWORD_CAVE, MAGICAL_SWORD_TEXT_SLOT)):
+            shown = [line.strip(TEXT_PAD) for line in world.quotes[slot].text.split("|")]
+            assert shown in sword_cave_heart_quotes(slot, cave(world, destination).heart_requirement), shown
+
+
+def test_every_heart_count_has_a_quote_that_fits() -> None:
+    """A count with no quote of its own in the pool (the magical-sword cave's 13 and 14) says it."""
+    for slot, counts in ((WHITE_SWORD_TEXT_SLOT, range(1, 17)), (MAGICAL_SWORD_TEXT_SLOT, range(1, 17))):
+        for hearts in counts:
+            assert all(not quote_problems(lines) for lines in sword_cave_heart_quotes(slot, hearts))
+    assert sword_cave_heart_quotes(MAGICAL_SWORD_TEXT_SLOT, 13) == [[HEARTS_NEEDED_TEXT.format(hearts=13)]]
+    assert ["HIGH FIVE"] in sword_cave_heart_quotes(WHITE_SWORD_TEXT_SLOT, 5)
 
 
 def test_the_magical_sword_heart_draw_follows_the_cap() -> None:

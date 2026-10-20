@@ -16,6 +16,7 @@ from functools import cache
 
 import pytest
 
+from tests.revision_layout import written_in_prg0_layout
 from tests.test_feature_patches import vanilla
 from tests.test_level_word import page_function
 from zora import archipelago
@@ -26,7 +27,7 @@ from zora.model.game_world import GameWorld
 from zora.rom.base_rom import remember_repo_base_rom
 from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import seed_code
-from zora.rom.layout import TITLE_ROW_LENGTH, TITLE_SEED_ROW_ADDRESS
+from zora.rom.layout import TITLE_ROW_LENGTH, TITLE_SEED_DIGITS, TITLE_SEED_LABEL, TITLE_SEED_ROW_ADDRESS
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.player_settings import (
     BOSS_SOUND_WORD_ADDRESS,
@@ -45,7 +46,7 @@ from zora.rom.player_settings import (
     title_seed_number,
     written_offsets,
 )
-from zora.rom.serialize.features import _serialize_title
+from zora.rom.serialize.features import _serialize_title, title_seed_digits
 from zora.rom.serialize.patch import Patch
 from zora.rom.text_encoding import BYTE_TO_CHAR, CHAR_TO_BYTE
 
@@ -105,8 +106,10 @@ def test_random_draws_only_listed_words_and_all_of_them() -> None:
     assert min(drawn.values()) > 5000 / len(BOSS_SOUND_WORDS) / 2
 
 
-# The title row is 24 tiles: SEED, blanks, then the number right-aligned. From 10^19 on, the number
-# has 20 digits and fills the row, so SEED and the digits touch (SEED10000000000000000000).
+# The title row is 24 tiles: SEED, blanks, then the number right-aligned, at most 19 digits. From
+# 10^19 on the number has 20 digits; the row shows its first 19 (owner, 2026-10-17: before, the
+# digits filled the row and touched SEED, SEED10000000000000000000), and Random's word is the
+# shown number's.
 LONGEST_SPACED_SEED = 10**19 - 1
 SHORTEST_UNSPACED_SEED = 10**19
 LARGEST_SEED = 2**64 - 1
@@ -118,8 +121,10 @@ def test_random_is_the_seeds_word(seed: int) -> None:
     """Random reads the title screen's seed number: the same seed gives the same word, and the word
     depends on nothing else (generation never sees it). The parser reads the same number."""
     rom = zora_rom(seed)
-    assert title_seed_number(rom) == seed == parse_rom(rom).title_seed_number
-    word = random_boss_sound_word(seed)
+    shown = int(title_seed_digits(seed))
+    assert title_seed_number(rom) == shown == parse_rom(rom).title_seed_number
+    assert (shown == seed) == (seed <= LONGEST_SPACED_SEED)
+    word = random_boss_sound_word(shown)
     for _ in range(2):
         random = apply_player_settings(rom, PlayerSettings(boss_sound_word=RANDOM_BOSS_SOUND_WORD))
         assert random == apply_player_settings(rom, PlayerSettings(boss_sound_word=word))
@@ -131,11 +136,37 @@ def test_random_needs_a_seed_number() -> None:
         apply_player_settings(vanilla(), PlayerSettings(boss_sound_word=RANDOM_BOSS_SOUND_WORD))
 
 
+@pytest.mark.parametrize("seed", [0, 12345, LONGEST_SPACED_SEED, SHORTEST_UNSPACED_SEED, UNSPACED_SEED, LARGEST_SEED])
+def test_the_title_row_keeps_a_blank_after_seed(seed: int) -> None:
+    """At least one blank between SEED and the number, which shows at most 19 digits: a 20-digit
+    seed's first 19."""
+    world = parsed_world()
+    world.title_seed_number = seed
+    patch = Patch()
+    _serialize_title(world, patch)
+    image = bytearray(zora_rom())
+    patch.apply(image)
+    row = "".join(BYTE_TO_CHAR[tile] for tile in image[TITLE_SEED_ROW_ADDRESS:TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH])
+    assert row.startswith(TITLE_SEED_LABEL + " ") and len(row) == TITLE_ROW_LENGTH
+    assert row.split()[1] == str(seed)[:TITLE_SEED_DIGITS] == title_seed_digits(seed)
+
+
+def test_a_title_row_from_before_the_cap_still_reads() -> None:
+    """A ROM made before the cap shows a 20-digit seed touching SEED; the reader still takes it."""
+    tiles = bytes(CHAR_TO_BYTE[char] for char in f"SEED{UNSPACED_SEED}")
+
+    def write_row(image: bytearray) -> None:
+        image[TITLE_SEED_ROW_ADDRESS:TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH] = tiles
+    assert title_seed_number(written_in_prg0_layout(zora_rom(), write_row)) == UNSPACED_SEED
+
+
 @pytest.mark.parametrize("row", ["SEED", "SEEDS 12", "SEED 12 A", "ZORA 12345"])
 def test_a_title_row_without_a_seed_number_is_refused(row: str) -> None:
-    rom = bytearray(zora_rom())
     tiles = bytes(CHAR_TO_BYTE[char] for char in row.ljust(TITLE_ROW_LENGTH))
-    rom[TITLE_SEED_ROW_ADDRESS:TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH] = tiles
+
+    def write_row(image: bytearray) -> None:
+        image[TITLE_SEED_ROW_ADDRESS:TITLE_SEED_ROW_ADDRESS + TITLE_ROW_LENGTH] = tiles
+    rom = written_in_prg0_layout(zora_rom(), write_row)       # PRG0's offset; PRG1's row is moved
     with pytest.raises(PlayerSettingError, match="shows no seed number"):
         title_seed_number(rom)
 
@@ -145,7 +176,7 @@ def test_a_twenty_digit_seed_finishes_with_its_word() -> None:
     rom = archipelago.finish(archipelago.build({}, UNSPACED_SEED, remember_repo_base_rom()), {},
                              player_settings={"bossSoundWord": RANDOM_BOSS_SOUND_WORD})
     assert rom[BOSS_SOUND_WORD_ADDRESS:BOSS_SOUND_WORD_ADDRESS + BOSS_SOUND_WORD_LENGTH] == bytes(
-        CHAR_TO_BYTE[char] for char in random_boss_sound_word(UNSPACED_SEED))
+        CHAR_TO_BYTE[char] for char in random_boss_sound_word(int(title_seed_digits(UNSPACED_SEED))))
 
 
 # Each seed's word before the 20-digit fix (HEAD 8444d58); the fix must keep every one.
@@ -168,9 +199,8 @@ def test_the_title_writers_row_reads_back(seed: int) -> None:
     world.title_seed_number = seed
     patch = Patch()
     _serialize_title(world, patch)
-    rom = bytearray(zora_rom())
-    patch.apply(rom)
-    assert title_seed_number(rom) == seed
+    rom = written_in_prg0_layout(zora_rom(), patch.apply)     # the patch writes PRG0's offsets
+    assert title_seed_number(rom) == int(title_seed_digits(seed))
     if seed in WORDS_BEFORE_THE_FIX:
         assert random_boss_sound_word(title_seed_number(rom)) == WORDS_BEFORE_THE_FIX[seed]
 

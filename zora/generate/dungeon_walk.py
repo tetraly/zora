@@ -11,7 +11,7 @@ sanity check only."""
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
-from ..model.enums import Item, RoomAction, RoomType, Side
+from ..model.enums import Enemy, Item, RoomAction, RoomType, Side
 from ..model.levels import GANON_LIST, L9_ENTRY_PERSON_LIST, MERCHANT_LIST, ZELDA_LIST, Level
 from ..model.room_grid import neighbor
 from ..model.rooms import (
@@ -175,6 +175,9 @@ ZELDA_ROOM_ROW = _row("S", "-", "S", "S", "S")                 # $27
 LAVA_MOAT_ROW = _row("E", "-", "-", "N", "-")                  # $0B, ladder not held
 LAVA_MOAT_LADDER_ROW = _row("E", "W", "S", "N", "-")           # $0B, ladder held
 PERSON_ROW = _row("N", "SWEX", "SWEX", "SWEX", "SWEX")         # $A6
+# Shuffle Major Shop Items (docs/zora-extras.md section 13): a hungry Goriya not yet fed blocks its
+# room's north side, as a person does (owner rule, 2026-10-17)
+HUNGRY_GORIYA_ROW = PERSON_ROW
 TURNSTILE_PUSH_ROW = _row("W", "E", "N", "S", "-")             # $60
 STRAIGHT_THROUGH_ROW = _row("N", "S", "W", "E", "-")           # $16; $14 with traps
 HORIZONTAL_MOAT_ROW = _row("N", "SWEX", "SWEX", "SWEX", "SWEX")  # $18
@@ -214,10 +217,14 @@ def has_trap_monsters(room: Room) -> bool:
 
 
 def entry_row(room: Room, is_level9_entry: bool, has_ladder: bool,
-              measured_turnstile: bool = False) -> Row | None:
+              measured_turnstile: bool = False, goriya_hungry: bool = False) -> Row | None:
     """VA-REJ-18: the room's table line, the first that fits; None is the
     default row ("all" for every entry side). measured_turnstile: the $60
-    room's measured line instead of VA-REJ-18's (WalkRules)."""
+    room's measured line instead of VA-REJ-18's (WalkRules). goriya_hungry: Shuffle Major Shop
+    Items without the bait usable, where a hungry Goriya's room takes HUNGRY_GORIYA_ROW (its
+    layout byte is $26, not a person's $A6, so VA-REJ-18 gives it the default row)."""
+    if goriya_hungry and room.enemy == Enemy.HUNGRY_GORIYA:
+        return HUNGRY_GORIYA_ROW
     code = room.layout_code                      # the layout byte's low seven bits
     if room.layout_byte == PERSON_LAYOUT_BYTE:
         unrestricted = (room.monster_byte == MERCHANT_LIST
@@ -299,7 +306,8 @@ def stair_partners(level: Level, room: int, staircases: list[StaircaseRoom]) -> 
 
 def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
                uses_families: bool, target: int | None = None, uses_entry_sides: bool = True,
-               family_lists: FamilyLists = FAMILY_LISTS, walk_rules: WalkRules = SPEC_WALK) -> Walk:
+               family_lists: FamilyLists = FAMILY_LISTS, walk_rules: WalkRules = SPEC_WALK,
+               goriya_hungry: bool = False) -> Walk:
     """VA-REJ-17/18's inventory walk over (room, side) pairs, from the start
     room entered by its south side. A pair steps out through its own side
     (rule 1) and turns to the sides its room's row allows (rule 2); item
@@ -310,7 +318,8 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
 
     uses_entry_sides=False is the plain walk of VA-WALK (E3): every row is
     "all", and an accepted target is explored through. walk_rules: SPEC_WALK
-    or LOGIC_WALK's arrival and turnstile corrections."""
+    or LOGIC_WALK's arrival and turnstile corrections. goriya_hungry: a hungry Goriya's room
+    takes HUNGRY_GORIYA_ROW (entry_row)."""
     room_numbers = set(level.room_nums)
     block = level.block
     staircases = block.staircases
@@ -365,7 +374,8 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
     while stack:
         room, side = stack.pop()
         room_exits = exits(room)
-        row = (entry_row(block.room(room), room == level9_entry, has_ladder, walk_rules.measured_turnstile)
+        row = (entry_row(block.room(room), room == level9_entry, has_ladder, walk_rules.measured_turnstile,
+                         goriya_hungry)
                if uses_entry_sides else None)
         turns = room_exits.keys() if row is None else row[side] & room_exits.keys()
         for turn in turns:

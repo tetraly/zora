@@ -23,7 +23,9 @@ def flags(**values: ThreeState | bool) -> ZoraFlags:
 # --- the string -------------------------------------------------------------------------------
 
 def test_version_3_holds_thirteen_three_state_fields() -> None:
-    assert len(OWNER_2_0_FIELDS) == 13
+    """Thirteen slots; Auto Show Letter's is retired (always on since 2026-10-17), twelve are flags."""
+    assert len(zora_flags.OWNER_2_0_SLOTS) == 13 and len(OWNER_2_0_FIELDS) == 12
+    assert set(zora_flags.OWNER_2_0_SLOTS) - set(OWNER_2_0_FIELDS) == zora_flags.RETIRED_FIELDS == {"auto_show_letter"}
     assert all(field.version == 3 for field in zora_flags.FIELDS if field.name in OWNER_2_0_FIELDS)
     for name in OWNER_2_0_FIELDS:
         for value in (ON, MAYBE):
@@ -39,6 +41,21 @@ def test_every_older_string_keeps_its_meaning_and_spelling(old: str) -> None:
 
 def test_a_version_3_string_with_its_new_fields_off_is_spelled_as_before() -> None:
     assert canonicalize("3.D") == "1.D" and canonicalize("3.O") == "2.O"
+
+
+@pytest.mark.parametrize("retired", [ON, MAYBE])
+def test_a_string_with_auto_show_letter_still_decodes(retired: ThreeState) -> None:
+    """A string from before Auto Show Letter was retired, with it On or "?": its digit is dropped,
+    every other field keeps its value, and it is spelled as the string without it."""
+    slot = zora_flags.FIELDS.index(next(field for field in zora_flags.FIELDS if field.name == "auto_show_letter"))
+    below = 1
+    for field in zora_flags.FIELDS[:slot]:
+        below *= field.slots
+    with_progressive = encode(flags(progressive_items=True, four_potion_inventory=ON))
+    number = zora_flags._parse_payload(with_progressive.split(".")[1]) + int(retired) * below
+    old = f"3.{zora_flags._format_payload(number)}"
+    assert old != with_progressive
+    assert decode(old) == decode(with_progressive) and canonicalize(old) == with_progressive
 
 
 # --- the "?" stream ---------------------------------------------------------------------------
@@ -60,7 +77,7 @@ def test_a_version_3_question_mark_leaves_the_z1r_draws_alone(monkeypatch: pytes
     z1r = encode_z1r(decode_z1r(WITHOUT_EXTRA_CANDLES).updated(toggles={"B27": MAYBE, "B31": MAYBE}))
     for seed in range(10):
         plain = plan(z1r, seed, "2.O").settings
-        with_maybe = plan(z1r, seed, encode(flags(progressive_items=True, auto_show_letter=MAYBE)))
+        with_maybe = plan(z1r, seed, encode(flags(progressive_items=True, four_potion_inventory=MAYBE)))
         assert all(plain.toggle(field) == with_maybe.settings.toggle(field) for field in ("B27", "B31"))
 
 
@@ -125,7 +142,7 @@ def test_with_b04_off_the_take_any_road_caves_keep_their_prg0_screens(seed: int)
     from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
     from zora.rom.parse.rom_file import load_rom, parse_rom
     if not BASE_ROM_PATH.exists():
-        pytest.skip("PRG0 base ROM not found")
+        pytest.skip("needs the base ROM")
     base = load_rom(verify_base_rom())
     prg0 = parse_rom(base).overworld
     world = parse_rom(generate_rom(B04_OFF, seed, base).rom).overworld

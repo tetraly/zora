@@ -148,7 +148,7 @@ The others follow their names directly: C06 `shuffle_items`, B15
 - The ZORA extras (ZORA flag string, docs/zora-extras.md) follow the same
   rule from `zora/generate/extra_options.py` `ExtraOptions`: Randomize
   Magical Sword `randomize_magical_sword` (with its heart check
-  `has_magical_sword_hearts` and the cave text `magical_sword_cave_text`)
+  `has_magical_sword_hearts`)
   and Randomize Letter `randomize_letter`. With the sword on, B10's
   `change_sword_hearts` runs before the acceptance check instead of after
   the pass ships (owner requirement: the check judges the drawn N).

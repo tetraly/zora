@@ -16,17 +16,19 @@ from .fields import THREE_STATE_LABELS, Settings, ThreeState
 from .zora_flags import (
     ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
-    OWNER_2_0_FIELDS,
+    THREE_STATE_FIELDS,
     L4Sword,
     ZoraFlags,
     ZoraFlagStringError,
     conflicts,
     decode,
     encode,
+    forced_z1r_values,
+    warnings,
 )
 
 TAB_NAME = "ZORA Extras"
-THREE_STATE_KIND = "three_state"         # On / Off / ? (the version-3 fields)
+THREE_STATE_KIND = "three_state"         # On / Off / ? (the version-3, -6, -7 and -8 fields)
 FOLLOW_Z1R_LABEL = "Follow the Z1R flags"
 TAKE_ANY_NOTE = ("The logic assumes sensible take-any choices: taking, say, a candle and two potions from "
                  "three take-any caves can make the seed unbeatable.")
@@ -53,8 +55,36 @@ FIELDS: tuple[dict[str, Any], ...] = (
      "help": ("Swords, candles, arrows, rings and boomerangs upgrade one level at a time: each one found or "
               "bought gives the next level you lack. A shop sells each upgrade once.")},
     {"name": "shop_items_in_pool", "kind": "toggle", "label": "Shop Items in the Item Pool",
-     "help": ("The wooden arrows, blue candle and blue ring join the shuffled major items. A shop may sell "
-              "the item that takes their place.")},
+     "help": ("The wooden arrows, blue candle, blue ring and bait join the shuffled major items, one bait "
+              "for each hungry Goriya. A shop may sell the item that takes their place. With one Goriya, the "
+              "other shop's bait becomes a fairy costing 20-40 rupees. Bait stacks, and the logic counts it only "
+              "once every bait is found, so no Goriya can eat the one another needs.")},
+    # Version 6: the ZORA 1.0 flags (docs/zora-extras.md section 13), each On / Off / ?.
+    {"name": "allow_triforces_in_stairways", "kind": THREE_STATE_KIND, "label": "Allow Triforces in Stairways",
+     "help": ("Before the items are shuffled, each level's Triforce picks a spot among that level's major "
+              "item spots: an item staircase, a major item's room, or its own room. It never leaves its "
+              "level. The item it displaces takes the Triforce's old room, then the shuffle runs as usual "
+              "under any Item Shuffle setting.")},
+    {"name": "shuffle_wood_sword", "kind": THREE_STATE_KIND, "label": "Shuffle Wood Sword",
+     "help": ("The wood sword joins the shuffled major items, and its cave offers whatever item lands there "
+              "(not Shuffle Wood Sword Cave, which moves the cave). A sword or the wand is always put in a "
+              "cave you can walk into from the start: the wood sword cave, or the letter cave with Randomize "
+              "Letter on when the wood sword cave's entrance is blocked.")},
+    # Version 8: Expanded Dungeon Locations (owner and Bogie, 2026-10-18), On / Off / ?.
+    {"name": "expanded_dungeon_locations", "kind": THREE_STATE_KIND, "label": "Expanded Dungeon Locations",
+     "help": ("The nine dungeons are dealt onto 9 of 15 entrances: the first quest's nine and the second quest's "
+              "six on other screens (2Q2, 2Q4, 2Q6, 2Q7, 2Q8 and 2Q9), so the recorder, raft, ladder or power "
+              "bracelet may or may not be needed. Unchosen entrances stay closed or hold a cave; a shop on a "
+              "chosen entrance moves to a free open cave. With Cave Shuffle: Dungeons Only this is Expanded "
+              "Brackets, the other caves where they are; with All Caves, every other cave is shuffled too. "
+              "Needs Overworld Quest: 1st Quest or 2nd Quest.")},
+    # Version 9: Highlight No-Drop Rooms (owner decision, 2026-10-18), On / Off / ?.
+    {"name": "highlight_no_drop_rooms", "kind": THREE_STATE_KIND, "label": "Highlight No-Drop Rooms",
+     "help": ("In the dungeons, a room with blocks that can never hold an item draws its blocks in the "
+              "level's other block color; every other room with blocks uses the usual one. No colors "
+              "change, so in a level whose two block colors are the same the difference doesn't show. "
+              "Rooms without blocks (water, the entrance) look as before. Does nothing with Allow "
+              "Universal Drops In Shapes on.")},
     # The owner's 2.0 flags (docs/design/zora-flags-2.0.md): each On / Off / ?, "?" decided per seed.
     *({"name": name, "kind": THREE_STATE_KIND, "label": label, "help": help_text} for name, label, help_text in (
         ("shuffle_blue_potion", "Shuffle Blue Potion",
@@ -74,8 +104,6 @@ FIELDS: tuple[dict[str, Any], ...] = (
          "In a dungeon, playing the recorder kills every Pols Voice in the room. By Stratoform."),
         ("four_potion_inventory", "Four Potion Inventory",
          "You can carry four potions instead of two."),
-        ("auto_show_letter", "Auto Show Letter",
-         "The letter is taken as soon as you have it, without using it."),
         ("like_like_eats_rupees", "Like-Like Eats Rupees",
          "A Like-Like drains rupees instead of eating the magical shield."),
         ("magical_boomerang_damage", "Magical Boomerang Does 1 HP Damage",
@@ -85,7 +113,8 @@ FIELDS: tuple[dict[str, Any], ...] = (
           "one, for 1 rupee; the screens beyond the maze need it in the logic.")),
         ("randomize_dead_woods", "Randomize Dead Woods",
          ("The Dead Woods' path is new. The hint shop that sells the path in the original game sells the new "
-          "one, for 1 rupee; the screens beyond the maze need it in the logic.")),
+          "one, for 1 rupee; the screens beyond the maze need it in the logic. The maze now lets you out to the "
+          "south, so Add Lost Woods Shortcut is on with it, the way west.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
@@ -115,7 +144,7 @@ _L4_SWORD_FIELDS = (
 _AFTER = FIELD_NAMES.index("shuffle_blue_potion") + 1
 FIELDS = (*FIELDS[:_AFTER], *_L4_SWORD_FIELDS, *FIELDS[_AFTER:])
 
-# Oops All (docs/design/oops-all.md section 3): version 5's two option fields, last on the tab.
+# Oops All (docs/design/oops-all.md section 3): version 5's two option fields, before Pegasus Boots.
 _OOPS_ALL_FIELDS = (
     {"name": "oops_all_enemies", "kind": "option", "label": "Oops All Enemies",
      "help": ("Every dungeon room's enemies come from one family, drawn room by room: Wizzrobes (red and "
@@ -129,6 +158,18 @@ _OOPS_ALL_FIELDS = (
      "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Dodongos"}]},
 )
 FIELDS = (*FIELDS, *_OOPS_ALL_FIELDS)
+
+# Pegasus Boots last on the tab (owner request, beta 7), so the page's pairs (Randomize Lost Hills
+# and Dead Woods, Oops All Enemies and Bosses) share their lines. Only the tab's order: the flag
+# string encodes ZoraFlags' fields by name (zora_flags_from_values), so its place there stays.
+PEGASUS_BOOTS_FIELD = {"name": "pegasus_boots", "kind": THREE_STATE_KIND, "label": "Pegasus Boots",
+                       "help": ("The boomerang becomes the Pegasus Boots and the magical boomerang the Magical "
+                                "Boots. With them on B, hold B and a direction to run: the Pegasus Boots charge "
+                                "for half a second, then run about a third faster than walking; the Magical "
+                                "Boots run about three quarters faster at once. Release B to walk. Needs "
+                                "Magical Boomerang Does 1 HP Damage off. With a custom-sprite ROM, a custom "
+                                "sprite in the boomerang's tiles is replaced by the boot.")}
+FIELDS = (*FIELDS, PEGASUS_BOOTS_FIELD)
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 
@@ -161,25 +202,31 @@ def _field_value(name: str, control: int) -> bool | int | ThreeState | None:
         return ENUM_FIELDS[name](control)
     if name == "magical_sword_hearts_highest":
         return None if control == 0 else HEARTS_CAP_CHOICES[control - 1]
-    if name in OWNER_2_0_FIELDS:
+    if name in THREE_STATE_FIELDS:
         return ThreeState(control)
     return bool(control)
 
 
 def zora_state(zora_flag_string: str, z1r: Settings | None) -> dict[str, Any]:
     """The ZORA box and tab for a ZORA string: its canonical spelling and control values, or
-    the decoder's error; and each conflict with the settings it names (judged against the Z1R
-    settings when they decode)."""
+    the decoder's error; and each conflict and warning with the settings it names (judged against
+    the Z1R settings when they decode)."""
     try:
         flags = decode(zora_flag_string.strip())
     except ZoraFlagStringError as exc:
         return {"ok": False, "error": f"ZORA flag string: {exc}"}
     found = conflicts(flags, z1r) if z1r is not None else []
+    warned = warnings(flags, z1r) if z1r is not None else []
     return {
         "ok": True,
         "flags": encode(flags),
         "values": {name: control_value(flags, name) for name in FIELD_NAMES},
         "conflicts": [{"message": message, "fields": list(names)} for message, names in found],
+        # accepted, but worth a note beside the settings it names (not red)
+        "warnings": [{"message": message, "fields": list(names)} for message, names in warned],
+        # Z1R fields these flags set whatever the Z1R string holds (shown so, with the note)
+        "forced": [{"field": field_id, "value": int(value), "message": message}
+                   for field_id, value, message in forced_z1r_values(flags)],
     }
 
 

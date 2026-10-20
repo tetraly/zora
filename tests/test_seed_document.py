@@ -23,7 +23,7 @@ from zora.rom.player_settings import PlayerSettings
 from zora.version import player_version
 
 jsonschema = pytest.importorskip("jsonschema")
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 REPO = Path(__file__).resolve().parent.parent
 SCHEMA = json.loads((REPO / "docs" / "seed-format" / "seed-format.schema.json").read_text())
@@ -172,7 +172,7 @@ def test_the_log_fits_80_columns_and_lists_what_the_document_holds(flags: str, z
     doc = document(flags, 1, zora)
     log = spoiler_log(doc)
     assert all(len(line) <= WIDTH for line in log.splitlines())
-    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 5"
+    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 7"
     words = " ".join(log.split())          # wrapping may break a line anywhere between words
     assert f"Seed: {doc['seed']['number']}" in log and doc["seed"]["flags"] in log
     for cave in doc["caves"]:

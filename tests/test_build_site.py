@@ -28,7 +28,7 @@ def _build_site() -> ModuleType:
 
 build_site = _build_site()
 needs_private = pytest.mark.skipif(not level_encoding.is_available() or not build_site.PRIVATE_PACKAGE.is_dir(),
-                                   reason="the private level-encoding module is not installed")
+                                   reason="needs the encoder (the private level-encoding package)")
 
 
 @pytest.fixture(scope="module")
@@ -179,3 +179,38 @@ def test_noindex_is_opt_in(tmp_path: Path) -> None:
     assert page.count(build_site.ROBOTS_NOINDEX) == 1
     with pytest.raises(build_site.BuildError, match="doctype"):
         build_site.marked_page("<html></html>")
+
+
+# --- the test channel (docs/releasing.md "Channels") -----------------------------
+
+def test_the_banner_and_noindex_are_on_the_test_page_only(tmp_path: Path) -> None:
+    """--channel test marks the generator page (robots noindex, the channel's meta tag, the banner first
+    in <body>) and its guide (noindex and the meta tag, no banner); the regular page has none of them,
+    and the marks survive into the single file."""
+    source = (REPO / "web" / "index.html").read_text()
+    guide = "<!doctype html>\n<html>\n<head>\n<title>guide</title>\n</head>\n<body>\nguide\n</body>\n</html>\n"
+    meta = build_site.CHANNEL_META.format(channel="test")
+    regular = build_site.marked_page(source)
+    for text in (regular, build_site.marked_page(guide)):
+        assert "channel-banner" not in text and build_site.ROBOTS_NOINDEX not in text and "zora-channel" not in text
+    test = build_site.marked_page(source, channel="test", banner=True)
+    assert test.count(build_site.ROBOTS_NOINDEX) == 1 and test.count(meta) == 1
+    banner = build_site.channel_banner()
+    assert test.index("<body>\n" + banner) < test.index('class="beta-banner"')
+    assert f"Test channel: trying ZORA {PLAYER_VERSION}. For races and normal play, use " in banner
+    assert '<a href="https://zora.gg/">zora.gg</a>' in banner
+    test_guide = build_site.marked_page(guide, channel="test", banner=False)
+    assert build_site.ROBOTS_NOINDEX in test_guide and meta in test_guide and "channel-banner" not in test_guide
+    site = _fake_site(tmp_path)
+    (site / "index.html").write_text(test)
+    page = build_site.single_file_html(site, "beta test")
+    assert page.count(build_site.ROBOTS_NOINDEX) == 1 and page.count(meta) == 1 and page.count(banner) == 1
+    with pytest.raises(build_site.BuildError, match="no channel"):
+        build_site.marked_page(source, channel="beta")
+
+
+def test_the_page_reads_the_channel_meta_tag() -> None:
+    widgets = (REPO / "web" / "widgets.js").read_text()
+    assert "document.querySelector('meta[name=\"zora-channel\"]')" in widgets
+    assert build_site.CHANNEL_META == '<meta name="zora-channel" content="{channel}">\n'
+    assert build_site.TEST_CHANNEL == "test" and 'const TEST_CHANNEL = "test";' in widgets

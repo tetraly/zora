@@ -7,8 +7,9 @@
 // flags, zoraFlags}; multiworldCheck {id, flags, zoraFlags, playerSettings};
 // nameProblem {id, name}; exportYaml {id, name, flags, zoraFlags, playerSettings}.
 // Messages out: ready {ms, python, pyodide, metadata, multiworld}; result
-// {id, ...} (generate's adds code, the seed code's four item names, and
-// zoraFlags, the canonical ZORA string); error {id, message}.
+// {id, ...} (generate's adds code, the seed code's four item names,
+// codeIcons, the same as the file-select screen draws them (16 rows of 16 NES
+// palette values each), and zoraFlags, the canonical ZORA string); error {id, message}.
 //
 // A MODULE worker (zora-web.js starts it with type "module"): Pyodide's
 // 314.x line refuses classic workers ("Classic web workers are not
@@ -21,7 +22,7 @@
 // native scripts (zora.generate). Results cross to JavaScript as JSON.
 const GLUE = `
 import json, sys
-from zora_web.api import flag_form, generate_rom, identify_rom, multiworld, player_settings_from_page, seed_report
+from zora_web.api import code_icons, flag_form, generate_rom, identify_rom, multiworld, player_settings_from_page, seed_report
 
 def identify(data):
     return json.dumps(identify_rom(bytes(data.to_py())))
@@ -45,7 +46,8 @@ def generate(data, seed, flag_string, player_settings, zora_flag_string):
     settings = player_settings_from_page(json.loads(player_settings))
     result = generate_rom(flag_string, int(seed), bytes(data.to_py()), settings, zora_flag_string)
     info = {"flags": result.flag_string, "zoraFlags": result.zora_flag_string, "seed": str(result.seed),
-            "encoded": result.encode_level_data, "code": [str(name) for name in result.code]}
+            "encoded": result.encode_level_data, "code": [str(name) for name in result.code],
+            "codeIcons": code_icons(result.rom)}
     LAST_RESULT = json.dumps(info)
     return result.rom
 

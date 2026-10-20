@@ -1,7 +1,9 @@
-"""VA-REJ-20 and SH-MAP-05's trigger-3 landing. VA-REJ-20: after the gate, level 9's last-boss
-shutter rooms (trigger 3) keep only a key, bombs, five rupees or (Ganon's room) the Triforce of
-Power; anything else moves over the small item of a random other level-9 room, which is lost; no
-receiving room restarts the pass."""
+"""VA-REJ-20 and the map move beside it. VA-REJ-20: after the gate, level 9's last-boss shutter
+rooms (trigger 3) keep only (Ganon's room) the Triforce of Power; anything else moves over the
+small item of a random other level-9 room, which is lost; no receiving room restarts the pass.
+The engine hides a trigger-3 room's item until Ganon's death, so outside Ganon's room it could
+never be collected: by owner ruling (2026-10-17, docs/deviations.md) a key, bombs or five rupees
+move out too, and the map move (SH-MAP-04) never picks such a room."""
 from functools import cache
 
 import pytest
@@ -24,10 +26,12 @@ from zora.model.rooms import Room
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.parse.rom_file import parse_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 DISCARDS = [0] * LEADING_DISCARDS
-SEEDS = range(24)
+# Seeds 32 and 35 put the map behind Zelda's shutters before the owner's fix (temp survey of
+# 1,000 default seeds); most of the others left a small item there.
+SEEDS = [*range(24), 32, 35]
 
 
 @cache
@@ -47,10 +51,17 @@ def fresh_level9() -> Level:
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-def test_finished_last_boss_rooms_hold_only_small_items_or_the_moved_map(seed: int) -> None:
-    """The map may still land there afterwards (SH-MAP-05); the compass never does."""
+def test_finished_last_boss_rooms_hold_nothing(seed: int) -> None:
+    """No item ever lies hidden behind Zelda's shutters: no small item, and no map."""
     for room in last_boss_rooms(finished_level9(seed)):
-        assert room.item in SMALL_ITEMS | {Item.NOTHING, Item.MAP}, f"seed {seed} room {room.room_num:02X}"
+        assert room.item == Item.NOTHING, f"seed {seed} room ${room.room_num:02X} holds {room.item.name}"
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_finished_level9_still_has_its_map(seed: int) -> None:
+    rooms = finished_level9(seed).rooms
+    assert sum(room.item == Item.MAP for room in rooms) == 1
+    assert all(room.room_action != RoomAction.LAST_BOSS for room in rooms if room.item == Item.MAP)
 
 
 def test_a_compass_moves_over_the_drawn_small_item_keeping_each_rooms_bits() -> None:
@@ -74,7 +85,23 @@ def test_a_compass_moves_over_the_drawn_small_item_keeping_each_rooms_bits() -> 
     assert sum(room.item != Item.NOTHING for room in level9.rooms) == items_before - 1   # the small item is lost
 
 
-@pytest.mark.parametrize("item", [Item.NOTHING, Item.KEY, Item.BOMBS, Item.FIVE_RUPEES, Item.TRIFORCE_OF_POWER])
+@pytest.mark.parametrize("item", sorted(SMALL_ITEMS), ids=lambda item: item.name)
+def test_a_small_item_moves_out_too(item: Item) -> None:
+    """Owner ruling (2026-10-17): the spec leaves a key, bombs or five rupees there."""
+    level9 = fresh_level9()
+    shutter = sorted(level9.rooms, key=lambda room: room.room_num)[0]
+    shutter.room_action, shutter.item = RoomAction.LAST_BOSS, item
+    for room in level9.rooms:
+        if room is not shutter and room.room_action == RoomAction.LAST_BOSS and room.item not in STAYING_ITEMS:
+            room.item = Item.NOTHING              # one move only: one scripted draw
+    receiver = receiving_rooms(level9)[0]
+    receiver.item = Item.FIVE_RUPEES if item != Item.FIVE_RUPEES else Item.BOMBS
+    move_last_boss_room_items(level9, ScriptedRng([*DISCARDS, 0]))
+    assert shutter.item == Item.NOTHING and shutter.room_action == RoomAction.LAST_BOSS
+    assert receiver.item == item
+
+
+@pytest.mark.parametrize("item", [Item.NOTHING, Item.TRIFORCE_OF_POWER])
 def test_allowed_items_stay_and_only_the_discards_are_drawn(item: Item) -> None:
     level9 = fresh_level9()
     for room in level9.rooms:
@@ -109,13 +136,28 @@ class CountingRng(Rng):
 @pytest.mark.parametrize("seed", range(4))
 def test_the_map_move_draws_its_trigger_test_whatever_the_trigger(seed: int) -> None:
     """SH-MAP-05: one number for the four-in-five test even when the chosen room is on another
-    trigger; a last-boss room keeps trigger 3 and the map stays behind its shutters."""
+    trigger, which it keeps."""
     level9 = fresh_level9()
     candidates = [room for room in level9.rooms if room.item in CANDIDATE_ITEMS and room.item != Item.MAP]
     for room in candidates:
-        room.room_action = RoomAction.LAST_BOSS
+        room.room_action = RoomAction.BLOCK_STAIRS
     rng = CountingRng(seed)
     move_map_near_entrance(level9, rng)
     assert rng.draws == 2                     # the weighted room draw, then the trigger test
     map_room = next(room for room in level9.rooms if room.item == Item.MAP)
-    assert map_room.room_action == RoomAction.LAST_BOSS
+    assert map_room.room_action == RoomAction.BLOCK_STAIRS
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_the_map_never_moves_into_a_last_boss_room(seed: int) -> None:
+    """Owner ruling (2026-10-17): every other candidate on trigger 3 leaves the map where it is,
+    or in the one candidate left off the trigger."""
+    level9 = fresh_level9()
+    candidates = [room for room in level9.rooms if room.item in CANDIDATE_ITEMS and room.item != Item.MAP]
+    kept = candidates[-1]
+    for room in candidates:
+        if room is not kept:
+            room.room_action = RoomAction.LAST_BOSS
+    move_map_near_entrance(level9, Rng(seed))
+    map_room = next(room for room in level9.rooms if room.item == Item.MAP)
+    assert map_room.room_action != RoomAction.LAST_BOSS

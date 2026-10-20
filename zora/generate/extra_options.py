@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..flags.fields import WoodenSwordState
 from ..flags.zora_flags import OopsAllBosses, OopsAllEnemies
 from .acceptance_check import LogicRules, logic_rules
 from .steps.change_sword_hearts import MAGICAL_SWORD_HEARTS
@@ -40,6 +41,8 @@ class ExtraOptions:
     eleven_screen_recorder_set: bool = False
     # Allow Important Items in 9 (B25, VA-REJ-08): level 9's items need level-9 entry, not the long items
     important_items_in_level_9: bool = False
+    # Swords (C07, resolved; VA-REJ-22): the acceptance walk's start, target and sword rules
+    wooden_sword_state: WoodenSwordState = WoodenSwordState.NORMAL
     # Not a ZORA extra: Book to Understand NPCs (B48, HT-BOOK-01) without the book among the start
     # items, so the maze paths the hint shops sell need the book (LogicRules.maze_hints_need_book).
     # Start Book (B67) is not produced yet; see the TODO at flags/support.py START_ITEM_TOGGLES.
@@ -49,6 +52,19 @@ class ExtraOptions:
     oops_all_enemies: OopsAllEnemies = OopsAllEnemies.OFF
     oops_all_bosses: OopsAllBosses = OopsAllBosses.OFF
     oops_all_seed: int = 0
+    # The ZORA 1.0 flags (docs/zora-extras.md section 13), resolved
+    # Allow Triforces in Stairways, resolved (off unless C06 = 2)
+    allow_triforces_in_stairways: bool = False
+    # Shuffle Wood Sword, resolved
+    shuffle_wood_sword: bool = False
+    # Pegasus Boots, resolved: hint text names the boomerangs' items as the boots
+    pegasus_boots: bool = False
+    # Expanded Dungeon Locations, resolved, and the key of its own random stream
+    # (expanded_dungeon_locations_seed)
+    expanded_dungeon_locations: bool = False
+    expanded_dungeon_locations_seed: int = 0
+    # Highlight No-Drop Rooms, resolved (the pass is skipped when B91 resolves on)
+    highlight_no_drop_rooms: bool = False
 
     @property
     def oops_all(self) -> bool:
@@ -74,7 +90,10 @@ class ExtraOptions:
                            magical_sword_cave_counts=not self.randomize_magical_sword,
                            eleven_screen_recorder_set=self.eleven_screen_recorder_set,
                            important_items_in_level_9=self.important_items_in_level_9,
-                           maze_hints_need_book=self.maze_hints_need_book)
+                           maze_hints_need_book=self.maze_hints_need_book,
+                           wood_sword_in_pool=self.shuffle_wood_sword,
+                           wooden_sword_state=self.wooden_sword_state,
+                           expanded_recorder_set=self.expanded_dungeon_locations)
 
 
 # Every ZORA extra off: the default where none are given.

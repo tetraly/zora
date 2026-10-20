@@ -56,8 +56,8 @@ TOLL_LINE_WIDTH = 24
 # separates words (final corpus: 1,000/1,000 toll texts; the spec's
 # "spaces" is this tile — QUESTIONS #50.1).
 TEXT_PAD_TILE = CHAR_TO_BYTE["~"]
-MAX_STARTING_HEARTS = 32       # a starting-hearts byte above this reads as 34
-STARTING_HEARTS_CAP = 34
+TOLL_HEART_COUNT_CAP = 3        # FL-ALT-07: three or more starting containers give PRG0's $30
+NIBBLE_SHIFT = 4
 
 
 PERSON_INIT_LEVELS = range(1, 9)            # jump-table entries 1-8
@@ -114,15 +114,15 @@ def toll_text(toll: LifeOrMoneyToll) -> bytes:
     return bytes(first + second)
 
 
-def heart_count_operand(starting_hearts: int) -> int:
-    """The life toll's heart-container count operand, from the
-    starting-hearts byte."""
-    hearts = STARTING_HEARTS_CAP if starting_hearts > MAX_STARTING_HEARTS else starting_hearts
-    return (hearts & 0xF0) + 0x10
+def heart_count_operand(heart_containers: int) -> int:
+    """The life toll's heart-container count operand (FL-ALT-07): $10, $20 or $30 for one, two or
+    three or more starting containers, so a payment of life takes a container only while Link
+    holds more than that."""
+    return min(heart_containers, TOLL_HEART_COUNT_CAP) << NIBBLE_SHIFT
 
 
 def encode(toll: LifeOrMoneyToll | None, bomb_levels: tuple[int, int] | None,
-           starting_hearts: int) -> list[tuple[int, bytes]]:
+           heart_containers: int) -> list[tuple[int, bytes]]:
     """PS-MERCH-04's and PS-BOMB-03's writes as (file offset, bytes); every
     other byte is left as the base ROM has it. PS-BOMB-03's jump-table
     writes are omitted (MAY: the hint pass rewrites them, person_init_writes)."""
@@ -135,7 +135,7 @@ def encode(toll: LifeOrMoneyToll | None, bomb_levels: tuple[int, int] | None,
         return writes
     writes.append((TOLL_TEXT_ADDRESS, toll_text(toll)))
     if toll.first == TollOption.LIFE:
-        writes.append((HEART_COUNT_OPERAND, bytes([heart_count_operand(starting_hearts)])))
+        writes.append((HEART_COUNT_OPERAND, bytes([heart_count_operand(heart_containers)])))
     else:
         writes += [(HEART_PAYMENT, MAX_BOMBS_PAYMENT), (FIRST_ITEM_TYPE, bytes([NO_ITEM_TYPE]))]
     if toll.second == TollOption.MAX_BOMBS:

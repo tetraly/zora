@@ -2,6 +2,12 @@
 
     python3 scripts/jobs.py            the running jobs, the suite lock and its queue
     python3 scripts/jobs.py --all      ... and the jobs that ended in the last hour
+    python3 scripts/jobs.py --mine     only the calling session's jobs (CLAUDE_CODE_SESSION_ID)
+    python3 scripts/jobs.py --json     the same as JSON, for scripts: {"jobs": [...], "lock": {...}}
+
+The options combine. Each job's line names its id, which `python3 scripts/job.py stop JOB_ID` takes;
+a session stops its own jobs only that way. Scripts read --json (with --mine), never the display:
+a PID read off the wrong line of the shared listing once stopped another session's run.
 
 Each job shows its session, what it is, its percent, elapsed time and time left, its step, what
 it waits for, and when it last reported. A job whose process is gone without finishing is DIED:
@@ -12,6 +18,7 @@ running one silent for three report intervals (3 minutes) is PROBABLY HUNG. Jobs
 """
 from __future__ import annotations
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -26,6 +33,7 @@ from zora_measure import progress  # noqa: E402
 RECENT_SECONDS = 3600
 KEEP_SECONDS = 86400
 DIED_SHOWN_SECONDS = 600         # a job that died stays in the default listing this long
+OPTIONS = ("--all", "--mine", "--json")
 
 
 def flag(state: str) -> str:
@@ -53,10 +61,12 @@ def shown_by_default(status: dict[str, Any], now: float) -> bool:
     return status.get("state") not in progress.ENDED
 
 
-def lines(jobs: list[dict[str, Any]], show_ended: bool, now: float) -> list[str]:
-    shown = [status for status in jobs
-             if shown_by_default(status, now)
-             or (show_ended and now - (status.get("finished_at") or 0) < RECENT_SECONDS)]
+def shown(jobs: list[dict[str, Any]], show_ended: bool, now: float) -> list[dict[str, Any]]:
+    return [status for status in jobs
+            if shown_by_default(status, now) or (show_ended and now - (status.get("finished_at") or 0) < RECENT_SECONDS)]
+
+
+def lines(shown: list[dict[str, Any]], now: float) -> list[str]:
     ids = {status["id"] for status in shown}
     children: dict[str | None, list[dict[str, Any]]] = {}
     for status in sorted(shown, key=lambda status: status["started"]):
@@ -68,7 +78,8 @@ def lines(jobs: list[dict[str, Any]], show_ended: bool, now: float) -> list[str]
         for status in children.get(parent, []):
             state = progress.health(status, now)
             reported = f"last report {progress.clock(now - status.get('updated', now))} ago"
-            out.append(f"{'    ' * depth}- {status['session']}, pid {status['pid']}: {progress.describe(status, now)}; "
+            out.append(f"{'    ' * depth}- {status['session']}, pid {status['pid']}, job {status['id']}: "
+                       f"{progress.describe(status, now)}; "
                        f"{reported}{flag(state)}")
             add(status["id"], depth + 1)
     add(None, 0)
@@ -84,11 +95,28 @@ def lock_lines() -> list[str]:
     return out
 
 
+def as_json(shown: list[dict[str, Any]], now: float) -> str:
+    """The listing for scripts: each job's status file, with its health, whether it is the calling
+    session's (mine) and its one-line description; the lock's holder and queue."""
+    jobs = [{**status, "health": progress.health(status, now), "mine": progress.is_mine(status),
+             "description": progress.describe(status, now)} for status in shown]
+    return json.dumps({"jobs": jobs, "lock": {"holder": suite_lock.holder(), "waiting": suite_lock.waiting_runs()}},
+                      indent=1)
+
+
 def main(argv: list[str]) -> int:
+    if unknown := [arg for arg in argv if arg not in OPTIONS]:
+        print(f"jobs.py: unknown option {' '.join(unknown)}\n{__doc__}", file=sys.stderr)
+        return 2
     now = time.time()
-    jobs = [progress.mark_died(status, now) for status in tidy(progress.read_jobs(), now)]
-    listing = lines(jobs, "--all" in argv, now)
-    print("\n".join(listing) if listing else "no running jobs")
+    jobs = shown([progress.mark_died(status, now) for status in tidy(progress.read_jobs(), now)], "--all" in argv, now)
+    if "--mine" in argv:
+        jobs = [status for status in jobs if progress.is_mine(status)]
+    if "--json" in argv:
+        print(as_json(jobs, now))
+        return 0
+    listing = lines(jobs, now)
+    print("\n".join(listing) if listing else ("no running jobs of this session" if "--mine" in argv else "no running jobs"))
     print("\n".join(lock_lines()))
     return 0
 

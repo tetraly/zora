@@ -19,7 +19,7 @@ from zora.rom.layout import (
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 # SH-SRC-03: the second-quest replacement bytes start at level-information offset $29; n per
 # level 1-9, read from PRG0's table at Q2_REPLACEMENT_SIZES_ADDRESS

@@ -36,7 +36,7 @@ def _vanilla_rom_path() -> Path | None:
 def vanilla_rom() -> bytes:
     path = _vanilla_rom_path()
     if path is None:
-        pytest.skip("vanilla ROM not found (set ZORA_VANILLA_ROM)")
+        pytest.skip("needs the base ROM (or ZORA_VANILLA_ROM)")
     return load_rom(path)
 
 
@@ -139,7 +139,7 @@ def test_generated_world_preserves_non_dungeon_regions() -> None:
     """Generated levels must not clobber the overworld block or level_info."""
     path = _vanilla_rom_path()
     if path is None:
-        pytest.skip("vanilla ROM not found")
+        pytest.skip("needs the base ROM")
     rom = load_rom(path)
     gw = parse_rom(rom)
     from zora.generate.rng import Rng
@@ -165,7 +165,7 @@ def test_nothing_code_config_vanilla_is_default() -> None:
     from zora.rom.layout import ASM_NOTHING_CODE_PATCH_OFFSET, ASM_NOTHING_CODE_PATCH_VALUE
     path = _vanilla_rom_path()
     if path is None:
-        pytest.skip("vanilla ROM not found")
+        pytest.skip("needs the base ROM")
     rom = load_rom(path)
     gw = parse_rom(rom)
     cfg = GameConfig(dungeon_nothing_code=DungeonNothingCode.ZORA_REMAP)
@@ -225,7 +225,7 @@ def test_triforce_of_power_rule_units() -> None:
     assert other.boss_sound == BossSound.ROAR_AQUAMENTUS_GLEEOK_GANON
     assert _parse_room(0x10, 0, 0, 0, 0, 0x6F, 0).boss_sound == \
         BossSound.ROAR_DIGDOGGER_MANHANDLA_PATRA
-    rom = load_rom(_vanilla_rom_path() or pytest.skip("vanilla ROM not found"))
+    rom = load_rom(_vanilla_rom_path() or pytest.skip("needs the base ROM"))
     gw = parse_rom(rom)
     assert check_triforce_of_power(gw).passed
     # any room of the block, owned or not: a no-item room with trigger 7
@@ -242,14 +242,14 @@ def test_finished_rom_round_trips_with_its_start_y_in_the_patch(vanilla_rom: byt
     """A finished ROM carries FP-ENTR-01's patch, so parse_rom reads the
     overworld start Y from the patch's byte; serializing the parsed world
     again writes it back there, not to LevelInfo_StartY, even without the
-    code patches in the config. Baseline seed 17 starts at Y $5D, not PRG0's
+    code patches in the config. Baseline seed 2 starts at Y $7D, not PRG0's
     $8D (scripts/qa_sweep.py first found such a seed; seed 5 until the
-    2026-10-07 output change)."""
+    2026-10-07 output change, seed 17 until 114f280)."""
     from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
     from zora.generate.pipeline import generate_rom
     from zora.rom.code_patches import overworld_start_y
     from zora.rom.layout import START_POSITION_Y_ADDRESS
-    rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 17, vanilla_rom).rom
-    assert overworld_start_y(rom) == 0x5D
+    rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 2, vanilla_rom).rom
+    assert overworld_start_y(rom) == 0x7D
     assert rom[START_POSITION_Y_ADDRESS] == vanilla_rom[START_POSITION_Y_ADDRESS] == 0x8D
     assert serialize_to_rom(parse_rom(rom), rom) == rom

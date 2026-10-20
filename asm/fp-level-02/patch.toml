@@ -1,0 +1,19 @@
+# ZORA FP-LEVEL-02: the level label with room for 8 tiles (a word of up to 6 characters, the dash
+# and the number, or 7 characters and the number), drawn from a 12-byte record in bank 5 instead of
+# PRG0's 7-tile record in bank 6's common data block. Written only when the label text is 7
+# characters (asm/settings/build.py; docs/player-settings-patches.md). asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_LEVEL_02"
+bank = 5
+start = 0xBCC0              # bank 5 free space, after ring-color's slot $BC80-$BCBF (docs/rom-map.md)
+
+[[hook]]
+name = "level-label"
+offset = 0x1703F
+length = 7
+note = "InitMode3_Sub7: STA LevelNumberTransferBuf+9 / LDA #$0C / BNE SelectTransferBuf becomes JMP DrawLevelLabel + 4 NOPs. The LDA LevelInfo_LevelNumber / BEQ L1701A_Exit before them (0x1703A-0x1703E) stay PRG0's: the overworld still skips the label."
+code = """
+    JMP DrawLevelLabel
+    .RES 4, $EA
+"""

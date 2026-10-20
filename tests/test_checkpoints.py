@@ -24,7 +24,7 @@ def _vanilla_rom() -> bytes:
     env = os.environ.get("ZORA_VANILLA_ROM")
     cand = Path(env) if env else BASE_ROM_PATH
     if not cand.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     verify_base_rom(cand)
     return load_rom(cand)
 

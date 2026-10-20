@@ -1,6 +1,7 @@
 """Item places (zora/generate/places.py; Archipelago Phase 2 tests 4 and 5, docs/archipelago.md):
 names are stable, unique and inside the superset; the same seed gives the same places in the
 same order; and the places read back from the finished ZORA-mode ROM are the BUILD list."""
+import re
 from functools import cache
 
 import pytest
@@ -20,7 +21,7 @@ SEEDS = (1, 2, 3)
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -38,9 +39,10 @@ def _world(base: bytes, case: str, seed: int) -> tuple[GameWorld, GenerationPlan
 
 def test_the_superset_is_unique_and_covers_every_kind() -> None:
     names = all_place_names()
-    assert len(names) == len(set(names)) == 9 * 128 * 2 + 5 + 5 * 3
-    for expected in ("Level 3 Room 4B", "Level 3 Room 4B Cellar", "White Sword Cave", "Shop 2 Middle",
-                     "Potion Shop Middle", "Armos", "Coast", "Magical Sword Cave", "Letter Cave"):
+    assert len(names) == len(set(names)) == 9 * 128 * 2 + 5 + 5 * 3 + 1      # the wood sword cave, last
+    for expected in ("Level 3 Room 4B Floor", "Level 3 Room 4B Stairway", "White Sword Cave", "Shop 2 Middle",
+                     "Potion Shop Middle", "Armos", "Coast", "Magical Sword Cave", "Letter Cave",
+                     "Wood Sword Cave"):
         assert expected in names
 
 
@@ -59,6 +61,30 @@ def test_names_are_stable_unique_and_in_the_superset(base: bytes, case: str, see
     assert kinds == sorted(kinds, reverse=True)
     again, _ = _world(base, case, seed)
     assert all_item_places(again, extras) == places
+
+
+DUNGEON_NAME = re.compile(r"Level (\d) Room ([0-9A-F]{2}) (Floor|Stairway)")
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_dungeon_names_take_the_shown_level_number(base: bytes, seed: int) -> None:
+    """Owner decision (2026-10-18): a dungeon place is named by the level number the status bar
+    shows, so in a second-quest-dungeon seed, where paired levels show each other's numbers, the
+    name points to the level the player sees; the place keeps its data level for the logic and
+    its pickup flag. A room's own item is its Floor item, an item cellar's its room's Stairway."""
+    world, chosen = _world(base, "second quest dungeons", seed)
+    shown = {level.level_num: level.rom_level_num for level in world.levels}
+    assert any(data != number for data, number in shown.items())
+    places = [place for place in all_item_places(world, extra_options(chosen)) if place.is_dungeon]
+    assert {place.kind for place in places} == {PlaceKind.ROOM, PlaceKind.CELLAR}
+    for place in places:
+        match = DUNGEON_NAME.fullmatch(place.name)
+        assert match is not None, place.name
+        assert place.level is not None
+        assert int(match[1]) == shown[place.level]
+        room = place.stair_room if place.kind is PlaceKind.CELLAR else place.room_num
+        assert int(match[2], 16) == room
+        assert match[3] == ("Stairway" if place.kind is PlaceKind.CELLAR else "Floor")
 
 
 @pytest.mark.parametrize("seed", SEEDS)

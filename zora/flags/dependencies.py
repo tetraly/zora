@@ -27,8 +27,6 @@ from .fields import (
     MAGICAL_SWORD_LOWEST,
     MAGICAL_SWORD_LOWEST_BASE,
     MAX_TRIFORCE_PIECES,
-    MONEY_OR_LIFE_ROOMS,
-    MONEY_OR_LIFE_TOLL,
     MONSTERS_BETWEEN_LEVELS,
     OPTION_FIELDS,
     PIECE_RANGE_HIGH,
@@ -85,24 +83,24 @@ def refusals(settings: Settings) -> list[Refusal]:
     return found
 
 
-# FL-DEP-02 rule 1: the prerequisite is a cave shuffle that moves non-dungeon caves.
+# FL-DEP-02 rule 1: the prerequisite is a cave shuffle that moves non-dungeon caves; the coin's
+# one side turns that part on (OW-CAVE-10: C05 = 0 then runs as 2, and 1 as 3).
 CAVE_SHUFFLE_MOVES_NON_DUNGEON_CAVES = (CaveShuffle.NON_DUNGEON_CAVES_ONLY, CaveShuffle.ALL_CAVES)
 CAVE_SHUFFLE_LEAVES_NON_DUNGEON_CAVES = (CaveShuffle.VANILLA, CaveShuffle.DUNGEON_DOORS_ONLY)
+WITH_NON_DUNGEON_PART = {CaveShuffle.VANILLA: CaveShuffle.NON_DUNGEON_CAVES_ONLY,
+                         CaveShuffle.DUNGEON_DOORS_ONLY: CaveShuffle.ALL_CAVES}
+CAVE_DEPENDENTS = (WOODEN_SWORD_CAVE_MOVES, TAKE_ANY_ROAD_SHUFFLE)
 # FL-DEP-02 rule 4: these layout sources turn the two person shuffles off; shapes (3) does not.
 LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES = DUNGEON_QUESTS_WITHOUT_PERSON_MOVES
 
 
 def missing_prerequisites(settings: Settings) -> list[Refusal]:
-    """FL-DEP-02 rules 1 to 3, the (random) rules.
-
-    The spec leaves open whether the prerequisite is turned on or the dependents off, and lets a
-    rebuild refuse such a string instead, which is what this codec does.
+    """FL-DEP-02 rules 2 and 3, the (random) rules whose coin the spec leaves open: a rebuild may
+    refuse such a string instead, which is what this codec does. Rule 1's coin is specified
+    (OW-CAVE-10) and flipped per seed (meet_cave_prerequisite), never refused.
     Possible fields count as on only after ``resolve`` (FL-DEP-04).
     """
     found: list[Refusal] = []
-    cave_dependents = [t for t in (WOODEN_SWORD_CAVE_MOVES, TAKE_ANY_ROAD_SHUFFLE) if settings.is_on(t)]
-    if cave_dependents and settings.option(CAVE_SHUFFLE) in CAVE_SHUFFLE_LEAVES_NON_DUNGEON_CAVES:
-        found.append(Refusal("FL-DEP-02 rule 1", _needs(cave_dependents, "cave shuffle to move non-dungeon caves")))
     room_dependents = [t for t in (HUNGRY_GORIYA_SHUFFLE, START_ROOM_MAY_MOVE, GANON_MUST_BE_BEATEN)
                        if settings.is_on(t)]
     if room_dependents and settings.option(DUNGEON_ROOM_SHUFFLE) == DungeonRoomShuffle.VANILLA:
@@ -117,6 +115,27 @@ def _needs(dependents: list[ToggleField], prerequisite: str) -> str:
     return " and ".join(t.setting for t in dependents) + f" need {prerequisite}"
 
 
+def needs_cave_prerequisite(settings: Settings) -> bool:
+    """FL-DEP-02 rule 1: the wooden-sword or take-any-road cave shuffle (B02, B04) on while Cave
+    Shuffle has no non-dungeon part (C05 = 0 or 1). It reads C05 alone (OW-MIX-07)."""
+    return (any(settings.is_on(dependent) for dependent in CAVE_DEPENDENTS)
+            and settings.option(CAVE_SHUFFLE) in CAVE_SHUFFLE_LEAVES_NON_DUNGEON_CAVES)
+
+
+def meet_cave_prerequisite(settings: Settings, rng: IntRng) -> Settings:
+    """FL-DEP-02 rule 1 (OW-CAVE-10): one equal-chance coin per seed, flipped only when the rule
+    applies, on resolved settings (C05 = 4 drawn first). One side turns C05's non-dungeon part on (0
+    runs as 2, 1 as 3); the other turns B02 and B04 off, which changes no byte under C05 = 0 or 1
+    but does under a mixed overworld quest, whose walk has the non-dungeon part anyway (OW-MIX-07).
+    The side each coin value stands for is this rebuild's own (not normative)."""
+    if not needs_cave_prerequisite(settings):
+        return settings
+    if rng.choice((True, False)):
+        with_part = WITH_NON_DUNGEON_PART[CaveShuffle(settings.option(CAVE_SHUFFLE))]
+        return settings.updated(options={CAVE_SHUFFLE: with_part})
+    return settings.updated(toggles=dict.fromkeys(CAVE_DEPENDENTS, ThreeState.OFF))
+
+
 def apply_dependencies(settings: Settings) -> Settings:
     """FL-DEP-02 rules 4 and 5, the (not random) rules.
 
@@ -128,16 +147,6 @@ def apply_dependencies(settings: Settings) -> Settings:
     if settings.option(DUNGEON_LAYOUT_SOURCE) in LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES:
         return settings.updated(toggles={HUNGRY_GORIYA_SHUFFLE: ThreeState.OFF,
                                          BOMB_UPGRADE_PERSON_SHUFFLE: ThreeState.OFF})
-    return settings
-
-
-def correct_merchant_toll(settings: Settings) -> Settings:
-    """FL-DEP-06: the toll re-draw (B23) needs the merchants (B22). A string with B22 off and B23
-    not off is never refused: B23 is forced off, and the corrected string is the one shown and
-    the one that enters the seed."""
-    if (settings.toggle(MONEY_OR_LIFE_ROOMS) is ThreeState.OFF
-            and settings.toggle(MONEY_OR_LIFE_TOLL) is not ThreeState.OFF):
-        return settings.updated(toggles={MONEY_OR_LIFE_TOLL: ThreeState.OFF})
     return settings
 
 

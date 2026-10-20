@@ -207,7 +207,7 @@ def e1_replay(gw: GameWorld) -> bool:
     from zora.generate.acceptance_check import AcceptanceCheck, logic_rules
     from zora.generate.steps.cave_entries import CaveShuffle, Entry
     from zora.generate.steps.item_shuffle_result import ItemShuffleResult, TrackedPlace
-    from zora.generate.steps.mixed_overworld_quest import SECOND_QUEST_LEFTOVER_SCREENS, is_second_quest_overworld
+    from zora.generate.steps.mixed_overworld_quest import second_quest_leftovers
     from zora.model.enums import QuestVisibility
     places = item_places(gw)
     slot_of = {item: name for name, item in _cave_slots(gw).items()}
@@ -225,7 +225,7 @@ def e1_replay(gw: GameWorld) -> bool:
     # the door; it also reads the eleven-screen recorder set (OW-MIX-08)
     shown = (QuestVisibility.BOTH_QUESTS, QuestVisibility.FIRST_QUEST)
     # 2nd Quest's leftover dungeon codes on 11 and 66 are shown but are not doors (OW-QST-05)
-    leftovers = SECOND_QUEST_LEFTOVER_SCREENS if is_second_quest_overworld(gw.overworld) else frozenset()
+    leftovers = second_quest_leftovers(gw.overworld)
     entries = [Entry(screen, s.destination, 0) for screen, s in enumerate(gw.overworld.screens)
                if s.destination in movable and s.quest_visibility in shown and screen not in leftovers]
     caves = CaveShuffle(entries, armos_screen=gw.overworld.armos_screen_ids[0])

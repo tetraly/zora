@@ -26,7 +26,7 @@ def test_unguarded() -> None:
     assert plan(MVP_BASELINE, 1).config.level_encoding is not None
 
 
-@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+@pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 def test_guarded() -> None:
     assert plan(MVP_BASELINE, 1).config.level_encoding is not None
 '''
@@ -34,7 +34,7 @@ def test_guarded() -> None:
 UNGUARDED = "def test_unguarded() -> None:\n    assert plan(MVP_BASELINE, 1).config.level_encoding is not None\n"
 assert UNGUARDED in PROBE
 
-pytestmark = pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+pytestmark = pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 
 
 def environment(**settings: str) -> dict[str, str]:

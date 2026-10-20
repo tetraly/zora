@@ -11,6 +11,7 @@ import pytest
 
 from tests.archipelago_cases import FLAG_CASES
 from tests.test_assignment import _built, identity
+from zora.generate.acceptance_check import ARROW_LINE
 from zora.generate.finish import FOREIGN, FOREIGN_ITEM, rebuild_tracking, with_tracking
 from zora.generate.pipeline import Built, finish_world
 from zora.generate.steps.hint_text import (
@@ -22,7 +23,6 @@ from zora.generate.steps.hint_text import (
     ItemNames,
     Requirement,
     level9_trio_texts,
-    magical_sword_cave_text,
     quote_problems,
     requirement_candidates,
     requirement_text,
@@ -30,6 +30,7 @@ from zora.generate.steps.hint_text import (
 )
 from zora.model.enums import Item
 from zora.model.game_world import GameWorld
+from zora.model.levels import LEVEL_9
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.text_encoding import CHAR_TO_BYTE
@@ -38,12 +39,16 @@ FOREIGN_WORDS = "ANOTHER PLAYER'S ITEM"
 RUPEES_WORDS = "RUPEES"
 APOSTROPHE_TILE = 0x2A
 SEEDS = (1, 2, 3)
+# The FINISH test's seeds: in every case at least one of them names a place holding another
+# player's item (seed 4 for second quest dungeons and universal drops in shapes, since the sword
+# caves' own texts speak only of hearts).
+FINISH_SEEDS = (1, 2, 3, 4)
 
 
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 
@@ -91,7 +96,7 @@ def test_the_white_sword_cave(base: bytes, case: str, seed: int) -> None:
     slots: list[list[str] | None] = [None] * SLOT_COUNT
     write_person_name_texts(world, slots, foreign_names(built))
     holder = slots[HOLDER_SLOT]
-    assert holder is not None and _says_foreign(holder) and FOREIGN_NAME in holder, holder
+    assert holder is not None and _says_foreign(holder) and FOREIGN_NAME in " ".join(holder), holder
     candidates = requirement_candidates(world, [])
     for candidate in (c for c in candidates if c.white_sword_cave):
         assert _says_foreign(requirement_text(candidate, foreign_names(built)))
@@ -106,15 +111,6 @@ def test_the_coast(base: bytes, case: str, seed: int) -> None:
 
 
 @pytest.mark.parametrize("seed", SEEDS)
-@pytest.mark.parametrize("case", ["magical sword and letter", "every ZORA flag on"])
-def test_the_magical_sword_cave(base: bytes, case: str, seed: int) -> None:
-    built = _built(case, seed)
-    world, _ = _with_foreign(built, "Magical Sword Cave")
-    lines = magical_sword_cave_text(world, foreign_names(built))
-    assert _says_foreign(lines) and lines[-1] == FOREIGN_NAME, lines
-
-
-@pytest.mark.parametrize("seed", SEEDS)
 @pytest.mark.parametrize("case", list(FLAG_CASES))
 def test_the_silver_arrows_place(base: bytes, case: str, seed: int) -> None:
     """The trio's silver-arrow (or arrow-upgrade) text points at a level-9 place holding the item
@@ -126,7 +122,9 @@ def test_the_silver_arrows_place(base: bytes, case: str, seed: int) -> None:
     state = with_tracking(built.result.item_shuffle_result, rebuild_tracking(world, built), world, built.places)
     silver_text = level9_trio_texts(world, state, foreign_names(built))[0]
     assert not quote_problems(silver_text) and RUPEES_WORDS not in " ".join(silver_text)
-    assert "ELSEWHERE" in " ".join(silver_text), silver_text
+    # another arrow-line item still in level 9 (Shop Items in the Item Pool's wooden arrows) is named
+    other_arrow = any(record.item in ARROW_LINE and record.level == LEVEL_9 for record in state.tracked)
+    assert ("IS IN" if other_arrow else "ELSEWHERE") in " ".join(silver_text), silver_text
 
 
 @pytest.mark.parametrize("case", list(FLAG_CASES))
@@ -134,7 +132,7 @@ def test_finished_hint_text_never_says_rupees_for_another_players_item(base: byt
     """Through FINISH: another player's item in every cave place; the shipped quotes pass the text
     checks, name no five rupees, and say "another player" where they name one of those places."""
     said = 0
-    for seed in SEEDS:
+    for seed in FINISH_SEEDS:
         built = _built(case, seed)
         assignment = identity(built)
         received = []
@@ -169,6 +167,6 @@ def test_the_apostrophe_is_vanillas_own(base: bytes) -> None:
 
 
 def test_zora_mode_names_are_unchanged() -> None:
-    """Without foreign_code (ZORA mode) the five-rupee code is named as ever."""
+    """Without foreign_code (ZORA mode) the foreign code (a rupee) is named as ever."""
     assert VANILLA_NAMES.foreign_code is None and PROGRESSIVE_NAMES.foreign_code is None
-    assert VANILLA_NAMES.phrase(FOREIGN_ITEM) == "THE FIVE RUPEES"
+    assert VANILLA_NAMES.phrase(FOREIGN_ITEM) == "THE RUPEE"

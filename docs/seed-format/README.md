@@ -12,9 +12,11 @@ For an encoded seed the page shows neither button, and `zora_web.api.seed_report
 ## The format
 
 `seed-format.schema.json` here is the visualizer's JSON Schema for format 1.0. It is copied
-unchanged from github.com/tetraly/z1r-visualizer (`docs/seed-format.schema.json`; its
-`$comment` names the commit). That repo's `docs/seed-format.md` explains each field and the
-hand-off. No visualizer code is copied into ZORA.
+from github.com/tetraly/z1r-visualizer (`docs/seed-format.schema.json`; its `$comment` names the
+commit) with one difference: its `itemName` list adds "Pegasus Boots" and "Magical Boots" (the
+Pegasus Boots flag, 8b30819), which the visualizer's copy lacks until the owner updates it.
+That repo's `docs/seed-format.md` explains each field and the hand-off. No visualizer code is
+copied into ZORA.
 
 ## ZORA's writer: `zora_export/seed_document.py`
 
@@ -89,7 +91,7 @@ sections:
 
 1. a header: version, seed, flag strings, seed code;
 2. every setting, chosen and resolved;
-3. the major items by place: levels (rooms and cellars), the Armos and coast spots, the caves
+3. the major items by place: levels (each floor item and stairway item), the Armos and coast spots, the caves
    and shops with prices;
 4. every cave and shop's wares;
 5. the texts with their speakers;

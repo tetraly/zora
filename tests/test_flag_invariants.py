@@ -37,7 +37,7 @@ from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.rom.layout import ines_header
-from zora.flags.fields import DungeonLayoutSource
+from zora.flags.fields import CaveShuffle, DungeonLayoutSource, HitPointChange, ItemShuffleScope, WoodenSwordState
 from zora.flags.zora_flags import OopsAllBosses, OopsAllEnemies
 from zora.generate.alternative_values import AlternativeValues
 from zora.generate.extra_options import ExtraOptions
@@ -92,14 +92,16 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "randomize_letter": (False, True),
     "progressive_items": (False, True),
     "shop_items_in_pool": (False, True),
-    "start_with_four_hearts": (False, True),
-    "change_sword_hearts_from_five_hearts": (False, True),
+    "starting_hearts": (3, 4, 1, 5, 16),                       # FL-ALT-02, FL-ALT-07
+    "white_sword_hearts": (range(4, 7), range(5, 7), range(4, 6), range(6, 7), range(4, 5)),   # FL-ALT-05
     "generate_community_hint_text": (False, True),
     "show_every_helpful_hint": (False, True),
     "important_items_in_level_9": (False, True),
     "remove_most_open_stairs": (False, True),        # B30: PS-OSTAIR
     "book_to_understand_npcs": (False, True),     # B48: HT-BOOK-01 (GameConfig) and HT-BOOK-02
-    "shuffle_items_within_levels": (False, True),
+    # C06: full (the baseline), within each dungeon (PS-ITW), Item Only (PS-ITEM-09), None (PS-ITEM-10)
+    "item_shuffle": (ItemShuffleScope.FULL, ItemShuffleScope.WITHIN_EACH_DUNGEON,
+                     ItemShuffleScope.DUNGEON_ITEMS_ONLY, ItemShuffleScope.NONE),
     "mix_overworld_quest": (False, True),
     "full_start_shuffle": (False, True),
     "start_on_wood_sword_screen": (False, True),
@@ -108,12 +110,44 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "force_overworld_block": (False, True),
     "wood_sword_cave_behind_blocks": (False, True),
     "dungeon_quest": (DungeonLayoutSource.GENERATED_SHAPES, DungeonLayoutSource.FIRST_QUEST,
-                      DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED_WITH_SHAPES),
+                      DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED,
+                      DungeonLayoutSource.MIXED_WITH_SHAPES),
     # FP-START-02: none, or a set that widens B03's cave screens (FP-START-04) and fills other slots
-    "start_items": ((), (Item.BOMBS, Item.RECORDER, Item.RAFT, Item.POWER_BRACELET, Item.LETTER)),
+    "start_items": ((), (Item.BOMBS, Item.RECORDER, Item.RAFT, Item.POWER_BRACELET, Item.LETTER),
+                    # the d8cf117 export's: the better of each pair, the Ladder (OW-CAVE-07) and the Book
+                    (Item.MAGICAL_SWORD, Item.SILVER_ARROWS, Item.BOW, Item.RED_CANDLE, Item.WAND, Item.BOOK,
+                     Item.RED_RING, Item.LADDER, Item.MAGICAL_KEY, Item.MAGICAL_SHIELD)),
     # Oops All Enemies and Oops All Bosses (docs/design/oops-all.md)
     "oops_all_enemies": tuple(OopsAllEnemies),
     "oops_all_bosses": tuple(OopsAllBosses),
+    # The ZORA 1.0 flags (docs/zora-extras.md section 13)
+    "allow_triforces_in_stairways": (False, True),
+    "shuffle_wood_sword": (False, True),
+    # Expanded Dungeon Locations (docs/zora-extras.md section 15): a 1st Quest overworld only, with
+    # Dungeons Only or All Caves (producible)
+    "expanded_dungeon_locations": (False, True),
+    # Highlight No-Drop Rooms (docs/zora-extras.md section 16): inert with B91 on
+    "highlight_no_drop_rooms": (False, True),
+    # C05, OW-CAVE-09: the walk's parts
+    "cave_shuffle": (CaveShuffle.ALL_CAVES, CaveShuffle.VANILLA, CaveShuffle.DUNGEON_DOORS_ONLY,
+                     CaveShuffle.NON_DUNGEON_CAVES_ONLY),
+    # The November tournament's settings (2026-10-17 export): C09 and C10's walks and zero
+    # (PS-HP-01, PS-HP-02, PS-HP-04, PS-HP-05), B41 (PS-HP-06), B52 and B53 (FP-BEAM-01, FP-OHKO-01)
+    "enemy_hit_points": (HitPointChange.UP_TO_2, HitPointChange.UP_TO_4, HitPointChange.ALL_ZERO),
+    "boss_hit_points": (HitPointChange.UP_TO_2, HitPointChange.UP_TO_4, HitPointChange.ALL_ZERO),
+    "ganon_hit_points_zero": (False, True),
+    "permanent_sword_beam": (False, True),
+    "one_hit_knock_out": (False, True),
+    # Add Bridges to the River (B87, FP-BRIDGE-01) and Add Lost Woods Shortcut (B88, FP-WOODS-01)
+    "river_bridges": (False, True),
+    "lost_woods_shortcut": (False, True),
+    "start_triforce_pieces": (0, 0b00100001, 0xFF),                             # FL-ALT-06
+    # PS-ITEM-12: the Book at the Armos slot, a heart container in the white-sword cave, Non-Heart
+    "armos_pin": (0, 1, 16),
+    "white_sword_pin": (0, 4, 16),
+    "level_9_pins": ((0, 0), (16, 16), (7, 2)),
+    # FP-WOOD-01 to FP-WOOD-04: the four wooden-sword states
+    "wooden_sword_state": tuple(state for state in WoodenSwordState if state is not WoodenSwordState.RANDOM),
 }
 # FL-OFF-07's turn-off values: each flag-switched step off on the preset (with
 # the feature switch on, as every flag string has it), and all of them off.
@@ -123,7 +157,7 @@ SHAPE_FIELDS = {f.name for f in fields(ShapeOptions)}
 EXTRA_FIELDS = {f.name for f in fields(ExtraOptions)}
 ALTERNATIVE_FIELDS = {f.name for f in fields(AlternativeValues)}
 # The ZORA extras' caves: an item the extras move there is still placed once.
-EXTRA_CAVES = (Destination.MAGICAL_SWORD_CAVE, Destination.LETTER_CAVE)
+EXTRA_CAVES = (Destination.MAGICAL_SWORD_CAVE, Destination.LETTER_CAVE, Destination.WOOD_SWORD_CAVE)
 CONFIG_FIELDS = {f.name for f in fields(GameConfig)}
 STEP_FIELDS = {f.name for f in fields(FlagSteps)}
 
@@ -223,9 +257,30 @@ def turned_off() -> list[Flags]:
 def producible(flags: Flags) -> bool:
     """Not every combination is one a flag string makes: every Dungeon Quest value runs the
     post-shapes passes (PS-VAN-01), and Mixed + Shapes without them would leave a shapes set's
-    shape-stage items beside a vanilla set's own (two wands, say). 1st and 2nd Quest without
-    them keep their quest's items, so they stay as a test of the vanilla sets alone."""
-    return flags.post_shapes or flags.alternatives.dungeon_quest is not DungeonLayoutSource.MIXED_WITH_SHAPES
+    shape-stage items beside a vanilla set's own (two wands, say), as Mixed Quest would leave one
+    quest's levels 1-6 beside the other's levels 7-9 (PS-VAN-03: the wand twice and no Book). 1st
+    and 2nd Quest without them keep their quest's items, so they stay as a test of the vanilla
+    sets alone.
+
+    Nor does a flag string make shaped dungeons with the start-room swap (B26) but without the
+    post-shapes passes: the swap is half done. The shape stage draws entrances off the bottom
+    row (SH-GRID-02, SH-ENT-01) with the south side open onto another level, and only PS-START,
+    a post-shapes pass, moves each start room to the level's edge. The shape-stage test modes
+    (metrics, compare_corpus, output_hash) run without the swap. Vanilla sets place no shaped
+    entrances, so the swap changes nothing there and those combinations stay.
+
+    Nor does a flag string make Expanded Dungeon Locations with a Mixed overworld quest or a Cave
+    Shuffle but Dungeons Only or All Caves (refused, zora_flags.expanded_dungeon_locations_conflicts)."""
+    if flags.extras.expanded_dungeon_locations and (
+            flags.alternatives.mix_overworld_quest or flags.alternatives.mix_overworld_quest_second_variant
+            or flags.alternatives.cave_shuffle not in (CaveShuffle.DUNGEON_DOORS_ONLY, CaveShuffle.ALL_CAVES)):
+        return False
+    if flags.post_shapes:
+        return True
+    if flags.alternatives.dungeon_quest in (DungeonLayoutSource.MIXED, DungeonLayoutSource.MIXED_WITH_SHAPES):
+        return False
+    return not (flags.shapes.start_room_swap
+                and flags.alternatives.dungeon_quest is DungeonLayoutSource.GENERATED_SHAPES)
 
 
 def sampled_combinations() -> list[Flags]:
@@ -244,7 +299,7 @@ def _vanilla_rom() -> bytes:
     env = os.environ.get("ZORA_VANILLA_ROM")
     cand = Path(env) if env else BASE_ROM_PATH
     if not cand.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     # The PRG0 hash guard: refuses any other input ROM.
     verify_base_rom(cand)
     return load_rom(cand)
@@ -402,7 +457,7 @@ def test_invariants(flags: Flags, seed: int) -> None:
 
 # A non-default value for each blocked option.
 BLOCKED_VALUES: dict[str, Any] = {
-    "second_quest_doors": True, "mixed_quests": True,
+    "second_quest_doors": True,
     "seed_placement": "adjacent", "relocate_hint_text": True, "relocate_boss_sprites": True,
 }
 

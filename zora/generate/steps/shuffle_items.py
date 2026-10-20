@@ -1,6 +1,8 @@
 """Item Shuffle (C06; PS-ITEM-01 to -08): the progression items, cave items and
-dungeon hearts. Within each dungeon (C06 = 2; PS-ITW-01 to -04): the fifteen-place
-deal without the hearts, then a re-deal inside each level."""
+dungeon hearts. Item Only (C06 = 1; PS-ITEM-09): the fifteen-place deal without the
+hearts. None (C06 = 0; PS-ITEM-10): the pool written back with no deal. Within each
+dungeon (C06 = 2; PS-ITW-01 to -04): the fifteen-place deal without the hearts, then
+a re-deal inside each level."""
 
 from dataclasses import dataclass, replace
 
@@ -23,6 +25,7 @@ from .item_shuffle_result import (
 POOL_ORDER = (0x05, 0x0C, 0x1D, 0x1E, 0x0D, 0x10, 0x0A, 0x13, 0x0B, 0x07,
               0x09, 0x11)
 CAVE_SLOTS = ("armos", "white_sword", "coast")   # PS-ITEM-04's walk order
+LEVEL_9_NUM = 9
 ITEM_SHUFFLE_BUDGET = 10_000
 # Appendix option table: index -> item byte, or one of the two choices that
 # are not an item (random, Non-Heart).
@@ -64,6 +67,9 @@ class _RoomPosition(_PoolPosition):
     level: Level
     # the level the heart scan records, when PS-ITEM-08 relabels it (not the owner)
     recorded_level_num: int | None = None
+    # PS-VAN-03 with Allow Triforces in Stairways: the fixed progression place this room stands
+    # for, the spot the level's Triforce took (place_triforces)
+    fixed_room: int | None = None
 
     def get(self) -> int:
         return self.room.item_byte
@@ -77,6 +83,11 @@ class _RoomPosition(_PoolPosition):
     @property
     def level_num(self) -> int | None:
         return self.level.level_num if self.recorded_level_num is None else self.recorded_level_num
+
+    @property
+    def cell(self) -> tuple[int, int]:
+        """(level, room): what PS-ITEM-12's pins record."""
+        return self.level.level_num, self.room.room_num
 
 
 @dataclass
@@ -104,6 +115,12 @@ class _CellarPosition(_PoolPosition):
     @property
     def level_num(self) -> int | None:
         return None if self.level is None else self.level.level_num
+
+    @property
+    def cell(self) -> tuple[int, int]:
+        """(level, cellar): what PS-ITEM-12's pins record."""
+        assert self.level is not None
+        return self.level.level_num, self.cellar.room_num
 
 
 @dataclass
@@ -150,24 +167,65 @@ VANILLA_ITEM_ROOMS: dict[tuple[SetSource, int], tuple[int, ...]] = {
 }
 
 
-def _progression_places(levels: list[Level], sources: SetSources) -> list[_PoolPosition]:
+# PS-VAN-03 (7372b34): the order the pool lists a vanilla set's places in (by level, not room
+# order), and, with both sets vanilla, the fixed list the twelve places start with, place k
+# with item k. C02 = 0 and 4 take the first list (under C02 = 4 a second-quest set's rooms then
+# start with first-quest values, a quirk); C02 = 1 the second. A vanilla set beside a shapes set
+# starts with what its rooms hold.
+VANILLA_POOL_ORDER: dict[tuple[SetSource, int], tuple[int, ...]] = {
+    (SetSource.FIRST_QUEST, 0): (0x44, 0x7F, 0x4F, 0x0F, 0x60, 0x04, 0x75),
+    (SetSource.SECOND_QUEST, 0): (0x78, 0x15, 0x0B, 0x7A, 0x6A, 0x7F, 0x46),
+    (SetSource.FIRST_QUEST, 1): (0x4A, 0x0F, 0x6F, 0x00, 0x4F),
+    (SetSource.SECOND_QUEST, 1): (0x2B, 0x2C, 0x70, 0x76, 0x77),
+}
+FIRST_QUEST_START_VALUES = (Item.WOOD_BOOMERANG, Item.BOW, Item.MAGICAL_BOOMERANG, Item.RAFT, Item.LADDER,
+                            Item.RECORDER, Item.WAND, Item.RED_CANDLE, Item.MAGICAL_KEY, Item.BOOK, Item.RED_RING,
+                            Item.SILVER_ARROWS)
+SECOND_QUEST_START_VALUES = (Item.WOOD_BOOMERANG, Item.MAGICAL_BOOMERANG, Item.RECORDER, Item.BOW, Item.RAFT,
+                             Item.BOOK, Item.LADDER, Item.WAND, Item.MAGICAL_KEY, Item.RED_CANDLE,
+                             Item.SILVER_ARROWS, Item.RED_RING)
+
+
+def vanilla_start_values(sources: SetSources) -> dict[tuple[int, int], Item]:
+    """PS-VAN-03: with both sets vanilla, the item each progression place starts with, by (set
+    index, room number); empty when a set is shapes (each place then starts with what it holds)."""
+    if not all(source.is_vanilla for source in sources):
+        return {}
+    values = (SECOND_QUEST_START_VALUES if all(source is SetSource.SECOND_QUEST for source in sources)
+              else FIRST_QUEST_START_VALUES)
+    places = [(set_index, room_num) for set_index, source in enumerate(sources)
+              for room_num in VANILLA_POOL_ORDER[source, set_index]]
+    return dict(zip(places, values, strict=True))
+
+
+def _progression_places(levels: list[Level], sources: SetSources,
+                        triforce_origins: dict[tuple[int, int], int] | None = None) -> list[_PoolPosition]:
     """PS-ITEM-01's twelve progression-item places: where the shape stage planted each item, in
     pool order; with a vanilla set (PS-VAN-03), seven places from levels 1-6 and five from 7-9,
-    a vanilla set's being its fixed rooms."""
+    a vanilla set's being its fixed rooms. With Allow Triforces in Stairways a fixed room the
+    level's Triforce took is stood for by the old Triforce room, which holds its item."""
+    triforce_origins = triforce_origins or {}
     if not any(source.is_vanilla for source in sources):
         return [place for code in POOL_ORDER if (place := _find_item_place(levels, code)) is not None]
     places: list[_PoolPosition] = []
     for set_index, source in enumerate(sources):
         set_levels = [level for level in levels if level.level_num in SET_LEVELS[set_index]]
         if source.is_vanilla:
-            places += [_place_at(set_levels[0].block, room_num) for room_num in VANILLA_ITEM_ROOMS[source, set_index]]
+            places += [_place_at(set_levels[0].block, room_num, triforce_origins.get((set_index, room_num)))
+                       for room_num in VANILLA_ITEM_ROOMS[source, set_index]]
         else:
             places += [place for code in POOL_ORDER if (place := _find_item_place(set_levels, code)) is not None]
     return places
 
 
-def _place_at(block: LevelBlock, room_num: int) -> _PoolPosition:
-    """The pool place at one cell of a block: an item cellar, or a level's room."""
+def _place_at(block: LevelBlock, room_num: int, stood_for_by: int | None = None) -> _PoolPosition:
+    """The pool place at one cell of a block: an item cellar, or a level's room; or, when the
+    cell's Triforce came from `stood_for_by`, that room standing for it."""
+    if stood_for_by is not None:
+        level = block.owner_of(stood_for_by)
+        room = block.cells[stood_for_by]
+        assert level is not None and isinstance(room, Room), f"room ${stood_for_by:02X} is no level's room"
+        return _RoomPosition(room, level, fixed_room=room_num)
     cell = block.cells[room_num]
     if isinstance(cell, StaircaseRoom):
         owner = block.owner_of(cell.return_dest) if cell.return_dest is not None else None
@@ -199,15 +257,30 @@ def shuffle_items(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
                   opts: ItemShuffleOptions) -> None:
     """PS-ITEM-01..08: one uniform Fisher-Yates walk over the pool with the
     forced-slot, Non-Heart and white-sword-key rejections and one
-    10,000-iteration budget for the whole walk."""
+    10,000-iteration budget for the whole walk. Without the dungeon hearts
+    (Item Only, C06 = 1; PS-ITEM-09) the pool is the fifteen places alone."""
+    state.heart_rooms_pooled = opts.dungeon_hearts
     _deal_pool(levels, state, rng, opts)
 
 
-def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
+def keep_items_in_place(levels: list[Level], state: ItemShuffleResult, opts: ItemShuffleOptions) -> None:
+    """PS-ITEM-10 (C06 = 0): the fifteen-place pool of PS-ITEM-01 is built and
+    written back, but the walk does not run, so it draws no number and each
+    place receives the value it started with (PS-VAN-03): what it holds, but
+    with both sets vanilla the fixed start list, which under Mixed + Shapes
+    (C02 = 4) moves the second-quest set's items. The forced-item options act
+    only inside the walk, so they force nothing; the fifteen records are kept
+    as for a deal (VA-REJ-07, PS-BOSS-05)."""
+    state.heart_rooms_pooled = False
+    _deal_pool(levels, state, None, replace(opts, dungeon_hearts=False))
+
+
+def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None,
                opts: ItemShuffleOptions) -> list[tuple[_PoolPosition, int]]:
     """PS-ITEM-01..08's deal; returns the fifteen tracked items' final places
-    with their item bytes, in pool order."""
-    places = _progression_places(levels, opts.set_sources)
+    with their item bytes, in pool order. With no rng (PS-ITEM-10) the walk
+    does not run: the pool is written back where it stands."""
+    places = _progression_places(levels, opts.set_sources, state.triforce_origins)
     cave_position: dict[str, int] = {}
     for slot in CAVE_SLOTS:
         cave_position[slot] = len(places)
@@ -220,6 +293,9 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
 
     count = len(places)
     pool_items = [place.get() for place in places]
+    if rng is None:
+        # PS-ITEM-10: no walk, so each place takes its start value (PS-VAN-03)
+        return _write_start_values(places, pool_items, cave_position[CAVE_SLOTS[0]], state, opts.set_sources)
     if any(source.is_vanilla for source in opts.set_sources):
         # PS-VAN-03: the values dealt are the twelve progression items, one each, whatever the
         # rooms held (levels 1-6 first quest and 7-9 second hold the wand twice and no Book)
@@ -227,16 +303,23 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
         pool_items[:len(POOL_ORDER)] = POOL_ORDER
     state.pool_size = count
     state.pool_high_bits = sum(1 for item_byte in pool_items if item_byte & ~ITEM_MASK)
-    choice = {"armos": opts.armos_item, "white_sword": opts.white_sword_item,
-              "coast": opts.coast_item}
+    choice = {cave_position["armos"]: opts.armos_item, cave_position["white_sword"]: opts.white_sword_item,
+              cave_position["coast"]: opts.coast_item}
+    # PS-ITEM-12: C26 and C27 pin the first and the second progression place lying in level 9 (the
+    # heart rooms come later in the walk order); a pin naming a missing place does nothing
+    level_9_positions = [index for index, place in enumerate(places[:cave_position[CAVE_SLOTS[0]]])
+                         if place.level_num == LEVEL_9_NUM]
+    choice |= dict(zip(level_9_positions, opts.level_9_items, strict=False))
     forced: dict[int, int] = {}
     non_heart: set[int] = set()
-    for slot, option_index in choice.items():
+    for target, option_index in choice.items():
         code = FORCED_ITEM_OPTIONS[option_index]
         if code == NON_HEART:
-            non_heart.add(cave_position[slot])
+            non_heart.add(target)
         elif code != RANDOM_ITEM:
-            forced[cave_position[slot]] = code
+            forced[target] = code
+    state.pinned_level_places = frozenset(place.cell for place in (places[target] for target in (*forced, *non_heart))
+                                          if isinstance(place, _RoomPosition | _CellarPosition))
     white_sword_position = cave_position["white_sword"]
 
     # PS-ITEM-04 (P11): positions carry items and exchange DESTINATIONS;
@@ -244,7 +327,7 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
     # destination. destination[p] is the place position p's item ends in.
     destination = list(range(count))
     position = iterations = 0
-    while position < count:
+    while rng is not None and position < count:
         iterations += 1
         if iterations >= ITEM_SHUFFLE_BUDGET:   # the 10,000th is not run
             break
@@ -280,6 +363,39 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
     return dealt
 
 
+def _write_start_values(places: list[_PoolPosition], pool_items: list[int], progression: int,
+                        state: ItemShuffleResult, sources: SetSources) -> list[tuple[_PoolPosition, int]]:
+    """PS-ITEM-10 with PS-VAN-03: every place is written back with the value it starts with, its
+    own content unless both sets are vanilla, when the twelve progression places take the fixed
+    start list. The records follow PS-BOSS-05's fixed item order (POOL_ORDER), then the caves."""
+    start = vanilla_start_values(sources)
+    if start:
+        first_set_places = len(VANILLA_POOL_ORDER[sources[0], 0])
+        for index, place in enumerate(places[:progression]):
+            pool_items[index] = start[int(index >= first_set_places), _room_num(place)]
+    state.pool_size = len(places)
+    state.pool_high_bits = sum(1 for item_byte in pool_items if item_byte & ~ITEM_MASK)
+    state.item_shuffle_iterations = 0
+    for place, item_byte in zip(places, pool_items, strict=True):
+        place.put(item_byte)
+    by_item = {item_byte & ITEM_MASK: (place, item_byte)
+               for place, item_byte in zip(places[:progression], pool_items[:progression], strict=True)}
+    assert len(by_item) == progression, "PS-ITEM-10: each progression item once"
+    dealt = [by_item[code] for code in POOL_ORDER if code in by_item]
+    dealt += list(zip(places[progression:progression + len(CAVE_SLOTS)],
+                      pool_items[progression:progression + len(CAVE_SLOTS)], strict=True))
+    state.tracked = [place.tracked(item_byte) for place, item_byte in dealt]
+    return dealt
+
+
+def _room_num(place: _PoolPosition) -> int:
+    """The cell a progression place stands on: its room or its item cellar."""
+    if isinstance(place, _RoomPosition):
+        return place.room.room_num if place.fixed_room is None else place.fixed_room
+    assert isinstance(place, _CellarPosition)
+    return place.cellar.room_num
+
+
 def shuffle_items_within_levels(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
                                 opts: ItemShuffleOptions) -> None:
     """PS-ITW-01: under C06 = 2 the item shuffle is two deals. The first is
@@ -288,6 +404,7 @@ def shuffle_items_within_levels(levels: list[Level], state: ItemShuffleResult, r
     original randomizer's unused pass seed), and the second deal re-deals each level's
     tracked items and heart rooms inside that level (PS-ITW-02 to -04)."""
     state.items_within_levels = True
+    state.heart_rooms_pooled = False
     dealt = _deal_pool(levels, state, rng, replace(opts, dungeon_hearts=False))
     rng.below(ITEM_SHUFFLE_BUDGET)       # PS-ITW-01 step 2: drawn and discarded
     deal_within_levels(levels, state, rng, dealt)

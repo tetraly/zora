@@ -32,7 +32,7 @@ from ..rom.player_settings import (
 )
 from ..version import PLAYER_VERSION
 from .codec import ALPHABET, FlagStringError, canonicalize, decode, encode
-from .dependencies import apply_dependencies, check_dependencies, correct_merchant_toll
+from .dependencies import apply_dependencies, check_dependencies
 from .fields import (
     BOMB_UPGRADE_PERSON_SHUFFLE,
     ENCODE_LEVEL_DATA,
@@ -43,7 +43,6 @@ from .fields import (
     MAGICAL_SWORD_HIGHEST_BASE,
     MAGICAL_SWORD_LOWEST_BASE,
     MAX_TRIFORCE_PIECES,
-    MONEY_OR_LIFE_ROOMS,
     MONEY_OR_LIFE_TOLL,
     OPTION_FIELDS,
     PIN_FIELDS,
@@ -68,10 +67,6 @@ from .zora_form import zora_flags_from_values, zora_metadata, zora_state
 NOT_PRODUCED_TEXT = "Not produced by ZORA yet"
 NOT_AVAILABLE_TEXT = "Not available in this build"
 CURRENT_NOT_PRODUCED_TEXT = "This value is not produced by ZORA yet"
-# FL-DEP-06: the toll re-draw has no meaning without the merchants.
-TOLL_NEEDS_MERCHANTS_TEXT = f"Needs {MONEY_OR_LIFE_ROOMS.id} ({MONEY_OR_LIFE_ROOMS.setting})"
-TOLL_TURNED_OFF_NOTE = (f"FL-DEP-06: {MONEY_OR_LIFE_TOLL.id} was turned off because "
-                        f"{MONEY_OR_LIFE_ROOMS.id} is off")
 
 # Owner rulings: the page may call the MVP baseline "Consternation", and calls published variants A
 # and C by their community names, "Consternation Remastered" and "Hopla" (presets.HOPLA; beta 5),
@@ -91,7 +86,9 @@ DEPENDENCY_RULES = (
     ("FL-DEP-01 rule 1", "The Ladder cannot be pinned to the coast cave."),
     ("FL-DEP-01 rule 2", "No item may be pinned to two places."),
     ("FL-DEP-02 rule 1", ("Moving the wooden-sword cave (B02) or shuffling the take-any-road caves (B04) "
-                          "needs a cave shuffle that moves non-dungeon caves.")),
+                          "needs a cave shuffle that moves non-dungeon caves; when it has none, each seed "
+                          "either moves them too or leaves the wooden-sword and take-any-road caves in place, "
+                          "with equal chance.")),
     ("FL-DEP-02 rule 2", ("Shuffling the hungry goriya (B28), moving the start room (B26) and Ganon must be "
                           "beaten (B18) need the dungeon room shuffle.")),
     ("FL-DEP-02 rule 3", ("Moving monsters between levels (B36) and Ganon and Zelda in the shuffles (B33) "
@@ -168,7 +165,7 @@ NO_EFFECT_SUFFIX = " (no effect in ZORA)"
 # 2026-10-10): the original randomizer's labels stay, the note says what the value does.
 VALUE_NOTES: dict[tuple[str, int], str] = {
     **{(field.id, PinnedItem.NONE_PINNED): "No item pinned" for field in PIN_FIELDS},
-    (ITEM_SHUFFLE_SCOPE.id, ItemShuffleScope.DUNGEON_ITEMS_ONLY): "Dungeon items only",
+    (ITEM_SHUFFLE_SCOPE.id, ItemShuffleScope.DUNGEON_ITEMS_ONLY): "Major items only; Heart Containers stay in place",
     (STARTING_HEARTS.id, STARTING_HEARTS_RANDOM): "One random count from 1 to 5",
     (LEVEL_9_REQUIREMENT.id, Level9Requirement.ITEM_INSTEAD_OF_PIECES):
         "Level 9 opens for an item instead of Triforce pieces",
@@ -254,6 +251,16 @@ def supported_values(field: FieldDef) -> tuple[int, ...]:
                  if support(_with_value(baseline, field, value))[field.id] is Support.SUPPORTED)
 
 
+def _supported_values_here(settings: Settings, field: FieldDef) -> tuple[int, ...]:
+    """supported_values, except that B23's off and "?" are offered while B22 is off (FL-DEP-06:
+    B23 is kept as given, and its off is supported only with B22 off). Every other field's
+    support does not depend on the rest of the string."""
+    if field != MONEY_OR_LIFE_TOLL:
+        return supported_values(field)
+    return tuple(value for value in field_values(field)
+                 if support(_with_value(settings, field, value))[field.id] is Support.SUPPORTED)
+
+
 def _value_unavailable(field: FieldDef, value: int) -> str | None:
     """Why this build cannot produce a supported value (level encoding without its module)."""
     if field == ENCODE_LEVEL_DATA and value == ThreeState.ON and not level_encoding.is_available():
@@ -274,10 +281,10 @@ def generation_refusals(flag_string: str, zora_flag_string: str = "") -> list[st
 
 def presets() -> list[dict[str, Any]]:
     """The page's preset menu: FL-PRE-01 to FL-PRE-04 but HIDDEN_PRESETS, plus CP-5, then ZORA's own
-    presets (ZORA_PRESETS: All Swords No Boards), each with its ZORA string (`zoraFlags`, empty for
-    the Z1R presets); each disabled with its reasons when ZORA cannot produce it. Variant A is on it
-    with level encoding on only (owner, beta 5); presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF
-    stays for the code that needs it."""
+    presets (ZORA_PRESETS: All Swords No Boards, Vanilla and three community flagsets), each with its
+    ZORA string (`zoraFlags`, empty for the Z1R presets); each disabled with its reasons when ZORA
+    cannot produce it. Variant A is on it with level encoding on only (owner, beta 5);
+    presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF stays for the code that needs it."""
     entries = [(name, PRESET_LABELS.get(name, name), string, "") for name, string in PRESETS.items()
                if name not in HIDDEN_PRESETS]
     entries.append((*LEVEL_ENCODING_OFF_PRESET, ""))
@@ -353,7 +360,7 @@ def _blocked_values(settings: Settings, field: FieldDef, refused: set[str]) -> d
     """The values of a field the player cannot pick from here, with the reason: a dependency
     rule the change would break (flags.check_dependencies), or the support matrix."""
     current = _value_of(settings, field)
-    supported = supported_values(field)
+    supported = _supported_values_here(settings, field)
     blocked = {}
     for value in field_values(field):
         if value == current:
@@ -370,12 +377,8 @@ def _blocked_values(settings: Settings, field: FieldDef, refused: set[str]) -> d
 
 def _field_state(settings: Settings, field: FieldDef, refused: set[str]) -> dict[str, Any]:
     value = _value_of(settings, field)
-    if field == MONEY_OR_LIFE_TOLL and settings.toggle(MONEY_OR_LIFE_ROOMS) is ThreeState.OFF:
-        # FL-DEP-06: grayed out and shown off while the merchants are off
-        return {"value": value, "disabled": True, "reason": TOLL_NEEDS_MERCHANTS_TEXT, "problem": False,
-                "blocked": {str(v): TOLL_NEEDS_MERCHANTS_TEXT for v in field_values(field) if v != value}}
     blocked = _blocked_values(settings, field, refused)
-    current_ok = value in supported_values(field) and _value_unavailable(field, value) is None
+    current_ok = value in _supported_values_here(settings, field) and _value_unavailable(field, value) is None
     others = [v for v in field_values(field) if v != value]
     disabled = current_ok and all(v in blocked for v in others)
     if field == ENCODE_LEVEL_DATA and value == ThreeState.POSSIBLE:
@@ -398,12 +401,10 @@ def form_state(flag_string: str, zora_flag_string: str = "") -> dict[str, Any]:
         decoded = decode(flag_string)
     except FlagStringError as exc:
         return {"ok": False, "error": f"Flag string: {exc}", "zora": zora_state(zora_flag_string, None)}
-    # FL-DEP-06: never refused; the corrected string replaces the pasted one
-    settings = correct_merchant_toll(decoded)
+    settings = decoded           # B23 kept as given, whatever B22 is (FL-DEP-06)
     refused = _refusal_texts(settings)
     adjusted = apply_dependencies(settings)
-    adjustments = [TOLL_TURNED_OFF_NOTE] if settings != decoded else []
-    adjustments += [f"FL-DEP-02 rule 4 turns {field_id} off" for field_id in (
+    adjustments = [f"FL-DEP-02 rule 4 turns {field_id} off" for field_id in (
         HUNGRY_GORIYA_SHUFFLE.id, BOMB_UPGRADE_PERSON_SHUFFLE.id
     )
         if adjusted.toggle(field_id) != settings.toggle(field_id)]

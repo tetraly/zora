@@ -28,7 +28,7 @@ from zora.rom.game_config import DungeonNothingCode, GameConfig
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.levels import encode_level_block
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 MAGICAL_SWORD_CASE = "magical sword and letter"
 SEED = 1

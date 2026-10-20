@@ -13,8 +13,9 @@ up about 1 time in 27):
   | Lost Hills | up, down, right    | up     | left  |
   | Dead Woods | north, west, south | south  | east  |
 
-Dead Woods' last step is south (owner decision), so the forest leads to $71 and the west half
-of the map needs the ladder in the logic (overworld_gates.py).
+Dead Woods' last step is south (owner decision), so the forest leads to $71, and Add Lost Woods
+Shortcut (B88), which Randomize Dead Woods turns on (owner rule, beta 7), is the way into the west
+half of the map without the ladder (overworld_gates.py).
 """
 from dataclasses import dataclass
 

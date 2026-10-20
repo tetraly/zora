@@ -32,6 +32,12 @@ already contain, and fails on any hit.
 
 --noindex adds <meta name="robots" content="noindex"> to every page written
 (off by default; scripts/publish_site.sh, the real site, leaves it off).
+
+--channel test builds the test channel's page (https://zora.gg/test/; docs/releasing.md "Channels"):
+every page gets the robots noindex tag and <meta name="zora-channel" content="test">, which the
+page's scripts read (its own browser storage, its own zora.apworld and guide), and the generator
+page opens with the test-channel banner. The single files' names end in -test. --channel regular
+(the default) is today's page.
 """
 from __future__ import annotations
 
@@ -88,6 +94,19 @@ FONT_LICENSE = "fonts/OFL.txt"
 DOCTYPE = "<!doctype html>\n"
 # --noindex (optional; scripts/publish_site.sh leaves it off): asks search engines not to list the published page.
 ROBOTS_NOINDEX = '<meta name="robots" content="noindex">\n'
+# The release channels (docs/releasing.md "Channels"); web/widgets.js reads the meta tag.
+REGULAR_CHANNEL, TEST_CHANNEL = "regular", "test"
+CHANNELS = (REGULAR_CHANNEL, TEST_CHANNEL)
+CHANNEL_META = '<meta name="zora-channel" content="{channel}">\n'
+REGULAR_SITE = "https://zora.gg/"
+BODY_TAG = "<body>\n"
+
+
+def channel_banner(version: str = PLAYER_VERSION) -> str:
+    """The test page's banner, first in <body>: what it tries, and where to play for real."""
+    return ('<aside class="channel-banner" role="note" aria-label="Test channel">\n'
+            f'  <p>Test channel: trying ZORA {version}. For races and normal play, use '
+            f'<a href="{REGULAR_SITE}">zora.gg</a>.</p>\n</aside>\n')
 # Shorter strings are too generic to say anything about the private source.
 MIN_STRING_LENGTH = 6
 
@@ -130,21 +149,32 @@ def check_output_folder(out: Path) -> Path:
     return out
 
 
-def stage_public(out: Path, noindex: bool = False) -> None:
-    """The public site, by web/stage.sh itself; then, with noindex, its page gets the robots tag."""
+def stage_public(out: Path, noindex: bool = False, channel: str = REGULAR_CHANNEL) -> None:
+    """The public site, by web/stage.sh itself; then, with noindex, its page gets the robots tag, and
+    on the test channel its pages are marked (marked_page)."""
     subprocess.run(["sh", "web/stage.sh", str(out)], cwd=REPO, check=True, stdout=subprocess.DEVNULL)
     for page in (out / "index.html", out / GUIDE_PAGE):
-        page.write_text(marked_page(page.read_text(), noindex))
+        page.write_text(marked_page(page.read_text(), noindex, channel, banner=page.name == "index.html"))
 
 
-def marked_page(page: str, noindex: bool = False) -> str:
-    """The page, with noindex the robots meta tag first in <head>."""
+def marked_page(page: str, noindex: bool = False, channel: str = REGULAR_CHANNEL, banner: bool = False) -> str:
+    """The page, with noindex the robots meta tag first in <head>. On the test channel the tag is
+    always there, with the channel's meta tag, and with BANNER (the generator page) the channel
+    banner first in <body>."""
     if not page.startswith(DOCTYPE):
         raise BuildError(f"a page does not start with {DOCTYPE.strip()!r}")
-    if noindex:
+    if channel not in CHANNELS:
+        raise BuildError(f"no channel {channel!r} (one of {', '.join(CHANNELS)})")
+    test = channel == TEST_CHANNEL
+    if noindex or test:
         if "<head>\n" not in page:
             raise BuildError("a page has no <head> for the robots tag")
-        page = page.replace("<head>\n", "<head>\n" + ROBOTS_NOINDEX, 1)
+        page = page.replace("<head>\n", "<head>\n" + ROBOTS_NOINDEX + (CHANNEL_META.format(channel=channel) if test
+                                                                      else ""), 1)
+    if test and banner:
+        if BODY_TAG not in page:
+            raise BuildError("the page has no <body> line for the channel banner")
+        page = page.replace(BODY_TAG, BODY_TAG + channel_banner(), 1)
     return page
 
 
@@ -362,8 +392,10 @@ def single_file_texts(name: str, page: str) -> dict[str, str]:
     return texts
 
 
-def build_single_file(site: Path, with_private: bool, public: dict[str, str] | None) -> Path:
+def build_single_file(site: Path, with_private: bool, public: dict[str, str] | None,
+                      channel: str = REGULAR_CHANNEL) -> Path:
     label, slug = version_label()
+    slug += "-test" if channel == TEST_CHANNEL else ""
     out = check_output_folder(BETA_OUT)
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"zora-{slug}{'' if with_private else '-public'}.html"
@@ -390,15 +422,16 @@ def build_single_file(site: Path, with_private: bool, public: dict[str, str] | N
 
 # ---------------------------------------------------------------------------
 
-def build(out: Path, with_private: bool, single_file: bool = False, noindex: bool = False) -> None:
+def build(out: Path, with_private: bool, single_file: bool = False, noindex: bool = False,
+          channel: str = REGULAR_CHANNEL) -> None:
     if with_private:
         require_private()
     out = check_output_folder(out)
-    stage_public(out, noindex)
+    stage_public(out, noindex, channel)
     if not with_private:
         print(f"public site in {out.relative_to(REPO)}")
         if single_file:
-            build_single_file(out, with_private, None)
+            build_single_file(out, with_private, None, channel)
         return
     public = site_texts(out)
     add_private_module(out)
@@ -410,7 +443,7 @@ def build(out: Path, with_private: bool, single_file: bool = False, noindex: boo
         raise BuildError("private strings in the built site (output removed):\n  " + "\n  ".join(hits[:40]))
     print(f"private site in {out.relative_to(REPO)}")
     if single_file:
-        build_single_file(out, with_private, public)
+        build_single_file(out, with_private, public, channel)
 
 
 def main() -> int:
@@ -422,10 +455,12 @@ def main() -> int:
     parser.add_argument("--out", type=Path, help="output folder (git-ignored; default temp/site or temp/site-private)")
     parser.add_argument("--noindex", action="store_true",
                         help='add <meta name="robots" content="noindex"> to the pages written (for publishing)')
+    parser.add_argument("--channel", choices=CHANNELS, default=REGULAR_CHANNEL,
+                        help="the release channel: test marks the pages for https://zora.gg/test/ (noindex, banner)")
     args = parser.parse_args()
     out = args.out or (DEFAULT_PRIVATE_OUT if args.with_private else DEFAULT_PUBLIC_OUT)
     try:
-        build(out, args.with_private, args.single_file, args.noindex)
+        build(out, args.with_private, args.single_file, args.noindex, args.channel)
     except BuildError as exc:
         print(f"build_site: {exc}", file=sys.stderr)
         return 1

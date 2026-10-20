@@ -3,9 +3,11 @@ relabel_hint_text).
 
 Hint text is written at generation, before the player settings, so the setting rewrites it in
 place. Each hint line holding a level label ("LEVEL-3") gets the word's label ("LAIR-3",
-"PALACE3"), is centered again on the box's width and padded at its end to its old length. A label
-is never longer than LEVEL-n, so every line only gets shorter and every hint still fits: each text
-keeps its length, place and pointer.
+"CASTLE-3", "DUNGEON3"), is centered again on the box's width and padded at its end to its old
+length. FP-LEVEL-02's labels are one character longer than LEVEL-n: a line with no centering pad
+to give up has its whole text wrapped again in the text's length, or, with no tile to spare
+there either (234 of the templates), at its own length in the hint regions' free space, its
+pointer following it. A text never takes more lines than the box holds.
 
 Tested over every listed word (and custom words with a space and punctuation), every item (by its
 own name, by its upgrade line with Progressive Items, and as another player's item), every region,
@@ -37,15 +39,18 @@ from zora.generate.steps.hint_text import (
     level_location_sentence,
     with_opener,
 )
-from zora.rom.layout import QUOTE_DATA_ADDRESS
+from zora.rom.layout import QUOTE_DATA_ADDRESS, hint_text_regions
 from zora.rom.player_settings import (
     DEFAULT_LEVEL_WORD,
     HINT_LEVEL_LABEL,
     LEVEL_WORD_CHOICES,
     PlayerSettings,
     apply_player_settings,
+    hint_pointer_count,
+    hint_text_offset,
     hint_text_offsets,
     level_label,
+    level_label_is_long,
     relabel_hint_text,
     text_body,
     written_offsets,
@@ -55,7 +60,7 @@ from zora.rom.text_encoding import BYTE_TO_CHAR, QUOTE_CHAR_MASK, QUOTE_END_BITS
 PAD = "~"
 LEVELS = range(1, 10)
 FOREIGN_CODE = 0x22               # any code: Archipelago's FINISH writes another player's item as one
-WORDS = (*LEVEL_WORD_CHOICES[1:], "OH NO", "R2-D2", "A.B,C", "X")
+WORDS = (*LEVEL_WORD_CHOICES[1:], "OH NO", "R2-D2", "A.B,C", "X", "DUNGEON", "AB CDEF", "ABCDEF")
 SEEDS = (1, 2, 3)
 PROGRESSIVE_ZORA_FLAGS = zora_flags.encode(replace(zora_flags.DEFAULT, progressive_items=True))
 # Progressive Items refuses Extra Candles (B09).
@@ -109,21 +114,38 @@ def test_the_texts_cover_every_item_region_level_and_opener() -> None:
     assert len(texts) > 3000
 
 
+def centered(line: str, slack: int = 0) -> bool:
+    """The line's text after its centering pad, or (slack 1) at most one pad tile short of it."""
+    shown = line.strip(PAD)
+    pad = len(line) - len(line.lstrip(PAD))
+    return line[pad:].startswith(shown) and (LINE_WIDTH - len(shown)) // 2 - slack <= pad <= (LINE_WIDTH - len(shown)) // 2
+
+
 @pytest.mark.parametrize("word", WORDS)
 def test_every_hint_takes_the_word_and_still_fits(word: str) -> None:
+    """Every text reads with the word's labels, each as the status bar spells it, in lines of the
+    box's width, no more lines than the box holds. A short label keeps each line in place; only a
+    long label (FP-LEVEL-02) may wrap a text again or grow it."""
+    grown = 0
     for text, lines in hint_texts():
         body = bytes(encode_text(lines))
         relabeled = relabel_hint_text(body, word)
-        assert len(relabeled) == len(body)
         new_lines = decoded_lines(relabeled)
-        assert len(new_lines) == len(lines) <= MAX_LINES
+        assert len(new_lines) <= MAX_LINES
         assert all(len(line) <= LINE_WIDTH for line in new_lines), (word, new_lines)
         assert " ".join(line.strip(PAD) for line in new_lines) == with_word(text, word)
-        for old, new in zip(decoded_lines(body), new_lines, strict=True):
-            if old != new:
-                shown = new.strip(PAD)
-                assert new.startswith(PAD * ((LINE_WIDTH - len(shown)) // 2) + shown), (word, new)
         assert relabeled[-1] & QUOTE_END_BITS == QUOTE_END_BITS
+        if len(relabeled) > len(body):
+            grown += 1
+            assert all(centered(line) for line in new_lines), (word, new_lines)
+        elif len(new_lines) == len(lines) and all(len(new) == len(old) for old, new in
+                                                  zip(decoded_lines(body), new_lines, strict=True)):
+            # a long label takes a centering pad tile when the line has no other room
+            for old, new in zip(decoded_lines(body), new_lines, strict=True):
+                assert old == new or centered(new, slack=int(level_label_is_long(word))), (word, new)
+        else:                                       # wrapped again in the text's length
+            assert level_label_is_long(word) and len(relabeled) == len(body), (word, new_lines)
+    assert (grown > 0) == level_label_is_long(word)
 
 
 def test_no_other_text_says_level() -> None:
@@ -150,17 +172,30 @@ def test_generated_hints_take_the_word(seed: int, zora_flag_string: str) -> None
                 if HINT_LEVEL_LABEL.search(" ".join(decoded_lines(text_body(rom, offset))))]
     assert labeled, "no location hint in this seed"
     pointers = rom[QUOTE_DATA_ADDRESS:offsets[0]]
-    for word in ("LAIR", "PALACE"):
+    count = hint_pointer_count(rom)
+    regions = hint_text_regions(count)
+    for word in ("LAIR", "TOWER", "CASTLE", "DUNGEON"):
         new = apply_player_settings(rom, PlayerSettings(level_word=word))
-        assert new[QUOTE_DATA_ADDRESS:offsets[0]] == pointers
+        if not level_label_is_long(word):
+            assert new[QUOTE_DATA_ADDRESS:offsets[0]] == pointers
         changed = {offset for offset, (a, b) in enumerate(zip(rom, new, strict=True)) if a != b}
         assert changed <= written_offsets("level_word")
-        for offset in offsets:
-            before, after = text_body(rom, offset), text_body(new, offset)
-            assert len(after) == len(before)
-            text = " ".join(line.strip(PAD) for line in decoded_lines(after))
+        texts_after = []
+        for slot in range(count):
+            before, after = hint_text_offset(rom, slot), hint_text_offset(new, slot)
+            if before not in offsets:
+                assert after == before          # the toll's and the refusal's texts stay
+                continue
+            assert any(start <= after < end for start, end in regions)
+            body = text_body(new, after)
+            assert after == before or len(body) > len(text_body(rom, before))
+            texts_after.append((after, len(body)))
+            text = " ".join(line.strip(PAD) for line in decoded_lines(body))
             assert not HINT_LEVEL_LABEL.search(text)
-            assert text == with_word(" ".join(line.strip(PAD) for line in decoded_lines(before)), word)
+            assert text == with_word(" ".join(line.strip(PAD) for line in decoded_lines(text_body(rom, before))), word)
+        spans = sorted(set(texts_after))
+        assert all(end <= start for (_, end), (start, _) in
+                   zip([(o, o + n) for o, n in spans], spans[1:])), "two texts overlap"
 
 
 def test_the_default_leaves_the_hints() -> None:

@@ -19,7 +19,7 @@ from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.code_patches import ONE_TIME_WARES, PROGRESSIVE_ITEMS_BYTE, REBUYABLE_ITEMS
 from zora.rom.parse.rom_file import parse_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 FLAGS = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={"B09": ThreeState.OFF}))
 PROGRESSIVE_ITEMS = "2.O"

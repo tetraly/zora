@@ -19,7 +19,7 @@ from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
 from zora_measure.checkpoints.overworld_quests import FORCE_BLOCK_FLAGS, gated_doors
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 POSSIBLE_FLAGS = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
     toggles={FORCE_OVERWORLD_BLOCK.id: ThreeState.POSSIBLE}))

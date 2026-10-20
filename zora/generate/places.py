@@ -7,7 +7,8 @@ are where items really are. A place is any of these that holds a major-pool item
   - a level room's item, or an item cellar's item (ROOM, CELLAR);
   - the Armos and coast items, the white-sword cave, and with their ZORA flags on the
     magical-sword and letter caves (CAVE);
-  - with Shop Items in the Item Pool on, the shop wares that joined the pool (SHOP_WARE);
+  - with Shop Items in the Item Pool on, the shop wares that joined the pool, the baits' among
+    them (SHOP_WARE);
   - with Shuffle Blue Potion on, the potion shop's middle ware (POTION_SHOP; empty in PRG0, the
     left blue potion stays a re-buyable ware and is never a place).
 
@@ -31,13 +32,15 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from enum import Enum
 
-from ..model.enums import Destination, Enemy, Item, QuestVisibility, RoomType
+from ..model.enums import Destination, Enemy, Item, RoomType
 from ..model.game_world import GameWorld
 from ..model.levels import Level
 from ..model.overworld import POTION_SHOP_MIDDLE, ItemCave, OverworldItem, Shop
 from ..model.rooms import Room, StaircaseRoom
 from .extra_options import ExtraOptions
+from .steps.mixed_overworld_quest import SHOWN
 from .steps.move_last_boss_room_items import is_last_boss_room
+from .steps.place_triforces import TRIFORCE_LEVELS
 from .steps.shop_items_in_pool import JOINED_SHOP_ITEMS
 from .steps.shuffle_items import POOL_ORDER
 from .steps.shuffle_shop_items import SHOPS
@@ -102,10 +105,12 @@ def major_pool(extras: ExtraOptions) -> frozenset[Item]:
         items.add(Item.LETTER)
     if extras.shop_items_in_pool:
         items.update(JOINED_SHOP_ITEMS)
+        items.add(Item.BAIT)             # one per hungry Goriya (steps/bait_in_pool.py)
     if extras.shuffle_blue_potion:
         items.add(Item.BLUE_POTION)
-    if extras.l4_sword_in_level_2:
-        items.add(Item.WOOD_SWORD)       # ASNB's level-2 sword upgrade (steps/level_2_sword.py)
+    if extras.l4_sword_in_level_2 or extras.shuffle_wood_sword:
+        items.add(Item.WOOD_SWORD)       # ASNB's level-2 sword upgrade (steps/level_2_sword.py), or
+                                         # Shuffle Wood Sword's
     return frozenset(items)
 
 
@@ -142,19 +147,33 @@ CAVE_NAMES: dict[Destination, str] = {
     Destination.MAGICAL_SWORD_CAVE: "Magical Sword Cave",
     Destination.LETTER_CAVE: "Letter Cave",
 }
+# Caves that became places later (Shuffle Wood Sword's), named after the shop wares in
+# all_place_names, so every earlier name keeps its position (Archipelago's location IDs).
+LATER_CAVE_NAMES: dict[Destination, str] = {Destination.WOOD_SWORD_CAVE: "Wood Sword Cave"}
 SHOP_NAMES: dict[Destination, str] = {
     **{shop: f"Shop {number}" for number, shop in enumerate(SHOPS, start=1)},
     Destination.POTION_SHOP: "Potion Shop",
 }
 
 
-def room_name(level: int, room_num: int) -> str:
+# A place name's suffixes (owner decision, 2026-10-18): a room's own item is its Floor item and an
+# item cellar's is the Stairway item of the room its stairs are in, the words players use.
+ROOM_SUFFIX = "Floor"
+CELLAR_SUFFIX = "Stairway"
+
+
+def _dungeon_room(level: int, room_num: int) -> str:
     return f"Level {level} Room {room_num:02X}"
 
 
+def room_name(level: int, room_num: int) -> str:
+    """A room's own item. `level` is the number the status bar shows (Level.rom_level_num)."""
+    return f"{_dungeon_room(level, room_num)} {ROOM_SUFFIX}"
+
+
 def cellar_name(level: int, stair_room: int) -> str:
-    """An item cellar, by the room its stairs are in."""
-    return f"{room_name(level, stair_room)} Cellar"
+    """An item cellar, by the room its stairs are in; `level` as in room_name."""
+    return f"{_dungeon_room(level, stair_room)} {CELLAR_SUFFIX}"
 
 
 def ware_name(shop: Destination, position: int) -> str:
@@ -163,11 +182,13 @@ def ware_name(shop: Destination, position: int) -> str:
 
 def all_place_names() -> list[str]:
     """Every name any seed can produce, for Archipelago's fixed location IDs, in a fixed order:
-    levels 1-9 x rooms $00-$7F x {room, cellar}, then the caves and the shop wares."""
+    levels 1-9 x rooms $00-$7F x {room, cellar}, then the caves and the shop wares. The order is
+    the IDs': a name's spelling may change, its position never."""
     names = [name for level in LEVELS for room_num in ROOM_NUMBERS
              for name in (room_name(level, room_num), cellar_name(level, room_num))]
     names += list(CAVE_NAMES.values())
     names += [ware_name(shop, position) for shop in SHOP_NAMES for position in range(len(WARE_NAMES))]
+    names += list(LATER_CAVE_NAMES.values())
     return names
 
 
@@ -192,23 +213,43 @@ def _dungeon_places(world: GameWorld, pool: frozenset[Item]) -> list[Place]:
     for level in world.levels:
         block_index = next(index for index, block in enumerate(world.level_blocks) if block is level.block)
         found.extend((block_index, room.room_num, Place(
-            PlaceKind.ROOM, room_name(level.level_num, room.room_num), level=level.level_num,
+            PlaceKind.ROOM, room_name(level.rom_level_num, room.room_num), level=level.level_num,
             room_num=room.room_num, forbids=DUNGEON_FORBIDS))
             for room in level.rooms if room.item in pool and not is_never_a_place(room))
         for cellar in _item_cellars(level):
             if cellar.item in pool:
                 assert cellar.return_dest is not None
                 found.append((block_index, cellar.room_num, Place(
-                    PlaceKind.CELLAR, cellar_name(level.level_num, cellar.return_dest), level=level.level_num,
+                    PlaceKind.CELLAR, cellar_name(level.rom_level_num, cellar.return_dest), level=level.level_num,
                     room_num=cellar.room_num, stair_room=cellar.return_dest, forbids=DUNGEON_FORBIDS)))
     return [place for _block, _room, place in sorted(found, key=lambda entry: entry[:2])]
 
 
+def triforce_spots(world: GameWorld) -> list[tuple[int, str]]:
+    """Each Triforce's spot, (level, place name) in level order: the room holding it, or with
+    Allow Triforces in Stairways the item cellar, named by the room its stairs are in, as the logic
+    finds it (AcceptanceCheck.completes). A Triforce is never a pool item, so its spot is never a
+    place; the name is one of all_place_names."""
+    spots: list[tuple[int, str]] = []
+    for level_num in TRIFORCE_LEVELS:
+        level = _level(world, level_num)
+        room = next((room for room in level.rooms if room.item == Item.TRIFORCE), None)
+        if room is not None:
+            spots.append((level_num, room_name(level.rom_level_num, room.room_num)))
+            continue
+        cellar = next((stair for stair in _item_cellars(level) if stair.item == Item.TRIFORCE), None)
+        if cellar is not None:
+            assert cellar.return_dest is not None
+            spots.append((level_num, cellar_name(level.rom_level_num, cellar.return_dest)))
+    return spots
+
+
 def _screens(world: GameWorld, destination: Destination) -> tuple[int, ...]:
-    """The first-quest overworld screens whose entrance leads to `destination`."""
+    """The shown overworld screens (the game always plays as the first quest) whose entrance leads
+    to `destination`."""
     return tuple(screen.screen_num for screen in world.overworld.screens
                  if screen.destination == destination
-                 and screen.quest_visibility in (QuestVisibility.BOTH_QUESTS, QuestVisibility.FIRST_QUEST))
+                 and screen.quest_visibility in SHOWN)
 
 
 def _cave_destinations(extras: ExtraOptions) -> list[Destination]:
@@ -218,6 +259,8 @@ def _cave_destinations(extras: ExtraOptions) -> list[Destination]:
         caves.append(Destination.MAGICAL_SWORD_CAVE)
     if extras.randomize_letter:
         caves.append(Destination.LETTER_CAVE)
+    if extras.shuffle_wood_sword:
+        caves.append(Destination.WOOD_SWORD_CAVE)
     return sorted(caves)
 
 
@@ -234,7 +277,8 @@ def _cave_place(world: GameWorld, destination: Destination) -> Place:
         cave = overworld.get_cave(destination, ItemCave)
         assert cave is not None, destination
         requires = (HeartsRequired(cave.heart_requirement),)
-    return Place(PlaceKind.CAVE, CAVE_NAMES[destination], destination=destination, screens=screens,
+    return Place(PlaceKind.CAVE, (CAVE_NAMES | LATER_CAVE_NAMES)[destination], destination=destination,
+                 screens=screens,
                  requires=requires)
 
 

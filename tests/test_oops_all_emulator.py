@@ -43,10 +43,10 @@ from zora.model.game_world import GameWorld
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="no base ROM")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEED = 1
-DODONGO_SEED = 7                          # Shuffle Bosses puts a level 1-8 on block C (level 3)
+DODONGO_SEED = 8                          # Shuffle Bosses puts a level 1-8 on block C (level 8; seed 7 until 114f280)
 IS_UPDATING_MODE = 0x11
 ENTER_ROOM_MODE = 0x04
 LINK_INVINCIBILITY_TIMER = 0x4F0          # ObjInvincibilityTimer, slot 0 (Link)

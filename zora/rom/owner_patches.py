@@ -25,7 +25,7 @@ from .asnb_patch_data import SYMBOLS as ASNB_SYMBOLS
 from .base_rom import piece_bytes
 from .flags2_patch_data import CREDITS, PATCHES
 
-# Each version-3 ZORA flag (zora_flags.OWNER_2_0_FIELDS) and the patches it writes. Shuffle Blue
+# Each version-3 and version-7 ZORA flag (zora_flags.PATCHED_OWNER_FIELDS) and the patches it writes. Shuffle Blue
 # Potion writes none of its own (fp-prog-01's buy-once rule, code_patches); Add L4 Sword writes the
 # beam damage test (docs/design/l4-sword.md R17) and ASNB's take-l4, sword-cap and l4-sword-look (below).
 PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
@@ -37,17 +37,25 @@ PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
     "speed_up_heart_fill": ("fast-heart-fill",),
     "recorder_kills_pols_voice": ("recorder-pols-voice",),
     "four_potion_inventory": ("four-potions",),
-    "auto_show_letter": ("auto-show-letter",),
     "like_like_eats_rupees": ("like-like-rupees",),
     "magical_boomerang_damage": ("magic-boomerang-damage",),
     "randomize_lost_hills": ("lost-hills",),
     "randomize_dead_woods": ("dead-woods",),
+    # Version 7 (zora_flags.PEGASUS_BOOTS_FIELDS): the boomerangs become L1 and L2 Pegasus Boots.
+    "pegasus_boots": ("pegasus-boots",),
 }
+# asm/flags2's patches every ROM gets, whatever the flags: auto-show-letter, Auto Show Letter's, a flag
+# up to 2.0 beta 6 (owner, 2026-10-17; zora_flags.RETIRED_FIELDS).
+ALWAYS_WRITTEN = ("auto-show-letter",)
 # asm/flags2's patches no flag writes any more: l4-sword-take, which take-l4 replaces (asnb.md 3a).
 RETIRED_PATCHES = frozenset({"l4-sword-take"})
+# asm/flags2's patches only an Archipelago game's ROM gets (GameConfig.archipelago_rom): ring-color, the
+# tunic repainted for a ring the client gives through RAM (the beta 5 fixes spec, item 1).
+ARCHIPELAGO_PATCHES = ("ring-color",)
 # Every built patch belongs to a flag or is retired; a flag's patch not built yet keeps that flag
 # unproduced (zora_flags.PRODUCED_OWNER_FIELDS; tests/test_owner_flags_wired.py).
-assert set(PATCHES) <= {name for names in PATCHES_BY_FLAG.values() for name in names} | RETIRED_PATCHES
+assert set(PATCHES) <= {name for names in PATCHES_BY_FLAG.values() for name in names} | RETIRED_PATCHES \
+    | set(ALWAYS_WRITTEN) | set(ARCHIPELAGO_PATCHES)
 PATCH_CREDITS = CREDITS
 
 # ASNB's patches by the setting that writes them: Add L4 Sword on (either place), and GameConfig's
@@ -63,10 +71,14 @@ assert set(ASNB_PATCHES) == {name for names in ASNB_PATCHES_BY_FLAG.values() for
 SWORD_LINE_TO_L4 = 0x01
 
 
-def owner_patch_writes(flags: Iterable[str], level_9_entrance_sword: bool = False) -> list[tuple[int, bytes]]:
-    """The writes of every patch the named (resolved-on) flags turn on, and with Level 9 Entrance
-    = Level 4 sword level-9-gate, as (file offset, bytes); sword-cap with its switch on."""
-    writes: list[tuple[int, bytes]] = []
+def owner_patch_writes(flags: Iterable[str], level_9_entrance_sword: bool = False,
+                       archipelago_rom: bool = False) -> list[tuple[int, bytes]]:
+    """The writes of ALWAYS_WRITTEN's patches and of every patch the named (resolved-on) flags turn
+    on, with Level 9 Entrance = Level 4 sword level-9-gate, and in an Archipelago game's ROM
+    ARCHIPELAGO_PATCHES, as (file offset, bytes); sword-cap with its switch on."""
+    always = (*ALWAYS_WRITTEN, *(ARCHIPELAGO_PATCHES if archipelago_rom else ()))
+    writes: list[tuple[int, bytes]] = [(offset, piece_bytes(piece)) for name in always
+                                       for offset, piece in PATCHES[name]]
     flags = (*flags, *((LEVEL_9_ENTRANCE,) if level_9_entrance_sword else ()))
     for flag in flags:
         for name in PATCHES_BY_FLAG.get(flag, ()):
@@ -75,6 +87,11 @@ def owner_patch_writes(flags: Iterable[str], level_9_entrance_sword: bool = Fals
             writes.extend((offset, with_sword_line_to_l4(offset, piece_bytes(piece)))
                           for offset, piece in ASNB_PATCHES[name])
     return writes
+
+
+def archipelago_patch_writes() -> list[tuple[int, bytes]]:
+    """ARCHIPELAGO_PATCHES' writes, as (file offset, bytes): what an Archipelago game's ROM adds."""
+    return [(offset, piece_bytes(piece)) for name in ARCHIPELAGO_PATCHES for offset, piece in PATCHES[name]]
 
 
 def with_sword_line_to_l4(offset: int, data: bytes) -> bytes:

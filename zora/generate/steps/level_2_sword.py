@@ -3,7 +3,7 @@ level 2 one item cellar (shapes.tables.cellar_items), holding one sword upgrade 
 the other ZORA extras' joins, that sword joins the major-item pool with the same inside-out
 Fisher-Yates step (extra_pool_items.exchange_with_drawn): one draw among the pool's places and the
 cellar itself, and the two exchange items. So the sword may land anywhere in the pool, and the
-cellar holds whatever it displaced (a pool item, so a place, Archipelago's "... Cellar" too).
+cellar holds whatever it displaced (a pool item, so a place, Archipelago's "... Stairway" too).
 
 With Level 9 Entrance = Level 4 sword the sword is a tracked item (level 9 needs it, like the
 letter for the potion shop): its record joins the item shuffle's tracked list before the draw and

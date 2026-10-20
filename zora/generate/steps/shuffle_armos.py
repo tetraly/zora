@@ -19,12 +19,17 @@ ARMOS_SCREEN_EXIT_ROW = 3            # LevelBlockAttrsF[36] = $03
 REPOINTED_INNER_PALETTE = 3
 
 
-def shuffle_armos(overworld: Overworld, rng: IntRng, entries: list[Entry]) -> int:
+def shuffle_armos(overworld: Overworld, rng: IntRng, entries: list[Entry],
+                  kept_off: frozenset[int] = frozenset()) -> int:
     """OW-CAVE-05 steps 1-4: the formation tables, screen 36's bytes and
-    the re-pointed entry. Returns the armos screen A."""
+    the re-pointed entry. Returns the armos screen A.
+
+    kept_off: screens A is never drawn from, ZORA's own (Expanded Dungeon Locations: 2Q2's screen
+    while it holds a dungeon, whose entry would otherwise move to 36). Empty, the draw is the spec's."""
     screens = [screen for screen, _ in ARMOS_FORMATION]
     x_positions = [x_choices[rng.below(len(x_choices))] for _, x_choices in ARMOS_FORMATION]
-    swap = ARMOS_SWAP_POSITIONS[rng.below(len(ARMOS_SWAP_POSITIONS))]
+    positions = [position for position in ARMOS_SWAP_POSITIONS if screens[position] not in kept_off]
+    swap = positions[rng.below(len(positions))]
     for table in (screens, x_positions):
         table[0], table[swap] = table[swap], table[0]
     overworld.armos_screen_ids, overworld.armos_positions = screens, x_positions

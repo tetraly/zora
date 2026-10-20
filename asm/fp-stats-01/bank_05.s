@@ -6,7 +6,7 @@
 
 STATS_BLOCK      = $7F00
 StatsFlags       = STATS_BLOCK + $01
-Stabs            = STATS_BLOCK + $38    ; 16 bits
+Stabs            = STATS_BLOCK + $3A    ; 16 bits
 SWORD_EFFECT     = $01
 
 CountStab:

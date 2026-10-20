@@ -1,0 +1,15 @@
+# ZORA FP-SAVE-01 (owner, 2026-10-17): Start after the ending saves the file, as SAVE does after a
+# death or Up+A, and returns to the file-select screen, instead of clearing the file for the second
+# quest. The file then loads with its items, triforce pieces and world flags, to keep exploring.
+# asm/README.md describes this file.
+
+[[hook]]
+name = "keep-file"
+offset = 0x0ABC5
+length = 3
+note = "UpdateMode13WinGame_Sub4's Start path (also the statistics screen's, FP-STATS-01): after it sets the save mode ($0D), JMP SwitchProfileToSecondQuest becomes RTS + 2 NOPs, so the save mode stores the profile as it stands and goes on to the file-select screen."
+code = """
+    RTS
+    NOP
+    NOP
+"""

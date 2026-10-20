@@ -49,6 +49,7 @@ NOT_OFFERED_YET = "Not offered in Archipelago yet."
 FIXED_REASONS = {
     archipelago.FORCED_OFF: "Always off in Archipelago.",
     **dict.fromkeys(archipelago.FIXED_OPTIONS, "Always Full in Archipelago: Archipelago places the items itself."),
+    **archipelago.ZORA_FORCED_OFF,
 }
 
 
@@ -61,7 +62,7 @@ class ExportRefused(ValueError):
 
 
 def _fixed_value(field_id: str) -> int:
-    return int(archipelago.FIXED_OPTIONS.get(field_id, 0))      # B82 (FORCED_OFF) is off
+    return int(archipelago.FIXED_OPTIONS.get(field_id, 0))      # B82 and ZORA_FORCED_OFF are off
 
 
 def metadata() -> dict[str, Any]:
@@ -108,6 +109,7 @@ def option_values(flag_string: str, zora_flag_string: str) -> dict[str, str]:
     the one value Archipelago uses)."""
     page = _page_values(flag_string, zora_flag_string)
     labels = {field.id: flag_form.field_label(field) for field in flag_form.ALL_FIELDS}
+    labels |= {field["name"]: field["label"] for field in zora_form.FIELDS}
     reasons = [f"{labels[field_id]}: {reason}" for field_id, reason in FIXED_REASONS.items()
                if page[field_id] != _fixed_value(field_id)]
     values = {}

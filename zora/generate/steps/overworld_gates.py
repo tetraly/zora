@@ -1,6 +1,8 @@
 """The owner's 2.0 overworld gates (docs/design/zora-flags-2.0.md sections 3, 4, 12, 13; owner
 decisions 2026-10-07): the screens each flag puts behind the raft, the power bracelet, the
-ladder or a maze's hint, for the cave shuffle's placement rules and the acceptance check.
+ladder or a maze's hint, for the cave shuffle's placement rules and the acceptance check. A screen
+needs a maze's hint only when its cave entrance is reached solely through the maze; Add Lost Woods
+Shortcut (B88) and Add Bridges to the River (B87) give the Dead Woods' west half another way in.
 
 The block screens are the document's. The maze sets are derived from the overworld map
 (zora/rom/vanilla_overworld/walkability.py), on the layouts as the flags' patches leave them,
@@ -37,7 +39,12 @@ LOST_HILLS_GATED = frozenset({0x0B, 0x0C, 0x0D})
 # part with its entrance opens only west, to $71 (Link's start spot is in the open part).
 DEAD_WOODS_GATED = frozenset({0x70, 0x71, 0x72})
 # ... and the forest no longer leads west: the west half of the map, reached in PRG0 only through
-# the forest's west exit or with the ladder over a one-square river, then needs the ladder.
+# the forest's west exit or with the ladder over a one-square river, then needs the ladder, unless
+# Add Lost Woods Shortcut (B88, FP-WOODS-01: one-way in from $51 to $50, out again by the maze's free
+# east exit) or Add Bridges to the River (B87, FP-BRIDGE-01: $17 and $27, both ways) is on; then it
+# needs nothing, and only $70-$72 are reached solely through the maze. Randomize Dead Woods turns the
+# shortcut on (owner rule, beta 7; zora_flags.shortcut_forced_on), so seeds never ask for the ladder.
+# The west half is FP-BRIDGE-01's 34 rooms.
 DEAD_WOODS_WEST = frozenset({
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15,
     0x16, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x30, 0x31, 0x32, 0x33, 0x35, 0x36, 0x40, 0x41,
@@ -59,6 +66,9 @@ class OverworldGates:
     bracelet_blocks: bool = False
     lost_hills: bool = False
     dead_woods: bool = False
+    # Add Lost Woods Shortcut (B88) or Add Bridges to the River (B87) on: the west half is walked into
+    # without the maze or the ladder
+    river_west_open: bool = False
 
     @property
     def any(self) -> bool:
@@ -75,7 +85,8 @@ class OverworldGates:
             needs.append((LOST_HILLS_GATED, LOST_HILLS_HINT))
         if self.dead_woods:
             needs.append((DEAD_WOODS_GATED, DEAD_WOODS_HINT))
-            needs.append((DEAD_WOODS_WEST, Item.LADDER))
+            if not self.river_west_open:
+                needs.append((DEAD_WOODS_WEST, Item.LADDER))
         return tuple(needs)
 
     def maze_hints(self) -> tuple[tuple[int, Destination], ...]:
@@ -100,7 +111,7 @@ class OverworldGates:
         """Screens the start-screen draw leaves out: the ones a block flag walls in, where Link
         would start shut in until he holds the raft or the bracelet, and the screens past each
         randomized maze, reached otherwise only by solving it (owner decision, 2026-10-13: only
-        those; Dead Woods' west half, which the logic gates by the ladder, stays a start)."""
+        those; Dead Woods' west half, open by the shortcut or the bridges, stays a start)."""
         barred: frozenset[int] = frozenset()
         if self.raft_blocks:
             barred |= RAFT_ENCLOSED_SCREENS

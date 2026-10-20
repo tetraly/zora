@@ -10,7 +10,7 @@ from ..errors import GenerationFailure
 from ..rng import Rng
 from .numbering import spatial_pieces
 from .options import ShapeOptions
-from .t5_positions import item_slots_for
+from .t5_positions import first_item_slot, item_slots_for
 from .tables import (
     T2_FIRST_QUEST_WEIGHTS,
     T2_LAYOUTS,
@@ -69,7 +69,7 @@ def _assign_stair_room(world: SetWorld, rng: Rng, opts: ShapeOptions,
     # un-suppressed rate) are measured but unexplained; see QUESTIONS #33.
     if slots and cell % 3 != 0:
         plan.item = Item.KEY
-        plan.item_pos = slots[rng.below(len(slots))]
+        plan.item_pos = _key_slot(layout, table, opts)
     if _is_push_block(layout):
         if layout == SPIRAL_STAIRS_PUSH and role is StairRole.SECOND_END:
             plan.action = RoomAction.BLOCK_DOOR
@@ -84,6 +84,18 @@ def _assign_stair_room(world: SetWorld, rng: Rng, opts: ShapeOptions,
     # $5A and $5C included) gets "kill all enemies for the item" two times in three.
     if plan.item is not None and plan.action in ITEM_TRIGGER_REPLACEABLE and rng.chance(2, 3):
         plan.action = RoomAction.ALL_DEAD_ITEM
+
+
+def _key_slot(layout: int, table: list[int], opts: ShapeOptions) -> int:
+    """SH-STAIR-08 and SH-ROOM-16 item 3: the key's position is the first match on the screen
+    type's row (the merged row with Allow Universal Drops In Shapes, B91, on), with no draw (owner
+    ruling, 2026-10-15). Measured: with B91 off every stair-room key of the shapes-stage corpus had
+    one match, as had every ZORA key draw in seeds 1-200, so the earlier draw placed the same key;
+    with B91 on, 2,272 of the b91 corpus's 2,286 keys with two or more matches sit at the first
+    (temp/merge/stair_keys.py)."""
+    slot = first_item_slot(layout, table, opts.universal_drops)
+    assert slot is not None
+    return slot
 
 
 def blob_of_cell(world: SetWorld, cell: int) -> int:
@@ -127,7 +139,7 @@ def place_stairs(world: SetWorld, rng: Rng, opts: ShapeOptions) -> None:
             raise GenerationFailure(
                 f"level {level}: pool exhausted (budget {budget})"
             )
-        cellars = cellar_items(level, opts.level_2_sword_cellar)
+        cellars = cellar_items(level, opts.level_2_sword_cellar, world.beside_second_quest)
         if len(cellars) > budget:
             raise GenerationFailure(f"level {level}: cellars exceed budget")
         transports = budget - len(cellars)

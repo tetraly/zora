@@ -17,7 +17,7 @@ from zora.rom.parse.rom_file import parse_rom
 from zora_export.seed_document import seed_document_for
 from zora_export.spoiler_log import spoiler_log
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 SEED = 7
 # The second quest's pairs: each level shows its partner's number.
@@ -85,8 +85,8 @@ def test_the_spoiler_log_prints_only_shown_numbers(monkeypatch: pytest.MonkeyPat
     plain = unpaired.split("Major items by place")[1].split("\nOverworld\n")[0]
     plain_sections = dict(zip(re.findall(r"^Level (\d)$", plain, re.M),
                               re.split(r"^Level \d$", plain, flags=re.M)[1:], strict=True))
-    for number in range(1, 10):
-        assert sections[str(SHOWN[number])] == plain_sections[str(number)]
+    for number in range(1, 10):                                # each line names its level as shown
+        assert sections[str(SHOWN[number])] == as_shown(plain_sections[str(number)])
     # every "said by" line names a dungeon person's level by its shown number
     said = [hint for hint in document["hints"] if "shownSpeaker" in hint and hint["shownSpeaker"] != hint["speaker"]]
     assert said

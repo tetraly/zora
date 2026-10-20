@@ -2,13 +2,31 @@
 // adapted from the presentation-only app-skeleton.js, now styled by zora.css.
 // No option list, no flag logic: zora-web.js supplies those.
 
+// The release channel (docs/releasing.md "Channels"): the test page, https://zora.gg/test/, carries
+// <meta name="zora-channel" content="test"> (scripts/build_site.py --channel test); any other page
+// is the regular channel's. The test page keeps its own browser storage, each key behind
+// TEST_STORAGE_PREFIX, so testing never changes the regular page's presets or settings.
+const REGULAR_CHANNEL = "regular";
+const TEST_CHANNEL = "test";
+const TEST_STORAGE_PREFIX = "zora-test:";
+const PAGE_CHANNEL = document.querySelector('meta[name="zora-channel"]')?.content || REGULAR_CHANNEL;
+function channelKey(key, channel = PAGE_CHANNEL) {
+  return channel === TEST_CHANNEL ? TEST_STORAGE_PREFIX + key : key;
+}
+// localStorage under this channel's keys; it throws where localStorage does.
+const pageStorage = {
+  getItem: (key) => localStorage.getItem(channelKey(key)),
+  setItem: (key, value) => localStorage.setItem(channelKey(key), value),
+  removeItem: (key) => localStorage.removeItem(channelKey(key)),
+};
+
 // Per-viewer conveniences (the theme, the open tab); memory when storage is blocked.
 const widgetMemory = {};
 function getSetting(key) {
-  try { return localStorage.getItem(key); } catch { return widgetMemory[key] ?? null; }
+  try { return pageStorage.getItem(key); } catch { return widgetMemory[key] ?? null; }
 }
 function setSetting(key, value) {
-  try { localStorage.setItem(key, value); } catch { widgetMemory[key] = value; }
+  try { pageStorage.setItem(key, value); } catch { widgetMemory[key] = value; }
 }
 
 // Light or dark, remembered; follows the system until the viewer chooses.

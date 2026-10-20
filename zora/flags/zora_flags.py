@@ -33,10 +33,17 @@ from enum import Enum, IntEnum
 from .codec import ALPHABET, DIGIT_VALUE, RADIX
 from .dependencies import UnresolvedError, magical_sword_hearts, starting_hearts
 from .fields import (
+    BOOK_TO_UNDERSTAND_NPCS,
+    LEVEL_9_FIRST_PIN,
+    LEVEL_9_SECOND_PIN,
+    MAGICAL_SWORD_HIGHEST,
+    MAGICAL_SWORD_LOWEST,
     OPTIONS_BY_ID,
     STARTING_HEARTS_RANDOM_CHOICES,
     TOGGLES_BY_ID,
+    CaveShuffle,
     DungeonLayoutSource,
+    OverworldQuest,
     Settings,
     ThreeState,
     WoodenSwordState,
@@ -63,9 +70,9 @@ HEARTS_CAP_CHOICES = range(10, 15)
 
 # Version 3 (owner's 2.0 flags, docs/design/zora-flags-2.0.md): each is On / Off / ?, a base-3
 # digit holding a ThreeState (0 off, 1 on, 2 "?" decided per seed). Off is the default, so every
-# older string keeps its meaning and its spelling. In payload order.
+# older string keeps its meaning and its spelling. In payload order, retired slots included.
 THREE_STATE_SLOTS = 3
-OWNER_2_0_FIELDS = (
+OWNER_2_0_SLOTS = (
     "shuffle_blue_potion",                 # §1, merged with plan §13's Phase 2B
     "add_l4_sword",                        # §2 (owner design: a level-9 room)
     "extra_raft_blocks",                   # §3
@@ -80,6 +87,40 @@ OWNER_2_0_FIELDS = (
     "randomize_lost_hills",                # §12
     "randomize_dead_woods",                # §13
 )
+# Fields that are no longer settings: their payload slot stays, so every string decodes as before;
+# decode reads and drops its digit, encode writes its default, and ZoraFlags has no attribute for
+# it. Auto Show Letter: always on (owner, 2026-10-17; owner_patches.ALWAYS_WRITTEN).
+RETIRED_FIELDS = frozenset({"auto_show_letter"})
+# The owner's 2.0 flags that are settings, in payload order.
+OWNER_2_0_FIELDS = tuple(name for name in OWNER_2_0_SLOTS if name not in RETIRED_FIELDS)
+# Version 6: three ZORA 1.0 flags recreated as ZORA extras (owner design, 2026-10-17; docs/
+# zora-extras.md section 13), each On / Off / ? like version 3's, a "?" decided by the same coins
+# after version 3's. In payload order.
+ZORA_1_0_FIELDS = (
+    "allow_triforces_in_stairways",        # each Triforce takes a spot of its level before the shuffle
+    "shuffle_wood_sword",                  # the wood sword joins the pool; a weapon in an open cave
+)
+# Version 7: Pegasus Boots (owner spec, 2026-10-17), On / Off / ? like version 3's, a "?" decided
+# by the same coins after version 6's; written by its asm/flags2 patch (zora/rom/owner_patches.py).
+PEGASUS_BOOTS_FIELDS = (
+    "pegasus_boots",                       # the wooden and magical boomerangs become L1 and L2 boots
+)
+# Version 8: Expanded Dungeon Locations (owner and Bogie, 2026-10-18; private design
+# expanded-dungeon-locations.md), On / Off / ? like version 3's, a "?" decided by the same coins after
+# version 7's. Built for a 1st or 2nd Quest overworld with Dungeons Only or All Caves
+# (expanded_dungeon_locations_conflicts).
+EXPANDED_DUNGEON_LOCATIONS_FIELDS = (
+    "expanded_dungeon_locations",          # the nine dungeons dealt onto 9 of 15 first- and second-quest spots
+)
+# Version 9: Highlight No-Drop Rooms (owner decision, 2026-10-18; the research doc "Highlight No-Drop
+# Rooms: Research and Implementation Plan"), On / Off / ? like version 3's, a "?" decided by the same
+# coins after version 8's. Inert when Allow Universal Drops In Shapes (B91) resolves on.
+HIGHLIGHT_NO_DROP_ROOMS_FIELDS = (
+    "highlight_no_drop_rooms",             # block rooms that can never hold an item use inner palette 3
+)
+# Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
+THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
+                      *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS)
 
 
 
@@ -111,7 +152,7 @@ FIELDS: tuple[ZoraField, ...] = (
     # empty string and every version-1 string keep their meaning.
     ZoraField("progressive_items", 2, version=2),
     ZoraField("shop_items_in_pool", 2, version=2),
-    *(ZoraField(name, THREE_STATE_SLOTS, version=3) for name in OWNER_2_0_FIELDS),
+    *(ZoraField(name, THREE_STATE_SLOTS, version=3) for name in OWNER_2_0_SLOTS),
     # Version 4: All Swords No Boards (docs/design/asnb.md section 1). Add L4 Sword's released
     # three-state field keeps its radix; this one moves its sword to level 2 (the two shown as one
     # Off / Level 2 / Level 9 control). And the level-9 entrance: triforce pieces, or a level-4
@@ -123,6 +164,18 @@ FIELDS: tuple[ZoraField, ...] = (
     # 0 in both, so every older string keeps its meaning and its spelling. No random value yet.
     ZoraField("oops_all_enemies", len(OopsAllEnemies), version=5),
     ZoraField("oops_all_bosses", len(OopsAllBosses), version=5),
+    # Version 6: the ZORA 1.0 flags (ZORA_1_0_FIELDS), Off by default, so every older string keeps
+    # its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=6) for name in ZORA_1_0_FIELDS),
+    # Version 7: Pegasus Boots (PEGASUS_BOOTS_FIELDS), Off by default, so every older string keeps
+    # its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=7) for name in PEGASUS_BOOTS_FIELDS),
+    # Version 8: Expanded Dungeon Locations (EXPANDED_DUNGEON_LOCATIONS_FIELDS), Off by default, so
+    # every older string keeps its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=8) for name in EXPANDED_DUNGEON_LOCATIONS_FIELDS),
+    # Version 9: Highlight No-Drop Rooms (HIGHLIGHT_NO_DROP_ROOMS_FIELDS), Off by default, so every
+    # older string keeps its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=9) for name in HIGHLIGHT_NO_DROP_ROOMS_FIELDS),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -154,7 +207,6 @@ class ZoraFlags:
     speed_up_heart_fill: ThreeState = ThreeState.OFF
     recorder_kills_pols_voice: ThreeState = ThreeState.OFF
     four_potion_inventory: ThreeState = ThreeState.OFF
-    auto_show_letter: ThreeState = ThreeState.OFF
     like_like_eats_rupees: ThreeState = ThreeState.OFF
     magical_boomerang_damage: ThreeState = ThreeState.OFF
     randomize_lost_hills: ThreeState = ThreeState.OFF
@@ -166,6 +218,15 @@ class ZoraFlags:
     # Version 5: Oops All Enemies and Oops All Bosses.
     oops_all_enemies: OopsAllEnemies = OopsAllEnemies.OFF
     oops_all_bosses: OopsAllBosses = OopsAllBosses.OFF
+    # Version 6: the ZORA 1.0 flags, each On / Off / ? (ZORA_1_0_FIELDS).
+    allow_triforces_in_stairways: ThreeState = ThreeState.OFF
+    shuffle_wood_sword: ThreeState = ThreeState.OFF
+    # Version 7: Pegasus Boots, On / Off / ? (PEGASUS_BOOTS_FIELDS).
+    pegasus_boots: ThreeState = ThreeState.OFF
+    # Version 8: Expanded Dungeon Locations, On / Off / ? (EXPANDED_DUNGEON_LOCATIONS_FIELDS).
+    expanded_dungeon_locations: ThreeState = ThreeState.OFF
+    # Version 9: Highlight No-Drop Rooms, On / Off / ? (HIGHLIGHT_NO_DROP_ROOMS_FIELDS).
+    highlight_no_drop_rooms: ThreeState = ThreeState.OFF
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -178,12 +239,12 @@ class ZoraFlags:
         return self == ZoraFlags()
 
     def is_on(self, name: str) -> bool:
-        """A version-3 field resolved on (call on resolved flags: a "?" is not on)."""
+        """An On / Off / ? field resolved on (call on resolved flags: a "?" is not on)."""
         return getattr(self, name) is ThreeState.ON
 
     @property
     def is_resolved(self) -> bool:
-        return all(getattr(self, name) is not ThreeState.POSSIBLE for name in OWNER_2_0_FIELDS)
+        return all(getattr(self, name) is not ThreeState.POSSIBLE for name in THREE_STATE_FIELDS)
 
     @property
     def l4_sword(self) -> L4Sword:
@@ -205,7 +266,9 @@ DEFAULT = ZoraFlags()
 
 
 def _index_of(flags: ZoraFlags, field: ZoraField) -> int:
-    """A field's digit in the payload."""
+    """A field's digit in the payload (a retired field's: its default, Off)."""
+    if field.name in RETIRED_FIELDS:
+        return int(ThreeState.OFF)
     value = getattr(flags, field.name)
     if field.name == "magical_sword_hearts_highest":
         return HEARTS_FOLLOW_Z1R if value is None else value - HEARTS_CAP_BASE
@@ -263,7 +326,8 @@ def decode(flag_string: str) -> ZoraFlags:
     values: dict[str, bool | int | ThreeState | None] = {}
     for field in _fields_of(version):
         number, index = divmod(number, field.slots)
-        values[field.name] = _value_of(field, index)
+        if field.name not in RETIRED_FIELDS:
+            values[field.name] = _value_of(field, index)
     if number:
         raise ZoraFlagStringError(f"flags beyond version {version}'s fields: {flag_string!r}")
     return ZoraFlags(**values)  # type: ignore[arg-type]
@@ -286,8 +350,8 @@ def canonicalize(flag_string: str) -> str:
     return encode(decode(flag_string))
 
 
-# Every ZoraFlags attribute has exactly one field.
-assert {field.name for field in FIELDS} == {field.name for field in fields(ZoraFlags)}
+# Every ZoraFlags attribute has exactly one field; the other fields are retired.
+assert {field.name for field in FIELDS} - RETIRED_FIELDS == {field.name for field in fields(ZoraFlags)}
 
 
 # ---------------------------------------------------------------------------
@@ -326,13 +390,36 @@ def starting_heart_containers(z1r: Settings) -> int:
         return min(STARTING_HEARTS_RANDOM_CHOICES) + 1
 
 
+def _redrawn_if_random(z1r: Settings) -> Settings:
+    """The Z1R settings with a "?" on B10 counted as on, for a check made before the "?" values
+    are resolved (with the settings as they are, a "?" counts as off)."""
+    if z1r.toggle(REDRAW_SWORD_HEARTS) is ThreeState.POSSIBLE:
+        return z1r.updated(toggles={REDRAW_SWORD_HEARTS.id: ThreeState.ON})
+    return z1r
+
+
 def highest_magical_sword_hearts(flags: ZoraFlags, z1r: Settings) -> int:
     """The most hearts the magical-sword cave may ask for under these strings, before the "?"
     values are resolved: a "?" on B10 counts as on, so every outcome is covered."""
-    if z1r.toggle(REDRAW_SWORD_HEARTS) is ThreeState.POSSIBLE:
-        z1r = z1r.updated(toggles={REDRAW_SWORD_HEARTS.id: ThreeState.ON})
-    hearts = magical_sword_heart_range(flags, z1r)
+    hearts = magical_sword_heart_range(flags, _redrawn_if_random(z1r))
     return hearts[-1] if hearts else hearts.start
+
+
+def sword_hearts_cap_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
+    """The ZORA cap below the Z1R string's lowest magical-sword requirement leaves the cave no
+    count to ask for (an empty magical_sword_heart_range, which change_sword_hearts cannot draw
+    from). Judged before the "?" values are resolved, a "?" on B10 counted as on: a Random Change
+    Sword Hearts that drew on used to pass the check and crash generation (the 2026-10-18
+    Archipelago scan). Refused, never changed, as every conflict is: clamping would ask for fewer
+    hearts than the Z1R string's lowest."""
+    for settings in (z1r, _redrawn_if_random(z1r)):
+        hearts = magical_sword_heart_range(flags, settings)
+        if not hearts:
+            return (f"Magical-sword hearts, highest: the cap of {flags.magical_sword_hearts_highest} hearts is "
+                    f"below the {hearts.start} hearts the Z1R flags ask for at least (Magical Sword Hearts "
+                    f"(min) and (max) with Change Sword Hearts on or Random). Raise the cap to {hearts.start} "
+                    f"or more, lower Magical Sword Hearts (min), or turn Change Sword Hearts off.")
+    return None
 
 
 def sword_hearts_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
@@ -351,6 +438,9 @@ def sword_hearts_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
 # Z1R field that re-draws the requirement.
 SWORD_HEARTS_CONFLICT_FIELDS = ("randomize_magical_sword", "magical_sword_hearts_highest",
                                 REDRAW_SWORD_HEARTS.id)
+# The settings the cap conflict names: the cap, and the Z1R fields that set the lowest requirement.
+SWORD_HEARTS_CAP_CONFLICT_FIELDS = ("magical_sword_hearts_highest", REDRAW_SWORD_HEARTS.id,
+                                    MAGICAL_SWORD_LOWEST.id, MAGICAL_SWORD_HIGHEST.id)
 
 
 # The Z1R field Progressive Items refuses (PI-FLAG-03).
@@ -384,6 +474,15 @@ L4_SWORD_CONFLICT = "Add L4 Sword needs Progressive Items: turn Progressive Item
 L4_SWORD_CONFLICT_FIELDS = ("add_l4_sword", "progressive_items")
 # The Z1R field for the old app's "Include Any Road Caves": B04, Shuffle "Take Any Road" Caves.
 TAKE_ANY_ROAD_CAVES = TOGGLES_BY_ID["B04"]
+# Randomize Dead Woods forces Add Lost Woods Shortcut (B88; FP-WOODS-01) on (owner rule, beta 7): its
+# sequences end with a step south, so the solved maze lets Link out south, never west, and without
+# the shortcut (or the bridges, B87, or the ladder) the river's west side cannot be reached on foot.
+LOST_WOODS_SHORTCUT = TOGGLES_BY_ID["B88"]
+DEAD_WOODS_FIELD = "randomize_dead_woods"
+SHORTCUT_FORCED_NOTE = ("On while Randomize Dead Woods is on: its maze lets you out to the south, never west, "
+                        "so the shortcut is the way west without the ladder.")
+SHORTCUT_RANDOM_NOTE = ("On in every seed where Randomize Dead Woods (Random) comes up on: its maze lets you out to "
+                        "the south, never west.")
 BRACELET_BLOCKS_CONFLICT = ('Extra Power Bracelet Blocks cannot be used with Shuffle "Take Any Road" Caves '
                             "on: turn one of them off.")
 BRACELET_BLOCKS_CONFLICT_FIELDS = ("extra_power_bracelet_blocks", TAKE_ANY_ROAD_CAVES.id)
@@ -440,48 +539,186 @@ def asnb_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str
     return found
 
 
+# Level 9 Item 1 and 2 (C26, C27; PS-ITEM-12): two pins that put an item in level 9 that level 9's
+# own door needs first, so no pass is ever accepted (the 2026-10-18 Archipelago scan: 5-12% of
+# seeds failed after 2,000 attempts, every rejection E1's). Refused, as the spec refuses the pins
+# the long items (VA-REJ-08) would need to collect themselves (support.LEVEL_9_PINS). The values
+# are FORCED_ITEM_OPTIONS' indices (zora/generate/steps/shuffle_items.py).
+# Each pin with its name on the page (form.field_label; tests/test_pinned_items.py checks them)
+LEVEL_9_PIN_NAMES = {LEVEL_9_FIRST_PIN: "Level 9 Item 1", LEVEL_9_SECOND_PIN: "Level 9 Item 2"}
+BOOK_PIN = 1
+WHITE_SWORD_PIN = 15
+# Level 9 Entrance = Level 4 sword opens level 9 on four swords (wood, white, magical and Add L4
+# Sword's level-2 one): a white sword in level 9 never counts toward it.
+WHITE_SWORD_PIN_CONFLICT = ("{pin} = White Sword cannot be used with Level 9 Entrance = Level 4 sword: level 9 "
+                            "opens on four swords, the White Sword among them, so it cannot wait inside. Choose "
+                            "another item for {pin}, or set Level 9 Entrance to Triforce pieces.")
+# Book to Understand NPCs (B48) hides a randomized maze's path until the book is held
+# (AcceptanceCheck.knows_maze_path), and a dungeon door can lie past either maze (level 5's at $0B,
+# past the Lost Hills, on the 1st Quest overworld; under a dungeon shuffle, some door past the Lost
+# Hills or the Dead Woods in 3 to 24 of 40 seeds): its Triforce, which level 9 needs, then waits
+# for a book that waits in level 9.
+BOOK_PIN_CONFLICT = ("{pin} = Book cannot be used with Book to Understand NPCs on or Random and Randomize Lost "
+                     "Hills or Randomize Dead Woods on or Random: a maze's path is sold only to a player with the "
+                     "Book, and a dungeon past the maze may hold a Triforce level 9 needs. Choose another item "
+                     "for {pin}, or turn one of the others off.")
+
+
+def level_9_pin_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """The pins of Level 9 Item 1 and 2 that put level 9's own key inside it (a "?" or Random
+    counted as on, so every outcome is covered)."""
+    found: list[tuple[str, tuple[str, ...]]] = []
+    book_hides_a_maze = (z1r.toggle(BOOK_TO_UNDERSTAND_NPCS) is not ThreeState.OFF
+                         and (flags.randomize_lost_hills is not ThreeState.OFF
+                              or flags.randomize_dead_woods is not ThreeState.OFF))
+    for pin, name in LEVEL_9_PIN_NAMES.items():
+        value = z1r.option(pin)
+        if value == WHITE_SWORD_PIN and flags.level_9_entrance_sword:
+            found.append((WHITE_SWORD_PIN_CONFLICT.format(pin=name), (pin.id, "level_9_entrance_sword")))
+        if value == BOOK_PIN and book_hides_a_maze:
+            found.append((BOOK_PIN_CONFLICT.format(pin=name),
+                          (pin.id, BOOK_TO_UNDERSTAND_NPCS.id, "randomize_lost_hills", "randomize_dead_woods")))
+    return found
+
+
 def bracelet_blocks_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
     if flags.extra_power_bracelet_blocks is ThreeState.ON and z1r.toggle(TAKE_ANY_ROAD_CAVES) is ThreeState.ON:
         return BRACELET_BLOCKS_CONFLICT
     return None
 
 
+# Pegasus Boots (owner spec, 2026-10-17) replaces both boomerangs, so Magical Boomerang Does 1 HP
+# Damage would do nothing: both on is refused; a "?" that comes up into it resolves off
+# (resolve_owner_dependencies).
+PEGASUS_BOOTS_CONFLICT = ("Pegasus Boots cannot be used with Magical Boomerang Does 1 HP Damage: the boots replace "
+                          "both boomerangs. Turn one of them off.")
+PEGASUS_BOOTS_CONFLICT_FIELDS = ("pegasus_boots", "magical_boomerang_damage")
+
+
+def pegasus_boots_conflict(flags: ZoraFlags) -> str | None:
+    if flags.is_on("pegasus_boots") and flags.is_on("magical_boomerang_damage"):
+        return PEGASUS_BOOTS_CONFLICT
+    return None
+
+
+# Expanded Dungeon Locations (owner and Bogie, 2026-10-18): its mode follows Cave Shuffle, Dungeons
+# Only giving "Expanded Brackets" and All Caves "Expanded + shuffle everything else", over the 1st
+# Quest or (phase 2) the 2nd Quest overworld. Refused (on or "?"), never changed: Overworld Quest Mixed
+# Quest - 1st, Mixed Quest - 2nd or Random (Mixed waits for Bogie's confirmation of its rules), and
+# Cave Shuffle Vanilla, Non-dungeons Only or Random. Warned, not
+# refused: Dungeons Only with Shuffle Wood Sword Cave or Shuffle Take Any Road Caves on or "?", whose
+# coin turns about half those seeds into All Caves (FL-DEP-02 rule 1).
+EXPANDED_DUNGEON_LOCATIONS_FIELD = "expanded_dungeon_locations"
+OVERWORLD_QUEST = OPTIONS_BY_ID["C01"]
+CAVE_SHUFFLE = OPTIONS_BY_ID["C05"]
+WOOD_SWORD_CAVE_SHUFFLE = TOGGLES_BY_ID["B02"]
+EXPANDED_CAVE_SHUFFLES = frozenset({CaveShuffle.DUNGEON_DOORS_ONLY, CaveShuffle.ALL_CAVES})
+EXPANDED_QUESTS = frozenset({OverworldQuest.FIRST_QUEST, OverworldQuest.SECOND_QUEST})
+EXPANDED_QUEST_CONFLICT = ("Expanded Dungeon Locations needs Overworld Quest: 1st Quest or 2nd Quest for now "
+                           "(Mixed Quest - 1st, Mixed Quest - 2nd and Random are refused).")
+EXPANDED_CAVES_CONFLICT = ("Expanded Dungeon Locations needs Cave Shuffle: Dungeons Only (Expanded Brackets) or "
+                           "All Caves (Expanded + shuffle everything else); Vanilla, Non-dungeons Only and Random "
+                           "are refused.")
+EXPANDED_COIN_WARNING = ("With Cave Shuffle: Dungeons Only, Shuffle Wood Sword Cave or Shuffle Take Any Road Caves "
+                         "on (or Random) makes about half the seeds shuffle every other cave too, as All Caves "
+                         "does. Turn both off for Expanded Brackets in every seed.")
+
+
+def expanded_dungeon_locations_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """The settings Expanded Dungeon Locations (on or "?") is refused with, each with the fields it names."""
+    if flags.expanded_dungeon_locations is ThreeState.OFF:
+        return []
+    found: list[tuple[str, tuple[str, ...]]] = []
+    if z1r.option(OVERWORLD_QUEST) not in EXPANDED_QUESTS:
+        found.append((EXPANDED_QUEST_CONFLICT, (EXPANDED_DUNGEON_LOCATIONS_FIELD, OVERWORLD_QUEST.id)))
+    if z1r.option(CAVE_SHUFFLE) not in EXPANDED_CAVE_SHUFFLES:
+        found.append((EXPANDED_CAVES_CONFLICT, (EXPANDED_DUNGEON_LOCATIONS_FIELD, CAVE_SHUFFLE.id)))
+    return found
+
+
+def warnings(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """Settings the page warns about but generation accepts, with the fields each names: Expanded
+    Dungeon Locations (on or "?") with Dungeons Only and B02 or B04 on or "?"; Randomize Dead Woods
+    "?" with Add Lost Woods Shortcut not on (on in the seeds where the maze comes up on)."""
+    found: list[tuple[str, tuple[str, ...]]] = []
+    expanded = flags.expanded_dungeon_locations is not ThreeState.OFF
+    coin = any(z1r.toggle(toggle) is not ThreeState.OFF for toggle in (WOOD_SWORD_CAVE_SHUFFLE, TAKE_ANY_ROAD_CAVES))
+    if expanded and coin and z1r.option(CAVE_SHUFFLE) == CaveShuffle.DUNGEON_DOORS_ONLY:
+        found.append((EXPANDED_COIN_WARNING, (EXPANDED_DUNGEON_LOCATIONS_FIELD, WOOD_SWORD_CAVE_SHUFFLE.id,
+                                              TAKE_ANY_ROAD_CAVES.id)))
+    if flags.randomize_dead_woods is ThreeState.POSSIBLE and z1r.toggle(LOST_WOODS_SHORTCUT) is not ThreeState.ON:
+        found.append((SHORTCUT_RANDOM_NOTE, (LOST_WOODS_SHORTCUT.id,)))
+    return found
+
+
+# Swords (C07; features-behavior.md FP-WOOD-01 to FP-WOOD-04) at any value but Normal, Random
+# included, changes or removes swords, so the ZORA flags that place, add or upgrade swords are
+# refused with it (owner decision, 2026-10-17): each named with its own message at both settings.
+SWORD_FLAG_LABELS = {"add_l4_sword": "Add L4 Sword", "randomize_magical_sword": "Randomize Magical Sword",
+                     "shuffle_wood_sword": "Shuffle Wood Sword", "progressive_items": "Progressive Items"}
+
+
+def sword_state_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """Each of Add L4 Sword (on or random), Randomize Magical Sword, Shuffle Wood Sword (on or
+    random) and Progressive Items (its sword upgrades) with Swords at any value but Normal."""
+    if z1r.option(WOODEN_SWORD_STATE) == WoodenSwordState.NORMAL:
+        return []
+    asked = {"add_l4_sword": flags.add_l4_sword is not ThreeState.OFF,
+             "randomize_magical_sword": flags.randomize_magical_sword,
+             "shuffle_wood_sword": flags.shuffle_wood_sword is not ThreeState.OFF,
+             "progressive_items": flags.progressive_items}
+    return [(sword_state_message(label), (name, WOODEN_SWORD_STATE.id))
+            for name, label in SWORD_FLAG_LABELS.items() if asked[name]]
+
+
+def sword_state_message(label: str) -> str:
+    return (f"{label} cannot be used with Swords set to anything but Normal (Random included): Swords changes "
+            f"or removes the swords {label} works with. Set Swords to Normal, or turn {label} off.")
+
+
 def conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
     """Every conflict between the strings, with the settings it names (the page shows each in
     red at them). Never resolved for the player."""
-    found = [(sword_hearts_conflict(flags, z1r), SWORD_HEARTS_CONFLICT_FIELDS),
+    cap = sword_hearts_cap_conflict(flags, z1r)
+    found = [(cap, SWORD_HEARTS_CAP_CONFLICT_FIELDS),
+             (None if cap else sword_hearts_conflict(flags, z1r), SWORD_HEARTS_CONFLICT_FIELDS),
              (extra_candles_conflict(flags, z1r), EXTRA_CANDLES_CONFLICT_FIELDS),
              (l4_sword_conflict(flags), L4_SWORD_CONFLICT_FIELDS),
-             (bracelet_blocks_conflict(flags, z1r), BRACELET_BLOCKS_CONFLICT_FIELDS)]
-    return [(message, names) for message, names in found if message is not None] + asnb_conflicts(flags, z1r)
+             (bracelet_blocks_conflict(flags, z1r), BRACELET_BLOCKS_CONFLICT_FIELDS),
+             (pegasus_boots_conflict(flags), PEGASUS_BOOTS_CONFLICT_FIELDS)]
+    return ([(message, names) for message, names in found if message is not None] + asnb_conflicts(flags, z1r)
+            + sword_state_conflicts(flags, z1r) + expanded_dungeon_locations_conflicts(flags, z1r)
+            + level_9_pin_conflicts(flags, z1r))
 
 
 def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
     """Every reason the pair of strings is refused (empty when accepted)."""
     reasons = []
-    hearts = magical_sword_heart_range(flags, z1r)
-    if not hearts:
-        reasons.append(f"magical-sword hearts: the ZORA cap {flags.magical_sword_hearts_highest} is below "
-                       f"the Z1R string's lowest requirement {hearts.start}")
+    if (cap := sword_hearts_cap_conflict(flags, z1r)) is not None:
+        reasons.append(cap)
     elif (sword := sword_hearts_conflict(flags, z1r)) is not None:
         reasons.append(sword)
     if (candles := extra_candles_conflict(flags, z1r)) is not None:
         reasons.append(candles)
-    reasons.extend(owner_conflict for owner_conflict in (l4_sword_conflict(flags), bracelet_blocks_conflict(flags, z1r))
+    reasons.extend(owner_conflict for owner_conflict in (l4_sword_conflict(flags), bracelet_blocks_conflict(flags, z1r),
+                                                         pegasus_boots_conflict(flags))
                    if owner_conflict is not None)
     reasons.extend(message for message, _names in asnb_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in sword_state_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in expanded_dungeon_locations_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in level_9_pin_conflicts(flags, z1r))
     return reasons
 
 
 # ---------------------------------------------------------------------------
-# The version-3 "?" values: their own stream, then the dependencies
+# The "?" values (versions 3 and 6): their own stream, then the dependencies
 # ---------------------------------------------------------------------------
 
 QUESTION_MARK_STREAM = b"zora ZORA ? vals"      # 16 bytes at most (BLAKE2b's person)
 
 
 def question_mark_draws(seed: int, z1r_canonical: str, zora_canonical: str) -> Iterator[int]:
-    """The coins that decide the version-3 "?" values: derived only from the seed number and both
+    """The coins that decide the "?" values of the On / Off / ? fields: derived only from the seed number and both
     canonical strings, separate from the generation's stream and from FL-DEP-04's (the Z1R
     "?" values), so neither changes. Each coin is one bit of a BLAKE2b counter stream."""
     counter = 0
@@ -496,13 +733,14 @@ def question_mark_draws(seed: int, z1r_canonical: str, zora_canonical: str) -> I
 
 
 def resolve_question_marks(flags: ZoraFlags, seed: int, z1r_canonical: str, zora_canonical: str) -> ZoraFlags:
-    """Each version-3 "?" decided for this seed by a fair coin, in field order. The resolved
-    values are never shown to the page."""
+    """Each "?" of an On / Off / ? field decided for this seed by a fair coin, in payload order
+    (THREE_STATE_FIELDS: version 3's, then version 6's, 7's, 8's and 9's, so an older "?" keeps its coin). The
+    resolved values are never shown to the page."""
     if flags.is_resolved:
         return flags
     coins = question_mark_draws(seed, z1r_canonical, zora_canonical)
     decided = {name: ThreeState.ON if next(coins) else ThreeState.OFF
-               for name in OWNER_2_0_FIELDS if getattr(flags, name) is ThreeState.POSSIBLE}
+               for name in THREE_STATE_FIELDS if getattr(flags, name) is ThreeState.POSSIBLE}
     return replace(flags, **decided)  # type: ignore[arg-type]
 
 
@@ -512,7 +750,20 @@ def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z
     were refused before): a "?" that comes up into a conflict resolves to off.
       - Add L4 Sword without Progressive Items: Add L4 Sword is off.
       - Extra Power Bracelet Blocks with B04 on: the side that was "?" is off (Bracelet Blocks
-        when both were)."""
+        when both were).
+    (Allow Triforces in Stairways has had no dependency since the owner's redesign, 2026-10-18:
+    its Triforces take their spots before any Item Shuffle.)
+    And Pegasus Boots' (owner spec, 2026-10-17):
+      - Pegasus Boots with Magical Boomerang Does 1 HP Damage: the side that was "?" is off
+        (Magical Boomerang Does 1 HP Damage when both were: it would do nothing with the boots).
+    And beta 7's (owner rule):
+      - Randomize Dead Woods on: Add Lost Woods Shortcut (B88) is on, whatever the Z1R string asks
+        (shortcut_forced_on)."""
+    if resolved.is_on("pegasus_boots") and resolved.is_on("magical_boomerang_damage"):
+        if asked.pegasus_boots is ThreeState.POSSIBLE and asked.magical_boomerang_damage is ThreeState.ON:
+            resolved = replace(resolved, pegasus_boots=ThreeState.OFF)
+        else:
+            resolved = replace(resolved, magical_boomerang_damage=ThreeState.OFF)
     if resolved.is_on("add_l4_sword") and not resolved.progressive_items:
         resolved = replace(resolved, add_l4_sword=ThreeState.OFF)
     if resolved.is_on("extra_power_bracelet_blocks") and resolved_z1r.is_on(TAKE_ANY_ROAD_CAVES):
@@ -521,16 +772,37 @@ def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z
         else:
             assert asked_z1r.toggle(TAKE_ANY_ROAD_CAVES) is ThreeState.POSSIBLE
             resolved_z1r = resolved_z1r.updated(toggles={TAKE_ANY_ROAD_CAVES.id: ThreeState.OFF})
+    if shortcut_forced_on(resolved):
+        resolved_z1r = resolved_z1r.updated(toggles={LOST_WOODS_SHORTCUT.id: ThreeState.ON})
     return resolved, resolved_z1r
 
 
-# The version-3 fields whose behavior this build produces; any other one on or "?" is refused
-# (FlagsRefused), never ignored.
-PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset(OWNER_2_0_FIELDS)
+def shortcut_forced_on(flags: ZoraFlags) -> bool:
+    """Whether Randomize Dead Woods (resolved, or asked on) forces Add Lost Woods Shortcut on."""
+    return flags.randomize_dead_woods is ThreeState.ON
+
+
+def forced_z1r_values(flags: ZoraFlags) -> list[tuple[str, ThreeState, str]]:
+    """The Z1R fields the ZORA flags as asked set whatever the Z1R string holds, each with its
+    value and the page's note: Add Lost Woods Shortcut on while Randomize Dead Woods is on."""
+    if shortcut_forced_on(flags):
+        return [(LOST_WOODS_SHORTCUT.id, ThreeState.ON, SHORTCUT_FORCED_NOTE)]
+    return []
+
+
+# The version-3 and version-7 fields whose behavior this build produces; any other one on or "?" is
+# refused (FlagsRefused), never ignored.
+PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset((*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS))
+PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS)
+
+
+# Fields refused on or "?" until their generation is built (none now: Expanded Dungeon Locations'
+# unbuilt settings are refused as conflicts, expanded_dungeon_locations_conflicts).
+UNBUILT_FIELDS: tuple[str, ...] = ()
 
 
 def unproduced_fields(flags: ZoraFlags) -> list[str]:
-    return [name for name in OWNER_2_0_FIELDS
+    return [name for name in (*PATCHED_OWNER_FIELDS, *UNBUILT_FIELDS)
             if getattr(flags, name) is not ThreeState.OFF and name not in PRODUCED_OWNER_FIELDS]
 
 

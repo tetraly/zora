@@ -27,8 +27,7 @@ heart check; pass the finished-ROM checks; survive parse and re-serialize
 byte for byte (an encoded ROM: its plain build does, and its level data
 decodes to that build's); carry the seed code (FP-HASH-01) that hashes the
 ROM before player settings; differ from that ROM only by the player
-settings; and return the page no resolved "?" value and no changed flag
-apart from FL-DEP-06's B23 correction.
+settings; and return the page no resolved "?" value and no changed flag.
 
 `emulator` boots the first N random configurations' ROMs (cynes, through
 tests/emulator.py): file select, register a file, start, walk one screen.
@@ -60,7 +59,7 @@ from zora_web.api import (  # noqa: E402
 from zora_measure.progress import track  # noqa: E402
 from zora.flags import zora_flags  # noqa: E402
 from zora.flags.codec import decode, encode  # noqa: E402
-from zora.flags.dependencies import check_dependencies, correct_merchant_toll  # noqa: E402
+from zora.flags.dependencies import check_dependencies  # noqa: E402
 from zora.flags.fields import (  # noqa: E402
     ENCODE_LEVEL_DATA, MONEY_OR_LIFE_ROOMS, MONEY_OR_LIFE_TOLL, OPTION_FIELDS, OPTIONS_BY_ID, TOGGLE_FIELDS,
     Settings, ThreeState, WoodenSwordState,
@@ -327,7 +326,7 @@ def check_config(config: Config, keep_rom: bool = False) -> Outcome:
 
 def _check(config: Config, outcome: Outcome, keep_rom: bool) -> None:
     fail = outcome.failures.append
-    asked = correct_merchant_toll(decode(config.flag_string))         # FL-DEP-06, never refused
+    asked = decode(config.flag_string)        # B23 kept as given (FL-DEP-06)
     zora_reasons = zora_flags.validate(zora_flags.decode(config.zora_flag_string), asked)
     try:
         chosen = plan(config.flag_string, config.seed, config.zora_flag_string)
@@ -342,7 +341,7 @@ def _check(config: Config, outcome: Outcome, keep_rom: bool) -> None:
     outcome.encoded = chosen.encode_level_data
     world, result = generate_world(chosen, base_rom())
     check_acceptance(chosen, world, result, fail)
-    for problem in owner_flag_problems(world, overworld_gates(chosen.zora_resolved),
+    for problem in owner_flag_problems(world, overworld_gates(chosen.zora_resolved, chosen.settings),
                                        chosen.zora_resolved.l4_sword is L4Sword.LEVEL_9,
                                        chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2):
         fail(f"owner flags: {problem}")
@@ -388,7 +387,7 @@ def check_seed_code(config: Config, before_settings: bytes, finished: GeneratedR
 
 def check_returned_to_page(config: Config, asked: Settings, encoded: bool, finished: GeneratedRom,
                            fail: Callable[[str], None]) -> None:
-    """What the page gets back: the strings as asked (B23 corrected), "?" unresolved, and the
+    """What the page gets back: the strings as asked, "?" unresolved, and the
     level encoding as asked (B82 is on or off, never "?")."""
     if decode(finished.flag_string) != asked:
         fail(f"returned flags {finished.flag_string!r} differ from the asked {config.flag_string!r}")

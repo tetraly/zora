@@ -85,7 +85,8 @@
                    "Red Candle", "Wooden Arrow", "Silver Arrow", "Bow", "Magical Key", "Raft", "Ladder",
                    "Triforce of Power", "5 Rupees", "Wand", "Book", "Blue Ring", "Red Ring", "Power Bracelet",
                    "Letter", "Compass", "Map", "Rupee", "Key", "Heart Container", "Triforce", "Shield",
-                   "Boomerang", "Magical Boomerang", "Blue Potion", "Red Potion", "Clock", "Heart", "Fairy"]
+                   "Boomerang", "Magical Boomerang", "Blue Potion", "Red Potion", "Clock", "Heart", "Fairy",
+                   "Pegasus Boots", "Magical Boots"]
         },
         { "type": "string", "pattern": "^Unknown Item [0-9A-F]{2}$" }
       ]

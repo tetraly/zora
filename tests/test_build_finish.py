@@ -13,7 +13,7 @@ from zora.rom.player_settings import DEFAULT_PLAYER_SETTINGS
 @pytest.fixture(scope="module")
 def base() -> bytes:
     if not BASE_ROM_PATH.exists():
-        pytest.skip("vanilla ROM missing")
+        pytest.skip("needs the base ROM")
     return remember_repo_base_rom()
 
 

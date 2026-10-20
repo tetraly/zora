@@ -20,7 +20,7 @@ from zora.generate.steps.item_shuffle_result import shop_of_slot
 from zora.model.enums import Item
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 WITHOUT_EXTRA_CANDLES = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={"B09": ThreeState.OFF}))
 PROGRESSIVE, SHOP_POOL, BOTH = "2.O", "2.m", "2.19"
@@ -90,7 +90,10 @@ def test_shop_items_in_the_pool_track_the_arrows_and_the_candle(seed: int) -> No
     _, result = generated(SHOP_POOL, seed)
     tracked = {place.item for place in result.item_shuffle_result.tracked}
     assert {Item.WOOD_ARROWS, Item.BLUE_CANDLE} <= tracked and Item.BLUE_RING not in tracked
-    assert result.extra_pool_items.shop_items == [Item.WOOD_ARROWS, Item.BLUE_CANDLE, Item.BLUE_RING]
+    joined = result.extra_pool_items.shop_items
+    # then one bait per hungry Goriya (ZORA 1.0's definition of the option, 2026-10-17)
+    assert joined[:3] == [Item.WOOD_ARROWS, Item.BLUE_CANDLE, Item.BLUE_RING]
+    assert joined[3:] and set(joined[3:]) == {Item.BAIT}
     for place in result.item_shuffle_result.tracked:
         if place.slot is not None and place.slot.startswith("shop"):
             assert shop_of_slot(place.slot) is not None

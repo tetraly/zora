@@ -38,7 +38,7 @@ UNINHERITED = ("ZORA_SOURCE_REPO", "ZORA_CODE_DIR", "ZORA_SUITE_LOCK", "ZORA_SUI
 
 # A release leaves the clean-copy script out (release/allowlist.txt): these tests then skip
 NEEDED = [REPO / "scripts" / "clean_copy.py", REPO / "scripts" / "compare_revision.py"]
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="no base ROM")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 
 def _environment() -> dict[str, str]:

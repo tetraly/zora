@@ -6,11 +6,13 @@ import pytest
 
 from zora.generate.acceptance_check import logic_rules
 from zora.generate.steps import overworld_gates as gates
+from zora.model.enums import Item
+from zora.rom import overworld_crossings as crossings
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.vanilla_overworld.walkability import ScreenGraph, screen_graph, screen_tiles
 
-pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="PRG0 base ROM not found")
+pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 START = 0x77
 # OW-START-01's 51 start screens.
@@ -26,6 +28,9 @@ LAYOUT_EDITS = {
     "lost_hills": [(0x154D7, "01 01 01 01 01 01 01"), (0x154F1, "09"), (0x154F5, "06"), (0x155DD, "02"),
                    (0x155F5, "51")],
     "dead_woods": [(0x15B08, "29")],
+    # Add Bridges to the River (B87, FP-BRIDGE-01) and Add Lost Woods Shortcut (B88, FP-WOODS-01)
+    "bridges": [(crossings.ROOM_17_RIVER_ROWS, "4B"), (crossings.ROOM_27_RIVER_COLUMN, "12")],
+    "shortcut": [(crossings.ROOM_51_WEST_EDGE, "16")],
 }
 LOST_HILLS_REPEATS = frozenset({(gates.LOST_HILLS_SCREEN, side) for side in "NSE"})     # free exit: west
 DEAD_WOODS_REPEATS = frozenset({(gates.DEAD_WOODS_SCREEN, side) for side in "NSW"})     # free exit: east
@@ -138,3 +143,67 @@ def test_every_maze_step_can_repeat_the_screen(edits: tuple[str, ...], screen: i
                   if region is not None and regions.edges[opposite][position] is not None}
         assert across, (hex(screen), side)
     assert screen_tiles(verify_base_rom().read_bytes(), screen)
+
+
+# --- Add Bridges to the River (B87) and Add Lost Woods Shortcut (B88) ------------------------------
+
+MAZE_SIDES = frozenset({(gates.DEAD_WOODS_SCREEN, side) for side in "NSWE"})
+SHORTCUT_ROOM, PAST_THE_ROCK = 0x51, 0x50
+
+
+@pytest.mark.parametrize("opening", [("shortcut",), ("bridges",), ("shortcut", "bridges")])
+def test_the_west_half_is_walked_into_without_the_maze_or_the_ladder(opening: tuple[str, ...]) -> None:
+    """FP-BRIDGE-01's and FP-WOODS-01's square-level walk: the 34 rooms from $77 with every side of
+    the forest maze closed, and no ladder; without either edit they are not reached."""
+    assert gates.DEAD_WOODS_WEST <= graph(opening).reach(START, MAZE_SIDES)
+    assert not gates.DEAD_WOODS_WEST & graph(()).reach(START, MAZE_SIDES)
+
+
+@pytest.mark.parametrize("blocks", [(), ("raft", "bracelet")])
+@pytest.mark.parametrize("opening", [("shortcut",), ("bridges",), ("shortcut", "bridges")])
+def test_only_the_pocket_needs_the_dead_woods_hint(opening: tuple[str, ...], blocks: tuple[str, ...]) -> None:
+    """Randomize Dead Woods with the shortcut (which it forces on) or the bridges: the screens whose
+    cave entrance only the maze leads to, walking without the ladder, are $70, $71 and $72's cave."""
+    edits = ("lost_hills", "dead_woods", *opening, *blocks)
+    no_west = DEAD_WOODS_REPEATS | {(gates.DEAD_WOODS_SCREEN, "W")}
+    assert gated(graph(edits), no_west) == gates.DEAD_WOODS_GATED
+    for start in START_SCREENS:
+        assert beyond(graph(edits), DEAD_WOODS_REPEATS, start) <= gates.DEAD_WOODS_GATED, start
+
+
+@pytest.mark.parametrize("opening", [("shortcut",), ("bridges",)])
+def test_with_prg0s_maze_nothing_is_past_it(opening: tuple[str, ...]) -> None:
+    assert beyond(graph(opening), DEAD_WOODS_REPEATS) == set()
+
+
+def test_the_shortcut_is_one_way() -> None:
+    """$51's west edge leads into $50 at rows 4 to 6 (Link's rows 8 to 13), though $50's east edge
+    is rock; walking east from $50 never leads back."""
+    world = graph(("shortcut",))
+    into = {arrival for (screen, _region, side), arrivals in world.exits.items()
+            if screen == SHORTCUT_ROOM and side == "W" for arrival in arrivals}
+    assert {screen for screen, _ in into} == {PAST_THE_ROCK}
+    assert world.screens[PAST_THE_ROCK].entries["E"].keys() >= set(range(8, 14))
+    assert not leaves(world, PAST_THE_ROCK, "E")
+    assert not leaves(graph(()), SHORTCUT_ROOM, "W")            # PRG0: $51 is closed to the west
+
+
+def leaves(world: ScreenGraph, screen: int, side: str) -> bool:
+    return any(world.exits.get((screen, region, side)) for region in range(world.screens[screen].count))
+
+
+def test_the_bridges_are_two_way() -> None:
+    """From the west half ($40) the start is reached again over the bridges, the maze closed."""
+    world = graph(("bridges",))
+    assert START in world.reach(0x40, MAZE_SIDES)
+    assert START not in graph(("shortcut",)).reach(0x40, MAZE_SIDES)
+
+
+def test_with_the_west_half_open_the_rules_ask_only_the_pocket_for_the_hint() -> None:
+    open_rules = logic_rules(False, False, gates.OverworldGates(dead_woods=True, river_west_open=True))
+    closed_rules = logic_rules(False, False, gates.OverworldGates(dead_woods=True))
+    for screen in gates.DEAD_WOODS_WEST:
+        assert Item.LADDER not in open_rules.needs(screen) and gates.DEAD_WOODS_HINT not in open_rules.needs(screen)
+        assert Item.LADDER in closed_rules.needs(screen)
+    for screen in gates.DEAD_WOODS_GATED:
+        assert gates.DEAD_WOODS_HINT in open_rules.needs(screen)

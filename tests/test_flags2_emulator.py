@@ -81,6 +81,9 @@ FLUTE_TIMER = 0x3C
 WORLD_IS_FILLING_HEARTS = 0x63
 OBJ_HP = 0x485
 USED_FLUTE = 0x51B
+TUNE1 = 0x607                        # the sound engine's tune on the first square channel
+NOTE_COUNTER_TUNE1 = 0x6F
+RECORDER_TUNE = 0x10                 # WieldFlute's Tune1Request
 MAZE_STEP = 0x52F
 INV_CLOCK = 0x66C
 HEART_VALUES = 0x66F                 # high nibble: heart containers - 1; low: full hearts - 1
@@ -279,6 +282,40 @@ def test_the_recorder_kills_every_pols_voice_in_the_room() -> None:
         assert after.count(Enemy.POLS_VOICE) == (0 if name == "patched" else before.count(Enemy.POLS_VOICE)), name
 
 
+def recorder_tune(emu: Emulator) -> list[tuple[int, int]]:
+    """Play the recorder where Link stands: the sound engine's tune and note counter, frame by
+    frame, until the tune ends (FluteTimer back at 0)."""
+    emu[INV_RECORDER] = 1
+    emu[SELECTED_ITEM_SLOT] = RECORDER_SLOT
+    emu.run(FACE_FRAMES, Button.UP)
+    emu.run(5)
+    tune = []
+    for frame in range(400):
+        emu.run(1, Button.B if frame < 2 else Button(0))
+        tune.append((emu[TUNE1], emu[NOTE_COUNTER_TUNE1]))
+        if frame > 2 and emu[FLUTE_TIMER] == 0:
+            break
+    return tune
+
+
+@pytest.mark.parametrize("room", ["pols voice", "level start"])
+def test_the_recorder_plays_its_tune_with_and_without_the_patch(room: str) -> None:
+    """The recorder's tune plays in full, note for note as in the control, in a Pols Voice room
+    too: the patch once killed the Pols Voices on the frame the recorder was played, and the
+    kill's sound request replaced the tune before the sound engine started it (bug fix,
+    2026-10-17). The kills, after the tune, are test_the_recorder_kills_every_pols_voice_in_the_room's."""
+    tunes = {}
+    for name, rom in both("recorder-pols-voice").items():
+        game = Game(rom)
+        if room == "pols voice":
+            enter_room(game, *rooms_holding(Enemy.POLS_VOICE)[0])
+        else:
+            game.enter_level(1)
+        tunes[name] = recorder_tune(game.emu)
+    assert sum(tune == RECORDER_TUNE for tune, _ in tunes["control"]) > 100
+    assert tunes["patched"] == tunes["control"]
+
+
 def test_the_recorder_only_counts_in_its_own_room() -> None:
     """Played in another room of the level, the recorder leaves the Pols Voices of the next room
     alive: the game clears UsedFlute when a room is entered."""
@@ -338,14 +375,14 @@ def test_blue_potions_stack_up_to_four(held: int, control_after: int, patched_af
 @pytest.mark.parametrize("letter", [0, 1])
 def test_the_potion_shop_takes_a_held_letter_at_once(letter: int) -> None:
     """Walking into the potion shop holding the letter (1) shows it at once (2) without
-    selecting it; without the letter nothing changes; in the control the letter waits for B."""
+    selecting it; without the letter nothing changes. Every finished ROM has the patch since
+    b318256 (owner_patches.ALWAYS_WRITTEN), the control too."""
     for name, rom in both("auto-show-letter").items():
         game = Game(potion_shop_rom(rom))
         game.emu[INV_LETTER] = letter
         game.enter_cave(Destination.POTION_SHOP)
         game.emu.run(120)
-        shown = letter == 1 and name == "patched"
-        assert game.emu[INV_LETTER] == (LETTER_DELIVERED if shown else letter), (name, letter)
+        assert game.emu[INV_LETTER] == (LETTER_DELIVERED if letter == 1 else letter), (name, letter)
 
 
 # --- 10: Like-Like Eats Rupees ------------------------------------------------------------------

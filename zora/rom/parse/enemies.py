@@ -151,6 +151,8 @@ def _parse_enemy_hp(bins: RawBinFiles, enemies: EnemyData) -> None:
                            (bins.rope_hp_operands[1] >> 4) & 0x0F)
     enemies.gleeok_head_hp     = (bins.gleeok_head_hp[0] >> 4) & 0x0F
     enemies.ganon_hp           = (bins.ganon_hp[0] >> 4) & 0x0F
+    if bins.ganon_hp[0] & 0x0F:             # PS-HP-06's $41: no value times 16
+        enemies.ganon_return_hp = bins.ganon_hp[0]
     enemies.moldorm_segment_hp = (bins.moldorm_segment_hp[0] >> 4) & 0x0F
     enemies.lamnola_segment_hp = (bins.lamnola_segment_hp[0] >> 4) & 0x0F
 

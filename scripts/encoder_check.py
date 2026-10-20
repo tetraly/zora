@@ -10,7 +10,7 @@ A recorded test that is not even collected without the encoder is guarded at col
 cases are made only when the encoder is there), which is correct.
 
 Exit status 0 when every rerun test passed or skipped, 1 when any failed (fix: guard it with
-@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")),
+tests.needs.needs_encoder (reason "needs the encoder")),
 2 when the rerun could not be made.
 """
 from __future__ import annotations

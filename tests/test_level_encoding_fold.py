@@ -134,7 +134,7 @@ def check_store(flags: str, seed: int, sets: list[int]) -> None:
     assert plain(stored(moved), flags) == after
 
 
-@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+@pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 @pytest.mark.parametrize(("flags", "seed"), [(SECOND_QUEST, 1), (MIXED_WITH_SHAPES, 2), (MIXED_WITH_SHAPES, 5)])
 def test_the_encoder_receives_what_the_rom_byte_fold_gave_it(flags: str, seed: int) -> None:
     """The encoded bytes are those of beta 4's path (the ROM-byte fold just before the encoder),
@@ -171,7 +171,7 @@ def test_a_set_over_two_blocks_is_refused() -> None:
         world.store_second_quest_sets_in_first_quest_slots()
 
 
-@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+@pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 def test_an_encoded_write_needs_the_sets_stored() -> None:
     chosen = plan(encoded(SECOND_QUEST), 1)
     base = remember_repo_base_rom()
@@ -181,7 +181,7 @@ def test_an_encoded_write_needs_the_sets_stored() -> None:
         serialize_to_rom(unstored, base, config=chosen.config)
 
 
-@pytest.mark.skipif(not level_encoding.is_available(), reason="level encoding is not installed")
+@pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 @pytest.mark.parametrize(("flags", "seed"),
                          [(SECOND_QUEST, 1), *((MIXED_WITH_SHAPES, seed) for seed in ENCODED_MIXED_SEEDS)])
 def test_an_encoded_second_quest_rom_decodes_to_its_plain_twin(flags: str, seed: int) -> None:
