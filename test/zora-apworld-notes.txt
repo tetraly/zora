@@ -1,4 +1,6 @@
-- Randomize music (test), a proof of concept for testing with Quantam: with this look-and-feel setting on (Look panel), the title screen, the overworld, level 9 and each of levels 1-8 get a FamiTracker track of their own from Quantam's ZeldaMusicRandomizer library (lozft), downloaded by the page from his repository the first time a seed asks for it. Randomize ending music (test) does the same for the ending and credits. With randomized music the statistics screen keeps its counts in internal RAM: they survive a reset but not turning the console off. Built from music-poc 61262de; not checked by the release tests (owner's decision for this test page).
+- Music (test; built from the music branch, 3d06ec4; not checked by the release tests, the owner's decision for this test page): the Look and feel setting Music has two new values. Random (standard library) gives the title screen, the overworld, each level and the ending and credits a FamiTracker track from Quantam's library, downloaded from his repository with the first seed. Random (local library) takes tracks from library files you choose (Zelda II Randomizer's libraries too). Streaming-safe tracks only (on by default) leaves out tracks marked unsafe for streaming, and a playlist pins songs to any area, the game's own songs too.
+- The statistics screen keeps its numbers through resets and turning the console off with randomized music too (Quantam's lozft of 2026-10-22).
+- New ZORA flag, Disable Custom Music (Off by default): for races, Music can then be Off or On only. It changes nothing in the seed itself.
 
 ## Archipelago
 
@@ -6,5 +8,5 @@ zora.apworld, ZORA's Archipelago world, is published beside the test page (built
 
 - world version: 0.7.0
 - ZORA version: 2.0.0b7
-- source hash: sha256:0d5c757114ea57e860435d6e118f294d19b96f439ff9ce5a25ed89ac204bd5ea
-- SHA-256 of zora.apworld: ae5eaea14797b087eaff42053f8c96ce8921d4ae2b99d31d96d76f22047ff944
+- source hash: sha256:50e15f3a41d7856c56cfb5a0b7ede9e78cb611b77aec21d443accdf80eee7c02
+- SHA-256 of zora.apworld: fe77cbb4fe795e95f29c8da8ed9caab0300877316313d28a2ccd3a9372a4198a
