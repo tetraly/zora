@@ -278,6 +278,13 @@ REFUSAL_TEXT_ADDRESS = 0x04546      # CPU $8536 bank 1
 REFUSAL_TEXT_SIZE = 72
 REFUSAL_TEXT_POINTER_ADDRESS = 0x04054   # PersonTextAddrs slot 34
 REFUSAL_TEXT_POINTER = bytes([0x36, 0x85])
+# HT-HINT-05 (normal hints, C03 = 0): PRG0's text block stays in use, so the level-9 refusal text is
+# stored outside it, at CPU $B780 bank 1 (the spec's "normal-hints place"; PRG0 holds $FF there and
+# ZORA writes nothing there when the extended hint bank is not used), with slot 34 pointing at it.
+# ZORA's other texts under normal hints (a randomized maze's hint-shop text) follow it.
+NORMAL_REFUSAL_TEXT_ADDRESS = 0x07790   # CPU $B780 bank 1
+NORMAL_REFUSAL_TEXT_POINTER = bytes([0x80, 0xB7])
+NORMAL_HINT_TEXT_ADDRESS = NORMAL_REFUSAL_TEXT_ADDRESS + REFUSAL_TEXT_SIZE
 LIFE_OR_MONEY_COST_TEXT_ADDRESS = 0x1A2B6   # LifeOrMoneyCostTextTransferBuf
 LIFE_OR_MONEY_COST_TEXT_SIZE    = 13
 # PS-MERCH-04's starting-hearts byte H (post-shapes-b1.md): CPU $A858 in

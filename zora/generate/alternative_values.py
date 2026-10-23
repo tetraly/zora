@@ -10,6 +10,7 @@ from dataclasses import dataclass
 
 from ..flags.fields import CaveShuffle, DungeonLayoutSource, HitPointChange, ItemShuffleScope, WoodenSwordState
 from ..model.enums import Item
+from .steps.level_9_entry import EIGHT_PIECES_ENTRY, Level9Entry
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,9 @@ class AlternativeValues:
     white_sword_hearts: range = range(4, 7)
     generate_community_hint_text: bool = False           # C03 at 2, FL-ALT-04
     show_every_helpful_hint: bool = False                # C03 at 1, HT-HINT-04
+    normal_hints: bool = False                           # C03 at 0, HT-HINT-05: PRG0's texts
+    deception_hints: bool = False                        # C03 at 3, HT-HINT-06
+    blank_hints: bool = False                            # C03 at 5, HT-HINT-07
     # C06 (after its random index is drawn, PS-ITEM-11): 0 no deal (PS-ITEM-10), 1 the fifteen places
     # (PS-ITEM-09), 2 within each dungeon (PS-ITW-01 to PS-ITW-07); 3, full, is the MVP baseline
     item_shuffle: ItemShuffleScope = ItemShuffleScope.FULL
@@ -36,10 +40,14 @@ class AlternativeValues:
     start_items: tuple[Item, ...] = ()
     # C18 (FL-ALT-06): the start pieces, one bit per level 1-8, drawn with the start items
     start_triforce_pieces: int = 0
+    # C08 (after its random index is drawn, FL-DEP-04) with C24, C25 and C07: what level 9's entrance
+    # asks for (FP-TRIF-01 to FP-TRIF-06); 0, eight pieces, is the MVP baseline
+    level_9_entry: Level9Entry = EIGHT_PIECES_ENTRY
     # C11, C13, C26 and C27 (PS-ITEM-12): the item pinned to the Armos slot, the white-sword cave and
     # level 9's first and second pool places, as indices of the option list (0 pins nothing, 16 Non-Heart)
     armos_pin: int = 0
     white_sword_pin: int = 0
+    coast_pin: int = 0                                   # C12, PS-ITEM-12 (beta 8 export)
     level_9_pins: tuple[int, int] = (0, 0)
     # C07 (after its random index is drawn, FL-DEP-04; FP-WOOD-01): the wooden-sword state
     wooden_sword_state: WoodenSwordState = WoodenSwordState.NORMAL
@@ -58,6 +66,18 @@ class AlternativeValues:
     enemy_hit_points: HitPointChange = HitPointChange.UP_TO_2
     boss_hit_points: HitPointChange = HitPointChange.UP_TO_2
     ganon_hit_points_zero: bool = False                  # B41 on (or "?" come up on), PS-HP-06
+    maximum_boss_health: bool = False                    # B46 on (or "?" come up on), PS-HP-07
+    maximum_enemy_health: bool = False                   # B45 on (or "?" come up on), PS-HP-08
+    # The Uphill Battle set's off values (2026-10-22 export, review 68), each on in the MVP baseline
+    # (or "?" come up so): Shuffle Level 9 Monsters (B35, PS-MONLV-07), Shuffle Ganon and Zelda (B33,
+    # PS-MONRD-04), Force Ganon Fight (B18, PS-MONRD-05 and VA-REJ-03 step 8), Shuffle Dungeon
+    # Monsters (B32, PS-MONRD-06; FL-DEP-02 rule 3 has met B33 and B36) and Shuffle Overworld Group
+    # (B43, PS-EGRP-07)
+    shuffle_level_9_monsters: bool = True
+    shuffle_ganon_and_zelda: bool = True
+    force_ganon_fight: bool = True
+    shuffle_dungeon_monsters: bool = True
+    shuffle_overworld_group: bool = True
 
     @property
     def shuffle_items_within_levels(self) -> bool:

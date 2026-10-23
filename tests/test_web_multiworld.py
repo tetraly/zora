@@ -168,7 +168,7 @@ REFUSED_CASES = {
     "Encode level data on": (flags_with(toggles={ENCODE_LEVEL_DATA: ThreeState.ON}), "", "Always off in Archipelago"),
     "Item Shuffle not Full": (flags_with(options={ITEM_SHUFFLE: ITEM_ONLY}), "", "Always Full in Archipelago"),
     "an unoffered value": (flags_with(options={SWORDS: SWORDLESS}), "", "not offered in Archipelago yet"),
-    "a conflict": (DEFAULT_FLAGS, zora_with(progressive_items=1), "Extra Candles"),
+    "a conflict": (DEFAULT_FLAGS, zora_with(add_l4_sword=1), "Add L4 Sword needs Progressive Items"),
     "Shuffle Wood Sword on": (DEFAULT_FLAGS, zora_with(shuffle_wood_sword=1),
                               "Shuffle Wood Sword: Always off in Archipelago"),
 }

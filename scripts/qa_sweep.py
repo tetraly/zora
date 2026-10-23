@@ -74,7 +74,7 @@ from zora.generate.generation_pass import has_magical_sword_hearts  # noqa: E402
 from zora.generate.context import GenerationResult  # noqa: E402
 from zora.generate.pipeline import (  # noqa: E402
     FlagsRefused, GeneratedRom, GenerationPlan, SeedRefused, extra_options, generate_rom, generate_world,
-    overworld_gates, plan,
+    overworld_gates, plan, shipped_logic_rules,
 )
 from zora.generate.steps.cave_entries import OverworldResult  # noqa: E402
 from zora_measure.alternative_values import HELPFUL_TEXT_SLOTS, alternative_value_figures  # noqa: E402
@@ -360,15 +360,15 @@ def check_acceptance(chosen: GenerationPlan, world: GameWorld, result: Generatio
     """acceptance.md (E1, E3, E4, E5) on the shipped world, and Randomize Magical Sword's heart
     check; generation ran both, so a failure here means it shipped something they reject."""
     assert result.item_shuffle_result is not None and result.overworld is not None
-    failure = acceptance_check(world.levels, result.item_shuffle_result, world.overworld, result.overworld,
-                               extra_options(chosen).logic_rules)
+    rules = shipped_logic_rules(chosen, world)
+    failure = acceptance_check(world.levels, result.item_shuffle_result, world.overworld, result.overworld, rules)
     if failure is not None:
         fail(f"acceptance: {failure}")
     if chosen.zora.randomize_magical_sword:
         assert result.extra_pool_items is not None
         if not has_magical_sword_hearts(world.levels, result.item_shuffle_result, result.extra_pool_items,
                                         OverworldResult(world.overworld, result.overworld),
-                                        extra_options(chosen)):
+                                        extra_options(chosen), rules):
             fail("acceptance: magical-sword hearts")
 
 

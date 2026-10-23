@@ -8,12 +8,12 @@ from zora.flags.codec import decode, encode
 from zora.flags.fields import COAST_PIN, PinnedItem
 from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.rom import level_encoding
-from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom, verify_base_rom
 from zora.flags.dependencies import RESOLVED_TOGGLES
 from zora.flags.fields import TOGGLE_FIELDS, ThreeState
-from zora.flags.support import ENCODE_LEVEL_DATA_NOT_RANDOM
+from zora.flags.support import ENCODE_LEVEL_DATA_RANDOM_NOTICE
 from zora.rom.game_config import GameConfig, HintMode
-from zora.generate.pipeline import SEED_LIMIT, FlagsRefused, SeedRefused, generate_rom, plan
+from zora.generate.pipeline import SEED_LIMIT, FlagsRefused, SeedRefused, build, finish, generate_rom, plan
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.player_settings import PlayerSettings, apply_player_settings
 from zora.rom.serialize.rom_file import serialize_to_rom
@@ -62,12 +62,14 @@ def test_canonical_string_in_the_result() -> None:
 
 
 def test_unsupported_fields_are_refused_by_name() -> None:
-    with pytest.raises(FlagsRefused) as refused:
-        plan("0", 0)
-    assert "not produced" in str(refused.value) and "C14 (" in str(refused.value)
-    possible = decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={"B32": ThreeState.POSSIBLE})
-    with pytest.raises(FlagsRefused, match="B32"):
-        plan(encode(possible), 0)
+    """Shuffle Enemy Drop Groups (B38) is still not produced, on or "?". (Since the beta 8 export every
+    field of the all-zero string "0" is.)"""
+    for state in (ThreeState.ON, ThreeState.POSSIBLE):
+        unproduced = decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={"B38": state})
+        with pytest.raises(FlagsRefused) as refused:
+            plan(encode(unproduced), 0)
+        assert "not produced" in str(refused.value) and "B38 (" in str(refused.value)
+    assert plan("0", 0).flag_string == "0"
 
 
 def test_dependency_refusals_and_bad_strings() -> None:
@@ -144,14 +146,15 @@ def _cp5_with(**toggles: ThreeState) -> str:
 
 
 def test_a_question_mark_whose_off_is_not_supported_is_refused_up_front() -> None:
-    for field_id, label in (("B32", "B32 (Shuffle dungeon monsters within each level): ?"),
-                            ("B23", "B23 (Re-draw the merchants' toll): ?")):
-        with pytest.raises(FlagsRefused) as refused:
-            plan(_cp5_with(**{field_id: ThreeState.POSSIBLE}), 1)
-        assert refused.value.reasons == ["not produced: " + label]
+    """B23 off with B22 on (FL-DEP-06) is refused up front; B23's and B29's "?" are produced since the
+    beta 9 export (FL-DEP-04's B22 and B23 rule, FL-DEP-02 rule 4), B32's and C14 = 3 since the
+    2026-10-22 and beta 8 exports."""
     with pytest.raises(FlagsRefused) as refused:
-        plan(encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(options={"C14": 3})), 1)
-    assert refused.value.reasons == ["not produced: C14 (Dungeon room shuffle): ?"]
+        plan(_cp5_with(B23=ThreeState.OFF), 1)
+    assert refused.value.reasons == ["not produced: B23 (Re-draw the merchants' toll)"]
+    for field_id in ("B23", "B29", "B32"):
+        assert plan(_cp5_with(**{field_id: ThreeState.POSSIBLE}), 1)
+    assert plan(encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(options={"C14": 3})), 1)
 
 
 @needs_base_rom
@@ -191,24 +194,26 @@ def test_resolved_values_are_not_returned() -> None:
 
 
 @pytest.mark.parametrize("flags", [MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF])
-def test_a_question_mark_on_level_encoding_is_refused(flags: str) -> None:
-    """Owner ruling (2026-10-06): Encode level data (B82) is on or off and never "?". The
-    refusal says so in the owner's words, before anything is resolved or generated, and
-    names no other field when the rest of the string is supported."""
+def test_a_question_mark_on_level_encoding_is_read_as_off(flags: str) -> None:
+    """FP-TOURNEY-01 and the owner (2026-10-22): Encode level data (B82) at "?" is read as off, so
+    the seed is made exactly as with it off (the canonical string is the off string's), with a
+    notice; the page never offers it."""
     question = encode(decode(flags).updated(toggles={"B82": ThreeState.POSSIBLE}))
-    with pytest.raises(FlagsRefused) as refused:
-        plan(question, 1)
-    assert refused.value.reasons == [ENCODE_LEVEL_DATA_NOT_RANDOM]
-    assert ENCODE_LEVEL_DATA_NOT_RANDOM == "Encode level data is on or off; it cannot be random"
+    off = encode(decode(flags).updated(toggles={"B82": ThreeState.OFF}))
+    chosen = plan(question, 1)
+    assert chosen.flag_string == plan(off, 1).flag_string == off
+    assert ENCODE_LEVEL_DATA_RANDOM_NOTICE in chosen.notices and not plan(off, 1).notices
+    base = remember_repo_base_rom()
+    assert finish(build(chosen, base), base) == finish(build(plan(off, 1), base), base)
 
 
-def test_level_encoding_question_mark_is_refused_beside_other_reasons() -> None:
-    """With another unsupported field too, both reasons are given, B82's first."""
+def test_level_encoding_question_mark_beside_another_reason() -> None:
+    """With another unsupported field, only that field's reason is given."""
     question = _cp5_with(B82=ThreeState.POSSIBLE, B05=ThreeState.ON)        # Change Secret Spots: not produced
     with pytest.raises(FlagsRefused) as refused:
         plan(question, 1)
-    first, second = refused.value.reasons
-    assert first == ENCODE_LEVEL_DATA_NOT_RANDOM and "B05" in second and "B82" not in second
+    (reason,) = refused.value.reasons
+    assert "B05" in reason and "B82" not in reason
 
 
 def test_resolve_never_draws_for_level_encoding() -> None:

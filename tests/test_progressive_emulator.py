@@ -96,6 +96,7 @@ LETTER_DELIVERED = 2
 MANY_HEARTS = 0xFF                   # 16 heart containers, all full
 TEST_PRICE = 1
 NO_ITEM = 0x3F
+TAKEN = 0xFF                         # a ware's CaveItemIds byte once a ware of the cave is taken
 FIRST_CAVE_TYPE = 0x5A               # object type = destination + $5A ($10 -> $6A)
 
 # Items (Item values)
@@ -259,8 +260,17 @@ class Game:
         text: the limit leaves room for the longest."""
         self.emu[OBJ_X] = CAVE_WARE_XS[position]
         self.emu[OBJ_Y] = CAVE_WARE_Y
-        self.emu.run_until(lambda: self.emu[CAVE_ITEM_IDS + position] == 0xFF, limit=TAKE_WARE_FRAMES)
+        self.emu.run_until(lambda: self.emu[CAVE_ITEM_IDS + position] == TAKEN, limit=TAKE_WARE_FRAMES)
         self.emu.run(60)
+
+    def step_onto_ware(self, position: int) -> None:
+        """Stand on the ware's place as long as taking a ware may take."""
+        self.emu[OBJ_X] = CAVE_WARE_XS[position]
+        self.emu[OBJ_Y] = CAVE_WARE_Y
+        self.emu.run(TAKE_WARE_FRAMES)
+
+    def anything_taken(self) -> bool:
+        return any(self.emu[CAVE_ITEM_IDS + position] == TAKEN for position in range(3))
 
     def bought(self) -> list[int]:
         return [self.emu[SHOP_BOUGHT_FLAGS + position] for position in range(3)]
@@ -330,7 +340,8 @@ def test_caves_and_shops_show_and_give_each_level_of_each_line() -> None:
     """For each line and each level the player may hold: a shop shows the
     line's next level and sells it (the inventory goes up one level), and
     hides the ware at the top level; a cave that gives the item away shows
-    the next level, and the top level once it is held."""
+    the next level, and hides the ware at the top level too, so stepping
+    onto its place takes nothing (tetraly/zora#13)."""
     new = fresh_game()
     for line in LINES:
         shop, position = SHOP_WARE[line]
@@ -350,7 +361,25 @@ def test_caves_and_shops_show_and_give_each_level_of_each_line() -> None:
             game = new()
             line.set_level(game.emu, level)
             game.enter_cave(GIVEN_WARE[line])
-            assert game.wares()[given] == shown_level(line, level), (line.name, level, "given")
+            if top:
+                assert game.wares()[given] == NO_ITEM, (line.name, level, "given")
+                game.step_onto_ware(given)
+                assert not game.anything_taken() and line.level(game.emu) == level, (line.name, "given")
+            else:
+                assert game.wares()[given] == shown_level(line, level), (line.name, level, "given")
+
+
+def test_a_red_candle_holder_keeps_the_wood_sword_caves_take() -> None:
+    """tetraly/zora#13: with Extra Candles (B09, on in the MVP baseline) the wooden-sword cave's
+    ware 0 is the blue candle. At the red candle it is hidden, and the cave's sword is still taken."""
+    game = fresh_game()()
+    CANDLE.set_level(game.emu, len(CANDLE.items))
+    game.enter_cave(Destination.WOOD_SWORD_CAVE)
+    assert game.wares()[:2] == [NO_ITEM, SWORD.items[0]]
+    game.step_onto_ware(0)
+    assert not game.anything_taken()
+    game.take_ware(1)
+    assert SWORD.level(game.emu) == 1 and CANDLE.level(game.emu) == len(CANDLE.items)
 
 
 def test_a_bought_ware_stays_hidden_after_leaving_and_returning() -> None:

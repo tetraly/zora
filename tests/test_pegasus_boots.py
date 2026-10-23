@@ -11,6 +11,7 @@ and without the flag. Not observed here (the owner's manual pass): doorways and 
 the ladder and raft, Armos and gravestones, Like-Likes and Wallmasters, whirlwinds and the recorder,
 diagonal input at intersections, edge transitions in every direction."""
 from functools import cache
+from pathlib import Path
 
 import pytest
 
@@ -39,6 +40,7 @@ from zora.rom.revision import (
     prg1_offset,
 )
 
+REPO = Path(__file__).resolve().parent.parent
 FIELD = "pegasus_boots"
 BOOTS = zora_flags.encode(ZoraFlags(pegasus_boots=ThreeState.ON))
 WITH_DAMAGE = zora_flags.encode(ZoraFlags(pegasus_boots=ThreeState.ON, magical_boomerang_damage=ThreeState.ON))
@@ -213,10 +215,20 @@ def test_the_boots_names() -> None:
 
 
 def test_a_boots_seeds_document_and_log_name_the_boots() -> None:
-    from zora_export.seed_document import seed_document_for
+    """Seed format 1.1 (z1r-visualizer aa1790c) names the boots: the document passes the 1.1 schema
+    (ZORA's copy) with "Pegasus Boots" and "Magical Boots" in its item fields, and the spoiler log
+    shows the boots. (tetraly/zora#9's workaround, the boomerangs' names, is undone.)"""
+    import json
+
+    from zora_export.seed_document import FORMAT_VERSION, seed_document_for
     from zora_export.spoiler_log import spoiler_log
+    jsonschema = pytest.importorskip("jsonschema")
+    schema = json.loads((REPO / "docs/seed-format/seed-format.schema.json").read_text())
+    assert {"Pegasus Boots", "Magical Boots"} <= set(schema["$defs"]["itemName"]["anyOf"][0]["enum"])
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 3, vanilla(), zora_flag_string=BOOTS).rom
     document = seed_document_for(rom, MVP_BASELINE_LEVEL_ENCODING_OFF, 3, BOOTS)
+    assert document["formatVersion"] == FORMAT_VERSION == "1.1"
+    assert not list(jsonschema.Draft202012Validator(schema).iter_errors(document))
     text = repr(document)
     assert "'Pegasus Boots'" in text and "'Magical Boots'" in text
     assert "'Boomerang'" not in text and "'Magical Boomerang'" not in text
@@ -502,7 +514,7 @@ def test_the_give_rules_report_the_boots() -> None:
     assert archipelago.client_tables_from_json(data).rules == archipelago.give_rules(with_boots)
     plain = {**data, "rules": {key: value for key, value in data["rules"].items() if key != "pegasusBoots"}}
     assert not archipelago.client_tables_from_json(plain).rules.pegasus_boots
-    ram = {address: 0 for address in range(0x0657, 0x0680)}
+    ram = dict.fromkeys(range(0x0657, 0x0680), 0)
     for item in ("Boomerang", "Magical Boomerang"):
         assert archipelago.receive(item, ram, archipelago.give_rules(with_boots)) == \
             archipelago.receive(item, ram, archipelago.give_rules(without))

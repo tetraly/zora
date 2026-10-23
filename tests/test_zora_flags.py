@@ -184,7 +184,12 @@ def test_the_module_lists_one_field_per_flag() -> None:
         "randomize_magical_sword", "randomize_letter", "magical_sword_hearts_highest",
         "progressive_items", "shop_items_in_pool", *zora_flags.OWNER_2_0_SLOTS,
         "l4_sword_in_level_2", "level_9_entrance_sword", "oops_all_enemies", "oops_all_bosses",
-        *zora_flags.ZORA_1_0_FIELDS, "pegasus_boots", "expanded_dungeon_locations", "highlight_no_drop_rooms"]
+        *zora_flags.ZORA_1_0_FIELDS, "pegasus_boots", "expanded_dungeon_locations", "highlight_no_drop_rooms",
+        "do_not_segment_dungeons", "disable_custom_music"]
+
+
+def field_named(name: str) -> zora_flags.ZoraField:
+    return next(field for field in zora_flags.FIELDS if field.name == name)
 
 
 @pytest.mark.parametrize("asked", [ThreeState.ON, ThreeState.POSSIBLE], ids=["on", "random"])
@@ -192,7 +197,7 @@ def test_version_8_holds_expanded_dungeon_locations_off_by_default(asked: ThreeS
     """Version 8's one field, On / Off / ?, Off by default: a version-7 string decodes with it off
     and keeps its spelling; on or "?" it spells as version 8. It is produced: what it is refused with
     is a conflict (tests/test_expanded_dungeon_locations.py)."""
-    field = zora_flags.FIELDS[-2]
+    field = field_named("expanded_dungeon_locations")
     assert (field.name, field.slots, field.version) == ("expanded_dungeon_locations", 3, 8)
     version_7 = encode(ZoraFlags(pegasus_boots=ThreeState.ON, randomize_letter=True))
     assert version_7.startswith("7.") and decode(version_7).expanded_dungeon_locations is ThreeState.OFF
@@ -207,7 +212,7 @@ def test_version_9_holds_highlight_no_drop_rooms_off_by_default(asked: ThreeStat
     """Version 9's one field, On / Off / ?, Off by default: a version-8 string decodes with it off
     and keeps its spelling; on or "?" it spells as version 9, and it is produced
     (tests/test_highlight_no_drop_rooms.py)."""
-    field = zora_flags.FIELDS[-1]
+    field = field_named("highlight_no_drop_rooms")
     assert (field.name, field.slots, field.version) == ("highlight_no_drop_rooms", 3, 9)
     version_8 = encode(ZoraFlags(expanded_dungeon_locations=ThreeState.ON, randomize_letter=True))
     assert version_8.startswith("8.") and decode(version_8).highlight_no_drop_rooms is ThreeState.OFF
@@ -217,26 +222,41 @@ def test_version_9_holds_highlight_no_drop_rooms_off_by_default(asked: ThreeStat
     assert zora_flags.unproduced_fields(flags) == zora_flags.unproduced_fields(DEFAULT) == []
 
 
-# --- PI-FLAG-03: Progressive Items refuses Extra Candles ----------------------
+@pytest.mark.parametrize("asked", [ThreeState.ON, ThreeState.POSSIBLE], ids=["on", "random"])
+def test_version_10_holds_do_not_segment_dungeons_off_by_default(asked: ThreeState) -> None:
+    """Version 10's one field, On / Off / ?, Off by default: a version-9 string decodes with it off
+    and keeps its spelling; on or "?" it spells as version 10, and it is produced
+    (tests/test_do_not_segment_dungeons.py)."""
+    field = field_named("do_not_segment_dungeons")
+    assert (field.name, field.slots, field.version) == ("do_not_segment_dungeons", 3, 10)
+    version_9 = encode(ZoraFlags(highlight_no_drop_rooms=ThreeState.ON, randomize_letter=True))
+    assert version_9.startswith("9.") and decode(version_9).do_not_segment_dungeons is ThreeState.OFF
+    assert canonicalize(version_9) == version_9
+    flags = ZoraFlags(do_not_segment_dungeons=asked)
+    assert encode(flags).startswith("10.") and decode(encode(flags)) == flags
+    assert zora_flags.unproduced_fields(flags) == zora_flags.unproduced_fields(DEFAULT) == []
 
-def test_progressive_items_refuses_extra_candles_on() -> None:
+
+
+def test_version_11_holds_disable_custom_music_off_by_default() -> None:
+    """Version 11's one field, a switch, Off by default: a version-10 string decodes with it off and
+    keeps its spelling; on, it spells as version 11. It rules only the player settings, so the game's
+    string (game_string), which the random streams and the level encoding key take, leaves it out."""
+    field = zora_flags.FIELDS[-1]
+    assert (field.name, field.slots, field.version) == ("disable_custom_music", 2, 11)
+    version_10 = encode(ZoraFlags(do_not_segment_dungeons=ThreeState.ON, randomize_letter=True))
+    assert version_10.startswith("10.") and not decode(version_10).disable_custom_music
+    assert canonicalize(version_10) == version_10
+    raced = ZoraFlags(do_not_segment_dungeons=ThreeState.ON, randomize_letter=True, disable_custom_music=True)
+    assert encode(raced).startswith("11.") and decode(encode(raced)) == raced
+    assert zora_flags.game_string(raced) == version_10
+    assert zora_flags.game_string(ZoraFlags(disable_custom_music=True)) == ""
+
+# --- tetraly/zora#13: Progressive Items takes Extra Candles (PI-FLAG-03 lifted) ----
+
+def test_progressive_items_takes_extra_candles() -> None:
     progressive = ZoraFlags(progressive_items=True)
-    assert BASELINE.toggle(zora_flags.EXTRA_CANDLES) is ThreeState.ON       # the MVP baseline has B09 on
-    assert validate(progressive, BASELINE) == [zora_flags.EXTRA_CANDLES_CONFLICT]
-    assert zora_flags.conflicts(progressive, BASELINE) == [
-        (zora_flags.EXTRA_CANDLES_CONFLICT, ("progressive_items", "B09"))]
-    for value in (ThreeState.OFF, ThreeState.POSSIBLE):
+    assert BASELINE.toggle("B09") is ThreeState.ON                          # the MVP baseline has B09 on
+    for value in ThreeState:
         assert validate(progressive, BASELINE.updated(toggles={"B09": value})) == []
-    # Shop Items in the Item Pool works with B09 (section 8).
-    assert validate(ZoraFlags(shop_items_in_pool=True), BASELINE) == []
-
-
-def test_a_possible_extra_candles_resolves_off_with_progressive_items() -> None:
-    asked = BASELINE.updated(toggles={"B09": ThreeState.POSSIBLE})
-    resolved = asked.updated(toggles={"B09": ThreeState.ON})
-    progressive = ZoraFlags(progressive_items=True)
-    assert zora_flags.without_extra_candles(progressive, resolved, asked).toggle("B09") is ThreeState.OFF
-    assert zora_flags.without_extra_candles(DEFAULT, resolved, asked) == resolved
-    assert zora_flags.without_extra_candles(progressive, BASELINE.updated(toggles={"B09": ThreeState.OFF}),
-                                            BASELINE.updated(toggles={"B09": ThreeState.OFF})).toggle("B09") \
-        is ThreeState.OFF
+        assert zora_flags.conflicts(progressive, BASELINE.updated(toggles={"B09": value})) == []

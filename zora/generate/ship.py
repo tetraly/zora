@@ -113,8 +113,11 @@ def ship_hint_text(gw: GameWorld, hint_text: HintTextResult) -> None:
     """Write the composed hint text into the shipped GameWorld, after B19's pointer exchange: a
     person never tells where its own level is (keep_level_hints_out_of_their_levels)."""
     hint_text = keep_level_hints_out_of_their_levels(hint_text)
-    gw.quotes = _displayed_quotes(hint_text)
-    gw.quotes_raw = b""
+    if hint_text.keeps_text_block:
+        gw.quotes = list(hint_text.quotes)            # HT-HINT-05: PRG0's block stays (quotes_raw)
+    else:
+        gw.quotes = _displayed_quotes(hint_text)
+        gw.quotes_raw = b""
     gw.hint_pointers = hint_text.pointers
     gw.hint_text_bytes = hint_text.text_bytes
     gw.white_sword_text_selector = hint_text.white_sword_selector

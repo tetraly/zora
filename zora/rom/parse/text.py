@@ -8,6 +8,7 @@ from ..text_encoding import (
 from ..text_encoding import (
     QUOTE_BLANK,
     QUOTE_CHAR_MASK,
+    QUOTE_EMPTY,
     QUOTE_END_BITS,
     QUOTE_LINE1_BIT,
     QUOTE_LINE2_BIT,
@@ -19,7 +20,7 @@ from ..text_encoding import (
 
 def _decode_quote(data: bytes, offset: int) -> str:
     """Decode one quote starting at data[offset]. Returns pipe-separated lines."""
-    if offset >= len(data) or data[offset] == QUOTE_BLANK:
+    if offset >= len(data) or data[offset] in (QUOTE_BLANK, QUOTE_EMPTY):
         return ""
     lines: list[str] = []
     current: list[str] = []

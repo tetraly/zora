@@ -1,7 +1,8 @@
 """The web page's copy buttons (web/zora-web.js): "Copy bug-report info" (bugReportText; owner's
 triage, 2026-10-17), one block with the version, the seed, both flag strings, the ROM (PRG0 or PRG1,
 and modified graphics if so, from zora_web.api.identify_rom) and the seed code as its item names;
-and "Copy seed code" (seedCodeText; owner, 2026-10-17), the item names alone, for a race room."""
+"Copy seed code" (seedCodeText; owner, 2026-10-17), the item names alone, for a race room; and "Copy
+race info" (raceInfoText; owner, 2026-10-22), a short block for a race channel."""
 import json
 import re
 import shutil
@@ -21,10 +22,21 @@ FLAGS = api.flag_form.metadata()["defaultFlags"]
 CODE = ["Magical Key", "Wooden Arrow", "Heart Container", "Power Bracelet"]
 
 
+def page_constant(name: str) -> str:
+    match = re.search(rf"^const {name} = .*;$", PAGE_SCRIPT, re.MULTILINE)
+    assert match, name
+    return match.group(0)
+
+
 def page_function(name: str) -> str:
     match = re.search(rf"^(?:async )?function {name}\(.*?^}}\n", PAGE_SCRIPT, re.MULTILINE | re.DOTALL)
     assert match, name
     return match.group(0)
+
+
+
+
+RACE_CONSTANTS = [page_constant(name) for name in ("RACE_ROM_ON", "RACE_ROM_OFF")]
 
 
 def run_page(call: str) -> str:
@@ -32,7 +44,8 @@ def run_page(call: str) -> str:
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node is not installed")
-    functions = "\n".join(page_function(name) for name in ("seedCodeText", "bugReportText"))
+    functions = "\n".join([*RACE_CONSTANTS, *(page_function(name) for name in ("seedCodeText", "bugReportText",
+                                                                                  "raceInfoText"))])
     source = f"{functions}\nprocess.stdout.write({call});"
     return subprocess.run([node, "-e", source], capture_output=True, text=True, check=True).stdout
 
@@ -82,7 +95,34 @@ def test_the_buttons_follow_each_generated_seed() -> None:
     on_generate = page_function("onGenerate")
     assert "addCopyButtons({ version: $(\"version\").textContent, seed: result.seed, flags: requested.flags," \
            in on_generate
-    assert "zoraFlags: requested.zoraFlags, identity: romIdentity, code });" in on_generate
+    assert "zoraFlags: requested.zoraFlags, identity: romIdentity, code," in on_generate
+    assert "encoded: requested.encoded, notices: requested.notices });" in on_generate
     buttons = page_function("addCopyButtons")
     assert '"Copy bug-report info", bugReportText(info)' in buttons
+    assert '"Copy race info", raceInfoText(info)' in buttons
     assert 'if (info.code.length) {' in buttons and '"Copy seed code", seedCodeText(info.code)' in buttons
+
+
+def race_info(**changes: Any) -> str:
+    info = {"version": "2.0 beta 7", "seed": "2535214729", "flags": FLAGS, "zoraFlags": "", "code": CODE,
+            "encoded": False, "notices": [], **changes}
+    return run_page(f"raceInfoText({json.dumps(info)})")
+
+
+def test_race_info_is_short_and_plain() -> None:
+    assert race_info() == ("ZORA 2.0 beta 7\nSeed: 2535214729\n"
+                           f"Flags: {FLAGS}\n"
+                           "Seed code: Magical Key, Wooden Arrow, Heart Container, Power Bracelet\n"
+                           "Race ROM: off (spoiler log available)")
+
+
+def test_race_info_with_zora_flags_an_encoded_seed_and_a_notice() -> None:
+    lines = race_info(zoraFlags="AB", encoded=True, code=[],
+                      notices=["Mirrored overworld isn't supported yet; this seed is not mirrored"]).splitlines()
+    assert lines[3:] == ["ZORA flags: AB", "Race ROM: on (level data encoded, no spoiler log)",
+                         "Notice: Mirrored overworld isn't supported yet; this seed is not mirrored."]
+
+
+def test_race_info_with_the_code_as_characters() -> None:
+    """Under Item Sprites other than normal the page passes the four characters as the code."""
+    assert "Seed code: 4K7Q" in race_info(code=["4K7Q"]).splitlines()

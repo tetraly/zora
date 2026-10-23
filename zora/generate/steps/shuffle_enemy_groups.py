@@ -1,5 +1,8 @@
-"""Shuffle Enemy Groups (B42; PS-EGRP-01 to -06, PS-SPR-03)."""
+"""Shuffle Enemy Groups (B42; PS-EGRP-01 to -06, PS-SPR-03). Its two switches: Shuffle Overworld
+Group (B43; off: PS-EGRP-07, three dungeon groups and no overworld redraw) and Shuffle Level 9
+Monsters (B35; off: PS-MONLV-07, blue Wizzrobe forced into group 2, level 9's)."""
 
+from collections.abc import Collection
 from dataclasses import dataclass
 
 from ...model.enums import Enemy
@@ -30,6 +33,12 @@ ENEMY_OBJECTS: dict[Enemy, SpriteObject] = {
     E.BLUE_MOBLIN: SpriteObject(16, (PatternBlock.OWSP, 1568), (19, 4)),
 }
 ROSTER = tuple(ENEMY_OBJECTS)                    # the spec's listing order
+OVERWORLD_PRIMARIES = (E.BLUE_TEKTITE, E.BLUE_LYNEL, E.BLUE_MOBLIN)
+# PS-EGRP-07: with B43 off the twelve dungeon enemies are dealt into the three dungeon groups
+DUNGEON_ROSTER = tuple(enemy for enemy in ROSTER if enemy not in OVERWORLD_PRIMARIES)
+DUNGEON_GROUPS = (0, 1, 2)
+# PS-MONLV-07: with B35 off blue Wizzrobe goes to group 2 (the tier-2 bank, level 9's) before the deal
+WIZZROBE_GROUP = 2
 WALLMASTER_COUNTED_COST = 6                      # its 4 tiles count as 6
 
 
@@ -38,6 +47,7 @@ def counted_cost(enemy: Enemy) -> int:
 
 
 SEED_CANDIDATES = (E.ZOL, E.POLS_VOICE, E.STALFOS, E.GIBDO, E.BLUE_TEKTITE)
+DUNGEON_SEED_CANDIDATES = SEED_CANDIDATES[:-1]   # PS-EGRP-07: no Tektite
 SEED_GROUPS = (1, 2)
 GROUP_TILE_LIMIT = 34
 # The overworld group's total starts at -2 (34 minus the 36 tiles of blue
@@ -65,18 +75,19 @@ class EnemyDeal:
 
     def members(self, group: int) -> list[Enemy]:
         """The group's pickable members: dealt enemies (the seed in groups 1
-        and 2), then their partners."""
-        dealt = self.groups[group]
+        and 2), then their partners; none for a group not dealt (the
+        overworld group with B43 off)."""
+        dealt = self.groups.get(group, [])
         return dealt + [PARTNERS[enemy] for enemy in dealt if enemy in PARTNERS]
 
     def group_of(self, enemy: Enemy) -> int | None:
         return next((group for group in (0, 1, 2, OVERWORLD) if enemy in self.members(group)), None)
 
 
-def _sort_by_cost(rng: IntRng) -> list[Enemy]:
+def _sort_by_cost(rng: IntRng, roster: tuple[Enemy, ...] = ROSTER) -> list[Enemy]:
     """PS-EGRP-01: a descending bubble sort by counted cost; each tied pair
     is decided by a coin flip."""
-    order = list(ROSTER)
+    order = list(roster)
     for done in range(len(order) - 1):
         for position in range(len(order) - 1 - done):
             cost, next_cost = counted_cost(order[position]), counted_cost(order[position + 1])
@@ -95,29 +106,38 @@ def _group_allows(members: list[Enemy], total: int, group: int, enemy: Enemy) ->
 
 def _is_covered(groups: dict[int, list[Enemy]], zol_hp: int) -> bool:
     cover = COVERAGE | ({E.VIRE} if zol_hp <= VIRE_COVERS_AT_ZOL_HP else set())
-    return all(cover & set(groups[group]) for group in GROUPS)
+    return all(cover & set(members) for members in groups.values())
 
 
-def deal_enemies(rng: IntRng, zol_hp: int) -> EnemyDeal:
+def deal_enemies(rng: IntRng, zol_hp: int, overworld_group: bool = True,
+                 wizzrobes_in_level_9_group: bool = False) -> EnemyDeal:
     """PS-EGRP-01: sort, seed enemy into groups 1 and 2, then one uniform
     group per enemy, redrawn while barred; 1,000 failures or a group
-    without a coverage enemy redo the group draws (order and seed kept)."""
+    without a coverage enemy redo the group draws (order and seed kept).
+    PS-EGRP-07 (B43 off): the twelve dungeon enemies into groups 0-2.
+    PS-MONLV-07 (B35 off): blue Wizzrobe joins group 2 after the seed, with
+    its tiles counted, and the deal skips it."""
+    roster, seeds = (ROSTER, SEED_CANDIDATES) if overworld_group else (DUNGEON_ROSTER, DUNGEON_SEED_CANDIDATES)
+    groups_dealt = GROUPS if overworld_group else DUNGEON_GROUPS
     discard(rng, DISCARDED_DRAWS)
-    order = _sort_by_cost(rng)
-    seed = SEED_CANDIDATES[rng.below(len(SEED_CANDIDATES))]
+    order = _sort_by_cost(rng, roster)
+    seed = seeds[rng.below(len(seeds))]
     restarts = 0
     while True:
-        groups: dict[int, list[Enemy]] = {group: [] for group in GROUPS}
-        totals = dict(zip(GROUPS, GROUP_START_TOTALS, strict=True))
+        groups: dict[int, list[Enemy]] = {group: [] for group in groups_dealt}
+        totals = {group: GROUP_START_TOTALS[group] for group in groups_dealt}
         for group in SEED_GROUPS:
             groups[group].append(seed)
             totals[group] += counted_cost(seed)
+        if wizzrobes_in_level_9_group:
+            groups[WIZZROBE_GROUP].append(E.BLUE_WIZZROBE)
+            totals[WIZZROBE_GROUP] += counted_cost(E.BLUE_WIZZROBE)
         is_dealt = True
         for enemy in order:
-            if enemy == seed:
+            if enemy == seed or (wizzrobes_in_level_9_group and enemy == E.BLUE_WIZZROBE):
                 continue
             for _ in range(DEAL_ATTEMPTS):
-                group = GROUPS[rng.below(len(GROUPS))]
+                group = groups_dealt[rng.below(len(groups_dealt))]
                 if _group_allows(groups[group], totals[group], group, enemy):
                     groups[group].append(enemy)
                     totals[group] += counted_cost(enemy)
@@ -165,7 +185,7 @@ def pack_enemies(gw: GameWorld, deal: EnemyDeal, staged: Staged) -> dict[int, di
                for enemy, sprite_object in ENEMY_OBJECTS.items()}
     tier0_first = gw.sprites.read_tiles(PatternBlock.UWSP127, 0, len(WALLMASTER_BORROWED))
     placed: dict[int, dict[Enemy, list[int]]] = {}
-    for group in GROUPS:
+    for group in deal.groups:
         free = list(OVERWORLD_BANK_TILES if group == OVERWORLD else ENEMY_BANK_TILES)
         slots: dict[Enemy, list[int]] = {}
         members = deal.groups[group]
@@ -248,7 +268,7 @@ def redraw_rooms(blocks: list[LevelBlock], deal: EnemyDeal, rng: IntRng) -> int:
             current = room.enemy
             if current == E.ZOL:
                 pick = deal.seed
-            elif current in OLD_ENEMY_GROUPS:
+            elif current in OLD_ENEMY_GROUPS and OLD_ENEMY_GROUPS[current] in deal.groups:
                 members = deal.members(OLD_ENEMY_GROUPS[current])
                 pick = members[rng.below(len(members))]
                 while pick in LANMOLAS and room.room_type in LANMOLA_BAD_LAYOUTS:
@@ -278,12 +298,13 @@ def _list_bounds(gw: GameWorld) -> list[tuple[int, int]]:
     return list(zip(starts, ends, strict=True))
 
 
-def _list_group(members: bytearray) -> int | None:
-    """The old group of the list's last grouped member; none when a Zol
+def _list_group(members: bytearray, dealt: Collection[int] = GROUPS) -> int | None:
+    """The old group of the list's last grouped member, among the groups
+    dealt (PS-EGRP-07: groups 0-2 only with B43 off); none when a Zol
     follows it or no member has one."""
     group, last = None, -1
     for position, value in enumerate(members):
-        if value in GROUPED_VALUES:
+        if value in GROUPED_VALUES and OLD_ENEMY_GROUPS[Enemy(value)] in dealt:
             group, last = OLD_ENEMY_GROUPS[Enemy(value)], position
     if any(value == E.ZOL.value for value in members[last + 1:]):
         return None
@@ -312,7 +333,7 @@ def redraw_mixed_lists(gw: GameWorld, deal: EnemyDeal, rng: IntRng, staged: Stag
     data = bytearray(gw.enemies.mixed_enemy_data)
     for start, end in _list_bounds(gw):
         members = data[start:end]
-        group = _list_group(members)
+        group = _list_group(members, deal.groups.keys())
         for position, value in enumerate(members):
             if value == E.ZOL.value:
                 members[position] = deal.seed.value
@@ -366,7 +387,9 @@ def redraw_overworld(gw: GameWorld, overworld: Overworld, deal: EnemyDeal, rng: 
                      staged: Staged) -> None:
     """PS-EGRP-05: an unsafe flagged screen loses its flag and becomes a
     blue Moblin (quantity kept); then every unflagged Lynel/Moblin/Tektite
-    screen gets a pick from the overworld group, redrawn while barred."""
+    screen gets a pick from the overworld group, redrawn while barred.
+    PS-EGRP-07 (B43 off, no overworld group): only the unsafe-screen part;
+    the item-carrier operands and the red-Wizzrobe runs are not written."""
     members = deal.members(OVERWORLD)
     assert staged.mixed_lists is not None, "PS-EGRP-04 runs first"
     lists = {code: bytes(staged.mixed_lists[start:end])
@@ -377,12 +400,17 @@ def redraw_overworld(gw: GameWorld, overworld: Overworld, deal: EnemyDeal, rng: 
             if not _is_flagged_screen_unsafe(screen.screen_num, code, lists):
                 continue
             code = E.BLUE_MOBLIN.value
-        if Enemy(code) not in OVERWORLD_MONSTERS:
+            if not members:
+                staged.overworld_monsters[screen.screen_num] = E.BLUE_MOBLIN
+                continue
+        if not members or Enemy(code) not in OVERWORLD_MONSTERS:
             continue
         pick = members[rng.below(len(members))]
         while _is_screen_barred(screen.screen_num, pick):
             pick = members[rng.below(len(members))]
         staged.overworld_monsters[screen.screen_num] = pick
+    if not members:
+        return
     operands = gw.item_carrier_operands
     staged.item_carrier_operands = (
         CARRIER_OFF if ITEM_CARRIERS[0] in members else operands[0],
@@ -419,12 +447,13 @@ def pick_goriya_tile(deal: EnemyDeal, placed: dict[int, dict[Enemy, list[int]]],
 
 
 def shuffle_enemy_groups(blocks: list[LevelBlock], gw: GameWorld, goriya_tier: int, rng: IntRng,
-                         overworld: Overworld, zol_hp: int, staged: Staged) -> tuple[EnemyDeal, int, int]:
+                         overworld: Overworld, zol_hp: int, staged: Staged, overworld_group: bool = True,
+                         wizzrobes_in_level_9_group: bool = False) -> tuple[EnemyDeal, int, int]:
     """PS-EGRP-01..06: deal the enemies into groups, pack their tiles, and
     redraw the rooms, the mixed lists and the overworld from them; then the
     goriya's tile from its level's group. Returns the deal, the goriya tile
     and the number of rooms redrawn."""
-    enemy_deal = deal_enemies(rng, zol_hp)
+    enemy_deal = deal_enemies(rng, zol_hp, overworld_group, wizzrobes_in_level_9_group)
     placed = pack_enemies(gw, enemy_deal, staged)
     rooms_redrawn = redraw_rooms(blocks, enemy_deal, rng)
     redraw_mixed_lists(gw, enemy_deal, rng, staged)

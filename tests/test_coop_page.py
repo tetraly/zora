@@ -45,6 +45,8 @@ COOP_PAGE = range(0x7F00, 0x8000)
 # ROM. The one place to change when the counters move.
 STATS_ALLOWED = range(STATS_BLOCK, STATS_BLOCK + STATS_SIZE)
 STATS_SETTING, STATS_ON = "statistics_screen", "on"
+# The choices that hold the screen: "music" is the same code with StatsTick moved (randomized music)
+STATS_CHOICES = (STATS_ON, "music")
 SAVE_RAM_END, SAVE_RAM_END_MARKER = 0x7FFF, 0xA5      # PRG0's own write at power-on and reset
 
 # --- the static scan ------------------------------------------------------------------------------
@@ -96,14 +98,16 @@ def test_no_patch_writes_the_coop_page() -> None:
     """Off (a co-op ROM's statistics screen), and in every other patch of any configuration, no write
     instruction can reach $7F00-$7FFF."""
     found = {name: hits for name, writes in patch_tables()
-             if name != f"{STATS_SETTING}/{STATS_ON}" and (hits := page_writes(writes))}
+             if name not in {f"{STATS_SETTING}/{choice}" for choice in STATS_CHOICES}
+             and (hits := page_writes(writes))}
     assert found == {}
 
 
-def test_the_statistics_screen_writes_only_its_counters() -> None:
+@pytest.mark.parametrize("choice", STATS_CHOICES)
+def test_the_statistics_screen_writes_only_its_counters(choice: str) -> None:
     """The statistics screen's every write operand on the page is in STATS_ALLOWED (and the scan
     finds its writes, so it reads the patch's code)."""
-    hits = page_writes(player_settings_data.SETTINGS[STATS_SETTING][STATS_ON])
+    hits = page_writes(player_settings_data.SETTINGS[STATS_SETTING][choice])
     assert hits
     assert [hit for hit in hits if hit[2] not in STATS_ALLOWED] == []
 

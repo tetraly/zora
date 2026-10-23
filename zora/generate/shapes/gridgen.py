@@ -27,18 +27,23 @@ def grow_set(world: SetWorld, rng: Rng, six_level: bool,
     LIST of (cell, level) entries (SH-GRID-13): every placement appends one
     entry per on-grid neighbor inside the placing level's band; duplicates
     and entries for owned cells stay listed. Leftover cells stay unowned
-    (no sweep); they join the stair pool (SH-GRID-08)."""
+    (no sweep); they join the stair pool (SH-GRID-08).
+
+    Do Not Segment Dungeons: no seed cells, and the probe places only beside the level's own cells,
+    so every level grows as one piece (every frontier entry is a neighbor of the level's cells)."""
     opts = opts or ShapeOptions()
+    unsegmented = opts.do_not_segment_dungeons
     frontier: list[tuple[int, int]] = []
     _place_starts(world, rng, six_level, frontier, opts.start_room_swap)
     order = list(range(world.blob_count))
     for blob in order:               # update 10: one step per level, 1, 2, 3...
-        _grow_step(world, rng, blob, frontier)
-    _place_seeds(world, rng, opts, frontier)
+        _grow_step(world, rng, blob, frontier, unsegmented)
+    if not unsegmented:
+        _place_seeds(world, rng, opts, frontier)
     rounds = 12 if six_level else 17
     for _ in range(rounds):          # same in-set order (QUESTIONS #44.1)
         for blob in order:
-            _grow_step(world, rng, blob, frontier)
+            _grow_step(world, rng, blob, frontier, unsegmented)
     _fill(world, rng, frontier)
 
 
@@ -88,11 +93,12 @@ def _take(world: SetWorld, rng: Rng, frontier: list[tuple[int, int]],
 
 
 def _grow_step(world: SetWorld, rng: Rng, blob: int,
-               frontier: list[tuple[int, int]]) -> None:
+               frontier: list[tuple[int, int]], unsegmented: bool = False) -> None:
     """A per-level round step: only this level's entries are weighted; a
     draw that places nothing draws again; with no free-cell entry left the
     level falls through to the in-band probe (5,000 misses widen the band
-    one column, never past eight; at eight the step places nothing)."""
+    one column, never past eight; at eight the step places nothing), or
+    under Do Not Segment Dungeons to the adjacent probe."""
     while True:
         mine = [i for i, (c, b) in enumerate(frontier) if b == blob]
         if not any(world.blob_of[frontier[i][0]] == -1 for i in mine):
@@ -101,7 +107,10 @@ def _grow_step(world: SetWorld, rng: Rng, blob: int,
         if got is not None:
             _place(world, got[0], blob, frontier)
             return
-    _probe(world, rng, blob, frontier)
+    if unsegmented:
+        _adjacent_probe(world, rng, blob, frontier)
+    else:
+        _probe(world, rng, blob, frontier)
 
 
 PROBE_LIMIT = 5_000
@@ -127,6 +136,19 @@ def _probe(world: SetWorld, rng: Rng, blob: int,
             world.bands[blob] = [lo, hi + 1]
         else:
             return
+
+
+def _adjacent_probe(world: SetWorld, rng: Rng, blob: int,
+                    frontier: list[tuple[int, int]]) -> None:
+    """Do Not Segment Dungeons' probe: one free in-band cell beside the level's own cells, drawn
+    uniformly; none, and the step places nothing (the band never widens)."""
+    lo, hi = world.bands[blob]
+    owner_of = world.blob_of
+    candidates = [cell for cell in range(len(owner_of))
+                  if owner_of[cell] == -1 and lo <= (cell & 0x0F) <= hi
+                  and any(owner_of[neighbor] == blob for neighbor in _NEIGHBORS[cell])]
+    if candidates:
+        _place(world, candidates[rng.below(len(candidates))], blob, frontier)
 
 
 def _fill(world: SetWorld, rng: Rng, frontier: list[tuple[int, int]]) -> None:

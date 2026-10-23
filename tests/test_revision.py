@@ -17,7 +17,16 @@ from zora.flags.fields import ENCODE_LEVEL_DATA, ThreeState
 from zora.flags.presets import ZORA_PRESETS
 from zora.generate import pipeline
 from zora.model.canonical import canonical_bytes
-from zora.rom import asnb_patch_data, code_patch_data, flags2_patch_data, layout, level_encoding, player_settings_data
+from zora.rom import (
+    asnb_patch_data,
+    code_patch_data,
+    flags2_patch_data,
+    layout,
+    level_encoding,
+    player_settings_data,
+    small_settings,
+    uphill_battle,
+)
 from zora.rom.base_rom import BASE_ROM_PATH, PRG1_ROM_PATH, Original, Piece, piece_length, remember_base_rom
 from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, seed_code_items
 from zora.rom.parse.rom_file import parse_rom
@@ -84,8 +93,30 @@ def release(revision: Revision) -> bytes:
     return prg0() if revision is Revision.PRG0 else prg1()
 
 
+def slow_speed_after_boots() -> bytes:
+    """Red Bubble Curse's Slow Speed routine (C19 = 2) as it is written beside Pegasus Boots, whose
+    call in InitLinkSpeed it makes first (061e6a8; revision.SLOW_SPEED_BOOTS_CALL)."""
+    boots_call = dict(flags2_patch_data.PATCHES["pegasus-boots"])[uphill_battle.LINK_SPEED_INIT]
+    assert isinstance(boots_call, bytes)
+    image = bytearray(uphill_battle.LINK_SPEED_INIT) + boots_call
+    return uphill_battle.slow_speed_code(image)
+
+
+def small_settings_writes() -> list[tuple[str, int, Piece]]:
+    """The beta 9 export's fixed patches (zora/rom/small_settings.py), Rupees Affect Speed in its four
+    forms; their runs of the original game's code are read from PRG0."""
+    remember_base_rom(prg0())
+    forms = {"Killable Drop Items": small_settings.killable_drop_items_writes(),
+             "Hidden Numbers": small_settings.hidden_numbers_writes(),
+             "Prevent Clipping": small_settings.prevent_clipping_writes(),
+             **{f"Rupees Affect Speed (slow speed {slow}, boots {boots})":
+                small_settings.rupee_speed_writes(slow, boots) for slow in (False, True) for boots in (False, True)}}
+    return [(where, offset, data) for where, writes in forms.items() for offset, data in writes]
+
+
 def patch_writes() -> list[tuple[str, int, Piece]]:
-    """Every (where, file offset, piece) of the five patch tables."""
+    """Every (where, file offset, piece) of the five patch tables, Slow Speed's routine beside
+    Pegasus Boots (written from the image, so in no table) and the beta 9 small settings."""
     writes = [(f"code {name}", offset, piece) for name, pieces in code_patch_data.PATCHES.items()
               for offset, piece in pieces]
     writes += [(f"2.0 flags {name}", offset, piece) for name, pieces in flags2_patch_data.PATCHES.items()
@@ -95,7 +126,9 @@ def patch_writes() -> list[tuple[str, int, Piece]]:
     writes += [(f"setting {name}={value}", offset, piece)
                for name, values in player_settings_data.SETTINGS.items() for value, pieces in values.items()
                for offset, piece in pieces]
-    return writes
+    writes.append(("Red Bubble Curse C19=2 with Pegasus Boots", uphill_battle.SLOW_SPEED_ROUTINE,
+                   slow_speed_after_boots()))
+    return writes + small_settings_writes()
 
 
 # --- the module's constants ---------------------------------------------------------------------
@@ -361,6 +394,7 @@ COSMETIC_SETTINGS = {
     "defaults": PlayerSettings(),
     "music off, select pauses, beep kept": PlayerSettings(
         music=Music.OFF, select_swap=SelectSwap.OFF, low_health_beep=LowHealthBeep.KEPT),
+    "beep at half speed": PlayerSettings(low_health_beep=LowHealthBeep.HALF_SPEED),
     "swap only, other warp, colors, words, flashing": PlayerSettings(
         select_swap=SelectSwap.SWAP_ONLY, death_warp=DeathWarp.CONTROLLER2_UP_A, reduce_flashing=True,
         tunic_colors=(0x1A, 0x21, 0x06), heart_color=0x2A, level_word="ZONE", boss_sound_word="RANDOM"),

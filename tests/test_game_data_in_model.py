@@ -128,8 +128,10 @@ def test_a_finished_rom_round_trips_over_prg0(name: str) -> None:
 
 
 def test_no_final_step_writes_game_data() -> None:
+    """Hidden Health (B55, FP-HIDE-01) writes code after the player settings, which it overrides."""
     assert [step.name for step in FINAL_STEPS] == ["code_patches", "encode_level_data", "slot_identity",
-                                                   "stamp_seed_code", "stamp_seed_number", "player_settings"]
+                                                   "stamp_seed_code", "stamp_seed_number", "player_settings",
+                                                   "hidden_health"]
 
 
 @needs_base_rom

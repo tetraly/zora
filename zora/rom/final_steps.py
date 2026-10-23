@@ -21,16 +21,21 @@ too: each player's code differs), never the ROM.
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from ..generate.rng import Rng
 from ..model.game_world import GameWorld
 from . import (
     archipelago_logo,
     bait_count,
     code_patches,
+    hidden_tiles,
+    item_sprites,
     overworld_crossings,
     owner_patches,
     slot_identity,
+    small_settings,
     sword_and_harm,
     sword_states,
+    uphill_battle,
 )
 from .game_config import GameConfig
 from .player_settings import PlayerSettings, write_player_settings
@@ -105,6 +110,59 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     if config.wand_fights_ganon:
         for address, data in sword_states.wand_ganon_writes():
             rom[address:address + len(data)] = data
+    for address, data in uphill_battle_writes(config, rom):
+        rom[address:address + len(data)] = data
+    for address, data in small_settings_writes(config):
+        # after the beta 8 patches: B80 goes over C19 = 2's routine
+        rom[address:address + len(data)] = data
+    if config.change_hidden_tiles:
+        # after the crossings' bytes (B87, B88), which it leaves as written (FP-VIS-01)
+        for address, data in hidden_tiles.hidden_tiles_writes(rom, config.plain_dead_secrets):
+            rom[address:address + len(data)] = data
+    if config.item_appearance:
+        # last of the code patches: the pictures as everything before leaves them (FP-SPRITE-01)
+        assert config.item_sprites_key is not None
+        for address, data in item_sprites.item_sprite_writes(rom, config.item_appearance,
+                                                             Rng(config.item_sprites_key),
+                                                             logo=config.foreign_logo):
+            rom[address:address + len(data)] = data
+
+
+def uphill_battle_writes(config: GameConfig, rom: bytes | bytearray) -> list[tuple[int, bytes]]:
+    """The beta 8 export's fixed patches (zora/rom/uphill_battle.py) with their fields on, on the
+    image `rom` the code patches leave; Hidden Health's come after the player settings
+    (write_hidden_health)."""
+    writes: list[tuple[int, bytes]] = []
+    if config.recorder_to_unbeaten:
+        writes += uphill_battle.recorder_to_unbeaten_writes()
+    if config.hide_dungeon_numbers:
+        writes += uphill_battle.hide_dungeon_numbers_writes()
+    if config.red_bubble_curse:
+        writes += uphill_battle.red_bubble_writes(config.red_bubble_curse, rom)
+    if config.book_explosion:
+        writes += uphill_battle.book_explosion_writes()
+    if config.enemy_drops_key is not None:
+        writes += uphill_battle.enemy_drop_writes(Rng(config.enemy_drops_key), config.important_item_drops,
+                                                  config.random_drop_rates, swordless=config.wand_fights_ganon)
+    return writes
+
+
+PEGASUS_BOOTS = "pegasus_boots"       # its ZORA flag's name in GameConfig.owner_flags
+
+
+def small_settings_writes(config: GameConfig) -> list[tuple[int, bytes]]:
+    """The beta 9 export's fixed patches (zora/rom/small_settings.py) with their fields on."""
+    writes: list[tuple[int, bytes]] = []
+    if config.killable_drop_items:
+        writes += small_settings.killable_drop_items_writes()
+    if config.hidden_numbers:
+        writes += small_settings.hidden_numbers_writes()
+    if config.rupees_affect_speed:
+        writes += small_settings.rupee_speed_writes(slow_speed=config.red_bubble_curse == uphill_battle.SLOW_SPEED,
+                                                    pegasus_boots=PEGASUS_BOOTS in config.owner_flags)
+    if config.prevent_clipping:
+        writes += small_settings.prevent_clipping_writes()
+    return writes
 
 
 def encode_level_data(rom: bytearray, _world: GameWorld, settings: FinalSettings) -> None:
@@ -123,6 +181,10 @@ def stamp_seed_code(rom: bytearray, world: GameWorld, settings: FinalSettings) -
     """Last of the seed's own steps: the code, from the generated world and its configuration
     (FP-HASH-01; code_patches.seed_code_items), never from the ROM."""
     code_patches.stamp_seed_code(rom, world, settings.config)
+    if settings.config.item_appearance:
+        # FP-SPRITE-01: no icons; the heading shows the code as four characters
+        for address, data in item_sprites.file_select_code_writes(code_patches.seed_code_items(world, settings.config)):
+            rom[address:address + len(data)] = data
 
 
 def stamp_seed_number(rom: bytearray, _world: GameWorld, settings: FinalSettings) -> None:
@@ -137,6 +199,12 @@ def player_settings(rom: bytearray, _world: GameWorld, settings: FinalSettings) 
     rom[:] = write_player_settings(bytes(rom), settings.player_settings)
 
 
+def write_hidden_health(rom: bytearray, _world: GameWorld, _settings: FinalSettings) -> None:
+    """FP-HIDE-01 (B55): after the player settings' heart colour and beep, which it overrides."""
+    for address, data in uphill_battle.hidden_health_writes():
+        rom[address:address + len(data)] = data
+
+
 FINAL_STEPS: tuple[FinalStep, ...] = (
     FinalStep("code_patches", "B10 feature switch (B49 inside)", write_code_patches,
               lambda s: s.config.features_b10),
@@ -147,6 +215,7 @@ FINAL_STEPS: tuple[FinalStep, ...] = (
     FinalStep("stamp_seed_number", "B10 feature switch", stamp_seed_number,
               lambda s: s.config.features_b10 and s.new_seed and s.config.seed_number is not None),
     FinalStep("player_settings", "player settings", player_settings, lambda s: s.player_settings is not None),
+    FinalStep("hidden_health", "B55", write_hidden_health, lambda s: s.config.hidden_health),
 )
 
 

@@ -15,7 +15,8 @@ from zora.flags import fields as flags_fields
 from zora.flags import presets as flags_presets
 from zora.flags import support
 from zora.rom import level_encoding
-from zora.flags.fields import OptionField, ThreeState, ToggleField
+from zora.flags import zora_flags
+from zora.flags.fields import Level9Requirement, OptionField, ThreeState, ToggleField
 
 REPO = Path(__file__).resolve().parent.parent
 WORKER = REPO / "web" / "zora-worker.js"
@@ -80,8 +81,8 @@ def test_metadata_fields_match_flags_module() -> None:
 
 def test_metadata_support_matrix_matches_flags_module() -> None:
     """The baseline value, the turn-off values (FL-OFF-07), the alternative values (FL-ALT, owner
-    ruling) and, where both values of a three-state field are supported, its "?"; B23's off and "?"
-    need B22 off, so they are not offered on the baseline."""
+    ruling) and, where both values of a three-state field are supported, its "?"; B23's off needs
+    B22 off or "?", so it is not offered on the baseline, and its "?" is (FL-DEP-04's B22 and B23 rule)."""
     baseline = support.mvp_baseline_settings()
     both = [ThreeState.OFF, ThreeState.ON, ThreeState.POSSIBLE]
     for entry in worker_metadata()["fields"]:
@@ -98,8 +99,11 @@ def test_metadata_support_matrix_matches_flags_module() -> None:
         elif field_id in support.TURN_OFF_TOGGLES_NOT_RANDOM:
             assert entry["supportedValues"] == [ThreeState.OFF, ThreeState.ON]     # B29, B02: no "?" (FL-SUP-01)
         elif (field_id in support.TURN_OFF_TOGGLES or field_id in support.OWNER_TURN_OFF_TOGGLES
+              or field_id in support.SPEC_TURN_OFF_TOGGLES
               or field_id in support.ALTERNATIVE_TOGGLES) and field_id != "B23":
             assert entry["supportedValues"] == both
+        elif field_id == "B23":
+            assert entry["supportedValues"] == [ThreeState.ON, ThreeState.POSSIBLE]
         else:
             assert entry["supportedValues"] == [baseline.toggle(field_id)]
 
@@ -117,24 +121,26 @@ def test_metadata_presets_are_the_spec_presets(build: str) -> None:
     """The menu (owner, beta 5): the MVP baseline and variants A and C as Consternation,
     Consternation Remastered and Hopla, each with level encoding on as published; then CP-5
     (Consternation without level encoding), All Swords No Boards and Vanilla (2026-10-17), then
-    OHK0HPla Remastered, TTP5: Muffle Rug and TTP5: Pick 5 (2026-10-18). Random% (variant B, which
-    ZORA does not produce in full) and variant A without level encoding stay in presets.py, off the
-    menu."""
+    OHK0HPla Remastered, TTP5: Muffle Rug and TTP5: Pick 5 (2026-10-18), then TTP5: Uphill Battle and
+    SGLive Onsite 2026 (beta 8). Random% (variant B) and variant A without level encoding stay in
+    presets.py, off the menu."""
     presets = worker_metadata()["presets"]
     assert [(p["name"], p["label"]) for p in presets] == [
         ("MVP baseline", "Consternation"), ("Published variant A", "Consternation Remastered"),
         ("Published variant C", "Hopla"), ("MVP baseline, level encoding off", "Consternation without level encoding"),
         ("All Swords No Boards", "All Swords No Boards"), ("Vanilla", "Vanilla"),
         ("OHK0HPla Remastered", "OHK0HPla Remastered"), ("TTP5: Muffle Rug", "TTP5: Muffle Rug"),
-        ("TTP5: Pick 5", "TTP5: Pick 5")]
+        ("TTP5: Pick 5", "TTP5: Pick 5"), ("TTP5: Uphill Battle", "TTP5: Uphill Battle"),
+        ("SGLive Onsite 2026", "SGLive Onsite 2026")]
     encoded = presets[:3]
     assert [p["flags"] for p in encoded] == [codec.canonicalize(flags_presets.PRESETS[p["name"]]) for p in encoded]
     assert all(codec.decode(p["flags"]).toggle(flags_fields.ENCODE_LEVEL_DATA) is ThreeState.ON for p in encoded)
     assert presets[3]["flags"] == flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF and presets[3]["available"]
     shown = {p["flags"] for p in presets}
     assert flags_presets.PUBLISHED_VARIANT_B not in shown and flags_presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF not in shown
-    # variant B still has fields ZORA does not produce
-    assert flag_form.generation_refusals(flags_presets.PUBLISHED_VARIANT_B, "")[0].startswith("not produced: ")
+    # variant B is produced since the beta 8 export (C03 = 6, B37 "?"); it stays off the menu
+    assert not any(reason.startswith("not produced: ")
+                   for reason in flag_form.generation_refusals(flags_presets.PUBLISHED_VARIANT_B, ""))
     # variants A (C01 = 2 and C06 = 2) and C (Hopla: Mixed + Shapes, C02 = 4, with level encoding on
     # second-quest dungeons since 2026-10-12) are produced and encode their level data, as
     # Consternation does
@@ -151,12 +157,15 @@ def test_metadata_lists_every_rule_the_check_can_give() -> None:
     breaking = [
         zero.updated(options={"C12": flags_fields.PinnedItem.LADDER}),
         zero.updated(options={"C11": 3, "C13": 3}),
+        zero.updated(toggles={"B41": ThreeState.ON, "B46": ThreeState.ON}),
+        zero.updated(options={"C26": flags_fields.PinnedItem.BOW}),             # B25 off: rule 5
         zero.updated(toggles={"B26": ThreeState.ON}),
         zero.updated(toggles={"B36": ThreeState.ON}),
     ]
     given = {refusal.rule for settings in breaking for refusal in dependencies.check_dependencies(settings)}
-    # rules 1 and 4 change settings instead of refusing (rule 1's coin, OW-CAVE-10)
-    assert given == listed - {"FL-DEP-02 rule 1", "FL-DEP-02 rule 4"}
+    # FL-DEP-02's rules change settings instead of refusing (rule 1's coin, OW-CAVE-10; rule 2's, beta
+    # 8; rule 3's, the 2026-10-22 export; rule 4 always)
+    assert given == listed - {"FL-DEP-02 rule 1", "FL-DEP-02 rule 2", "FL-DEP-02 rule 3", "FL-DEP-02 rule 4"}
     assert not dependencies.check_dependencies(zero.updated(toggles={"B02": ThreeState.ON}))
 
 
@@ -179,6 +188,9 @@ def test_pasted_string_is_shown_canonical_and_bad_strings_show_the_decoders_erro
     assert without_zora(worker_state("")) == {"ok": False, "error": "Flag string: empty string"}
 
 
+RANGE_FIELDS = (flags_fields.PIECE_RANGE_LOW.id, flags_fields.PIECE_RANGE_HIGH.id)
+
+
 def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> None:
     state = worker_state(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)
     assert state["generateRefusals"] == []
@@ -186,8 +198,14 @@ def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> N
                   *support.TURN_OFF_OPTIONS,
                   *support.ALTERNATIVE_OPTIONS, *support.ALTERNATIVE_TOGGLES} - {"B23"}
     for field_id, field in state["fields"].items():
-        if field_id == flags_fields.ENCODE_LEVEL_DATA.id:
+        if field_id == "B23":
+            # with B22 on its off is blocked, its "?" offered (FL-DEP-04's B22 and B23 rule)
+            assert not field["disabled"] and set(field["blocked"]) == {str(int(ThreeState.OFF))}
+        elif field_id == flags_fields.ENCODE_LEVEL_DATA.id:
             assert not field["disabled"] or not level_encoding.is_available()
+        elif field_id in RANGE_FIELDS:
+            # read only by Level 9 Entry's Triforce Range and Specific Triforces: locked, with why
+            assert field["disabled"] and field["reason"] == flag_form.RANGE_UNUSED_TEXT, field_id
         elif field_id in selectable:
             produced = (support.TURN_OFF_OPTIONS.get(field_id, frozenset())
                         | support.ALTERNATIVE_OPTIONS.get(field_id, frozenset())
@@ -201,7 +219,8 @@ def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> N
 
 def test_fl_dep_06_b23_can_be_set_while_b22_is_off_and_is_kept_as_given() -> None:
     """FL-DEP-06: with B22 off the string is kept as pasted, with no note, and B23 can be set to
-    each of its values; with B22 on, B23's off and "?" stay blocked."""
+    each of its values; with B22 on, B23's off stays blocked, and its "?" is offered (FL-DEP-04's
+    B22 and B23 rule resolves it on)."""
     cp5 = codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)
     for toll in ThreeState:
         pasted = codec.encode(cp5.updated(toggles={"B22": ThreeState.OFF, "B23": toll}))
@@ -210,15 +229,19 @@ def test_fl_dep_06_b23_can_be_set_while_b22_is_off_and_is_kept_as_given() -> Non
         b23 = state["fields"]["B23"]
         assert b23["value"] == toll and not b23["disabled"] and not b23["problem"] and b23["blocked"] == {}
     b23 = worker_state(codec.encode(cp5))["fields"]["B23"]
-    assert set(b23["blocked"]) == {str(int(ThreeState.OFF)), str(int(ThreeState.POSSIBLE))}
+    assert set(b23["blocked"]) == {str(int(ThreeState.OFF))}
 
 
 def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused() -> None:
-    state = worker_state(flags_presets.PUBLISHED_VARIANT_B)
-    c03 = state["fields"]["C03"]
-    assert not c03["disabled"] and c03["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
-    assert "1" not in c03["blocked"]                 # a produced value (helpful hints) can be picked
-    assert state["generateRefusals"][0].startswith("not produced: C03 (Hint style): ?, ")
+    """Shuffle Enemy Drop Groups (B38) on, still not produced: the control stays editable, off can be
+    picked, and generation is refused naming it."""
+    pasted = codec.encode(codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
+        toggles={"B38": ThreeState.ON}))
+    state = worker_state(pasted)
+    b38 = state["fields"]["B38"]
+    assert not b38["disabled"] and b38["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
+    assert "0" not in b38["blocked"]                 # a produced value (off) can be picked
+    assert state["generateRefusals"] == ["not produced: B38 (" + flags_fields.TOGGLES_BY_ID["B38"].setting + ")"]
 
 
 @pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
@@ -281,14 +304,40 @@ def test_page_has_no_field_list_of_its_own() -> None:
             assert preset not in script
 
 
-def test_a_pasted_question_mark_on_level_encoding_is_refused_in_the_owners_words() -> None:
-    """Owner ruling (2026-10-06): Encode level data is on or off. A pasted "?" there is shown as
-    a problem with the owner's message, and generation is refused with it."""
+def test_a_pasted_question_mark_on_level_encoding_is_read_as_off_with_a_notice() -> None:
+    """Owner rulings (2026-10-06, 2026-10-22) and FP-TOURNEY-01: Encode level data is on or off on the
+    page, which never offers "?". A pasted "?" is accepted, shown with a notice, and read as off."""
     question = codec.encode(codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
         toggles={flags_fields.ENCODE_LEVEL_DATA.id: ThreeState.POSSIBLE}))
     state = flag_form.form_state(question)
     field = state["fields"][flags_fields.ENCODE_LEVEL_DATA.id]
-    assert field["problem"] and field["reason"] == support.ENCODE_LEVEL_DATA_NOT_RANDOM
-    assert set(field["blocked"]) <= {"0", "1"}
-    assert state["generateRefusals"] == [support.ENCODE_LEVEL_DATA_NOT_RANDOM]
-    assert not flag_form.form_state(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)["generateRefusals"]
+    assert not field["problem"] and field["notice"] == support.ENCODE_LEVEL_DATA_RANDOM_NOTICE
+    assert state["generateRefusals"] == [] and state["notices"] == [support.ENCODE_LEVEL_DATA_RANDOM_NOTICE]
+    assert ThreeState.POSSIBLE not in flag_form.field_values(flags_fields.ENCODE_LEVEL_DATA)
+
+
+# Level 9 Entry (C08; FP-TRIF-02 to FP-TRIF-06): Triforce Range is read only under Triforce Range and
+# Specific Triforces (and Random); Level 9 Entrance = Level 4 sword decides the entrance itself
+LEVEL_4_SWORD_ENTRANCE = zora_flags.encode(zora_flags.ZoraFlags(
+    progressive_items=True, add_l4_sword=ThreeState.ON, l4_sword_in_level_2=True, level_9_entrance_sword=True))
+
+
+def level_9_entry_flags(c08: int) -> str:
+    return codec.encode(codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF).updated(options={"C08": c08}))
+
+
+def test_the_page_locks_triforce_range_unless_level_9_entry_reads_it() -> None:
+    """The beta 7 report: a player set Triforce Range under 8 triforces and still needed eight."""
+    for c08 in range(13):
+        fields = flag_form.form_state(level_9_entry_flags(c08))["fields"]
+        reads = c08 in (Level9Requirement.RANDOM_COUNT_IN_RANGE, Level9Requirement.SPECIFIC_PIECES,
+                        Level9Requirement.RANDOM)
+        for field_id in ("C24", "C25"):
+            assert fields[field_id]["disabled"] is not reads, (c08, field_id)
+            assert (fields[field_id]["reason"] == flag_form.RANGE_UNUSED_TEXT) is not reads
+        assert not fields["C08"]["disabled"]
+
+
+def test_the_page_locks_level_9_entry_under_the_level_4_sword_entrance() -> None:
+    state = flag_form.form_state(level_9_entry_flags(0), LEVEL_4_SWORD_ENTRANCE)["fields"]["C08"]
+    assert state["disabled"] and state["reason"] == flag_form.LEVEL_9_ENTRY_BY_SWORD_TEXT

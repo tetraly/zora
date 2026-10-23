@@ -39,14 +39,18 @@ def flags(**options: int) -> str:
 def test_the_supported_values(field_id: str) -> None:
     supported = {index for index in range(17)
                  if support(DEFAULT_SETTINGS.updated(options={field_id: index}))[field_id] is Support.SUPPORTED}
-    if field_id in ("C11", "C13"):
-        assert supported == set(range(17))
-    else:
-        assert supported == {0} | LEVEL_9_PINS and not supported & LONG_ITEMS_AND_WAND
+    assert supported == set(range(17))
+    if field_id in ("C26", "C27"):
+        # the beta 9 export (faabdd4): level 9's places at the long items and the Wand too, refused
+        # with Allow Important Items in 9 off (FL-DEP-01)
+        assert supported == {0} | LEVEL_9_PINS and LONG_ITEMS_AND_WAND <= supported
 
 
-def test_the_coast_pin_stays_at_none() -> None:
-    assert support(DEFAULT_SETTINGS.updated(options={"C12": BOOK}))["C12"] is Support.NOT_PRODUCED
+def test_the_coast_pin_at_every_item_but_the_ladder() -> None:
+    """Beta 8 export (PS-ITEM-12): C12 = 1 to 4 and 6 to 15 are produced, and since the beta 9 export
+    (faabdd4) Non-Heart (C12 = 16) too; the Ladder is refused (FL-DEP-01 rule 1)."""
+    assert support(DEFAULT_SETTINGS.updated(options={"C12": BOOK}))["C12"] is Support.SUPPORTED
+    assert support(DEFAULT_SETTINGS.updated(options={"C12": NON_HEART}))["C12"] is Support.SUPPORTED
 
 
 def test_two_pins_of_one_item_are_refused() -> None:

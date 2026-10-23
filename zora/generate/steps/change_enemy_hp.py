@@ -1,6 +1,7 @@
-"""Change Enemy HP: "Most" Enemy HP (C09) and Boss HP (C10) at every value, and Set Ganon HP
-to 0 (B41), post-shapes batch B8's hit points (post-shapes-b8.md PS-HP). The batch's overworld monster
-re-deal (PS-OWM) is shuffle_overworld_monsters; level 9's room records
+"""Change Enemy HP: "Most" Enemy HP (C09) and Boss HP (C10) at every value, Set Ganon HP
+to 0 (B41) and Maximum Enemy and Boss Health (B45, B46), post-shapes batch B8's hit points,
+and the owner's level-9 Vire cap (tetraly/zora#14, on the shipped world) (post-shapes-b8.md
+PS-HP). The batch's overworld monster re-deal (PS-OWM) is shuffle_overworld_monsters; level 9's room records
 (PS-L9REC) are applied at write-back (writeback.level9_records).
 
 Order in the flow: after B2's monster re-deal, PS-OWM, then the enemy and
@@ -14,6 +15,7 @@ from dataclasses import dataclass
 from ...flags.fields import HitPointChange
 from ...model.enums import Enemy
 from ...model.game_world import GameWorld
+from ...model.levels import Level
 from ...model.sprites import EnemyData
 from ..rng import IntRng, discard
 
@@ -126,6 +128,28 @@ def zero_ganon_hp(state: EnemyHpResult) -> None:
     state.ganon_return = GANON_RETURN_HP
 
 
+MAXIMUM_HP = NIBBLE_MAX           # PS-HP-07: every boss value and the five operands (operand $F0)
+
+
+def maximum_boss_hp(state: EnemyHpResult) -> None:
+    """Maximum Boss Health (B46; PS-HP-07), after the boss pass and B41 whatever C10 holds: every
+    boss value 15, the four mirrored operands and Gleeok's head operand too. No draw. (B41 and B46
+    never both apply: FL-DEP-01 rule 3.)"""
+    for enemy in visiting_order(BOSS_HP_TYPES):
+        state.hp[enemy] = MAXIMUM_HP
+    state.mirrors.update(dict.fromkeys(BOSS_MIRRORS.values(), MAXIMUM_HP))
+    state.gleeok_head = MAXIMUM_HP
+
+
+def maximum_enemy_hp(state: EnemyHpResult) -> None:
+    """Maximum Enemy Health (B45; PS-HP-08), after the boss pass and B41 and before B46 and the group
+    passes, whatever C09 holds: every enemy value (object types $00-$31) 15 and both Rope operands
+    $F0. No draw. The group pass then reads Zol at 15, so Vire is never in its coverage set
+    (PS-EGRP-01); the level-9 Vire cap (cap_level_9_vire_hp) still runs on the shipped world."""
+    state.hp.update(dict.fromkeys(visiting_order(ENEMY_HP_TYPES), MAXIMUM_HP))
+    state.rope = (MAXIMUM_HP, MAXIMUM_HP)
+
+
 def apply_enemy_hp(gw: GameWorld, state: EnemyHpResult) -> None:
     """Write the staged hit points into the GameWorld (ship.py, when the attempt ships)."""
     enemies = gw.enemies
@@ -135,3 +159,48 @@ def apply_enemy_hp(gw: GameWorld, state: EnemyHpResult) -> None:
         setattr(enemies, name, value)
     enemies.gleeok_head_hp = state.gleeok_head
     enemies.ganon_return_hp = state.ganon_return
+
+
+# --- Vires as level 9's only bomb droppers (owner rule, tetraly/zora#14) ------------------------
+
+# The ordinary monsters on the drop table's rows that hold bombs: rows 2 (DropItemMonsterTypes2)
+# and 3 (every type on no other list). Make Important Items Drops (B39) replaces only rupees and
+# hearts, so the bombs stay. Bosses, Lanmolas and the overworld-only monsters of row 3 are left
+# out: leaving a dropper out can only cap the Vires where the cap was not needed.
+BOMB_DROPPERS = frozenset({
+    E.BLUE_LYNEL, E.BLUE_MOBLIN, E.RED_GORIYA, E.BLUE_OCTOROK_1, E.BLUE_OCTOROK_2, E.RED_DARKNUT, E.VIRE,
+    E.BLUE_WIZZROBE, E.GIBDO,                                   # row 2
+    E.RED_LYNEL, E.BLUE_GORIYA, E.BLUE_DARKNUT,                 # row 3
+})
+# A Vire harmed but not killed splits into two red Keese (CheckVireCollisions), which drop nothing
+# (NoDropMonsterTypes). At 4 or less (64 hit points) the magical sword's or a bomb's hit kills it
+# outright, so it can drop bombs.
+VIRE_MOST_HP = 4
+LEVEL_9 = 9
+
+
+def level_monsters(gw: GameWorld, level: Level) -> set[int]:
+    """The monster types the level's rooms hold, a mixed list's members by their own types (as
+    many as the room's count, from the list blob the passes left: EnemyData.mixed_groups is the
+    base ROM's)."""
+    lists, starts = gw.enemies.mixed_enemy_data, gw.enemies.mixed_group_offsets
+    monsters: set[int] = set()
+    for room in level.rooms:
+        if room.enemy in starts:
+            start = starts[room.enemy]
+            monsters.update(lists[start:start + level.enemy_quantity(room)])
+        else:
+            monsters.add(room.enemy)
+    return monsters
+
+
+def cap_level_9_vire_hp(gw: GameWorld) -> bool:
+    """When Vires are the only bomb droppers in level 9, their hit points are at most 4, so bombs
+    can still drop there; True when the cap changed them. On the shipped world, after every pass
+    that places monsters (the enemy groups, Oops All, the room exchange); no draw."""
+    level_9 = next(level for level in gw.levels if level.level_num == LEVEL_9)
+    droppers = level_monsters(gw, level_9) & BOMB_DROPPERS
+    if droppers != {E.VIRE} or gw.enemies.hp[E.VIRE] <= VIRE_MOST_HP:
+        return False
+    gw.enemies.hp[E.VIRE] = VIRE_MOST_HP
+    return True

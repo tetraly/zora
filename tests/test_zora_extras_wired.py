@@ -33,7 +33,7 @@ from zora.generate.steps.randomize_magical_sword import (
 )
 from zora.model.enums import Destination, Item, RoomAction
 from zora.model.game_world import GameWorld
-from zora.model.overworld import ItemCave
+from zora.model.overworld import ItemCave, TakeAnyCave
 from zora.rom import level_encoding
 from zora.rom.base_rom import verify_base_rom
 from zora.rom.game_config import DungeonNothingCode
@@ -154,26 +154,26 @@ def test_the_page_shows_the_conflict_at_each_setting() -> None:
     assert not bad["zora"]["ok"] and bad["generateRefusals"]
 
 
-def test_the_page_shows_the_extra_candles_conflict_at_both_settings() -> None:
-    """PI-FLAG-03: Progressive Items with B09 on (the MVP baseline) is refused and shown in red
-    at both settings; B09 off clears it."""
+def test_progressive_items_takes_extra_candles() -> None:
+    """tetraly/zora#13 lifted PI-FLAG-03: Progressive Items with B09 on (the MVP baseline) is
+    accepted, shows no conflict and generates, with the blue candle in the wooden-sword cave and the
+    take-any cave. A "?" on B09 takes its own draw with Progressive Items on, as without it."""
     progressive = "2.O"
     state = flag_form.form_state(FLAGS, progressive)
-    [conflict] = state["zora"]["conflicts"]
-    assert conflict["fields"] == ["progressive_items", "B09"]
-    assert conflict["message"].startswith("Progressive Items cannot be used with Extra Candles")
-    assert conflict["message"] in state["generateRefusals"]
-    with pytest.raises(FlagsRefused, match="Extra Candles"):
-        plan(FLAGS, 0, progressive)
-    without = encode(decode(FLAGS).updated(toggles={"B09": ThreeState.OFF}))
-    assert flag_form.form_state(without, progressive)["zora"]["conflicts"] == []
+    assert state["zora"]["conflicts"] == [] and state["generateRefusals"] == []
+    _, world, _ = generated(progressive, 1)
+    assert cave(world, Destination.WOOD_SWORD_CAVE).maybe_extra_candle == Item.BLUE_CANDLE
+    take_any = world.overworld.get_cave(Destination.TAKE_ANY, TakeAnyCave)
+    assert take_any is not None and Item.BLUE_CANDLE in take_any.items
     possible = encode(decode(FLAGS).updated(toggles={"B09": ThreeState.POSSIBLE}))
-    assert all(not plan(possible, seed, progressive).steps.extra_candles for seed in range(8))
-    assert any(plan(possible, seed).steps.extra_candles for seed in range(8))
+    draws = [plan(possible, seed, progressive).steps.extra_candles for seed in range(8)]
+    assert draws == [plan(possible, seed).steps.extra_candles for seed in range(8)]
+    assert any(draws) and not all(draws)
 
 
 def test_the_tab_controls_spell_the_zora_string() -> None:
     from zora.flags.zora_flags import (
+        DO_NOT_SEGMENT_DUNGEONS_FIELDS,
         EXPANDED_DUNGEON_LOCATIONS_FIELDS,
         HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
         OWNER_2_0_FIELDS,
@@ -184,7 +184,8 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
               "progressive_items": "0", "shop_items_in_pool": "0", **dict.fromkeys(OWNER_2_0_FIELDS, "0"),
               "level_9_entrance_sword": "0", "oops_all_enemies": "0", "oops_all_bosses": "0",
               **dict.fromkeys(ZORA_1_0_FIELDS, "0"), **dict.fromkeys(PEGASUS_BOOTS_FIELDS, "0"),
-              **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, "0"), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, "0")}
+              **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, "0"), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, "0"),
+              **dict.fromkeys(DO_NOT_SEGMENT_DUNGEONS_FIELDS, "0"), "disable_custom_music": "0"}
     assert flag_form.zora_form_change(FLAGS, values)["zora"]["flags"] == SWORD
     off = dict.fromkeys(values, "0")
     assert flag_form.zora_form_change(FLAGS, off)["zora"]["flags"] == ""
@@ -193,7 +194,8 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
         "progressive_items": 0, "shop_items_in_pool": 0, **dict.fromkeys(OWNER_2_0_FIELDS, 0),
         "level_9_entrance_sword": 0, "oops_all_enemies": 0, "oops_all_bosses": 0,
         **dict.fromkeys(ZORA_1_0_FIELDS, 0), **dict.fromkeys(PEGASUS_BOOTS_FIELDS, 0),
-        **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, 0), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, 0)}
+        **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, 0), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, 0),
+        **dict.fromkeys(DO_NOT_SEGMENT_DUNGEONS_FIELDS, 0), "disable_custom_music": 0}
     assert set(field["name"] for field in flag_form.metadata()["zora"]["fields"]) == set(values)
 
 

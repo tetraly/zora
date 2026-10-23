@@ -3,7 +3,10 @@ design expanded-dungeon-locations.md). ZORA's own option, beyond the spec.
 
 The nine dungeons are dealt onto 9 of 15 spots, from the option's own random stream: the nine
 first-quest dungeon entrances and the six second-quest entrances on other screens. Spots are named
-1Qn / 2Qn by quest and the level number the game shows there; three screens hold a level in both
+1Qn / 2Qn by quest and the level number the game shows there in that quest with its own dungeons,
+not the door code: the second quest's paired levels show each other's numbers, so 2Q2 ($34) holds
+door code 3 and 2Q3 ($3C) code 2 (tests/test_expanded_dungeon_locations_labels.py). Nothing reads
+a label's number; the deal works by screen. Three screens hold a level in both
 quests (1Q1/2Q1, 1Q2/2Q3, 1Q4/2Q5). The same rules run under either base quest (BaseQuest), the
 2nd Quest's the mirror of the 1st's:
 

@@ -1,0 +1,16 @@
+# ZORA half-speed low-health beep (a player setting, FP-BEEP-01's third choice; tetraly/zora#3): the
+# heart warning plays half as often. asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_SET_HALF_SPEED_BEEP"
+bank = 0
+start = 0xA040              # bank 0 free space after music off's routine ($A000-$A01C)
+
+[[hook]]
+name = "heart-warning-start"
+offset = 0x018E7
+length = 3
+note = "DriveTune0, for a request of the heart warning alone: LDX Tune0 becomes JSR HeartWarningAtHalfSpeed (Z set starts it)."
+code = """
+    JSR HeartWarningAtHalfSpeed
+"""

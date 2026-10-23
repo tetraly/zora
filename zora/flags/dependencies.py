@@ -17,16 +17,22 @@ from .fields import (
     ENCODE_LEVEL_DATA,
     ENEMY_HIT_POINTS,
     GANON_AND_ZELDA_SHUFFLE,
+    GANON_HIT_POINTS_ZERO,
     GANON_MUST_BE_BEATEN,
     HUNGRY_GORIYA_SHUFFLE,
     IMPORTANT_ITEMS_IN_LEVEL_9,
     INERT_TOGGLES,
+    LEVEL_9_FIRST_PIN,
     LEVEL_9_REQUIREMENT,
+    LEVEL_9_SECOND_PIN,
     MAGICAL_SWORD_HIGHEST,
     MAGICAL_SWORD_HIGHEST_BASE,
     MAGICAL_SWORD_LOWEST,
     MAGICAL_SWORD_LOWEST_BASE,
     MAX_TRIFORCE_PIECES,
+    MAXIMUM_BOSS_HEALTH,
+    MONEY_OR_LIFE_ROOMS,
+    MONEY_OR_LIFE_TOLL,
     MONSTERS_BETWEEN_LEVELS,
     OPTION_FIELDS,
     PIECE_RANGE_HIGH,
@@ -80,7 +86,64 @@ def refusals(settings: Settings) -> list[Refusal]:
         if item.is_item and item == settings.option(second):
             found.append(Refusal("FL-DEP-01 rule 2",
                                  f"{first.setting} and {second.setting} both name the {item.name}"))
+    if all(settings.toggle(field) is ThreeState.ON for field in (GANON_HIT_POINTS_ZERO, MAXIMUM_BOSS_HEALTH)):
+        found.append(Refusal("FL-DEP-01 rule 3", BOSS_HEALTH_RULE_TEXT))
+    if settings.toggle(IMPORTANT_ITEMS_IN_LEVEL_9) is ThreeState.OFF:
+        for pin in LEVEL_9_PIN_FIELDS:
+            if level_9_pin_needs_entry(settings, pin):
+                item_name = PinnedItem(settings.option(pin)).name.replace("_", " ").title()
+                found.append(Refusal("FL-DEP-01 rule 5", LEVEL_9_PIN_RULE_TEXT.format(pin=pin.setting,
+                                                                                      item=item_name)))
     return found
+
+
+# FL-DEP-01 rule 5 (the 2026-10-22 export; for C27 an owner-ruled extension): a level-9 pin at an item
+# the five-item rule (VA-REJ-08) needs, or at the Wand under Swordless or Random (VA-REJ-22), needs
+# Allow Important Items in 9 (B25): with B25 off the item could never be collected.
+LEVEL_9_PIN_FIELDS = (LEVEL_9_FIRST_PIN, LEVEL_9_SECOND_PIN)
+FIVE_ITEM_RULE_PINS = frozenset({PinnedItem.BOW, PinnedItem.LADDER, PinnedItem.POWER_BRACELET, PinnedItem.RAFT,
+                                 PinnedItem.RECORDER})
+WAND_RULE_SWORD_STATES = frozenset({WoodenSwordState.SWORDLESS, WoodenSwordState.RANDOM})
+LEVEL_9_PIN_RULE_TEXT = "{pin} names the {item}, which needs Allow Important Items in 9 (B25) on"
+
+
+def level_9_pin_needs_entry(settings: Settings, pin: OptionField) -> bool:
+    """FL-DEP-01 rule 5: the pin names an item the walk needs before level 9 (the five-item rule's,
+    or the Wand while the swords are Swordless or Random)."""
+    item = settings.option(pin)
+    return item in FIVE_ITEM_RULE_PINS or (item == PinnedItem.WAND
+                                            and settings.option(WOODEN_SWORD_STATE) in WAND_RULE_SWORD_STATES)
+
+
+# FL-DEP-01 rule 3 (ZORA's rule, owner-ruled deviation 2026-10-22): Set Ganon HP to 0 and Maximum
+# Boss Health never both apply. Rule 4 (B47 beside a Book pin) is not applied: ZORA's B47 leaves the
+# Book in the pool and the shop alone (owner, 2026-10-22; docs/deviations.md), so a pin may name it.
+BOSS_HEALTH_RULE_TEXT = "Set Ganon HP to 0 and Maximum Boss Health cannot both be on"
+
+
+def without_both_boss_health_rules(asked: Settings, resolved: Settings) -> Settings:
+    """FL-DEP-04's rule after resolving for FL-DEP-01 rule 3: B41 and B46 never both come out on.
+    B41 is resolved first: on it (as given, or a "?" come up on) turns a possible B46 off; B46 on as
+    given turns a possible B41 off. With both "?" and B41 off, B46 keeps its coin. (Both on as given
+    is refused.)"""
+    if not (resolved.is_on(GANON_HIT_POINTS_ZERO) and resolved.is_on(MAXIMUM_BOSS_HEALTH)):
+        return resolved
+    loser = GANON_HIT_POINTS_ZERO if asked.toggle(MAXIMUM_BOSS_HEALTH) is ThreeState.ON else MAXIMUM_BOSS_HEALTH
+    return resolved.updated(toggles={loser: ThreeState.OFF})
+
+
+def with_the_toll_beside_merchants(asked: Settings, resolved: Settings) -> Settings:
+    """FL-DEP-04's B22 and B23 rule (ZORA's, owner ruling 2026-10-22): B22 on (life-or-money
+    merchants) with B23 off (the toll not re-drawn) never comes out. B22 is resolved first: B22 on
+    (as given, or a "?" come up on) turns a possible B23 on; B23 off as given turns a possible B22
+    off. With both "?" and B22 off, B23 keeps its coin. (B22 on with B23 off as given is not
+    supported, FL-SUP-01.)"""
+    if not resolved.is_on(MONEY_OR_LIFE_ROOMS) or resolved.is_on(MONEY_OR_LIFE_TOLL):
+        return resolved
+    if asked.toggle(MONEY_OR_LIFE_TOLL) is ThreeState.POSSIBLE:
+        return resolved.updated(toggles={MONEY_OR_LIFE_TOLL: ThreeState.ON})
+    assert asked.toggle(MONEY_OR_LIFE_ROOMS) is ThreeState.POSSIBLE, "B22 on with B23 off is not supported"
+    return resolved.updated(toggles={MONEY_OR_LIFE_ROOMS: ThreeState.OFF})
 
 
 # FL-DEP-02 rule 1: the prerequisite is a cave shuffle that moves non-dungeon caves; the coin's
@@ -95,24 +158,31 @@ LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES = DUNGEON_QUESTS_WITHOUT_PERSON_MOVES
 
 
 def missing_prerequisites(settings: Settings) -> list[Refusal]:
-    """FL-DEP-02 rules 2 and 3, the (random) rules whose coin the spec leaves open: a rebuild may
-    refuse such a string instead, which is what this codec does. Rule 1's coin is specified
-    (OW-CAVE-10) and flipped per seed (meet_cave_prerequisite), never refused.
-    Possible fields count as on only after ``resolve`` (FL-DEP-04).
-    """
-    found: list[Refusal] = []
-    room_dependents = [t for t in (HUNGRY_GORIYA_SHUFFLE, START_ROOM_MAY_MOVE, GANON_MUST_BE_BEATEN)
-                       if settings.is_on(t)]
-    if room_dependents and settings.option(DUNGEON_ROOM_SHUFFLE) == DungeonRoomShuffle.VANILLA:
-        found.append(Refusal("FL-DEP-02 rule 2", _needs(room_dependents, "the dungeon room shuffle")))
-    monster_dependents = [t for t in (MONSTERS_BETWEEN_LEVELS, GANON_AND_ZELDA_SHUFFLE) if settings.is_on(t)]
-    if monster_dependents and settings.toggle(DUNGEON_MONSTER_SHUFFLE) is ThreeState.OFF:
-        found.append(Refusal("FL-DEP-02 rule 3", _needs(monster_dependents, "the dungeon monster shuffle")))
-    return found
+    """The FL-DEP-02 prerequisites that refuse a string: none. Rules 1, 2 and 3 have their coins
+    specified (OW-CAVE-10; rule 3 by the 2026-10-22 export, rule 2 by beta 8's) and flipped per seed
+    (meet_cave_prerequisite, meet_room_prerequisite, meet_monster_prerequisite), never refused."""
+    return []
 
 
-def _needs(dependents: list[ToggleField], prerequisite: str) -> str:
-    return " and ".join(t.setting for t in dependents) + f" need {prerequisite}"
+ROOM_DEPENDENTS = (HUNGRY_GORIYA_SHUFFLE, START_ROOM_MAY_MOVE, GANON_MUST_BE_BEATEN)
+
+
+def needs_room_prerequisite(settings: Settings) -> bool:
+    """FL-DEP-02 rule 2: the hungry-goriya shuffle, the start-room move or Force Ganon Fight (B28,
+    B26, B18) on while the dungeon room shuffle is off (C14 = 0, also when C14 = 3 resolved to 0)."""
+    return (settings.option(DUNGEON_ROOM_SHUFFLE) == DungeonRoomShuffle.VANILLA
+            and any(settings.is_on(dependent) for dependent in ROOM_DEPENDENTS))
+
+
+def meet_room_prerequisite(settings: Settings, rng: IntRng) -> Settings:
+    """FL-DEP-02 rule 2 (beta 8 export): one equal-chance coin per seed, flipped only when the rule
+    applies, on resolved settings: C14 becomes 1 (within each dungeon), or B18, B26 and B28 are
+    turned off. The side each coin value stands for is this rebuild's own (not normative)."""
+    if not needs_room_prerequisite(settings):
+        return settings
+    if rng.choice((True, False)):
+        return settings.updated(options={DUNGEON_ROOM_SHUFFLE: DungeonRoomShuffle.WITHIN_EACH_DUNGEON})
+    return settings.updated(toggles=dict.fromkeys(ROOM_DEPENDENTS, ThreeState.OFF))
 
 
 def needs_cave_prerequisite(settings: Settings) -> bool:
@@ -134,6 +204,28 @@ def meet_cave_prerequisite(settings: Settings, rng: IntRng) -> Settings:
         with_part = WITH_NON_DUNGEON_PART[CaveShuffle(settings.option(CAVE_SHUFFLE))]
         return settings.updated(options={CAVE_SHUFFLE: with_part})
     return settings.updated(toggles=dict.fromkeys(CAVE_DEPENDENTS, ThreeState.OFF))
+
+
+MONSTER_DEPENDENTS = (MONSTERS_BETWEEN_LEVELS, GANON_AND_ZELDA_SHUFFLE)
+
+
+def needs_monster_prerequisite(settings: Settings) -> bool:
+    """FL-DEP-02 rule 3: moving monsters between levels (B36) or shuffling Ganon and Zelda (B33) on
+    while the dungeon monster shuffle (B32) is off."""
+    return settings.toggle(DUNGEON_MONSTER_SHUFFLE) is ThreeState.OFF and any(
+        settings.is_on(dependent) for dependent in MONSTER_DEPENDENTS)
+
+
+def meet_monster_prerequisite(settings: Settings, rng: IntRng) -> Settings:
+    """FL-DEP-02 rule 3 (the 2026-10-22 export): one equal-chance coin per seed, flipped only when the
+    rule applies, on resolved settings: B32 turned on (B33 and B36 keep their values), or B33 and B36
+    turned off. So afterwards B32 off always comes with B33 and B36 off (PS-MONRD-06). The side each
+    coin value stands for is this rebuild's own (not normative)."""
+    if not needs_monster_prerequisite(settings):
+        return settings
+    if rng.choice((True, False)):
+        return settings.updated(toggles={DUNGEON_MONSTER_SHUFFLE: ThreeState.ON})
+    return settings.updated(toggles=dict.fromkeys(MONSTER_DEPENDENTS, ThreeState.OFF))
 
 
 def apply_dependencies(settings: Settings) -> Settings:
@@ -250,8 +342,9 @@ RESOLVED_TOGGLES = tuple(toggle for toggle in TOGGLE_FIELDS if toggle != ENCODE_
 
 def resolve(settings: Settings, rng: IntRng) -> Settings:
     """FL-DEP-04: pick each random index uniformly among its alternatives and flip one fair coin per
-    possible field. Afterwards, when the wooden-sword state is swordless and B25 was possible, B25 is
-    on whatever its coin said. The order of the draws is this rebuild's own (not normative)."""
+    possible field. Afterwards, when the wooden-sword state is swordless or a level-9 pin names one of
+    the five-item rule's items (FL-DEP-01 rule 5), and B25 was possible, B25 is on whatever its coin
+    said. The order of the draws is this rebuild's own (not normative)."""
     options = dict(settings.options)
     for option in OPTION_FIELDS:
         index = options[option.id]
@@ -262,7 +355,10 @@ def resolve(settings: Settings, rng: IntRng) -> Settings:
         if toggles[toggle.id] is ThreeState.POSSIBLE:
             toggles[toggle.id] = rng.choice((ThreeState.OFF, ThreeState.ON))
     swordless = options[WOODEN_SWORD_STATE.id] == WoodenSwordState.SWORDLESS
-    if swordless and settings.toggle(IMPORTANT_ITEMS_IN_LEVEL_9) is ThreeState.POSSIBLE:
+    long_item_pinned = any(options[pin.id] in FIVE_ITEM_RULE_PINS for pin in LEVEL_9_PIN_FIELDS)
+    if (swordless or long_item_pinned) and settings.toggle(IMPORTANT_ITEMS_IN_LEVEL_9) is ThreeState.POSSIBLE:
+        # FL-DEP-04's rules after resolving: swordless, or a level-9 pin at a five-item-rule item
+        # (FL-DEP-01 rule 5; a pinned Wand needs it only when swordless, the rule before)
         toggles[IMPORTANT_ITEMS_IN_LEVEL_9.id] = ThreeState.ON
     return Settings(options, toggles)
 

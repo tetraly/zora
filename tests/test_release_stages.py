@@ -151,3 +151,106 @@ def test_the_record_says_whether_the_stamp_was_waived(make_release: ModuleType, 
     notes = make_release.ASSETS / make_release.RELEASE_NOTES
     make_release.write_test_stage("a" * 40, {"world version": "0.6.0"}, notes, batch_stamp=False)
     assert json.loads(record.read_text())["batch stamp"] is False
+
+
+# --- promote reuses the test stage's result for the same commit (owner decision, 2026-10-19) ----
+
+WORLD = {"world version": "0.7.0", "ZORA version": "2.0.0b7", "source hash": "sha256:feed"}
+
+
+def _tested(make_release: ModuleType, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+            head: str = "a" * 40) -> tuple[Path, Path, dict[str, str]]:
+    """A passing "publish to test" record for HEAD, its zora.apworld and notes in TMP_PATH."""
+    import hashlib
+    monkeypatch.setattr(make_release, "REPO", tmp_path)            # the record's paths are the repo's
+    monkeypatch.setattr(make_release, "ASSETS", tmp_path)
+    monkeypatch.setattr(make_release, "TEST_STAGE_RECORD", tmp_path / "test-stage.json")
+    apworld = tmp_path / make_release.APWORLD_FILE
+    apworld.write_bytes(b"the checked world")
+    world = {**WORLD, "ZORA version": make_release.ZORA_VERSION,
+             "sha256": hashlib.sha256(apworld.read_bytes()).hexdigest()}
+    notes = tmp_path / make_release.RELEASE_NOTES
+    record = make_release.write_test_stage(head, world, notes)
+    return record, apworld, world
+
+
+def test_promote_reuses_a_passing_test_stage_of_the_same_commit(make_release: ModuleType, tmp_path: Path,
+                                                                monkeypatch: pytest.MonkeyPatch) -> None:
+    record, _apworld, world = _tested(make_release, tmp_path, monkeypatch)
+    assert json.loads(record.read_text())["world"] == world
+    assert make_release.reusable_test_stage("a" * 40, record) == world
+
+
+def test_promote_checks_again_for_another_commit_or_no_result(make_release: ModuleType, tmp_path: Path,
+                                                              monkeypatch: pytest.MonkeyPatch) -> None:
+    record, apworld, _world = _tested(make_release, tmp_path, monkeypatch)
+    assert make_release.reusable_test_stage("b" * 40, record) is None
+    assert make_release.reusable_test_stage("a" * 40, tmp_path / "none.json") is None
+    apworld.write_bytes(b"another world")              # not the zora.apworld the test stage checked
+    assert make_release.reusable_test_stage("a" * 40, record) is None
+
+
+def test_a_record_without_the_report_reads_it_from_the_notes(make_release: ModuleType, tmp_path: Path,
+                                                             monkeypatch: pytest.MonkeyPatch) -> None:
+    """A record written before it kept build_apworld's report (beta 7's test stage): the notes the
+    test stage wrote list it."""
+    record, _apworld, world = _tested(make_release, tmp_path, monkeypatch)
+    monkeypatch.setattr(make_release, "CHANGELOG", tmp_path / "CHANGELOG.md")
+    (tmp_path / "CHANGELOG.md").write_text(f"## {make_release.PLAYER_VERSION} (2026-10-19)\n\n- a line\n")
+    make_release.write_release_notes(world, "2026-10-19", "is published beside the test page")
+    saved = json.loads(record.read_text())
+    del saved["world"]
+    record.write_text(json.dumps(saved))
+    assert make_release.reusable_test_stage("a" * 40, record) == world
+
+
+def test_promote_on_a_tested_commit_runs_no_check_again(make_release: ModuleType, tmp_path: Path,
+                                                        monkeypatch: pytest.MonkeyPatch) -> None:
+    _record, _apworld, world = _tested(make_release, tmp_path, monkeypatch)
+    for name in ("check_full_tier", "check_clone"):
+        monkeypatch.setattr(make_release, name, lambda *args: None)
+    monkeypatch.setattr(make_release, "tested_commit", lambda record=None: "a" * 40)
+    monkeypatch.setattr(make_release, "git", lambda *args, **kwargs: "a" * 40 + "\n")     # HEAD
+    monkeypatch.setattr(make_release, "build_tree", lambda tree, today: ({}, "a" * 40))
+    for name in ("check_world_version", "frozen_strings_problems", "run_checks", "build_world", "check_world"):
+        monkeypatch.setattr(make_release, name, lambda *args, name=name: pytest.fail(f"{name} ran again"))
+    written: list[tuple[dict[str, str], str]] = []
+    committed: list[str] = []
+
+    def write_release_notes(world: dict[str, str], today: str, where: str = "is attached", name: str = "") -> Path:
+        written.append((world, name))
+        return tmp_path / name
+
+    def commit_release(tree: Path, head: str, today: str, notes: Path) -> int:
+        committed.append(head)
+        return 0
+
+    monkeypatch.setattr(make_release, "write_release_notes", write_release_notes)
+    monkeypatch.setattr(make_release, "commit_release", commit_release)
+    assert make_release.release(False, stage="promote") == 0
+    # the GitHub release's notes go beside the test stage's, which publish_site.sh --channel test reads
+    assert written == [(world, make_release.PROMOTED_NOTES)] and committed == ["a" * 40]
+    assert make_release.PROMOTED_NOTES != make_release.RELEASE_NOTES
+
+
+def test_promote_without_a_result_checks_everything(make_release: ModuleType, tmp_path: Path,
+                                                    monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in ("check_full_tier", "check_clone"):
+        monkeypatch.setattr(make_release, name, lambda *args: None)
+    monkeypatch.setattr(make_release, "tested_commit", lambda record=None: "a" * 40)
+    monkeypatch.setattr(make_release, "git", lambda *args, **kwargs: "a" * 40 + "\n")     # HEAD
+    monkeypatch.setattr(make_release, "build_tree", lambda tree, today: ({}, "a" * 40))
+    monkeypatch.setattr(make_release, "reusable_test_stage", lambda head: None)
+    monkeypatch.setattr(make_release, "check_world_version",
+                        lambda head: make_release.Check("the world version", []))
+    monkeypatch.setattr(make_release, "frozen_strings_problems", lambda head: ("beta7", []))
+
+    class ChecksRan(Exception):
+        pass
+
+    def run_checks(*args: object) -> None:
+        raise ChecksRan
+
+    monkeypatch.setattr(make_release, "run_checks", run_checks)
+    with pytest.raises(ChecksRan):
+        make_release.release(False, stage="promote")

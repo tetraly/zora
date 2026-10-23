@@ -211,7 +211,10 @@ def _banks(table: dict[str, list[str]]) -> dict[int, tuple[str, ...]]:
 def load_patch(folder: Path) -> Patch:
     """asm/NAME/ (or asm/settings/CHOICE/) as a Patch."""
     spec = tomllib.loads((folder / PATCH_FILE).read_text())
-    routines = {int(match[1]): path.read_text() for path in sorted(folder.glob("bank_*.s"))
+    # A patch may build another folder's routines into its own segments and hooks (`routines_from`;
+    # asm/fp-stats-01-music: the statistics screen with StatsTick moved for randomized music).
+    source = folder / spec["routines_from"] if "routines_from" in spec else folder
+    routines = {int(match[1]): path.read_text() for path in sorted(source.glob("bank_*.s"))
                 if (match := ROUTINES.fullmatch(path.name))}
     series_changes = spec.get("series", {})
     replaced = {}

@@ -53,7 +53,10 @@ LINK_INVINCIBILITY_TIMER = 0x4F0          # ObjInvincibilityTimer, slot 0 (Link)
 INVINCIBLE = 0xFF
 HEART_VALUES = 0x66F
 MANY_HEARTS = 0xFF
-MAGICAL_SWORD = 3                         # Items+0: the sword level
+# Items+0, the sword level: the white sword, so a Vire splits. Since 1d260c7 a seed whose level 9 has
+# no bomb dropper but Vires caps their hit points at 4 (this one does), and the magical sword then
+# kills a Vire outright, leaving its drop.
+WHITE_SWORD = 2
 MONSTER_SLOTS = range(1, 0x0C)
 SPRITES, OAM_RECORDS, HIDDEN_Y = 0x200, 64, 0xEF
 TILE_BYTES, SPRITE_TABLE_BIT, PAIR = 16, 1, 0xFE
@@ -195,7 +198,7 @@ def test_eight_vires_split_without_breaking() -> None:
                        if room.enemy == Enemy.VIRE and not room.has_monster_bit
                        and room.count_index == FULL_COUNT_INDEX)
     emu = enter_room(rom, level, room)
-    emu[ITEMS] = MAGICAL_SWORD
+    emu[ITEMS] = WHITE_SWORD
     emu.run(60)
 
     def monsters() -> list[int]:

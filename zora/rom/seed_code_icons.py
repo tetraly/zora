@@ -9,9 +9,12 @@ picks the 8x16 sprite pair from the slot's first frame tile. The palette is the 
 menu's (MenuPalettesTransferBuf), whose first three sprite rows take each save file's tunic color;
 the icons show a new game's screen, with no save files, so all three take the green tunic's.
 
-Two of the code items flash in a room (DrawItemBySlot alternates palette rows 1 and 2 every 8
-frames). On the file-select screen the icons are drawn once, so each shows one row; ZORA shows row
-1, the one the game draws when it boots to the menu (tests/test_seed_code_icons.py)."""
+The menu's sprite rows 0-2 are the save files' Links (color 1 each file's ring color) and row 3 is
+the cursor's ($0F $15 $27 $30, the in-play red row but for $15). asm/fp-hash-01 keeps an item drawn
+in Link's row (0) there, the tunic color as in play, and moves every other item to row 3 (owner,
+2026-10-22): the red and blue rows' items, and the Heart and Triforce, which flash in a room
+(DrawItemBySlot alternates rows 1 and 2) and here show steady in row 3. So no icon takes a save
+file's tunic color, nor goes blank under a black tunic (tests/test_seed_code_icons.py)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -32,6 +35,8 @@ TILE_BYTES = 16                         # two bit planes of 8 bytes
 ITEM_SLOT_PALETTES = 0x06B6C            # ItemSlotToPaletteOffsetsOrValues: a row, or an offset to the value
 FLASHING_SLOTS = frozenset({0x16, 0x19, 0x1A, 0x1B})        # rows 1 and 2 by turns
 FLASH_FIRST_ROW = 1
+LINK_ROW = 0                            # asm/fp-hash-01: an icon in Link's row keeps it
+MENU_ITEM_ROW = 3                       # every other icon is drawn in the cursor's row
 VALUE_OFFSET_SLOTS = frozenset({0x00, 0x02, 0x04, 0x07, 0x0B})   # row = table entry + the item's value
 SWORD_SLOT = 0x00
 MASTER_SWORD_IMAGE_SLOT = 0x20          # the sword slot's image when its row is DrawItemBySlot's CMP operand
@@ -94,6 +99,8 @@ def draw_item(image: bytes, item: int) -> tuple[tuple[int, ...], ...]:
     """FP-HASH-01: one code item as asm/fp-hash-01 draws it, on the menu's backdrop color."""
     slot = image[ITEM_ID_TO_SLOT + item]
     attributes, slot = item_attributes(image, slot, image[ITEM_ID_TO_DESCRIPTOR + item])
+    if attributes & PALETTE_ROW_MASK != LINK_ROW:
+        attributes |= MENU_ITEM_ROW
     palette = menu_sprite_palettes(image)[attributes & PALETTE_ROW_MASK]
     backdrop = image[MENU_PALETTES + TRANSFER_HEADER]
     canvas = [[backdrop] * ICON_SIZE for _ in range(ICON_SIZE)]

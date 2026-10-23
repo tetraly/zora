@@ -29,6 +29,7 @@ from .flags.fields import (
     THREE_STATE_LABELS,
     ItemShuffleScope,
     OptionField,
+    PinnedItem,
     Settings,
     ThreeState,
     WoodenSwordState,
@@ -165,6 +166,8 @@ FIXED_OPTIONS = {ITEM_SHUFFLE_SCOPE.id: ItemShuffleScope.FULL}
 ZORA_FORCED_OFF = {
     "shuffle_wood_sword": "Always off in Archipelago: its logic assumes the wooden sword from the start, "
                           "so bombs come from enemies.",
+    "disable_custom_music": "Not needed in Archipelago: its games have no randomized music, only Music On "
+                            "or Off.",
 }
 NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS, *ZORA_FORCED_OFF})
 # Values ZORA generates but Archipelago holds back until each passes C2's logic scan (owner
@@ -228,10 +231,33 @@ NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS, *ZORA_FORCED_OFF})
 # waited for the logic rework that reaches the river's west side by them (6a3c660). Scanned there:
 # 100 of 100 seeds at each value, Randomize Dead Woods (which forces the shortcut on, 23e1b62) On and
 # Random 100 of 100 each, then 400 of 400 with everything offered (each value drawn at least 118 times).
+# The 2026-10-22 scan of the beta 8 values (owner request), at b275933: each value with random settings
+# for every other offered option, 100 seeds, every place, event and the goal reached, then the
+# released values together (400 seeds at 3aa7cac, each value drawn at least 23 times). Released: Level
+# 9 Entry's values but 8 triforces (C08 = 1 to 12; FP-TRIF-02 to FP-TRIF-06); the Uphill Battle set's
+# off values and "?" (Force Ganon Fight, Add 2nd Quest Rooms, Shuffle Dungeon Monsters, Shuffle Ganon
+# and Zelda, Shuffle Level 9 Monsters: B18, B20, B32, B33, B35); Dungeon Room Shuffle Vanilla and Random
+# (C14 = 0, 3); Recorder to Unbeaten Dungeons, Make Important Items Drops, Add 2nd Quest Doors and Add
+# 2nd Quest Monsters (B07, B39, B21, B37), on and Random. Pegasus Boots, offered since 2026-10-18,
+# passed again at fa90ec1 (100 of 100 seeds On and Random).
 # Still held: Swords: No Wood Sword, Swordless and Random (C07 = 2, 3, 4): Archipelago's player has a
 # sword and bombs from the start (owner decision 1), and these take the sword away.
 HELD_BACK: dict[str, frozenset[int]] = {
     "C07": frozenset({WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS, WoodenSwordState.RANDOM}),
+    # Replace Book Fire with Explosion (B47), on and "?", is not compatible with Archipelago (owner
+    # ruling, 2026-10-22): as first built it sold the Book and dealt the magic shield in its place,
+    # and with Item Shuffle Full and random other settings generation did not finish in 120 s for 23
+    # of 100 seeds On and 10 of 100 Random (at b275933); Off is offered. B47 is now the blast alone
+    # (docs/deviations.md), and the scan at e8e5c66 passed 100 of 100 seeds each way, but it stays
+    # held until the owner says otherwise.
+    "B47": frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    # The beta 9 export's item pins change where items may lie, which the logic reads: held until
+    # their scan. The coast's Non-Heart (C12 = 16), and level 9's two places at the Bow, the Ladder,
+    # the Power Bracelet, the Raft, the Recorder and the Wand (C26, C27 = 3, 5, 8, 9, 10, 14; FL-DEP-01
+    # rule 5), behind level 9's entry.
+    "C12": frozenset({PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER}),
+    **dict.fromkeys(("C26", "C27"), frozenset({PinnedItem.BOW, PinnedItem.LADDER, PinnedItem.POWER_BRACELET,
+                                               PinnedItem.RAFT, PinnedItem.RECORDER, PinnedItem.WAND})),
 }
 CHOICE, THREE_STATE, SWITCH = "choice", "three_state", "switch"
 # A switch's two values; every on/off/random value is labeled as on the page (zora/flags/fields.py).
@@ -486,9 +512,8 @@ def flag_strings(values: Mapping[str, object]) -> tuple[str, str]:
     option takes its default)
     as ZORA's (flag string, ZORA flag string). Every dependency rule is checked here, so a
     refusal never comes later from inside generation: OptionsConflict names each conflict (the
-    pin and prerequisite rules, Progressive Items with Extra Candles, Add L4 Sword without
-    Progressive Items, Extra Power Bracelet Blocks with B04, the magical sword's heart cap). B23
-    is kept as given whatever B22 is (FL-DEP-06)."""
+    pin and prerequisite rules, Add L4 Sword without Progressive Items, Extra Power Bracelet
+    Blocks with B04, the magical sword's heart cap). B23 is kept as given whatever B22 is (FL-DEP-06)."""
     chosen = _chosen(values)
     settings = _settings(chosen)
     zora = zora_flags.decode(zora_form.zora_flags_from_values(
@@ -520,7 +545,7 @@ PLAYER_SETTING_LABELS = {
 }
 PLAYER_CHOICE_LABELS = {
     "selectButton": {"off": "Off", "swap": "Swap only", "toggle": "Toggle"},
-    "lowHealthBeep": {"removed": "Removed", "kept": "Kept"},
+    "lowHealthBeep": {"removed": "Removed", "kept": "Kept", "half-speed": "Half speed"},
     "deathWarp": {"p2-up-a": "Controller 2 Up+A", "p1-up-a": "Controller 1 Up+A",
                   "p1-up-select": "Controller 1 Up+Select"},
     "reduceFlashing": {"off": "Off", "on": "On"},

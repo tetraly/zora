@@ -64,8 +64,10 @@ FindShopNumber:
 
 ; Called by the cave-flags hook in InitCaveContinue (patch.toml): store the
 ; flags, then go over the three wares. In a shop, a ware bought before is hidden (no item,
-; price 0). A progressive ware shows its next level, and in a shop is
-; hidden when the player has its line's top level. Each ware's top two
+; price 0). A progressive ware shows its next level, and is hidden when the
+; player has its line's top level, in a shop and in a cave that gives its
+; item away alike, so a useless upgrade never uses up a take-one cave's one
+; take (tetraly/zora#13). Each ware's top two
 ; bits are cave flags and stay. Returns A: the cave flags, as the code
 ; after the hook expects. Keeps X; uses Y and [00] to [03], which the code
 ; after the hook does not read.
@@ -89,8 +91,6 @@ StoreCaveFlagsAndFixUpWares:
     JSR ResolveProgressive
     BCC @NextWare
     STA $03                     ; [03]: the ware's new item ID
-    LDY $02
-    BMI @SetWare                ; Not a shop: show the next level.
     LDA $01
     BEQ @SetWare                ; Below the top level: show it.
 

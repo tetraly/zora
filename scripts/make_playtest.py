@@ -119,6 +119,10 @@ def main() -> int:
     ap.add_argument("--setting", action="append", default=[], metavar="NAME=VALUE",
                     help="a player setting (zora/rom/player_settings.py), e.g. music=off or "
                          "heart_color=0x21; repeat for more; the defaults otherwise")
+    ap.add_argument("--music-library", type=Path, metavar="DIR",
+                    help="with music=random-local: the folder of library files (every .json5 in it)")
+    ap.add_argument("--music-playlist", type=Path, metavar="FILE",
+                    help="with a random music value: a playlist file (docs/design/music-settings.md section 5)")
     args = ap.parse_args()
     try:
         settings = parse_player_settings(args.setting)
@@ -164,6 +168,26 @@ def main() -> int:
         checks = run_checks(gw2)
         failed = [c for c in checks if not c.passed]
         suffix = "-encoded" if chosen.encode_level_data else ""
+        music_line = ""
+        if settings.randomize_music:
+            # Last, after the checks (which read the 128 KB ROM): lozft and the songs (docs/music.md).
+            from scripts.music_assets import MusicAssetsMissing, pinned_assets
+            from zora.rom.music.library import LibraryFile, MusicError
+            from zora.rom.music.playlist import parse_playlist
+            from zora.rom.music.randomize import options_for, randomize_music
+            library_files = [LibraryFile(path.name, path.read_bytes())
+                             for path in sorted(args.music_library.glob("*.json5"))] if args.music_library else []
+            try:
+                playlist = parse_playlist(args.music_playlist.read_text()) if args.music_playlist else None
+                music = randomize_music(out, rom, pinned_assets(), seed, options_for(settings, playlist), library_files)
+            except (MusicAssetsMissing, MusicError) as problem:
+                print(problem, file=sys.stderr)
+                return 1
+            for warning in music.warnings:
+                print(f"seed {seed}: {warning}", file=sys.stderr)
+            out = music.rom
+            suffix += "-music"
+            music_line = "- music: " + "; ".join(f"{area}: {title}" for area, title in music.track_list())
         res_name = f"zora-playtest-seed{seed}{suffix}.nes"
         (outdir / res_name).write_bytes(out)
         owners: dict[int, int] = {}
@@ -174,6 +198,7 @@ def main() -> int:
                  f"- round-trip parse→serialize: {'byte-identical' if rt_ok else 'MISMATCH'}",
                  f"- spec checks: {len(checks) - len(failed)}/{len(checks)} pass"
                  + (f" (failed: {[f.check_id for f in failed]})" if failed else ""),
+                 *([music_line] if music_line else []),
                  (f"- map: E=entrance T=triforce P=person g=grumble Z=zelda G=ganon "
                   f"s=staircase house room S=stairway cell #=room .=nothing")]
         for lvl in gw2.levels:

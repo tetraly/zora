@@ -27,4 +27,7 @@ QUOTE_LINE1_BIT = 0x80   # end of line 0 → line 1 follows  (high bits: 0b10)
 QUOTE_LINE2_BIT = 0x40   # end of line 1 → line 2 follows  (high bits: 0b01)
 QUOTE_END_BITS  = 0xC0   # end of text                      (high bits: 0b11)
 QUOTE_CHAR_MASK = 0x3F   # mask to extract character code from a quote byte
-QUOTE_BLANK     = 0xFF   # sentinel for an empty quote
+QUOTE_BLANK     = 0xFF   # an empty quote as the spec writes it (HT-HINT-07): the game still draws its character $3F
+# An empty text as ZORA writes it: one space with the end mark, so the text box shows nothing (a lone
+# $FF draws tile $3F, a stray mark, at the start of the box; seen in the emulator, beta 8)
+QUOTE_EMPTY     = CHAR_TO_BYTE[" "] | QUOTE_END_BITS

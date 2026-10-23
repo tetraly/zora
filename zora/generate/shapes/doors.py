@@ -18,11 +18,7 @@ W_OPEN, W_WALL, W_WALK1, W_WALK2, W_BOMB, W_KEY1, W_KEY2, W_SHUTTER = range(8)
 def _weights_for_level(level: int, opts: ShapeOptions) -> list[int]:
     row = list(T1_FIRST_QUEST[level])
     if opts.second_quest_doors:
-        if T1_SECOND_QUEST is None:
-            # SPEC-GAP 2 (SH-DOOR-02): second-quest door weights are not in
-            # the spec. ShapeOptions rejects the option at construction;
-            # this guard is not a GenerationFailure, so it cannot be retried.
-            raise NotImplementedError("second_quest_doors: waits on QUESTIONS #2")
+        # SH-DOOR-02: Add 2nd Quest Doors (B21) adds each level's T1b row, entry by entry
         for i, w in enumerate(T1_SECOND_QUEST[level]):
             row[i] += w
     return row

@@ -165,8 +165,9 @@ def test_the_entrance_needs_the_normal_wooden_sword(state: WoodenSwordState) -> 
     assert refusals(LEVEL_2, z1r_with(C07=int(state))) == sword_flags
 
 
-def test_progressive_items_still_refuses_extra_candles() -> None:
-    assert refusals(ASNB, MVP_BASELINE_LEVEL_ENCODING_OFF) == [zora_flags.EXTRA_CANDLES_CONFLICT]
+def test_asnb_takes_extra_candles() -> None:
+    """tetraly/zora#13: Progressive Items no longer refuses B09 on (the MVP baseline's)."""
+    assert refusals(ASNB, MVP_BASELINE_LEVEL_ENCODING_OFF) == []
 
 
 def test_the_level_2_field_without_add_l4_sword_is_refused() -> None:

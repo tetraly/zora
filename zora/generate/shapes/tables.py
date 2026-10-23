@@ -19,12 +19,19 @@ T1_FIRST_QUEST: dict[int, list[int]] = {
     9: [41, 68, 0, 0, 38, 32, 0, 14],
 }
 
-# SPEC-GAP 2 (SH-DOOR-02): second-quest door weights are "in the source" and
-# were not provided. second_quest_doors=True currently raises. The finished
-# corpus holds no walk-through walls (0 in 1,000 ROMs; the earlier raw census
-# read staircases' exit-room bytes as door fields), consistent with the
-# Consternation preset keeping second-quest doors off.
-T1_SECOND_QUEST: dict[int, list[int]] | None = None
+# T1b (SH-DOOR-02, beta 8 export): the door weights Add 2nd Quest Doors (B21) adds to T1, entry by
+# entry, in T1's order (open, wall, walk-through, walk-through 2, bomb, key, key 2, shutter)
+T1_SECOND_QUEST: dict[int, list[int]] = {
+    1: [15, 4, 0, 0, 6, 4, 0, 4],
+    2: [21, 11, 3, 0, 6, 8, 0, 6],
+    3: [11, 2, 0, 0, 0, 6, 0, 2],
+    4: [31, 29, 12, 0, 8, 6, 0, 11],
+    5: [19, 12, 2, 0, 0, 4, 0, 6],
+    6: [26, 4, 4, 0, 10, 6, 0, 5],
+    7: [28, 12, 0, 0, 0, 4, 0, 17],
+    8: [28, 16, 6, 0, 8, 10, 0, 13],
+    9: [55, 23, 16, 0, 18, 10, 0, 21],
+}
 
 # --- T2 stair-room layouts ---------------------------------------------------
 T2_LAYOUTS = (0x5A, 0x1B, 0x62, 0x4A, 0x48, 0x1C, 0x41,

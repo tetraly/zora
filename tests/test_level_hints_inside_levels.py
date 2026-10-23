@@ -32,8 +32,9 @@ from zora.rom.base_rom import remember_repo_base_rom
 pytestmark = needs_base_rom
 
 SEEDS = range(10)
-# Seed 0: a level 7 person would say where level 7 is ("LEVEL-7 LIES AROUND A LAKE.")
-SEED_WITH_ONE = 0
+# Seed 6: a level 7 person would say where level 7 is, and no other (beta 8's output; seed 0 now has
+# two, levels 4 and 7, which the rule moves through three slots)
+SEED_WITH_ONE = 6
 LEVEL_3_SLOT = LEVEL_LOCATION_SLOTS[2]
 
 
@@ -74,7 +75,7 @@ def test_no_person_tells_where_its_own_level_is(seed: int) -> None:
     assert not [(level, text) for level, text in shown if says_where_its_own_level_is(level, text)]
 
 
-def test_without_the_rule_seed_0_tells_level_7_where_it_is(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_without_the_rule_one_seed_tells_level_7_where_it_is(monkeypatch: pytest.MonkeyPatch) -> None:
     shown = texts_inside_levels(built_without_the_rule(monkeypatch, SEED_WITH_ONE))
     assert [level for level, text in shown if says_where_its_own_level_is(level, text)] == [7]
 

@@ -110,6 +110,7 @@ FREE_SPACE = {
     "ZORA_F2_L4_TAKE_FIXED": FreeSpace(7, 0xFF43, 0xFF4F),
     "ZORA_F2_L4_TAKE": FreeSpace(1, 0xBFC0, 0xBFDF),
     "ZORA_F2_RING_COLOR": FreeSpace(5, 0xBC80, 0xBCBF),
+    "ZORA_F2_BOOTS_ENDING": FreeSpace(2, 0xAF90, 0xAF9F),
 }
 
 

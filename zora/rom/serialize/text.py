@@ -9,6 +9,7 @@ from ..layout import (
     EXT_HINT_DATA_ROM_START,
     HINT_SHOP_QUOTES_ADDRESS,
     HINT_TEXT_SPILL_FILL,
+    NORMAL_HINT_TEXT_ADDRESS,
     OVERWORLD_PERSON_TEXT_SELECTORS_ADDRESS,
     QUOTE_DATA_ADDRESS,
     UNDERWORLD_PERSON_TEXT_SELECTORS_A_ADDRESS,
@@ -23,7 +24,7 @@ from ..text_encoding import (
     CHAR_TO_BYTE as _CHAR_TO_BYTE,
 )
 from ..text_encoding import (
-    QUOTE_BLANK,
+    QUOTE_EMPTY,
     QUOTE_END_BITS,
     QUOTE_LINE1_BIT,
     QUOTE_LINE2_BIT,
@@ -61,7 +62,7 @@ def _encode_quote(text: str, center: bool = False) -> list[int]:
     has its own hand-crafted spacing.
     """
     if not text:
-        return [QUOTE_BLANK]
+        return [QUOTE_EMPTY]
     lines = text.split("|")
     result: list[int] = []
     for line_idx, line in enumerate(lines):
@@ -136,6 +137,10 @@ def _serialize_hints(game_world: GameWorld, patch: Patch,
         patch.add(QUOTE_DATA_ADDRESS, game_world.quotes_raw)
         return
 
+    if hint_mode == HintMode.NORMAL:
+        _serialize_normal_hints(game_world, patch)
+        return
+
     use_extended_hint_bank = hint_mode in (HintMode.COMMUNITY, HintMode.HELPFUL,
                                            HintMode.CONSTERNATION)
 
@@ -166,6 +171,34 @@ def _serialize_hints(game_world: GameWorld, patch: Patch,
     patch.add(QUOTE_DATA_ADDRESS, bytes(ptr_table))
     for offset, text in zip(offsets, encoded, strict=True):
         patch.add(offset, text)
+
+
+def _serialize_normal_hints(game_world: GameWorld, patch: Patch) -> None:
+    """HT-HINT-05 (normal hints): PRG0's text block where it stands, with its 38 pointers as the
+    generation left them (hint_pointers; a parsed world keeps the block's own), ZORA's own texts
+    after the refusal text (NORMAL_HINT_TEXT_ADDRESS), and HT-SEL-01's dungeon hint-room
+    selectors. The white-sword cave and the hint shops keep PRG0's selectors (the cave tables)."""
+    block = bytearray(game_world.quotes_raw)
+    if not block:
+        raise ValueError("NORMAL hint mode requires PRG0's text block (GameWorld.quotes_raw)")
+    for slot, cpu in enumerate(game_world.hint_pointers or ()):
+        write_le16(block, slot, cpu)
+    patch.add(QUOTE_DATA_ADDRESS, bytes(block))
+    offset = NORMAL_HINT_TEXT_ADDRESS
+    for text in game_world.hint_text_bytes or ():
+        patch.add(offset, text)
+        offset += len(text)
+    _serialize_room_selectors(game_world, patch)
+
+
+def _serialize_room_selectors(game_world: GameWorld, patch: Patch) -> None:
+    """HT-SEL-01's dungeon hint-room selector families A and B."""
+    if game_world.underworld_text_selectors_a is not None:
+        patch.add(UNDERWORLD_PERSON_TEXT_SELECTORS_A_ADDRESS,
+                  bytes(game_world.underworld_text_selectors_a[:UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE]))
+    if game_world.underworld_text_selectors_b is not None:
+        patch.add(UNDERWORLD_PERSON_TEXT_SELECTORS_B_ADDRESS,
+                  bytes(game_world.underworld_text_selectors_b[:UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE]))
 
 
 def _serialize_consternation_hints(game_world: GameWorld, patch: Patch) -> None:
@@ -202,12 +235,7 @@ def _serialize_consternation_hints(game_world: GameWorld, patch: Patch) -> None:
     if game_world.hint_shop_offer_selectors is not None:
         patch.add(HINT_SHOP_QUOTES_ADDRESS,
                   bytes(game_world.hint_shop_offer_selectors))
-    if game_world.underworld_text_selectors_a is not None:
-        patch.add(UNDERWORLD_PERSON_TEXT_SELECTORS_A_ADDRESS,
-                  bytes(game_world.underworld_text_selectors_a[:UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE]))
-    if game_world.underworld_text_selectors_b is not None:
-        patch.add(UNDERWORLD_PERSON_TEXT_SELECTORS_B_ADDRESS,
-                  bytes(game_world.underworld_text_selectors_b[:UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE]))
+    _serialize_room_selectors(game_world, patch)
 
     log.info("Consternation hint texts: %d bytes, %d in the overflow region.",
              sum(len(data) for data in text_bytes),

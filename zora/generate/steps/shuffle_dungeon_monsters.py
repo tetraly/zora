@@ -1,5 +1,6 @@
 """Shuffle Dungeon Monsters (B32; PS-MONRD-01 to -03): the per-level monster
-re-deal, which writes the room lists into the rooms."""
+re-deal, which writes the room lists into the rooms. Its three switches (PS-MONRD-04 to -06):
+Shuffle Ganon and Zelda (B33), Force Ganon Fight (B18) and the shuffle itself (B32)."""
 
 from dataclasses import dataclass
 
@@ -48,6 +49,10 @@ GANON_BAD_LAYOUTS = frozenset({RoomType.SPIKE_TRAP_ROOM, RoomType.FOUR_TALL_ROOM
                                RoomType.TURNSTILE_ROOM, RoomType.SINGLE_BLOCK_ROOM,
                                RoomType.TWO_FIREBALL_ROOM, RoomType.FOUR_FIREBALL_ROOM, RoomType.ZELDA_ROOM,
                                RoomType.TRIFORCE_ROOM})
+# PS-MONRD-05: with Force Ganon Fight off (B18) Zelda's only bar is the layout byte's low seven bits
+# (push bit kept, monster bit ignored) at 9, 15, 16, 30 or $5A ($1A with a push block)
+ZELDA_BARRED_WITHOUT_FIGHT = frozenset({0x09, 0x0F, 0x10, 0x1E, 0x5A})
+PUSH_BLOCK_BIT = 0x40
 GLEEOK_BYTES = frozenset({0x02, 0x03, 0x04, 0x05})    # one to four heads
 FOUR_HEAD_LIST = 0x05
 TRAP_BYTES = frozenset({0x09, 0x0A})
@@ -82,6 +87,18 @@ def _is_redeal_trap(value: int) -> bool:
 
 
 @dataclass(frozen=True)
+class RedealOptions:
+    """The re-deal's switches, each on in the MVP baseline. FL-DEP-02 rule 3 has met B32's
+    prerequisite, so the shuffle off comes with Ganon and Zelda off (PS-MONRD-06)."""
+    shuffle: bool = True                 # B32: off writes the lists back unshuffled (PS-MONRD-06)
+    ganon_and_zelda: bool = True         # B33: off leaves their rooms out (PS-MONRD-04)
+    force_ganon_fight: bool = True       # B18: off relaxes Zelda's swap rule (PS-MONRD-05)
+
+
+BASELINE_REDEAL = RedealOptions()
+
+
+@dataclass(frozen=True)
 class _Room:
     """A taking-part room as the swap rules read it."""
     place: RoomPlace
@@ -90,16 +107,22 @@ class _Room:
     is_cellar_exit: bool
 
 
-def is_swap_allowed(value_a: int, value_b: int, room_a: _Room, room_b: _Room) -> bool:
+def is_swap_allowed(value_a: int, value_b: int, room_a: _Room, room_b: _Room,
+                    force_ganon_fight: bool = True) -> bool:
     """PS-MONRD-02: may value_a (in room_a) and value_b (in room_b) exchange?
     Quirk (the rule shape): if EITHER value is X, BOTH rooms' layouts must
-    be safe for X."""
+    be safe for X. With Force Ganon Fight off (B18, PS-MONRD-05) Zelda's
+    rule is only ZELDA_BARRED_WITHOUT_FIGHT, in the same shape."""
     rooms = (room_a, room_b)
 
     def are_both_clear(bad_layouts: frozenset[int]) -> bool:
         return all(room.layout not in bad_layouts for room in rooms)
 
-    if _is_zelda(value_a) or _is_zelda(value_b):
+    if not force_ganon_fight and (_is_zelda(value_a) or _is_zelda(value_b)):
+        if any(room.layout | (PUSH_BLOCK_BIT if room.has_push_block else 0) in ZELDA_BARRED_WITHOUT_FIGHT
+               for room in rooms):
+            return False
+    elif _is_zelda(value_a) or _is_zelda(value_b):
         if not are_both_clear(ZELDA_BAD_LAYOUTS) or any(room.has_push_block for room in rooms):
             return False
         # Zelda may not arrive in a cellar exit (her own room included when
@@ -168,15 +191,23 @@ def _write_ganon_room(block: LevelBlock, room_number: int, copy_to: int | None,
             beside.boss_sound = BossSound(beside.boss_sound | BOSS_SOUND_NEAR)
 
 
+def takes_part(value: int, options: RedealOptions) -> bool:
+    """PS-MONRD-01: the rooms the re-deal deals; with B33 off (PS-MONRD-04) not Zelda's or Ganon's."""
+    if _byte(value) in REDEAL_LEFT_OUT:
+        return False
+    return options.ganon_and_zelda or not (_is_zelda(value) or _is_ganon(value))
+
+
 def redeal_level(blocks: list[LevelBlock], levels: list[Level], lists: RoomLists, level_num: int,
-                 state: MonsterShuffleResult, rng: IntRng) -> None:
+                 state: MonsterShuffleResult, rng: IntRng, options: RedealOptions = BASELINE_REDEAL) -> None:
     """PS-MONRD-01..03 for one level: a Fisher-Yates walk over the taking-
     part rooms with the swap rules (a rejected draw redraws the same
     position; 10,000 draws per level, then the generation restarts), then
-    the write-back."""
+    the write-back. With the shuffle off (B32, PS-MONRD-06) no swap is
+    drawn and the write-back runs on the lists as they are."""
     staged_level = next(candidate for candidate in levels if candidate.level_num == level_num)
     block = staged_level.block
-    places = [place for place in lists.rooms[level_num] if _byte(lists.values[place]) not in REDEAL_LEFT_OUT]
+    places = [place for place in lists.rooms[level_num] if takes_part(lists.values[place], options)]
     exits = _cellar_exits(staged_level)
     rooms = [_Room(place, block.room(place.room_number).room_type, block.room(place.room_number).movable_block,
                    place.room_number in exits)
@@ -185,7 +216,7 @@ def redeal_level(blocks: list[LevelBlock], levels: list[Level], lists: RoomLists
     count = len(rooms)
     draws = 0
     last_ganon_layout: int | None = None
-    for position in range(count):
+    for position in range(count if options.shuffle else 0):
         while True:
             draws += 1
             if draws > REDEAL_BUDGET:
@@ -194,7 +225,8 @@ def redeal_level(blocks: list[LevelBlock], levels: list[Level], lists: RoomLists
             if block.room(rooms[position].place.room_number).layout_code == RoomType.GANON_ROOM:
                 last_ganon_layout = rooms[position].place.room_number
             other = position + rng.below(count - position)
-            if is_swap_allowed(values[position], values[other], rooms[position], rooms[other]):
+            if is_swap_allowed(values[position], values[other], rooms[position], rooms[other],
+                               options.force_ganon_fight):
                 values[position], values[other] = values[other], values[position]
                 break
     state.redeal_draws += draws
@@ -211,8 +243,11 @@ def redeal_level(blocks: list[LevelBlock], levels: list[Level], lists: RoomLists
 
 
 def shuffle_dungeon_monsters(blocks: list[LevelBlock], levels: list[Level], lists: RoomLists,
-                             state: MonsterShuffleResult, rng: IntRng) -> None:
+                             state: MonsterShuffleResult, rng: IntRng,
+                             options: RedealOptions = BASELINE_REDEAL) -> None:
     """PS-MONRD: every level, 1 to 9. The re-deal moves Zelda and Ganon;
-    the passes after it find them by content."""
+    the passes after it find them by content. With Force Ganon Fight off
+    ZORA never makes PS-MONRD-05's stray trigger write (owner ruling
+    2026-10-22; docs/deviations.md)."""
     for level_num in sorted(lists.rooms):
-        redeal_level(blocks, levels, lists, level_num, state, rng)
+        redeal_level(blocks, levels, lists, level_num, state, rng, options)

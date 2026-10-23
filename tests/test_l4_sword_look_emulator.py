@@ -11,7 +11,8 @@ l4-sword-look, today's look.
   - A sword item on every path (the three sword caves, a shop, a dungeon room, an item cellar,
     the coast and the Armos) at sword levels 0-4: as today at levels 0-2; at levels 3 and 4,
     where it is the magical sword ($03) and the L4 item, the magical sword's icon in row 1 (today
-    row 2). A shop hides it at level 4.
+    row 2). A shop and the three sword caves hide it at level 4 (31f798c: a give-away cave
+    hides an upgrade already at its top level, as shops do).
   - Link holding it up, taken from a cave at sword level 3: in row 1 (today row 2)."""
 from collections.abc import Callable
 from functools import cache
@@ -163,6 +164,10 @@ def in_hand(look: bool, level: int) -> dict[str, list[Sprite]]:
     return seen
 
 
+# The pickups that hide a sword already at its top level: a shop, and since 31f798c the give-away caves
+HIDDEN_AT_THE_TOP = frozenset({Pickup.SHOP, Pickup.WOOD_SWORD_CAVE, Pickup.WHITE_SWORD_CAVE, Pickup.MAGICAL_SWORD_CAVE})
+
+
 def world_item(look: bool, path: Pickup, level: int) -> set[tuple[int, int]]:
     """The looks (tile, row) the path's sword item is drawn with, over a few frames."""
     game = game_for(look, level, path)
@@ -205,8 +210,8 @@ def test_in_hand_levels_1_to_3_are_drawn_as_today_and_level_4_in_row_1(level: in
 def test_a_sword_item_has_level_4s_look_where_it_gives_level_4(path: Pickup) -> None:
     for level in range(L4_SWORD_LEVEL + 1):
         today, now = world_item(False, path, level), world_item(True, path, level)
-        if path is Pickup.SHOP and level == L4_SWORD_LEVEL:
-            assert today == now == set()                     # the shop hides its sword
+        if path in HIDDEN_AT_THE_TOP and level == L4_SWORD_LEVEL:
+            assert today == now == set()                     # the shop or cave hides its sword
         elif level < 3:
             assert now == today != set(), level
         else:

@@ -69,19 +69,21 @@ def combined_monster(room: Room) -> int:
     return room.monster_list | (COMBINED_MONSTER_BIT if room.has_monster_bit else 0)
 
 
-def takes_part(room: Room) -> bool:
+def takes_part(room: Room, ganon_and_zelda: bool = True) -> bool:
     """PS-XCHG-01: does this level room join the pool?"""
     if room.layout_code in SKIPPED_LAYOUT_CODES:
         return False
     monster = combined_monster(room)
     if monster in SKIPPED_FLAGGED_LISTS or monster == Enemy.HUNGRY_GORIYA:
         return False
-    # Zelda and Ganon take part ("shuffle Ganon and Zelda" is on); Ganon's
-    # room holds the Triforce of Power by now, so the item test drops it.
+    # Zelda and Ganon take part with Shuffle Ganon and Zelda on (B33); off, both stay out
+    # (PS-MONRD-04). Ganon's room holds the Triforce of Power by now, so the item test drops it.
+    if not ganon_and_zelda and monster in (ZELDA_LIST, GANON_LIST):
+        return False
     return room.item_info.item_code not in GUARDED_ITEMS
 
 
-def exchange_pool(levels: list[Level]) -> list[tuple[Level, Room]]:
+def exchange_pool(levels: list[Level], ganon_and_zelda: bool = True) -> list[tuple[Level, Room]]:
     """PS-XCHG-01: the level rooms that take part, with their levels, in
     scan order: the levels 1-6 block's rooms 0-127, then the levels 7-9
     block's."""
@@ -89,7 +91,7 @@ def exchange_pool(levels: list[Level]) -> list[tuple[Level, Room]]:
     for block in blocks_of(levels):
         owned = sorted(((room.room_num, level, room) for level in levels if level.block is block
                         for room in level.rooms), key=lambda entry: entry[0])
-        pool.extend((level, room) for _room_num, level, room in owned if takes_part(room))
+        pool.extend((level, room) for _room_num, level, room in owned if takes_part(room, ganon_and_zelda))
     return pool
 
 
@@ -213,14 +215,14 @@ class DungeonRoomShuffleResult:
     stair_redraws: int = 0
 
 
-def exchange_rooms(levels: list[Level], rng: IntRng) -> DungeonRoomShuffleResult:
+def exchange_rooms(levels: list[Level], rng: IntRng, ganon_and_zelda: bool = True) -> DungeonRoomShuffleResult:
     """PS-XCHG-01..04: the pool in scan order (block 0 rooms 0-127, then
     block 1); for each position a partner uniform over position..end,
     re-drawn while it pairs stair-type with non-stair-type contents; a swap
     that breaks a rule is skipped (quirk: no re-draw). Contents are written
     back at the end."""
     discard(rng, DISCARDED_DRAWS)
-    pool = exchange_pool(levels)
+    pool = exchange_pool(levels, ganon_and_zelda)
     contents = [take_contents(level, room) for level, room in pool]
     monsters = [combined_monster(room) for _level, room in pool]
     positions = [level.item_position_table for level, _room in pool]

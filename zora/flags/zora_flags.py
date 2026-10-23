@@ -35,6 +35,7 @@ from .dependencies import UnresolvedError, magical_sword_hearts, starting_hearts
 from .fields import (
     BOOK_TO_UNDERSTAND_NPCS,
     LEVEL_9_FIRST_PIN,
+    LEVEL_9_REQUIREMENT,
     LEVEL_9_SECOND_PIN,
     MAGICAL_SWORD_HIGHEST,
     MAGICAL_SWORD_LOWEST,
@@ -43,6 +44,8 @@ from .fields import (
     TOGGLES_BY_ID,
     CaveShuffle,
     DungeonLayoutSource,
+    ItemShuffleScope,
+    Level9Requirement,
     OverworldQuest,
     Settings,
     ThreeState,
@@ -118,9 +121,21 @@ EXPANDED_DUNGEON_LOCATIONS_FIELDS = (
 HIGHLIGHT_NO_DROP_ROOMS_FIELDS = (
     "highlight_no_drop_rooms",             # block rooms that can never hold an item use inner palette 3
 )
+# Version 10: Do Not Segment Dungeons (owner, 2026-10-22; tetraly/zora#6 and #7, the design of
+# docs/reports/research-candles-and-segments.md section 2), On / Off / ? like version 3's, a "?"
+# decided by the same coins after version 9's. Acts on shapes levels only.
+DO_NOT_SEGMENT_DUNGEONS_FIELDS = (
+    "do_not_segment_dungeons",                  # a shapes level's rooms are all joined by doors, stairways shortcuts
+)
+# Version 11: Disable Custom Music (owner, 2026-10-22; docs/design/music-settings.md section 7), a
+# switch for races: with it On, the player setting Music offers only Off and Vanilla. It rules the
+# player settings only, never the game, so it is kept out of the game's random streams and level
+# encoding key (game_string): the same seed is the same game with it on or off.
+PLAYER_SETTING_RULES = frozenset({"disable_custom_music"})
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
-                      *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS)
+                      *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
+                      *DO_NOT_SEGMENT_DUNGEONS_FIELDS)
 
 
 
@@ -176,6 +191,12 @@ FIELDS: tuple[ZoraField, ...] = (
     # Version 9: Highlight No-Drop Rooms (HIGHLIGHT_NO_DROP_ROOMS_FIELDS), Off by default, so every
     # older string keeps its meaning and its spelling.
     *(ZoraField(name, THREE_STATE_SLOTS, version=9) for name in HIGHLIGHT_NO_DROP_ROOMS_FIELDS),
+    # Version 10: Do Not Segment Dungeons (DO_NOT_SEGMENT_DUNGEONS_FIELDS), Off by default, so every older
+    # string keeps its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=10) for name in DO_NOT_SEGMENT_DUNGEONS_FIELDS),
+    # Version 11: Disable Custom Music (PLAYER_SETTING_RULES), Off by default, so every older string
+    # keeps its meaning and its spelling.
+    ZoraField("disable_custom_music", 2, version=11),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -227,6 +248,10 @@ class ZoraFlags:
     expanded_dungeon_locations: ThreeState = ThreeState.OFF
     # Version 9: Highlight No-Drop Rooms, On / Off / ? (HIGHLIGHT_NO_DROP_ROOMS_FIELDS).
     highlight_no_drop_rooms: ThreeState = ThreeState.OFF
+    # Version 10: Do Not Segment Dungeons, On / Off / ? (DO_NOT_SEGMENT_DUNGEONS_FIELDS).
+    do_not_segment_dungeons: ThreeState = ThreeState.OFF
+    # Version 11: Disable Custom Music (PLAYER_SETTING_RULES): Music offers only Off and Vanilla.
+    disable_custom_music: bool = False
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -350,6 +375,13 @@ def canonicalize(flag_string: str) -> str:
     return encode(decode(flag_string))
 
 
+def game_string(flags: ZoraFlags) -> str:
+    """The canonical string of the flags that shape the game: every PLAYER_SETTING_RULES field at
+    its default. The game's random streams and level encoding key take this one, so a flag that
+    only rules the player settings never changes the game."""
+    return encode(replace(flags, **{name: getattr(DEFAULT, name) for name in PLAYER_SETTING_RULES}))
+
+
 # Every ZoraFlags attribute has exactly one field; the other fields are retired.
 assert {field.name for field in FIELDS} - RETIRED_FIELDS == {field.name for field in fields(ZoraFlags)}
 
@@ -443,30 +475,6 @@ SWORD_HEARTS_CAP_CONFLICT_FIELDS = ("magical_sword_hearts_highest", REDRAW_SWORD
                                     MAGICAL_SWORD_LOWEST.id, MAGICAL_SWORD_HIGHEST.id)
 
 
-# The Z1R field Progressive Items refuses (PI-FLAG-03).
-EXTRA_CANDLES = TOGGLES_BY_ID["B09"]
-EXTRA_CANDLES_CONFLICT = ("Progressive Items cannot be used with Extra Candles: the two extra candles would "
-                          "give the red candle at the start.")
-# The settings that conflict names, where the page shows it.
-EXTRA_CANDLES_CONFLICT_FIELDS = ("progressive_items", EXTRA_CANDLES.id)
-
-
-def extra_candles_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
-    """PI-FLAG-03: Progressive Items refuses B09 (Add extra candle wares) on. A "?" on B09 is not
-    refused: it resolves to off (without_extra_candles)."""
-    if flags.progressive_items and z1r.toggle(EXTRA_CANDLES) is ThreeState.ON:
-        return EXTRA_CANDLES_CONFLICT
-    return None
-
-
-def without_extra_candles(flags: ZoraFlags, resolved: Settings, asked: Settings) -> Settings:
-    """PI-FLAG-03: with Progressive Items on, a "?" on B09 resolves to off. Applied after the
-    "?" values are drawn, so every other draw keeps its outcome."""
-    if flags.progressive_items and asked.toggle(EXTRA_CANDLES) is ThreeState.POSSIBLE:
-        return resolved.updated(toggles={EXTRA_CANDLES.id: ThreeState.OFF})
-    return resolved
-
-
 # The owner's 2.0 dependencies (owner decisions, 2026-10-07). An explicit conflict (both sides set,
 # neither "?") is refused and shown in red; when a "?" would make one, the "?" side resolves to off
 # (resolve_owner_dependencies), never an explicit choice.
@@ -486,6 +494,42 @@ SHORTCUT_RANDOM_NOTE = ("On in every seed where Randomize Dead Woods (Random) co
 BRACELET_BLOCKS_CONFLICT = ('Extra Power Bracelet Blocks cannot be used with Shuffle "Take Any Road" Caves '
                             "on: turn one of them off.")
 BRACELET_BLOCKS_CONFLICT_FIELDS = ("extra_power_bracelet_blocks", TAKE_ANY_ROAD_CAVES.id)
+# Extra Raft Blocks (§3) puts screen $34 behind the raft, and on a 2nd Quest overworld $34 is level
+# 3's entrance. With the items not shuffled, the dungeons left in place and a Dungeon Quest that keeps
+# the raft in level 3 (1st Quest dungeons and shapes do; 2nd Quest dungeons keep it in level 5, and
+# Mixed Quest redraws the levels each attempt), the raft is inside the one level that needs it: the
+# acceptance check rejects nearly every attempt (96-100% of them, 2026-10-23; the rest only by a
+# rare other entrance), and a seed fails after 2,000. Each Random value that can come up into the
+# combination counts, as for the other refusals.
+RAFT_TRAP_OVERWORLDS = frozenset({OverworldQuest.SECOND_QUEST, OverworldQuest.MIXED_SECOND_QUEST_VARIANT,
+                                  OverworldQuest.RANDOM})
+RAFT_TRAP_ITEM_SHUFFLES = frozenset({ItemShuffleScope.NONE, ItemShuffleScope.RANDOM})
+RAFT_TRAP_CAVE_SHUFFLES = frozenset({CaveShuffle.VANILLA, CaveShuffle.NON_DUNGEON_CAVES_ONLY, CaveShuffle.RANDOM})
+RAFT_FREE_DUNGEON_QUESTS = frozenset({DungeonLayoutSource.SECOND_QUEST, DungeonLayoutSource.MIXED})
+OVERWORLD_QUEST, CAVE_SHUFFLE, ITEM_SHUFFLE = OPTIONS_BY_ID["C01"], OPTIONS_BY_ID["C05"], OPTIONS_BY_ID["C06"]
+DUNGEON_QUEST = OPTIONS_BY_ID["C02"]
+RAFT_BLOCKS_CONFLICT = (
+    "Extra Raft Blocks cannot be used with a 2nd Quest overworld (Overworld Quest 2nd Quest or Mixed Quest - 2nd), "
+    "Item Shuffle None, a Cave Shuffle that leaves the dungeons in place (Vanilla or Non-dungeons Only) and a "
+    "Dungeon Quest other than 2nd Quest or Mixed Quest, Random included in each: level 3's entrance then needs the "
+    "raft, which stays inside level 3. Turn Extra Raft Blocks off, or change one of the others.")
+RAFT_BLOCKS_CONFLICT_FIELDS = ("extra_raft_blocks", OVERWORLD_QUEST.id, ITEM_SHUFFLE.id, CAVE_SHUFFLE.id,
+                               DUNGEON_QUEST.id)
+
+
+def keeps_raft_behind_raft(z1r: Settings) -> bool:
+    """Whether the Z1R settings (asked, Random values counted, or resolved) can leave the raft in level
+    3 behind its own raft-blocked entrance under Extra Raft Blocks."""
+    return (z1r.option(OVERWORLD_QUEST) in RAFT_TRAP_OVERWORLDS
+            and z1r.option(ITEM_SHUFFLE) in RAFT_TRAP_ITEM_SHUFFLES
+            and z1r.option(CAVE_SHUFFLE) in RAFT_TRAP_CAVE_SHUFFLES
+            and z1r.option(DUNGEON_QUEST) not in RAFT_FREE_DUNGEON_QUESTS)
+
+
+def raft_blocks_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
+    if flags.extra_raft_blocks is ThreeState.ON and keeps_raft_behind_raft(z1r):
+        return RAFT_BLOCKS_CONFLICT
+    return None
 
 
 def l4_sword_conflict(flags: ZoraFlags) -> str | None:
@@ -517,13 +561,17 @@ LEVEL_2_NEEDS_SHAPES_FIELDS = ("add_l4_sword", DUNGEON_LAYOUT_SOURCE.id)
 ENTRANCE_NEEDS_NORMAL_SWORD = ("Level 9 Entrance = Level 4 sword needs the wooden sword in its cave (Wooden-sword "
                                "state = Normal): the other states remove swords.")
 ENTRANCE_NEEDS_NORMAL_SWORD_FIELDS = ("level_9_entrance_sword", WOODEN_SWORD_STATE.id)
+# Level 9 Entry (C08 = 1 to 12, FP-TRIF-02 to FP-TRIF-06) rewrites the same entrance check as the
+# level-4-sword entrance (asm/asnb/level-9-gate), so the two never go together.
+ENTRANCE_NEEDS_EIGHT_PIECES = ("Level 9 Entrance = Level 4 sword needs Level 9 Entry = 8 triforces: both choose "
+                               "what level 9's entrance asks for.")
+ENTRANCE_NEEDS_EIGHT_PIECES_FIELDS = ("level_9_entrance_sword", LEVEL_9_REQUIREMENT.id)
 
 
 def asnb_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
     """Section 2's refusals, and the two the encoding allows but the control cannot show: the
     released "?" on Add L4 Sword with Level 2 or the level-4-sword entrance, and its level-2 field
-    set with it off. (Add L4 Sword without Progressive Items is l4_sword_conflict; Progressive
-    Items with B09 extra_candles_conflict.)"""
+    set with it off. (Add L4 Sword without Progressive Items is l4_sword_conflict.)"""
     found: list[tuple[str, tuple[str, ...]]] = []
     random_l4 = flags.add_l4_sword is ThreeState.POSSIBLE
     if random_l4 and (flags.l4_sword_in_level_2 or flags.level_9_entrance_sword):
@@ -536,6 +584,8 @@ def asnb_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str
         found.append((LEVEL_2_NEEDS_SHAPES, LEVEL_2_NEEDS_SHAPES_FIELDS))
     if flags.level_9_entrance_sword and z1r.option(WOODEN_SWORD_STATE) != WoodenSwordState.NORMAL:
         found.append((ENTRANCE_NEEDS_NORMAL_SWORD, ENTRANCE_NEEDS_NORMAL_SWORD_FIELDS))
+    if flags.level_9_entrance_sword and z1r.option(LEVEL_9_REQUIREMENT) != Level9Requirement.EIGHT_PIECES:
+        found.append((ENTRANCE_NEEDS_EIGHT_PIECES, ENTRANCE_NEEDS_EIGHT_PIECES_FIELDS))
     return found
 
 
@@ -682,9 +732,9 @@ def conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...
     cap = sword_hearts_cap_conflict(flags, z1r)
     found = [(cap, SWORD_HEARTS_CAP_CONFLICT_FIELDS),
              (None if cap else sword_hearts_conflict(flags, z1r), SWORD_HEARTS_CONFLICT_FIELDS),
-             (extra_candles_conflict(flags, z1r), EXTRA_CANDLES_CONFLICT_FIELDS),
              (l4_sword_conflict(flags), L4_SWORD_CONFLICT_FIELDS),
              (bracelet_blocks_conflict(flags, z1r), BRACELET_BLOCKS_CONFLICT_FIELDS),
+             (raft_blocks_conflict(flags, z1r), RAFT_BLOCKS_CONFLICT_FIELDS),
              (pegasus_boots_conflict(flags), PEGASUS_BOOTS_CONFLICT_FIELDS)]
     return ([(message, names) for message, names in found if message is not None] + asnb_conflicts(flags, z1r)
             + sword_state_conflicts(flags, z1r) + expanded_dungeon_locations_conflicts(flags, z1r)
@@ -698,9 +748,8 @@ def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
         reasons.append(cap)
     elif (sword := sword_hearts_conflict(flags, z1r)) is not None:
         reasons.append(sword)
-    if (candles := extra_candles_conflict(flags, z1r)) is not None:
-        reasons.append(candles)
     reasons.extend(owner_conflict for owner_conflict in (l4_sword_conflict(flags), bracelet_blocks_conflict(flags, z1r),
+                                                         raft_blocks_conflict(flags, z1r),
                                                          pegasus_boots_conflict(flags))
                    if owner_conflict is not None)
     reasons.extend(message for message, _names in asnb_conflicts(flags, z1r))
@@ -734,7 +783,7 @@ def question_mark_draws(seed: int, z1r_canonical: str, zora_canonical: str) -> I
 
 def resolve_question_marks(flags: ZoraFlags, seed: int, z1r_canonical: str, zora_canonical: str) -> ZoraFlags:
     """Each "?" of an On / Off / ? field decided for this seed by a fair coin, in payload order
-    (THREE_STATE_FIELDS: version 3's, then version 6's, 7's, 8's and 9's, so an older "?" keeps its coin). The
+    (THREE_STATE_FIELDS: version 3's, then version 6's, 7's, 8's, 9's and 10's, so an older "?" keeps its coin). The
     resolved values are never shown to the page."""
     if flags.is_resolved:
         return flags
@@ -756,6 +805,9 @@ def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z
     And Pegasus Boots' (owner spec, 2026-10-17):
       - Pegasus Boots with Magical Boomerang Does 1 HP Damage: the side that was "?" is off
         (Magical Boomerang Does 1 HP Damage when both were: it would do nothing with the boots).
+    And beta 8's:
+      - Extra Raft Blocks with a 2nd Quest overworld, Item Shuffle None, the dungeons left in place and
+        the raft kept in level 3 (keeps_raft_behind_raft, on the resolved settings): Extra Raft Blocks is off.
     And beta 7's (owner rule):
       - Randomize Dead Woods on: Add Lost Woods Shortcut (B88) is on, whatever the Z1R string asks
         (shortcut_forced_on)."""
@@ -772,6 +824,9 @@ def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z
         else:
             assert asked_z1r.toggle(TAKE_ANY_ROAD_CAVES) is ThreeState.POSSIBLE
             resolved_z1r = resolved_z1r.updated(toggles={TAKE_ANY_ROAD_CAVES.id: ThreeState.OFF})
+    if resolved.is_on("extra_raft_blocks") and keeps_raft_behind_raft(resolved_z1r):
+        # asked on with these settings is refused (raft_blocks_conflict), so only a "?" gets here
+        resolved = replace(resolved, extra_raft_blocks=ThreeState.OFF)
     if shortcut_forced_on(resolved):
         resolved_z1r = resolved_z1r.updated(toggles={LOST_WOODS_SHORTCUT.id: ThreeState.ON})
     return resolved, resolved_z1r

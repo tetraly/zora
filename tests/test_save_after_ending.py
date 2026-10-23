@@ -2,7 +2,8 @@
 file as SAVE does after a death or Up+A and returns to the file-select screen, instead of clearing
 it for the second quest; the file then loads with its items, triforce pieces and hearts, in the
 first quest. With the statistics screen (every ROM but the co-op hook's) Start first shows the
-screen and then leaves this way; without it, Start leaves at once."""
+screen and then leaves this way; without it, Start leaves at once. With Pegasus Boots the saved
+file also holds the L2 boots, the magical boomerang's byte (tetraly/zora#4); without, it does not."""
 import pytest
 
 from tests.emulator import (
@@ -18,6 +19,7 @@ from tests.emulator import (
     Emulator,
     Mode,
 )
+from tests.test_feature_patches import vanilla
 from tests.test_stats_screen import (
     HEART_VALUES,
     INV_LADDER,
@@ -31,6 +33,11 @@ from tests.test_stats_screen import (
     seed_rom,
 )
 from tests.test_stats_screen_play import finish_and_show
+from zora.flags import zora_flags
+from zora.flags.fields import ThreeState
+from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
+from zora.flags.zora_flags import ZoraFlags
+from zora.generate.pipeline import generate_rom
 from zora.rom.player_settings import PlayerSettings, apply_player_settings
 
 ALL_TRIFORCE_PIECES = 0xFF
@@ -38,6 +45,12 @@ WHITE_SWORD = 2
 BOMBS = 7
 HEART_CONTAINERS_9 = 0x88            # HeartValues: nine containers (high nibble), all full
 SAVE_FRAMES = 900
+INV_MAGIC_BOOMERANG = 0x675          # the L2 boots with Pegasus Boots on
+BOOTS = zora_flags.encode(ZoraFlags(pegasus_boots=ThreeState.ON))
+
+
+def boots_rom() -> bytes:
+    return generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, vanilla(), zora_flag_string=BOOTS).rom
 
 
 def play_to_the_ending(emu: Emulator) -> dict[int, int]:
@@ -65,10 +78,13 @@ def assert_the_file_kept(emu: Emulator, kept: dict[int, int]) -> None:
     assert emu[QUEST_NUMBERS + emu[CUR_SAVE_SLOT]] == 0              # still the first quest
 
 
+@pytest.mark.parametrize("boots", [False, True], ids=["", "Pegasus Boots"])
 @pytest.mark.parametrize("coop", [False, True], ids=["statistics screen", "co-op, no screen"])
-def test_start_after_the_ending_saves_the_file(coop: bool) -> None:
-    emu = Emulator(apply_player_settings(seed_rom(), PlayerSettings(), coop=coop))
+def test_start_after_the_ending_saves_the_file(coop: bool, boots: bool) -> None:
+    emu = Emulator(apply_player_settings(boots_rom() if boots else seed_rom(), PlayerSettings(), coop=coop))
     kept = play_to_the_ending(emu)
+    assert emu[INV_MAGIC_BOOMERANG] == 0
+    kept[INV_MAGIC_BOOMERANG] = 1 if boots else 0
     if coop:
         finish_and_show_without_screen(emu)
     else:

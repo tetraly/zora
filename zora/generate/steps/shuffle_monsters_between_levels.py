@@ -2,11 +2,11 @@
 and monster redraws."""
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from ...model.enums import Enemy
-from ...model.levels import GANON_LIST, ZELDA_LIST, Level, LevelBlock
+from ...model.levels import GANON_LIST, LEVEL_9, ZELDA_LIST, Level, LevelBlock
 from ...model.rooms import MONSTER_VALUE_BIT, RoomPlace
 from ..rng import IntRng, discard
 from ..shapes.enemies import monster_barred
@@ -34,12 +34,16 @@ PEOPLE_AND_HINTS = range(0x10B, 0x121)   # flagged monster bytes 11-32
 GORIYA_TILES_BY_TIER = ((0xA0, 0xA8, 0xAC, 0xB0), (0xA4, 0xB0), (0xB4,))
 
 
-def deal_enemy_banks(state: MonsterShuffleResult, rng: IntRng) -> None:
+def deal_enemy_banks(state: MonsterShuffleResult, rng: IntRng, level_9_included: bool = True) -> None:
     """PS-MONLV-01: the multiset {0,0,0,1,1,2,2,x,y} dealt uniformly over
-    levels 1-9 by a Fisher-Yates walk (the "level 9 included" option is on
-    under the preset)."""
+    levels 1-9 by a Fisher-Yates walk. With Shuffle Level 9 Monsters off
+    (B35, PS-MONLV-07) only levels 1-8 are dealt, the eight tiers
+    {0,0,0,1,1,2,x,y}; level 9 keeps PRG0's tier-2 bank, its pool tier."""
     discard(rng, LEADING_DISCARDS)
     tiers = [tier if tier is not None else rng.below(TIER_COUNT) for tier in DEAL_START]
+    if not level_9_included:
+        tiers = tiers[:LEVEL_9 - 1]
+        state.enemy_tiers[LEVEL_9] = VANILLA_ENEMY_TIER[LEVEL_9]
     levels = len(tiers)
     for position in range(levels):
         other = position + rng.below(levels - position)
@@ -55,12 +59,15 @@ def pool_excluded(value: int) -> bool:
             or value in POOL_EXCLUDED_SPECIAL or value in PEOPLE_AND_HINTS)
 
 
-def build_pools(lists: RoomLists, quests: LevelQuests | None = None, second_quest: bool = False) -> list[list[int]]:
+def build_pools(lists: RoomLists, quests: LevelQuests | None = None, second_quest: bool = False,
+                second_quest_lists: Mapping[int, tuple[int, ...]] | None = None) -> list[list[int]]:
     """PS-MONLV-02: pool t holds each distinct value (once) of the lists of
     the levels whose VANILLA tier is t, after the boss shuffle, in ascending
     order. The first-quest lists 1-9 and the second-quest lists 10-18 have
     pools of their own (PS-VAN-01): a level's list of the other quest than
-    its own is PRG0's (`quests`)."""
+    its own is PRG0's (`quests`). With Add 2nd Quest Monsters (B37,
+    SH-ENEMY-05) every pool t also holds the values of PRG0's second-quest
+    room lists of tier t (`second_quest_lists`, by level)."""
     pools: list[set[int]] = [set() for _ in range(TIER_COUNT)]
     for level, places in lists.rooms.items():
         tier = VANILLA_ENEMY_TIER[level]
@@ -69,7 +76,16 @@ def build_pools(lists: RoomLists, quests: LevelQuests | None = None, second_ques
         else:
             values = quests.other_quest_values[level]
         pools[tier].update(value for value in values if not pool_excluded(value))
+    for level, values in (second_quest_lists or {}).items():
+        pools[VANILLA_ENEMY_TIER[level]].update(value for value in values if not pool_excluded(value))
     return [sorted(pool) for pool in pools]
+
+
+def second_quest_list_values(base_levels_2q: list[Level]) -> dict[int, tuple[int, ...]]:
+    """SH-ENEMY-05 with B36: PRG0's second-quest room lists' values, by level (PS-VAN-02's lists)."""
+    return {level.level_num: tuple(level.block.room(room).monster_value
+                                   for room in vanilla_room_list(level, SetSource.SECOND_QUEST))
+            for level in base_levels_2q}
 
 
 def _goriya_level(blocks: list[LevelBlock], levels: list[Level]) -> int | None:
@@ -86,19 +102,25 @@ def _goriya_level(blocks: list[LevelBlock], levels: list[Level]) -> int | None:
 
 def shuffle_monsters_between_levels(blocks: list[LevelBlock], levels: list[Level], lists: RoomLists,
                                     state: MonsterShuffleResult, rng: IntRng,
-                                    quests: LevelQuests | None = None) -> None:
+                                    quests: LevelQuests | None = None, level_9_included: bool = True,
+                                    second_quest_lists: Mapping[int, tuple[int, ...]] | None = None) -> None:
     """PS-MONLV-01..06: deal the enemy banks, then redraw every ordinary monster room of levels
     1-9 from its new tier's pool. `quests`: with a vanilla set (PS-VAN-01), each level's quest,
     the second-quest pools and the mixed groups the bubble rule reads; None under the MVP
-    baseline, where every list is first quest and no bubble exists."""
-    deal_enemy_banks(state, rng)
+    baseline, where every list is first quest and no bubble exists. With Shuffle Level 9
+    Monsters off (B35, PS-MONLV-07) level 9 is left out of the deal and the redraws (its monsters
+    still join the tier-2 pool), and no goriya tile is drawn for it. With Add 2nd Quest Monsters
+    (B37) the pools also hold PRG0's second-quest lists' values (`second_quest_lists`)."""
+    deal_enemy_banks(state, rng, level_9_included)
     if quests is not None and quests.second_quest_level_2:
         state.enemy_tiers[2] = state.enemy_tiers[7]      # PS-VAN-04, before any room is redrawn
-    pools = {False: build_pools(lists, quests, second_quest=False)}
+    pools = {False: build_pools(lists, quests, second_quest=False, second_quest_lists=second_quest_lists)}
     if quests is not None:
-        pools[True] = build_pools(lists, quests, second_quest=True)
+        pools[True] = build_pools(lists, quests, second_quest=True, second_quest_lists=second_quest_lists)
     goriya_level = _goriya_level(blocks, levels)
     for level in sorted(lists.rooms):
+        if level == LEVEL_9 and not level_9_included:
+            continue
         tier = state.enemy_tiers[level]
         if level == goriya_level:
             tiles = GORIYA_TILES_BY_TIER[tier]

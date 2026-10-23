@@ -15,11 +15,19 @@ from typing import TypeVar
 
 from ...model.enums import Destination, Enemy, Item, RoomAction
 from ...model.game_world import GameWorld
-from ...model.levels import Level
+from ...model.levels import LEVEL_9, Level
 from ...model.overworld import HintShop, ItemCave, Quote, Screen
 from ...model.rooms import DARK_BIT, Room
-from ...rom.layout import CONSTERNATION_HINT_SLOTS, TOLL_TEXT_POINTER, cpu_address_in_bank1, place_hint_texts
-from ...rom.text_encoding import CHAR_TO_BYTE, QUOTE_BLANK, QUOTE_END_BITS, QUOTE_LINE1_BIT, QUOTE_LINE2_BIT
+from ...rom.layout import (
+    CONSTERNATION_HINT_SLOTS,
+    EXT_HINT_DATA_ROM_END,
+    NORMAL_HINT_TEXT_ADDRESS,
+    NUM_QUOTES,
+    TOLL_TEXT_POINTER,
+    cpu_address_in_bank1,
+    place_hint_texts,
+)
+from ...rom.text_encoding import CHAR_TO_BYTE, QUOTE_EMPTY, QUOTE_END_BITS, QUOTE_LINE1_BIT, QUOTE_LINE2_BIT
 from ..dungeon_walk import item_cellar, item_room, walk_level
 from ..rng import IntRng, Rng
 from .assign_hints_for_hint_type import HintAssignmentResult
@@ -70,7 +78,7 @@ def encode_text(lines: list[str]) -> list[int]:
     """Encode up to three lines with the spec's line-break and end flags."""
     non_empty = [line for line in lines if line]
     if not non_empty:
-        return [QUOTE_BLANK]
+        return [QUOTE_EMPTY]
     encoded: list[int] = []
     for position, line in enumerate(non_empty):
         encoded.extend(_encode_line(line))
@@ -617,6 +625,35 @@ def _quadrant(gw: GameWorld, room_num: int) -> str:
 
 
 # -----------------------------------------------------------------------------
+# Deception (HT-HINT-06): each helpful fact replaced by a random one with chance one-half
+# -----------------------------------------------------------------------------
+
+OVERWORLD_SCREEN_COUNT = 128
+DECEPTION_SEED_RANGE = 1 << 31            # the one draw that keys Deception's own stream
+QUADRANTS = ("NORTH-WEST", "NORTH-EAST", "SOUTH-WEST", "SOUTH-EAST")
+# HT-HINT-06 item 4: the compass's families a deceiving coin draws from, in ZORA's names
+DECEPTION_FAMILIES = ("ZOL", "LIKE LIKE", "WIZZROBE", "LANMOLA", "PATRA", "TRAP", "KEESE", "ZELDA")
+BOSS_LABEL_LEVELS = range(1, 9)
+
+
+@dataclass
+class Deception:
+    """HT-HINT-06's coins and replacements, from their own stream (the helpful draws keep theirs;
+    FL-SEED-01 leaves the order open). A coin is one equal-chance draw; heads replaces the fact."""
+    rng: Rng
+
+    def heads(self) -> bool:
+        return self.rng.below(2) == 1
+
+    def region(self) -> int:
+        """The region of an overworld screen drawn uniformly from all 128 (HT-APP-A1)."""
+        return region_of_screen(self.rng.below(OVERWORLD_SCREEN_COUNT))
+
+    def pick(self, choices: Sequence[T]) -> T:
+        return choices[self.rng.below(len(choices))]
+
+
+# -----------------------------------------------------------------------------
 # Requirement candidates (HT-HINT-01)
 # -----------------------------------------------------------------------------
 
@@ -890,6 +927,51 @@ def requirement_candidates(gw: GameWorld, level_items: list[tuple[int, int]],
     return candidates
 
 
+def deceiving_requirement_candidates(gw: GameWorld, item_shuffle_result: ItemShuffleResult, deception: Deception,
+                                     names_hearts: bool = False,
+                                     gates: OverworldGates = NO_GATES) -> list[Requirement]:
+    """HT-HINT-06 item 5: no door-screen or inside-dungeon candidates; the white-sword cave's, true;
+    the fallbacks from the nine doors and the white-sword cave alone, then a coin, on heads the
+    bracelet and the raft each recorded by a coin of its own; no coast-ladder candidate; and per pool
+    entry (no heart containers under C06 = 3, no item $00), in pool order, the true boss form when
+    the item is in levels 1 to 8, then, when it is not in level 9, one naming it with a label drawn
+    from levels 1 to 8. (An item in level 9 forms a candidate only when the list has fewer than ten
+    others, which never happens under these values: ZORA forms none.)"""
+    recorder = recorder_screens(gw.overworld)
+    candidates: list[Requirement] = []
+    recorded: set[str] = set()
+    white_sword_screen = _white_sword_screen(gw)
+    cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
+    if white_sword_screen is not None and cave is not None:
+        white_sword_form = next((means_form for screens, means_form in white_sword_means(recorder, gates)
+                                 if white_sword_screen in screens), None)
+        if white_sword_form is not None:
+            candidates.append(Requirement(white_sword_form, cave.item & ITEM_CODE_MASK, white_sword_cave=True))
+            recorded.add(white_sword_form)
+    doors = {_door_screen(gw, level) for level in range(1, 10)}
+    gated = gated_screens(gates)
+    for screens, form in ((RAFT_SCREENS | gated[Form.RAFT], Form.RAFT),
+                          (BRACELET_SCREENS_NO_32_33 | gated[Form.BRACELET], Form.BRACELET)):
+        if any(door_needs(gw, gates, door, screens) for door in doors if door is not None):
+            recorded.add(form)
+    if deception.heads():
+        recorded = {form for form in recorded if form not in (Form.RAFT, Form.BRACELET)}
+        recorded |= {form for form in (Form.BRACELET, Form.RAFT) if deception.heads()}
+    if Form.BRACELET not in recorded:
+        candidates.append(Requirement(Form.NO_BRACELET))
+    if Form.RAFT not in recorded:
+        candidates.append(Requirement(Form.NO_RAFT))
+    for record in item_shuffle_result.tracked:
+        item = record.item & ITEM_CODE_MASK
+        if item == Item.BOMBS or item in UNHINTED_ITEMS or (item == Item.HEART_CONTAINER and not names_hearts):
+            continue
+        if record.level is not None and record.level != LEVEL_9:
+            candidates.append(Requirement(Form.BOSS, item, _level(gw.levels, record.level).rom_level_num))
+        if record.level != LEVEL_9:
+            candidates.append(Requirement(Form.BOSS, item, deception.pick(BOSS_LABEL_LEVELS)))
+    return candidates
+
+
 # A bracelet door on the graveyard (GRAVESTONE_SCREENS), with the item's own article.
 GRAVESTONE_TEXT = "THE PATH TO {item} LIES BENEATH A GRAVESTONE."
 # Owner decision (2026-10-12): "THE HERO'S PATH" (it was "THE PRINCESS").
@@ -982,6 +1064,12 @@ class HintTextResult:
     # Each listed dungeon person room's player level and the slot it shows (HT-SEL-01), before
     # B19's pointer exchange.
     room_slots: tuple[tuple[int, int], ...] = ()
+    # HT-HINT-05 (normal hints): PRG0's text block stays, with these 38 pointers; text_bytes are only
+    # ZORA's own texts, stored after the refusal text (layout.NORMAL_HINT_TEXT_ADDRESS)
+    keeps_text_block: bool = False
+    # HT-HINT-06 and HT-HINT-07 (deception and blank hints): B19's exchange starts at slot 19, as under
+    # normal hints, though the generated block is written
+    exchange_from_slot_19: bool = False
 
 
 # HT-HINT-01's three name pairs as (giver, target) cave person object types:
@@ -1003,14 +1091,15 @@ FIRST_PERSON_CODE = 0x0B       # a family's entry i belongs to person code $0B +
 FAMILY_ENTRIES = 8             # the first eight entries are the person-code entries
 
 
-def _build_selector_tables(gw: GameWorld, hint_assignment: HintAssignmentResult) -> tuple[bytes, bytes]:
+def _build_selector_tables(gw: GameWorld, hint_assignment: HintAssignmentResult,
+                           replaces_26: bool = True) -> tuple[bytes, bytes]:
     """HT-SEL-01: the hint rooms' selectors, walking the hint list in PS-HINT-05's order. A
     level's first listed room takes the level's primary selector, each further room the next
     spare; a level with no listed room adds its primary to the end of the spares, in level
     order. The selector goes into the level's family (B for a helpful level, A otherwise) at
     the room's person code less $0B; entries no room writes keep PRG0's bytes. The $26-to-$4C
     replacement comes after the writes, so level 1's primary ships as $4C (corpus: level 1's
-    persons show text 38, never 19)."""
+    persons show text 38, never 19); normal hints (HT-HINT-05) leave $26, so they show text 19."""
     tables = {False: bytearray(gw.underworld_text_selectors_a or bytes(FAMILY_ENTRIES)),
               True: bytearray(gw.underworld_text_selectors_b or bytes(FAMILY_ENTRIES))}
     listed_levels = {level for level, _code in hint_assignment.hint_ids}
@@ -1030,6 +1119,8 @@ def _build_selector_tables(gw: GameWorld, hint_assignment: HintAssignmentResult)
         # corpus (every listed code is $0B-$12).
         if entry < FAMILY_ENTRIES:
             tables[level in hint_assignment.helpful][entry] = selector
+    if not replaces_26:
+        return bytes(tables[False]), bytes(tables[True])
     return bytes(_replace_26_to_4c(bytes(tables[False]))), bytes(_replace_26_to_4c(bytes(tables[True])))
 
 
@@ -1078,9 +1169,12 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
                        rng: Rng, names: ItemNames = VANILLA_NAMES,
                        maze_offers: dict[int, list[str]] | None = None,
                        gates: OverworldGates = NO_GATES,
-                       every_helpful_hint: bool = False, book_needed: bool = False) -> HintTextResult:
+                       every_helpful_hint: bool = False, book_needed: bool = False,
+                       deceive: bool = False) -> HintTextResult:
     """HT-TEXT and HT-HINT. every_helpful_hint: Helpful hints (C03 = 1, HT-HINT-04), where every
-    slot with a helpful text shows it, with no overlay coin. book_needed: Book to Understand NPCs (B48, HT-BOOK-02),
+    slot with a helpful text shows it, with no overlay coin. deceive: Deception (C03 = 3, HT-HINT-06),
+    helpful hints whose facts each a coin may replace (Deception, its own stream drawn first), and
+    B19's exchange from slot 19. book_needed: Book to Understand NPCs (B48, HT-BOOK-02),
     slot 0's candidates are the lines in which the speaker cannot be understood.
     names: how the texts name items (PI-TEXT-01; the vanilla names give HT-HINT-01's).
     gates: the owner's overworld gates, for the requirement candidates.
@@ -1089,6 +1183,8 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     dropped text, the requirement texts, the pool routing, and per slot the
     overlay coin and the pool pick."""
     opener_rng = copy.deepcopy(rng)          # the openers' order, from a copy: no other draw moves
+    deception = Deception(Rng(rng.below(DECEPTION_SEED_RANGE))) if deceive else None
+    every_helpful_hint = every_helpful_hint or deceive
     hint_prices = draw_hint_shop_prices(gw, rng)
 
     # Owner ruling: slot 0 (the wood sword cave) shows only its own pool
@@ -1099,20 +1195,26 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     sentences: list[str | None] = [None] * SLOT_COUNT
     # the player level each level-location text names, by slot
     level_slots: list[int | None] = [None] * SLOT_COUNT
-    write_level_location_texts(gw, slot_texts, sentences, level_slots)
-    write_person_name_texts(gw, slot_texts, names)
+    write_level_location_texts(gw, slot_texts, sentences, level_slots, deception)
+    write_person_name_texts(gw, slot_texts, names, deception,
+                            pool_items=[record.item for record in item_shuffle_result.tracked])
 
-    trio = level9_trio_texts(gw, item_shuffle_result, names)
+    trio = level9_trio_texts(gw, item_shuffle_result, names, deception)
     trio.pop(1 + rng.below(3))
     for slot, text in zip(LEVEL9_TRIO_SLOTS, trio, strict=True):
         slot_texts[slot] = text
 
     records = hinted_level_records(item_shuffle_result)
     level_items = [(record.item, record.level) for record in records if record.level is not None]
-    requirements = draw_requirements(
-        requirement_candidates(gw, level_items, names_hearts=not item_shuffle_result.heart_rooms_pooled, gates=gates,
-                               records=records, walk_own_rooms=PAIRED_LEVELS_WALK_THEIR_OWN_ROOMS),
-        rng)
+    if deception is not None:
+        candidates = deceiving_requirement_candidates(gw, item_shuffle_result, deception,
+                                                      names_hearts=not item_shuffle_result.heart_rooms_pooled,
+                                                      gates=gates)
+    else:
+        candidates = requirement_candidates(gw, level_items, names_hearts=not item_shuffle_result.heart_rooms_pooled,
+                                            gates=gates, records=records,
+                                            walk_own_rooms=PAIRED_LEVELS_WALK_THEIR_OWN_ROOMS)
+    requirements = draw_requirements(candidates, rng)
     # fewer than ten candidates fill fewer slots (draw_requirements takes at most ten)
     for slot, candidate in zip(REQUIREMENT_SLOTS, requirements, strict=False):
         slot_texts[slot] = requirement_text(candidate, names)
@@ -1134,7 +1236,27 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
 
     return replace(_hint_text_result(gw, item_shuffle_result, hint_assignment, final_texts, overlay_flags,
                                      HINT_SHOP_OFFER_SELECTORS, tuple(hint_prices), maze_offers),
-                   level_location_slots=level_location_slots, level_text_alternatives=alternatives)
+                   level_location_slots=level_location_slots, level_text_alternatives=alternatives,
+                   exchange_from_slot_19=deceive)
+
+
+def generate_blank_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
+                             hint_assignment: HintAssignmentResult,
+                             maze_offers: dict[int, list[str]] | None = None) -> HintTextResult:
+    """HT-HINT-07 (C03 = 5, blank hints): no text is generated and no draw is taken; the 45 slots
+    point at 45 empty texts (one end mark each) where the generated body goes, in slot order. The
+    later passes set slot 27 (the toll) and slot 34 (the level-9 entrance text, at the generated
+    block's place); B19's exchange starts at slot 19. The white-sword cave keeps PRG0's selector,
+    the $26 selectors stay, and the hint shops keep PRG0's offers and prices. A randomized maze's
+    offer still shows its path for 1 rupee (ZORA's rule, as under normal hints)."""
+    assert gw.hint_shop_offer_selectors is not None, "the base ROM's hint-shop offer selectors"
+    assert gw.white_sword_text_selector is not None, "the base ROM's white-sword cave selector"
+    empty: list[list[str]] = [[] for _ in range(SLOT_COUNT)]
+    result = _hint_text_result(gw, item_shuffle_result, hint_assignment, empty, [False] * SLOT_COUNT,
+                               gw.hint_shop_offer_selectors, tuple(hint_shop_prices(gw)), maze_offers)
+    selectors_a, selectors_b = _build_selector_tables(gw, hint_assignment, replaces_26=False)
+    return replace(result, white_sword_selector=gw.white_sword_text_selector, underworld_selectors_a=selectors_a,
+                   underworld_selectors_b=selectors_b, exchange_from_slot_19=True)
 
 
 def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
@@ -1162,6 +1284,66 @@ def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffle
     assert gw.hint_shop_offer_selectors is not None, "the base ROM's hint-shop offer selectors"
     return _hint_text_result(gw, item_shuffle_result, hint_assignment, final_texts, overlay_flags,
                              gw.hint_shop_offer_selectors, tuple(hint_shop_prices(gw)), maze_offers)
+
+
+# HT-HINT-05: under normal hints slot 36 shows text 0 (its pointer is slot 0's); ZORA keeps PRG0's own
+# text 0 there rather than HT-HINT-01's greeting (owner ruling that ZORA never writes the
+# greeting; docs/deviations.md)
+GREETING_SLOT, SECOND_GREETING_SLOT = 0, 36
+POINTER_BYTES = 2
+
+
+def prg0_pointers(gw: GameWorld) -> list[int]:
+    """The 38 CPU pointers of PRG0's text block, as the base world holds it (quotes_raw)."""
+    raw = gw.quotes_raw
+    assert raw, "normal hints read PRG0's text block (GameWorld.quotes_raw)"
+    return [raw[slot * POINTER_BYTES] | raw[slot * POINTER_BYTES + 1] << 8 for slot in range(NUM_QUOTES)]
+
+
+def generate_normal_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
+                              hint_assignment: HintAssignmentResult,
+                              maze_offers: dict[int, list[str]] | None = None) -> HintTextResult:
+    """HT-HINT-05 (C03 = 0, normal hints): no text is generated and no draw is taken. PRG0's text
+    block and its 38 pointers stay, apart from slot 36 pointing at slot 0's text, slot 27 at the
+    toll text (PS-MERCH-04) and slot 34 at the level-9 refusal text, stored outside the block (the
+    serializer's). The white-sword cave and the hint shops keep PRG0's selectors and prices; the
+    dungeon hint rooms take HT-SEL-01's selectors, $26 kept. The dungeon-text exchange starts at
+    slot 19 (shuffle_dungeon_text).
+
+    ZORA's own rule (docs/deviations.md): a randomized maze's hint-shop offer (Randomize Lost Hills /
+    Dead Woods) shows its path, stored after the refusal text with the offer's slot pointing at it,
+    and costs 1 rupee, as under the other hint styles."""
+    pointers = prg0_pointers(gw)
+    pointers[SECOND_GREETING_SLOT] = pointers[GREETING_SLOT]
+    if item_shuffle_result.toll is not None:
+        pointers[TOLL_SLOT] = TOLL_TEXT_POINTER[0] | (TOLL_TEXT_POINTER[1] << 8)
+    offer_selectors = gw.hint_shop_offer_selectors
+    assert offer_selectors is not None, "the base ROM's hint-shop offer selectors"
+    prices = hint_shop_prices(gw)
+    texts: list[bytes] = []
+    offset = NORMAL_HINT_TEXT_ADDRESS
+    for offer, lines in sorted((maze_offers or {}).items()):
+        encoded = bytes(encode_text(lines))
+        pointers[offer_selectors[offer] // SELECTOR_TO_SLOT] = cpu_address_in_bank1(offset)
+        texts.append(encoded)
+        offset += len(encoded)
+        prices[offer] = MAZE_HINT_PRICE
+    if offset > EXT_HINT_DATA_ROM_END:
+        raise ValueError("normal hints: ZORA's texts overrun the free bank-1 space")
+    selectors_a, selectors_b = _build_selector_tables(gw, hint_assignment, replaces_26=False)
+    assert gw.white_sword_text_selector is not None, "the base ROM's white-sword cave selector"
+    return HintTextResult(
+        quotes=list(gw.quotes),
+        pointers=tuple(pointers),
+        text_bytes=tuple(texts),
+        white_sword_selector=gw.white_sword_text_selector,
+        hint_shop_offer_selectors=offer_selectors,
+        underworld_selectors_a=selectors_a,
+        underworld_selectors_b=selectors_b,
+        hint_shop_prices=tuple(prices),
+        overlay_flags=(False,) * NUM_QUOTES,
+        keeps_text_block=True,
+    )
 
 
 def _hint_text_result(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
@@ -1297,14 +1479,19 @@ def draw_hint_shop_prices(gw: GameWorld, rng: Rng) -> list[int]:
 
 
 def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None],
-                               sentences: list[str | None], level_slots: list[int | None] | None = None) -> None:
+                               sentences: list[str | None], level_slots: list[int | None] | None = None,
+                               deception: Deception | None = None) -> None:
     """HT-HINT-01's level-location entries, in ZORA's wording (no draws): entry N names player
     level N and the region of its door, the door of the data level shown as N (SH-NUM-03; for a
-    second-quest level in a pair, its partner's door)."""
+    second-quest level in a pair, its partner's door). Under deception (HT-HINT-06 item 1) a coin
+    per entry; heads names a uniformly drawn screen's region instead."""
     for player_level, slot in enumerate(LEVEL_LOCATION_SLOTS, start=1):
         screen = _door_screen(gw, level_shown_as(gw.levels, player_level).level_num)
         assert screen is not None, f"player level {player_level} has no door screen"
-        sentence = level_location_sentence(player_level, region_of_screen(screen))
+        region = region_of_screen(screen)
+        if deception is not None and deception.heads():
+            region = deception.region()
+        sentence = level_location_sentence(player_level, region)
         sentences[slot] = sentence
         slot_texts[slot] = hint_lines(sentence)
         if level_slots is not None:
@@ -1312,10 +1499,13 @@ def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None]
 
 
 def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
-                            names: ItemNames = VANILLA_NAMES) -> None:
+                            names: ItemNames = VANILLA_NAMES, deception: Deception | None = None,
+                            pool_items: Sequence[int] = ()) -> None:
     """HT-HINT-01's person-name entries (no draws): the three (giver, target)
     pairs read the appearances FP-PERSON-01 drew
-    (zora/generate/steps/person_appearances.py)."""
+    (zora/generate/steps/person_appearances.py). Under deception (HT-HINT-06 items 2 and 3): entry
+    11's region by a coin; entry 12's item (one of the pool entries' items, `pool_items`) by a coin,
+    then its region by another; entry 10 has none."""
     pair10, pair11, pair12 = ((person_appearance(gw, giver), person_appearance(gw, target))
                               for giver, target in NAME_PAIR_TYPES)
     slot_texts[SHOW_SLOT] = [f"SHOW {person_name(*pair10)}", "SOMETHING"]
@@ -1325,6 +1515,8 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
                         if screen_info.destination == Destination.MAGICAL_SWORD_CAVE
                         and not _hidden_flag(screen_info)), None)
     meet_region = region_of_screen(meet_screen) if meet_screen is not None else 0
+    if deception is not None and deception.heads():
+        meet_region = deception.region()
     meet_lines = [f"MEET {person_name(*pair11)}", region_phrase(meet_region)]
     magical_sword_cave = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
     if magical_sword_cave is not None:
@@ -1338,6 +1530,11 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
     holder_text = "I HAVE" if name_form(*pair12) == SAME_FORM else f"{person_name(*pair12)} HAS"
     if white_sword_cave is not None:
         code = white_sword_cave.item & ITEM_CODE_MASK
+        if deception is not None:
+            if deception.heads():
+                code = deception.pick(pool_items) & ITEM_CODE_MASK
+            if deception.heads():
+                white_sword_region = deception.region()
         slot_texts[HOLDER_SLOT] = holder_hearts_lines(holder_text, names.phrase(code), names.label(code),
                                                       white_sword_region, white_sword_cave.heart_requirement)
     else:
@@ -1382,11 +1579,12 @@ def holder_hearts_lines(holder_text: str, item_phrase: str, item_label: str, reg
 
 
 def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
-                      names: ItemNames = VANILLA_NAMES) -> list[list[str]]:
+                      names: ItemNames = VANILLA_NAMES, deception: Deception | None = None) -> list[list[str]]:
     """The level-9 trio's four candidate texts (no draws): the silver arrows,
     Ganon, Zelda and the compass's guardian, in that order. With Progressive
     Items on (PI-TEXT-01) the first points at a level-9 place holding an
-    arrow-line item and names the line."""
+    arrow-line item and names the line. Under deception (HT-HINT-06 item 4) the silver arrows'
+    level and quadrant, Ganon's and Zelda's quadrants and the compass family each by a coin."""
     level9 = gw.levels[8]
 
     def level9_room_where(predicate: Callable[[Room], bool]) -> Room | None:
@@ -1397,15 +1595,21 @@ def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
 
     if names.progressive_items:
         silver_text = _arrow_upgrade_text(gw, item_shuffle_result, level9_room_where)
+    elif deception is not None:
+        silver_text = _deceiving_silver_arrows_text(gw, item_shuffle_result, deception)
     else:
         silver_text = _silver_arrows_text(gw, item_shuffle_result, level9_room_where)
 
     ganon_room = level9_room_where(lambda room: room.enemy == Enemy.THE_BEAST)
     ganon_quadrant = _quadrant(gw, ganon_room.room_num) if ganon_room else "UNKNOWN"
+    if deception is not None and deception.heads():
+        ganon_quadrant = deception.pick(QUADRANTS)
     ganon_text = ["GANON IS IN THE", ganon_quadrant]
 
     zelda_room = level9_room_where(lambda room: room.enemy == Enemy.THE_KIDNAPPED)
     zelda_quadrant = _quadrant(gw, zelda_room.room_num) if zelda_room else "UNKNOWN"
+    if deception is not None and deception.heads():
+        zelda_quadrant = deception.pick(QUADRANTS)
     zelda_text = ["ZELDA IS IN THE", zelda_quadrant]
 
     compass_room = level9_room_where(
@@ -1415,6 +1619,8 @@ def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
         # the list id includes $40 for D's bit 7, so mixed lists ($62+) resolve
         list_id = compass_room.monster_list | (MONSTER_BIT_LIST if compass_room.has_monster_bit else 0)
         family = compass_family_name(list_id, gw)
+        if deception is not None and deception.heads():
+            family = deception.pick(DECEPTION_FAMILIES)
         line = f"THE COMPASS IS GUARDED BY {family}"
         compass_text = [line] if len(line) <= LINE_WIDTH else ["THE COMPASS IS GUARDED", f"BY {family}"]
     else:
@@ -1439,6 +1645,27 @@ def _silver_arrows_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
     else:
         silver_text = ["SILVER ARROWS", "LIE ELSEWHERE"]
     return silver_text
+
+
+def _deceiving_silver_arrows_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
+                                  deception: Deception) -> list[str]:
+    """HT-HINT-06 item 4's silver-arrow text: a coin replaces their level by one drawn from 1 to 9.
+    At level 9 (true or drawn), with the arrows in a level room, a second coin draws the quadrant;
+    tails computes it from their real room, in whatever level. Any other level, or arrows in an
+    overworld cave, says they lie elsewhere."""
+    silver = next((place for place in item_shuffle_result.tracked if place.item == Item.SILVER_ARROWS), None)
+    level = silver.level if silver is not None else None
+    if deception.heads():
+        level = 1 + deception.rng.below(9)
+    if level != 9 or silver is None or silver.level is None:
+        return ["SILVER ARROWS", "LIE ELSEWHERE"]
+    room = silver.room
+    if deception.heads() or room is None:
+        quadrant = deception.pick(QUADRANTS)
+    else:
+        quadrant = _quadrant(gw, room)
+    line = f"SILVER ARROWS ARE IN THE {quadrant}"
+    return [line] if len(line) <= LINE_WIDTH else ["SILVER ARROWS ARE", f"IN THE {quadrant}"]
 
 
 def _arrow_upgrade_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,

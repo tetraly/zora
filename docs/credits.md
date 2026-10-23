@@ -15,6 +15,7 @@ Third-party material keeps its own license, given with it.
 | Recorder Kills Dungeon Pols Voice | Stratoform | `asm/flags2/recorder-pols-voice/` |
 | Reduce flashing | Z1R community resource |
 | Statistics screen (the idea: an end-of-game list of times, deaths and counts) | Z2Randomizer | `asm/fp-stats-01/` |
+| Low-health beep at half speed (the idea) | Z2Randomizer | `asm/settings/half-speed-beep/` |
 
 These features are included with credit to their authors; the owner will remove them if their
 authors ask. ZORA's patches for them are its own code, written from the disassembly.

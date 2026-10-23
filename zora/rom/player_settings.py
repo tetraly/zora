@@ -37,15 +37,21 @@ from .layout import (
     LEVEL_LABEL_RECORD_SIZE,
     LEVEL_NAME_OFFSET,
     LOW_HEALTH_BEEP_OPERAND_ADDRESS,
+    NORMAL_REFUSAL_TEXT_ADDRESS,
     NUM_QUOTES,
     QUOTE_DATA_ADDRESS,
+    REFUSAL_TEXT_ADDRESS,
+    REFUSAL_TEXT_SIZE,
     TITLE_ROW_LENGTH,
     TITLE_SEED_LABEL,
     TITLE_SEED_ROW_ADDRESS,
     hint_text_regions,
 )
+from .level_9_entrance import chosen_levels, chosen_levels_text
+from .parse.text import REFUSAL_SLOT
 from .player_settings_data import SETTINGS
 from .revision import Revision, back_to_revision, layout_of, moved_to_prg0_layout, prg1_offset
+from .serialize.features import encoded_refusal_text
 from .text_encoding import (
     BYTE_TO_CHAR,
     CHAR_TO_BYTE,
@@ -177,9 +183,10 @@ class SelectSwap(Enum):
 
 
 class LowHealthBeep(Enum):
-    """FP-BEEP-01."""
+    """FP-BEEP-01; half speed is tetraly/zora#3 (asm/settings/half-speed-beep/)."""
     REMOVED = "removed"
     KEPT = "kept"                # PRG0
+    HALF_SPEED = "half_speed"    # kept, playing half as often
 
 
 class DeathWarp(Enum):
@@ -190,9 +197,16 @@ class DeathWarp(Enum):
 
 
 class Music(Enum):
-    """FP-SET-04."""
+    """FP-SET-04 (Off, and On, the page's Vanilla), and randomized music (docs/design/music-settings.md
+    section 3): songs drawn from Quantam's standard library or the player's own libraries, with lozft
+    (zora.rom.music, after the player settings). The ROM's own music patch sees only on or off."""
     ON = "on"
     OFF = "off"
+    RANDOM_STANDARD = "random-standard"
+    RANDOM_LOCAL = "random-local"
+
+
+RANDOM_MUSIC = frozenset({Music.RANDOM_STANDARD, Music.RANDOM_LOCAL})
 
 
 @dataclass(frozen=True)
@@ -210,6 +224,15 @@ class PlayerSettings:
     music: Music = Music.ON
     level_word: str = DEFAULT_LEVEL_WORD            # FP-LEVEL-01
     boss_sound_word: str = DEFAULT_BOSS_SOUND_WORD  # FP-ROAR-01's label: a word or RANDOM
+    # With a random Music value (docs/design/music-settings.md section 3; zora.rom.music after the
+    # player settings): only songs marked safe for streaming. Not offered to Archipelago (its Music
+    # choices are PAGE_CHOICES' on and off).
+    music_streaming_safe_only: bool = True
+
+    @property
+    def randomize_music(self) -> bool:
+        """Music is a random value: the statistics screen's music build, then lozft and the songs."""
+        return self.music in RANDOM_MUSIC
 
     def __post_init__(self) -> None:
         check_level_word(self.level_word)
@@ -345,7 +368,7 @@ def write_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = Fal
     music(out, settings.music)
     level_word(out, settings.level_word)
     boss_sound_word(out, settings.boss_sound_word)
-    statistics_screen(out, on=not coop)
+    statistics_screen(out, on=not coop, for_music=settings.randomize_music)
     return bytes(out)
 
 
@@ -378,8 +401,11 @@ def select_swap(rom: bytearray, choice: SelectSwap) -> None:
 
 
 def low_health_beep(rom: bytearray, choice: LowHealthBeep) -> None:
-    """FP-BEEP-01: the tone request's operand."""
+    """FP-BEEP-01: the tone request's operand, and half speed's gate in the sound engine (PRG0's
+    bytes for the other two). Hidden Health (FP-HIDE-01), written later, clears the operand
+    alone: with nothing requesting the beep, the gate never runs."""
     rom[LOW_HEALTH_BEEP_OPERAND_ADDRESS] = BEEP_REMOVED if choice is LowHealthBeep.REMOVED else BEEP_KEPT
+    _write(rom, SETTINGS["low_health_beep"][choice.value])
 
 
 def death_warp(rom: bytearray, choice: DeathWarp) -> None:
@@ -414,8 +440,16 @@ def heart_color(rom: bytearray, color: int) -> None:
 
 
 def music(rom: bytearray, choice: Music) -> None:
-    """FP-SET-04: on, or the three area songs never start."""
-    _write(rom, SETTINGS["music"][choice.value])
+    """FP-SET-04: on, or the three area songs never start (a random value is on: lozft and its songs
+    come after the player settings)."""
+    _write(rom, SETTINGS["music"][Music.OFF.value if choice is Music.OFF else Music.ON.value])
+
+
+def check_music_allowed(settings: PlayerSettings, disable_custom_music: bool) -> None:
+    """Disable Custom Music (the ZORA flag; docs/design/music-settings.md section 7): Music Off or
+    Vanilla only."""
+    if disable_custom_music and settings.randomize_music:
+        raise PlayerSettingError("Disable Custom Music is on (a race setting): Music can be Off or Vanilla only")
 
 
 def level_word(rom: bytearray, word: str) -> None:
@@ -429,6 +463,7 @@ def level_word(rom: bytearray, word: str) -> None:
     if word == DEFAULT_LEVEL_WORD:
         return
     level_word_in_hints(rom, word)
+    level_word_in_refusal_text(rom, word)
     tiles = [CHAR_TO_BYTE[char] for char in word]
     if len(word) <= LEVEL_WORD_DASH_MAX_LENGTH:
         tiles.append(FP_LEVEL_DASH_TILE)
@@ -455,10 +490,11 @@ def boss_sound_word(rom: bytearray, word: str) -> None:
         CHAR_TO_BYTE[char] for char in word)
 
 
-def statistics_screen(rom: bytearray, on: bool) -> None:
+def statistics_screen(rom: bytearray, on: bool, for_music: bool = False) -> None:
     """FP-STATS-01: the end-of-game statistics screen (asm/fp-stats-01/). Off writes the bytes the
-    ROM has without it (free space and the game's own instructions)."""
-    _write(rom, SETTINGS["statistics_screen"]["on" if on else "off"])
+    ROM has without it (free space and the game's own instructions). for_music: StatsTick at bank 0
+    $B000, clear of lozft's song table, for randomized music (asm/fp-stats-01-music/)."""
+    _write(rom, SETTINGS["statistics_screen"]["off" if not on else "music" if for_music else "on"])
 
 
 def relabel_hint_line(line: str, word: str, dash: bool = True) -> str | None:
@@ -612,12 +648,32 @@ def level_word_in_hints(rom: bytearray, word: str) -> None:
             rom[QUOTE_DATA_ADDRESS + 2 * slot:QUOTE_DATA_ADDRESS + 2 * slot + 2] = pointer.to_bytes(2, "little")
 
 
+def level_word_in_refusal_text(rom: bytearray, word: str) -> None:
+    """Level 9 Entry = Specific Triforces (FP-TRIF-05): the entrance person names the chosen
+    levels with the level word (level_9_entrance.chosen_levels_text), in the refusal text's own
+    72 bytes, wherever slot 34 points (the normal-hints place under C03 = 0). Only ZORA's own
+    text is rewritten: the ROM's mask test gives the levels, and the text there must be that text
+    with PRG0's word."""
+    levels = chosen_levels(rom)
+    if not levels:
+        return
+    # where slot 34 points: 0x04546, or under normal hints 0x07790 (HT-HINT-05)
+    address = hint_text_offset(rom, REFUSAL_SLOT)
+    written = encoded_refusal_text(chosen_levels_text(levels))
+    if bytes(rom[address:address + len(written)]) != written:
+        return
+    relabeled = encoded_refusal_text(chosen_levels_text(levels, word))
+    rom[address:address + len(relabeled)] = relabeled
+
+
 def written_offsets(settings_field: str) -> set[int]:
     """Every file offset a setting's function may write, whatever its choice."""
     if settings_field == "select_swap":
         runs = [*select_swap_off_runs(), *(run for runs in SETTINGS["select_swap"].values() for run in runs)]
     elif settings_field == "low_health_beep":
-        return {LOW_HEALTH_BEEP_OPERAND_ADDRESS}
+        runs = [run for runs in SETTINGS["low_health_beep"].values() for run in runs]
+        return {LOW_HEALTH_BEEP_OPERAND_ADDRESS,
+                *(offset + i for offset, run in runs for i in range(piece_length(run)))}
     elif settings_field == "tunic_colors":
         return ({copy + slot for copy in (TUNIC_FILE_SELECT_COPY, TUNIC_PICKUP_COPY) for slot in range(TUNIC_SLOTS)}
                 | {plane + row for plane in (MARKER_DOT_LOW_PLANE, MARKER_DOT_HIGH_PLANE)
@@ -629,8 +685,10 @@ def written_offsets(settings_field: str) -> set[int]:
                         for start, end in hint_text_regions(count) for offset in range(start, end)}
         label_runs = [run for runs in SETTINGS["level_label"].values() for run in runs]
         pointers = range(QUOTE_DATA_ADDRESS, QUOTE_DATA_ADDRESS + 2 * CONSTERNATION_HINT_SLOTS)
+        refusal = (*range(REFUSAL_TEXT_ADDRESS, REFUSAL_TEXT_ADDRESS + REFUSAL_TEXT_SIZE),
+                   *range(NORMAL_REFUSAL_TEXT_ADDRESS, NORMAL_REFUSAL_TEXT_ADDRESS + REFUSAL_TEXT_SIZE))
         return {*range(LEVEL_RECORD, LEVEL_RECORD + LEVEL_RECORD_SIZE), LEVEL_NUMBER_STORE_OPERAND, *hint_regions,
-                *pointers,
+                *pointers, *refusal,
                 *range(LEVEL_LABEL_RECORD, LEVEL_LABEL_RECORD + LEVEL_LABEL_RECORD_SIZE),
                 *(offset + i for offset, run in label_runs for i in range(piece_length(run)))}
     elif settings_field == "heart_color":
@@ -652,8 +710,9 @@ RETIRED_PAGE_SETTINGS = frozenset({"statisticsScreen"})
 
 def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     """Command-line settings, each `name=value` with PlayerSettings' field names: a choice by
-    its value (music=off), reduce_flashing=on, heart_color=0x21, tunic_colors=0x29,0x32,0x16,
-    level_word=PALACE (any case), boss_sound_word=MEOW or boss_sound_word=random. A retired
+    its value (music=off, music=random-standard), reduce_flashing=on, music_streaming_safe_only=off,
+    heart_color=0x21, tunic_colors=0x29,0x32,0x16, level_word=PALACE (any case),
+    boss_sound_word=MEOW or boss_sound_word=random. A retired
     setting (RETIRED_SETTINGS) is ignored, whatever its value."""
     chosen: dict[str, object] = {}
     for pair in pairs:
@@ -663,7 +722,7 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
                 continue
             if name in SETTING_CHOICES:
                 chosen[name] = SETTING_CHOICES[name](text)
-            elif name == "reduce_flashing":
+            elif name in ("reduce_flashing", *MUSIC_SWITCHES.values()):
                 chosen[name] = SWITCH_WORDS[text]
             elif name == "heart_color":
                 chosen[name] = int(text, 0)
@@ -688,7 +747,8 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
 PAGE_CHOICES: dict[str, tuple[str, dict[str, Any]]] = {
     "selectButton": ("select_swap", {"off": SelectSwap.OFF, "swap": SelectSwap.SWAP_ONLY,
                                      "toggle": SelectSwap.TOGGLE}),
-    "lowHealthBeep": ("low_health_beep", {"removed": LowHealthBeep.REMOVED, "kept": LowHealthBeep.KEPT}),
+    "lowHealthBeep": ("low_health_beep", {"removed": LowHealthBeep.REMOVED, "kept": LowHealthBeep.KEPT,
+                                          "half-speed": LowHealthBeep.HALF_SPEED}),
     "deathWarp": ("death_warp", {"p2-up-a": DeathWarp.CONTROLLER2_UP_A, "p1-up-a": DeathWarp.CONTROLLER1_UP_A,
                                  "p1-up-select": DeathWarp.CONTROLLER1_UP_SELECT}),
     "reduceFlashing": ("reduce_flashing", {"off": False, "on": True}),
@@ -698,6 +758,11 @@ PAGE_TUNIC_SLOTS = ("greenTunic", "blueRingTunic", "redRingTunic")
 PAGE_HEART_SLOT = "heart"
 PAGE_LEVEL_WORD = "levelWord"
 PAGE_BOSS_SOUND_WORD = "bossSoundWord"
+# Randomized music (web/zora-web.js MUSIC_CHOICES; docs/design/music-settings.md section 3): the page's
+# music key also takes the random values, and its switches. Not in PAGE_CHOICES, so Archipelago's
+# player settings (archipelago.player_setting_fields) never list them.
+PAGE_RANDOM_MUSIC = {Music.RANDOM_STANDARD.value: Music.RANDOM_STANDARD, Music.RANDOM_LOCAL.value: Music.RANDOM_LOCAL}
+MUSIC_SWITCHES = {"musicStreamingSafeOnly": "music_streaming_safe_only"}
 
 
 def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
@@ -707,7 +772,8 @@ def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
     RETIRED_PAGE_SETTINGS among them, are not read."""
     defaults = PlayerSettings()
     chosen: dict[str, Any] = {}
-    for key, (field, choices) in PAGE_CHOICES.items():
+    for key, (field, page_choices) in PAGE_CHOICES.items():
+        choices = {**page_choices, **PAGE_RANDOM_MUSIC} if key == "music" else page_choices
         if key in values:
             if not isinstance(values[key], str) or values[key] not in choices:
                 raise PlayerSettingError(f"{key}: unknown choice {values[key]!r}")
@@ -722,5 +788,10 @@ def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
         if not isinstance(values[PAGE_BOSS_SOUND_WORD], str):
             raise PlayerSettingError(f"{PAGE_BOSS_SOUND_WORD}: {values[PAGE_BOSS_SOUND_WORD]!r} is not text")
         chosen["boss_sound_word"] = normalized_boss_sound_word(values[PAGE_BOSS_SOUND_WORD])
+    for key, field in MUSIC_SWITCHES.items():
+        if key in values:
+            if values[key] not in SWITCH_WORDS:
+                raise PlayerSettingError(f"{key}: unknown choice {values[key]!r}")
+            chosen[field] = SWITCH_WORDS[values[key]]
     return PlayerSettings(tunic_colors=tunics, heart_color=values.get(PAGE_HEART_SLOT, defaults.heart_color),
                           **chosen)

@@ -36,34 +36,61 @@ from ..flags.dependencies import (
     generation_settings,
     is_resolved,
     meet_cave_prerequisite,
+    meet_monster_prerequisite,
+    meet_room_prerequisite,
+    piece_count_range,
     resolve,
     starting_hearts,
     white_sword_hearts,
+    with_the_toll_beside_merchants,
+    without_both_boss_health_rules,
 )
 from ..flags.fields import (
     ARMOS_PIN,
+    BOOK_EXPLOSION,
     BOOK_TO_UNDERSTAND_NPCS,
     BOSS_HIT_POINTS,
     CAVE_SHUFFLE,
+    CHANGE_HIDDEN_TILES,
+    COAST_PIN,
     DO_NOT_SORT_SHAPES,
     DUNGEON_LAYOUT_SOURCE,
+    DUNGEON_MONSTER_SHUFFLE,
     DUNGEON_ROOM_SHUFFLE,
     ENCODE_LEVEL_DATA,
     ENEMY_HIT_POINTS,
     FORCE_OVERWORLD_BLOCK,
+    GANON_AND_ZELDA_SHUFFLE,
     GANON_HIT_POINTS_ZERO,
+    GANON_MUST_BE_BEATEN,
+    HIDDEN_HEALTH,
+    HIDDEN_NUMBERS,
+    HIDE_DUNGEON_NUMBERS,
     HINT_STYLE,
+    IMPORTANT_ITEM_DROPS,
     IMPORTANT_ITEMS_IN_LEVEL_9,
+    ITEM_APPEARANCE,
     ITEM_SHUFFLE_SCOPE,
+    KILLABLE_DROP_ITEMS,
     LEVEL_9_FIRST_PIN,
+    LEVEL_9_MONSTER_MOVES,
+    LEVEL_9_REQUIREMENT,
     LEVEL_9_SECOND_PIN,
     LOST_WOODS_SHORTCUT,
+    MAXIMUM_BOSS_HEALTH,
+    MAXIMUM_ENEMY_HEALTH,
     MOST_OPEN_STAIRS_REMOVED,
     ONE_HIT_KNOCK_OUT,
     OPTIONS_BY_ID,
+    OVERWORLD_GROUP_REDRAW,
     OVERWORLD_QUEST,
     PERMANENT_SWORD_BEAM,
+    PREVENT_CLIPPING,
+    RANDOM_DROP_RATE,
+    RECORDER_TO_UNBEATEN,
+    RED_BUBBLE,
     RIVER_BRIDGES,
+    RUPEES_AFFECT_SPEED,
     START_ROOM_MAY_MOVE,
     START_SCREEN,
     TOGGLES_BY_ID,
@@ -77,6 +104,7 @@ from ..flags.fields import (
     HintStyle,
     HitPointChange,
     ItemShuffleScope,
+    Level9Requirement,
     OverworldQuest,
     Settings,
     StartScreen,
@@ -84,21 +112,25 @@ from ..flags.fields import (
     WoodenSwordState,
 )
 from ..flags.support import (
-    ENCODE_LEVEL_DATA_NOT_RANDOM,
+    ENCODE_LEVEL_DATA_RANDOM_NOTICE,
     encode_level_data_is_random,
+    is_postponed,
+    postponed_notices,
     unsupported_fields,
+    with_random_level_encoding_off,
 )
 from ..flags.zora_flags import ZoraFlags, ZoraFlagStringError
 from ..model.enums import DungeonNothingCode
 from ..rom import level_encoding
 from ..rom.game_config import GameConfig, HintMode, LevelEncodingKey
-from ..rom.player_settings import DEFAULT_PLAYER_SETTINGS, PlayerSettings
+from ..rom.player_settings import DEFAULT_PLAYER_SETTINGS, PlayerSettings, check_music_allowed
 from .alternative_values import AlternativeValues
 from .extra_options import ExtraOptions
 from .flag_steps import FlagSteps
 from .rng import Rng
 from .shapes.options import ShapeOptions
 from .steps.expanded_dungeon_locations import expanded_dungeon_locations_seed
+from .steps.level_9_entry import Level9Entry
 from .steps.overworld_gates import OverworldGates
 from .steps.start_items import resolve_start_item_coins, start_state
 from .steps.sword_states import BOMB_UPGRADE_STATES
@@ -106,6 +138,7 @@ from .steps.sword_states import BOMB_UPGRADE_STATES
 if TYPE_CHECKING:
     from ..model.enums import Item
     from ..model.game_world import GameWorld
+    from .acceptance_check import LogicRules
     from .context import GenerationResult
     from .finish import Assignment, Finished, ForeignLook
     from .places import Place
@@ -115,9 +148,12 @@ if TYPE_CHECKING:
 # (show_every_helpful_hint, generate_community_hint_text). The level-9 and triforce texts depend
 # only on whether hints are normal (FL-ALT-04), so they are the same.
 HINT_STYLE_MODES: dict[int, HintMode] = {
+    HintStyle.NORMAL: HintMode.NORMAL,
     HintStyle.MIXED: HintMode.CONSTERNATION,
     HintStyle.HELPFUL: HintMode.CONSTERNATION,
     HintStyle.COMMUNITY: HintMode.CONSTERNATION,
+    HintStyle.DECEPTIVE: HintMode.CONSTERNATION,     # HT-HINT-06
+    HintStyle.BLANK: HintMode.CONSTERNATION,         # HT-HINT-07
 }
 # The start of the refusal that names the fields the support matrix does not produce.
 NOT_PRODUCED_PREFIX = "not produced: "
@@ -128,6 +164,12 @@ SEED_BYTES = 8
 QUESTION_MARK_STREAM = b"zora ? values"
 # FL-DEP-02 rule 1's coin (OW-CAVE-10): its own stream, so no other draw moves
 CAVE_PREREQUISITE_STREAM = b"zora cave coin"
+MONSTER_PREREQUISITE_STREAM = b"zora rule3 coin"
+ROOM_PREREQUISITE_STREAM = b"zora rule2 coin"
+# B39 and B44 (PS-EDROP-01, PS-EDROP-02): their own stream, drawn in the final steps
+ENEMY_DROPS_STREAM = b"zora enemy drops"
+# C15 (FP-SPRITE-01): its own stream, drawn in the final steps
+ITEM_SPRITES_STREAM = b"zora sprites"
 # The marker mixed into the generation seed when level encoding is on.
 ENCODED_GENERATION_STREAM = b"zora encoded"
 
@@ -166,10 +208,16 @@ class GenerationPlan:
     post_shapes: bool                # the post-shapes passes (off only in tests of the shape stage)
     config: GameConfig
     zora_flag_string: str = ""       # canonical; empty: every ZORA flag off
+    # The game's part of it (zora_flags.game_string: the flags that rule only the player settings
+    # left out), which the random streams and the level encoding key take.
+    zora_game_string: str = ""
     zora: ZoraFlags = zora_flags.DEFAULT     # the decoded ZORA flags, "?" values as asked
     # The ZORA flags as the generator sees them: version-3 "?" values decided from their own stream
     # and the owner's dependencies applied (zora_flags.resolve_owner_dependencies). Never shown.
     zora_resolved: ZoraFlags = zora_flags.DEFAULT
+    # What the seed leaves out of what was asked for, said on the page and in the spoiler log
+    # (support.postponed_notices: Mirrored Overworld, B06)
+    notices: tuple[str, ...] = ()
 
     @property
     def encode_level_data(self) -> bool:
@@ -188,7 +236,7 @@ class GenerationPlan:
             key = hashlib.blake2b(self.seed.to_bytes(SEED_BYTES, "little"), digest_size=SEED_BYTES,
                                   person=ENCODED_GENERATION_STREAM).digest()
             seed = int.from_bytes(key, "little")
-        return zora_flags.generation_seed(seed, self.flag_string, self.zora_flag_string)
+        return zora_flags.generation_seed(seed, self.flag_string, self.zora_game_string)
 
 
 @dataclass(frozen=True)
@@ -216,17 +264,39 @@ def _unsupported_name(settings: Settings, field_id: str) -> str:
     return _option_name(field_id) + (": ?" if undecided else "")
 
 
+def _flag_key(seed: int, flag_string: str, person: bytes) -> int:
+    """A stream's key derived only from the seed number and the canonical flag string."""
+    key = hashlib.blake2b(flag_string.encode("utf-8"), key=seed.to_bytes(SEED_BYTES, "little"),
+                          digest_size=SEED_BYTES, person=person).digest()
+    return int.from_bytes(key, "little")
+
+
 def _flag_stream(seed: int, flag_string: str, person: bytes) -> Rng:
     """A stream derived only from the seed number and the canonical flag string, separate from the
     generation's stream, whose draws it leaves untouched."""
-    key = hashlib.blake2b(flag_string.encode("utf-8"), key=seed.to_bytes(SEED_BYTES, "little"),
-                          digest_size=SEED_BYTES, person=person).digest()
-    return Rng(int.from_bytes(key, "little"))
+    return Rng(_flag_key(seed, flag_string, person))
 
 
 def question_mark_rng(seed: int, flag_string: str) -> Rng:
     """The stream that resolves "?" values (FL-DEP-04)."""
     return _flag_stream(seed, flag_string, QUESTION_MARK_STREAM)
+
+
+def monster_prerequisite_rng(seed: int, flag_string: str) -> Rng:
+    """The stream of FL-DEP-02 rule 3's coin (2026-10-22 export)."""
+    return _flag_stream(seed, flag_string, MONSTER_PREREQUISITE_STREAM)
+
+
+def room_prerequisite_rng(seed: int, flag_string: str) -> Rng:
+    """The stream of FL-DEP-02 rule 2's coin (beta 8 export)."""
+    return _flag_stream(seed, flag_string, ROOM_PREREQUISITE_STREAM)
+
+
+def after_resolving(asked: Settings, resolved: Settings) -> Settings:
+    """FL-DEP-04's rules after resolving that FL-DEP-01 rule 3 adds (B41 and B46 never both on) and
+    the B22 and B23 rule (merchants never come without the toll re-drawn, owner ruling), each its own
+    spoiler-log stage. Rule 4 (B47 beside a Book pin) is not applied: docs/deviations.md."""
+    return with_the_toll_beside_merchants(asked, without_both_boss_health_rules(asked, resolved))
 
 
 def cave_prerequisite_rng(seed: int, flag_string: str) -> Rng:
@@ -260,8 +330,13 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     if refused:
         raise FlagsRefused(flag_string, [f"{r.rule}: {r.message}" for r in refused])
     adjusted = apply_dependencies(decoded)
-    reasons = [ENCODE_LEVEL_DATA_NOT_RANDOM] if encode_level_data_is_random(adjusted) else []
-    unsupported = [field_id for field_id in unsupported_fields(adjusted) if field_id != ENCODE_LEVEL_DATA.id]
+    # FP-TOURNEY-01: B82 at "?" reads as off, so the canonical string and the seed are the off string's
+    level_encoding_read_as_off = encode_level_data_is_random(adjusted)
+    adjusted = with_random_level_encoding_off(adjusted)
+    reasons: list[str] = []
+    # a postponed field is accepted and not produced (support.POSTPONED_TOGGLES; the plan's notices)
+    unsupported = [field_id for field_id in unsupported_fields(adjusted)
+                   if field_id != ENCODE_LEVEL_DATA.id and not is_postponed(adjusted, field_id)]
     if unsupported:
         reasons.append(NOT_PRODUCED_PREFIX + ", ".join(_unsupported_name(adjusted, field_id)
                                                        for field_id in unsupported))
@@ -270,10 +345,13 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     canonical = encode(adjusted)
     zora = decode_zora_flags(flag_string, zora_flag_string, adjusted)
     zora_canonical = zora_flags.encode(zora)
-    resolved = zora_flags.without_extra_candles(zora, resolve_question_marks(adjusted, seed, canonical), adjusted)
+    resolved = after_resolving(adjusted, resolve_question_marks(adjusted, seed, canonical))
+    zora_game = zora_flags.game_string(zora)        # without the flags that rule only player settings
     zora_resolved, resolved = zora_flags.resolve_owner_dependencies(
-        zora_flags.resolve_question_marks(zora, seed, canonical, zora_canonical), zora, resolved, adjusted)
+        zora_flags.resolve_question_marks(zora, seed, canonical, zora_game), zora, resolved, adjusted)
     resolved = meet_cave_prerequisite(resolved, cave_prerequisite_rng(seed, canonical))     # FL-DEP-02 rule 1
+    resolved = meet_room_prerequisite(resolved, room_prerequisite_rng(seed, canonical))     # rule 2
+    resolved = meet_monster_prerequisite(resolved, monster_prerequisite_rng(seed, canonical))   # rule 3
     settings = generation_settings(resolved)
     # FP-START-02 and FL-ALT-06: the kept start items and the start pieces, from their own stream
     start = start_state(settings, seed, canonical)
@@ -286,7 +364,8 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
         settings=settings,
         # ASNB (docs/design/asnb.md section 4): Add L4 Sword = Level 2 adds level 2's item cellar
         shape_options=replace(shape_options(settings),
-                              level_2_sword_cellar=zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2),
+                              level_2_sword_cellar=zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2,
+                              do_not_segment_dungeons=zora_resolved.is_on("do_not_segment_dungeons")),
         steps=flag_steps(settings),
         alternatives=replace(alternative_values(settings), start_items=start.items,
                              start_triforce_pieces=start.triforce_pieces),
@@ -296,7 +375,7 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             features_b10=True,
             book_is_an_atlas=settings.is_on(BOOK_IS_AN_ATLAS),
             book_to_understand_npcs=settings.is_on(BOOK_TO_UNDERSTAND_NPCS),
-            level_encoding=(LevelEncodingKey(seed, zora_flags.level_encoding_text(canonical, zora_canonical))
+            level_encoding=(LevelEncodingKey(seed, zora_flags.level_encoding_text(canonical, zora_game))
                             if encode_level_data else None),
             # a magical sword may lie in a dungeon room: "no item" becomes $0E (docs/zora-extras.md section 6)
             dungeon_nothing_code=(DungeonNothingCode.ZORA_REMAP if zora.randomize_magical_sword
@@ -313,11 +392,33 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             # FP-WOOD-02 and FP-WOOD-03
             bomb_upgrade_item=settings.option(WOODEN_SWORD_STATE) in BOMB_UPGRADE_STATES,
             wand_fights_ganon=settings.option(WOODEN_SWORD_STATE) == WoodenSwordState.SWORDLESS,
+            recorder_to_unbeaten=settings.is_on(RECORDER_TO_UNBEATEN),             # OW-WARP-02
+            book_explosion=settings.is_on(BOOK_EXPLOSION),                         # FP-BOOK-02's blast
+            change_hidden_tiles=settings.is_on(CHANGE_HIDDEN_TILES),               # FP-VIS-01
+            item_appearance=settings.option(ITEM_APPEARANCE),                      # FP-SPRITE-01
+            item_sprites_key=(_flag_key(seed, canonical, ITEM_SPRITES_STREAM)
+                              if settings.option(ITEM_APPEARANCE) else None),
+            plain_dead_secrets=(settings.is_on(CHANGE_HIDDEN_TILES) and settings.option(OVERWORLD_QUEST)
+                                in (OverworldQuest.FIRST_QUEST, OverworldQuest.SECOND_QUEST)),
+            hide_dungeon_numbers=settings.is_on(HIDE_DUNGEON_NUMBERS),             # FP-LEVEL-02
+            hidden_health=settings.is_on(HIDDEN_HEALTH),                           # FP-HIDE-01
+            red_bubble_curse=settings.option(RED_BUBBLE),                          # FP-BUBL-01
+            killable_drop_items=settings.is_on(KILLABLE_DROP_ITEMS),               # FP-KILL-01
+            hidden_numbers=settings.is_on(HIDDEN_NUMBERS),                         # FP-NUM-01
+            rupees_affect_speed=settings.is_on(RUPEES_AFFECT_SPEED),               # FP-RSPD-01
+            prevent_clipping=settings.is_on(PREVENT_CLIPPING),                     # FP-CLIP-01
+            important_item_drops=settings.is_on(IMPORTANT_ITEM_DROPS),             # PS-EDROP-01
+            random_drop_rates=settings.is_on(RANDOM_DROP_RATE),                    # PS-EDROP-02
+            enemy_drops_key=(_flag_key(seed, canonical, ENEMY_DROPS_STREAM)
+                             if settings.is_on(IMPORTANT_ITEM_DROPS) or settings.is_on(RANDOM_DROP_RATE) else None),
             seed_number=seed,
         ),
         zora_flag_string=zora_canonical,
+        zora_game_string=zora_game,
         zora=zora,
         zora_resolved=zora_resolved,
+        notices=(*postponed_notices(adjusted),
+                 *((ENCODE_LEVEL_DATA_RANDOM_NOTICE,) if level_encoding_read_as_off else ())),
     )
 
 
@@ -351,6 +452,7 @@ def flag_steps(settings: Settings) -> FlagSteps:
         change_sword_hearts=on("B10"),
         change_money_making_game=on("B11"),
         change_bomb_upgrades=on("B12"),
+        increase_bomb_capacity=on("B90"),
         shuffle_dungeon_drops=on("B15"),
         shuffle_dungeon_text=on("B19"),
         add_money_or_life_rooms=on("B22"),
@@ -368,6 +470,7 @@ def flag_steps(settings: Settings) -> FlagSteps:
         change_most_enemy_hp=settings.option(ENEMY_HIT_POINTS) != HitPointChange.NORMAL,
         change_boss_hp=settings.option(BOSS_HIT_POINTS) != HitPointChange.NORMAL,
         exchange_rooms=settings.option(DUNGEON_ROOM_SHUFFLE) == DungeonRoomShuffle.FULL,
+        remap_rooms=settings.option(DUNGEON_ROOM_SHUFFLE) != DungeonRoomShuffle.VANILLA,
     )
 
 
@@ -380,6 +483,9 @@ def alternative_values(settings: Settings) -> AlternativeValues:
         white_sword_hearts=_inclusive(*white_sword_hearts(settings)),
         generate_community_hint_text=settings.option(HINT_STYLE) == HintStyle.COMMUNITY,
         show_every_helpful_hint=settings.option(HINT_STYLE) == HintStyle.HELPFUL,
+        normal_hints=settings.option(HINT_STYLE) == HintStyle.NORMAL,
+        deception_hints=settings.option(HINT_STYLE) == HintStyle.DECEPTIVE,
+        blank_hints=settings.option(HINT_STYLE) == HintStyle.BLANK,
         item_shuffle=ItemShuffleScope(settings.option(ITEM_SHUFFLE_SCOPE)),
         mix_overworld_quest=quest == OverworldQuest.MIXED_FIRST_QUEST_VARIANT,
         mix_overworld_quest_second_variant=quest == OverworldQuest.MIXED_SECOND_QUEST_VARIANT,
@@ -396,11 +502,32 @@ def alternative_values(settings: Settings) -> AlternativeValues:
         enemy_hit_points=enemy_hit_point_change(settings),
         boss_hit_points=boss_hit_point_change(settings),
         ganon_hit_points_zero=settings.is_on(GANON_HIT_POINTS_ZERO),
+        maximum_boss_health=settings.is_on(MAXIMUM_BOSS_HEALTH),
+        maximum_enemy_health=settings.is_on(MAXIMUM_ENEMY_HEALTH),
         armos_pin=settings.option(ARMOS_PIN),
         white_sword_pin=settings.option(WHITE_SWORD_CAVE_PIN),
+        coast_pin=settings.option(COAST_PIN),
         level_9_pins=(settings.option(LEVEL_9_FIRST_PIN), settings.option(LEVEL_9_SECOND_PIN)),
         wooden_sword_state=WoodenSwordState(settings.option(WOODEN_SWORD_STATE)),
+        level_9_entry=level_9_entry(settings),
+        shuffle_level_9_monsters=settings.is_on(LEVEL_9_MONSTER_MOVES),
+        shuffle_ganon_and_zelda=settings.is_on(GANON_AND_ZELDA_SHUFFLE),
+        force_ganon_fight=settings.is_on(GANON_MUST_BE_BEATEN),
+        shuffle_dungeon_monsters=settings.is_on(DUNGEON_MONSTER_SHUFFLE),
+        shuffle_overworld_group=settings.is_on(OVERWORLD_GROUP_REDRAW),
     )
+
+
+def level_9_entry(settings: Settings) -> Level9Entry:
+    """C08 with what its draws read: the range only under C08 = 9 and 10 (FP-TRIF-04, FP-TRIF-05;
+    inert otherwise, FL-ALT-06), the sword state only under C08 = 11 (FP-TRIF-06)."""
+    requirement = settings.option(LEVEL_9_REQUIREMENT)
+    entry = Level9Entry(requirement)
+    if requirement in (Level9Requirement.RANDOM_COUNT_IN_RANGE, Level9Requirement.SPECIFIC_PIECES):
+        entry = replace(entry, piece_range=piece_count_range(settings))
+    if requirement == Level9Requirement.ITEM_INSTEAD_OF_PIECES:
+        entry = replace(entry, wooden_sword_state=WoodenSwordState(settings.option(WOODEN_SWORD_STATE)))
+    return entry
 
 
 def _inclusive(lowest: int, highest: int) -> range:
@@ -466,15 +593,21 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
                               and Item.BOOK not in chosen.alternatives.start_items),
         oops_all_enemies=chosen.zora_resolved.oops_all_enemies,
         oops_all_bosses=chosen.zora_resolved.oops_all_bosses,
-        oops_all_seed=zora_flags.oops_all_seed(chosen.seed, chosen.flag_string, chosen.zora_flag_string),
+        oops_all_seed=zora_flags.oops_all_seed(chosen.seed, chosen.flag_string, chosen.zora_game_string),
         allow_triforces_in_stairways=chosen.zora_resolved.is_on("allow_triforces_in_stairways"),
         shuffle_wood_sword=chosen.zora_resolved.is_on("shuffle_wood_sword"),
         pegasus_boots=chosen.zora_resolved.is_on("pegasus_boots"),
         expanded_dungeon_locations=chosen.zora_resolved.is_on("expanded_dungeon_locations"),
         expanded_dungeon_locations_seed=expanded_dungeon_locations_seed(chosen.seed, chosen.flag_string,
-                                                                        chosen.zora_flag_string),
+                                                                        chosen.zora_game_string),
         highlight_no_drop_rooms=chosen.zora_resolved.is_on("highlight_no_drop_rooms"),
     )
+
+
+def shipped_logic_rules(chosen: GenerationPlan, world: GameWorld) -> LogicRules:
+    """The rules a shipped seed was judged by: the ZORA extras', with the level-9 gate its accepted
+    attempt asked for (C08; FP-TRIF-02 to FP-TRIF-06 draw it in each attempt)."""
+    return replace(extra_options(chosen).logic_rules, level_9_gate=world.level_9_gate)
 
 
 def overworld_gates(zora: ZoraFlags, settings: Settings) -> OverworldGates:
@@ -545,9 +678,11 @@ def generate_rom(flag_string: str, seed: int, base_rom: bytes,
     """One finished ROM for a flag string, a ZORA flag string and a seed, on
     the player's base ROM, with the player settings applied last (FP-SET-01: after
     the level encoding and the seed's code, which they never change):
-    BUILD, then FINISH with no assignment (ZORA mode)."""
+    BUILD, then FINISH with no assignment (ZORA mode). Disable Custom Music on refuses a random
+    Music value (PlayerSettingError)."""
     from ..rom.code_patches import seed_code
     chosen = plan(flag_string, seed, zora_flag_string)
+    check_music_allowed(player_settings, chosen.zora.disable_custom_music)
     rom = finish(build(chosen, base_rom), base_rom, None, player_settings)
     return GeneratedRom(rom, seed, chosen.flag_string, chosen.encode_level_data, seed_code(rom),
                         chosen.zora_flag_string)

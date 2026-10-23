@@ -80,6 +80,10 @@ SETTINGS = (
              "controller1_up_a": "death-warp-controller1-up-a",
              "controller1_up_select": "death-warp-controller1-up-select"},
             default="controller1_up_a"),
+    # FP-BEEP-01: the request's operand is data (zora/rom/player_settings.py); half speed's patch
+    # gates the heart warning in the sound engine. Removed and kept hold the ZORA build's bytes.
+    Setting("low_health_beep", "FP-BEEP-01",
+            {"removed": None, "kept": None, "half_speed": "half-speed-beep"}, default="removed"),
     # FP-SET-04.
     Setting("music", "FP-SET-04", {"on": None, "off": "music-off"}, default="on"),
     # FP-FIX-02.
@@ -88,7 +92,10 @@ SETTINGS = (
     # asm/series.txt). The corpus and the ZORA build have none ("off"); the player setting's
     # default is "off" until the screen is better tested, "on" an option (zora/rom/player_settings.py;
     # owner ruling, beta 3).
-    Setting("statistics_screen", "FP-STATS-01", {"off": None, "on": "../fp-stats-01"}, default="off"),
+    # "music": the same screen with StatsTick at bank 0 $B000, for ROMs with randomized music
+    # (asm/fp-stats-01-music/; docs/music.md), whose song table and glue take bank 0 $8000-$82A0.
+    Setting("statistics_screen", "FP-STATS-01",
+            {"off": None, "on": "../fp-stats-01", "music": "../fp-stats-01-music"}, default="off"),
     # FP-LEVEL-02, the 8-tile level label: its own patch folder asm/fp-level-02/ (not in
     # asm/series.txt), written by level_word only for a 7-character label text.
     Setting("level_label", "FP-LEVEL-02", {"short": None, "long": "../fp-level-02"}, default="short"),

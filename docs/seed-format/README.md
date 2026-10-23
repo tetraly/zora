@@ -11,10 +11,13 @@ For an encoded seed the page shows neither button, and `zora_web.api.seed_report
 
 ## The format
 
-`seed-format.schema.json` here is the visualizer's JSON Schema for format 1.0. It is copied
+`seed-format.schema.json` here is the visualizer's JSON Schema for format 1.1. It is copied
 from github.com/tetraly/z1r-visualizer (`docs/seed-format.schema.json`; its `$comment` names the
-commit) with one difference: its `itemName` list adds "Pegasus Boots" and "Magical Boots" (the
-Pegasus Boots flag, 8b30819), which the visualizer's copy lacks until the owner updates it.
+commit), with ZORA's own extra fields kept (`notices`, a setting's `final` and `changedBy`, the
+requirements' `level9Levels` and `level9Item`; the format allows unknown properties). Format 1.1
+added the item names "Pegasus Boots" and "Magical Boots", which a Pegasus Boots seed's item
+fields use ("Boots Upgrade" under Progressive Items, in the spoiler log as in the visualizer), and
+the `shownNumber`, `shownName`, `shownShortName` and `shownSpeaker` fields ZORA already wrote.
 That repo's `docs/seed-format.md` explains each field and the hand-off. No visualizer code is
 copied into ZORA.
 
@@ -51,7 +54,7 @@ copied into ZORA.
     `CreateRoomObjects`), and only Ganon's death code brings one out.
 
   Readers of format 1.x ignore it.
-- **The owner's 2.0 flags (ZORA extra `zoraExtras`, present when one is on).** Format 1.0 has no
+- **The owner's 2.0 flags (ZORA extra `zoraExtras`, present when one is on).** Format 1.1 has no
   fields for them:
   - `mazes`: each randomized maze (Randomize Lost Hills / Dead Woods), its four steps (the maze's
     own words: up/down/right, north/west/south) and the hint shop and hint (1-3) selling its path

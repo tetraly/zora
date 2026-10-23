@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from ...model.level_9_gate import EIGHT_PIECES
 from ..heart_values import PRG0_START_HEART_VALUES, heart_counts
 from ..layout import (
     BANK_2_FILE_START,
@@ -24,6 +25,7 @@ from ..layout import (
     TITLE_SEED_ROW_ADDRESS,
     TITLE_VERSION_ROW_ADDRESS,
 )
+from ..level_9_entrance import parsed_gate
 from ..start_items import TRIFORCE_INDEX, items_in_table
 from ..text_encoding import BYTE_TO_CHAR as _BYTE_TO_CHAR
 
@@ -79,6 +81,7 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
             "title_version_line": "",
             "cave_person_animations": (),
             "level9_refusal_text": "",
+            "level_9_gate": EIGHT_PIECES,
             "starting_items_new_file": None,
             "new_file_heart_containers": 3,
             "new_file_full_hearts": 3,
@@ -141,6 +144,8 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
         "title_version_line": version_line,
         "cave_person_animations": cave_person_animations,
         "level9_refusal_text": refusal,
+        # FP-TRIF-01 to FP-TRIF-06: what the entrance check asks for (C08)
+        "level_9_gate": parsed_gate(rom_bytes),
         "starting_items_new_file": new_file_items,
         "new_file_heart_containers": new_file_hearts[0],
         "new_file_full_hearts": new_file_hearts[1],

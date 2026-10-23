@@ -164,13 +164,14 @@ def start_room(level: Level, level9_entry: int | None = None, boss_alive: bool =
     return None
 
 
-def build_graph(level: Level, boss_alive: bool = False) -> Graph:
+def build_graph(level: Level, boss_alive: bool = False, transports: bool = True) -> Graph:
     """The connectivity walk's graph; boss_alive=True builds the level-9
     Ganon test's graph (trigger-3 shutters closed, row wraps blocked).
     Rooms off the level join only through stair links, so they never appear
     as states: a transport staircase ($3E) and, in the connectivity walk, an
     item cellar ($3F) each join their two exit rooms' St sides (late-gate.md
-    "Rooms not on this level"); a cellar's link has no reverse.
+    "Rooms not on this level"); a cellar's link has no reverse. transports=False
+    (Do Not Segment Dungeons) leaves the transport staircases out: doors alone must join the level.
 
     Fast-pathed: the late gate builds this once or more per attempt
     (thousands of times a seed), so the loop reads each room's four sides
@@ -220,7 +221,7 @@ def build_graph(level: Level, boss_alive: bool = False) -> Graph:
             if boss_alive:
                 continue
             exit_rooms = _cellar_exit_rooms(stair)
-        elif stair.room_type == RoomType.TRANSPORT_STAIRCASE:
+        elif stair.room_type == RoomType.TRANSPORT_STAIRCASE and transports:
             exit_rooms = (stair.left_exit, stair.right_exit)
         else:
             continue
@@ -321,8 +322,8 @@ class WalkResult:
             else self.forward_rooms
 
 
-def connectivity_walk(level: Level) -> WalkResult:
-    graph = build_graph(level)
+def connectivity_walk(level: Level, transports: bool = True) -> WalkResult:
+    graph = build_graph(level, transports=transports)
     if not graph.room_numbers:
         return WalkResult(set(), True, reverse=(set(), True))
     if graph.start is None:
@@ -334,17 +335,18 @@ def connectivity_walk(level: Level) -> WalkResult:
     return WalkResult(forward_rooms, forward_passed, graph=graph)
 
 
-def gate_walk(level: Level) -> str | None:
+def gate_walk(level: Level, transports: bool = True) -> str | None:
     """None when the level passes; else 'forward' / 'reverse' / 'both'."""
-    return connectivity_walk(level).verdict()
+    return connectivity_walk(level, transports).verdict()
 
 
-def is_ganon_reachable(level: Level, ganon_room: int | None) -> bool:
+def is_ganon_reachable(level: Level, ganon_room: int | None, transports: bool = True) -> bool:
     """VA-REJ-01.3's distinct walk: entry into Ganon's room from level 9's
-    start room, with the last boss alive (trigger-3 shutters closed)."""
+    start room, with the last boss alive (trigger-3 shutters closed); without
+    transport staircases under Do Not Segment Dungeons."""
     if ganon_room is None:
         return False
-    graph = build_graph(level, boss_alive=True)
+    graph = build_graph(level, boss_alive=True, transports=transports)
     if graph.start is None:
         return False
     reached = _closure(graph.start, graph.edges)

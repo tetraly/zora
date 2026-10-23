@@ -408,14 +408,19 @@ def check_compass_map(gw: GameWorld) -> CheckResult:
     return CheckResult("SH-ITEM-01", not bad, f"mismatches: {bad[:6]}")
 
 
-def check_palette_selectors(gw: GameWorld) -> CheckResult:
+def check_palette_selectors(gw: GameWorld, persons: bool = True) -> CheckResult:
     """SH-DOOR-01 (U23), as finished ROMs keep it: every level room's outer
     selector is 2 and every person room's inner selector 0. (Zelda's inner
     2 is a shape-stage rule: B2 moves her monster and layout bytes but not
-    the selector, and she ships on inner 3 in 301 of 1,000 final ROMs.)"""
+    the selector, and she ships on inner 3 in 301 of 1,000 final ROMs.)
+    persons=False leaves out the person rooms: Shuffle Dungeon Start Room
+    (B26) exchanges a drawn room's contents with the old start room's and
+    leaves the door bytes, with the inner selector, in the cell (PS-START-02),
+    so a person drawn as the new start room ships on the old start room's
+    selector (seed 303 of a second-quest invariant case: level 2, inner 3)."""
     rooms = [r for level in gw.levels for r in level.rooms]
     bad_outer = sum(r.palette_0 != 2 for r in rooms)
-    bad_person = sum(r.palette_1 != 0 for r in rooms if r.is_person)
+    bad_person = sum(r.palette_1 != 0 for r in rooms if r.is_person) if persons else 0
     return CheckResult("SH-DOOR-01", not (bad_outer or bad_person),
                        f"outer not 2: {bad_outer}/{len(rooms)}; person inner not 0: {bad_person}")
 
@@ -524,7 +529,7 @@ def finished_rom_checks(sort_shapes: bool = True, post_shapes: bool = True,
     """The checks a finished ROM generated with these options must pass (level_2_sword: ASNB's
     Add L4 Sword = Level 2, which gives level 2 an item cellar; shaped: False when a set keeps a
     quest's own dungeons, which leaves out the shape stage's rules; start_rooms_moved: B26,
-    which leaves out the bottom-row entrance rules)."""
+    which leaves out the bottom-row entrance rules and SH-DOOR-01's person rooms)."""
     checks: tuple[Check, ...] = FINISHED_CHECKS
     if level_2_sword:
         conditional: dict[Check, Check] = {check_cellar_counts: partial(check_cellar_counts, level_2_sword=True),
@@ -538,6 +543,8 @@ def finished_rom_checks(sort_shapes: bool = True, post_shapes: bool = True,
         checks = tuple(check for check in checks if check not in SHAPED_DUNGEON_CHECKS)
     if start_rooms_moved:
         checks = tuple(check for check in checks if check not in BOTTOM_ROW_ENTRANCE_CHECKS)
+        checks = tuple(partial(check_palette_selectors, persons=False) if check is check_palette_selectors
+                       else check for check in checks)
     return checks
 
 

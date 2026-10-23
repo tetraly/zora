@@ -27,6 +27,7 @@ class FlagSteps:
     change_sword_hearts: bool = True             # B10, FP-SWORD-01
     change_money_making_game: bool = True        # B11, FP-MMG-01
     change_bomb_upgrades: bool = True            # B12, FP-BOMB-01
+    increase_bomb_capacity: bool = False         # B90, FP-BOMB-01: 2 more bombs of capacity
     # Dungeon passes (FL-OFF-04)
     shuffle_dungeon_drops: bool = True           # B15, PS-DROP-01 to PS-DROP-03 and PS-XCHG-05
     shuffle_dungeon_text: bool = True            # B19, HT-TEXT-04
@@ -50,6 +51,9 @@ class FlagSteps:
     change_most_enemy_hp: bool = True            # C09 at 1, PS-HP-01
     change_boss_hp: bool = True                  # C10 at 1, PS-HP-02
     exchange_rooms: bool = True                  # C14 at 2, PS-XCHG-01 to PS-XCHG-05
+    # C14 at 0 (beta 8 export, VA-REJ-02): off, the room remap and its gate run only when a level set
+    # comes from the shape stage
+    remap_rooms: bool = True
 
 
 # Every flag-switched step on (the MVP baseline): the default where none are given.

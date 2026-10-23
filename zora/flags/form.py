@@ -45,6 +45,8 @@ from .fields import (
     MAX_TRIFORCE_PIECES,
     MONEY_OR_LIFE_TOLL,
     OPTION_FIELDS,
+    PIECE_RANGE_HIGH,
+    PIECE_RANGE_LOW,
     PIN_FIELDS,
     STARTING_HEARTS,
     STARTING_HEARTS_RANDOM,
@@ -61,12 +63,33 @@ from .fields import (
     ToggleField,
 )
 from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, ZORA_PRESETS
-from .support import ENCODE_LEVEL_DATA_NOT_RANDOM, Support, mvp_baseline_settings, support
+from .support import (
+    ENCODE_LEVEL_DATA_RANDOM_NOTICE,
+    POSTPONED_TOGGLES,
+    Support,
+    encode_level_data_is_random,
+    is_postponed,
+    mvp_baseline_settings,
+    postponed_notices,
+    support,
+)
+from .zora_flags import ZoraFlagStringError
+from .zora_flags import decode as decode_zora
 from .zora_form import zora_flags_from_values, zora_metadata, zora_state
 
 NOT_PRODUCED_TEXT = "Not produced by ZORA yet"
 NOT_AVAILABLE_TEXT = "Not available in this build"
 CURRENT_NOT_PRODUCED_TEXT = "This value is not produced by ZORA yet"
+# Triforce Range (C24, C25) is read only by Level 9 Entry's Triforce Range and Specific Triforces, and
+# by Random, which can pick either (FP-TRIF-04, FP-TRIF-05; FL-ALT-06): under any other value the page
+# locks it, so nobody sets it expecting it to change the count (a player report, beta 7)
+RANGE_READERS = frozenset({Level9Requirement.RANDOM_COUNT_IN_RANGE, Level9Requirement.SPECIFIC_PIECES,
+                           Level9Requirement.RANDOM})
+RANGE_UNUSED_TEXT = ("No effect: only Level 9 Entry = Triforce Range or Specific Triforces (or Random) uses the "
+                     "range. Level 9 Entry sets how many pieces level 9 asks for.")
+# ZORA's Level 9 Entrance = Level 4 sword decides level 9's entrance itself (zora_flags.asnb_conflicts)
+LEVEL_9_ENTRY_BY_SWORD_TEXT = ("Level 9 Entrance = Level 4 sword (ZORA Extras) decides what level 9's entrance "
+                               "asks for: four sword upgrades")
 
 # Owner rulings: the page may call the MVP baseline "Consternation", and calls published variants A
 # and C by their community names, "Consternation Remastered" and "Hopla" (presets.HOPLA; beta 5),
@@ -85,14 +108,21 @@ LEVEL_ENCODING_OFF_PRESET = ("MVP baseline, level encoding off", "Consternation 
 DEPENDENCY_RULES = (
     ("FL-DEP-01 rule 1", "The Ladder cannot be pinned to the coast cave."),
     ("FL-DEP-01 rule 2", "No item may be pinned to two places."),
+    ("FL-DEP-01 rule 3", ("Set Ganon HP to 0 (B41) and Maximum Boss Health (B46) cannot both be on; when one "
+                          "or both are random, a seed never turns both on.")),
+    ("FL-DEP-01 rule 5", ("Level 9 Item 1 or 2 at the Bow, the Ladder, the Power Bracelet, the Raft or the "
+                          "Recorder, or at the Wand with Swords at Swordless or Random, needs Allow Important "
+                          "Items in 9 (B25) on; at Random it is on.")),
     ("FL-DEP-02 rule 1", ("Moving the wooden-sword cave (B02) or shuffling the take-any-road caves (B04) "
                           "needs a cave shuffle that moves non-dungeon caves; when it has none, each seed "
                           "either moves them too or leaves the wooden-sword and take-any-road caves in place, "
                           "with equal chance.")),
     ("FL-DEP-02 rule 2", ("Shuffling the hungry goriya (B28), moving the start room (B26) and Ganon must be "
-                          "beaten (B18) need the dungeon room shuffle.")),
+                          "beaten (B18) need the dungeon room shuffle; when it is off, each seed either turns "
+                          "it on (within each dungeon) or turns them off, with equal chance.")),
     ("FL-DEP-02 rule 3", ("Moving monsters between levels (B36) and Ganon and Zelda in the shuffles (B33) "
-                          "need the dungeon monster shuffle.")),
+                          "need the dungeon monster shuffle (B32); when it is off, each seed either turns it "
+                          "on or turns them off, with equal chance.")),
     ("FL-DEP-02 rule 4", ("Second-quest, mixed, and mixed-with-shapes dungeons turn the hungry-goriya and "
                           "bomb-upgrade-person shuffles (B28, B29) off.")),
 )
@@ -379,10 +409,12 @@ def _field_state(settings: Settings, field: FieldDef, refused: set[str]) -> dict
     value = _value_of(settings, field)
     blocked = _blocked_values(settings, field, refused)
     current_ok = value in _supported_values_here(settings, field) and _value_unavailable(field, value) is None
+    # a pasted string's postponed value, and B82's "?" (read as off): accepted, with a notice
+    postponed = is_postponed(settings, field.id) or (field == ENCODE_LEVEL_DATA and value == ThreeState.POSSIBLE)
     others = [v for v in field_values(field) if v != value]
     disabled = current_ok and all(v in blocked for v in others)
-    if field == ENCODE_LEVEL_DATA and value == ThreeState.POSSIBLE:
-        reason = ENCODE_LEVEL_DATA_NOT_RANDOM     # a pasted string with "?" there
+    if postponed:
+        reason = POSTPONED_TOGGLES.get(field.id, ENCODE_LEVEL_DATA_RANDOM_NOTICE)
     elif not current_ok:
         reason = _value_unavailable(field, value) or CURRENT_NOT_PRODUCED_TEXT
     elif disabled and len(supported_values(field)) == 1:
@@ -391,8 +423,27 @@ def _field_state(settings: Settings, field: FieldDef, refused: set[str]) -> dict
         reason = blocked[min(blocked)]
     else:
         reason = None
-    return {"value": value, "disabled": disabled, "reason": reason, "problem": not current_ok,
-            "blocked": {str(v): text for v, text in blocked.items()}}
+    state = {"value": value, "disabled": disabled, "reason": reason, "problem": not (current_ok or postponed),
+             "blocked": {str(v): text for v, text in blocked.items()}}
+    if postponed:
+        state["notice"] = reason          # the page shows it on the row, which stays shown
+    return state
+
+
+def _locked(field: FieldDef, state: dict[str, Any], reason: str) -> dict[str, Any]:
+    """A control the page shows at its value and does not let the player change, with the reason (a
+    value that is not produced keeps its own state, so the player can still change it)."""
+    if state["problem"]:
+        return state
+    others = {str(value): reason for value in field_values(field) if value != state["value"]}
+    return {**state, "disabled": True, "reason": reason, "blocked": others}
+
+
+def _level_9_entrance_sword(zora_flag_string: str) -> bool:
+    try:
+        return decode_zora(zora_flag_string.strip()).level_9_entrance_sword
+    except ZoraFlagStringError:
+        return False
 
 
 def form_state(flag_string: str, zora_flag_string: str = "") -> dict[str, Any]:
@@ -410,12 +461,22 @@ def form_state(flag_string: str, zora_flag_string: str = "") -> dict[str, Any]:
         if adjusted.toggle(field_id) != settings.toggle(field_id)]
     canonical = encode(settings)
     zora = zora_state(zora_flag_string, adjusted)
+    fields = {field.id: _field_state(settings, field, refused) for field in ALL_FIELDS}
+    if settings.option(LEVEL_9_REQUIREMENT) not in RANGE_READERS:
+        for field in (PIECE_RANGE_LOW, PIECE_RANGE_HIGH):
+            fields[field.id] = _locked(field, fields[field.id], RANGE_UNUSED_TEXT)
+    eight_pieces = settings.option(LEVEL_9_REQUIREMENT) == Level9Requirement.EIGHT_PIECES
+    if eight_pieces and _level_9_entrance_sword(zora_flag_string):
+        fields[LEVEL_9_REQUIREMENT.id] = _locked(LEVEL_9_REQUIREMENT, fields[LEVEL_9_REQUIREMENT.id],
+                                                 LEVEL_9_ENTRY_BY_SWORD_TEXT)
     return {
         "ok": True,
         "flags": canonical,
-        "fields": {field.id: _field_state(settings, field, refused) for field in ALL_FIELDS},
+        "fields": fields,
         "refusals": sorted(refused),
         "adjustments": adjustments,
+        "notices": [*postponed_notices(settings),
+                    *([ENCODE_LEVEL_DATA_RANDOM_NOTICE] if encode_level_data_is_random(settings) else [])],
         "generateRefusals": generation_refusals(canonical, zora["flags"] if zora["ok"] else zora_flag_string),
         "preset": next((p["name"] for p in presets() if p["flags"] == canonical
                         and p["zoraFlags"] == (zora["flags"] if zora["ok"] else zora_flag_string)), None),

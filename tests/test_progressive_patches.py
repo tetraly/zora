@@ -498,8 +498,8 @@ def ware_items(cpu: CPU) -> list[int]:
 def test_the_cave_hook_shows_each_ware_at_its_next_level() -> None:
     """StoreCaveFlagsAndFixUpWares: CaveFlags is stored and returned in A,
     X is kept, each ware's cave flags (top two bits) stay; a shop hides an
-    upgrade whose line is at the top level (no item, price 0); a cave that
-    gives items away shows the top level instead; other wares, and the
+    upgrade whose line is at the top level (no item, price 0), and so does a
+    cave that gives items away (tetraly/zora#13); other wares, and the
     potion shop's potions for every potion held, are left as placed."""
     rom = patched()
     for line, level in ((graded, level) for graded in GRADED_LINES for level in range(len(graded.items) + 1)):
@@ -507,7 +507,7 @@ def test_the_cave_hook_shows_each_ware_at_its_next_level() -> None:
         for cave_type in (SHOP_A, WOOD_SWORD_CAVE):
             cpu = run_cave_init(rom, cave_type, (line.items[0], BOMBS, CAVE_NO_ITEM), inventory)
             top = level >= len(line.items)
-            if top and cave_type == SHOP_A:
+            if top:
                 assert ware_items(cpu) == [CAVE_NO_ITEM, BOMBS, CAVE_NO_ITEM] and cpu[CAVE_PRICES] == 0
             else:
                 assert ware_items(cpu) == [line.items[min(level, len(line.items) - 1)], BOMBS, CAVE_NO_ITEM]

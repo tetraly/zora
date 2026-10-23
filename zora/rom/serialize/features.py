@@ -15,6 +15,8 @@ from ..layout import (
     LEVEL_NAME_DASH_OFFSET,
     LOW_HEALTH_BEEP_OPERAND_ADDRESS,
     NEW_FILE_HEART_VALUES_OPERAND_ADDRESS,
+    NORMAL_REFUSAL_TEXT_ADDRESS,
+    NORMAL_REFUSAL_TEXT_POINTER,
     Q2_ROOM_3E_TRIGGER_ADDRESS,
     REFUSAL_TEXT_ADDRESS,
     REFUSAL_TEXT_POINTER,
@@ -96,19 +98,28 @@ def _serialize_credits(game_world: GameWorld, patch: Patch) -> None:
         offset += len(record)
 
 
-def _serialize_refusal_text(game_world: GameWorld, patch: Patch) -> None:
-    """FP-TRIF-01: the level-9 refusal text goes outside the generated hint
-    block and person-text slot 34 points at it (hints-behavior.md HT-TEXT-02:
-    slot 34's final pointer is replaced by another pass). The pointer lies
-    inside the quotes block, so this runs after the quotes."""
-    # The parsed text keeps the centering pad ("~", tile $25); strip it so
-    # re-centering a parsed world writes the same bytes (round-trip identity).
-    lines = (line.strip(QUOTE_PAD_CHARS) for line in game_world.level9_refusal_text.split("\n"))
+def encoded_refusal_text(refusal_text: str) -> bytes:
+    """The level-9 refusal text's bytes: each line centered, at most REFUSAL_TEXT_SIZE. The
+    parsed text keeps the centering pad ("~", tile $25); it is stripped, so re-centering a parsed
+    world writes the same bytes (round-trip identity). The level word rewrites it with this too
+    (player_settings.level_word_in_refusal_text)."""
+    lines = (line.strip(QUOTE_PAD_CHARS) for line in refusal_text.split("\n"))
     text = bytes(_encode_quote("|".join(lines), center=True))
     if len(text) > REFUSAL_TEXT_SIZE:
         raise ValueError(f"refusal text takes {len(text)} bytes; {REFUSAL_TEXT_SIZE} fit")
-    patch.add(REFUSAL_TEXT_ADDRESS, text)
-    patch.add(REFUSAL_TEXT_POINTER_ADDRESS, REFUSAL_TEXT_POINTER)
+    return text
+
+
+def _serialize_refusal_text(game_world: GameWorld, patch: Patch, normal_hints: bool = False) -> None:
+    """FP-TRIF-01: the level-9 refusal text goes outside the generated hint
+    block and person-text slot 34 points at it (hints-behavior.md HT-TEXT-02:
+    slot 34's final pointer is replaced by another pass). The pointer lies
+    inside the quotes block, so this runs after the quotes. Under normal hints (HT-HINT-05) PRG0's
+    block is in use, so the text goes outside it, at the normal-hints place ($B780)."""
+    address, pointer = ((NORMAL_REFUSAL_TEXT_ADDRESS, NORMAL_REFUSAL_TEXT_POINTER) if normal_hints
+                        else (REFUSAL_TEXT_ADDRESS, REFUSAL_TEXT_POINTER))
+    patch.add(address, encoded_refusal_text(game_world.level9_refusal_text))
+    patch.add(REFUSAL_TEXT_POINTER_ADDRESS, pointer)
 
 
 def _encode_title_row(text: str) -> bytes:

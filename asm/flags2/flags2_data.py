@@ -99,6 +99,8 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x08258, bytes.fromhex("18360c222e2e2e5151719fa1ade13f2e2e0e605e521e")),
         (0x09358, bytes.fromhex("24240b18181d1c2424")),
         (0x0936F, bytes.fromhex("24240b18181d1c2424")),
+        (0x0ABC3, bytes.fromhex("90af")),
+        (0x0AFA0, bytes.fromhex("a9018d75064ce96e")),
         (0x14E48, bytes.fromhex("a9208d8f0360a060ad5606d02924fa5025ad7506d01ead7406f01bad8f")),
         (0x14E65, Original(0x14E65, 1)),
         (0x14E66, bytes.fromhex("f011ce8f03f007a9008df803f00aa90220806da0792ca0")),

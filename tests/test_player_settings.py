@@ -61,7 +61,9 @@ from zora.generate.steps.feature_data import write_fixed_feature_data
 from zora.model.enums import Item, RoomAction
 from zora.rom.base_rom import Piece, piece_length
 from zora.rom.game_config import GameConfig
+from zora.rom.layout import LOW_HEALTH_BEEP_OPERAND_ADDRESS
 from zora.rom.parse.rom_file import parse_rom
+from zora.rom.player_settings import BEEP_KEPT, BEEP_REMOVED
 from zora.rom.serialize.rom_file import serialize_to_rom
 
 REPO = Path(__file__).resolve().parent.parent
@@ -192,6 +194,18 @@ def test_every_choice_writes_the_same_bytes_and_settings_never_share_one() -> No
 
 
 RETIRED_STATISTICS_SCREEN, ALWAYS_ON = "statistics_screen", "on"
+# FP-BEEP-01: Removed and Kept hold the same patch bytes (the ZORA build's); the tone request's
+# operand, which zora/rom/player_settings.py writes, tells them apart
+LOW_HEALTH_BEEP = "low_health_beep"
+BEEP_OPERANDS = {"removed": BEEP_REMOVED, "kept": BEEP_KEPT, "half_speed": BEEP_KEPT}
+
+
+def held_choices(rom: bytes, name: str) -> list[str]:
+    """The choices of setting `name` whose bytes `rom` holds, the beep's operand included."""
+    held: list[str] = build.held_choices(rom, name, data.SETTINGS)
+    if name == LOW_HEALTH_BEEP:
+        held = [choice for choice in held if rom[LOW_HEALTH_BEEP_OPERAND_ADDRESS] == BEEP_OPERANDS[choice]]
+    return held
 
 
 def test_zora_output_holds_every_default() -> None:
@@ -203,7 +217,7 @@ def test_zora_output_holds_every_default() -> None:
         rom = finished(seed)
         for name, default in data.DEFAULTS.items():
             held = ALWAYS_ON if name == RETIRED_STATISTICS_SCREEN else default
-            assert build.held_choices(prg0_view(rom), name, data.SETTINGS) == [held], (seed, name)
+            assert held_choices(prg0_view(rom), name) == [held], (seed, name)
 
 
 def test_music_off_code_sits_in_free_space() -> None:

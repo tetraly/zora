@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from .canonical import OMITTED_AT_DEFAULT
 from .enums import VANILLA_PERSON_INITS, DungeonNothingCode, Item, UnderworldPersonInit
+from .level_9_gate import EIGHT_PIECES, Level9Gate
 from .levels import ARRIVAL_DUNGEON, ARRIVAL_OVERWORLD, Level, LevelBlock
 from .overworld import Overworld, Quote
 from .rooms import LifeOrMoneyToll
@@ -122,8 +123,12 @@ class GameWorld:
     title_seed_number: int = 0
     # Title-screen version line (ZORA-authored; empty means leave PRG0 row blank).
     title_version_line: str = ""
-    # Level-9 entrance refusal text (ZORA-authored; must state eight).
+    # Level-9 entrance refusal text (ZORA-authored; FP-TRIF-01 to FP-TRIF-06: it states the count,
+    # the levels or the item the entrance asks for).
     level9_refusal_text: str = ""
+    # FP-TRIF-01 to FP-TRIF-06 (C08): what level 9's entrance asks for. PRG0's eight pieces write
+    # nothing and leave the seed's code as it was (canonical.OMITTED_AT_DEFAULT).
+    level_9_gate: Level9Gate = field(default=EIGHT_PIECES, metadata=OMITTED_AT_DEFAULT)
     # FP-PERSON-01: the 17 cave-person animation bytes for object types $6B-$7B.
     cave_person_animations: tuple[int, ...] = ()
 

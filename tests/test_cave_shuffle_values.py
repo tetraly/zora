@@ -9,7 +9,7 @@ from zora.flags.codec import decode, encode
 from zora.flags.fields import CaveShuffle, ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.support import Support, support
-from zora.generate.pipeline import FlagsRefused, generate_rom, plan
+from zora.generate.pipeline import generate_rom, plan
 from zora.generate.rng import Rng
 from zora.generate.steps.cave_entries import ENROLLED_SCREENS, FIXED_SCREENS, WOOD_SWORD_SCREENS
 from zora.generate.steps.mixed_overworld_quest import (
@@ -78,14 +78,14 @@ def _prg0_overworld() -> Overworld:
 
 # --- Shuffle Wood Sword Cave off (B02 = 0, OW-CAVE-12) ----------------------------------------------
 
-def test_b02_off_is_supported_but_not_its_random() -> None:
-    """FL-SUP-03: B02 off is supported; "?" is not (FL-DEP-02 rule 1 meets it)."""
+def test_b02_off_and_its_random_are_supported() -> None:
+    """FL-SUP-03: B02 off is supported, and since the beta 8 export its "?" too (OW-CAVE-12: resolved
+    before FL-DEP-02 rule 1, whose coin then applies)."""
     off = decode(WOOD_SWORD_CAVE_OFF_FLAGS)
     assert support(off)["B02"] is Support.SUPPORTED
     possible = off.updated(toggles={"B02": ThreeState.POSSIBLE})
-    assert support(possible)["B02"] is Support.NOT_PRODUCED
-    with pytest.raises(FlagsRefused, match="B02"):
-        plan(encode(possible), 1)
+    assert support(possible)["B02"] is Support.SUPPORTED
+    assert plan(encode(possible), 1).flag_string == encode(possible)
 
 
 def test_b02_off_list_keeps_prg0_order() -> None:

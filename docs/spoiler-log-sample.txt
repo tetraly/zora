@@ -1,9 +1,9 @@
-ZORA 2.0 beta 7 spoiler log
+ZORA 2.0 beta 8 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Letter, Compass, Ladder, Magical Sword
+Seed code: Compass, Wand, Magical Key, Bait
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -146,6 +146,7 @@ ZORA  Like-Like Eats Rupees ................................................ off
 ZORA  Magical Boomerang Does 1 HP Damage ................................... off
 ZORA  Randomize Lost Hills ................................................. off
 ZORA  Randomize Dead Woods ................................................. off
+ZORA  Disable Custom Music ................................................. off
 
 ================================================================================
 Major items by place

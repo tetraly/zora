@@ -477,8 +477,8 @@ function markChanged(control, changed) {
   control.changed.textContent = changed ? " (changed)" : "";
 }
 
-// The ZORA box and tab. Each conflict (the sword hearts, Progressive Items
-// with Extra Candles) is shown at every setting it names (ZORA extras fields
+// The ZORA box and tab. Each conflict (the sword hearts, Add L4 Sword
+// without Progressive Items) is shown at every setting it names (ZORA extras fields
 // and Z1R fields alike), and every tab holding one of those settings turns
 // red, so the player can find both halves; it blocks generation, and nothing
 // is changed for the player.
@@ -521,6 +521,8 @@ function showZoraState(zora, { rewrite }) {
   showWarnings(zora.warnings || [], messages);
   showForced(zora.forced || []);
   markConflictTabs(conflictTabs(zora.conflicts));
+  musicLocked = Number(zora.values.disable_custom_music) === 1;     // Disable Custom Music
+  refreshMusicRows();
 }
 
 // Z1R settings a ZORA setting sets whatever the Z1R string holds (Randomize Dead Woods turns Add Lost
@@ -638,8 +640,9 @@ const PLAYER_CHOICES = [
     help: "What Select does in play. Off: it pauses the game, as in the original. Swap only: it moves the " +
           "B button to your next item and never pauses. Toggle: you switch between the two on the item screen." },
   { key: "lowHealthBeep", label: "Low-health beep", default: "removed",
-    choices: [["removed", "Removed"], ["kept", "Kept"]],
-    help: "Whether the warning beep sounds while your hearts are low." },
+    choices: [["removed", "Removed"], ["kept", "Kept"], ["half-speed", "Half speed"]],
+    help: "Whether the warning beep sounds while your hearts are low, and how often. Half speed: it beeps " +
+          "half as often as in the original game." },
   { key: "deathWarp", label: "Death-warp", default: "p1-up-a",
     choices: [["p2-up-a", "Controller 2 Up+A"], ["p1-up-a", "Controller 1 Up+A"],
               ["p1-up-select", "Controller 1 Up+Select"]],
@@ -649,6 +652,23 @@ const PLAYER_CHOICES = [
     help: "Tones down the screen flashes, for players sensitive to flashing light." },
   { key: "music", label: "Music", default: "on", choices: [["on", "On"], ["off", "Off"]],
     help: "Turns the game's music on or off. Sound effects stay." },
+];
+// Randomized music (docs/design/music-settings.md): Music's random values, which the Music row offers
+// outside multiworld mode and not under the ZORA flag Disable Custom Music (Archipelago's Music is the
+// list above's On and Off), and the switches shown with them. Not in PLAYER_CHOICES: Archipelago's
+// player settings mirror that list, and Archipelago has no randomized music.
+const MUSIC_RANDOM_CHOICES = [["random-standard", "Random (standard library)"], ["random-local", "Random (local library)"]];
+const RANDOM_MUSIC = MUSIC_RANDOM_CHOICES.map(([value]) => value);
+const MUSIC_HELP = "Off: no music; sound effects stay. On: the game's own music. Random (standard library): " +
+  "each area (the title screen, the overworld, each level, the ending) gets a FamiTracker track from Quantam's " +
+  "library, downloaded from his repository with the first " +
+  "seed. Random (local library): tracks from library files you choose. Randomized music changes how often the " +
+  "game lags a little, so races may turn it off with the ZORA flag Disable Custom Music.";
+const MUSIC_CHOICES = [
+  { key: "musicStreamingSafeOnly", label: "Streaming-safe tracks only", default: "on",
+    choices: [["on", "On"], ["off", "Off"]],
+    help: "Only tracks the library marks safe for streaming. Off adds the others, which may draw copyright " +
+          "claims on a stream or video. A local library's track without that mark counts as safe." },
 ];
 // The statistics screen is no longer a choice: every ROM has it (owner, 2026-10-17). A saved
 // statisticsScreen value is not loaded (loadPlayerSettings reads only these keys).
@@ -680,7 +700,7 @@ const MULTIWORLD_CHOICES = [
           "item appearing in a room. Item taken: the sound of picking up an item. It plays over the music " +
           "and never stops Link." },
 ];
-const ALL_CHOICES = [...PLAYER_CHOICES, ...MULTIWORLD_CHOICES];
+const ALL_CHOICES = [...PLAYER_CHOICES, ...MUSIC_CHOICES, ...MULTIWORLD_CHOICES];
 
 // The test channel's first load (docs/releasing.md "Channels"): the regular channel's saved settings,
 // copied into the test page's own keys in this page's format; the regular keys are only read, never
@@ -734,6 +754,7 @@ function checkedPlayerSettings(saved) {
   for (const choice of ALL_CHOICES) {
     if (choice.choices.some(([value]) => value === saved[choice.key])) settings[choice.key] = saved[choice.key];
   }
+  if (RANDOM_MUSIC.includes(saved.music)) settings.music = saved.music;
   for (const slot of COLOR_SLOTS) {
     if (isPickableColor(saved[slot.key])) settings[slot.key] = saved[slot.key];
   }
@@ -769,18 +790,28 @@ function choiceRow(choice) {
   return settingRow(choice.label, choice.help, select).row;
 }
 
-// Fills the Look and feel panel: the choices as selects, then the color slots.
+// Fills the Look and feel panel: the choices as selects, then the Music section, then the Colors section.
 function buildLookPanel(panel) {
   panel.append(element("p", { className: "panel-note",
     textContent: "Look and feel settings change only how the game looks and sounds, so they are not part " +
                  "of the flag strings. This browser remembers them." }));
   const grid = settingGrid();
-  for (const choice of PLAYER_CHOICES) grid.append(choiceRow(choice));
+  for (const choice of PLAYER_CHOICES) if (choice.key !== "music") grid.append(choiceRow(choice));
   grid.append(levelWordRow());
   grid.append(bossSoundWordRow());
+  grid.append(element("h3", { className: "setting-heading", textContent: "Music" }));
+  grid.append(musicRow(PLAYER_CHOICES.find((choice) => choice.key === "music")));
+  for (const choice of MUSIC_CHOICES) {
+    const row = choiceRow(choice);
+    row.classList.add("music-random-only");
+    // The playlist editor marks unsafe songs by this switch.
+    row.querySelector("select").addEventListener("change", refreshMusicPlaylistEditor);
+    grid.append(row);
+  }
+  grid.append(musicLibraryRow(), musicPlaylistRow());
+  grid.append(element("h3", { className: "setting-heading", textContent: "Colors" }));
   const markerNote = element("p", { id: "marker-note", className: "panel-note color-note", textContent: MARKER_NOTE });
   for (const group of PLAYER_COLORS) {
-    grid.append(element("h3", { className: "color-heading", textContent: group.heading }));
     for (const slot of group.slots) {
       const host = element("span", { className: "setting-control" });
       initColorPicker(host, {
@@ -798,7 +829,7 @@ function buildLookPanel(panel) {
     if (group.slots.some((slot) => TUNIC_SLOTS.includes(slot.key))) grid.append(markerNote);
   }
   showMarkerNote(markerNote);
-  grid.append(element("h3", { className: "color-heading multiworld-only", textContent: "Multiworld" }));
+  grid.append(element("h3", { className: "setting-heading multiworld-only", textContent: "Multiworld" }));
   for (const choice of MULTIWORLD_CHOICES) {
     const row = choiceRow(choice);
     row.classList.add("multiworld-only");
@@ -811,6 +842,291 @@ function buildLookPanel(panel) {
 // The multiworld settings' rows show only in multiworld mode.
 function showMultiworldSettings() {
   for (const node of document.querySelectorAll(".multiworld-only")) node.hidden = mode !== MULTIWORLD;
+  refreshMusicRows();
+}
+
+// ---------------------------------------------------------------------------
+// Randomized music (docs/design/music-settings.md): the Music row, the local library, the playlist
+// ---------------------------------------------------------------------------
+
+const MUSIC_PLAYLIST_KEY = "zora-music-playlist";
+const MUSIC_LIBRARY_DB = "zora-music-library";     // IndexedDB: the local library's files, this browser only
+let musicSelect = null;
+let musicLibraryFiles = [];                         // [{name, bytes}], read from the files the player chose
+let musicPlaylist = loadMusicPlaylist();            // area key -> a song's title or "original"
+let musicPlaylistEditor = null;                     // the Playlist row's editor (hidden until opened)
+let musicPlaylistFills = 0;                         // the editor's fills so far: only the latest one shows
+let musicLocked = false;                            // the ZORA flag Disable Custom Music is on
+let musicPlaylistSummary = null;                    // the Playlist row's "n areas pinned"
+let musicLibraryShown = null;                       // the Library row's list of files
+
+// The Music row: the list's On and Off, then the random values.
+function musicRow(choice) {
+  const values = [...choice.choices, ...MUSIC_RANDOM_CHOICES].map(([value, label]) => ({ value, label }));
+  musicSelect = selectControl(`player-${choice.key}`, choice.label, values, () => {
+    playerSettings.music = musicSelect.value;
+    savePlayerSettings();
+    refreshMusicRows();
+    refreshMusicPlaylistEditor();
+  });
+  musicSelect.value = playerSettings.music;
+  return settingRow(choice.label, MUSIC_HELP, musicSelect).row;
+}
+
+// Random music is offered outside multiworld mode, and not under Disable Custom Music (a race setting).
+function randomMusicAllowed() {
+  return mode !== MULTIWORLD && !musicLocked;
+}
+
+function randomMusicChosen() {
+  return RANDOM_MUSIC.includes(playerSettings.music);
+}
+
+// The random values disabled where they are not offered (a chosen one falls back to On), and the rows
+// that go with them shown only while one is chosen.
+function refreshMusicRows() {
+  if (!musicSelect) return;
+  const allowed = randomMusicAllowed();
+  for (const option of musicSelect.options) {
+    if (RANDOM_MUSIC.includes(option.value)) option.disabled = !allowed;
+  }
+  if (!allowed && randomMusicChosen()) {
+    playerSettings.music = "on";
+    musicSelect.value = "on";
+    try { pageStorage.setItem(PLAYER_SETTINGS_KEY, JSON.stringify(playerSettings)); } catch { /* not remembered */ }
+  }
+  for (const node of document.querySelectorAll(".music-random-only")) node.hidden = !randomMusicChosen();
+  for (const node of document.querySelectorAll(".music-local-only")) node.hidden = playerSettings.music !== "random-local";
+  showMusicLibrary();
+  updateButton();
+}
+
+// The local library: a folder (every .json5 file in it) or files, read into memory and kept in this
+// browser (IndexedDB) for the next visit; never uploaded.
+function musicLibraryRow() {
+  const folder = element("input", { type: "file", hidden: true, multiple: true });
+  folder.setAttribute("webkitdirectory", "");
+  const files = element("input", { type: "file", hidden: true, multiple: true, accept: ".json5" });
+  for (const input of [folder, files]) input.addEventListener("change", () => chooseMusicLibrary(input.files));
+  const pickFolder = element("button", { type: "button", className: "btn btn-tint btn-small", textContent: "Choose folder…" });
+  const pickFiles = element("button", { type: "button", className: "btn btn-tint btn-small", textContent: "Choose files…" });
+  pickFolder.addEventListener("click", () => folder.click());
+  pickFiles.addEventListener("click", () => files.click());
+  const shown = element("span", { id: "music-library-files", className: "panel-note" });
+  musicLibraryShown = shown;
+  const control = element("span", { className: "music-library" }, pickFolder, pickFiles, folder, files, shown);
+  const { row } = settingRow("Library", "FtRandoLib library files (.json5), the format of Quantam's standard " +
+    "library: FamiTracker modules with each song's title and the areas it fits. Zelda II Randomizer's libraries " +
+    "work too: their towns play on the overworld, palaces, caves and battles in levels 1-8, the great palace and " +
+    "bosses in level 9, the credits at the ending. Recorded audio (MP3, WAV) and plain .ftm files cannot be used. " +
+    "The files stay in this browser.", control);
+  row.classList.add("music-random-only", "music-local-only", "setting--wide");
+  restoreMusicLibrary();
+  return row;
+}
+
+async function chooseMusicLibrary(fileList) {
+  const chosen = [...fileList].filter((file) => file.name.toLowerCase().endsWith(".json5"))
+    .sort((a, b) => (a.webkitRelativePath || a.name).localeCompare(b.webkitRelativePath || b.name));
+  musicLibraryFiles = await Promise.all(chosen.map(async (file) => ({
+    name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) })));
+  storeMusicLibrary();
+  showMusicLibrary();
+  refreshMusicPlaylistEditor();
+  updateButton();
+}
+
+function showMusicLibrary() {
+  const shown = musicLibraryShown;
+  if (!shown) return;
+  shown.textContent = musicLibraryFiles.length
+    ? `${musicLibraryFiles.length} file${musicLibraryFiles.length === 1 ? "" : "s"}: ${musicLibraryFiles.map((file) => file.name).join(", ")}`
+    : "No library chosen: choose a folder or files to generate.";
+}
+
+function musicLibraryStore(mode, work) {
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(MUSIC_LIBRARY_DB, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore("files");
+      request.onerror = () => resolve(null);
+      request.onsuccess = () => {
+        const store = request.result.transaction("files", mode).objectStore("files");
+        work(store, resolve);
+      };
+    } catch { resolve(null); }
+  });
+}
+
+function storeMusicLibrary() {
+  musicLibraryStore("readwrite", (store, done) => {
+    const put = store.put(musicLibraryFiles, "library");
+    put.onsuccess = put.onerror = () => done(null);
+  });
+}
+
+async function restoreMusicLibrary() {
+  const saved = await musicLibraryStore("readonly", (store, done) => {
+    const get = store.get("library");
+    get.onsuccess = () => done(get.result || null);
+    get.onerror = () => done(null);
+  });
+  if (Array.isArray(saved) && !musicLibraryFiles.length) {
+    musicLibraryFiles = saved.filter((file) => file && typeof file.name === "string" && file.bytes instanceof Uint8Array);
+    showMusicLibrary();
+    refreshMusicPlaylistEditor();
+    updateButton();
+  }
+}
+
+// The playlist: songs pinned to areas on top of the random draw. Kept in this browser; imported and
+// exported as a JSON5 file ({ version: 1, tracks: { area: title or "original" } }).
+function loadMusicPlaylist() {
+  try {
+    const saved = JSON.parse(pageStorage.getItem(MUSIC_PLAYLIST_KEY) || "null");
+    if (saved && typeof saved === "object") {
+      return Object.fromEntries(Object.entries(saved).filter(([, value]) => typeof value === "string"));
+    }
+  } catch { /* none */ }
+  return {};
+}
+
+function saveMusicPlaylist() {
+  try { pageStorage.setItem(MUSIC_PLAYLIST_KEY, JSON.stringify(musicPlaylist)); } catch { /* not remembered */ }
+}
+
+function musicPlaylistText() {
+  return Object.keys(musicPlaylist).length ? JSON.stringify({ version: 1, tracks: musicPlaylist }, null, 2) : null;
+}
+
+function musicPlaylistRow() {
+  const summary = element("span", { id: "music-playlist-summary", className: "panel-note" });
+  musicPlaylistSummary = summary;
+  const edit = element("button", { type: "button", className: "btn btn-tint btn-small", textContent: "Edit playlist…" });
+  const importInput = element("input", { type: "file", hidden: true, accept: ".json5,.json" });
+  const importButton = element("button", { type: "button", className: "btn btn-tint btn-small", textContent: "Import…" });
+  const exportButton = element("button", { type: "button", className: "btn btn-tint btn-small", textContent: "Export" });
+  const clear = element("button", { type: "button", className: "btn btn-tint btn-small", textContent: "Clear" });
+  const editor = element("div", { id: "music-playlist-editor", className: "music-playlist", hidden: true });
+  musicPlaylistEditor = editor;
+  edit.addEventListener("click", () => openMusicPlaylistEditor(editor));
+  importButton.addEventListener("click", () => importInput.click());
+  importInput.addEventListener("change", () => importMusicPlaylist(importInput, editor));
+  exportButton.addEventListener("click", exportMusicPlaylist);
+  clear.addEventListener("click", () => {
+    musicPlaylist = {};
+    saveMusicPlaylist();
+    showMusicPlaylist(editor);
+  });
+  const control = element("span", { className: "music-playlist-buttons" }, edit, importButton, importInput, exportButton,
+                          clear, summary);
+  const { row } = settingRow("Playlist", "Pin a song to any area: the title screen, the overworld, each level or " +
+    "the ending. Areas left on Random are drawn from the library as usual; Original puts the game's own song " +
+    "there. A song marked unsafe for streaming needs Streaming-safe tracks only off.",
+    element("span", { className: "music-playlist-control" }, control, editor));
+  row.classList.add("music-random-only", "setting--wide");
+  showMusicPlaylist(editor);
+  return row;
+}
+
+function showMusicPlaylist(editor) {
+  showMusicPlaylistSummary();
+  if (!editor.hidden) fillMusicPlaylistEditor(editor);
+}
+
+function showMusicPlaylistSummary() {
+  const pinned = Object.keys(musicPlaylist).length;
+  musicPlaylistSummary.textContent = pinned ? `${pinned} area${pinned === 1 ? "" : "s"} pinned` : "No playlist";
+}
+
+async function openMusicPlaylistEditor(editor) {
+  editor.hidden = !editor.hidden;
+  if (!editor.hidden) await fillMusicPlaylistEditor(editor);
+}
+
+// An open editor lists the songs of the library Music chooses, and marks them by Streaming-safe tracks
+// only, so it is filled again when either changes or the local library's files do.
+function refreshMusicPlaylistEditor() {
+  if (musicPlaylistEditor && !musicPlaylistEditor.hidden && randomMusicChosen()) fillMusicPlaylistEditor(musicPlaylistEditor);
+}
+
+// One select per area: Random, Original, then the chosen library's songs (a song unsafe for streaming
+// disabled while Streaming-safe tracks only is on; one not tagged for the area marked so).
+async function fillMusicPlaylistEditor(editor) {
+  const source = playerSettings.music === "random-local" ? "local" : "standard";
+  const fill = ++musicPlaylistFills;
+  editor.replaceChildren(element("p", { className: "panel-note", textContent: "Loading the library's songs…" }));
+  let areas, songs;
+  try {
+    ({ areas } = await ask("musicAreas", {}));
+    const answer = await ask("musicSongs", { source, musicLibraries: musicLibraryFiles });
+    if (answer.error) throw new Error(answer.error);
+    songs = answer.songs;
+  } catch (err) {
+    if (fill !== musicPlaylistFills) return;
+    editor.replaceChildren(element("p", { className: "setting-reason", textContent: `No songs: ${err.message}` }));
+    return;
+  }
+  if (fill !== musicPlaylistFills) return;      // a newer fill (another library or switch) replaces this one
+  const safeOnly = playerSettings.musicStreamingSafeOnly !== "off";
+  const rows = areas.map((area) => {
+    const select = element("select", { className: "select", ariaLabel: `Playlist: ${area.label}` });
+    select.append(element("option", { value: "random", textContent: "Random" }),
+                  element("option", { value: "original", textContent: "Original" }));
+    for (const song of songs) {
+      const notes = [song.uses.includes(area.use) ? "" : "not tagged for this area", song.safe ? "" : "unsafe for streaming"]
+        .filter(Boolean);
+      select.append(element("option", { value: song.title, disabled: safeOnly && !song.safe,
+                                        textContent: notes.length ? `${song.title} (${notes.join("; ")})` : song.title }));
+    }
+    const pinned = musicPlaylist[area.key];
+    // A pin the chosen library does not have stays visible (generating would refuse it), not shown as Random.
+    if (pinned && pinned !== "original" && !songs.some((song) => song.title === pinned)) {
+      select.append(element("option", { value: pinned, textContent: `${pinned} (not in this library)` }));
+    }
+    select.value = pinned || "random";
+    select.addEventListener("change", () => {
+      if (select.value === "random") delete musicPlaylist[area.key];
+      else musicPlaylist[area.key] = select.value;
+      saveMusicPlaylist();
+      showMusicPlaylistSummary();
+    });
+    return element("label", { className: "music-playlist-area" }, element("span", { textContent: area.label }), select);
+  });
+  editor.replaceChildren(...rows);
+}
+
+async function importMusicPlaylist(input, editor) {
+  const [file] = input.files;
+  input.value = "";
+  if (!file) return;
+  try {
+    // JSON5 as ZORA writes it is JSON; comments, unquoted keys and trailing commas are read too.
+    const text = (await file.text()).replace(/^\s*\/\/.*$/gm, "").replace(/([{,]\s*)([A-Za-z_]\w*)(\s*:)/g, '$1"$2"$3')
+      .replace(/,(\s*[}\]])/g, "$1");
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed.tracks !== "object") throw new Error("not a playlist (no tracks)");
+    musicPlaylist = Object.fromEntries(Object.entries(parsed.tracks)
+      .filter(([, value]) => typeof value === "string" && value !== "random"));
+    saveMusicPlaylist();
+    showMusicPlaylist(editor);
+    status(`Playlist ${file.name} imported.`, "ready");
+  } catch (err) {
+    status(`Playlist not imported: ${err.message}`, "error");
+  }
+}
+
+function exportMusicPlaylist() {
+  const text = musicPlaylistText() || JSON.stringify({ version: 1, tracks: {} }, null, 2);
+  const url = URL.createObjectURL(new Blob([text + "\n"], { type: "application/json5" }));
+  const link = element("a", { href: url, download: "zora-playlist.json5" });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Random (local library) needs a library before a seed can be generated.
+function musicReady() {
+  return !(randomMusicChosen() && playerSettings.music === "random-local" && musicLibraryFiles.length === 0);
 }
 
 // The level label's word (FP-LEVEL-01): a listed word or the player's own. The rule is
@@ -1347,11 +1663,12 @@ function showField(id, control, field) {
   control.row.classList.toggle("setting--locked", locked);
   control.row.classList.toggle("setting--problem", problem);
   // A hidden field shows itself while its value needs changing (a pasted string).
-  control.row.hidden = !control.shown && !problem;
+  control.row.hidden = !control.shown && !problem && !field.notice;
   control.reason.textContent = field.problem
     ? (isNotImplemented(control, field.value) ? NOT_IMPLEMENTED : plainText(field.reason))
     : refusedHere !== undefined ? `${refusedHere} Choose another value to export.`
-    : locked ? plainText(lockedReason(id, field, reasons)) : "";
+    : locked ? plainText(lockedReason(id, field, reasons))
+    : field.notice ? `${plainText(field.notice)}.` : "";     // a pasted postponed value (B06)
   markChanged(control, startState !== null && startState.fields[id] !== field.value);
 }
 
@@ -1408,7 +1725,8 @@ function showState(state, { rewrite, start = false, name = "" }) {
 // blocks the export (multiworldVerdict, from Python).
 function showProblems() {
   if (!form) return;
-  const notes = [...form.refusals.map((text) => `Rule: ${plainText(text)}`), ...form.adjustments.map(plainText)];
+  const notes = [...(form.notices || []).map((text) => `Notice: ${plainText(text)}.`),
+                 ...form.refusals.map((text) => `Rule: ${plainText(text)}`), ...form.adjustments.map(plainText)];
   let lines;
   if (mode === MULTIWORLD) {
     const reasons = multiworldVerdict ? multiworldVerdict.reasons : [];
@@ -1655,7 +1973,7 @@ function onSeedChanged() {
 
 function canGenerate() {
   return ready && baseRom && form && !flagsPending && $("flags-error").textContent === ""
-    && form.zora.ok && form.generateRefusals.length === 0
+    && form.zora.ok && form.generateRefusals.length === 0 && musicReady()
     && /^\d+$/.test($("seed").value.trim());
 }
 
@@ -1719,11 +2037,16 @@ async function onRomChosen() {
 // Generate one seed in the worker; resolves to the finished ROM bytes.
 // Also used by the measurement run described in docs/packaging.md.
 async function generateSeed(seed, flags = form.flags, zoraFlags = form.zora.flags) {
-  const result = await ask("generate", { bytes: baseRom, seed: String(seed), flags, zoraFlags,
-                                         playerSettings: currentPlayerSettings() });
+  const settings = currentPlayerSettings();
+  const random = RANDOM_MUSIC.includes(settings.music);
+  const result = await ask("generate", { bytes: baseRom, seed: String(seed), flags, zoraFlags, playerSettings: settings,
+                                         musicLibraries: random && settings.music === "random-local" ? musicLibraryFiles : null,
+                                         musicPlaylist: random ? musicPlaylistText() : null });
   window.zoraTimings.seeds.push({ seed: String(seed), ms: result.ms });
   return { bytes: result.rom, ms: result.ms, flags: result.flags, zoraFlags: result.zoraFlags, seed: result.seed,
-           encoded: result.encoded, code: result.code, codeIcons: result.codeIcons };
+           encoded: result.encoded, code: result.code, codeIcons: result.codeIcons,
+           tracks: result.tracks || null, musicWarnings: result.musicWarnings || [],
+           musicLibraries: result.musicLibraries || [], reportBytes: result.reportRom || null };
 }
 window.zoraGenerateSeed = generateSeed;
 
@@ -1742,7 +2065,8 @@ const VISUALIZER_WAIT_MS = 35000;
 
 function seedReport(result) {
   if (!result.report) {
-    result.report = ask("report", { bytes: result.bytes, seed: result.seed, flags: result.flags,
+    // With randomized music, the ROM before the music: the report reads a 128 KB ROM.
+    result.report = ask("report", { bytes: result.reportBytes || result.bytes, seed: result.seed, flags: result.flags,
                                     zoraFlags: result.zoraFlags }).then(({ report }) => report);
   }
   return result.report;
@@ -1864,6 +2188,23 @@ function bugReportText(info) {
           `Seed code: ${info.code.length ? seedCodeText(info.code) : "(none)"}`].join("\n");
 }
 
+// "Copy race info" (owner, 2026-10-22): a short block for a race channel such as Discord: the
+// version, the seed, the strings as asked for, the seed code (its item names, or the four
+// characters the screen shows under Item Sprites), the race status and any notice (a postponed
+// setting, B06). The race status is B82, one switch: the original's Race ROM, the spec's tournament
+// mode, this page's "Encode level data". On, the level data is encoded and ZORA makes no spoiler log
+// for the seed; off, anyone with the flags and seed can make one.
+const RACE_ROM_ON = "Race ROM: on (level data encoded, no spoiler log)";
+const RACE_ROM_OFF = "Race ROM: off (spoiler log available)";
+
+function raceInfoText(info) {
+  const spoiler = info.encoded ? RACE_ROM_ON : RACE_ROM_OFF;
+  return [`ZORA ${info.version}`, `Seed: ${info.seed}`, `Flags: ${info.flags}`,
+          ...(info.zoraFlags ? [`ZORA flags: ${info.zoraFlags}`] : []),
+          ...(info.code.length ? [`Seed code: ${seedCodeText(info.code)}`] : []),
+          spoiler, ...info.notices.map((text) => `Notice: ${text}.`)].join("\n");
+}
+
 // The clipboard API, or, where the browser refuses it, a selected text area and the copy command.
 async function copyText(text) {
   try {
@@ -1891,10 +2232,12 @@ function copyButton(id, label, text, copied) {
   return button;
 }
 
-// "Copy bug-report info", then "Copy seed code" when the seed has one.
+// "Copy bug-report info", "Copy race info", then "Copy seed code" when the seed has one.
 function addCopyButtons(info) {
   $("download").append(copyButton("copy-bug-report", "Copy bug-report info", bugReportText(info),
-                                  "Bug-report info copied. Paste it into your report."));
+                                  "Bug-report info copied. Paste it into your report."),
+                       copyButton("copy-race-info", "Copy race info", raceInfoText(info),
+                                  "Race info copied. Paste it into your race channel."));
   if (info.code.length) {
     $("download").append(copyButton("copy-seed-code", "Copy seed code", seedCodeText(info.code), "Seed code copied."));
   }
@@ -1905,7 +2248,7 @@ async function onGenerate() {
   // What the player asked for. Owner ruling: the page never shows what a
   // Random field resolved to, so the result shows these and not the resolved
   // flags. Encode level data is on or off, never Random, so `encoded` is the switch.
-  const requested = { flags: form.flags, zoraFlags: form.zora.flags,
+  const requested = { flags: form.flags, zoraFlags: form.zora.flags, notices: form.notices || [],
                       encoded: form.fields[metadata.encodeLevelData].value === TOGGLE_ON };
   const button = $("generate");
   button.disabled = true;
@@ -1921,7 +2264,7 @@ async function onGenerate() {
   try {
     const result = await generateSeed(seed);
     const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/octet-stream" }));
-    const name = `zora-seed-${result.seed}${requested.encoded ? "-encoded" : ""}.nes`;
+    const name = `zora-seed-${result.seed}${requested.encoded ? "-encoded" : ""}${result.tracks ? "-music" : ""}.nes`;
     $("download").append(element("a", { id: "download-link", className: "btn btn-teal", href: url,
                                         download: name, title: name, textContent: "Download ROM" }));
     // A seed made with "Encode level data" stays unreadable: no spoiler, no visualizer.
@@ -1931,13 +2274,32 @@ async function onGenerate() {
     if (requested.zoraFlags) {
       $("result").append(element("dt", { textContent: "ZORA flags" }), element("dd", { textContent: requested.zoraFlags }));
     }
-    const code = Array.isArray(result.code) && result.code.length === SEED_CODE_LENGTH ? result.code : [];
+    // What the seed leaves out of what was asked for (a postponed setting: Mirrored Overworld, B06)
+    for (const notice of requested.notices) {
+      $("result").append(element("dt", { textContent: "Notice" }),
+                         element("dd", { className: "result-notice", textContent: `${plainText(notice)}.` }));
+    }
+    // Under Item Sprites other than normal the screen shows the code as four characters (FP-SPRITE-01)
+    const code = typeof result.codeText === "string" ? [result.codeText]
+      : Array.isArray(result.code) && result.code.length === SEED_CODE_LENGTH ? result.code : [];
+    if (result.tracks) {
+      const list = element("ul", { className: "music-tracks" });
+      for (const [area, title] of result.tracks) list.append(element("li", { textContent: `${area}: ${title}` }));
+      const music = element("dd", {}, list);
+      if (result.musicLibraries.length) {
+        music.append(element("p", { className: "panel-note", textContent: "Library: " +
+          result.musicLibraries.map(([name, id]) => `${name} (${id})`).join(", ") }));
+      }
+      for (const warning of result.musicWarnings) music.append(element("p", { className: "panel-note", textContent: warning }));
+      $("result").append(element("dt", { textContent: "Music" }), music);
+    }
     // The ROM as identified when it was chosen: another chosen later does not change this seed's.
     addCopyButtons({ version: $("version").textContent, seed: result.seed, flags: requested.flags,
-                         zoraFlags: requested.zoraFlags, identity: romIdentity, code });
+                     zoraFlags: requested.zoraFlags, identity: romIdentity, code,
+                     encoded: requested.encoded, notices: requested.notices });
     // The seed code (four items, with their icons), once Python reports one.
     if (code.length) {
-      const icons = Array.isArray(result.codeIcons) && result.codeIcons.length === code.length ? result.codeIcons : [];
+      const icons = Array.isArray(result.codeIcons) && result.codeIcons.length === code.length ? result.codeIcons : [];   // none for text
       $("seed-code").append(...code.map((name, index) => seedCodeItem(name, icons[index])));
       $("seed-code-row").hidden = false;
     }

@@ -37,13 +37,21 @@ from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.rom.layout import ines_header
-from zora.flags.fields import CaveShuffle, DungeonLayoutSource, HitPointChange, ItemShuffleScope, WoodenSwordState
+from zora.flags.fields import (
+    CaveShuffle,
+    DungeonLayoutSource,
+    HitPointChange,
+    ItemShuffleScope,
+    Level9Requirement,
+    WoodenSwordState,
+)
 from zora.flags.zora_flags import OopsAllBosses, OopsAllEnemies
 from zora.generate.alternative_values import AlternativeValues
 from zora.generate.extra_options import ExtraOptions
 from zora.generate.flag_steps import FlagSteps
 from zora.generate.generation_pass import generate_shapes
 from zora.generate.shapes.options import BLOCKED_OPTIONS, ShapeOptions
+from zora.generate.steps.level_9_entry import EIGHT_PIECES_ENTRY, Level9Entry
 from zora_measure.statistics import special_cave_items
 
 SEEDS = (101, 202, 303)
@@ -83,6 +91,7 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "sort_shapes": (True, False),
     "second_quest_rooms": (True, False),
     "second_quest_monsters": (False, True),
+    "second_quest_doors": (False, True),          # B21: SH-DOOR-02 with T1b (beta 8 export)
     "universal_drops": (False, True),
     "start_room_swap": (False, True),             # B26: SH-GRID-02, SH-ENT-01 and PS-START
     "post_shapes": (True, False),
@@ -128,6 +137,8 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "expanded_dungeon_locations": (False, True),
     # Highlight No-Drop Rooms (docs/zora-extras.md section 16): inert with B91 on
     "highlight_no_drop_rooms": (False, True),
+    # Do Not Segment Dungeons (docs/zora-extras.md section 17): shapes levels only
+    "do_not_segment_dungeons": (False, True),
     # C05, OW-CAVE-09: the walk's parts
     "cave_shuffle": (CaveShuffle.ALL_CAVES, CaveShuffle.VANILLA, CaveShuffle.DUNGEON_DOORS_ONLY,
                      CaveShuffle.NON_DUNGEON_CAVES_ONLY),
@@ -142,10 +153,41 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "river_bridges": (False, True),
     "lost_woods_shortcut": (False, True),
     "start_triforce_pieces": (0, 0b00100001, 0xFF),                             # FL-ALT-06
+    # FP-TRIF-02 to FP-TRIF-06: Level 9 Entry at 5 pieces, open, a drawn count, drawn levels, a drawn item
+    "level_9_entry": (EIGHT_PIECES_ENTRY, Level9Entry(3), Level9Entry(Level9Requirement.OPEN),
+                      Level9Entry(Level9Requirement.RANDOM_COUNT_IN_RANGE, (2, 6)),
+                      Level9Entry(Level9Requirement.SPECIFIC_PIECES, (1, 4)),
+                      Level9Entry(Level9Requirement.ITEM_INSTEAD_OF_PIECES)),
     # PS-ITEM-12: the Book at the Armos slot, a heart container in the white-sword cave, Non-Heart
     "armos_pin": (0, 1, 16),
     "white_sword_pin": (0, 4, 16),
     "level_9_pins": ((0, 0), (16, 16), (7, 2)),
+    # The Uphill Battle set's off values (2026-10-22 export): B35, B33, B18, B32 (with B33 and B36 off,
+    # FL-DEP-02 rule 3) and B43; B20 is second_quest_rooms above
+    "shuffle_level_9_monsters": (True, False),
+    "shuffle_ganon_and_zelda": (True, False),
+    "force_ganon_fight": (True, False),
+    "shuffle_dungeon_monsters": (True, False),
+    "shuffle_overworld_group": (True, False),
+    # The beta 8 export: PS-HP-07 (B46), OW-WARP-02 (B07), FP-LEVEL-02 (B24), FP-HIDE-01 (B55), FP-BUBL-01
+    # (C19 = 1, 2)
+    "maximum_boss_health": (False, True),
+    "recorder_to_unbeaten": (False, True),
+    "hide_dungeon_numbers": (False, True),
+    "hidden_health": (False, True),
+    "red_bubble_curse": (0, 1, 2),
+    # PS-ITEM-12's coast pin (the Red Ring), and B47's blast (FP-BOOK-02; GameConfig.book_explosion)
+    "coast_pin": (0, 12),
+    "change_hidden_tiles": (False, True),            # B89: FP-VIS-01 steps 1 and 2
+    "book_explosion": (False, True),
+    # The beta 9 export's small settings: PS-HP-08 (B45), FP-BOMB-01's added capacity (B90), FP-KILL-01
+    # (B56), FP-NUM-01 (B83), FP-RSPD-01 (B80) and FP-CLIP-01 (B84)
+    "maximum_enemy_health": (False, True),
+    "increase_bomb_capacity": (False, True),
+    "killable_drop_items": (False, True),
+    "hidden_numbers": (False, True),
+    "rupees_affect_speed": (False, True),
+    "prevent_clipping": (False, True),
     # FP-WOOD-01 to FP-WOOD-04: the four wooden-sword states
     "wooden_sword_state": tuple(state for state in WoodenSwordState if state is not WoodenSwordState.RANDOM),
 }
@@ -457,7 +499,6 @@ def test_invariants(flags: Flags, seed: int) -> None:
 
 # A non-default value for each blocked option.
 BLOCKED_VALUES: dict[str, Any] = {
-    "second_quest_doors": True,
     "seed_placement": "adjacent", "relocate_hint_text": True, "relocate_boss_sprites": True,
 }
 
@@ -514,3 +555,13 @@ def generate_unset(seed: int) -> bytes:
 @pytest.mark.parametrize("seed", SEEDS)
 def test_default_equals_unset(name: str, seed: int) -> None:
     assert generate_explicit(name, DEFAULTS[name], seed) == generate_unset(seed)
+
+
+def test_shaped_dungeons_refuse_half_a_start_room_swap() -> None:
+    """The combination producible() leaves out is refused outright, so no caller can ship it."""
+    world = parse_rom(_vanilla_rom())
+    with pytest.raises(ValueError, match="post-shapes"):
+        generate_shapes(world, Rng(101), ShapeOptions(start_room_swap=True), post_shapes=False)
+    vanilla_sets = AlternativeValues(dungeon_quest=DungeonLayoutSource.FIRST_QUEST)
+    assert generate_shapes(parse_rom(_vanilla_rom()), Rng(101), ShapeOptions(start_room_swap=True), post_shapes=False,
+                           alternatives=vanilla_sets)      # vanilla sets: the swap changes nothing

@@ -15,10 +15,11 @@ flags_spec_tables = pytest.importorskip("tests.flags_spec_tables", reason="the s
 from zora.flags.codec import ALPHABET, _format_base63, canonicalize, distinct_string_count
 from zora.flags.dependencies import (
     boss_hit_point_change, chosen_start_items, enemy_hit_point_change, magical_sword_hearts,
-    piece_count_range, pieces_needed, start_item_limit, starting_hearts, starting_pieces, white_sword_hearts,
+    needs_monster_prerequisite, needs_room_prerequisite, piece_count_range, pieces_needed, start_item_limit, starting_hearts, starting_pieces,
+    white_sword_hearts,
 )
 from zora.flags.fields import (
-    INERT_TOGGLES, OPTIONS_BY_ID, OptionField, STARTING_HEARTS_RANDOM, START_SCREEN, ToggleField,
+    HINT_STYLE, INERT_TOGGLES, OPTIONS_BY_ID, OptionField, STARTING_HEARTS_RANDOM, START_SCREEN, ToggleField,
 )
 from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, PUBLISHED_VARIANT_C
 from zora.flags.fields import (
@@ -97,7 +98,6 @@ STATE_WORDS = {"off": ThreeState.OFF, "on": ThreeState.ON, "possible": ThreeStat
 # Specified values ZORA does not produce yet (each leaves this table once it is implemented).
 # C05, C06 and B91 (6c6506b export, docs only) wait until after Hopla.
 # The 2026-10-17 export's Muffle Rug and Pick 5 values are all produced.
-LEVEL_9_PINS = {1, 2, 4, 6, 7, 11, 12, 13, 15, 16}          # PS-ITEM-12: not the long items or the Wand
 NOT_YET_PRODUCED: dict[str, set[int]] = {
     **{toggle: {ThreeState.OFF} for toggle in ("B04",)},
 }
@@ -118,15 +118,21 @@ def support_entries(row: list[str]) -> list[str]:
 
 
 INDEX_RANGE = re.compile(r"^(\d+) to (\d+)\b")
+SECOND_RANGE = re.compile(r"^\d+ to \d+ and (\d+) to (\d+)\b")
 
 
 def _entry_values(row: list[str], entry: str) -> set[int]:
-    """One value of an entry: a state word, an index, or a range of indices ("1 to 15 (an item)")."""
+    """One value of an entry: a state word, an index, or a range of indices ("1 to 15 (an item)",
+    or two, "1 to 4 and 6 to 15 (an item)")."""
     word = entry.split(" ", 1)[0]
     if word in STATE_WORDS:
         return {STATE_WORDS[word]}
     span = INDEX_RANGE.match(entry)
-    return set(range(int(span[1]), int(span[2]) + 1)) if span else {int(word)}
+    if not span:
+        return {int(word)}
+    second = SECOND_RANGE.match(entry)
+    extra = set(range(int(second[1]), int(second[2]) + 1)) if second else set()
+    return set(range(int(span[1]), int(span[2]) + 1)) | extra
 
 
 def _split_values(entry: str) -> list[str]:
@@ -332,7 +338,7 @@ def test_fl_dep_01_rule_2_duplicate_pinned_items_are_refused() -> None:
     for shared in (PinnedItem.NONE_PINNED, PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER):
         assert not refusals(_settings(options={pin.id: shared for pin in PIN_FIELDS}))
     # Any two of the five pin fields trigger it, the level 9 pins included.
-    refused = refusals(_settings(options={"C26": PinnedItem.RAFT, "C27": PinnedItem.RAFT}))
+    refused = refusals(_settings(options={"C26": PinnedItem.RED_RING, "C27": PinnedItem.RED_RING}))
     assert [r.rule for r in refused] == ["FL-DEP-01 rule 2"]
     assert not check_dependencies(decode(MVP_BASELINE))
 
@@ -366,18 +372,21 @@ def test_fl_dep_02_rule_1_cave_dependents_flip_a_coin_never_a_refusal() -> None:
 
 
 def test_fl_dep_02_rule_2_room_dependents_need_the_dungeon_room_shuffle() -> None:
+    """Beta 8 export: rule 2's coin, never a refusal (tests/test_beta8_rules.py)."""
     for dependent in (HUNGRY_GORIYA_SHUFFLE, START_ROOM_MAY_MOVE, GANON_MUST_BE_BEATEN):
         vanilla_rooms = Settings.zero().updated(toggles={dependent: ThreeState.ON})
-        assert [r.rule for r in missing_prerequisites(vanilla_rooms)] == ["FL-DEP-02 rule 2"]
+        assert not missing_prerequisites(vanilla_rooms) and needs_room_prerequisite(vanilla_rooms)
         for room_shuffle in (DungeonRoomShuffle.WITHIN_EACH_DUNGEON, DungeonRoomShuffle.FULL):
-            assert not missing_prerequisites(vanilla_rooms.updated(options={DUNGEON_ROOM_SHUFFLE: room_shuffle}))
+            assert not needs_room_prerequisite(vanilla_rooms.updated(options={DUNGEON_ROOM_SHUFFLE: room_shuffle}))
 
 
 def test_fl_dep_02_rule_3_monster_dependents_need_the_dungeon_monster_shuffle() -> None:
+    """The 2026-10-22 export: rule 3's coin, never a refusal (tests/test_uphill_battle_offs.py)."""
     for dependent in (MONSTERS_BETWEEN_LEVELS, GANON_AND_ZELDA_SHUFFLE):
         no_monster_shuffle = Settings.zero().updated(toggles={dependent: ThreeState.ON})
-        assert [r.rule for r in missing_prerequisites(no_monster_shuffle)] == ["FL-DEP-02 rule 3"]
-        assert not missing_prerequisites(no_monster_shuffle.updated(toggles={DUNGEON_MONSTER_SHUFFLE: ThreeState.ON}))
+        assert not missing_prerequisites(no_monster_shuffle)
+        assert needs_monster_prerequisite(no_monster_shuffle)
+        assert not needs_monster_prerequisite(no_monster_shuffle.updated(toggles={DUNGEON_MONSTER_SHUFFLE: ThreeState.ON}))
 
 
 def test_fl_dep_02_rule_4_layout_source_turns_the_person_shuffles_off() -> None:
@@ -529,9 +538,10 @@ def test_fl_sup_01_mvp_baseline_preset_is_fully_supported() -> None:
     assert Support.SUPPORTED.value == "supported" and Support.NOT_PRODUCED.value == "not produced"
 
 
-def test_fl_sup_01_published_variant_b_has_unsupported_fields() -> None:
-    assert unsupported_fields(decode(PRESETS["Published variant B"]))
-    assert not is_fully_supported(decode(PRESETS["Published variant B"]))
+def test_fl_sup_01_published_variant_b_is_fully_supported() -> None:
+    """Variant B (Random%): its last two values, C03 = 6 and B37 at possible, are produced since the
+    beta 8 export (HT-HINT-05 to HT-HINT-07, SH-ENEMY-05)."""
+    assert is_fully_supported(decode(PRESETS["Published variant B"]))
 
 
 def test_fl_sup_01_published_variant_c_is_fully_supported() -> None:
@@ -557,9 +567,11 @@ def test_not_produced_rows_cover_the_spec_tables() -> None:
     # 91 fields, 32 on at the baseline, and 30 off at the baseline with further values (FL-SUP-03):
     # B03 and B81 (2026-10-10 export), B25, B26, B30, B48 and the nine start items (eca85cc
     # export), B91 (6c6506b export), the other fourteen start items (d8cf117 export), B41, B52, B53
-    # and B86 (2026-10-17 export), B87 and B88 (2a68977 export)
-    assert len(NOT_PRODUCED_TOGGLE_ROWS) == 91 - 32 - 36
-    assert NOT_PRODUCED_OPTION_ROWS == ["C15", "C19"]
+    # and B86 (2026-10-17 export), B87 and B88 (2a68977 export), B07, B21, B24, B37, B39, B44, B46,
+    # B47, B51, B55 and B89 (beta 8 export, 372f545); C15 and C19 are specified there too; B45, B56,
+    # B80, B83, B84 and B90 (beta 9 export, 04f2d1b)
+    assert len(NOT_PRODUCED_TOGGLE_ROWS) == 91 - 32 - 53
+    assert NOT_PRODUCED_OPTION_ROWS == []
 
 
 @pytest.mark.parametrize("field_id", NOT_PRODUCED_TOGGLE_ROWS)
@@ -613,14 +625,19 @@ def test_fl_sup_02_03_specified_values() -> None:
     on_or_possible = {ThreeState.ON, ThreeState.POSSIBLE}
     assert {row[0]: specified_values(row) for row in SUPPORT_OPTION_ROWS + SUPPORT_TOGGLE_ROWS
             if specified_values(row)} == {
-        "C01": {1, 2, 3, 4}, "C02": {0, 1, 2, 4, 5, 6}, "C03": {1}, "C04": {2, 3}, "C05": {0, 1, 2, 4},
-        "C06": {0, 1, 2, 4}, "C07": {1, 2, 3, 4}, "C09": {2, 3, 4}, "C10": {2, 3, 4},
-        "C11": set(range(1, 17)), "C13": set(range(1, 17)), "C26": LEVEL_9_PINS, "C27": LEVEL_9_PINS,
+        "C01": {1, 2, 3, 4}, "C02": {0, 1, 2, 4, 5, 6}, "C03": {0, 1, 3, 5, 6}, "C04": {2, 3},
+        "C05": {0, 1, 2, 4}, "C06": {0, 1, 2, 4}, "C07": {1, 2, 3, 4}, "C08": set(range(1, 13)), "C09": {2, 3, 4},
+        "C10": {2, 3, 4}, "C11": set(range(1, 17)), "C12": {1, 2, 3, 4, *range(6, 17)}, "C13": set(range(1, 17)),
+        "C14": {0, 3}, "C15": {1, 2, 3}, "C19": {1, 2, 3}, "C26": set(range(1, 17)), "C27": set(range(1, 17)),
         **dict.fromkeys(("B01", "B08", "B09", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B19", "B27",
                          "B31", "B34", "B36", "B40", "B42", "B49", "B54"), {ThreeState.POSSIBLE}),
-        "B02": {ThreeState.OFF}, "B04": {ThreeState.OFF},
-        **dict.fromkeys(("B03", "B25", "B26", "B30", "B41", "B48", "B52", "B53", "B81", "B86", "B87", "B88",
-                         "B91", *(f"B{n}" for n in range(57, 79)), "B85"), on_or_possible)}
+        "B04": {ThreeState.OFF, ThreeState.POSSIBLE},
+        **dict.fromkeys(("B22", "B23", "B28", "B29", "B82"), {ThreeState.POSSIBLE}),
+        **dict.fromkeys(("B02", "B18", "B20", "B32", "B33", "B35", "B43"), {ThreeState.OFF, ThreeState.POSSIBLE}),
+        **dict.fromkeys(("B03", "B07", "B21", "B24", "B25", "B26", "B30", "B37", "B39", "B41", "B44", "B45", "B46",
+                         "B47", "B48", "B51", "B52", "B53", "B55", "B56", "B80", "B81", "B83", "B84", "B86",
+                         "B87", "B88", "B89", "B90", "B91",
+                         *(f"B{n}" for n in range(57, 79)), "B85"), on_or_possible)}
 
 
 @pytest.mark.parametrize("field_id, index", [("C16", 3), ("C20", 1), ("C03", 2)])
@@ -638,17 +655,15 @@ def test_fl_alt_values_are_produced(field_id: str, index: int) -> None:
     assert plan(encode(baseline), 1).alternatives == AlternativeValues()
 
 
-@pytest.mark.parametrize("field_id", ["C03"])
-def test_fl_alt_random_indices_stay_refused(field_id: str) -> None:
-    """A random index is a "?" (FL-DEP-04), supported only where every outcome is: C03's resolves
-    to every hint style but Random, so it stays refused (C16's, 1 to 5 hearts, is supported since
-    FL-ALT-07). C20 has no random index."""
-    option = OPTIONS_BY_ID[field_id]
-    (random_index,) = option.random_choices
-    changed = mvp_baseline_settings().updated(options={field_id: random_index})
-    assert unsupported_fields(changed) == [field_id]
-    with pytest.raises(FlagsRefused, match=f"{field_id} .*: \\?"):
-        plan(encode(changed), 1)
+def test_fl_alt_random_hint_style_is_supported() -> None:
+    """A random index is a "?" (FL-DEP-04), supported only where every outcome is: C03's resolves to
+    every hint style but Random, all produced since the beta 8 export (HT-HINT-05). C20 has no
+    random index."""
+    (random_index,) = HINT_STYLE.random_choices
+    changed = mvp_baseline_settings().updated(options={HINT_STYLE.id: random_index},
+                                              toggles={ENCODE_LEVEL_DATA.id: ThreeState.OFF})
+    assert not unsupported_fields(changed)
+    assert {plan(encode(changed), seed).settings.option(HINT_STYLE) for seed in range(40)} == set(range(6))
     assert not OPTIONS_BY_ID["C20"].random_choices
 
 
@@ -716,17 +731,18 @@ def test_fl_dep_06_b23_is_kept_as_given_while_b22_is_off() -> None:
 
 def test_question_mark_on_a_field_without_a_supported_off_is_refused_up_front() -> None:
     cp5 = decode(MVP_BASELINE_LEVEL_ENCODING_OFF)
-    for field_id in ("B02", "B32", "B43"):              # on in the baseline, off not supported
-        assert unsupported_fields(cp5.updated(toggles={field_id: ThreeState.POSSIBLE})) == [field_id]
-    # B29's off is supported, its "?" is not (FL-SUP-01: FL-DEP-02 rule 4)
-    assert unsupported_fields(cp5.updated(toggles={"B29": ThreeState.POSSIBLE})) == ["B29"]
+    assert is_fully_supported(cp5.updated(toggles={"B02": ThreeState.POSSIBLE}))     # beta 8: OW-CAVE-12
+    # B29's "?" since the beta 9 export (a coin before FL-DEP-02 rule 4)
+    assert is_fully_supported(cp5.updated(toggles={"B29": ThreeState.POSSIBLE}))
     assert is_fully_supported(cp5.updated(toggles={"B29": ThreeState.OFF}))
-    # B23's off needs B22 off, so a "?" on B23 with B22 on or "?" is refused
-    for b22 in (ThreeState.ON, ThreeState.POSSIBLE):
-        assert unsupported_fields(cp5.updated(toggles={"B22": b22, "B23": ThreeState.POSSIBLE})) == ["B23"]
-    # a random index that may resolve to an unsupported index
-    for option_id, random_index in (("C14", 3),):
-        assert unsupported_fields(cp5.updated(options={option_id: random_index})) == [option_id]
+    # B23's off needs B22 off or "?" (FL-DEP-04's B22 and B23 rule then turns B22 off); its "?" goes
+    # with any B22 (the rule turns it on beside merchants)
+    assert unsupported_fields(cp5.updated(toggles={"B22": ThreeState.ON, "B23": ThreeState.OFF})) == ["B23"]
+    for b22 in ThreeState:
+        assert is_fully_supported(cp5.updated(toggles={"B22": b22, "B23": ThreeState.POSSIBLE}))
+    assert is_fully_supported(cp5.updated(toggles={"B22": ThreeState.POSSIBLE, "B23": ThreeState.OFF}))
+    # a random index whose outcomes are all supported (C14 = 3, beta 8)
+    assert is_fully_supported(cp5.updated(options={"C14": 3}))
     assert is_fully_supported(cp5.updated(options={"C17": 22}))
     assert is_fully_supported(cp5.updated(toggles={"B22": ThreeState.POSSIBLE}))
     assert is_fully_supported(cp5.updated(toggles=dict.fromkeys(TURN_OFF_TOGGLES, ThreeState.POSSIBLE)

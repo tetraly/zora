@@ -197,10 +197,19 @@ WRITABLE_CHANGED = (
 #   transfer buffer PRG1 moves ($A3A1); "off" reads the player's own (an Original), "toggle"
 #   points at RAM;
 # - Pegasus Boots' `JSR BootsSpeed` in InitLinkSpeed: BootsSpeed is in WieldBoomerang's old body
-#   ($8E3E), inside bank 5's moved code ($8E48 on PRG1).
+#   ($8E3E), inside bank 5's moved code ($8E48 on PRG1);
+# - Red Bubble Curse's slow speed with Pegasus Boots: its routine's own `JSR BootsSpeed`
+#   (uphill_battle.SLOW_SPEED_CALLED; without the boots the word there is RAM's $052E or free
+#   space, which no move holds);
+# - Rupees Affect Speed with Pegasus Boots: its routine's own `JSR BootsSpeed`
+#   (small_settings.RUPEE_BOOTS_CALLED; without the boots the word there is RAM's $066D or free
+#   space).
 # tests/test_revision.py scans every patch for other operands.
 PEGASUS_BOOTS_SPEED_CALL = 0x17377
-MOVED_POINTERS = (0x02028, TRANSFER_BUF_ADDRS_SELECT_SWAP, PEGASUS_BOOTS_SPEED_CALL)
+SLOW_SPEED_BOOTS_CALL = 0x17D11
+RUPEE_SPEED_BOOTS_CALL = 0x1791B
+MOVED_POINTERS = (0x02028, TRANSFER_BUF_ADDRS_SELECT_SWAP, PEGASUS_BOOTS_SPEED_CALL, SLOW_SPEED_BOOTS_CALL,
+                  RUPEE_SPEED_BOOTS_CALL)
 
 # The title screen (GameTitleTransferBuf; FP-TITLE-01's rows): PRG1 draws its "TM" glyph
 # (tile $30) beside the logo, at row 8, column 23. ZORA's rows and its boss tiles in tile $30

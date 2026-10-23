@@ -340,6 +340,13 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None
                 continue
             destination[position], destination[match] = destination[match], destination[position]
             continue                            # examine this position again
+        if target in non_heart and not any(pool_items[other] != Item.HEART_CONTAINER
+                                           and destination[other] not in forced for other in range(position, count)):
+            # Every draw would be rejected (only the coast, C12 = 16, gets here): ZORA gives the place
+            # an earlier position's non-heart item (owner ruling, beta 9; docs/deviations.md)
+            _non_heart_from_earlier(destination, pool_items, position, forced, non_heart, rng)
+            position += 1
+            continue
         other = position + rng.below(count - position)
         if destination[other] in forced:
             continue
@@ -361,6 +368,19 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None
              for position in range(cave_position[CAVE_SLOTS[-1]] + 1)]
     state.tracked = [place.tracked(item_byte) for place, item_byte in dealt]
     return dealt
+
+
+def _non_heart_from_earlier(destination: list[int], pool_items: list[int], position: int, forced: dict[int, int],
+                            non_heart: set[int], rng: IntRng) -> None:
+    """PS-ITEM-12's Non-Heart where the walk stands on its place with only heart containers left: the
+    place exchanges destinations with an earlier position holding no heart container, drawn uniformly
+    among those whose place takes a heart container (not pinned, not Non-Heart). The spec's walk instead
+    redraws until the budget runs out and leaves the place its heart container (PS-ITEM-07)."""
+    earlier = [other for other in range(position) if pool_items[other] != Item.HEART_CONTAINER
+               and destination[other] not in forced and destination[other] not in non_heart]
+    assert earlier, "PS-ITEM-12: no earlier non-heart item can take the Non-Heart place"
+    other = earlier[rng.below(len(earlier))]
+    destination[position], destination[other] = destination[other], destination[position]
 
 
 def _write_start_values(places: list[_PoolPosition], pool_items: list[int], progression: int,

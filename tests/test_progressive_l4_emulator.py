@@ -2,9 +2,9 @@
 2026-10-08), in the emulator. With Add L4 Sword, InvSword can be 4: the line's first ID plus the
 level owned is then $05 (the recorder), and stepping back once would give the bait ($04). The
 routine steps back until the ID is in the line's slot, so at sword level 4 every path shows the
-magical sword ($03), a shop hides its sword ware, and taking the sword changes nothing (grade 3
-is below 4). The regression: every line, below and at its top, on the room, coast and Armos
-paths (the caves and shops: tests/test_progressive_emulator.py)."""
+magical sword ($03), a shop or a cave that gives it away hides its sword ware, and taking the
+sword changes nothing (grade 3 is below 4). The regression: every line, below and at its top, on
+the room, coast and Armos paths (the caves and shops: tests/test_progressive_emulator.py)."""
 import pytest
 
 from tests.emulator import ITEMS, OBJ_STATE, OBJ_X, ROOM_ID, ROOM_ITEM_SLOT, Button
@@ -64,13 +64,16 @@ def assert_sword_kept_at_level_4(game: Game, path: str) -> None:
 
 # --- sword level 4 ---------------------------------------------------------------------------
 
-def test_at_sword_level_4_the_wooden_sword_cave_shows_the_magical_sword() -> None:
+def test_at_sword_level_4_the_wooden_sword_cave_hides_its_sword() -> None:
+    """As a shop does (tetraly/zora#13: a cave that gives its item away hides an upgrade at its
+    line's top, so stepping onto its place takes nothing)."""
     game = fresh_game()()
     SWORD.set_level(game.emu, L4_SWORD_LEVEL)
     game.enter_cave(GIVEN_WARE[SWORD])
     position = GIVEN_POSITION.get(SWORD, 1)
-    assert game.wares()[position] == MAGICAL_SWORD
-    game.take_ware(position)
+    assert game.wares()[position] == NO_ITEM
+    game.step_onto_ware(position)
+    assert not game.anything_taken()
     assert_sword_kept_at_level_4(game, "cave")
 
 

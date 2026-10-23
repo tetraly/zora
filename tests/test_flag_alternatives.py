@@ -19,20 +19,14 @@ from zora.flags.fields import (
     START_SCREEN,
     STARTING_HEARTS,
     WHITE_SWORD_LOWEST,
+    PinnedItem,
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.flags.support import ALTERNATIVE_OPTIONS, LEVEL_9_PINS
+from zora.flags.support import ALTERNATIVE_OPTIONS
 from zora.generate.pipeline import extra_options, generate_rom, plan
 from zora.generate.rng import ScriptedRng
 from zora.generate.steps.change_sword_hearts import change_sword_hearts
 from zora.generate.steps.hint_text import SLOT_COUNT, select_final_texts
-from zora_measure.alternative_values import (
-    HELPFUL_TEXT_SLOTS,
-    community_hints,
-    helpful_hints,
-    starting_hearts_4,
-    white_sword_hearts,
-)
 from zora.model.enums import Destination
 from zora.model.game_world import GameWorld
 from zora.model.overworld import ItemCave
@@ -42,6 +36,13 @@ from zora.rom.game_config import GameConfig
 from zora.rom.layout import NEW_FILE_HEART_VALUES_OPERAND_ADDRESS, SECOND_QUEST_HEART_VALUES_OPERAND_ADDRESS
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
+from zora_measure.alternative_values import (
+    HELPFUL_TEXT_SLOTS,
+    community_hints,
+    helpful_hints,
+    starting_hearts_4,
+    white_sword_hearts,
+)
 
 pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
@@ -87,14 +88,21 @@ def test_the_spec_names_the_three_values() -> None:
     # Shapes; Cave Shuffle's other values (OW-CAVE-09, beta 6); Item Shuffle's None and Item Only
     # (PS-ITEM-09, PS-ITEM-10); the November settings' hit points (PS-HP); every sword-heart value
     # (FL-ALT-05); the start pieces and the piece-count range (FL-ALT-06); every starting-hearts
-    # value (FL-ALT-07); the pins (PS-ITEM-12); the wooden-sword states (FP-WOOD-01)
-    assert ALTERNATIVE_OPTIONS == {STARTING_HEARTS.id: set(range(17)) - {2}, WHITE_SWORD_LOWEST.id: {1, 2}, HINT_STYLE.id: {1, 2},
+    # value (FL-ALT-07); the pins (PS-ITEM-12); the wooden-sword states (FP-WOOD-01); and beta 8's
+    # Hint Type Normal, Deception and Blank (C03 = 0, 3, 5), Level 9 Entry's values (C08 = 1 to 12),
+    # the coast pin but the Ladder (C12; Non-Heart since beta 9), Dungeon Room Shuffle Vanilla (C14 = 0),
+    # Item Sprites (C15 = 1, 2) and Red Bubble Curse (C19 = 1, 2); every level-9 pin (beta 9, FL-DEP-01
+    # rule 5); their Random is the "?" (FL-DEP-04)
+    assert ALTERNATIVE_OPTIONS == {STARTING_HEARTS.id: set(range(17)) - {2}, WHITE_SWORD_LOWEST.id: {1, 2},
+                                   HINT_STYLE.id: {0, 1, 2, 3, 5},
                                    ITEM_SHUFFLE_SCOPE.id: {0, 1, 2}, OVERWORLD_QUEST.id: {1, 2, 3}, START_SCREEN.id: {2, 3},
                                    DUNGEON_LAYOUT_SOURCE.id: {0, 1, 2, 4}, CAVE_SHUFFLE.id: {0, 1, 2},
                                    "C09": {2, 3}, "C10": {2, 3}, "C21": {1, 2}, "C22": {1, 2, 3, 4},
                                    "C23": {1, 2, 3, 4}, "C18": set(range(1, 10)), "C24": set(range(1, 9)),
                                    "C25": set(range(1, 9)), "C11": set(range(1, 17)), "C13": set(range(1, 17)),
-                                   "C26": set(LEVEL_9_PINS), "C27": set(LEVEL_9_PINS), "C07": {1, 2, 3}}
+                                   "C26": set(range(1, 17)), "C27": set(range(1, 17)), "C07": {1, 2, 3},
+                                   "C08": set(range(1, 13)), "C12": set(range(1, 17)) - {PinnedItem.LADDER},
+                                   "C14": {0}, "C15": {1, 2}, "C19": {1, 2}}
 
 
 # ---------------------------------------------------------------------------

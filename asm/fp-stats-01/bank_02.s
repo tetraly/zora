@@ -74,7 +74,6 @@ CLEARED_GAP         = 3
 LIST_ROW_END_BLANKS = 32 - LABEL_LENGTH - TIME_GAP - TIME_LENGTH - CLEARED_GAP - TIME_LENGTH
 NO_CANDIDATE        = $FF
 SWORD_SLOT          = $00
-MAX_SWORD_VALUE     = $03
 POTION_SLOT         = $07
 LETTER_SLOT         = $0F
 MAGIC_BOOMERANG_SLOT = $1E
@@ -796,7 +795,9 @@ DrawStatsSprites:
 
 ; The counters' icons, over the cells PutCounterCell writes: Link (deaths), a heart container
 ; (hearts) and a bomb (bombs used) as fixed sprites, and the sword Link holds (stabs; the wooden
-; sword without one, the magical sword for a level 4 sword) as the items are drawn.
+; sword without one) as the items are drawn. A level 4 sword (Add L4 Sword) is drawn as level 4:
+; DrawItemBySlot then gives it its own look (l4-sword-look, always written with Add L4 Sword: the
+; magical sword's icon in the white sword's colors). Drawn as the magical sword, it was red.
 DrawCounterIcons:
     LDX #COUNTER_SPRITES_SIZE - 1
 :
@@ -807,10 +808,6 @@ DrawCounterIcons:
     LDA Items
     BNE :+
     LDA #WOOD_SWORD_VALUE
-:
-    CMP #MAX_SWORD_VALUE + 1
-    BCC :+
-    LDA #MAX_SWORD_VALUE
 :
     STA $04
     LDA #COUNTER_RIGHT_X

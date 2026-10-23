@@ -101,7 +101,7 @@ def _internal_slots(room_numbers: set[int]) -> list[DoorPair]:
 #   "l9entrance" level-9 entrance ($21): its east and west pairs
 #   "person"     person room ($26 + person flag, no push block; L1-8 codes
 #                11-18 except 17, L9 codes 12-18 unless the room above is
-#                life-or-money): the pair with the room above
+#                life-or-money, a deviation aside): the pair with the room above
 #   "l9zelda"    level 9: Zelda's room next to a $4B person room or the
 #                life-or-money room (Ganon must be beaten: always, under
 #                the preset): the side between them
@@ -110,11 +110,13 @@ PIN_FAMILIES: frozenset[str] = frozenset(
 )
 
 
-def _pinned_pairs(level: Level, pairs: list[DoorPair]) -> set[DoorPair]:
+def _pinned_pairs(level: Level, pairs: list[DoorPair], force_ganon_fight: bool = True) -> set[DoorPair]:
     """Door pairs excluded from the step-3 shuffle, identified from the
     contents as they sit after step 1. Layout families match the layout byte
     with the monster bit ignored ($A7 pins like $27, $9B like $1B; push
-    variants pin nowhere); the person family is exactly $A6 (A28)."""
+    variants pin nowhere); the person family is exactly $A6 (A28). With
+    Force Ganon Fight off (B18; A64) Zelda's room is pinned only beside a
+    $4B person room, not beside the life-or-money room."""
     if not PIN_FAMILIES:
         return set()
     level_num = level.level_num
@@ -147,18 +149,25 @@ def _pinned_pairs(level: Level, pairs: list[DoorPair]) -> set[DoorPair]:
                 if level_num <= 8:
                     pins_person = 11 <= code <= 18 and code != 17
                 else:
+                    # Deviation (ZORA, 2026-10-22; docs/deviations.md "Hint persons below a
+                    # life-or-money room"): the spec leaves a level-9 person's pair unpinned
+                    # when the room above is life-or-money, so the deal may put a door behind a
+                    # hint person, whom the game never lets Link pass going north
+                    # (CheckPersonBlocking) and who never leaves. Only the life-or-money
+                    # person ($11), who leaves once paid, keeps the spec's exception.
                     pins_person = (12 <= code <= 18
-                                   and room_at(first).room_action != RoomAction.MONEY_OR_LIFE)
+                                   and (code != MERCHANT_LIST
+                                        or room_at(first).room_action != RoomAction.MONEY_OR_LIFE))
                 if pins_person:
                     pinned.add(pair)
         if "l9zelda" in PIN_FAMILIES and level_num == LEVEL_9:
             # A34: both rooms matched on the MONSTER BYTE with bit 7 (one
             # count-index bit) ignored, no layout-high-bit test: Zelda $37
             # next to a $0B person or the $11 life-or-money merchant.
+            partners = (L9_ENTRY_PERSON_LIST, MERCHANT_LIST) if force_ganon_fight else (L9_ENTRY_PERSON_LIST,)
             for zelda_room, other_room in ((first, second), (second, first)):
                 if (room_at(zelda_room).monster_byte & WITHOUT_HIGH_COUNT_BIT == ZELDA_LIST
-                        and room_at(other_room).monster_byte & WITHOUT_HIGH_COUNT_BIT
-                        in (L9_ENTRY_PERSON_LIST, MERCHANT_LIST)):
+                        and room_at(other_room).monster_byte & WITHOUT_HIGH_COUNT_BIT in partners):
                     pinned.add(pair)
     return pinned
 
@@ -196,7 +205,7 @@ def _is_shufflable_exit(level: Level, room_num: int | None, room_numbers: set[in
 _PAIR_SIDES = {Side.EAST: ("east", "west"), Side.SOUTH: ("south", "north")}
 
 
-def _deal_level(level: Level, rng: Rng) -> list[DoorPair] | None:
+def _deal_level(level: Level, rng: Rng, force_ganon_fight: bool = True) -> list[DoorPair] | None:
     """VA-REJ-03 steps 1-3. Returns the recorded wall pairs, or None for a
     swap-safety rejection (step 1's draw limit)."""
     room_numbers = set(level.room_nums)
@@ -239,7 +248,7 @@ def _deal_level(level: Level, rng: Rng) -> list[DoorPair] | None:
     # Fast-pathed: the sides are read and written through the WallSet's
     # field for the pair's axis.
     pairs = _internal_slots(room_numbers)
-    pinned = _pinned_pairs(level, pairs)
+    pinned = _pinned_pairs(level, pairs, force_ganon_fight)
     walls_of = {room.room_num: room.walls for room in _rooms(level)}
     wall_unit = (D_WALL, D_WALL)
     recorded: list[DoorPair] = []

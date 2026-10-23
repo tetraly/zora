@@ -95,6 +95,7 @@ const form = { zora: { ok: true }, generateRefusals: [] };
 const statuses = [];
 const status = (text, kind) => statuses.push([text, kind || ""]);
 const canExport = () => false;
+const musicReady = () => true;
 const markStepDone = (id, number, done) => { elements[id + ":done"] = done; };
 $("seed").value = "123";
 $("rom-label").textContent = "Legend of Zelda, The (USA), PRG0 or PRG1 release, as a .nes file.";

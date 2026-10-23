@@ -14,7 +14,6 @@ from ...rom.game_config import reject_blocked_options
 
 # option name -> what it waits on
 BLOCKED_OPTIONS = {
-    "second_quest_doors": "QUESTIONS #2",
     "seed_placement": "QUESTIONS #29-33",
 }
 
@@ -26,8 +25,7 @@ class ShapeOptions:
     # SH-GRID-02 / SH-ENT-01: levels may start on any row and entrances be
     # anywhere (the "start room swap" option).
     start_room_swap: bool = False
-    # SH-DOOR-02: add second-quest door weights (brings in walk-through walls).
-    # Blocked: the 2Q weights are not in the spec (QUESTIONS.md #2).
+    # SH-DOOR-02: add second-quest door weights (T1b; brings in walk-through walls). B21.
     second_quest_doors: bool = False
     # SH-STAIR-05 / SH-ROOM-09: add second-quest weights to stair/room layout
     # tables (both ARE given: T2 additions + T4 "Second quest addition").
@@ -48,6 +46,11 @@ class ShapeOptions:
     # ASNB (docs/design/asnb.md section 4; ZORA's Add L4 Sword = Level 2): level 2's stair budget
     # is 1, an item cellar holding one sword upgrade (SH-STAIR-02/03 give it none).
     level_2_sword_cellar: bool = False
+    # Do Not Segment Dungeons (ZORA flag, version 10; docs/reports/research-candles-and-segments.md
+    # section 2): growth makes one piece per level (no SH-GRID-06 seed cells, the probe only beside
+    # the level's own cells), and the late gate walks the level's doors without its transport
+    # staircases, so its repair opens walls until doors alone join every room.
+    do_not_segment_dungeons: bool = False
 
     def __post_init__(self) -> None:
         reject_blocked_options(self, BLOCKED_OPTIONS)

@@ -70,6 +70,10 @@ by name.
 ```toml
 # ZORA FP-FIX-06: what the patch does, in one or two lines.
 
+# Optional: build another folder's bank_NN.s into this patch's own segments and hooks
+# (asm/fp-stats-01-music builds asm/fp-stats-01's this way).
+# routines_from = "../fp-stats-01"
+
 [[segment]]                 # each segment of the routines, in a bank's free space
 name = "ZORA_FP_FIX_06"
 bank = 5

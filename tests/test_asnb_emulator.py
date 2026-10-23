@@ -7,8 +7,8 @@ ware too.
   - The 4th sword upgrade, taken at sword level 3, gives level 4 on each path: the wooden-,
     white- and magical-sword caves, a shop ware (not hidden at level 3), a dungeon room, an
     item cellar, the coast and the Armos.
-  - At sword level 4: a shop hides its sword; every other sword item shows the magical sword
-    ($03), and taking it changes nothing (no bait).
+  - At sword level 4: a shop and the three sword caves hide their sword (tetraly/zora#13); every
+    other sword item shows the magical sword ($03), and taking it changes nothing (no bait).
   - Below level 3 the line is as before, and with sword-cap's byte $00 a shop hides its sword
     at level 3, as with Progressive Items alone.
   - The level-9 gate refuses at sword levels 0-3 and opens at 4, whatever the triforce pieces.
@@ -199,15 +199,19 @@ def test_the_fourth_upgrade_at_sword_level_3_gives_level_4(path: Pickup) -> None
 
 # --- sword level 4 --------------------------------------------------------------------------
 
-def test_at_sword_level_4_a_shop_hides_its_sword() -> None:
-    game = game_for(Pickup.SHOP, L4_SWORD_LEVEL)
-    shop, position = SHOP_WARE[SWORD]
-    game.enter_cave(shop)
-    assert (game.wares()[position], game.price(position)) == (NO_ITEM, 0)
+HIDING = (Pickup.SHOP, *CAVE_OF)                  # where a ware at the line's top is hidden
+SHOWING = [path for path in Pickup if path not in HIDING]
 
 
-@pytest.mark.parametrize("path", [path for path in Pickup if path is not Pickup.SHOP],
-                         ids=[path.value for path in Pickup if path is not Pickup.SHOP])
+@pytest.mark.parametrize("path", HIDING, ids=[path.value for path in HIDING])
+def test_at_sword_level_4_a_shop_or_sword_cave_hides_its_sword(path: Pickup) -> None:
+    game = game_for(path, L4_SWORD_LEVEL)
+    position = SHOP_WARE[SWORD][1] if path is Pickup.SHOP else SWORD_CAVE_WARE
+    assert show_sword(game, path) == NO_ITEM, path
+    assert game.price(position) == 0, path
+
+
+@pytest.mark.parametrize("path", SHOWING, ids=[path.value for path in SHOWING])
 def test_at_sword_level_4_a_sword_item_shows_the_magical_sword_and_changes_nothing(path: Pickup) -> None:
     game = game_for(path, L4_SWORD_LEVEL)
     assert show_sword(game, path) == MAGICAL_SWORD, path

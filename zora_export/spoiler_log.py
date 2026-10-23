@@ -31,6 +31,7 @@ FLOOR_ITEM, STAIRWAY_ITEM = "floor item", "stairway item"
 APPEARS = {"floor": None, "foes": "drops when the room's foes are beaten",
            "ganon": "appears when Ganon is beaten", "never": "never appears: trigger 3 without Ganon"}
 DROPS = APPEARS["foes"]
+LEVEL_9_ENTRY = "C08"
 UPGRADE_LINES = {
     "Wood Sword": "Sword", "White Sword": "Sword", "Magical Sword": "Sword", "Blue Candle": "Candle",
     "Red Candle": "Candle", "Wooden Arrow": "Arrow", "Silver Arrow": "Arrow", "Blue Ring": "Ring",
@@ -77,6 +78,8 @@ def header(document: dict[str, Any]) -> list[str]:
     lines += wrapped(seed.get("flags", ""), " " * 7, "Flags: ")
     lines.append(f"ZORA flags: {seed.get('zoraFlags') or '(none)'}")
     lines += wrapped(", ".join(seed.get("code", [])), " " * 11, "Seed code: ")
+    for notice in document.get("notices", []):          # what the seed leaves out of what was asked
+        lines += wrapped(f"{notice}.", " " * 8, "Notice: ")
     if document.get("progressiveItems"):
         last_line = "boots" if has_pegasus_boots(document) else "boomerang"
         lines += wrapped(f"Progressive Items is on: a sword, candle, arrow, ring or {last_line} "
@@ -90,6 +93,11 @@ def flag_breakdown(document: dict[str, Any]) -> list[str]:
     for setting in document.get("settings", []):
         chosen, resolved = setting["chosen"], setting["resolved"]
         value = chosen if chosen == resolved else f"{chosen} -> {resolved}"
+        if "final" in setting:
+            # a later rule changed the value: the "?" resolution stays visible before it, and the
+            # rule is named without its spec reference (owner request)
+            rule_name, _, _spec_rule = setting["changedBy"].partition(", ")
+            value = f"{value} -> {setting['final']} ({rule_name})"
         label = f"{setting.get('id', ''):5} {setting['name']}"
         if len(label) + len(value) + 2 <= WIDTH:
             lines.append(f"{label} {'.' * (WIDTH - len(label) - len(value) - 2)} {value}")
@@ -186,15 +194,37 @@ def mazes_and_gates(document: dict[str, Any]) -> list[str]:
     return lines
 
 
+def level_9_entrance(document: dict[str, Any]) -> str | None:
+    """What level 9's entrance asks for (Level 9 Entry, C08): a number of triforce pieces, the
+    chosen levels' pieces or an item; with what Level 9 Entry: Random resolved to."""
+    needed = document.get("requirements", {})
+    if "level9Item" in needed:
+        text = f"Level 9: needs this item: {needed['level9Item']} (no triforce pieces)"
+    elif "level9Levels" in needed:
+        text = f"Level 9: needs the triforce pieces of levels {', '.join(map(str, needed['level9Levels']))}"
+    elif needed.get("level9Triforces") == 0:
+        text = "Level 9: open, no triforce pieces needed"
+    elif "level9Triforces" in needed:
+        text = f"Level 9: triforce pieces needed: {needed['level9Triforces']}"
+    else:
+        return None
+    entry = next((setting for setting in document.get("settings", []) if setting.get("id") == LEVEL_9_ENTRY), None)
+    if entry is not None and entry["chosen"] != entry["resolved"]:
+        text += f" (Level 9 Entry: {entry['chosen']} -> {entry['resolved']})"
+    return text
+
+
 def requirements(document: dict[str, Any]) -> list[str]:
     needed = document.get("requirements", {})
     lines = heading("Requirements")
     for key, text in (("whiteSwordHearts", "White sword cave: hearts needed"),
-                      ("magicalSwordHearts", "Magical sword cave: hearts needed"),
-                      ("level9Triforces", "Level 9: triforce pieces needed"),
-                      ("doorRepairCost", "Door repair charge (rupees)")):
+                      ("magicalSwordHearts", "Magical sword cave: hearts needed")):
         if key in needed:
             lines.append(f"{text}: {needed[key]}")
+    if (entrance := level_9_entrance(document)) is not None:
+        lines += wrapped(entrance, " " * 4, "")
+    if "doorRepairCost" in needed:
+        lines.append(f"Door repair charge (rupees): {needed['doorRepairCost']}")
     return lines
 
 

@@ -1,4 +1,4 @@
-"""The seed document: a finished seed in the visualizer's seed format, version 1.0
+"""The seed document: a finished seed in the visualizer's seed format, version 1.1
 (docs/seed-format/seed-format.schema.json, copied from the z1r-visualizer repo; its
 docs/seed-format.md explains every field).
 
@@ -17,15 +17,30 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from enum import IntEnum
+from itertools import pairwise
 from typing import Any
 
 from zora.flags import form as flag_form
 from zora.flags import zora_flags
 from zora.flags.codec import decode
-from zora.flags.fields import OptionField, ThreeState
+from zora.flags.dependencies import (
+    meet_cave_prerequisite,
+    meet_monster_prerequisite,
+    meet_room_prerequisite,
+    with_the_toll_beside_merchants,
+    without_both_boss_health_rules,
+)
+from zora.flags.fields import OptionField, Settings, ThreeState, ToggleField
 from zora.flags.form import ALL_FIELDS
 from zora.flags.zora_form import FIELDS as ZORA_FIELDS
-from zora.generate.pipeline import GenerationPlan, overworld_gates, resolve_question_marks
+from zora.generate.pipeline import (
+    GenerationPlan,
+    cave_prerequisite_rng,
+    monster_prerequisite_rng,
+    overworld_gates,
+    resolve_question_marks,
+    room_prerequisite_rng,
+)
 from zora.generate.steps.add_l4_sword import L4_SWORD_ITEM
 from zora.generate.steps.mixed_overworld_quest import second_quest_leftovers
 from zora.generate.steps.overworld_gates import DEAD_WOODS_HINT, LOST_HILLS_HINT
@@ -43,20 +58,24 @@ from zora.model.enums import (
 )
 from zora.model.game_world import GameWorld
 from zora.model.item_names import ITEM_NAMES, item_names
+from zora.model.level_9_gate import GateKind, Level9Gate
 from zora.model.levels import LEVEL_9, Level
 from zora.model.overworld import DoorRepairCave, HintShop, ItemCave, OverworldItem, Shop, ShopItem, TakeAnyCave
 from zora.model.rooms import Room
+from zora.rom import item_sprites
 from zora.rom.code_patches import (
     SHOPS_BY_NUMBER,
     one_time_wares,
     seed_code_values,
 )
 from zora.rom.parse.rom_file import parse_rom
+from zora.rom.revision import finished_in_prg0_layout
+from zora.rom.uphill_battle import QUESTION_MARK_TILE
 from zora.version import PLAYER_NAME, ZORA_VERSION
 from zora_export.nes_palette import NES_PALETTE
 
 FORMAT = "z1r-seed"
-FORMAT_VERSION = "1.0"
+FORMAT_VERSION = "1.1"
 PRODUCER = PLAYER_NAME
 
 
@@ -197,8 +216,21 @@ def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str]
         "staircase": stairs.get(room.room_num),
         "doors": {side: DOORS[getattr(room.walls, side)] for side in ("north", "east", "south", "west")},
     } for room in level.rooms]
-    return {"number": level.level_num, "shownNumber": level.rom_level_num, "color": level_color(level),
+    return {"number": level.level_num, "shownNumber": shown_number(level), "color": level_color(level),
             "rooms": rooms}
+
+
+def seed_code_entry(rom: bytes, names: Mapping[Item, str]) -> list[str | None]:
+    """The seed code as the file-select screen shows it: the four items' names, or under Item
+    Sprites other than normal (C15, FP-SPRITE-01) its four characters, as one entry."""
+    text = item_sprites.code_text(finished_in_prg0_layout(rom))
+    return [text] if text is not None else [item_name(Item(value), names) for value in seed_code_values(rom)]
+
+
+def shown_number(level: Level) -> int:
+    """The number the level's label shows; under Hide Dungeon Numbers (B24, FP-LEVEL-02), whose
+    label shows a question mark, the number it stands for (its data number)."""
+    return level.level_num if level.rom_level_num == QUESTION_MARK_TILE else level.rom_level_num
 
 
 # --- the overworld and its caves ----------------------------------------------------------
@@ -241,7 +273,7 @@ def level_name(number: int) -> str:
 
 def shown_numbers(world: GameWorld) -> dict[int, int]:
     """Each level's shown number by its data number."""
-    return {level.level_num: level.rom_level_num for level in world.levels}
+    return {level.level_num: shown_number(level) for level in world.levels}
 
 
 def level_door(destination: Destination, shown: dict[int, int]) -> dict[str, str]:
@@ -390,7 +422,7 @@ def speakers(world: GameWorld) -> dict[int, list[Speaker]]:
             if slot is not None:
                 room_text = f", room {room.room_num:02X}"
                 said.setdefault(slot, []).append(Speaker(level_name(level.level_num) + room_text,
-                                                         level_name(level.rom_level_num) + room_text, in_level=True))
+                                                         level_name(shown_number(level)) + room_text, in_level=True))
     return said
 
 
@@ -419,13 +451,24 @@ def shorten(text: str, limit: int) -> str:
 
 # --- requirements and settings -------------------------------------------------------------
 
-# The engine opens level 9 for all eight triforce pieces (InvTriforce $FF), the only C08
-# value ZORA produces.
-LEVEL_9_TRIFORCES = 8
+# FP-TRIF-06's items as the entrance tests them: any sword, either candle, either arrow
+GATE_ITEM_NAMES = {Item.WOOD_SWORD: "Sword", Item.BLUE_CANDLE: "Candle", Item.WOOD_ARROWS: "Arrow"}
 
 
-def requirements(world: GameWorld) -> dict[str, int]:
-    found: dict[str, int] = {"level9Triforces": LEVEL_9_TRIFORCES}
+def level_9_requirements(gate: Level9Gate) -> dict[str, Any]:
+    """What level 9's entrance asks for (C08; FP-TRIF-01 to FP-TRIF-06), as the ROM's check holds
+    it: the pieces needed (0 when open or an item), the chosen levels, or the item."""
+    found: dict[str, Any] = {"level9Triforces": gate.pieces}
+    if gate.kind is GateKind.LEVELS:
+        found["level9Levels"] = sorted(gate.levels)
+    if gate.kind is GateKind.ITEM:
+        assert gate.item is not None
+        found["level9Item"] = GATE_ITEM_NAMES.get(gate.item, ITEM_NAMES[gate.item])
+    return found
+
+
+def requirements(world: GameWorld) -> dict[str, Any]:
+    found = level_9_requirements(world.level_9_gate)
     for cave in world.overworld.caves:
         if isinstance(cave, ItemCave) and cave.destination == Destination.WHITE_SWORD_CAVE:
             found["whiteSwordHearts"] = cave.heart_requirement
@@ -439,25 +482,66 @@ def requirements(world: GameWorld) -> dict[str, int]:
 QUESTION_MARK = "?"
 
 
-def setting_entries(chosen: GenerationPlan) -> list[dict[str, str]]:
-    """Every Z1R field as the string chose it and as the seed resolved it (FL-DEP-04's own
-    stream, the one generation used), then ZORA's own flags."""
+# The rules that can change a value after the "?" values are drawn, in the order plan() applies
+# them. A setting's changedBy names one: the name the spoiler log shows, then after ", " the spec
+# rule, which the log leaves out.
+ZORA_RULES = "a ZORA Extras rule"
+BOSS_HEALTH_RULE = "Ganon HP 0 rule, FL-DEP-01 rule 3"
+MERCHANT_RULE = "merchant toll rule, FL-DEP-04"
+CAVE_RULE = "cave shuffle coin, FL-DEP-02 rule 1"
+ROOM_RULE = "room shuffle coin, FL-DEP-02 rule 2"
+MONSTER_RULE = "monster shuffle coin, FL-DEP-02 rule 3"
+
+
+def resolution_stages(chosen: GenerationPlan) -> list[tuple[str, Settings]]:
+    """The Z1R settings as the seed's "?" values resolved them (FL-DEP-04's own stream, the one
+    generation used), then after each later rule that can change a value, as plan() applies them:
+    FL-DEP-01 rule 3 (B41 and B46 never both on), FL-DEP-04's B22 and B23 rule, the
+    ZORA Extras' rules (the owner's 2.0 dependencies), FL-DEP-02
+    rule 1's coin (OW-CAVE-10), rule 2's (beta 8) and rule 3's (the 2026-10-22 export). The last is
+    what the seed was generated with."""
     asked = decode(chosen.flag_string)
-    resolved = zora_flags.without_extra_candles(
-        chosen.zora, resolve_question_marks(asked, chosen.seed, chosen.flag_string), asked)
-    # the owner's 2.0 dependencies may turn a "?" on B04 off (idempotent on the resolved ZORA flags)
-    _, resolved = zora_flags.resolve_owner_dependencies(chosen.zora_resolved, chosen.zora, resolved, asked)
+    resolved = resolve_question_marks(asked, chosen.seed, chosen.flag_string)
+    stages = [("", resolved)]
+    stages.append((BOSS_HEALTH_RULE, without_both_boss_health_rules(asked, stages[-1][1])))
+    stages.append((MERCHANT_RULE, with_the_toll_beside_merchants(asked, stages[-1][1])))
+    _, owner = zora_flags.resolve_owner_dependencies(chosen.zora_resolved, chosen.zora, stages[-1][1], asked)
+    stages.append((ZORA_RULES, owner))
+    stages.append((CAVE_RULE, meet_cave_prerequisite(owner, cave_prerequisite_rng(chosen.seed, chosen.flag_string))))
+    stages.append((ROOM_RULE, meet_room_prerequisite(stages[-1][1], room_prerequisite_rng(chosen.seed,
+                                                                                         chosen.flag_string))))
+    stages.append((MONSTER_RULE, meet_monster_prerequisite(
+        stages[-1][1], monster_prerequisite_rng(chosen.seed, chosen.flag_string))))
+    return stages
+
+
+def _field_value(settings: Settings, field: OptionField | ToggleField) -> int:
+    return settings.option(field) if isinstance(field, OptionField) else int(settings.toggle(field))
+
+
+def setting_entries(chosen: GenerationPlan) -> list[dict[str, str]]:
+    """Every Z1R field as the string chose it and as the seed's "?" resolved it, and, where a later
+    rule changed it (resolution_stages), its final value and the last rule that did; then ZORA's
+    own flags."""
+    asked = decode(chosen.flag_string)
+    stages = resolution_stages(chosen)
+    resolved = stages[0][1]
     entries = []
     for field in ALL_FIELDS:
-        if isinstance(field, OptionField):
-            value, final = asked.option(field), resolved.option(field)
-            undecided = field.is_random(value)
-        else:
-            value, final = int(asked.toggle(field)), int(resolved.toggle(field))
-            undecided = value == ThreeState.POSSIBLE
-        entries.append({"id": field.id, "name": flag_form.field_label(field),
-                        "chosen": QUESTION_MARK if undecided else flag_form.value_label(field, value),
-                        "resolved": flag_form.value_label(field, final)})
+        value = _field_value(asked, field)
+        undecided = field.is_random(value) if isinstance(field, OptionField) else value == ThreeState.POSSIBLE
+        entry = {"id": field.id, "name": flag_form.field_label(field),
+                 "chosen": QUESTION_MARK if undecided else flag_form.value_label(field, value),
+                 "resolved": flag_form.value_label(field, _field_value(resolved, field))}
+        changed_by = ""
+        for (_rule, before), (next_rule, after) in pairwise(stages):
+            if _field_value(before, field) != _field_value(after, field):
+                changed_by = next_rule
+        final = _field_value(stages[-1][1], field)
+        if final != _field_value(resolved, field):
+            entry["final"] = flag_form.value_label(field, final)
+            entry["changedBy"] = changed_by
+        entries.append(entry)
     labels = {field["name"]: field["label"] for field in ZORA_FIELDS}
     entries.extend({"id": "ZORA", "name": labels.get(zora_field.name, zora_field.name),
                     "chosen": zora_entry_text(chosen.zora, zora_field.name),
@@ -481,7 +565,8 @@ OOPS_ALL_FIELDS = tuple(zora_flags.ENUM_FIELDS)
 
 LISTED_WHEN_SET = frozenset((*zora_flags.ZORA_1_0_FIELDS, *zora_flags.PEGASUS_BOOTS_FIELDS,
                             *zora_flags.EXPANDED_DUNGEON_LOCATIONS_FIELDS,
-                            *zora_flags.HIGHLIGHT_NO_DROP_ROOMS_FIELDS))
+                            *zora_flags.HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
+                            *zora_flags.DO_NOT_SEGMENT_DUNGEONS_FIELDS))
 
 
 def zora_entry_shown(flags: zora_flags.ZoraFlags, name: str) -> bool:
@@ -531,7 +616,7 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
         "formatVersion": FORMAT_VERSION,
         "producer": {"name": PRODUCER, "version": ZORA_VERSION},
         "seed": {"number": str(chosen.seed), "flags": chosen.flag_string, "zoraFlags": chosen.zora_flag_string,
-                 "code": [item_name(Item(value), names) for value in seed_code_values(rom)]},
+                 "code": seed_code_entry(rom, names)},
         "progressiveItems": chosen.zora.progressive_items,
         "levels": [level_entry(level, selling_levels(world), names)
                    for level in sorted(world.levels, key=lambda level: level.level_num)],
@@ -541,13 +626,15 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
         "requirements": requirements(world),
         "settings": setting_entries(chosen),
     }
+    if chosen.notices:
+        document["notices"] = list(chosen.notices)
     extras = zora_extras(world, chosen)
     if extras:
         document["zoraExtras"] = extras
     return document
 
 
-# --- the owner's 2.0 flags (a ZORA extra; seed format 1.0 has no fields for them) ----------------
+# --- the owner's 2.0 flags (a ZORA extra; seed format 1.1 has no fields for them) ----------------
 
 NEEDS_WORDS = {Item.RAFT: "the raft", Item.POWER_BRACELET: "the power bracelet", Item.LADDER: "the ladder",
                LOST_HILLS_HINT: "Hint Shop 1 (the Lost Hills' path)",

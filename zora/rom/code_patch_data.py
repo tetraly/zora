@@ -47,7 +47,8 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
     "fp-hash-01": (
         (0x0A4CD, bytes.fromhex("4ca8afeaeaeaea")),
         (0x0AFB0, bytes.fromhex("0000000068788898a9148514e613a2038a48bda4af8500a92785018a0a8d4103bca0afb9c872c930d0"
-                                "02a9ff290f8504b9a472aaa8203ae768aaca10d360")),
+                                "02a9ff290f8504b9a472aaa8203ae7a001be4303bd02022903f008a9031d02029d02028810eb68aaca"
+                                "10bc60")),
         (0x1A129, bytes.fromhex("0c180d0e24")),
         (0x1A12E, Original(0x1A12E, 1)),
         (0x1A12F, bytes.fromhex("24")),
@@ -88,11 +89,10 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
     ),
     "fp-prog-01": (
         (0x04658, bytes.fromhex("205fbe")),
-        (0x04920, bytes.fromhex("a5be")),
+        (0x04920, bytes.fromhex("a1be")),
         (0x07E50, bytes.fromhex("0100000000ffff01020304ad500338e974a8a9ffc007b003b944be8502a8608d13048a48204bbea202"
-                                "a4023008b9bee63d7706d014bd2204293f20e0be901d8503a402300da501f009a9009d3004a93f8503"
-                                "bd220429c005039d2204ca10ca68aaad130460200c73204bbe300eb9bee63d41bef0061d77069d7706"
-                                "60")),
+                                "a4023008b9bee63d7706d010bd2204293f20e0be90198503a501f009a9009d3004a93f8503bd220429"
+                                "c005039d2204ca10ce68aaad130460200c73204bbe300eb9bee63d41bef0061d77069d770660")),
         (0x07EF0, bytes.fromhex("ac40bed00218608500c91fb047e91cc9029034a400b9a4728501b9c87238e920c910b03049ff386500"
                                 "a40138795706a8a9008500b9a472c501f00588e600d0f4a5008501983860ad75068501ad740618691d"
                                 "3860a5001860")),

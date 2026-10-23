@@ -3,7 +3,8 @@ bomb-upgrade move (PS-BOMB-01 to PS-BOMB-03) does not run, the seller path keeps
 branch $90 $08 and the level operands 5 and 7) and the person-kind table PRG0's low bytes, and the
 person-flag $0F rooms of levels 5 and 7 are the sellers: one in each, or both in level 7 when the
 hungry-goriya move (B28) took the level-5 person, and under 1st Quest dungeons (C02 = 0) also one in
-level 5 and two in level 7 when it took the level-8 person. Its "?" is not supported (FL-SUP-01).
+level 5 and two in level 7 when it took the level-8 person. Its "?" is supported since the beta 9
+export (a coin, then FL-DEP-02 rule 4; tests/test_beta9_possible.py).
 The Check over 1,000 seeds per string: temp/ scratch runs, figures in the commit's report (the spec's
 reference run is n = 200; no corpus has B29 off)."""
 from functools import cache
@@ -15,7 +16,7 @@ from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.support import unsupported_fields
 from zora.generate import generation_pass
-from zora.generate.pipeline import FlagsRefused, generate_rom, plan
+from zora.generate.pipeline import generate_rom, plan
 from zora.model.enums import VANILLA_PERSON_INITS
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
 from zora.rom.layout import PERSON_UPDATE_BRANCH_ADDRESS
@@ -88,12 +89,11 @@ def test_the_sellers_and_their_code_are_prg0s(name: str, seed: int) -> None:
     assert not {1, 2} & set(levels)
 
 
-def test_random_is_not_supported() -> None:
-    """FL-SUP-01: B29's "?" is not supported (FL-DEP-02 rule 4 meets it under supported values)."""
+def test_random_is_supported() -> None:
+    """FL-SUP-01 (beta 9 export): B29's "?" is supported, a coin per seed before FL-DEP-02 rule 4."""
     flag_string = cp5_with({"B29": ThreeState.POSSIBLE}, {})
-    assert unsupported_fields(decode(flag_string)) == ["B29"]
-    with pytest.raises(FlagsRefused):
-        plan(flag_string, 1)
+    assert unsupported_fields(decode(flag_string)) == []
+    assert {plan(flag_string, seed).settings.is_on("B29") for seed in range(1, 21)} == {False, True}
 
 
 def test_b29_on_still_moves_the_sellers() -> None:

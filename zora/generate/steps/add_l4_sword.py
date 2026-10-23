@@ -18,6 +18,12 @@ the acceptance check; with no room qualifying the attempt fails (GenerationFailu
 shipping without the sword.
 R6a: the triforce-checker room (one north of the entrance) may be drawn; its item then stands at
 the first of level 9's item positions in the top half of the room, behind the person.
+Item spots (ZORA, 2026-10-22; zora/generate/item_spots.py): the sword never stands on a block,
+statue or staircase. A drawn room with none of level 9's item positions on a square that can
+hold it (in the top half, for the triforce-checker room) is dropped and the draw repeated among
+the rest; the sword keeps the room's own position when that square can, else takes the first that
+can. A seed whose sword stood on such a square before is the only one that changes. Before, the
+sword kept the room's position as it stood, which no rule had checked in a room without an item.
 R7-R8: the sword is no pool item, place or tracked record, and no hint or rule reads it (the
 wooden sword is never tracked, so the acceptance check's item lookups never meet it).
 """
@@ -28,6 +34,7 @@ from ...model.levels import LEVEL_9, Level
 from ...model.rooms import Room
 from ..dungeon_walk import walk_level
 from ..errors import GenerationFailure
+from ..item_spots import is_item_spot, item_spot_positions
 from ..late_gate.walk import level9_entry_room
 from ..rng import IntRng
 
@@ -71,20 +78,38 @@ def candidate_rooms(level9: Level) -> list[Room]:
             if qualifies(level9, room, collectible)]
 
 
-def top_half_position(level9: Level) -> ItemPosition:
-    """R6a: the first of the level's item positions in the top half of the room."""
-    return next(ItemPosition(index) for index, packed in enumerate(level9.item_position_table)
-                if packed & POSITION_Y_MASK < TOP_HALF_Y_BELOW)
+def is_top_half(level: Level, position: ItemPosition) -> bool:
+    return level.item_position_table[position] & POSITION_Y_MASK < TOP_HALF_Y_BELOW
+
+
+def sword_positions(level9: Level, room: Room) -> list[ItemPosition]:
+    """The positions the sword may take in the room: those on a square that can hold an item, and
+    in the triforce-checker room only those in the top half (R6a)."""
+    positions = item_spot_positions(level9, room)
+    if room.room_num == level9_entry_room(level9):
+        return [position for position in positions if is_top_half(level9, position)]
+    return positions
+
+
+def sword_position(level9: Level, room: Room) -> ItemPosition:
+    """R6a's first top-half position in the triforce-checker room; elsewhere the room's own
+    position when its square can hold an item, else the first that can."""
+    if room.room_num != level9_entry_room(level9) \
+            and is_item_spot(room.layout_code, level9.item_position_table[room.item_position]):
+        return room.item_position
+    return sword_positions(level9, room)[0]
 
 
 def add_l4_sword(levels: list[Level], rng: IntRng) -> int:
     """Put the progressive sword in one qualifying level-9 room; return its room number."""
     level9 = next(level for level in levels if level.level_num == LEVEL_9)
     rooms = candidate_rooms(level9)
-    if not rooms:
-        raise GenerationFailure(NO_ROOM_FAILURE)
-    room = rooms[rng.below(len(rooms))]
+    while True:
+        if not rooms:
+            raise GenerationFailure(NO_ROOM_FAILURE)
+        room = rooms.pop(rng.below(len(rooms)))
+        if sword_positions(level9, room):
+            break
     room.item = L4_SWORD_ITEM
-    if room.room_num == level9_entry_room(level9):
-        room.item_position = top_half_position(level9)
+    room.item_position = sword_position(level9, room)
     return room.room_num

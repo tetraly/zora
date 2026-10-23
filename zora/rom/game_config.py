@@ -36,6 +36,7 @@ class HintMode(Enum):
     COMMUNITY = auto()    # extended hint bank, centered community hints
     HELPFUL = auto()      # extended hint bank, centered helpful hints
     CONSTERNATION = auto()  # generated Consternation hint text (hints-behavior.md)
+    NORMAL = auto()       # HT-HINT-05: PRG0's text block, with the fixed changes and the 38 pointers
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,35 @@ class GameConfig:
     # seed's code while off.
     bomb_upgrade_item: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     wand_fights_ganon: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # The beta 8 export's fixed patches (zora/rom/uphill_battle.py), omitted from the seed's code
+    # while off: Recorder to Unbeaten Dungeons (B07, OW-WARP-02), Hide Dungeon Numbers (B24,
+    # FP-LEVEL-02), Hidden Health (B55, FP-HIDE-01), the Red Bubble Curse (C19 resolved to 1 or 2,
+    # FP-BUBL-01) and Replace Book Fire with Explosion's blast (B47, FP-BOOK-02).
+    recorder_to_unbeaten: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    hide_dungeon_numbers: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    hidden_health: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    red_bubble_curse: int = field(default=0, metadata=OMITTED_AT_DEFAULT)
+    book_explosion: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Make Important Items Drops (B39, PS-EDROP-01) and Randomize Item Drop Rate (B44, PS-EDROP-02):
+    # the key of their own stream (pipeline.enemy_drops_key), None with both off.
+    important_item_drops: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    random_drop_rates: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    enemy_drops_key: int | None = field(default=None, metadata=OMITTED_AT_DEFAULT)
+    # The beta 9 export's fixed patches (zora/rom/small_settings.py), omitted from the seed's code
+    # while off: Killable Drop Items (B56, FP-KILL-01), Hidden Numbers (B83, FP-NUM-01), Rupees
+    # Affect Speed (B80, FP-RSPD-01) and Prevent Clipping (B84, FP-CLIP-01).
+    killable_drop_items: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    hidden_numbers: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    rupees_affect_speed: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    prevent_clipping: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Change Hidden OW Tiles (B89, FP-VIS-01; zora/rom/hidden_tiles.py), and whether its step 3 runs
+    # (the resolved overworld quest is the first or the second, C01 = 0 or 1)
+    change_hidden_tiles: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    plain_dead_secrets: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Item and Sprite Appearance (C15 resolved to 1 or 2, FP-SPRITE-01; zora/rom/item_sprites.py) and
+    # its own stream's key (pipeline.item_sprites_key); 0 and None with it at normal
+    item_appearance: int = field(default=0, metadata=OMITTED_AT_DEFAULT)
+    item_sprites_key: int | None = field(default=None, metadata=OMITTED_AT_DEFAULT)
     # Archipelago's ware places (External mode only; docs/archipelago.md "Interface"): (shop number
     # in code_patches.SHOPS_BY_NUMBER order, ware position) pairs sold once whatever they hold, a
     # re-buyable blue potion too, so that buying one is a location check ZORA_B1_OneTimeWares

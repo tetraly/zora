@@ -3,7 +3,8 @@ Consternation Remastered and Hopla, each with Encode level data on as published 
 no variant A without level encoding, and no Random% (published variant B, form.HIDDEN_PRESETS), both
 kept in presets.py. Three community flagsets (owner, 2026-10-18), each its published string:
 OHK0HPla Remastered, TTP5: Muffle Rug (B22 off with B23 on, kept as given: FL-DEP-06) and TTP5: Pick
-5. The other presets are unchanged. The browser half (Pyodide gives the same bytes as
+5; and the 2026 tournament presets TTP5: Uphill Battle and SGLive Onsite 2026 (owner, beta 8). The
+other presets are unchanged. The browser half (Pyodide gives the same bytes as
 Python) is the manual check in docs/packaging.md; here the worker's own call (zora-worker.js:
 generate_rom with the page's player settings) is checked to give the Python build's bytes."""
 import json
@@ -45,6 +46,9 @@ COMMUNITY_PRESETS = {
     "OHK0HPla Remastered": "oIbnRjuQKp1DXiYCys9LwvSpzqZbXk1pRmZzr",
     "TTP5: Muffle Rug": "2487lt0moGMFLRug1ofQdxPuUBWnJVSsi7d202I",
     "TTP5: Pick 5": "p8GIOeYEAonHy5131VdG6b94Ts3EMMvBaQoWR",
+    # the 2026 tournament presets as v3.6.6 builds them in (owner, beta 8)
+    "TTP5: Uphill Battle": "143oNtDD4Pw3Yw6SRryTCXlqTsRz2fxg4s4pJW",
+    "SGLive Onsite 2026": "12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA",
 }
 SEED = 1
 ENCODED_ONLY = pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")

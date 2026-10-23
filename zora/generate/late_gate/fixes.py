@@ -423,18 +423,19 @@ def zelda_cell(rooms: list[Room]) -> int | None:
     return found[-1] if found else None
 
 
-def _zelda_rewrite(gate_block: GateBlock, level: Level) -> bool:
-    """Step 8 (level 9, Ganon must be beaten — always on under the preset):
-    the rewrite around Zelda's room, then the Zelda-room cleanup and the
-    block push-block clear again. False = rejected (a trigger-4/5 neighbor
-    BELOW a $12 Zelda room)."""
+def _zelda_rewrite(gate_block: GateBlock, level: Level, force_ganon_fight: bool = True) -> bool:
+    """Step 8 (level 9, Ganon must be beaten, B18): the rewrite around Zelda's
+    room, then the Zelda-room cleanup and the block push-block clear again.
+    False = rejected (a trigger-4/5 neighbor BELOW a $12 Zelda room). With
+    Force Ganon Fight off (A64, PS-MONRD-05) only the cleanup runs."""
     room_numbers = set(level.room_nums)
     block = gate_block.block
     zelda_number = zelda_cell(_rooms(level))
     if zelda_number is None:
         return True
     zelda = block.room(zelda_number)
-    for side in (Side.NORTH, Side.EAST, Side.SOUTH, Side.WEST):
+    sides = (Side.NORTH, Side.EAST, Side.SOUTH, Side.WEST) if force_ganon_fight else ()
+    for side in sides:
         neighbor = room_grid.neighbor(zelda_number, side)
         if neighbor is None or neighbor not in gate_block.owned_set:
             continue
@@ -474,7 +475,7 @@ def _zelda_rewrite(gate_block: GateBlock, level: Level) -> bool:
     return True
 
 
-def _level9_extras(gate_block: GateBlock, level: Level) -> bool:
+def _level9_extras(gate_block: GateBlock, level: Level, transports: bool = True) -> bool:
     """VA-REJ-01.3: Zelda (the last $37 room in block order) is not in a
     $0E/$0F corridor without push block whose north AND south are walls;
     and Ganon's room — the FIRST room in block order whose monster byte is
@@ -489,4 +490,4 @@ def _level9_extras(gate_block: GateBlock, level: Level) -> bool:
                 and zelda.walls.north == D_WALL and zelda.walls.south == D_WALL):
             return False
     ganon_number = next((room.room_num for room in block_rooms if room.monster_byte == GANON_LIST), None)
-    return is_ganon_reachable(level, ganon_number)
+    return is_ganon_reachable(level, ganon_number, transports)

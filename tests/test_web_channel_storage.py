@@ -18,7 +18,8 @@ WIDGETS_SCRIPT = (REPO / "web" / "widgets.js").read_text()
 PREFIX = "zora-test:"
 PAGE_CONSTANTS = ["CUSTOM_PRESETS_KEY", "CUSTOM_SLOT_COUNT", "PLAYER_NAME_KEY", "THEME_KEY", "TAB_KEY", "NES_PALETTE",
                   "BLACKER_THAN_BLACK", "EXCLUDED_COLORS", "PLAYER_SETTINGS_KEY", "PLAYER_CHOICES", "PLAYER_COLORS",
-                  "COLOR_SLOTS", "MULTIWORLD_CHOICES", "ALL_CHOICES", "COPIED_FROM_REGULAR_KEY"]
+                  "COLOR_SLOTS", "MULTIWORLD_CHOICES", "MUSIC_RANDOM_CHOICES", "RANDOM_MUSIC", "MUSIC_CHOICES",
+                  "ALL_CHOICES", "COPIED_FROM_REGULAR_KEY"]
 PAGE_FUNCTIONS = ["defaultPlayerSettings", "isPickableColor", "checkedPlayerSettings", "checkedCustomPresets",
                   "copyRegularChannelSettings", "readCustomPresets", "writeCustomPresets", "loadPlayerSettings"]
 WIDGET_CONSTANTS = ["REGULAR_CHANNEL", "TEST_CHANNEL", "TEST_STORAGE_PREFIX"]

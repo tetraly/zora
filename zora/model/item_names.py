@@ -21,8 +21,9 @@ ITEMS_BY_NAME: dict[str, Item] = {name: item for item, name in ITEM_NAMES.items(
 assert len(ITEMS_BY_NAME) == len(ITEM_NAMES), "item names must be unique"
 
 # Pegasus Boots (ZORA string version 7; owner spec 2026-10-17): with the flag on, the boomerangs'
-# items are the boots, named so in the seed document and the spoiler log (ITEMS_BY_NAME, which
-# Archipelago reads, keeps the boomerangs: Archipelago holds the flag back).
+# items are the boots, named so in the hint texts, the seed code, the spoiler log and the seed
+# document (seed format 1.1, z1r-visualizer aa1790c; ITEMS_BY_NAME, which Archipelago reads, keeps
+# the boomerangs: Archipelago holds the flag back).
 PEGASUS_BOOTS_NAMES: dict[Item, str] = {Item.WOOD_BOOMERANG: "Pegasus Boots", Item.MAGICAL_BOOMERANG: "Magical Boots"}
 
 

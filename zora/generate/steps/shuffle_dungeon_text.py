@@ -8,6 +8,8 @@ from .hint_text import HintTextResult
 # HT-TEXT-04: the slots whose pointers are exchanged, in walk order (slot 38
 # first, not slot 19, which belongs to the white-sword cave)
 SHUFFLED_SLOTS = (38, 20, 21, 22, 23, 24, 28, 29, 31, 32, 33)
+# HT-HINT-05: under normal hints (PRG0's 38 slots) the walk starts at slot 19
+NORMAL_SHUFFLED_SLOTS = (19, *SHUFFLED_SLOTS[1:])
 HINT_POINTER_DISCARDS = 2          # discarded before the eleven partner draws
 
 
@@ -16,7 +18,8 @@ def shuffle_dungeon_text(hint_text: HintTextResult, rng: IntRng) -> HintTextResu
     of SHUFFLED_SLOTS, in that order. The text bytes stay in place. With B19
     off (FL-OFF-04) this does not run and each slot shows its own text."""
     pointers = list(hint_text.pointers)
-    slots = list(SHUFFLED_SLOTS)
+    slots = list(NORMAL_SHUFFLED_SLOTS if hint_text.keeps_text_block or hint_text.exchange_from_slot_19
+                 else SHUFFLED_SLOTS)
     discard(rng, HINT_POINTER_DISCARDS)
     for i in range(len(slots)):
         j = i + rng.below(len(slots) - i)

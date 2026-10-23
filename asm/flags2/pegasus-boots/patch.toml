@@ -12,8 +12,23 @@
 # RAM: the L1 wind-up counter is ObjMovingLimit+15 ($038F), the player boomerang's slot, which only
 # the boomerang code wrote. The speed hook is z1rr-coop's reserved in-place hook at $B366-$B369
 # (co-op is not offered; tests/test_coop_reserved.py names this patch's exception). Goriya
-# boomerangs keep their vanilla graphics, spin, spark and palette. asm/README.md and
-# asm/flags2/build.py describe this file.
+# boomerangs keep their vanilla graphics, spin, spark and palette. The file saved after the ending
+# holds the L2 boots (tetraly/zora#4; bank_02.s). asm/README.md and asm/flags2/build.py describe
+# this file.
+
+[[segment]]
+name = "ZORA_F2_BOOTS_ENDING"
+bank = 2
+start = 0xAF90              # bank 2 free space, $AF90-$AF9F (docs/rom-map.md)
+
+[[hook]]
+name = "boots-after-ending"
+offset = 0x0ABC2
+length = 3
+note = "UpdateMode13WinGame_Sub4's Start path (the statistics screen's too): JSR SilenceAllSound becomes JSR BootsAfterEnding, which gives the L2 boots (InvMagicBoomerang) before the save mode stores the file FP-SAVE-01 keeps, then silences the sound as before."
+code = """
+    JSR BootsAfterEnding
+"""
 
 [[hook]]
 name = "boots-press-b"

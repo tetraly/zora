@@ -33,7 +33,7 @@ SEED = 12345
 # asm/fp-hash-01: the icons' X (CodeIconXs) and the screen line under sprite Y $27.
 FIRST_ICON_X, ICON_SPACING, ICON_TOP = 0x68, 0x10, 0x28
 BOOTS = zora_flags.encode(ZoraFlags(pegasus_boots=ThreeState.ON))
-BOMBS, WOODEN_SWORD, WAND = 0x00, 0x01, 0x10
+BOMBS, WOODEN_SWORD, BOW = 0x00, 0x01, 0x0A
 BOMB_TILE = 0x34                        # Anim_ItemFrameTiles' bomb, a half-width sprite pair $34/$35
 
 
@@ -104,12 +104,37 @@ def test_custom_sprites_are_drawn_from_the_players_rom() -> None:
 
 
 def test_the_tunic_color_setting_shows() -> None:
-    """The wooden sword and the wand use the save files' rows, whose color 1 is the green tunic's."""
-    items = [WOODEN_SWORD, WAND, WOODEN_SWORD, WAND]
+    """The wooden sword and the bow are drawn in Link's row in play, so they keep the save files'
+    rows, whose color 1 is the tunic's; the wand (the blue row) takes the cursor's row instead."""
+    items = [WOODEN_SWORD, BOW, WOODEN_SWORD, BOW]
     plain = seed_code_icons(with_code(finished(), items))
     blue = assert_drawn_as_the_screen(with_code(finished(settings=PlayerSettings(tunic_colors=(0x02, 0x32, 0x16))),
                                                 items))
     assert all(ours.pixels != theirs.pixels for ours, theirs in zip(blue, plain, strict=True))
+
+
+BLACK_TUNIC = PlayerSettings(tunic_colors=(0x0F, 0x0F, 0x0F))
+MAGICAL_SWORD, HEART, TRIFORCE = 0x03, 0x22, 0x1B
+
+
+@pytest.mark.parametrize("first", range(0, len(SEED_CODE_ITEMS), SEED_CODE_LENGTH))
+def test_every_code_item_shows_under_a_black_tunic(first: int) -> None:
+    """Player report (beta 8): only items in Link's row in play take the tunic color, so with a black
+    tunic every icon still shows and still matches the screen (asm/fp-hash-01's menu item row)."""
+    items = [*SEED_CODE_ITEMS[first:], *SEED_CODE_ITEMS][:SEED_CODE_LENGTH]
+    icons = assert_drawn_as_the_screen(with_code(finished(settings=BLACK_TUNIC), items))
+    assert all(len({color for row in icon.pixels for color in row}) > 1 for icon in icons)
+
+
+def test_the_magical_sword_and_the_heart_leave_the_tunic_row() -> None:
+    """Player report (beta 8): the magical sword showed the wooden sword's colors and the heart was
+    blank with a black tunic; both now take the cursor's row ($15 $27 $30), whatever the tunic."""
+    items = [WOODEN_SWORD, MAGICAL_SWORD, HEART, TRIFORCE]
+    for settings in (PlayerSettings(), BLACK_TUNIC):
+        wooden, magical, heart, triforce = assert_drawn_as_the_screen(with_code(finished(settings=settings), items))
+        assert {0x15, 0x30} <= {color for row in magical.pixels for color in row}
+        assert 0x15 in {color for row in heart.pixels for color in row}
+        assert {color for row in wooden.pixels for color in row} != {color for row in magical.pixels for color in row}
 
 
 def test_prg1_draws_the_same_code_as_prg0() -> None:

@@ -1,5 +1,5 @@
 {
-  "$comment": "Copied from the z1r-visualizer repo (github.com/tetraly/z1r-visualizer), docs/seed-format.schema.json at commit 4a1239a760390b42ebc397451dbf4f5613820ed7, with only this comment added. That repo's docs/seed-format.md explains every field; ZORA's writer is zora_export/seed_document.py.",
+  "$comment": "Copied from the z1r-visualizer repo (github.com/tetraly/z1r-visualizer), docs/seed-format.schema.json at commit aa1790cc696300b55a9ecbe26546d727fc3ce7ca (format 1.1), with this comment and ZORA's own extra fields added (notices, level9Levels, level9Item, a setting's final and changedBy; docs/seed-format/README.md). That repo's docs/seed-format.md explains every field; ZORA's writer is zora_export/seed_document.py.",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tetraly.github.io/z1r-visualizer/seed-format.schema.json",
   "title": "Z1R seed, format 1",
@@ -27,6 +27,7 @@
       }
     },
     "progressiveItems": { "type": "boolean" },
+    "notices": { "type": "array", "maxItems": 16, "items": { "type": "string", "maxLength": 200 } },
     "levels": {
       "type": "array",
       "minItems": 1,
@@ -58,6 +59,8 @@
         "whiteSwordHearts": { "type": "integer", "minimum": 0, "maximum": 16 },
         "magicalSwordHearts": { "type": "integer", "minimum": 0, "maximum": 16 },
         "level9Triforces": { "type": "integer", "minimum": 0, "maximum": 8 },
+        "level9Levels": { "type": "array", "maxItems": 8, "items": { "type": "integer", "minimum": 1, "maximum": 8 } },
+        "level9Item": { "type": "string", "maxLength": 40 },
         "doorRepairCost": { "type": "integer", "minimum": 0, "maximum": 255 }
       }
     },
@@ -71,7 +74,9 @@
           "id": { "type": "string", "maxLength": 20 },
           "name": { "type": "string", "maxLength": 200 },
           "chosen": { "type": "string", "maxLength": 100 },
-          "resolved": { "type": "string", "maxLength": 100 }
+          "resolved": { "type": "string", "maxLength": 100 },
+          "final": { "type": "string", "maxLength": 100 },
+          "changedBy": { "type": "string", "maxLength": 100 }
         }
       }
     }
@@ -100,6 +105,7 @@
       "required": ["number", "color", "rooms"],
       "properties": {
         "number": { "type": "integer", "minimum": 1, "maximum": 9 },
+        "shownNumber": { "type": "integer", "minimum": 1, "maximum": 9 },
         "color": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
         "rooms": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/room" } }
       }
@@ -184,7 +190,9 @@
           "required": ["name", "shortName"],
           "properties": {
             "name": { "type": "string", "minLength": 1, "maxLength": 60 },
-            "shortName": { "type": "string", "minLength": 1, "maxLength": 20 }
+            "shortName": { "type": "string", "minLength": 1, "maxLength": 20 },
+            "shownName": { "type": "string", "minLength": 1, "maxLength": 60 },
+            "shownShortName": { "type": "string", "minLength": 1, "maxLength": 20 }
           }
         }
       }
@@ -215,7 +223,8 @@
       "required": ["text"],
       "properties": {
         "text": { "$ref": "#/$defs/text" },
-        "speaker": { "type": "string", "maxLength": 100 }
+        "speaker": { "type": "string", "maxLength": 100 },
+        "shownSpeaker": { "type": "string", "maxLength": 100 }
       }
     }
   }

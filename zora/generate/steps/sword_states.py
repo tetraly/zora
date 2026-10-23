@@ -11,6 +11,14 @@ from ...model.overworld import ItemCave, Overworld
 BOMB_UPGRADE_STATES = frozenset({WoodenSwordState.WOODEN_SWORD_ONLY, WoodenSwordState.SWORDLESS})
 
 
+def red_candle_for_maximum_boss_health(overworld: Overworld) -> None:
+    """PS-HP-07 and PS-HP-08 under Swordless (C07 = 3): the wooden-sword cave's blue candle becomes
+    the red one (with B45 and B46 both on, the second finds it red already)."""
+    wood_sword_cave = overworld.get_cave(Destination.WOOD_SWORD_CAVE, ItemCave)
+    assert wood_sword_cave is not None and wood_sword_cave.item in (Item.BLUE_CANDLE, Item.RED_CANDLE)
+    wood_sword_cave.item = Item.RED_CANDLE
+
+
 def change_sword_caves(overworld: Overworld, state: WoodenSwordState) -> None:
     """FP-WOOD-01 to FP-WOOD-03: No Wood Sword empties the wooden-sword cave's sword ware ($3F);
     Swordless puts the blue candle there ($3F, $06, $7F: Extra Candles, B09, later adds one more

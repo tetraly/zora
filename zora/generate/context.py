@@ -9,11 +9,13 @@ or an earlier step of that attempt wrote survives.
 """
 from collections import Counter
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ..model.game_world import GameWorld
+from ..model.level_9_gate import EIGHT_PIECES, Level9Gate
 from ..model.levels import Level
 from ..model.overworld import Overworld
+from .acceptance_check import LogicRules
 from .alternative_values import MVP_VALUES, AlternativeValues
 from .extra_options import NO_EXTRAS, ExtraOptions
 from .flag_steps import ALL_STEPS_ON, FlagSteps
@@ -138,6 +140,15 @@ class GenerationContext:
     hint_text: HintTextResult | None = None
     # Randomize Lost Hills / Dead Woods: each hint shop offer's new text (randomize_mazes)
     maze_offers: dict[int, list[str]] = field(default_factory=dict)
+    # Level 9 Entry (C08; FP-TRIF-01 to FP-TRIF-06): what this attempt's level-9 entrance asks for
+    level_9_gate: Level9Gate = EIGHT_PIECES
+
+    @property
+    def logic_rules(self) -> LogicRules:
+        """The rules this attempt is judged by: the ZORA extras' (ExtraOptions.logic_rules), with
+        this attempt's level-9 gate."""
+        rules = self.settings.extras.logic_rules
+        return rules if self.level_9_gate.is_eight_pieces else replace(rules, level_9_gate=self.level_9_gate)
 
 
 def always(_settings: GenerationSettings) -> bool:

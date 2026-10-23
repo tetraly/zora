@@ -176,12 +176,13 @@ VALUE_KEYS = {
     "pegasus_boots": THREE_STATE,
     "expanded_dungeon_locations": THREE_STATE,
     "highlight_no_drop_rooms": THREE_STATE,
+    "do_not_segment_dungeons": THREE_STATE,
 }
 COLORS = tuple(f"0x{value:02X}" for value in range(0x40) if value != 0x0D)   # every NES palette value but $0D
 # page key -> (YAML key, each listed value's key in the page's order; a color's are COLORS)
 PLAYER_KEYS = {
     "selectButton": ("select_button", ("off", "swap", "toggle")),
-    "lowHealthBeep": ("low_health_beep", ("removed", "kept")),
+    "lowHealthBeep": ("low_health_beep", ("removed", "kept", "half_speed")),
     "deathWarp": ("death_warp", ("p2_up_a", "p1_up_a", "p1_up_select")),
     "reduceFlashing": ("reduce_flashing", ("off", "on")),
     "music": ("music", ("on", "off")),

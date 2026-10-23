@@ -5,8 +5,9 @@ from dataclasses import replace
 
 from tests.test_coop_reserved import BASELINE_FOR_OWNER_FLAGS, FINISHED_CASES, OWNER_FLAGS_ON, z1r_with
 from zora.flags import zora_flags
-from zora.flags.fields import (CaveShuffle, DungeonLayoutSource, HintStyle, HitPointChange, OverworldQuest, PinnedItem,
-                               StartScreen, ThreeState, WoodenSwordState)
+from zora.flags.fields import (CaveShuffle, DungeonLayoutSource, DungeonRoomShuffle, HintStyle, HitPointChange,
+                               Level9Requirement, OverworldQuest, PinnedItem, StartScreen, ThreeState,
+                               WoodenSwordState)
 from zora.flags.zora_flags import OopsAllBosses, OopsAllEnemies
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.support import START_ITEM_TOGGLES
@@ -124,4 +125,14 @@ FLAG_CASES: dict[str, tuple[str, str]] = {
     # Add Bridges to the River and Add Lost Woods Shortcut on, once the logic reached the river's west
     # side by them (6a3c660): passed 2026-10-19, 100 of 100 seeds on and Random each
     "bridges and lost woods shortcut": (z1r_with(toggles={"B87": ThreeState.ON, "B88": ThreeState.ON}), ""),
+    # Beta 8's values, passed 2026-10-22, 100 of 100 seeds at each value, then 400 of 400 together
+    # (archipelago.HELD_BACK's comment): Level 9 Entry (C08 = 1 to 12), the Uphill Battle set off (B18,
+    # B20, B32, B33, B35), Dungeon Room Shuffle Vanilla (C14 = 0), and B07, B39, B21 and B37 on
+    "open level 9": (z1r_with(options={"C08": Level9Requirement.OPEN}), ""),
+    "specific triforces for level 9": (z1r_with(options={"C08": Level9Requirement.SPECIFIC_PIECES}), ""),
+    "uphill battle set off": (z1r_with(toggles=dict.fromkeys(("B18", "B20", "B32", "B33", "B35"), ThreeState.OFF)), ""),
+    "vanilla dungeon rooms": (z1r_with(options={"C14": DungeonRoomShuffle.VANILLA}), ""),
+    "recorder to unbeaten dungeons and important drops": (
+        z1r_with(toggles={"B07": ThreeState.ON, "B39": ThreeState.ON}), ""),
+    "second quest doors and monsters": (z1r_with(toggles={"B21": ThreeState.ON, "B37": ThreeState.ON}), ""),
 }

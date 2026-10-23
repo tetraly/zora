@@ -18,9 +18,11 @@ from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Mapping
 from dataclasses import dataclass, replace
 from functools import partial
+from itertools import combinations
 from typing import TYPE_CHECKING, Any
 
 from ..model.enums import Destination, Item
+from ..model.level_9_gate import GateKind, Level9Gate
 from ..model.levels import LEVEL_9
 from ..model.overworld import ItemCave
 from .acceptance_check import (
@@ -29,6 +31,7 @@ from .acceptance_check import (
     DUNGEONS,
     HELD_FROM_START_SWORDS,
     LEVEL9_ENTRY,
+    LEVEL9_ITEM,
     LINE_SHOP_WARES,
     LONG_ITEMS,
     ONE_ARROW,
@@ -59,6 +62,7 @@ SWORD = "Sword"                   # ASNB: level-9 entry is Sword 4 (docs/design/
 BAIT = "Bait"                     # Shop Items in the Item Pool: every bait held (docs/zora-extras.md 10)
 MAGICAL_SWORD_CAVE_EVENT = "Magical Sword Cave"
 LEVEL9_ENTRY_EVENT = "Level 9 Entry"
+LEVEL9_ITEM_EVENT = "Level 9 Item"           # FP-TRIF-06: the item level 9's entrance asks for
 # Ganon's fixed drop ($0E): never shuffled, never a place, never in the pool. Taking it opens the
 # last-boss shutters (CheckSecretTriggerLastBoss reads LastBossDefeated, which the Triforce of
 # Power's fanfare sets); the places past them require it, and so does Zelda.
@@ -105,6 +109,7 @@ PSEUDO_TERMS: dict[int, Term] = {
     TWO_ARROWS: CountTerm(ARROW, 2),
     ONE_CANDLE: CountTerm(CANDLE, 1),
     LEVEL9_ENTRY: EventTerm(LEVEL9_ENTRY_EVENT),
+    LEVEL9_ITEM: EventTerm(LEVEL9_ITEM_EVENT),
     LOST_HILLS_HINT: EventTerm("Lost Hills Hint"),
     DEAD_WOODS_HINT: EventTerm("Dead Woods Hint"),
     Item.TRIFORCE_OF_POWER: EventTerm(TRIFORCE_OF_POWER_EVENT),
@@ -276,7 +281,8 @@ class Universes:
         screen = frozenset(need for _screens, need in rules.screen_needs)
         # Shop Items in the Item Pool's bait: a hungry Goriya's room opens once every bait is held
         bait = frozenset({Item.BAIT}) if rules.bait_in_pool else frozenset()
-        return cls(screen=screen, entry=screen | LONG_ITEMS | {LEVEL9_ENTRY},
+        gate_item = {LEVEL9_ITEM} if rules.level_9_gate.kind is GateKind.ITEM else set()
+        return cls(screen=screen, entry=screen | LONG_ITEMS | {LEVEL9_ENTRY} | gate_item,
                    inside=family_items(rules.family_lists) | {Item.LADDER} | bait,
                    cave=screen | {Item.LADDER, Item.LETTER})
 
@@ -290,10 +296,10 @@ def logic_model(built: Built) -> LogicModel:
     """Phase 3 spec, Design 3: every rule of a built seed, each derived from the acceptance
     check's own predicate on the built layout (none depends on where ZORA put the items), on
     the logic walk (docs/archipelago.md "The two walks")."""
-    from .pipeline import extra_options
+    from .pipeline import extra_options, shipped_logic_rules
     extras = extra_options(built.plan)
-    rules = logic_walk_rules(extras.logic_rules)
     world = built.world
+    rules = logic_walk_rules(shipped_logic_rules(built.plan, world))
     assert built.result.item_shuffle_result is not None and built.result.overworld is not None
     check = AcceptanceCheck(world.levels, built.result.item_shuffle_result, world.overworld,
                             built.result.overworld, rules)
@@ -352,7 +358,10 @@ def logic_model(built: Built) -> LogicModel:
             lines[SWORD] = replace(lines[SWORD], ware_event=MAGICAL_SWORD_CAVE_EVENT)
         events[LEVEL9_ENTRY_EVENT] = rule_of(CountTerm(SWORD, SWORDS_FOR_LEVEL_9))
     else:
-        events[LEVEL9_ENTRY_EVENT] = rule_of(*(EventTerm(triforce_event(level)) for level in TRIFORCE_LEVELS))
+        events[LEVEL9_ENTRY_EVENT] = level_9_entry_rule(rules.level_9_gate)
+    if rules.level_9_gate.kind is GateKind.ITEM:
+        events[LEVEL9_ITEM_EVENT] = held_derive(check.holds_gate_item, gate_item_universe(rules, universes),
+                                                LEVEL9_ITEM_EVENT, named=named)
     for hint, hint_shop in rules.maze_hints:
         hint_event = PSEUDO_TERMS[hint]
         assert isinstance(hint_event, EventTerm)
@@ -384,6 +393,30 @@ def logic_model(built: Built) -> LogicModel:
                       progression=progression(places, events, lines, major_pool(extras)),
                       starting_hearts=extras.starting_heart_containers, lines=lines,
                       take_any_events=take_any_events)
+
+
+def level_9_entry_rule(gate: Level9Gate) -> Rule:
+    """VA-REJ-07's level-9 entry (FP-TRIF-01 to FP-TRIF-06): any `pieces` of the eight Triforce
+    events, every chosen level's, or nothing (open, or an item, which level 9's entry door needs)."""
+    if gate.kind is GateKind.LEVELS:
+        return rule_of(*(EventTerm(triforce_event(level)) for level in sorted(gate.levels)))
+    if gate.kind is not GateKind.PIECES:
+        return TRUE
+    return disjoin(*(rule_of(*(EventTerm(triforce_event(level)) for level in chosen))
+                     for chosen in combinations(TRIFORCE_LEVELS, gate.pieces)))
+
+
+def gate_item_universe(rules: LogicRules, universes: Universes) -> frozenset[int]:
+    """What AcceptanceCheck.holds_gate_item reads: a sword's line; a candle's or an arrow's line,
+    its count and the screens a shop door needs; any other item itself."""
+    item = rules.level_9_gate.item
+    assert item is not None
+    if item is Item.WOOD_SWORD:
+        return frozenset(SWORD_LINE)
+    for line, ware, at_least in LINE_SHOP_WARES:
+        if item is ware:
+            return frozenset(line) | frozenset(at_least[:1]) | universes.screen
+    return frozenset({item})
 
 
 def progression(places: Mapping[str, Rule], events: Mapping[str, Rule], lines: Mapping[str, Line],

@@ -19,7 +19,7 @@ from tests.archipelago_cases import FLAG_CASES
 from tests.seed_rotation import sweep_seeds
 from tests.shared_builds import prebuild
 from tests.test_assignment import _built, identity
-from zora.generate.acceptance_check import AcceptanceCheck
+from zora.generate.acceptance_check import AcceptanceCheck, logic_walk_rules
 from zora.generate.logic import (
     ARROW,
     CANDLE,
@@ -77,10 +77,13 @@ def without_hearts(logic: LogicModel) -> LogicModel:
 
 
 def closure_of(built: Built) -> tuple[set[int], set[int]]:
+    """The closure on the logic walk, the walk the model's rules come from (docs/archipelago.md "The
+    two walks"); generation's spec walk can miss a room the logic walk enters (Open Level 9, seed 10:
+    level 6's triforce room behind a shutter on its own side, and level 9's item cellar)."""
     state, caves = built.result.item_shuffle_result, built.result.overworld
     assert state is not None and caves is not None
     return AcceptanceCheck(built.world.levels, state, built.world.overworld, caves,
-                           extra_options(built.plan).logic_rules).closure()
+                           logic_walk_rules(extra_options(built.plan).logic_rules)).closure()
 
 
 def terms(rule: Rule) -> set[Term]:

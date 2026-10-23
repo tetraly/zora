@@ -73,6 +73,7 @@ from ..layout import (
     TILE_MAPPING_DATA_ADDRESS,
     TILE_MAPPING_POINTERS_ADDRESS,
 )
+from ..level_9_entrance import level_9_entrance_writes
 from ..start_items import start_table
 from .caves import _serialize_bomb_upgrade, _serialize_cave_data, _serialize_mmg_prizes
 from .enemies import _serialize_enemy_hp, _serialize_enemy_tile_data
@@ -258,16 +259,18 @@ def _serialize_sprites_and_enemies(game_world: GameWorld, patch: Patch) -> None:
 def _serialize_person_code(game_world: GameWorld, cfg: GameConfig, hint_mode: HintMode, patch: Patch) -> None:
     """The life-or-money toll and bomb-upgrade person code (PS-MERCH-04,
     PS-BOMB-03; the text pointer lies inside the quotes block, so this goes
-    after the quotes), the level-9 refusal text, the person inits and the
-    group passes' operand bytes (PS-EGRP-05/-06)."""
+    after the quotes), the level-9 refusal text and entrance check (FP-TRIF-01 to FP-TRIF-06),
+    the person inits and the group passes' operand bytes (PS-EGRP-05/-06)."""
     for address, data in person_code.encode(game_world.life_or_money_toll,
                                             game_world.bomb_upgrade_levels,
                                             game_world.new_file_heart_containers):
         patch.add(address, data)
     for address, data in person_code.text_pointer_write(game_world.life_or_money_toll):
         patch.add(address, data)
-    if cfg.features_b10 and hint_mode == HintMode.CONSTERNATION:
-        _serialize_refusal_text(game_world, patch)
+    if cfg.features_b10 and hint_mode in (HintMode.CONSTERNATION, HintMode.NORMAL):
+        _serialize_refusal_text(game_world, patch, normal_hints=hint_mode == HintMode.NORMAL)
+    for address, data in level_9_entrance_writes(game_world.level_9_gate):
+        patch.add(address, data)
     for address, data in person_code.person_init_writes(game_world.person_inits):
         patch.add(address, data)
     for address, value in zip(ITEM_CARRIER_OPERAND_ADDRESSES, game_world.item_carrier_operands, strict=True):

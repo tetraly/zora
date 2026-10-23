@@ -29,7 +29,7 @@
  },
  "C08": {
   "tab": "Dungeons",
-  "help": "Chooses what opens level 9: 1 to 8 Triforce pieces, nothing (it is open), a random count in a range, specific pieces, an item instead of pieces, or one picked for each seed."
+  "help": "Chooses what opens level 9: 1 to 8 Triforce pieces from any levels, nothing (Open Level 9), a number of pieces drawn from Triforce Range, the pieces of that many drawn levels (Specific Triforces), a drawn item instead of pieces (Other Item; never the Letter), or one of these picked for each seed (Random). The person at level 9's entrance says what it asks for; hints never do."
  },
  "C09": {
   "tab": "Monsters",
@@ -70,7 +70,7 @@
  },
  "C18": {
   "tab": "Starting Items",
-  "help": "Chooses how many Triforce pieces the player starts with: 0 to 8, or a random number."
+  "help": "Chooses how many Triforce pieces a new file starts with: 0 to 8, or a random number. It does not change what level 9 asks for, which Level 9 Entry sets: starting pieces count toward a number of pieces, toward Specific Triforces only when they are chosen levels' pieces, and not at all toward Open Level 9 or Other Item."
  },
  "C19": {
   "tab": "Monsters",
@@ -94,11 +94,11 @@
  },
  "C24": {
   "tab": "Dungeons",
-  "help": "Sets the fewest Triforce pieces level 9 can ask for when it asks for a random count or for specific pieces."
+  "help": "Sets the fewest Triforce pieces level 9 can ask for when Level 9 Entry is Triforce Range or Specific Triforces (or Random, when it picks one of them). Under any other Level 9 Entry it has no effect."
  },
  "C25": {
   "tab": "Dungeons",
-  "help": "Sets the most Triforce pieces level 9 can ask for when it asks for a random count or for specific pieces."
+  "help": "Sets the most Triforce pieces level 9 can ask for when Level 9 Entry is Triforce Range or Specific Triforces (or Random, when it picks one of them). Under any other Level 9 Entry it has no effect."
  },
  "C26": {
   "tab": "Dungeons",

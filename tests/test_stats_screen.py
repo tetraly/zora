@@ -41,7 +41,7 @@ from tests.emulator import (
 from tests.revision_layout import written_in_prg0_layout
 from tests.test_feature_patches import vanilla
 from zora import archipelago
-from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
+from zora.flags.presets import ASNB_FLAGS, ASNB_ZORA_FLAGS, MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom, generate_world, plan
 from zora.generate.steps.hint_text import UPGRADE_LINES, item_name
 from zora.model.enums import Item
@@ -490,7 +490,8 @@ def test_the_music_setting_decides_the_screens_song(name: str, choice: Music) ->
     before beta 6); with music off ("Turn music off") the screen stops it for as long as it is
     shown (owner decision, 2026-10-19). Effects still play either way. After Start, the save mode
     and the file-select screen, the file starts with the overworld song (none with music off)
-    and effects play."""
+    and effects play. A random music value is on to the ROM's music patch (player_settings.music;
+    lozft's songs come after the player settings)."""
     emu = Emulator(music_rom(name, choice))
     emu.load(music_ending_state(name, choice))
     assert emu[SONG] == ENDING_SONG
@@ -498,7 +499,7 @@ def test_the_music_setting_decides_the_screens_song(name: str, choice: Music) ->
     assert emu[STATS_BLOCK + SCREEN_STATE] == 1
     for _ in range(QUIET_FRAMES):
         emu.run(1)
-        assert emu[SONG] == (ENDING_SONG if choice is Music.ON else 0)
+        assert emu[SONG] == (0 if choice is Music.OFF else ENDING_SONG)
     assert_an_effect_plays(emu)
     emu.press(Button.START, after=1)
     assert emu.mode == SAVE_MODE
@@ -506,7 +507,7 @@ def test_the_music_setting_decides_the_screens_song(name: str, choice: Music) ->
     emu.run(20)
     emu.start_game()
     emu.run(QUIET_FRAMES)
-    assert emu[SONG] == (OVERWORLD_SONG if choice is Music.ON else 0)
+    assert emu[SONG] == (0 if choice is Music.OFF else OVERWORLD_SONG)
     assert_an_effect_plays(emu)
 
 
@@ -700,7 +701,7 @@ FIXED_COUNTER_ICONS = [(UPPER_ROW_Y, 0x5A, 0x00, COUNTER_LEFT_X), (UPPER_ROW_Y, 
                        (LOWER_ROW_Y, BOMB_TILE, 0x01, COUNTER_RIGHT_X + 4)]
 SWORD_X = COUNTER_RIGHT_X + 4
 INVENTORY_BOMB = (UPPER_ROW_Y, 0x98 + 0x10 + 4)    # the item screen's place, one tile right
-SWORD_PALETTES = {0: 0, 1: 0, 2: 1, 3: 2, 4: 2}  # none: the wooden sword's; level 4: the magical sword's
+SWORD_PALETTES = {0: 0, 1: 0, 2: 1, 3: 2}     # none: the wooden sword's (level 4: test_the_level_4_sword_...)
 SMALL_X_PATTERN = bytes([0x00, 0x00, 0x44, 0x28, 0x10, 0x28, 0x44, 0x00]) + bytes(8)
 BACKGROUND_PATTERNS, TILE_BYTES = 0x1000, 16      # CHR RAM: the background's pattern table, a tile's size
 
@@ -721,6 +722,50 @@ def test_the_counters_icons(sword: int, bombs: int) -> None:
     assert inventory_bombs == ([INVENTORY_BOMB] if bombs else [])
     start = BACKGROUND_PATTERNS + SMALL_X_TILE * TILE_BYTES
     assert emu.pattern_tables()[start:start + TILE_BYTES] == SMALL_X_PATTERN
+
+
+@cache
+def l4_sword_ending_state() -> bytes:
+    """The win mode's last submode, its wait over, on an All Swords No Boards seed (Add L4 Sword,
+    so l4-sword-look is written), as code_ending_state."""
+    emu = Emulator(l4_sword_rom())
+    emu.new_game()
+    emu.run(10)
+    emu[GAME_MODE] = WIN_MODE
+    emu[IS_UPDATING_MODE] = 1
+    emu[GAME_SUBMODE] = LAST_WIN_SUBMODE
+    emu.run_until(lambda: emu[OBJ_TIMER] == 0, limit=2000)
+    emu.run(5)
+    return emu.save()
+
+
+@cache
+def l4_sword_rom() -> bytes:
+    return generate_rom(ASNB_FLAGS, 1, verify_base_rom().read_bytes(), zora_flag_string=ASNB_ZORA_FLAGS).rom
+
+
+def l4_sword_counter_icon(sword: int) -> list[tuple[int, int]]:
+    """The stabs counter's sword sprites (tile, attributes) at sword level `sword`."""
+    emu = Emulator(l4_sword_rom())
+    emu.load(l4_sword_ending_state())
+    emu[ITEMS] = sword
+    emu.press(Button.START, after=6)
+    return [(tile, attributes) for y, tile, attributes, x in shown_sprites(emu)
+            if y == UPPER_ROW_Y and x in (SWORD_X - 4, SWORD_X, SWORD_X + 4)]
+
+
+WHITE_SWORD_ROW, MAGICAL_SWORD_ROW = 1, 2
+
+
+def test_the_level_4_sword_counter_icon_is_the_magical_sword_in_white_sword_colors() -> None:
+    """Bug (beta 8): with Add L4 Sword, the stabs counter drew a level 4 sword as the magical sword,
+    red. It now has Add L4 Sword's look everywhere else: the magical sword's icon in the white
+    sword's colors (row 1, the blue of the white sword), as l4-sword-look draws it in the A box."""
+    magical, l4 = l4_sword_counter_icon(3), l4_sword_counter_icon(4)
+    assert magical and {attributes & 0x03 for _, attributes in magical} == {MAGICAL_SWORD_ROW}
+    assert [tile for tile, _ in l4] == [tile for tile, _ in magical]
+    assert {attributes & 0x03 for _, attributes in l4} == {WHITE_SWORD_ROW}
+    assert {attributes & 0x03 for _, attributes in l4_sword_counter_icon(2)} == {WHITE_SWORD_ROW}
 
 
 @pytest.mark.parametrize(("stabs", "bombs"), [(0, 0), (7, 65), (1080, 9999), (12345, 65535)])

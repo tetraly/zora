@@ -172,6 +172,11 @@ def test_no_series_patch_writes_a_reserved_byte(name: str) -> None:
 # instructions, z1rr-coop's in-place hook. Revisit when co-op ships (the boots could move to
 # InitLinkSpeed's @SetSpeed, $B387). Only these bytes are allowed; any other reserved byte fails.
 COOP_HOOK_SHARED_BY = {"pegasus-boots": Reserved(5, 0xB366, 0xB369, "in-place hook in InitLinkSpeed")}
+# Flag values allowed on the same hook (owner ruling, 2026-10-22): Red Bubble Curse's Slow Speed (C19 =
+# 2, FP-BUBL-01) hooks InitLinkSpeed's first two instructions too, and is incompatible with a future
+# co-op mode rather than moved (docs/rom-map.md "Reserved for z1rr-coop"). Only these bytes are
+# allowed, and they must be written (a stale exception fails); any other reserved byte fails.
+COOP_HOOK_SHARED_BY_VALUE = {"C19=2": COOP_HOOK_SHARED_BY["pegasus-boots"]}
 
 
 @pytest.mark.parametrize("name", list(FLAG_PATCHES))
@@ -226,7 +231,8 @@ BASELINE_FOR_OWNER_FLAGS = {"B09": ThreeState.OFF, "B04": ThreeState.OFF}
 OTHER_PLAYER_SETTINGS = (
     PlayerSettings(SelectSwap.OFF, LowHealthBeep.KEPT, DeathWarp.CONTROLLER2_UP_A, True,
                    (0x01, 0x02, 0x03), 0x30, Music.OFF, "PALACE", "RANDOM"),
-    PlayerSettings(SelectSwap.SWAP_ONLY, death_warp=DeathWarp.CONTROLLER1_UP_SELECT, level_word="DEN"),
+    PlayerSettings(SelectSwap.SWAP_ONLY, LowHealthBeep.HALF_SPEED, death_warp=DeathWarp.CONTROLLER1_UP_SELECT,
+                   level_word="DEN"),
 )
 SEEDS = (1, 2)
 
@@ -241,10 +247,10 @@ def finished(flag_string: str, seed: int, zora_flag_string: str = "") -> bytes:
     return generate_rom(flag_string, seed, vanilla(), zora_flag_string=zora_flag_string).rom
 
 
-def assert_reserved_bytes_are_prg0(rom: bytes, label: str) -> None:
+def assert_reserved_bytes_are_prg0(rom: bytes, label: str, allowed: frozenset[int] = frozenset()) -> None:
     original = vanilla()
     changed = {offset for offset in RESERVED_BYTES if rom[offset] != original[offset]}
-    assert not changed, (label, hits(changed))
+    assert not changed - allowed, (label, hits(changed - allowed))
 
 
 def every_turn_off_string() -> str:
@@ -281,6 +287,11 @@ def test_player_settings_leave_the_reserved_ranges(settings: PlayerSettings) -> 
     assert_reserved_bytes_are_prg0(apply_player_settings(rom, settings), str(settings))
 
 
+LEVEL_9_ITEM_FIELDS = ("C26", "C27")
+LONG_ITEMS_AND_WAND = {3, 5, 8, 9, 10, 14}         # the Bow, Ladder, Power Bracelet, Raft, Recorder, Wand
+ALLOW_IMPORTANT_ITEMS_IN_9 = "B25"
+
+
 def produced_values() -> dict[str, tuple[str, str]]:
     """One case per produced flag value away from the baseline: each turn-off and alternative
     value (FL-OFF-07, FL-ALT-02 to 04; C17's every limit) and each ZORA flag on (the version-1
@@ -293,7 +304,11 @@ def produced_values() -> dict[str, tuple[str, str]]:
     for table in (TURN_OFF_OPTIONS, ALTERNATIVE_OPTIONS):
         for field_id, values in table.items():
             for value in sorted(values):
-                cases[f"{field_id}={value}"] = (z1r_with(options={field_id: value}), "")
+                # level 9's places at the long items or the Wand need Allow Important Items in 9
+                # (FL-DEP-01 rule 5; the beta 9 export, faabdd4)
+                toggles = ({ALLOW_IMPORTANT_ITEMS_IN_9: ThreeState.ON}
+                           if field_id in LEVEL_9_ITEM_FIELDS and value in LONG_ITEMS_AND_WAND else {})
+                cases[f"{field_id}={value}"] = (z1r_with(options={field_id: value}, toggles=toggles), "")
     owner_baseline = z1r_with(toggles=BASELINE_FOR_OWNER_FLAGS)
     zora_values: list[tuple[str, dict[str, Any]]] = [
         # Randomize Magical Sword refuses a cap above 12 hearts.
@@ -317,7 +332,12 @@ PRODUCED_VALUES = produced_values()
 @pytest.mark.parametrize("case", list(PRODUCED_VALUES))
 def test_each_produced_value_leaves_the_reserved_ranges(case: str) -> None:
     flag_string, zora_flag_string = PRODUCED_VALUES[case]
-    assert_reserved_bytes_are_prg0(finished(flag_string, 1, zora_flag_string), case)
+    rom = finished(flag_string, 1, zora_flag_string)
+    shared = COOP_HOOK_SHARED_BY_VALUE.get(case)
+    allowed = frozenset(shared.file_range()) if shared else frozenset()
+    if shared:
+        assert shared in RESERVED and any(rom[offset] != vanilla()[offset] for offset in allowed), case
+    assert_reserved_bytes_are_prg0(rom, case, allowed)
 
 
 # --- Archipelago's slot identity (Phase 4c) ----------------------------------------------------

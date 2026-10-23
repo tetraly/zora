@@ -31,6 +31,7 @@ from dataclasses import dataclass, field, replace
 
 from ..flags.fields import WoodenSwordState
 from ..model.enums import Destination, Item, RoomType
+from ..model.level_9_gate import EIGHT_PIECES, TRIFORCE_LEVELS, GateKind, Level9Gate
 from ..model.levels import GANON_LIST, LEVEL_9, ZELDA_LIST, Level
 from ..model.overworld import Overworld, Shop
 from .dungeon_walk import (
@@ -62,7 +63,11 @@ from .steps.shuffle_shop_items import bomb_shop_door_failure, front_door_failure
 
 LONG_ITEMS = frozenset({Item.RECORDER, Item.BOW, Item.RAFT, Item.LADDER, Item.POWER_BRACELET})     # VA-REJ-08
 LEVEL9_ENTRY = -1                  # the held set's pseudo-item for level-9 entry
+# FP-TRIF-06 (C08 = 11): the item level 9's entrance asks for is held (any sword, either candle,
+# either arrow: the gate tests one inventory byte)
+LEVEL9_ITEM = -5
 TRIFORCES_NEEDED = 8
+TRIFORCE_LEVEL_SET = frozenset(TRIFORCE_LEVELS)
 DUNGEONS = range(1, 10)
 SCREEN_NEEDS = ((RAFT_SCREENS, Item.RAFT), (RECORDER_SCREENS, Item.RECORDER), (LADDER_SCREENS, Item.LADDER),
                 (BRACELET_SCREENS, Item.POWER_BRACELET))
@@ -120,6 +125,12 @@ class LogicRules:
     # VA-REJ-08: entering level 9 (its items) needs the five long items, but with Allow Important
     # Items in 9 (B25)
     level_9_needs_long_items: bool = True
+    # Level 9 Entry (C08; VA-REJ-07, FP-TRIF-01 to FP-TRIF-06): the pass's gate. Level-9 entry is
+    # held once that many of levels 1 to 8 have completed (any of them), once the chosen levels
+    # have, or from the start; level 9's own completion never counts (owner ruling 2026-10-21: it
+    # never completes, VA-REJ-07). Under an item, level 9's items and completion need the item,
+    # and so does E1's target, whatever the item (owner ruling 2026-10-22; docs/deviations.md).
+    level_9_gate: Level9Gate = EIGHT_PIECES
     # Shop Items in the Item Pool's baits (docs/zora-extras.md section 10): tracked items, and
     # no bait is usable until every bait record is collected (owner rule, 2026-10-17: the player
     # can never feed one Goriya the bait another needs); until then a hungry Goriya blocks its
@@ -142,10 +153,18 @@ class LogicRules:
         """VA-REJ-08: what level 9's items and completion need besides its entrance screen: level-9
         entry, and the five long items unless B25 is on; VA-REJ-22: with them, under Swordless, the
         wand."""
+        gate_item = {LEVEL9_ITEM} if self.level_9_gate.kind is GateKind.ITEM else set()
         if not self.level_9_needs_long_items:
-            return frozenset({LEVEL9_ENTRY})
+            return frozenset({LEVEL9_ENTRY} | gate_item)
         wand = {Item.WAND} if self.wooden_sword_state is WoodenSwordState.SWORDLESS else set()
-        return frozenset(LONG_ITEMS | {LEVEL9_ENTRY} | wand)
+        return frozenset(LONG_ITEMS | {LEVEL9_ENTRY} | wand | gate_item)
+
+    def opens_level_9(self, completed: set[int]) -> bool:
+        """VA-REJ-07: the gate's pieces are won (the closure's completed levels, 1 to 8 only)."""
+        gate = self.level_9_gate
+        if gate.kind is GateKind.LEVELS:
+            return gate.levels <= completed
+        return len(completed & TRIFORCE_LEVEL_SET) >= gate.pieces
 
     @property
     def wood_sword_from_start(self) -> bool:
@@ -383,6 +402,8 @@ class AcceptanceCheck:
         """E1's target: level-9 entry, every tracked item type (the wooden sword too where it is
         part of the target, VA-REJ-22) and every randomized maze's hint."""
         target = {LEVEL9_ENTRY} | {place.item for place in self.item_shuffle_result.tracked}
+        if self.rules.level_9_gate.kind is GateKind.ITEM:
+            target.add(LEVEL9_ITEM)
         if self.rules.wood_sword_in_target:
             target.add(Item.WOOD_SWORD)
         return target | {hint for hint, _shop in self.rules.maze_hints}
@@ -428,8 +449,12 @@ class AcceptanceCheck:
                     changed = True
             if LEVEL9_ENTRY not in held and (self.sword_count(swords, frozen) >= SWORDS_FOR_LEVEL_9
                                              if self.rules.level_9_by_swords
-                                             else len(completed) >= TRIFORCES_NEEDED):
+                                             else self.rules.opens_level_9(completed)):
                 held.add(LEVEL9_ENTRY)
+                changed = True
+            if (self.rules.level_9_gate.kind is GateKind.ITEM and LEVEL9_ITEM not in held
+                    and self.holds_gate_item(frozenset(held))):
+                held.add(LEVEL9_ITEM)
                 changed = True
             for hint, hint_shop in self.rules.maze_hints:
                 if hint not in held and self.knows_maze_path(hint_shop, frozenset(held)):
@@ -444,6 +469,19 @@ class AcceptanceCheck:
                 changed |= not counts <= held
                 held |= counts
         return held, completed
+
+    def holds_gate_item(self, held: frozenset[int]) -> bool:
+        """FP-TRIF-06: the item level 9's entrance asks for is held. A sword, a candle or an arrow is
+        any of its line, or (Shop Items in the Item Pool off) a door reached of a shop selling its
+        vanilla ware, as PI-LOGIC-01 counts a line; every other item is a tracked item."""
+        item = self.rules.level_9_gate.item
+        if item is Item.WOOD_SWORD:
+            return bool(held & SWORD_LINE)
+        for line, ware, at_least in LINE_SHOP_WARES:
+            if item is ware:
+                return (bool(held & line) or at_least[0] in held
+                        or (self.rules.counts_shop_wares and self.ware_door_reached(ware, held)))
+        return item in held
 
     def sword_count(self, swords: set[int], held: frozenset[int]) -> int:
         """ASNB: the swords held, counted as PI-LOGIC-01 counts a line: the wooden-sword cave's,

@@ -79,7 +79,7 @@ REPAIR_ENABLED = True
 
 
 def _connectivity_repair(level: Level, recorded: list[DoorPair], rng: Rng,
-                         walk: "WalkResult") -> "tuple[int, WalkResult]":
+                         walk: "WalkResult", transports: bool = True) -> "tuple[int, WalkResult]":
     """VA-REJ-01.2 repair: take the recorded pairs in recording order and
     open the first one with exactly one of its two rooms reached that does
     not touch Zelda's room ("reached" = the forward walk's rooms, or the
@@ -113,7 +113,7 @@ def _connectivity_repair(level: Level, recorded: list[DoorPair], rng: Rng,
             if room.room_action in (RoomAction.NONE, RoomAction.RINGLEADER):
                 _set_trigger(room, RoomAction.ALL_DEAD)
         opened += 1
-        walk = connectivity_walk(level)
+        walk = connectivity_walk(level, transports)
     return opened, walk
 
 
@@ -142,15 +142,17 @@ def _restore(gate_block: GateBlock, snapshot: _Snap) -> None:
         stair.__dict__.update(fields)
 
 
-def _connectivity_verdict(level: Level) -> str | None:
+def _connectivity_verdict(level: Level, transports: bool = True) -> str | None:
     """None when the level walks through; else a kind label."""
     from .walk import gate_walk
-    return gate_walk(level)
+    return gate_walk(level, transports)
 
 
-def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None) -> GateStats:
+def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None,
+              force_ganon_fight: bool = True, doors_only_levels: frozenset[int] = frozenset()) -> GateStats:
     """Attempt loop over levels 1..9 sharing one 1,000-attempt budget, on
-    the pass's staged levels.
+    the pass's staged levels. The levels in doors_only_levels (Do Not Segment Dungeons' shapes levels)
+    are walked without their transport staircases.
 
     EVERY attempt counts against the budget, accepted ones included
     (VA-REJ-04). Accepted levels persist; a rejected attempt is rolled
@@ -172,7 +174,8 @@ def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None) -> 
                     raise GenerationFailure("late gate budget exhausted")
                 used += 1
                 snapshot = _snapshot(gate_block)
-                kind, plain_walk_passed, repair_ran, pairs_opened = _attempt(gate_block, level, rng)
+                kind, plain_walk_passed, repair_ran, pairs_opened = _attempt(
+                    gate_block, level, rng, force_ganon_fight, level.level_num not in doors_only_levels)
                 if SURVEY:
                     stats.survey.append(
                         (level.level_num, kind, plain_walk_passed, repair_ran, pairs_opened,
@@ -204,34 +207,36 @@ def _guard_level_3_cellar_list(level: Level) -> None:
         level.stairway_data_raw = bytes([GUARDED_CELLAR]) + level.stairway_data_raw[1:]
 
 
-def _attempt(gate_block: GateBlock, level: Level,
-             rng: Rng) -> tuple[str, bool | None, bool, int]:
+def _attempt(gate_block: GateBlock, level: Level, rng: Rng, force_ganon_fight: bool = True,
+             transports: bool = True) -> tuple[str, bool | None, bool, int]:
     """One attempt (VA-REJ-03 steps 1-9). Returns (kind, plain_walk_ok,
     repair_invoked, pairs_opened); kind is "accept" or the rejection
-    kind."""
-    recorded = _deal_level(level, rng)
+    kind. Force Ganon Fight (B18) off: step 8 runs only its cleanup, and
+    Zelda is not pinned to the life-or-money room (A64). transports=False
+    (Do Not Segment Dungeons): step 9's walks and the Ganon test leave transport staircases out."""
+    recorded = _deal_level(level, rng, force_ganon_fight)
     if recorded is None:
         return "swap", None, False, 0
     _wipe_boss_sound(level)
     _first_special_room_fix(gate_block, level)
     _second_special_room_fix(gate_block, level, recorded)
     if not _placement_check(level, recorded):
-        plain_walk_passed = (_connectivity_verdict(level) is None) if SURVEY else None
+        plain_walk_passed = (_connectivity_verdict(level, transports) is None) if SURVEY else None
         return "placement", plain_walk_passed, False, 0
-    if level.level_num == LEVEL_9 and not _zelda_rewrite(gate_block, level):
+    if level.level_num == LEVEL_9 and not _zelda_rewrite(gate_block, level, force_ganon_fight):
         return "l9door", None, False, 0
     # step 9: connectivity (walk, then repair), then level 9's extras
     from .walk import connectivity_walk
-    walk = connectivity_walk(level)
+    walk = connectivity_walk(level, transports)
     plain_walk_passed = walk.passed
     repair_ran, pairs_opened = False, 0
     if not walk.passed and recorded and REPAIR_ENABLED:
         repair_ran = True
-        pairs_opened, walk = _connectivity_repair(level, recorded, rng, walk)
+        pairs_opened, walk = _connectivity_repair(level, recorded, rng, walk, transports)
     if not walk.passed:
         return "connectivity", plain_walk_passed, repair_ran, pairs_opened
     if level.level_num == LEVEL_9:
         _reforce_level9_person_sides(level)
-    if level.level_num == LEVEL_9 and not _level9_extras(gate_block, level):
+    if level.level_num == LEVEL_9 and not _level9_extras(gate_block, level, transports):
         return "l9extra", plain_walk_passed, repair_ran, pairs_opened
     return "accept", plain_walk_passed, repair_ran, pairs_opened

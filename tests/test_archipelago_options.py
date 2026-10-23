@@ -24,7 +24,6 @@ SPECS = option_fields()
 SINGLE_VALUES = [(spec.id, value) for spec in SPECS for value in spec.values if value != spec.default]
 # The single changes from the page's preset that a dependency rule refuses, and the rule's words.
 EXPECTED_CONFLICTS = {
-    ("progressive_items", 1): "Extra Candles",                      # PI-FLAG-03, B09 on in the preset
     ("randomize_magical_sword", 1): "Randomize Magical Sword",     # the heart cap, B10 on in the preset
     # Add L4 Sword's three-way control (Off 0, Level 2 1, Level 9 2) needs Progressive Items; Level 9
     # Entrance = Level 4 sword needs Add L4 Sword = Level 2 (docs/design/asnb.md section 2)
@@ -76,7 +75,7 @@ def test_only_supported_values_are_offered() -> None:
                                         if v not in held)
     assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} | set(zora_form.FIELD_NAMES)
                                            ) - archipelago.NOT_OFFERED
-    assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword"}
+    assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword", "disable_custom_music"}
 
 
 def test_shuffle_wood_sword_is_never_offered_and_always_off() -> None:
@@ -94,7 +93,7 @@ def test_a_yaml_naming_shuffle_wood_sword_gets_zoras_reason() -> None:
     """The world keeps Shuffle Wood Sword as a hidden option (archipelago/options.py), so a YAML that
     names it is not met with Archipelago's "not a valid option name" warning and a silent Off: off
     passes, any other value is refused with the reason."""
-    [spec] = archipelago.never_offered_fields()
+    [spec] = [spec for spec in archipelago.never_offered_fields() if spec.key == "shuffle_wood_sword"]
     assert (spec.key, spec.kind, spec.default) == ("shuffle_wood_sword", "three_state", ThreeState.OFF)
     assert spec.description == archipelago.ZORA_FORCED_OFF["shuffle_wood_sword"]
     assert [key for _value, key in spec.value_keys] == ["off", "on", "random_per_seed"]
@@ -112,6 +111,19 @@ def test_item_shuffle_is_never_offered_and_always_full() -> None:
     assert decode(flag_strings({})[0]).option("C06") == 3
     with pytest.raises(OptionsConflict, match="C06"):
         flag_strings({"C06": 2})
+
+
+# Beta 8's value still held (archipelago.HELD_BACK's comment): Replace Book Fire with Explosion, not
+# compatible with Archipelago (owner ruling, 2026-10-22)
+BETA_8_HELD_BACK = {"B47": {ThreeState.ON, ThreeState.POSSIBLE}}
+# The beta 9 export's pins, held for their scan (archipelago.HELD_BACK's comment): the coast's Non-Heart
+# and level 9's places at the five-item rule's items and the Wand
+BETA_9_HELD_LEVEL_9_PINS = {PinnedItem.BOW, PinnedItem.LADDER, PinnedItem.POWER_BRACELET, PinnedItem.RAFT,
+                            PinnedItem.RECORDER, PinnedItem.WAND}
+BETA_9_HELD_BACK = {"C12": {PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER},
+                    **dict.fromkeys(("C26", "C27"), BETA_9_HELD_LEVEL_9_PINS)}
+# Released on 2026-10-22 once their scan passed (archipelago.HELD_BACK's comment)
+BETA_8_RELEASED_TOGGLES = ("B18", "B20", "B32", "B33", "B35", "B07", "B39", "B21", "B37")
 
 
 def test_values_wait_for_the_logic_scan() -> None:
@@ -137,15 +149,27 @@ def test_values_wait_for_the_logic_scan() -> None:
     Book and White Sword, once redesigned Allow Triforces in Stairways on and Random, and once
     acceptance E11 landed Expanded Dungeon Locations on and Random, and on 2026-10-19 once the logic
     reached the river's west side by them Add Bridges to the River and Add Lost Woods Shortcut (B87,
-    B88), on and Random. Still held (archipelago.HELD_BACK's comment): Swords' No Wood Sword, Swordless
-    and Random, which take away the sword Archipelago's player starts with. A held value is refused by name. Item Shuffle's values and Shuffle Wood Sword
-    are never held: neither is offered at all (NOT_OFFERED)."""
+    B88), on and Random, and on 2026-10-22 beta 8's Level 9 Entry values (C08 = 1 to 12), the Uphill
+    Battle set's off values and "?" (B18, B20, B32, B33, B35), Dungeon Room Shuffle Vanilla and Random
+    (C14 = 0, 3) and B07, B39, B21 and B37 on and Random, and on 2026-10-23 Do Not Segment Dungeons on
+    and Random (100 of 100 seeds each way at e8e5c66). Still held (archipelago.HELD_BACK's comment):
+    Swords' No Wood Sword, Swordless and Random, which take away the sword Archipelago's player starts
+    with; Replace Book Fire with Explosion on and Random (B47), not compatible. Shuffle Overworld Group (B43) off and "?" are offered. A held value is refused by
+    name. Item Shuffle's values and Shuffle Wood Sword are never held: neither is offered at all
+    (NOT_OFFERED)."""
     start_items = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78", "B58", "B62", "B65", "B66",
                    "B67", "B69", "B70", "B71", "B72", "B74", "B75", "B76", "B85")
     released_toggles = ("B41", "B53", "B86", "pegasus_boots", "highlight_no_drop_rooms", "B52", "B68",
-                        "allow_triforces_in_stairways", "expanded_dungeon_locations", "B87", "B88")
+                        "allow_triforces_in_stairways", "expanded_dungeon_locations", "B87", "B88",
+                        "do_not_segment_dungeons")
     assert archipelago.HELD_BACK == {"C07": {WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS,
-                                             WoodenSwordState.RANDOM}}
+                                             WoodenSwordState.RANDOM}, **BETA_8_HELD_BACK, **BETA_9_HELD_BACK}
+    assert offered_values("C08") == tuple(range(13))
+    assert offered_values("C14") == (0, 1, 2, 3)
+    assert all(offered_values(field_id) == tuple(int(state) for state in ThreeState)
+               for field_id in BETA_8_RELEASED_TOGGLES)
+    assert offered_values("B47") == (ThreeState.OFF,)
+    assert offered_values("B43") == tuple(int(state) for state in ThreeState)      # no rule reads it
     assert all(offered_values(field_id) == tuple(int(state) for state in ThreeState) for field_id in released_toggles)
     assert offered_values("C09") == offered_values("C10") == tuple(int(change) for change in HitPointChange)
     assert (offered_values("C20"), offered_values("C21"), offered_values("C22"), offered_values("C23")) == (
@@ -155,14 +179,17 @@ def test_values_wait_for_the_logic_scan() -> None:
     assert offered_values("C16") == tuple(range(17))
     assert offered_values("C11") == tuple(PinnedItem)
     assert offered_values("C13") == tuple(PinnedItem)
-    assert offered_values("C26") == offered_values("C27") == tuple(sorted({0, *LEVEL_9_PINS}))
+    assert offered_values("C12") == tuple(item for item in PinnedItem
+                                          if item not in (PinnedItem.LADDER, PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER))
+    assert offered_values("C26") == offered_values("C27") == tuple(sorted({0, *LEVEL_9_PINS} - BETA_9_HELD_LEVEL_9_PINS))
     assert offered_values("C07") == (WoodenSwordState.NORMAL, WoodenSwordState.WOODEN_SWORD_ONLY)
     assert offered_values("B91") == tuple(int(state) for state in ThreeState)
-    assert offered_values("B02") == (ThreeState.OFF, ThreeState.ON)
+    assert offered_values("B02") == tuple(int(state) for state in ThreeState)     # "?": beta 8, OW-CAVE-12
     assert offered_values("C05") == (0, 1, 2, 3, 4)
     offered = {spec.id: spec.values for spec in SPECS}
     assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0, 1, 2, 3), (0, 1))
-    assert offered["B29"] == (ThreeState.OFF, ThreeState.ON)
+    assert offered["B29"] == tuple(ThreeState)                 # "?" since beta 9 (FL-DEP-02 rule 4 after its coin)
+    assert offered["B23"] == (ThreeState.ON, ThreeState.POSSIBLE)   # "?" beside merchants resolves on (FL-DEP-04)
     # Shop Items in the Item Pool's on, with the bait, passed its scan (2026-10-17)
     assert offered["shop_items_in_pool"] == (ThreeState.OFF, ThreeState.ON)
     assert offered["C01"] == (0, 1, 2, 3, 4)
@@ -218,8 +245,8 @@ def test_merchant_toll_is_kept_as_given() -> None:
 
 
 def test_values_must_be_offered() -> None:
-    with pytest.raises(OptionsConflict, match="Hint"):
-        flag_strings({"C03": 0})                 # Normal hints: not produced
+    with pytest.raises(OptionsConflict, match="Enemy Drop Groups"):
+        flag_strings({"B38": 1})                 # Shuffle Enemy Drop Groups: not produced
     with pytest.raises(OptionsConflict, match="unknown options"):
         flag_strings({"B82": 1})
 
@@ -238,3 +265,13 @@ def test_a_new_flag_field_appears(monkeypatch: pytest.MonkeyPatch) -> None:
     specs = {spec.id: spec for spec in option_fields()}
     assert specs["B99"].values == (0, 1) and specs["B99"].default == 0
     assert specs["a_new_extra"].kind == "switch" and specs["a_new_extra"].default == 0
+
+
+def test_disable_custom_music_is_never_offered() -> None:
+    """Disable Custom Music (a race setting for randomized music, which Archipelago's games do not have)
+    is a hidden option: off passes, on is refused with the reason."""
+    [spec] = [spec for spec in archipelago.never_offered_fields() if spec.key == "disable_custom_music"]
+    assert spec.description == archipelago.ZORA_FORCED_OFF["disable_custom_music"]
+    assert archipelago.never_offered_refusal("disable_custom_music", "off") is None
+    refusal = archipelago.never_offered_refusal("disable_custom_music", "on")
+    assert refusal is not None and "randomized music" in refusal

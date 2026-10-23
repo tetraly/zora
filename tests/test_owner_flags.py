@@ -5,7 +5,7 @@ import pytest
 from zora.flags import zora_flags
 from zora.flags.codec import decode as decode_z1r
 from zora.flags.codec import encode as encode_z1r
-from zora.flags.fields import ThreeState
+from zora.flags.fields import Settings, ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.zora_flags import OWNER_2_0_FIELDS, ZoraFlags, canonicalize, decode, encode
 from zora.generate.pipeline import FlagsRefused, plan
@@ -128,6 +128,42 @@ def test_a_question_mark_that_comes_up_into_the_bracelet_conflict_resolves_off()
     asked = flags(extra_power_bracelet_blocks=ON)
     zora, z1r = zora_flags.resolve_owner_dependencies(asked, asked, on_z1r, decode_z1r(B04_MAYBE))
     assert zora.extra_power_bracelet_blocks is ON and not z1r.is_on("B04")
+
+
+# Extra Raft Blocks with the raft kept in level 3 behind its own raft-blocked entrance ($34 on a 2nd
+# Quest overworld): 2nd Quest overworld, shapes dungeons, Cave Shuffle Vanilla, Item Shuffle None
+RAFT_TRAP = decode_z1r(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(options={"C01": 1, "C02": 3, "C05": 0, "C06": 0})
+RAFT_ESCAPES = {"C01": (0, 2), "C02": (1, 2), "C05": (1, 3), "C06": (1, 2, 3)}
+RAFT_RANDOMS = {"C01": 4, "C02": 6, "C05": 4, "C06": 4}
+# The strings that failed after 2,000 attempts (seed 538939, 2026-10-22): Overworld Quest Mixed Quest - 2nd,
+# Dungeon Quest Shapes, Cave Shuffle Random, Item Shuffle None, Extra Raft Blocks on
+FAILED_Z1R, FAILED_ZORA, FAILED_SEED = "oIbnPfPjhr9ior71M7ubQtD3qIhQae3oL5ptQ", "3.6Mho4", 538939
+
+
+def raft_conflicts(z1r: Settings, raft: ThreeState = ON) -> list[tuple[str, tuple[str, ...]]]:
+    return [found for found in zora_flags.conflicts(flags(extra_raft_blocks=raft), z1r)
+            if found[0] == zora_flags.RAFT_BLOCKS_CONFLICT]
+
+
+def test_raft_blocks_with_the_raft_behind_its_own_block_are_refused() -> None:
+    assert raft_conflicts(RAFT_TRAP) == [(zora_flags.RAFT_BLOCKS_CONFLICT, zora_flags.RAFT_BLOCKS_CONFLICT_FIELDS)]
+    assert raft_conflicts(RAFT_TRAP, MAYBE) == []
+    for field, values in RAFT_ESCAPES.items():
+        for value in values:
+            assert raft_conflicts(RAFT_TRAP.updated(options={field: value})) == [], (field, value)
+    for field, value in RAFT_RANDOMS.items():
+        assert raft_conflicts(RAFT_TRAP.updated(options={field: value})) != [], field
+    with pytest.raises(FlagsRefused, match="Extra Raft Blocks cannot be used"):
+        plan(FAILED_Z1R, FAILED_SEED, FAILED_ZORA)
+
+
+def test_a_question_mark_that_comes_up_into_the_raft_trap_resolves_off() -> None:
+    asked = flags(extra_raft_blocks=MAYBE)
+    zora, _ = zora_flags.resolve_owner_dependencies(flags(extra_raft_blocks=ON), asked, RAFT_TRAP, RAFT_TRAP)
+    assert zora.extra_raft_blocks is OFF
+    free = RAFT_TRAP.updated(options={"C05": 1})
+    zora, _ = zora_flags.resolve_owner_dependencies(flags(extra_raft_blocks=ON), asked, free, free)
+    assert zora.extra_raft_blocks is ON
 
 
 def test_b04_off_is_supported() -> None:

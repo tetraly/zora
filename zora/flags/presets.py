@@ -38,7 +38,7 @@ PRESETS: dict[str, str] = {
 
 # All Swords No Boards (docs/design/asnb.md section 1): Progressive Items on, Add L4 Sword = Level 2,
 # Level 9 Entrance = Level 4 sword, on CP-5 (C02 = 3, generated shapes; C07 = 0, normal) with B09
-# Extra Candles off, which Progressive Items refuses (PI-FLAG-03).
+# Extra Candles off (Progressive Items refused it until beta 8).
 ASNB_FLAGS = "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A"
 ASNB_ZORA_FLAGS = "4.T9Jvg"
 # Vanilla (owner, 2026-10-17): every flag Off, the closest to the original game ZORA produces. Every
@@ -54,10 +54,18 @@ VANILLA_FLAGS = "CEERPCkLslB6BApr1Him1SiR28Y"
 OHK0HPLA_REMASTERED_FLAGS = "oIbnRjuQKp1DXiYCys9LwvSpzqZbXk1pRmZzr"
 TTP5_MUFFLE_RUG_FLAGS = "2487lt0moGMFLRug1ofQdxPuUBWnJVSsi7d202I"
 TTP5_PICK_5_FLAGS = "p8GIOeYEAonHy5131VdG6b94Ts3EMMvBaQoWR"
+# The 2026 tournament presets as v3.6.6 builds them in (owner, beta 8): TTP5 Muffle Rug and Pick 5 above
+# are those strings already; TTP5 Uphill Battle (replacing a damaged copy from an out-of-date
+# document) and SGLive Onsite join them. The beta 8 export (flags-behavior.md FL-SUP-01) produces every
+# field of all four.
+TTP5_UPHILL_BATTLE_FLAGS = "143oNtDD4Pw3Yw6SRryTCXlqTsRz2fxg4s4pJW"
+SGLIVE_ONSITE_FLAGS = "12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA"
 ZORA_PRESETS: dict[str, tuple[str, str]] = {
     "All Swords No Boards": (ASNB_FLAGS, ASNB_ZORA_FLAGS),
     "Vanilla": (VANILLA_FLAGS, ""),
     "OHK0HPla Remastered": (OHK0HPLA_REMASTERED_FLAGS, ""),
     "TTP5: Muffle Rug": (TTP5_MUFFLE_RUG_FLAGS, ""),
     "TTP5: Pick 5": (TTP5_PICK_5_FLAGS, ""),
+    "TTP5: Uphill Battle": (TTP5_UPHILL_BATTLE_FLAGS, ""),
+    "SGLive Onsite 2026": (SGLIVE_ONSITE_FLAGS, ""),
 }

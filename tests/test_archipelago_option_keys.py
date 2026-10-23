@@ -63,6 +63,7 @@ KEYS = {
     "pegasus_boots": "pegasus_boots",
     "expanded_dungeon_locations": "expanded_dungeon_locations",
     "highlight_no_drop_rooms": "highlight_no_drop_rooms",
+    "do_not_segment_dungeons": "do_not_segment_dungeons",
     # Shuffle Wood Sword is never offered (archipelago.ZORA_FORCED_OFF, owner ruling 2026-10-17): no key
 }
 CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")

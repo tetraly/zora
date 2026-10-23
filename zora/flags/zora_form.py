@@ -3,8 +3,8 @@ shows for the ZORA flag string (zora/flags/zora_flags.py, docs/zora-extras.md).
 
 flag_form.metadata() carries `zora_metadata()` and flag_form.form_state()
 carries `zora_state()`, so the page keeps no ZORA field list or rule of its
-own. A conflict (the sword-hearts owner requirement, PI-FLAG-03's Extra
-Candles) is never resolved for the player: the state lists each conflict with
+own. A conflict (the sword-hearts owner requirement, Add L4 Sword
+without Progressive Items) is never resolved for the player: the state lists each conflict with
 the settings it names, and the page shows its message in red at each of them.
 """
 from __future__ import annotations
@@ -85,6 +85,10 @@ FIELDS: tuple[dict[str, Any], ...] = (
               "change, so in a level whose two block colors are the same the difference doesn't show. "
               "Rooms without blocks (water, the entrance) look as before. Does nothing with Allow "
               "Universal Drops In Shapes on.")},
+    # Version 10: Do Not Segment Dungeons (owner, 2026-10-22; tetraly/zora#6 and #7), On / Off / ?.
+    {"name": "do_not_segment_dungeons", "kind": THREE_STATE_KIND, "label": "Do Not Segment Dungeons",
+     "help": ("Shapes dungeons are never split into segments: every room can be reached through "
+              "doors, and stairways become shortcuts.")},
     # The owner's 2.0 flags (docs/design/zora-flags-2.0.md): each On / Off / ?, "?" decided per seed.
     *({"name": name, "kind": THREE_STATE_KIND, "label": label, "help": help_text} for name, label, help_text in (
         ("shuffle_blue_potion", "Shuffle Blue Potion",
@@ -159,6 +163,14 @@ _OOPS_ALL_FIELDS = (
 )
 FIELDS = (*FIELDS, *_OOPS_ALL_FIELDS)
 
+# Disable Custom Music (docs/design/music-settings.md section 7): before Pegasus Boots, which stays last.
+DISABLE_CUSTOM_MUSIC_FIELD = {
+    "name": "disable_custom_music", "kind": "toggle", "label": "Disable Custom Music",
+    "help": ("For races: the Music setting offers only Off and Vanilla, so every racer plays with the game's "
+             "own sound engine. Randomized music changes how often the game lags a little, so it could give "
+             "one racer an edge over another. It changes nothing in the seed itself.")}
+FIELDS = (*FIELDS, DISABLE_CUSTOM_MUSIC_FIELD)
+
 # Pegasus Boots last on the tab (owner request, beta 7), so the page's pairs (Randomize Lost Hills
 # and Dead Woods, Oops All Enemies and Bosses) share their lines. Only the tab's order: the flag
 # string encodes ZoraFlags' fields by name (zora_flags_from_values), so its place there stays.
@@ -166,7 +178,8 @@ PEGASUS_BOOTS_FIELD = {"name": "pegasus_boots", "kind": THREE_STATE_KIND, "label
                        "help": ("The boomerang becomes the Pegasus Boots and the magical boomerang the Magical "
                                 "Boots. With them on B, hold B and a direction to run: the Pegasus Boots charge "
                                 "for half a second, then run about a third faster than walking; the Magical "
-                                "Boots run about three quarters faster at once. Release B to walk. Needs "
+                                "Boots run about three quarters faster at once. Release B to walk. The file "
+                                "saved after the ending holds the Magical Boots. Needs "
                                 "Magical Boomerang Does 1 HP Damage off. With a custom-sprite ROM, a custom "
                                 "sprite in the boomerang's tiles is replaced by the boot.")}
 FIELDS = (*FIELDS, PEGASUS_BOOTS_FIELD)
