@@ -399,7 +399,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .level-word-input { width: 7.5em; text-transform: uppercase; font-family: inherit; }
 .level-word-input--error { border-color: var(--error); box-shadow: 0 0 0 1px var(--error); }
 .color-note { grid-column: 1 / -1; margin: 0; padding: 0 14px; }
-.color-heading { grid-column: 1 / -1; margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.setting-heading { grid-column: 1 / -1; margin: 10px 0 0; font-size: 13px; font-weight: 600; color: var(--muted); }
 .flag-color-picker { position: relative; display: inline-flex; }
 .color-picker-toggle {
   width: 32px; height: 32px; border: 2px solid var(--line); border-radius: 10px; padding: 0;
@@ -688,6 +688,17 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
   .guide-body { font-size: 15px; }
   .guide-body h2 { font-size: 20px; }
 }
+
+/* Randomized music (docs/design/music-settings.md): the library's and the playlist's buttons, and the
+   playlist editor's one row per area. */
+/* The Library and Playlist rows' controls take the row's width under the name, so long song titles
+   shrink in their selects rather than widen the page. */
+.setting--wide .setting-control { flex: 1 1 100%; min-width: 0; margin-left: 0; }
+.music-playlist-control { display: block; width: 100%; min-width: 0; }
+.music-library, .music-playlist-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.music-playlist { display: grid; gap: 6px; margin-top: 10px; }
+.music-playlist-area { display: grid; grid-template-columns: minmax(7em, auto) minmax(0, 1fr); align-items: center; gap: 8px; }
+.music-playlist-area .select { min-width: 0; width: 100%; }
 </style>
 </head>
 <body>
