@@ -1,6 +1,7 @@
-- Music (test; built from the music branch, 3d06ec4; not checked by the release tests, the owner's decision for this test page): the Look and feel setting Music has two new values. Random (standard library) gives the title screen, the overworld, each level and the ending and credits a FamiTracker track from Quantam's library, downloaded from his repository with the first seed. Random (local library) takes tracks from library files you choose (Zelda II Randomizer's libraries too). Streaming-safe tracks only (on by default) leaves out tracks marked unsafe for streaming, and a playlist pins songs to any area, the game's own songs too.
+- Music (test; built from the music branch, 1a9a7c5; not checked by the release tests, the owner's decision for this test page): the Look and feel setting Music has two new values. Random (standard library) gives the title screen, the overworld, each level and the ending and credits a FamiTracker track from Quantam's library, downloaded from his repository with the first seed. Random (local library) takes tracks from library files you choose (Zelda II Randomizer's libraries too). Streaming-safe tracks only (on by default) leaves out tracks marked unsafe for streaming, and a playlist pins songs to any area, the game's own songs too.
 - The statistics screen keeps its numbers through resets and turning the console off with randomized music too (Quantam's lozft of 2026-10-22).
 - New ZORA flag, Disable Custom Music (Off by default): for races, Music can then be Off or On only. It changes nothing in the seed itself.
+- Look and feel: the music settings are grouped under Music and the colors under Colors; the playlist editor now shows the songs of the library you chose and follows Streaming-safe tracks only.
 
 ## Archipelago
 
