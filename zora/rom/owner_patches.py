@@ -14,7 +14,8 @@ sword's colors; docs/design/l4-sword.md Q2), with Add L4 Sword on (Level 2 or Le
 level-9-gate with Level 9 Entrance = Level 4 sword. take-l4 retires l4-sword-take (3a): it gives
 level 4 on every pickup path, so l4-sword-take's bytes and hook are no longer written.
 Credits (docs/credits.md): Speed Up Heart Fill by snarfblam, Recorder Kills Dungeon Pols Voice by
-Stratoform.
+Stratoform, Like-Like Eats Rupees by gzip, Start With Full Health by ShadowOne333, kalita-kun and gzip
+(the Zelda Hack Pack).
 """
 from __future__ import annotations
 
@@ -43,6 +44,8 @@ PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
     "randomize_dead_woods": ("dead-woods",),
     # Version 7 (zora_flags.PEGASUS_BOOTS_FIELDS): the boomerangs become L1 and L2 Pegasus Boots.
     "pegasus_boots": ("pegasus-boots",),
+    # Version 13 (zora_flags.FULL_HEALTH_FIELDS): loading a save and continuing after death fill every heart.
+    "full_health": ("full-health",),
 }
 # asm/flags2's patches every ROM gets, whatever the flags: auto-show-letter, Auto Show Letter's, a flag
 # up to 2.0 beta 6 (owner, 2026-10-17; zora_flags.RETIRED_FIELDS).

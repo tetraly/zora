@@ -33,12 +33,21 @@ from ..model.levels import LEVEL_9, LEVEL_BLOCK_ROOMS, Level
 from ..model.overworld import ItemCave, Overworld
 from .acceptance_check import LogicRules, acceptance_check
 from .alternative_values import MVP_VALUES, AlternativeValues
+from .boss_sounds import boss_sound_end_pass, check_boss_sounds
 from .context import GenerationContext, GenerationResult, GenerationSettings, Step
 from .errors import GenerationFailure
 from .extra_options import NO_EXTRAS, ExtraOptions
 from .flag_steps import ALL_STEPS_ON, FlagSteps
 from .item_spots import check_item_spots
 from .late_gate.gate import GateStats, late_gate
+from .late_gate.gatekeeper import (
+    GATEKEEPER_LEVELS,
+    TRIES_WITHOUT_GATE,
+    GatekeeperPlan,
+    gatekeeper_problems,
+    heart_place_rooms,
+    place_gatekeeper,
+)
 from .rng import Rng
 from .shapes.bosses import place_bosses
 from .shapes.doors import place_doors
@@ -365,12 +374,14 @@ def item_shuffle_options(context: GenerationContext) -> ItemShuffleOptions:
     (PS-ITEM-02; not within each dungeon, PS-ITW-01, nor Item Only or None, PS-ITEM-09 and
     PS-ITEM-10), for the deal and for the ZORA extras that join the pool later; and the pins (C11,
     C12, C13, C26, C27; PS-ITEM-12), which act inside the deal (the first under PS-ITW). B47 leaves
-    the Book in the pool (no PS-ITEM-13: docs/deviations.md)."""
+    the Book in the pool (no PS-ITEM-13: docs/deviations.md). And the shop price classes the joins
+    price their wares by (steps/shop_prices.py)."""
     alternatives = context.settings.alternatives
     return ItemShuffleOptions(dungeon_hearts=alternatives.item_deal is ItemShuffleScope.FULL,
                               set_sources=context.set_sources,
                               armos_item=alternatives.armos_pin, white_sword_item=alternatives.white_sword_pin,
-                              coast_item=alternatives.coast_pin, level_9_items=alternatives.level_9_pins)
+                              coast_item=alternatives.coast_pin, level_9_items=alternatives.level_9_pins,
+                              prices=context.settings.extras.price_rules)
 
 
 def place_triforces_step(context: GenerationContext) -> None:
@@ -385,6 +396,7 @@ def shuffle_items_step(context: GenerationContext) -> None:
     as Item Only under Mixed Quest), or within each dungeon (PS-ITW's two deals)."""
     deal = context.settings.alternatives.item_deal
     levels, state, rng = context.sets.levels, context.item_shuffle_result, context.rng
+    heart_places = heart_place_rooms(levels)
     if deal is ItemShuffleScope.WITHIN_EACH_DUNGEON:
         shuffle_items_within_levels(levels, state, rng, item_shuffle_options(context))
     elif deal is ItemShuffleScope.NONE:
@@ -393,6 +405,11 @@ def shuffle_items_step(context: GenerationContext) -> None:
         shuffle_items(levels, state, rng, item_shuffle_options(context))
     else:
         shuffle_items(levels, state, rng, item_shuffle_options(context))
+    if context.settings.extras.gatekeeper_bosses:
+        # Gatekeeper Bosses (owner decision 5): each gatekeeper takes what the shuffle left in its
+        # level's heart-container room
+        context.gatekeeper_plan = GatekeeperPlan(context.settings.extras.gatekeeper_bosses,
+                                                 {level: room.item for level, room in heart_places.items()})
 
 
 def shuffle_dungeon_drops_step(context: GenerationContext) -> None:
@@ -756,13 +773,14 @@ def late_gate_step(context: GenerationContext) -> None:
     VA-REJ-02 (beta 8 export): under C14 = 0 with every level set from a vanilla source neither the
     remap nor the gate runs, and the levels keep their source rooms."""
     if not context.settings.steps.remap_rooms and all(source.is_vanilla for source in context.set_sources):
+        place_gatekeepers_without_gate(context)
         return
     result = context.result
     context.l1_gate_entry = _l1_census(context.sets.levels)
     stats = GateStats()
     try:
         late_gate(context.sets.levels, context.rng, stats, context.settings.alternatives.force_ganon_fight,
-                  unsegmented_levels(context))
+                  unsegmented_levels(context), context.gatekeeper_plan)
     except GenerationFailure:
         result.gate_attempts += 1
         result.gate_rejections += stats.rejections
@@ -775,6 +793,18 @@ def late_gate_step(context: GenerationContext) -> None:
     result.gate_rejections += stats.rejections
     result.gate_per_level.update(stats.per_level)
     result.gate_kinds.update(stats.kinds)
+
+
+def place_gatekeepers_without_gate(context: GenerationContext) -> None:
+    """Gatekeeper Bosses when the late gate does not run (VA-REJ-02): each level 1-8 as it stands
+    builds its gatekeeper, with TRIES_WITHOUT_GATE tries, or the generation restarts."""
+    plan = context.gatekeeper_plan
+    if plan is None:
+        return
+    for level in context.sets.levels:
+        if level.level_num in GATEKEEPER_LEVELS and not place_gatekeeper(level, context.rng, plan,
+                                                                          tries=TRIES_WITHOUT_GATE):
+            raise GenerationFailure(f"level {level.level_num}: no gatekeeper")
 
 
 def _l1_census(levels: list[Level]) -> tuple[int, int]:
@@ -926,6 +956,16 @@ def change_sword_hearts_before_check(context: GenerationContext) -> None:
     requirement); otherwise after the attempt ships (change_sword_hearts_after_ship)."""
     assert context.overworld is not None
     _change_sword_hearts(context, context.overworld)
+
+
+def check_gatekeepers_step(context: GenerationContext) -> None:
+    """Gatekeeper Bosses' final check (docs/zora-extras.md section 19): after every step that moves a
+    room's monsters, items or doors, each gatekeeper still holds: its boss, its trigger-7 item, its
+    shutters, and a cut no staircase, door repair, bombable or walk-through wall gets around, with the
+    compass in front. The steps keep it so; a failure restarts the attempt and is a bug to trace."""
+    problems = [problem for level in context.sets.levels for problem in gatekeeper_problems(level)]
+    if problems:
+        raise GenerationFailure("; ".join(problems))
 
 
 def acceptance_check_step(context: GenerationContext) -> None:
@@ -1117,6 +1157,17 @@ def ship_hint_text_step(context: GenerationContext) -> None:
     ship_hint_text(context.world, context.hint_text)
 
 
+def boss_sound_end_pass_step(context: GenerationContext) -> None:
+    """PS-MONRD-07, once per seed after the accepted pass: every boss sound reset, only Ganon's
+    level-9 neighbours keep one. After the hint text, which reads the sounds before it (PS-MONRD-03)."""
+    boss_sound_end_pass(context.world)
+
+
+def check_boss_sounds_step(context: GenerationContext) -> None:
+    """The finished world's boss sounds are exactly PS-MONRD-07's (zora/generate/boss_sounds.py)."""
+    check_boss_sounds(context.world)
+
+
 # B10's DATA items (features-behavior.md). Bomb/mmg values are drawn here
 # rather than earlier in the stream; the spec only constrains their marginal
 # distributions, so stream position does not matter. Book is an Atlas
@@ -1294,6 +1345,8 @@ STEPS: tuple[Step, ...] = (
          lambda s: (s.post_shapes and s.extras.checks_magical_sword_hearts and s.feature_data
                     and s.steps.change_sword_hearts)),
     Step("check_item_spots", "", check_item_spots_step, post_shapes, restart_label=""),
+    Step("check_gatekeepers", "ZORA gatekeeper_bosses", check_gatekeepers_step,
+         lambda s: bool(s.extras.gatekeeper_bosses), restart_label="gatekeeper: "),
     Step("acceptance_check", "", acceptance_check_step, post_shapes, restart_label="acceptance: "),
     Step("check_white_sword_hearts", "", check_white_sword_hearts_step, post_shapes, restart_label="acceptance: "),
     Step("check_magical_sword_hearts", "ZORA randomize_magical_sword or level 9 entrance",
@@ -1313,6 +1366,7 @@ STEPS: tuple[Step, ...] = (
     Step("shuffle_dungeon_text", "B19", shuffle_dungeon_text_step,
          lambda s: s.post_shapes and s.steps.shuffle_dungeon_text),
     Step("ship_hint_text", "", ship_hint_text_step, post_shapes),
+    Step("boss_sound_end_pass", "", boss_sound_end_pass_step, post_shapes),
     Step("change_bomb_upgrades", "B12, B90", change_bomb_upgrades_step,
          lambda s: feature_data(s) and (s.steps.change_bomb_upgrades or s.steps.increase_bomb_capacity)),
     Step("change_money_making_game", "B11", change_money_making_game_step,
@@ -1327,4 +1381,5 @@ STEPS: tuple[Step, ...] = (
     Step("start_items", "B57-B78, B85 with C17", start_items_step, lambda s: bool(s.alternatives.start_items)),
     Step("start_triforce_pieces", "C18", start_triforce_pieces_step,
          lambda s: bool(s.alternatives.start_triforce_pieces)),
+    Step("check_boss_sounds", "", check_boss_sounds_step, post_shapes),
 )

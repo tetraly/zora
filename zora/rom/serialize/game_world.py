@@ -21,8 +21,10 @@ Covers all parsed ROM regions:
 """
 from ...model.enums import DungeonNothingCode
 from ...model.game_world import GameWorld
+from ...model.levels import LevelBlock
+from ...model.rooms import BOSS_SOUND_MASK, BOSS_SOUND_SHIFT
 from .. import person_code
-from ..base_rom import piece_bytes
+from ..base_rom import original_bytes, piece_bytes
 from ..code_patches import (
     EXIT_ROOM_COUNT_FLAG,
     LEVEL_INFO_ARRIVAL_CODE,
@@ -49,6 +51,7 @@ from ..layout import (
     ENEMY_SET_C_SPRITES_ADDRESS,
     FLUTE_ROOM_SECRETS_OW_ADDRESS,
     FLUTE_SECRET_QUEST_BRANCH_ADDRESS,
+    ITEM_BYTE_TABLE,
     ITEM_CARRIER_OPERAND_ADDRESSES,
     LEVEL_1_6_DATA_ADDRESS,
     LEVEL_1_6_DATA_ADDRESS_Q2,
@@ -57,6 +60,7 @@ from ..layout import (
     LEVEL_INFO_ADDRESS,
     LEVEL_INFO_SIZE,
     LEVEL_SPRITE_SET_POINTERS_ADDRESS,
+    LEVEL_TABLE_SIZE,
     MAZE_DIRECTIONS_ADDRESS,
     MIXED_ENEMY_DATA_ADDRESS,
     OBJECT_TYPE_OPERAND_873D_ADDRESS,
@@ -132,6 +136,18 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
     return patch
 
 
+def _patch_boss_sounds(block: LevelBlock, address: int, patch: Patch) -> None:
+    """An unread second-quest block keeps the base ROM's bytes but its rooms' boss sounds, which the
+    end pass resets in all four blocks (PS-MONRD-07): only the item bytes whose boss sound differs
+    are written."""
+    item_table = address + ITEM_BYTE_TABLE * LEVEL_TABLE_SIZE
+    base = original_bytes(item_table, LEVEL_TABLE_SIZE)
+    for room in block.rooms:
+        byte = (base[room.room_num] & ~(BOSS_SOUND_MASK << BOSS_SOUND_SHIFT)) | (room.boss_sound << BOSS_SOUND_SHIFT)
+        if byte != base[room.room_num]:
+            patch.add(item_table + room.room_num, bytes([byte]))
+
+
 def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, bytes], cfg: GameConfig,
                       patch: Patch) -> None:
     """Every room of the four room blocks, from the model, the block each level points at
@@ -141,14 +157,18 @@ def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, byte
     patch.add(LEVEL_1_6_DATA_ADDRESS, encode_level_block(game_world.blocks[0], nothing_code))
     patch.add(LEVEL_7_9_DATA_ADDRESS, encode_level_block(game_world.blocks[1], nothing_code))
     # A second-quest block is written only when a level reads it from its own slot: an unread one
-    # keeps the base ROM's bytes, PRG0's nothing code included. With level encoding on, a read one
+    # keeps the base ROM's bytes, PRG0's nothing code included, but for its boss sounds
+    # (_patch_boss_sounds). With level encoding on, a read one
     # is stored in its set's first-quest slot instead (GameWorld.store_second_quest_sets_in_first_quest_slots),
     # which the levels then point at, and its own slot keeps the base ROM's bytes: the encoding
     # (a final step) takes the second-quest blocks' space for itself, whatever they hold.
     for address, block in zip((LEVEL_1_6_DATA_ADDRESS_Q2, LEVEL_7_9_DATA_ADDRESS_Q2), game_world.blocks_2q,
                               strict=True):
-        if not any(lvl.block is block for lvl in game_world.levels) or any(stored is block
-                                                                           for stored in game_world.blocks):
+        if any(stored is block for stored in game_world.blocks):
+            continue
+        if not any(lvl.block is block for lvl in game_world.levels):
+            if cfg.level_encoding is None:
+                _patch_boss_sounds(block, address, patch)
             continue
         if cfg.level_encoding is not None:
             raise ValueError("level encoding needs each second-quest set stored in its first-quest slot "

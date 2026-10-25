@@ -18,6 +18,7 @@ from zora.generate.late_gate.blocks import GateBlock
 from zora.generate.late_gate.deal import _is_safe_seat, _redeal_contents
 from zora.generate.late_gate.fixes import _clear_exit_bits, _tail
 from zora.generate.late_gate import walk
+from zora.generate.boss_sounds import boss_sound_problems
 from zora.generate.generation_pass import generate_shapes
 from zora.generate.shapes.options import ShapeOptions
 from zora.generate.shapes.world import D_OPEN, D_SHUTTER, D_WALL, set_side, side_of
@@ -149,14 +150,14 @@ def test_shipped_gate_invariants() -> None:
         assert entrance.walls.east == D_WALL
         assert entrance.walls.west == D_WALL
         assert entrance.walls.north == D_OPEN
-        # boss sound index 1, only in level 9: the gate marks Ganon's
-        # neighbors, and the later map move (SH-MAP-06) can carry a mark
-        # to another level-9 room with the item byte
+        # boss sound index 1, only in level 9: the end pass (PS-MONRD-07)
+        # marks Ganon's level-9 neighbors, whatever the map move carried
         assert any(room.enemy == Enemy.THE_BEAST for room in level9.rooms)
         for room in block.rooms:
             if room.boss_sound != BossSound.NONE:
                 assert room.boss_sound == BossSound.ROAR_AQUAMENTUS_GLEEOK_GANON
                 assert room.room_num in cells9
+        assert not boss_sound_problems(gw)
         # levels 7-9: push blocks only where trigger 4/5 or byte $5A/$60
         # (monster bit ignored, A29)
         for level in gw.levels[6:]:

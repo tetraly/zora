@@ -1,4 +1,5 @@
-# ZORA 2.0 Speed Up Dungeon Transitions (docs/design/zora-flags-2.0.md section 5): dungeon
+# ZORA 2.0 Speed Up Dungeon Transitions (docs/design/zora-flags-2.0.md section 5; the feature is
+# fiskbit's fast scroll): dungeon
 # rooms scroll with the overworld's timings. Each hook drops the "in a level" branch after
 # LDY/LDX CurLevel, so the overworld's values apply everywhere: vertical scrolling every
 # second frame instead of every fourth, 4 pixels a frame horizontally instead of 2, and the

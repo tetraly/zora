@@ -19,6 +19,7 @@ from .acceptance_check import LogicRules
 from .alternative_values import MVP_VALUES, AlternativeValues
 from .extra_options import NO_EXTRAS, ExtraOptions
 from .flag_steps import ALL_STEPS_ON, FlagSteps
+from .late_gate.gatekeeper import GatekeeperPlan
 from .rng import Rng
 from .shapes.enemies import EnemyPools
 from .shapes.options import ShapeOptions
@@ -142,6 +143,8 @@ class GenerationContext:
     maze_offers: dict[int, list[str]] = field(default_factory=dict)
     # Level 9 Entry (C08; FP-TRIF-01 to FP-TRIF-06): what this attempt's level-9 entrance asks for
     level_9_gate: Level9Gate = EIGHT_PIECES
+    # Gatekeeper Bosses: the setting and each level's item for its gatekeeper (late_gate/gatekeeper.py)
+    gatekeeper_plan: GatekeeperPlan | None = None
 
     @property
     def logic_rules(self) -> LogicRules:

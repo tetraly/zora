@@ -13,7 +13,7 @@ from zora.flags import form as flag_form
 from zora.generate.pipeline import generate_rom
 from zora.rom import item_sprites, revision
 from zora.rom.base_rom import EXPECTED_CRC32, EXPECTED_MD5, EXPECTED_SHA1
-from zora.rom.music.library import LibraryFile, MusicError, library_songs, local_library_songs
+from zora.rom.music.library import LibraryFile, MusicError, local_library_songs, read_library
 from zora.rom.music.pin import ASSET_URLS, MusicAssets, MusicAssetsInvalid
 from zora.rom.music.playlist import AREA_KEYS, ORIGINAL, RANDOM, parse_playlist
 from zora.rom.music.randomize import options_for, randomize_music
@@ -132,7 +132,7 @@ def music_library_songs(library: bytes | None = None,
         if local_libraries is not None:
             songs, warnings = local_library_songs([LibraryFile(name, data) for name, data in local_libraries])
         else:
-            songs, warnings = library_songs(library or b"", safe_only=False), []
+            songs, warnings = read_library(library or b"", safe_only=False)
     except MusicError as exc:
         return {"error": str(exc)}
     return {"songs": [{"title": song.title, "uses": sorted(song.uses), "safe": song.streaming_safe}
@@ -141,9 +141,10 @@ def music_library_songs(library: bytes | None = None,
 
 
 def music_playlist_areas() -> dict[str, object]:
-    """The playlist's areas for the editor: [{"key", "label", "use"}], and its two words."""
-    from zora.rom.music.importer import CANDIDATE_USE
-    return {"areas": [{"key": key, "label": area.label, "use": CANDIDATE_USE.get(area.area, area.area)}
+    """The playlist's areas for the editor: [{"key", "label", "uses"}] (the uses a song tagged for
+    the area has, zora.rom.music.importer.area_uses), and its two words."""
+    from zora.rom.music.importer import area_uses
+    return {"areas": [{"key": key, "label": area.label, "uses": list(area_uses(area.area))}
                       for key, area in AREA_KEYS.items()],
             "original": ORIGINAL, "random": RANDOM}
 

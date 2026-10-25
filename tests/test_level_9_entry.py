@@ -39,7 +39,6 @@ from zora.generate.logic import LEVEL9_ENTRY_EVENT, EventTerm, logic_model, swee
 from zora.generate.pipeline import Built, FlagsRefused, build, finish, generate_rom, plan, shipped_logic_rules
 from zora.generate.rng import Rng
 from zora.generate.steps.level_9_entry import (
-    GATE_ITEM_WORDS,
     Level9Entry,
     draw_level_9_gate,
     gate_items,
@@ -48,6 +47,7 @@ from zora.generate.steps.level_9_entry import (
 from zora.model.enums import Item
 from zora.model.level_9_gate import (
     EIGHT_PIECES,
+    GATE_ITEM_WORDS,
     GATE_ITEMS,
     OPEN_GATE,
     TRIFORCE_LEVELS,

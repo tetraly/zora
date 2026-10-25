@@ -430,7 +430,8 @@ def test_overworld_start_y_moves_out_of_level_information() -> None:
         generate_shapes(world, Rng(seed), ShapeOptions())
         if world.overworld.start_position_y != OVERWORLD_START[1]:
             break
-    rom = serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=True))
+    config = GameConfig(features_b10=True, hint_mode=HintMode.CONSTERNATION)    # (the pool's texts: extended bank)
+    rom = serialize_to_rom(world, vanilla(), config=config)
     assert parse_rom(rom).overworld.start_position_y == world.overworld.start_position_y
     emu = Emulator(rom)
     emu.new_game()

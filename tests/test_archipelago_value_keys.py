@@ -12,7 +12,10 @@ from zora import archipelago
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.player_settings import (
     PAGE_BOSS_SOUND_WORD,
+    PAGE_LEVEL_WORD,
     RANDOM_BOSS_SOUND_WORD,
+    RANDOM_COLOR,
+    RANDOM_LEVEL_WORD,
     PlayerSettingError,
     PlayerSettings,
     player_settings_from_page,
@@ -172,17 +175,20 @@ VALUE_KEYS = {
     "randomize_dead_woods": THREE_STATE,
     "oops_all_enemies": ("off", "wizzrobes", "keese", "bouncers"),
     "oops_all_bosses": ("off", "dodongos"),
+    "gatekeeper_bosses": ("off", "anywhere", "late", "early"),
     "allow_triforces_in_stairways": THREE_STATE,
     "pegasus_boots": THREE_STATE,
     "expanded_dungeon_locations": THREE_STATE,
     "highlight_no_drop_rooms": THREE_STATE,
     "do_not_segment_dungeons": THREE_STATE,
+    "full_health": THREE_STATE,
 }
-COLORS = tuple(f"0x{value:02X}" for value in range(0x40) if value != 0x0D)   # every NES palette value but $0D
+# every NES palette value but $0D, then Random
+COLORS = (*(f"0x{value:02X}" for value in range(0x40) if value != 0x0D), "random_color")
 # page key -> (YAML key, each listed value's key in the page's order; a color's are COLORS)
 PLAYER_KEYS = {
     "selectButton": ("select_button", ("off", "swap", "toggle")),
-    "lowHealthBeep": ("low_health_beep", ("removed", "kept", "half_speed")),
+    "lowHealthBeep": ("low_health_beep", ("removed", "kept", "half_speed", "random_choice")),
     "deathWarp": ("death_warp", ("p2_up_a", "p1_up_a", "p1_up_select")),
     "reduceFlashing": ("reduce_flashing", ("off", "on")),
     "music": ("music", ("on", "off")),
@@ -193,7 +199,7 @@ PLAYER_KEYS = {
     "levelWord": ("level_word", (
         "level", "board", "abode", "lair", "sector", "area", "palace", "vault", "crypt", "tomb", "keep", "maze",
         "tower", "temple", "shrine", "castle", "fort", "hall", "den", "nest", "hold", "stage", "world", "zone",
-        "floor", "ruin", "pit", "cave")),
+        "floor", "ruin", "pit", "cave", "random_word")),
     "bossSoundWord": ("boss_sound_word", (
         "roar", "random_word", "rawr", "meow", "woof", "awoo", "oink", "weef", "honk", "aaaa", "goal", "ohai",
         "waah", "howl", "hiss", "purr", "bark", "hoot", "baaa", "grrr", "bonk", "eeek", "oops", "yaay")),
@@ -270,8 +276,11 @@ def test_the_player_key_rules() -> None:
         if spec.kind != archipelago.COLOR:
             assert all(key.isidentifier() and key == key.lower() for key in keys), spec.key
         else:
-            assert spec.value_keys == tuple((color, f"0x{color:02X}") for color in spec.colors)
+            assert spec.value_keys == tuple((color, "random_color" if color == RANDOM_COLOR else f"0x{color:02X}")
+                                            for color in spec.colors)
     assert dict(PLAYER_SPECS[PAGE_BOSS_SOUND_WORD].value_keys)[RANDOM_BOSS_SOUND_WORD] == "random_word"
+    assert dict(PLAYER_SPECS[PAGE_LEVEL_WORD].value_keys)[RANDOM_LEVEL_WORD] == "random_word"
+    assert dict(PLAYER_SPECS["lowHealthBeep"].value_keys)["random"] == "random_choice"
 
 
 YAML_FORM = {"select_button": "swap", "death_warp": "p1_up_select", "low_health_beep": "kept",

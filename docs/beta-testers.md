@@ -3,13 +3,13 @@
 > **Beta.** ZORA 2.0 has been tested by automated checks but not yet tested by hand. Expect
 > there to be bugs and unbeatable seeds. Please don't use it for races yet. If something looks
 > wrong, report it with the seed, flags and version in the
-> [ZORA Discord](https://discord.gg/DVyPXcG5v).
+> [ZORA Discord](https://discord.gg/zescSjDtme).
 
 Thank you for helping test ZORA! ZORA makes new, shuffled versions of the
 original Legend of Zelda for the NES. This beta is a single file that runs
 in your web browser. There is nothing to install.
 
-## Known limitations (2.0 beta 8)
+## Known limitations (2.0 beta 9)
 
 - Some flag values are not made yet: the page shows them grayed out as "Not yet implemented".
 - "Encode level data" is not available in the public build.
@@ -33,20 +33,26 @@ mention it when you report anything.
 ## The game file you need
 
 ZORA does not come with the game. You need your own legally obtained copy
-of The Legend of Zelda (USA) as a `.nes` file. It has to be the first
-release, sometimes called "PRG0" or "revision 0". Later revisions will not
-work.
+of The Legend of Zelda (USA) as a `.nes` file. Either US release works:
+the first, sometimes called "PRG0" or "revision 0", or the second, "PRG1"
+(also labeled "Rev 1" or "Rev A"). A copy of either with modified graphics
+works too.
 
-The page checks your file for you. If it is the right one, the page says
-"Base ROM verified". If you want to check it beforehand, this is its
-SHA-1 fingerprint (of the whole file):
+The page checks your file for you. If it is one of these, the page says
+"Base ROM verified" and which release it is. If you want to check an
+unmodified file beforehand, these are the SHA-1 fingerprints (of the whole
+file):
 
 ```
-dab79c84934f9aa5db4e7dad390e5d0c12443fa2
+PRG0: dab79c84934f9aa5db4e7dad390e5d0c12443fa2
+PRG1: 3701381a82fc7d52b2dd3e8892047b30a114ab43
 ```
 
 Your file stays on your computer. The page reads it in the browser and
-never uploads it anywhere.
+never uploads it anywhere. It also keeps a copy in that browser's own
+storage, so on your next visit it is ready without choosing it again;
+"Forget" under its name removes that copy. In a private window nothing
+is kept and the page asks for the file each visit.
 
 ## What to try
 
@@ -131,7 +137,7 @@ looks wrong, or a page that never says "Ready".
 
 ## Reporting a problem
 
-Please report it in the [ZORA Discord](https://discord.gg/DVyPXcG5v), with:
+Please report it in the [ZORA Discord](https://discord.gg/zescSjDtme), with:
 
 - the version from the top right of the page;
 - your computer (Windows, Mac or Linux) and your browser;

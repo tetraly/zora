@@ -80,12 +80,15 @@ PATCHES = (
     "dead-woods",               # 13 Randomize Dead Woods
     "pegasus-boots",            # Pegasus Boots (ZORA string version 7; owner spec 2026-10-17)
     "ring-color",               # Archipelago ROMs only: a ring given through RAM repaints Link
+    "full-health",              # Start With Full Health (credit: ShadowOne333, kalita-kun, gzip)
 )
 
 # Community members who wrote a feature (the document's credits; docs/credits.md).
 CREDITS = {
     "fast-heart-fill": "snarfblam",
+    "fast-dungeon-scroll": "fiskbit",
     "recorder-pols-voice": "Stratoform",
+    "full-health": "ShadowOne333, kalita-kun and gzip",
 }
 
 
@@ -111,6 +114,8 @@ FREE_SPACE = {
     "ZORA_F2_L4_TAKE": FreeSpace(1, 0xBFC0, 0xBFDF),
     "ZORA_F2_RING_COLOR": FreeSpace(5, 0xBC80, 0xBCBF),
     "ZORA_F2_BOOTS_ENDING": FreeSpace(2, 0xAF90, 0xAF9F),
+    "ZORA_F2_FULL_HEALTH_LOAD": FreeSpace(2, 0xB0E0, 0xB0FF),
+    "ZORA_F2_FULL_HEALTH_DEATH": FreeSpace(5, 0xB920, 0xB93F),
 }
 
 

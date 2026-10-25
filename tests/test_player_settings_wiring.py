@@ -25,8 +25,9 @@ from zora.rom import level_encoding
 from zora.rom.base_rom import piece_bytes, verify_base_rom
 from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, seed_code
 from zora.rom.layout import LEVEL_LABEL_RECORD, LEVEL_LABEL_RECORD_SIZE, LOW_HEALTH_BEEP_OPERAND_ADDRESS
+from zora.rom.link_sprite import SpriteSet
 from zora.rom.player_settings import (
-    DeathWarp, LowHealthBeep, Music, PlayerSettingError, PlayerSettings, SelectSwap, apply_player_settings,
+    DeathWarp, LinkSprite, LowHealthBeep, Music, PlayerSettingError, PlayerSettings, SelectSwap, apply_player_settings,
     written_offsets,
 )
 from zora.rom.serialize.rom_file import serialize_to_rom
@@ -47,7 +48,12 @@ NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "music": (Music.OFF,),
     "level_word": ("DEN", "PALACE"),
     "boss_sound_word": ("MEOW", "RANDOM", "HI !"),
+    "link_sprite": (LinkSprite.SET,),
 }
+# A Link sprite set for the cases (FP-LINK-02's Check: 640 bytes of any content), given with the
+# Link sprite's choice: the set field alone writes nothing
+TEST_SPRITE_SET = SpriteSet("Test set", "ZORA tests", "made for this test", bytes(range(256)) * 2 + bytes(128))
+WITH_ANOTHER = frozenset({"sprite_set"})
 # Randomized music (docs/design/music-settings.md): applied after the player settings
 # (zora.rom.music.randomize), so here a random Music value only chooses the statistics screen's music
 # build and the switch beside it writes nothing (test_randomized_music_chooses_only_the_statistics_screen).
@@ -90,7 +96,7 @@ def test_data_is_the_assembled_copy() -> None:
 
 
 def test_every_setting_has_its_defaults_and_one_function() -> None:
-    assert {field.name for field in fields(PlayerSettings)} - APPLIED_AFTER == set(NON_DEFAULTS)
+    assert {field.name for field in fields(PlayerSettings)} - APPLIED_AFTER - WITH_ANOTHER == set(NON_DEFAULTS)
 
 
 def test_randomized_music_chooses_only_the_statistics_screen() -> None:
@@ -121,10 +127,16 @@ def test_defaults_leave_finished_roms_byte_identical(seed: int) -> None:
         assert differing and differing <= written_offsets(STATISTICS_SCREEN)
 
 
+def one_setting(name: str, value: Any) -> PlayerSettings:
+    """The defaults with one setting changed (the Link sprite's with the test set)."""
+    settings = replace(PlayerSettings(), sprite_set=TEST_SPRITE_SET) if name == "link_sprite" else PlayerSettings()
+    return replace(settings, **{name: value})
+
+
 @pytest.mark.parametrize(("name", "value"), CASES, ids=CASE_IDS)
 def test_each_setting_changes_only_its_own_bytes(name: str, value: Any) -> None:
     rom = apply_player_settings(unset(MVP_BASELINE_LEVEL_ENCODING_OFF, SEEDS[0]), PlayerSettings())
-    changed = apply_player_settings(rom, replace(PlayerSettings(), **{name: value}))
+    changed = apply_player_settings(rom, one_setting(name, value))
     differing = {i for i, (a, b) in enumerate(zip(rom, changed, strict=True)) if a != b}
     assert differing and differing <= written_offsets(name)
     for other in NON_DEFAULTS:
@@ -146,7 +158,7 @@ def test_no_setting_changes_the_code_or_the_encoded_range(name: str, value: Any)
     if not level_encoding.is_available():
         pytest.skip("needs the encoder")
     rom = unset(MVP_BASELINE, SEEDS[0])
-    changed = apply_player_settings(rom, replace(PlayerSettings(), **{name: value}))
+    changed = apply_player_settings(rom, one_setting(name, value))
     assert seed_code(changed) == seed_code(rom)
     protected = [(SEED_CODE_ADDRESS, SEED_CODE_ADDRESS + SEED_CODE_LENGTH), *level_encoding.changed_ranges_allowed()]
     for start, end in protected:
@@ -161,7 +173,7 @@ def test_generate_rom_applies_the_settings_and_keeps_the_code() -> None:
     assert styled.code == plain.code
 
 
-@pytest.mark.parametrize("value", [0x0D, 0x40, -1, 0x100])
+@pytest.mark.parametrize("value", [0x0D, 0x41, -1, 0x100])      # 0x40 is Random (RANDOM_COLOR)
 def test_palette_values_outside_the_choices_are_refused(value: int) -> None:
     with pytest.raises(PlayerSettingError):
         PlayerSettings(heart_color=value)

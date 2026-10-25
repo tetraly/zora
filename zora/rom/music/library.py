@@ -12,7 +12,7 @@ import hashlib
 import json
 import zlib
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 from . import json5
@@ -20,10 +20,13 @@ from . import json5
 DEFLATE_PREFIX, HEX_PREFIX = "deflate:", "hex:"
 RAW_DEFLATE = -15                    # zlib's wbits for a raw deflate stream (.NET's DeflateStream)
 
-# The Zelda importer's uses (ZeldaMusicRandomizer's MusicImporter: Uses and DefaultUses).
+# The Zelda importer's uses (ZeldaMusicRandomizer's MusicImporter: Uses and DefaultUses), and ZORA's
+# own Title (TheGobOne's request for beta 9): the title screen's songs, which the Zelda importer has
+# no use for. A library without Title songs gives the title screen an Overworld song
+# (importer.FALLBACK_USE).
 OVERWORLD, DUNGEON, LAST_DUNGEON, ENDING = "Overworld", "Dungeon", "LastDungeon", "Ending"
-TITLE = "Title"                      # ZORA's area for the title screen (not a library use)
-USES = (OVERWORLD, DUNGEON, LAST_DUNGEON, ENDING)
+TITLE = "Title"
+USES = (OVERWORLD, DUNGEON, LAST_DUNGEON, ENDING, TITLE)
 DEFAULT_USES = frozenset({DUNGEON, LAST_DUNGEON})
 DEFAULT_PRIMARY_SQUARE_CHANNEL = 0
 DEFAULT_STREAMING_SAFE = True
@@ -171,10 +174,12 @@ def _module_songs(group: dict[str, Any] | None, entry: dict[str, Any]) -> list[S
     return songs
 
 
-def library_songs(library: bytes, safe_only: bool = True) -> list[Song]:
+def read_library(library: bytes, safe_only: bool = True) -> tuple[list[Song], list[str]]:
     """Every enabled song of the library (and, with safe_only, only the streaming-safe ones), single
-    modules first, then each group's (LoadLibrarySongs' order). A song for a use the Zelda importer
-    does not have is refused, as FtRandoLib refuses it (InvalidUsageError)."""
+    modules first, then each group's (LoadLibrarySongs' order), and the warnings. A use The Legend of
+    Zelda has no area for (another game's, such as Mega Man's Refights) is left out with a warning,
+    and a song left with no use is left out too: FtRandoLib refuses the whole library
+    (InvalidUsageError), ZORA keeps every song it can place."""
     try:
         parsed = json5.loads(library.decode("utf-8-sig"))
     except json.JSONDecodeError as exc:
@@ -185,7 +190,8 @@ def library_songs(library: bytes, safe_only: bool = True) -> list[Song]:
         raise LibraryError("not a library (no single modules or groups)")
     entries = [(None, entry) for entry in parsed.get("single", [])]
     entries += [(group, entry) for group in parsed.get("groups", []) for entry in group.get("items", [])]
-    songs = []
+    songs: list[Song] = []
+    warnings: list[str] = []
     for group, entry in entries:
         try:
             module_songs = _module_songs(group, entry)
@@ -195,29 +201,54 @@ def library_songs(library: bytes, safe_only: bool = True) -> list[Song]:
         for song in module_songs:
             if not song.enabled or (safe_only and not song.streaming_safe):
                 continue
-            unknown = song.uses - set(USES)
-            if unknown:
-                raise LibraryError(f"{song.title}: no use {', '.join(sorted(unknown))} in The Legend of Zelda")
-            songs.append(song)
-    return songs
+            usable = _usable(song, warnings)
+            if usable is not None:
+                songs.append(usable)
+    return songs, warnings
+
+
+def _usable(song: Song, warnings: list[str]) -> Song | None:
+    """The song with only the uses The Legend of Zelda has, or None when it has none of them; a
+    warning names what was left out."""
+    unknown = song.uses - set(USES)
+    if not unknown:
+        return song
+    names = ", ".join(sorted(unknown))
+    kept = song.uses & set(USES)
+    if not kept:
+        warnings.append(f"{song.title}: left out, The Legend of Zelda has no area for {names}")
+        return None
+    warnings.append(f"{song.title}: The Legend of Zelda has no area for {names}; "
+                    f"it plays as {', '.join(sorted(kept))} only")
+    return replace(song, uses=frozenset(kept))
+
+
+def library_songs(library: bytes, safe_only: bool = True) -> list[Song]:
+    """read_library's songs, without its warnings."""
+    return read_library(library, safe_only)[0]
 
 
 def local_library_songs(files: Sequence[LibraryFile]) -> tuple[list[Song], list[str]]:
     """Every enabled song of the player's library files, merged in the files' order (Z2R's rule),
-    and the warnings: a song whose full title an earlier file already has is left out. A file the
-    importer cannot use raises LibraryError naming it."""
+    and the warnings: each file's own (read_library's, naming the file), and a song whose full
+    title an earlier file already has is left out. A file the importer cannot read raises
+    LibraryError naming it; files with no song to place at all raise MusicError."""
     songs: list[Song] = []
     warnings: list[str] = []
     first_file: dict[str, str] = {}
     for file in files:
         try:
-            file_songs = library_songs(file.data, safe_only=False)
+            file_songs, file_warnings = read_library(file.data, safe_only=False)
         except LibraryError as exc:
             raise LibraryError(f"{file.name}: {exc}") from exc
+        warnings += [f"{file.name}: {warning}" for warning in file_warnings]
         for song in file_songs:
             if song.title in first_file:
                 warnings.append(f"{song.title}: in {first_file[song.title]} and {file.name}; the first is used")
                 continue
             first_file[song.title] = file.name
             songs.append(song)
+    if files and not songs:
+        raise MusicError("the library files have no track for The Legend of Zelda's areas (Title, Overworld, "
+                         "Dungeon, LastDungeon or Ending, or Zelda II's); choose other files")
     return songs, warnings

@@ -29,7 +29,7 @@ from ..rng import IntRng
 from .cave_entries import WOOD_SWORD_SCREENS, CaveShuffle
 from .extra_pool_items import ExtraPoolItems, ExtraSlotPlace, ShopWarePlace, exchange, join_pool, pool_places
 from .item_shuffle_result import LETTER_SLOT, WOOD_SWORD_SLOT, ItemShuffleOptions, ItemShuffleResult
-from .shop_items_in_pool import PRICES_BY_ITEM
+from .shop_items_in_pool import price_ware
 
 # The weapons the guarantee draws from, those of them in the pool: the swords and the wand.
 WEAPONS = (Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.WAND)
@@ -47,9 +47,14 @@ def is_open(screen: int, rules: LogicRules) -> bool:
 def shuffle_wood_sword(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems, overworld: Overworld,
                        caves: CaveShuffle, rules: LogicRules, rng: IntRng,
                        opts: ItemShuffleOptions | None = None) -> None:
-    """The join, then the guarantee."""
+    """The join (the joined shop ware it lands in, if any, priced again by SI-PRICE-01's classes),
+    then the guarantee."""
     opts = opts or ItemShuffleOptions()
-    join_pool(WOOD_SWORD_SLOT, levels, state, extras, overworld, rng, opts, tracked=True)
+    drawn = join_pool(WOOD_SWORD_SLOT, levels, state, extras, overworld, rng, opts, tracked=True)
+    if isinstance(drawn, ShopWarePlace):
+        # the joined ware now sells the wood sword: priced by its class, not the price of the
+        # item it held (bug fix, beta 9 price review)
+        price_ware(drawn, extras, rng, opts.prices)
     place_starting_weapon(levels, state, extras, caves, rules, rng, opts)
 
 
@@ -73,17 +78,6 @@ def place_starting_weapon(levels: list[Level], state: ItemShuffleResult, extras:
     if not (isinstance(holder, ExtraSlotPlace) and holder.slot == target.slot):
         exchange(target, holder, state)
         if isinstance(holder, ShopWarePlace):
-            price_ware(holder, extras, rng)
+            price_ware(holder, extras, rng, opts.prices)
     extras.pinned.add(target.slot)
 
-
-def price_ware(ware: ShopWarePlace, extras: ExtraPoolItems, rng: IntRng) -> None:
-    """SI-PRICE-01 for a joined ware that took a new item: by the item's class, else its slot price."""
-    item = ware.get()
-    if item in PRICES_BY_ITEM:
-        low, high = PRICES_BY_ITEM[item]
-        ware.shop.ware(ware.position).price = low + rng.below(high - low + 1)
-    else:
-        joined = next(index for index, joined_ware in enumerate(extras.shop_wares)
-                      if joined_ware.shop is ware.shop and joined_ware.position == ware.position)
-        ware.shop.ware(ware.position).price = extras.slot_prices[joined]

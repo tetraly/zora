@@ -18,7 +18,8 @@ import pytest
 from tests.needs import needs_base_rom
 from zora.flags.codec import decode, encode
 from zora.flags.fields import ThreeState
-from zora.generate.pipeline import Built, build, finish, plan
+from zora.generate.finish import FOREIGN
+from zora.generate.pipeline import Built, build, finish, finish_world, plan
 from zora.generate.steps.hint_text import (
     HINT_SHOP_OFFER_SELECTORS,
     HOLDER_SLOT,
@@ -132,3 +133,14 @@ def test_random_hint_style_resolves_to_each_style() -> None:
 @pytest.mark.parametrize("seed", (1, 2))
 def test_random_hint_style_generates(seed: int) -> None:
     assert world(RANDOM, seed).levels
+
+
+@pytest.mark.parametrize("seed", range(1, 7))
+def test_deception_with_every_tracked_item_in_another_world(seed: int) -> None:
+    """An Archipelago world whose places all hold other players' items tracks nothing
+    (finish.rebuild_tracking), so the white-sword cave's deceiving item has no pool entries to draw
+    from: it is the cave's own item then (ZORA4 of the batch run's exported YAMLs crashed on
+    rng.below(0)). Over these seeds the item's coin comes up heads on some."""
+    every_place_foreign = {place.name: FOREIGN for place in built(DECEPTION, seed).places}
+    _world, finished = finish_world(built(DECEPTION, seed), every_place_foreign, check=False)
+    assert finished.tracking.tracked == []

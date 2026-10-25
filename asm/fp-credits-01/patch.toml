@@ -1,0 +1,77 @@
+# ZORA FP-CREDITS-01 (owner, beta 9): a "Randomizer Staff" box in the ending credits, after the
+# original staff box. DrawCredits reads which rows hold text, the walls, the lines and the
+# attributes from ZORA's tables (written per ROM by zora/rom/credits_staff.py from
+# zora/rom/credits_staff.txt and the player's own credits) instead of PRG0's page masks, and the
+# scroll runs two screens longer, so everything after the new box keeps its place in its
+# nametable and its colors. asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_FP_CREDITS_01"
+bank = 2
+start = 0xB800
+
+[[segment]]
+name = "ZORA_FP_CREDITS_01_DATA"
+bank = 2
+start = 0xB900
+
+[[hook]]
+name = "walls"
+offset = 0x0AE2D
+length = 15
+note = "DrawCredits: PRG0's wall test (row 1 and $2E horizontal, rows between sides) becomes CreditsWalls, which reads ZORA_B2_CreditsBoxes."
+code = """
+    JSR CreditsWalls
+    BEQ @TerminateRecords
+    LSR
+    BEQ @WriteSideWalls
+    .RES 7, $EA
+"""
+
+[[hook]]
+name = "lines"
+offset = 0x0AE70
+length = 3
+note = "DrawCredits: LDA CreditsPagesTextMasks, X becomes JMP CreditsRowLine, which decides by ZORA's tables (the row's text, the line count, the quests' skips) and goes on to @IncVramLine, @IncLine or the record's copy with its address in [$00:$01]; PRG0's mask test and pointer load after it are left unused."
+code = """
+    JMP CreditsRowLine
+"""
+
+[[hook]]
+name = "name-line"
+offset = 0x0AEBD
+length = 8
+note = "DrawCredits: the second quest's name line ($11) is ZORA_B2_CreditsNameLine."
+code = """
+    CPY ZORA_B2_CreditsNameLine
+    BNE @IncLine
+    .RES 3, $EA
+"""
+
+[[hook]]
+name = "page-wrap"
+offset = 0x0AF10
+length = 5
+note = "DrawCredits: after page $B the VRAM pages go on at page 4 ($2000), so the nametables keep alternating past PRG0's twelve pages."
+code = """
+    JSR CreditsWrapPage
+    .RES 2, $EA
+"""
+
+[[hook]]
+name = "attributes"
+offset = 0x0AF2A
+length = 3
+note = "DrawCredits: the attribute row's byte comes from ZORA_B2_CreditsAttributes."
+code = """
+    LDA ZORA_B2_CreditsAttributes, Y
+"""
+
+[[hook]]
+name = "last-screen"
+offset = 0x0ABD0
+length = 2
+note = "CreditsLastScreenList: two screens more in each quest, for the new box's 64 rows."
+code = """
+    .BYTE $04, $05
+"""

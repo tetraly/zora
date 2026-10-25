@@ -35,6 +35,7 @@ from .flags.fields import (
     WoodenSwordState,
 )
 from .flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
+from .flags.zora_flags import GatekeeperBosses
 from .generate.finish import FOREIGN, AssignmentRefused, AssignmentUnbeatable, Foreign, ForeignLook
 from .generate.logic import LogicModel, logic_model, triforce_event
 from .generate.pipeline import Built, FlagsRefused, GenerationPlan, plan
@@ -62,6 +63,8 @@ from .rom.player_settings import (
     PAGE_TUNIC_SLOTS,
     PALETTE_SIZE,
     RANDOM_BOSS_SOUND_WORD,
+    RANDOM_COLOR,
+    RANDOM_LEVEL_WORD,
     RETIRED_PAGE_SETTINGS,
     RETIRED_SETTINGS,
     PlayerSettingError,
@@ -258,6 +261,10 @@ HELD_BACK: dict[str, frozenset[int]] = {
     "C12": frozenset({PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER}),
     **dict.fromkeys(("C26", "C27"), frozenset({PinnedItem.BOW, PinnedItem.LADDER, PinnedItem.POWER_BRACELET,
                                                PinnedItem.RAFT, PinnedItem.RECORDER, PinnedItem.WAND})),
+    # Gatekeeper Bosses (beta 9) seals each level's triforce part behind its boss, which the logic reads
+    # through the boss's shutters: held until the logic is scanned (owner, 2026-10-24).
+    "gatekeeper_bosses": frozenset({GatekeeperBosses.ANYWHERE, GatekeeperBosses.LATE,
+                                    GatekeeperBosses.EARLY}),
 }
 CHOICE, THREE_STATE, SWITCH = "choice", "three_state", "switch"
 # A switch's two values; every on/off/random value is labeled as on the page (zora/flags/fields.py).
@@ -545,7 +552,7 @@ PLAYER_SETTING_LABELS = {
 }
 PLAYER_CHOICE_LABELS = {
     "selectButton": {"off": "Off", "swap": "Swap only", "toggle": "Toggle"},
-    "lowHealthBeep": {"removed": "Removed", "kept": "Kept", "half-speed": "Half speed"},
+    "lowHealthBeep": {"removed": "Removed", "kept": "Kept", "half-speed": "Half speed", "random": "Random"},
     "deathWarp": {"p2-up-a": "Controller 2 Up+A", "p1-up-a": "Controller 1 Up+A",
                   "p1-up-select": "Controller 1 Up+Select"},
     "reduceFlashing": {"off": "Off", "on": "On"},
@@ -566,15 +573,21 @@ MULTIWORLD_SETTINGS: dict[str, tuple[str, str, tuple[tuple[str, str], ...]]] = {
     PAGE_ITEM_ARRIVAL_SOUND: ("Sound when an item arrives", "item-appears",
                               (("item-appears", "Item appears"), ("item-taken", "Item taken"), ("none", "None"))),
 }
-# Every NES palette value but $0D (FP-SET-02, FP-SET-03; player_settings.check_palette_value).
-ALLOWED_COLORS = tuple(value for value in range(PALETTE_SIZE) if value != REFUSED_COLOR)
+# Every NES palette value but $0D (FP-SET-02, FP-SET-03; player_settings.check_palette_value), and
+# Random (RANDOM_COLOR, one past the palette).
+ALLOWED_COLORS = (*(value for value in range(PALETTE_SIZE) if value != REFUSED_COLOR), RANDOM_COLOR)
+# A Random choice's value key in a player's YAML, by kind. Never "random": Archipelago reads that word as
+# its own (any one of the option's values, drawn when the multiworld is generated).
+RANDOM_COLOR_KEY = "random_color"
+RANDOM_CHOICE_KEY = "random_choice"
+RANDOM_CHOICE = "random"                  # a choice's Random as the page has it (lowHealthBeep)
 
 
 @dataclass(frozen=True)
 class TextRule:
     """A word setting's rule. What the player types loses its outer spaces and becomes capitals;
     the word is then `min_length` to `max_length` of `characters` (the game's font), or `random`
-    (the boss-sound label's Random). The level name's label keeps its dash for a word of at most
+    (the boss-sound label's or the level name's Random). The level name's label keeps its dash for a word of at most
     `dash_max_length` characters ("CASTLE-1"; "DUNGEON1")."""
     min_length: int
     max_length: int
@@ -623,17 +636,18 @@ RANDOM_WORD_KEY = "random_word"           # the boss-sound label's RANDOM, which
 
 
 def color_key(color: int) -> str:
-    """A color's value key: its NES palette value in hex ("0x29")."""
-    return f"0x{color:02X}"
+    """A color's value key: its NES palette value in hex ("0x29"), or Random's "random"."""
+    return RANDOM_COLOR_KEY if color == RANDOM_COLOR else f"0x{color:02X}"
 
 
 def _player_value_keys(kind: str, key: str, values: Iterable[str | int]) -> tuple[tuple[str | int, str], ...]:
     if kind == COLOR:
         return tuple((value, color_key(int(value))) for value in values)
     if kind == WORD:
-        return tuple((value, RANDOM_WORD_KEY if key == PAGE_BOSS_SOUND_WORD and value == RANDOM_BOSS_SOUND_WORD
-                      else str(value).lower()) for value in values)
-    return tuple((value, str(value).replace("-", "_")) for value in values)
+        randoms = {PAGE_BOSS_SOUND_WORD: RANDOM_BOSS_SOUND_WORD, PAGE_LEVEL_WORD: RANDOM_LEVEL_WORD}
+        return tuple((value, RANDOM_WORD_KEY if value == randoms.get(key) else str(value).lower()) for value in values)
+    return tuple((value, RANDOM_CHOICE_KEY if value == RANDOM_CHOICE else str(value).replace("-", "_"))
+                 for value in values)
 
 
 def player_setting_fields() -> list[PlayerSettingSpec]:
@@ -651,8 +665,9 @@ def player_setting_fields() -> list[PlayerSettingSpec]:
     slots = (*zip(PAGE_TUNIC_SLOTS, defaults.tunic_colors, strict=True), (PAGE_HEART_SLOT, defaults.heart_color))
     specs += [PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], COLOR, default, colors=ALLOWED_COLORS)
               for key, default in slots]
+    level_words = (*((word, word) for word in LEVEL_WORD_CHOICES), (RANDOM_LEVEL_WORD, RANDOM_WORD_LABEL))
     specs.append(PlayerSettingSpec(PAGE_LEVEL_WORD, PLAYER_SETTING_LABELS[PAGE_LEVEL_WORD], WORD, defaults.level_word,
-                                   tuple((word, word) for word in LEVEL_WORD_CHOICES), rule=LEVEL_WORD_RULE))
+                                   level_words, rule=LEVEL_WORD_RULE))
     boss_words = ((defaults.boss_sound_word, defaults.boss_sound_word), (RANDOM_BOSS_SOUND_WORD, RANDOM_WORD_LABEL),
                   *((word, word) for word in BOSS_SOUND_WORDS))
     specs.append(PlayerSettingSpec(PAGE_BOSS_SOUND_WORD, PLAYER_SETTING_LABELS[PAGE_BOSS_SOUND_WORD], WORD,

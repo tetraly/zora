@@ -601,6 +601,7 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         expanded_dungeon_locations_seed=expanded_dungeon_locations_seed(chosen.seed, chosen.flag_string,
                                                                         chosen.zora_game_string),
         highlight_no_drop_rooms=chosen.zora_resolved.is_on("highlight_no_drop_rooms"),
+        gatekeeper_bosses=chosen.zora_resolved.gatekeeper_bosses,
     )
 
 

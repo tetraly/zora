@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass, field
 
 from . import json5
-from .importer import CANDIDATE_USE
+from .importer import area_uses
 from .library import DUNGEON, ENDING, LAST_DUNGEON, OVERWORLD, TITLE, MusicError, Song
 
 PLAYLIST_VERSION = 1
@@ -99,8 +99,7 @@ def resolve_playlist(playlist: Playlist, songs: list[Song], safe_only: bool) -> 
         if safe_only and not song.streaming_safe:
             raise PlaylistError(f"the playlist, {key}: {track!r} is marked unsafe for streaming "
                                 "(turn Streaming-safe tracks only off to use it)")
-        use = CANDIDATE_USE.get(area.area, area.area)
-        if use not in song.uses:
+        if not song.uses & set(area_uses(area.area)):
             warnings.append(f"{area.label}: {track} is not tagged for this area")
         fixed[area.song_number] = song
     return fixed, warnings

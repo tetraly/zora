@@ -11,9 +11,10 @@ baits are found by what they sell, shops 1-4 in order and each shop's wares left
     place. Each bait is a tracked item (the logic's bait rule, acceptance_check.LogicRules);
   - a bait left over (one Goriya: PRG0's second bait) becomes a fairy priced 20-40
     (FAIRY_PRICES, one draw), and stays a plain ware, never a pool place.
-Prices follow Shop Items in the Item Pool's classes (SI-PRICE-01, unchanged): a bait ware holding
-a displaced item is priced by that item, and a joined ware that now sells the bait keeps its own
-slot price. The ROM side, bait as a count, is zora/rom/bait_count.py.
+Prices follow Shop Items in the Item Pool's classes (SI-PRICE-01, steps/shop_prices.py): a bait
+ware holding a displaced item is priced by that item, and a joined ware that now sells the bait
+is priced as a required item, 60-80 (beta 9 price rules; it kept its own slot price before).
+The ROM side, bait as a count, is zora/rom/bait_count.py.
 """
 from __future__ import annotations
 
@@ -23,7 +24,8 @@ from ...model.overworld import Overworld, Shop
 from ..rng import IntRng
 from .extra_pool_items import ExtraPoolItems, ShopWarePlace, exchange_with_drawn, pool_places
 from .item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
-from .shop_items_in_pool import FAIRY_PRICES, PRICES_BY_ITEM
+from .shop_items_in_pool import price_ware
+from .shop_prices import FAIRY_PRICES
 from .shuffle_shop_items import SHOPS
 
 
@@ -66,12 +68,12 @@ def join_bait(own: ShopWarePlace, levels: list[Level], state: ItemShuffleResult,
     extras.shop_items.append(Item.BAIT)
     extras.slot_prices.append(slot_price)
     drawn = exchange_with_drawn(own, places, state, rng)
+    prices = opts.prices.prices
     displaced = own.get()
-    if displaced in PRICES_BY_ITEM:
-        low, high = PRICES_BY_ITEM[displaced]
+    if displaced != Item.BAIT and displaced in prices:
+        low, high = prices[displaced]
         own.shop.ware(own.position).price = low + rng.below(high - low + 1)
     if isinstance(drawn, ShopWarePlace):
-        # a joined ware now selling the bait, which no price class names: back to its slot price
-        joined = next(index for index, ware in enumerate(extras.shop_wares)
-                      if ware.shop is drawn.shop and ware.position == drawn.position)
-        drawn.shop.ware(drawn.position).price = extras.slot_prices[joined]
+        # a joined ware now selling the bait: priced as a required item (beta 9 price rules; it
+        # kept the slot's price, up to 254 in the blue ring's ware)
+        price_ware(drawn, extras, rng, opts.prices)

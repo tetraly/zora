@@ -155,7 +155,11 @@ def test_level_information_carries_the_exit_room_counts() -> None:
     generate_shapes(world, Rng(3), ShapeOptions())
     expected = {level.level_num: level.exit_room_count() | EXIT_ROOM_COUNT_FLAG
                 for level in world.levels}
-    finished = parse_rom(serialize_to_rom(world, rom, config=GameConfig(features_b10=True)))
+    # CONSTERNATION: generate_shapes draws the pool's texts, which are for the extended bank; the
+    # vanilla bank (Normal hints, whose texts are PRG0's own) holds 1,366 bytes and the community
+    # texts of 2026-10-24 overflow it in this seed.
+    config = GameConfig(features_b10=True, hint_mode=HintMode.CONSTERNATION)
+    finished = parse_rom(serialize_to_rom(world, rom, config=config))
     assert {level.level_num: level.palette_raw[LEVEL_INFO_EXIT_ROOM_COUNT]
             for level in finished.levels} == expected
 

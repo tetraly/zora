@@ -10,7 +10,8 @@ alternative values and every ZORA flag) one at a time."""
 import importlib.util
 import re
 import shutil
-from dataclasses import dataclass, replace
+import sys
+from dataclasses import replace
 from functools import cache
 from pathlib import Path
 from types import ModuleType
@@ -36,7 +37,6 @@ from zora.rom.base_rom import Piece, piece_length
 from zora.rom.code_patch_data import PATCHES as SERIES_PATCHES
 from zora.rom.flags2_patch_data import PATCHES as FLAG_PATCHES
 from zora.rom.layout import (
-    NES_HEADER_SIZE,
     OVERWORLD_WIZZROBE_PATCH,
     TITLE_ROW_LENGTH,
     TITLE_SEED_ROW_ADDRESS,
@@ -54,54 +54,24 @@ from zora.rom.player_settings import (
 
 REPO = Path(__file__).resolve().parent.parent
 
-FIXED_BANK = 7
-BANK_SIZE = 0x4000
-SWITCHED_BANK_BASE = 0x8000
-FIXED_BANK_BASE = 0xC000
+
+def _rom_space() -> ModuleType:
+    """asm/rom_space.py, which reads the one table of z1rr-coop's ranges (asm/rom_space.toml)."""
+    if "rom_space" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("rom_space", REPO / "asm" / "rom_space.py")
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["rom_space"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["rom_space"]
 
 
-@dataclass(frozen=True)
-class Reserved:
-    """One of z1rr-coop's ranges: CPU addresses `first`-`last` in `bank`."""
-    bank: int
-    first: int
-    last: int
-    what: str
+SPACE = _rom_space().table()
+# z1rr-coop's blocks (asm/rom_space.toml "Reserved for z1rr-coop"): 2.0 beta 8's and its patch
+# revision 1's, each reserved whole; and the PRG0 instructions its in-place hooks touch.
+RESERVED = tuple(area for area in SPACE.reserved if area.owner == _rom_space().COOP)
+HOOK_INSTRUCTIONS = tuple(area for area in SPACE.reserved_instructions if area.owner == _rom_space().COOP)
 
-    def file_range(self) -> range:
-        base = FIXED_BANK_BASE if self.bank == FIXED_BANK else SWITCHED_BANK_BASE
-        start = NES_HEADER_SIZE + self.bank * BANK_SIZE + self.first - base
-        return range(start, start + self.last - self.first + 1)
-
-    def __str__(self) -> str:
-        return f"bank {self.bank} ${self.first:04X}-${self.last:04X} ({self.what})"
-
-
-# z1rr-coop 2.0 beta 8's blocks (the owner's figures from its patch). Each is reserved whole:
-# unchanged bytes inside a block are part of the co-op code.
-RESERVED = (
-    Reserved(1, 0xA233, 0xA235, "in-place hook"),
-    Reserved(1, 0xA430, 0xA449, "PRG0's unused $FF block"),
-    Reserved(4, 0xB46F, 0xB882, "bank 4's linker gap, 1,044 bytes"),
-    Reserved(5, 0xB366, 0xB369, "in-place hook in InitLinkSpeed"),
-    Reserved(5, 0xB8F0, 0xB901, "bank 5's linker gap"),
-    Reserved(6, 0xAAE8, 0xAAEF, "title-screen data the co-op patch overwrites"),
-    Reserved(6, 0xB100, 0xB14C, "bank 6's linker gap"),
-    Reserved(7, 0xE65A, 0xE65D, "in-place hook in ReadOneController"),
-    Reserved(7, 0xED8A, 0xED93, "in-place hook in UpdateHeartsAndRupees"),
-    Reserved(7, 0xFAE4, 0xFAEE, "PRG0's unused $FF run"),
-    Reserved(7, 0xFFD4, 0xFFDB, "NMI entry"),
-    Reserved(7, 0xFFFA, 0xFFFB, "NMI vector"),
-)
-# The co-op hooks replace whole instructions: these spans are the PRG0 instructions they touch.
-# The hook at $ED8A starts on the operand of the instruction at $ED89, so ZORA must leave $ED89
-# too; the others start and end on instruction boundaries.
-HOOK_INSTRUCTIONS = (
-    Reserved(1, 0xA233, 0xA235, "co-op hook's instruction"),
-    Reserved(5, 0xB366, 0xB369, "co-op hook's instructions"),
-    Reserved(7, 0xE65A, 0xE65D, "co-op hook's instructions"),
-    Reserved(7, 0xED89, 0xED93, "co-op hook's instructions, from the LDA whose operand it starts on"),
-)
 RESERVED_BYTES = {offset: area for area in RESERVED + HOOK_INSTRUCTIONS for offset in area.file_range()}
 
 # With "Encode level data" on, the private encoder rewrites the level data region and two bank-6
@@ -119,7 +89,7 @@ def written(pieces: tuple[tuple[int, Piece], ...] | list[tuple[int, Piece]]) -> 
 
 def hits(offsets: set[int] | range) -> list[str]:
     """The reserved ranges `offsets` touch, with the first offset found in each."""
-    found: dict[Reserved, int] = {}
+    found: dict[Any, int] = {}
     for offset in sorted(offsets):
         if offset in RESERVED_BYTES:
             found.setdefault(RESERVED_BYTES[offset], offset)
@@ -167,16 +137,26 @@ def test_no_series_patch_writes_a_reserved_byte(name: str) -> None:
     assert not hits(written(SERIES_PATCHES[name])), name
 
 
-# ZORA flag patches allowed on one co-op hook, because co-op is not offered yet (owner spec "Pegasus
-# Boots for ZORA", 2026-10-17): Pegasus Boots calls BootsSpeed from InitLinkSpeed's first two
-# instructions, z1rr-coop's in-place hook. Revisit when co-op ships (the boots could move to
-# InitLinkSpeed's @SetSpeed, $B387). Only these bytes are allowed; any other reserved byte fails.
-COOP_HOOK_SHARED_BY = {"pegasus-boots": Reserved(5, 0xB366, 0xB369, "in-place hook in InitLinkSpeed")}
-# Flag values allowed on the same hook (owner ruling, 2026-10-22): Red Bubble Curse's Slow Speed (C19 =
-# 2, FP-BUBL-01) hooks InitLinkSpeed's first two instructions too, and is incompatible with a future
-# co-op mode rather than moved (docs/rom-map.md "Reserved for z1rr-coop"). Only these bytes are
-# allowed, and they must be written (a stale exception fails); any other reserved byte fails.
-COOP_HOOK_SHARED_BY_VALUE = {"C19=2": COOP_HOOK_SHARED_BY["pegasus-boots"]}
+# Writers allowed on a co-op hook: the table's [[shared]] rows naming z1rr-coop (asm/rom_space.toml).
+# Pegasus Boots (owner spec "Pegasus Boots for ZORA", 2026-10-17) and Red Bubble Curse's Slow Speed (C19 =
+# 2, FP-BUBL-01; owner ruling, 2026-10-22) call their routines from InitLinkSpeed's first two
+# instructions, beta 8's in-place hook (revision 1 leaves them as PRG0's; docs/rom-map.md "Reserved for
+# z1rr-coop"). Only these bytes are allowed, and they must be written (a stale exception fails); any
+# other reserved byte fails.
+COOP_SHARED = [shared for shared in SPACE.shared if _rom_space().COOP in shared.owners]
+
+
+def _reserved_area(area: Any) -> Any:
+    """The reservation a shared range lies in, so the exceptions name z1rr-coop's own rows."""
+    return next(reserved for reserved in RESERVED if set(area.file_range()) <= set(reserved.file_range()))
+
+
+COOP_HOOK_SHARED_BY = {owner.removeprefix("flags2:"): _reserved_area(area) for shared in COOP_SHARED
+                       for area in shared.areas for owner in shared.owners if owner.startswith("flags2:")}
+# The flag values among those writers (the rows' option values, as "C19=2").
+COOP_HOOK_SHARED_BY_VALUE = {f"{field_id}={value}": _reserved_area(area) for shared in COOP_SHARED
+                             for area in shared.areas
+                             for field_id, value in shared.flags.get("z1r", {}).items() if isinstance(value, int)}
 
 
 @pytest.mark.parametrize("name", list(FLAG_PATCHES))
@@ -191,7 +171,7 @@ def test_no_zora_flag_patch_writes_a_reserved_byte(name: str) -> None:
 
 @pytest.mark.parametrize("setting", ["select_swap", "low_health_beep", "death_warp", "reduce_flashing",
                                      "tunic_colors", "heart_color", "music", "level_word",
-                                     "boss_sound_word"])
+                                     "boss_sound_word", "link_sprite"])
 def test_no_player_setting_writes_a_reserved_byte(setting: str) -> None:
     """Every byte any choice of the setting may write."""
     assert not hits(written_offsets(setting)), setting

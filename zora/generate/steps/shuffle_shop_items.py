@@ -17,6 +17,7 @@ from .cave_entries import (
     CaveShuffle,
     recorder_screens,
 )
+from .shop_prices import ALWAYS_REQUIRED, REQUIRED_PRICE_CAP
 
 SHOPS = (Destination.SHOP_1, Destination.SHOP_2, Destination.SHOP_3, Destination.SHOP_4)
 WARES_PER_SHOP = 3
@@ -74,10 +75,15 @@ def shuffle_stock(pairs: list[ShopItem], rng: IntRng) -> None:
 
 def jitter_prices(pairs: list[ShopItem], rng: IntRng) -> None:
     """OW-SHOP-03: shift each price by d in [-20, +20], slot order; a shift
-    landing at 0 or below, or 255 or above, is undone, not clamped."""
+    landing at 0 or below, or 255 or above, is undone, not clamped. ZORA's
+    cap (owner decision 2026-10-24; docs/deviations.md "Shop prices"): a shift
+    that would lift an item that can be required (the arrows, the candle, the
+    bait) above 100 is undone too, so PRG0's 100-rupee bait stays at 100. The
+    draws are the spec's either way."""
     for pair in pairs:
         price = pair.price + rng.below(2 * JITTER + 1) - JITTER
-        if PRICE_FLOOR < price < PRICE_CEILING:
+        over_cap = pair.item in ALWAYS_REQUIRED and price > REQUIRED_PRICE_CAP
+        if PRICE_FLOOR < price < PRICE_CEILING and not over_cap:
             pair.price = price
 
 

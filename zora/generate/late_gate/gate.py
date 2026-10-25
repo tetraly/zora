@@ -45,6 +45,7 @@ from .fixes import (
     _zelda_rewrite,
     zelda_cell,
 )
+from .gatekeeper import GATEKEEPER_LEVELS, GatekeeperPlan, place_gatekeeper
 
 if TYPE_CHECKING:
     from .walk import WalkResult
@@ -149,10 +150,12 @@ def _connectivity_verdict(level: Level, transports: bool = True) -> str | None:
 
 
 def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None,
-              force_ganon_fight: bool = True, doors_only_levels: frozenset[int] = frozenset()) -> GateStats:
+              force_ganon_fight: bool = True, doors_only_levels: frozenset[int] = frozenset(),
+              gatekeepers: GatekeeperPlan | None = None) -> GateStats:
     """Attempt loop over levels 1..9 sharing one 1,000-attempt budget, on
     the pass's staged levels. The levels in doors_only_levels (Do Not Segment Dungeons' shapes levels)
-    are walked without their transport staircases.
+    are walked without their transport staircases. With Gatekeeper Bosses (gatekeepers), an accepted
+    attempt of a level 1-8 then builds its gatekeeper, or is rejected as "gatekeeper".
 
     EVERY attempt counts against the budget, accepted ones included
     (VA-REJ-04). Accepted levels persist; a rejected attempt is rolled
@@ -175,7 +178,8 @@ def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None,
                 used += 1
                 snapshot = _snapshot(gate_block)
                 kind, plain_walk_passed, repair_ran, pairs_opened = _attempt(
-                    gate_block, level, rng, force_ganon_fight, level.level_num not in doors_only_levels)
+                    gate_block, level, rng, force_ganon_fight, level.level_num not in doors_only_levels,
+                    gatekeepers)
                 if SURVEY:
                     stats.survey.append(
                         (level.level_num, kind, plain_walk_passed, repair_ran, pairs_opened,
@@ -208,12 +212,14 @@ def _guard_level_3_cellar_list(level: Level) -> None:
 
 
 def _attempt(gate_block: GateBlock, level: Level, rng: Rng, force_ganon_fight: bool = True,
-             transports: bool = True) -> tuple[str, bool | None, bool, int]:
+             transports: bool = True, gatekeepers: GatekeeperPlan | None = None) -> tuple[str, bool | None, bool, int]:
     """One attempt (VA-REJ-03 steps 1-9). Returns (kind, plain_walk_ok,
     repair_invoked, pairs_opened); kind is "accept" or the rejection
     kind. Force Ganon Fight (B18) off: step 8 runs only its cleanup, and
     Zelda is not pinned to the life-or-money room (A64). transports=False
-    (Do Not Segment Dungeons): step 9's walks and the Ganon test leave transport staircases out."""
+    (Do Not Segment Dungeons): step 9's walks and the Ganon test leave transport staircases out.
+    gatekeepers (Gatekeeper Bosses, ZORA's own step after step 9): a level 1-8 builds its gatekeeper,
+    or the attempt is rejected (gatekeeper.py)."""
     recorded = _deal_level(level, rng, force_ganon_fight)
     if recorded is None:
         return "swap", None, False, 0
@@ -239,4 +245,7 @@ def _attempt(gate_block: GateBlock, level: Level, rng: Rng, force_ganon_fight: b
         _reforce_level9_person_sides(level)
     if level.level_num == LEVEL_9 and not _level9_extras(gate_block, level, transports):
         return "l9extra", plain_walk_passed, repair_ran, pairs_opened
+    if gatekeepers is not None and level.level_num in GATEKEEPER_LEVELS \
+            and not place_gatekeeper(level, rng, gatekeepers, transports):
+        return "gatekeeper", plain_walk_passed, repair_ran, pairs_opened
     return "accept", plain_walk_passed, repair_ran, pairs_opened

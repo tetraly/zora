@@ -11,7 +11,9 @@ from .base_rom import Original, Piece
 # Community members who wrote a feature (docs/credits.md).
 CREDITS: dict[str, str] = {
     "fast-heart-fill": "snarfblam",
+    "fast-dungeon-scroll": "fiskbit",
     "recorder-pols-voice": "Stratoform",
+    "full-health": "ShadowOne333, kalita-kun and gzip",
 }
 
 PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
@@ -71,6 +73,8 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x11D45, bytes.fromhex("01")),
         (0x11D46, Original(0x11D46, 1)),
         (0x11D47, bytes.fromhex("7e")),
+        (0x11D48, Original(0x11D48, 2)),
+        (0x11D4A, bytes.fromhex("5a")),
     ),
     "magic-boomerang-damage": (
         (0x07478, bytes.fromhex("a95099ac00a5093db204f00420c57d60a910953dad75060a0a0a0a8507ea")),
@@ -114,5 +118,11 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x17C90, bytes.fromhex("a616bc0eeaae6206bd2573d90468f00ea614d00aa21886149904688d926bad6c06f009a910186df004"
                                 "8df00460")),
         (0x1EC8A, bytes.fromhex("a90520acff2080bceaeaeaeaeaea")),
+    ),
+    "full-health": (
+        (0x0A646, bytes.fromhex("e0b0")),
+        (0x0B0F0, bytes.fromhex("a9ff8d7006ad6f064a4a4a4a8500ad6f0629f005008d6f064ca1eb")),
+        (0x14B82, bytes.fromhex("2020b9eaea")),
+        (0x17930, bytes.fromhex("8d6f064a4a4a4a0d6f068d6f0660")),
     ),
 }

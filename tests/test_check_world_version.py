@@ -118,7 +118,7 @@ def test_the_beta_rule(script: ModuleType, world: str, zora: str, holds: bool) -
 
 
 def test_this_checkout_keeps_the_beta_rule(script: ModuleType) -> None:
-    """The committed manifest and ZORA_VERSION agree (world 0.8.0 for 2.0 beta 8): a version bump
+    """The committed manifest and ZORA_VERSION agree (world 0.9.0 for 2.0 beta 9): a version bump
     raises both."""
     import json
 

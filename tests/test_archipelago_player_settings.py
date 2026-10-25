@@ -105,7 +105,7 @@ def test_every_listed_value_is_accepted_and_nothing_else(key: str) -> None:
     spec = SPECS[key]
     for value in values_of(spec):
         player_settings_from_page({key: value})
-    refused: dict[str, list[object]] = {archipelago.CHOICE: ["bogus", 1], archipelago.COLOR: [0x0D, 0x40, -1, "0x16"],
+    refused: dict[str, list[object]] = {archipelago.CHOICE: ["bogus", 1], archipelago.COLOR: [0x0D, 0x41, -1, "0x16"],
                                         archipelago.WORD: [7]}
     for wrong in refused[spec.kind]:
         with pytest.raises(PlayerSettingError):

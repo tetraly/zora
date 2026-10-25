@@ -134,6 +134,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .step-sub strong { color: var(--ink); }
 .step-note { margin: 6px 0 0; font-size: 14px; color: var(--ink); }
 .step-note:empty { display: none; }
+#rom-remembered .btn { margin-left: 8px; vertical-align: middle; }
 .step-error { margin: 6px 0 0; font-size: 14px; color: var(--error); }
 .step-error:empty { display: none; }
 
@@ -282,6 +283,15 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .color-swatch--excluded { cursor: not-allowed; opacity: .2; }
 .color-swatch--excluded:hover { transform: none; border-color: rgba(255, 255, 255, .15); }
 .color-picker-code { font: 12px 'DM Mono', ui-monospace, monospace; color: var(--muted); min-width: 2.4em; }
+/* Random: a choice under the grid, and a toggle showing "?" over the palette's colors */
+.color-picker-random { display: block; width: 100%; margin-top: 8px; min-height: 32px; }
+.color-picker-random--selected { outline: 2px solid var(--action); outline-offset: 1px; }
+.color-picker-toggle--random {
+  background: conic-gradient(#ec6a64, #d48820, #74c400, #38b4cc, #787cec, #e454ec, #ec6a64);
+  color: #FFFFFF; font-weight: 700; text-shadow: 0 0 3px #000000;
+}
+.link-sprite-control { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.link-sprite-set { flex-basis: 100%; text-align: right; }
 
 /* ---------------------------------------------------------------------------
    Step 3: seed, Generate, status and the result card
@@ -560,6 +570,9 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .setting--wide .setting-control { flex: 1 1 100%; min-width: 0; margin-left: 0; }
 .music-playlist-control { display: block; width: 100%; min-width: 0; }
 .music-library, .music-playlist-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.music-library-notes { flex-basis: 100%; }
+.music-library-notes .setting-reason { margin-left: 0; }
+.music-library-problem { color: var(--error); }
 .music-playlist { display: grid; gap: 6px; margin-top: 10px; }
 .music-playlist-area { display: grid; grid-template-columns: minmax(7em, auto) minmax(0, 1fr); align-items: center; gap: 8px; }
 .music-playlist-area .select { min-width: 0; width: 100%; }

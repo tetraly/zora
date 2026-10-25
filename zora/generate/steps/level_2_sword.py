@@ -15,8 +15,16 @@ from ...model.enums import Item
 from ...model.levels import Level
 from ..rng import IntRng
 from ..shapes.tables import LEVEL_2_SWORD_ITEM, LEVEL_2_SWORD_LEVEL
-from .extra_pool_items import ExtraPoolItems, ItemCellarPlace, exchange_with_drawn, item_cellars, pool_places
+from .extra_pool_items import (
+    ExtraPoolItems,
+    ItemCellarPlace,
+    ShopWarePlace,
+    exchange_with_drawn,
+    item_cellars,
+    pool_places,
+)
 from .item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
+from .shop_items_in_pool import price_ware
 
 LEVEL_2_SWORD = Item(LEVEL_2_SWORD_ITEM)
 
@@ -31,10 +39,14 @@ def level_2_sword_cellar(levels: list[Level]) -> ItemCellarPlace:
 
 def join_level_2_sword(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems, rng: IntRng,
                        tracked: bool, opts: ItemShuffleOptions | None = None) -> None:
-    """The level-2 sword joins the pool (one draw); `tracked`: Level 9 Entrance = Level 4 sword."""
+    """The level-2 sword joins the pool (one draw); `tracked`: Level 9 Entrance = Level 4 sword. A
+    joined shop ware it lands in is priced again by SI-PRICE-01's classes (bug fix, beta 9 price
+    review: it kept the price of the item it held)."""
     opts = opts or ItemShuffleOptions()
     own = level_2_sword_cellar(levels)
     places = pool_places(levels, state, extras, opts)
     if tracked:
         state.tracked.append(own.tracked(LEVEL_2_SWORD))
-    exchange_with_drawn(own, places, state, rng)
+    drawn = exchange_with_drawn(own, places, state, rng)
+    if isinstance(drawn, ShopWarePlace):
+        price_ware(drawn, extras, rng, opts.prices)

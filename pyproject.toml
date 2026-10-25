@@ -38,6 +38,8 @@ include = ["zora", "zora.*", "zora_export*", "zora_measure*", "zora_web*"]
 # field names (zora/flags/form.py; docs/flag-names.csv).
 "zora.generate.steps" = ["hint_pool.txt"]
 "zora.flags" = ["names.json"]
+# The ending credits' Randomizer Staff names (zora/rom/credits_staff.py)
+"zora.rom" = ["credits_staff.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

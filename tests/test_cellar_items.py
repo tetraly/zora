@@ -17,7 +17,7 @@ from zora.generate.shapes.options import ShapeOptions
 from zora.model.enums import RoomType
 from zora.model.game_world import GameWorld
 from zora.model.rooms import StaircaseRoom
-from zora.rom.game_config import GameConfig
+from zora.rom.game_config import GameConfig, HintMode
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 
@@ -39,7 +39,8 @@ LEVEL_LOAD_FRAMES, SETTLE_FRAMES = 900, 40
 def _finished() -> tuple[GameWorld, bytes]:
     world = parse_rom(vanilla())
     generate_shapes(world, Rng(SEED), ShapeOptions())
-    return world, serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=True))
+    config = GameConfig(features_b10=True, hint_mode=HintMode.CONSTERNATION)     # (the pool's texts: extended bank)
+    return world, serialize_to_rom(world, vanilla(), config=config)
 
 
 def _cellar(world: GameWorld, level_num: int) -> StaircaseRoom:

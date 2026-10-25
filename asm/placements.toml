@@ -1,0 +1,5 @@
+# Where the build placed each segment that leaves out `start` (asm/rom_space.py, asm/README.md
+# "Adding a patch"). Written by the builders, committed with the patch. A row is kept on every later
+# build, so adding a patch never moves an existing one; delete a row only to move that segment on
+# purpose (its ROM bytes change).
+

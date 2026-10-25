@@ -1,0 +1,66 @@
+# The ending credits' Randomizer Staff box, after the original staff box (zora/rom/credits_staff.py,
+# FP-CREDITS-01). Edit the names here; nothing else needs to change.
+#
+# Each line is one row of the credits, from the original's left edge (as EXECUTIVE and
+# PRODUCER... H.YAMAUCHI; 23 columns) or centered in the box's 24 columns; spaces at either end
+# are not counted. An empty line is an empty row. Letters, digits, spaces and . , ! ' & " ? -
+# only: "." is the credits' own dot.
+#   [title] TEXT       the box's name, centered in its top wall (white, as the original's STAFF)
+#   [blue], [green], [red] or [white]
+#                      the color of the lines after it, until the next one
+#   [left] or [center] where the lines after it start, until the next one (from the left at first)
+# Lines starting with "#" are comments. At most 56 rows fit (the build says so if they do not).
+[title] RANDOMIZER STAFF
+[blue]
+DESIGN AND
+PROGRAMMING... TETRALY
+
+[green]
+MUSIC DESIGN
+....... THEREALQUANTAM
+
+[red]
+SPRITE DESIGN
+....... IRENEPUNMASTER
+
+[blue]
+BETA TESTERS
+......... CUSTOMSHIELD
+......... GRANDPASZABO
+......... HECCINHAYLEY
+.............. ISUMATT
+............... PDXREX
+............ THEGOBONE
+
+[green]
+ADDITIONAL TECHNICAL
+CONTRIBUTIONS
+.......... BOGIESMALLS
+.............. FISKBIT
+................. GZIP
+........... KALITA-KUN
+......... SHADOWONE333
+............ SNARFBLAM
+........... STRATOFORM
+
+[red]
+AI ASSISTANCE
+...... CLAUDE OPUS 5.5
+
+
+[blue]
+SPECIAL THANKS
+... THE ZORA COMMUNITY
+
+[center]
+[green]
+ZELDA 1 DISASSEMBLY BY
+
+ALDONUNEZ
+
+[white]
+BUILDS ON THE DESIGN
+OF THE ORIGINAL
+ZELDA RANDOMIZER BY
+
+FCOUGHLIN

@@ -44,12 +44,15 @@ from .blocks import (
     _rooms,
     _set_trigger,
 )
+from .walk import level9_entry_room
 
 # A43: the facing side's door-field bits in a room's A (0) / B (1) byte.
 _EXIT_FIELD = {Side.NORTH: (0, 0xE0), Side.SOUTH: (0, 0x1C), Side.WEST: (1, 0xE0),
                Side.EAST: (1, 0x1C)}
 _RAW_STEP = {Side.NORTH: -16, Side.EAST: +1, Side.SOUTH: +16, Side.WEST: -1}
 BLOCK_ROOMS = GRID_COLS * GRID_ROWS
+# VA-REJ-19: the Triforce gate room's sides that ship as shutters unless walls
+GATE_ROOM_SIDES = (Side.NORTH, Side.EAST, Side.WEST)
 
 
 def _shutter_ganon_sides(room: Room) -> None:
@@ -210,9 +213,7 @@ def _force_level9_entry(gate_block: GateBlock) -> None:
         return
     for room in _rooms(level9):
         if room.enemy == L9_ENTRY_PERSON:
-            for side in (Side.NORTH, Side.EAST, Side.WEST):
-                if side_of(room, side) != D_WALL:
-                    set_side(room, side, D_SHUTTER)
+            force_gate_room_sides(room)
             room.walls.south = D_OPEN
     entrance = next((room for room in _rooms(level9) if room.layout_code == RoomType.ENTRANCE_ROOM), None)
     if entrance is None:
@@ -225,24 +226,38 @@ def _force_level9_entry(gate_block: GateBlock) -> None:
             set_side(gate_block.room(neighbor), side.opposite, D_WALL)
 
 
+def force_gate_room_sides(room: Room) -> None:
+    """VA-REJ-19: the Triforce gate room's north, east and west sides are shutters unless walls."""
+    for side in GATE_ROOM_SIDES:
+        if side_of(room, side) != D_WALL:
+            set_side(room, side, D_SHUTTER)
+
+
 def _reforce_level9_person_sides(level: Level) -> None:
     """VA-REJ-19: after the repair, the level-9 $4B room's north, east and
     west sides are forced again as step 5 forces them (shutter unless wall).
-    The spec leaves the mechanism open (K-3). This one keeps every property
-    VA-REJ-19 states: a side that step 6, placement or the repair opened
-    ships as a shutter, and an all-wall deal cuts the level's interior off
-    (the entrance's east and west sides are walls), so the repair must open
-    one of the three pairs and the side becomes a shutter. The repair sets
-    the room's trigger to 1 when it opens a pair, which keeps the walk's
-    verdict (0 of 5,500 passing level-9 walks changed) and gives the
-    finals' trigger split (QUESTIONS #66.2)."""
+    The original randomizer does this in the end pass, after the beatability checks
+    (A77; ZORA's end pass does it too, boss_sounds.py); doing it right after
+    the repair is allowed when the walks then count the room's shutters open
+    (A80): it is the walks' level-9 cell (VA-WALK-08), or its trigger is 1. A
+    side that step 6, placement or the repair opened ships as a shutter, and
+    an all-wall deal cuts the level's interior off (the entrance's east and
+    west sides are walls), so the repair must open one of the three pairs
+    and the side becomes a shutter. The repair sets the room's trigger to 1
+    when it opens a pair, which keeps the walk's verdict (0 of 5,500 passing
+    level-9 walks changed) and gives the finals' trigger split (QUESTIONS
+    #66.2).
+    Quirk (VA-WALK-08): a second-quest level 9's walk cell stays $64 when
+    its start room moves (B26), so a gate room elsewhere with trigger 0
+    keeps its open sides until the end pass; forced here, the walks would
+    find closed shutters where the original randomizer's open side passes (A80)."""
     if level.level_num != LEVEL_9:
         return
+    walk_cell = level9_entry_room(level)
     for room in _rooms(level):
-        if room.enemy == L9_ENTRY_PERSON:
-            for side in (Side.NORTH, Side.EAST, Side.WEST):
-                if side_of(room, side) != D_WALL:
-                    set_side(room, side, D_SHUTTER)
+        if room.enemy == L9_ENTRY_PERSON and (room.room_num == walk_cell
+                                             or room.room_action == RoomAction.ALL_DEAD):
+            force_gate_room_sides(room)
 
 
 def _open_shutters(room: Room) -> None:

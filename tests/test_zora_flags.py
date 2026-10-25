@@ -185,7 +185,7 @@ def test_the_module_lists_one_field_per_flag() -> None:
         "progressive_items", "shop_items_in_pool", *zora_flags.OWNER_2_0_SLOTS,
         "l4_sword_in_level_2", "level_9_entrance_sword", "oops_all_enemies", "oops_all_bosses",
         *zora_flags.ZORA_1_0_FIELDS, "pegasus_boots", "expanded_dungeon_locations", "highlight_no_drop_rooms",
-        "do_not_segment_dungeons", "disable_custom_music"]
+        "do_not_segment_dungeons", "disable_custom_music", "gatekeeper_bosses", *zora_flags.FULL_HEALTH_FIELDS]
 
 
 def field_named(name: str) -> zora_flags.ZoraField:
@@ -242,7 +242,7 @@ def test_version_11_holds_disable_custom_music_off_by_default() -> None:
     """Version 11's one field, a switch, Off by default: a version-10 string decodes with it off and
     keeps its spelling; on, it spells as version 11. It rules only the player settings, so the game's
     string (game_string), which the random streams and the level encoding key take, leaves it out."""
-    field = zora_flags.FIELDS[-1]
+    field = field_named("disable_custom_music")
     assert (field.name, field.slots, field.version) == ("disable_custom_music", 2, 11)
     version_10 = encode(ZoraFlags(do_not_segment_dungeons=ThreeState.ON, randomize_letter=True))
     assert version_10.startswith("10.") and not decode(version_10).disable_custom_music

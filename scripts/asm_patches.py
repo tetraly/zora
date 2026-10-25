@@ -26,6 +26,7 @@ are recorded as file offsets.
 """
 import argparse
 import atexit
+import importlib.util
 import io
 import os
 import re
@@ -38,6 +39,7 @@ import tomllib
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from types import ModuleType
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -208,14 +210,80 @@ def _banks(table: dict[str, list[str]]) -> dict[int, tuple[str, ...]]:
     return {int(key.removeprefix("bank_")): tuple(names) for key, names in table.items()}
 
 
-def load_patch(folder: Path) -> Patch:
-    """asm/NAME/ (or asm/settings/CHOICE/) as a Patch."""
+def rom_space() -> ModuleType:
+    """asm/rom_space.py (asm/ is not a package): the free space, the reservations and the claims on
+    them, and the placement of new segments (asm/rom_space.toml, asm/placements.toml)."""
+    if "rom_space" not in sys.modules:
+        spec = importlib.util.spec_from_file_location("rom_space", ASM / "rom_space.py")
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["rom_space"] = module
+        spec.loader.exec_module(module)
+    return sys.modules["rom_space"]
+
+
+def patch_owner(folder: Path, spec: dict) -> str:
+    """The owner name the ROM space table uses for a patch folder: "series:NAME", "flags2:NAME",
+    "asnb:NAME", or the folder's own `owner` (a player-setting choice names its setting,
+    "setting:SETTING")."""
+    if "owner" in spec:
+        return spec["owner"]
+    parts = folder.resolve().relative_to(ASM).parts if folder.resolve().is_relative_to(ASM) else (folder.name,)
+    if parts[0] == "settings":
+        raise SystemExit(f'{folder.name}: a player-setting choice names its owner (owner = "setting:SETTING")')
+    return f"{parts[0]}:{parts[1]}" if len(parts) == 2 and parts[0] in ("flags2", "asnb") else f"series:{parts[-1]}"
+
+
+MIRRORED_ROUTINES = "mirrored.s"
+BANK_PLACEHOLDER = "{BANK}"
+
+
+def patch_segments(folder: Path, spec: dict, placements: Path) -> tuple[Segment, ...]:
+    """The patch's segments at their addresses. A segment with `start` keeps it; one without gives
+    its `size` and `bank`, `banks` (any one, in order) or `mirrored` (the same address in each bank:
+    one segment NAME_B<bank> per bank) and is placed by asm/rom_space.py, which records the placement
+    in `placements` (asm/placements.toml) and keeps it on every later build."""
+    segments = []
+    for row in spec.get("segment", []):
+        mirrored = "mirrored" in row
+        if "start" in row:
+            banks, start = tuple(row.get("mirrored", [row.get("bank")])), row["start"]
+        else:
+            if "size" not in row:
+                raise SystemExit(f"{folder.name}: segment {row['name']} gives neither start nor size")
+            space = rom_space()
+            banks = tuple(row.get("mirrored", row.get("banks", [row.get("bank")])))
+            request = space.Request(row["name"], patch_owner(folder, spec), banks, row["size"], mirrored,
+                                    row.get("align", space.DEFAULT_ALIGN))
+            placement = space.place(request, placements)
+            banks, start = placement.banks, placement.start
+        segments += [Segment(f"{row['name']}_B{bank}" if mirrored else row["name"], bank, start) for bank in banks]
+    return tuple(segments)
+
+
+def mirrored_routines(folder: Path, spec: dict) -> dict[int, str]:
+    """mirrored.s for each bank of the patch's mirrored segments, with {BANK} as the bank number (so its
+    `.SEGMENT "NAME_B{BANK}"` lines name each bank's copy)."""
+    path = folder / MIRRORED_ROUTINES
+    banks = sorted({bank for row in spec.get("segment", []) for bank in row.get("mirrored", [])})
+    if not banks:
+        return {}
+    if not path.exists():
+        raise SystemExit(f"{folder.name}: mirrored segments need {MIRRORED_ROUTINES}")
+    return {bank: path.read_text().replace(BANK_PLACEHOLDER, str(bank)) for bank in banks}
+
+
+def load_patch(folder: Path, placements: Path | None = None) -> Patch:
+    """asm/NAME/ (or asm/settings/CHOICE/) as a Patch; segments without `start` are placed
+    (patch_segments), recorded in `placements` (default asm/placements.toml)."""
     spec = tomllib.loads((folder / PATCH_FILE).read_text())
     # A patch may build another folder's routines into its own segments and hooks (`routines_from`;
     # asm/fp-stats-01-music: the statistics screen with StatsTick moved for randomized music).
     source = folder / spec["routines_from"] if "routines_from" in spec else folder
     routines = {int(match[1]): path.read_text() for path in sorted(source.glob("bank_*.s"))
                 if (match := ROUTINES.fullmatch(path.name))}
+    for bank, text in mirrored_routines(source, spec).items():
+        routines[bank] = f"{routines[bank]}\n{text}" if bank in routines else text
     series_changes = spec.get("series", {})
     replaced = {}
     for target, source in series_changes.get("routines", {}).items():
@@ -226,7 +294,7 @@ def load_patch(folder: Path) -> Patch:
         replaced[(patch, int(match[1]))] = (folder / source).read_text()
     return Patch(
         name=folder.name,
-        segments=tuple(Segment(**segment) for segment in spec.get("segment", [])),
+        segments=patch_segments(folder, spec, placements or rom_space().PLACEMENTS),
         imports=_banks(spec.get("imports", {})),
         exports=_banks(spec.get("exports", {})),
         hooks=tuple(Hook(hook["name"], hook["offset"], hook["length"], hook.get("code", ""), hook["note"])

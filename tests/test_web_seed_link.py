@@ -105,6 +105,7 @@ const form = { flags: "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A", zora: { ok: true, flags:
                fields: { B82: { value: 0 } } };
 let mode = SINGLE, linkSeed = null;
 const TOGGLE_ON = 1, SEED_CODE_LENGTH = 4;
+const playerSettings = {};
 (async () => {
   updateLink();
   const before = location.search;

@@ -1,0 +1,37 @@
+# ZORA Start With Full Health (the ZORA flag full_health; docs/zora-extras.md section 20). Idea and
+# first patch: the Zelda Hack Pack's full_health.ips (ShadowOne333, kalita-kun and gzip). ZORA's
+# own routines, written from the disassembly after decoding the .ips: loading a save file from the
+# menu, and continuing, retrying or saving after death, leave every heart container full. The .ips
+# did the same at the same two places (a JMP at the end of the menu's load, a JSR in the death
+# menu's heart reset) and never touched HeartPartial after loading; ZORA's load fills the partial
+# heart too. asm/README.md and asm/flags2/build.py describe this file.
+
+[[segment]]
+name = "ZORA_F2_FULL_HEALTH_LOAD"
+bank = 2
+start = 0xB0E0              # bank 2 free space, after fp-hash-01's slot (docs/rom-map.md)
+
+[[segment]]
+name = "ZORA_F2_FULL_HEALTH_DEATH"
+bank = 5
+start = 0xB920              # bank 5 free space, before fp-roar-01's slot
+
+[[hook]]
+name = "load-save"
+offset = 0xA645
+length = 3
+note = "UpdateMode1Menu_Sub1's end, after the Items block and the world flags are copied from the save file to the profile: its JMP GoToNextMode goes through FullHealthAfterLoad."
+code = """
+    JMP FullHealthAfterLoad
+"""
+
+[[hook]]
+name = "death-menu"
+offset = 0x14B82
+length = 5
+note = "The death menu's heart reset (ORA #$02 / STA HeartValues: three full hearts) calls FullHealthAfterDeath, which fills every container; the LDA #$FF / STA HeartPartial after it is kept."
+code = """
+    JSR FullHealthAfterDeath
+    NOP
+    NOP
+"""

@@ -33,6 +33,7 @@ from zora.flags.dependencies import (
 from zora.flags.fields import OptionField, Settings, ThreeState, ToggleField
 from zora.flags.form import ALL_FIELDS
 from zora.flags.zora_form import FIELDS as ZORA_FIELDS
+from zora.generate.late_gate.gatekeeper import GATEKEEPER_LEVELS
 from zora.generate.pipeline import (
     GenerationPlan,
     cave_prerequisite_rng,
@@ -204,7 +205,8 @@ def level_staircases(level: Level, names: Mapping[Item, str] = ITEM_NAMES) -> di
     return stairs
 
 
-def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str] = ITEM_NAMES) -> dict[str, Any]:
+def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str] = ITEM_NAMES,
+                has_gatekeepers: bool = False) -> dict[str, Any]:
     stairs = level_staircases(level, names)
     rooms = [{
         "number": room.room_num,
@@ -216,8 +218,12 @@ def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str]
         "staircase": stairs.get(room.room_num),
         "doors": {side: DOORS[getattr(room.walls, side)] for side in ("north", "east", "south", "west")},
     } for room in level.rooms]
-    return {"number": level.level_num, "shownNumber": shown_number(level), "color": level_color(level),
-            "rooms": rooms}
+    entry = {"number": level.level_num, "shownNumber": shown_number(level), "color": level_color(level),
+             "rooms": rooms}
+    if has_gatekeepers and level.level_num in GATEKEEPER_LEVELS:
+        # Gatekeeper Bosses: the ROM's boss room (LevelInfo_BossRoomId) is the gatekeeper; only when set
+        entry["gatekeeper"] = level.boss_room
+    return entry
 
 
 def seed_code_entry(rom: bytes, names: Mapping[Item, str]) -> list[str | None]:
@@ -558,8 +564,8 @@ LEVEL_9_ENTRANCE = "level_9_entrance_sword"
 L4_SWORD_TEXT = {zora_flags.L4Sword.LEVEL_2: "level 2", zora_flags.L4Sword.LEVEL_9: "level 9"}
 
 
-# Oops All Enemies and Oops All Bosses (version 5): shown only when set, by their value's name, so
-# a seed without them keeps its document too.
+# Oops All Enemies and Oops All Bosses (version 5) and Gatekeeper Bosses (version 12): shown only when
+# set, by their value's name, so a seed without them keeps its document too.
 OOPS_ALL_FIELDS = tuple(zora_flags.ENUM_FIELDS)
 
 
@@ -595,7 +601,7 @@ def zora_value_text(value: bool | int | ThreeState | None) -> str:
     if isinstance(value, bool):
         return "on" if value else "off"
     if isinstance(value, IntEnum):
-        return value.name.lower()
+        return value.name.lower().replace("_", " ")
     return "follow the Z1R flags" if value is None else str(value)
 
 
@@ -618,7 +624,7 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
         "seed": {"number": str(chosen.seed), "flags": chosen.flag_string, "zoraFlags": chosen.zora_flag_string,
                  "code": seed_code_entry(rom, names)},
         "progressiveItems": chosen.zora.progressive_items,
-        "levels": [level_entry(level, selling_levels(world), names)
+        "levels": [level_entry(level, selling_levels(world), names, bool(chosen.zora_resolved.gatekeeper_bosses))
                    for level in sorted(world.levels, key=lambda level: level.level_num)],
         "overworld": overworld_entry(world, names),
         "caves": cave_entries(world, sells_once, chosen.config.bait_in_pool, names),

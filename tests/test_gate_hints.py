@@ -190,8 +190,8 @@ def test_the_reported_seeds_hints(base: bytes) -> None:
 
 @pytest.mark.parametrize(("case", "seed", "level", "door", "fallback"), [
     ("randomize_dead_woods", 10, 2, 0x70, Form.NO_RAFT),     # Hint Shop 2 behind the raft
-    ("the report's flags", 104, 3, 0x0B, Form.NO_BRACELET),   # Lost Hills -> Hint Shop 1 behind (was 28, 120)
-    ("the report's flags", 206, 1, 0x71, Form.NO_RAFT),       # Dead Woods (was 22, 76), Hint Shop 2 behind Lost
+    ("the report's flags", 134, 3, 0x0B, Form.NO_BRACELET),   # Lost Hills -> Hint Shop 1 behind (was 104, 28, 120)
+    ("the report's flags", 256, 1, 0x71, Form.NO_RAFT),       # Dead Woods (was 206, 22, 76), Hint Shop 2 behind Lost
 ])                                                            # Hills, Hint Shop 1 behind the raft
 def test_a_door_behind_a_maze_needs_what_its_hint_needs(base: bytes, case: str, seed: int, level: int, door: int,
                                                         fallback: str) -> None:
@@ -207,7 +207,7 @@ def test_a_door_behind_a_maze_needs_what_its_hint_needs(base: bytes, case: str, 
 
 @pytest.mark.parametrize(("case", "seed", "level", "door", "item"), [
     ("no gate", 5, 1, 0x21, Item.WAND),                       # the emulator's: pushed open, no bracelet
-    ("mixed overworld quest", 77, 6, 0x20, Item.WOOD_BOOMERANG),
+    ("mixed overworld quest", 17, 3, 0x20, Item.RED_CANDLE),        # (was 77, level 6: the pool's draws moved)
 ])
 def test_a_door_under_a_gravestone(base: bytes, case: str, seed: int, level: int, door: int, item: Item) -> None:
     """A bracelet door on the graveyard says the path lies beneath a gravestone; the finished ROM

@@ -19,6 +19,7 @@ from ...model.enums import Item
 from ...model.level_9_gate import (
     ALL_PIECES,
     EIGHT_PIECES,
+    GATE_ITEM_WORDS,
     GATE_ITEMS,
     OPEN_GATE,
     TRIFORCE_LEVELS,
@@ -96,13 +97,6 @@ def draw_level_9_gate(entry: Level9Entry, rng: Rng) -> Level9Gate:
 
 
 COUNT_WORDS = ("NO", "ONE", "TWO", "THREE", "FOUR", "FIVE", "SIX", "SEVEN", "EIGHT")
-# FP-TRIF-06: how the text names each item; the gate admits any sword, either candle, either arrow
-GATE_ITEM_WORDS = {
-    Item.WOOD_SWORD: "A SWORD", Item.RECORDER: "THE RECORDER", Item.BLUE_CANDLE: "A CANDLE",
-    Item.WOOD_ARROWS: "AN ARROW", Item.BOW: "THE BOW", Item.MAGICAL_KEY: "THE MAGICAL KEY",
-    Item.RAFT: "THE RAFT", Item.LADDER: "THE LADDER", Item.WAND: "THE MAGICAL ROD", Item.BOOK: "THE BOOK OF MAGIC",
-    Item.POWER_BRACELET: "THE POWER BRACELET",
-}
 
 
 def refusal_text(gate: Level9Gate) -> str:

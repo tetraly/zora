@@ -3,6 +3,7 @@ and padding, where its quotes go (HT-TEXT-02), and where the 45 slot texts
 go (HT-TEXT-03)."""
 import itertools
 import math
+from pathlib import Path
 
 import pytest
 
@@ -45,13 +46,45 @@ def test_pool_is_the_owners_routed_quotes_with_provenance() -> None:
     from importlib.resources import files
     text = files("zora.generate.steps").joinpath(POOL_FILE).read_text(encoding="utf-8")
     assert "owner-quotes-routed.tsv" in text and "afb5732" in text and "docs/ui-provenance.md" in text
-    owner = [entry for entry in POOL if not entry.placeholder and not entry.stand_in]
+    owner = [entry for entry in POOL if not entry.placeholder and not entry.stand_in and not entry.contributor]
     assert len(owner) == 174
     assert sum(entry.reserved for entry in owner) == 12
     assert sum(entry.hearts is not None for entry in owner) == 27
     assert len({entry.lines for entry in POOL}) == len(POOL)
     for entry in POOL:
         assert quote_problems(list(entry.lines)) == [], entry
+
+
+COMMUNITY_TEXTS = 85           # the Discord submissions of 2026-10-24: 55 replaced placeholders, 30 appended
+
+
+def test_community_texts_fit_the_game_and_are_credited() -> None:
+    """Every community text (docs/credits.md) fits a hint box (three lines of at most 24 characters,
+    tiles the font has), names its contributor, repeats nothing, and no placeholder is left."""
+    community = [entry for entry in POOL if entry.contributor]
+    assert len(community) == COMMUNITY_TEXTS
+    for entry in community:
+        assert quote_problems(list(entry.lines)) == [], entry
+        assert not entry.placeholder and not entry.reserved
+    assert not any(PLACEHOLDER_TEXT in "|".join(entry.lines) for entry in POOL)
+    assert {entry.contributor for entry in community} >= {"Whyforce89887", "GrandpaSzabo", "Crump", "ZORA"}
+    # the fourth column is data, not text: no contributor name appears in a quote
+    assert not any(entry.contributor in "|".join(entry.lines) for entry in community)
+    credits = (Path(__file__).resolve().parent.parent / "docs" / "credits.md").read_text(encoding="utf-8")
+    for name in {entry.contributor for entry in community} - {"ZORA", "unknown"}:
+        assert name in credits, name
+
+
+def test_the_pools_longest_texts_always_fit_the_hint_bank_and_its_overflow() -> None:
+    """Total bytes: whatever the draws, the 45 slots' pool texts fit the extended bank and the old
+    text area after it (HT-TEXT-03), even when every slot draws the longest text it can."""
+    longest = {slot: 0 for slot in SHOWN_SLOTS}
+    for entry in POOL:
+        if not entry.reserved and entry.routing_class not in SERVED_BY_OTHERS:
+            size = len(encode_text(list(entry.lines)))
+            for slot in shown_class_slots(entry.routing_class):
+                longest[slot] = max(longest[slot], size)
+    assert sum(longest.values()) <= BANK + SPILL, sum(longest.values())
 
 
 def test_placeholders_are_numbered_and_easy_to_find() -> None:

@@ -3,7 +3,7 @@
 > **Beta.** ZORA 2.0 has been tested by automated checks but not yet tested by hand. Expect
 > there to be bugs and unbeatable seeds. Please don't use it for races yet. If something looks
 > wrong, report it with the seed, flags and version in the
-> [ZORA Discord](https://discord.gg/DVyPXcG5v).
+> [ZORA Discord](https://discord.gg/zescSjDtme).
 
 **ZORA (Zelda One Randomizer App)** is an open-source randomizer for
 *The Legend of Zelda*.
@@ -56,7 +56,7 @@ you're welcome here.
 
 *It's dangerous to go alone. Take this.*
 
-## Known limitations (2.0 beta 8)
+## Known limitations (2.0 beta 9)
 
 - Some flag values are not made yet: the page shows them grayed out as "Not yet implemented".
 - "Encode level data" is not available in the public build.

@@ -33,7 +33,7 @@ from .extra_pool_items import (
     pool_places,
 )
 from .item_shuffle_result import LETTER_SLOT, ItemShuffleOptions, ItemShuffleResult, TrackedPlace
-from .shop_items_in_pool import PRICES_BY_ITEM
+from .shop_prices import DEFAULT_PRICE_RULES, PriceRules
 
 BLUE_POTION_WARE = 0                  # the potion shop's left ware: PRG0's blue potion, which stays
 BLUE_POTION_PRICES = (25, 55)         # the potion shop's own range (OW-SHOP-04)
@@ -66,16 +66,18 @@ def shuffle_blue_potion(levels: list[Level], state: ItemShuffleResult, extras: E
     extras.shop_wares.append(own)
     extras.shop_items.append(Item.BLUE_POTION)
     extras.slot_prices.append(left.price)
-    price_potion_wares(own, drawn, rng)
+    price_potion_wares(own, drawn, rng, opts.prices)
     if any(place.slot == own.tracked(Item.NOTHING).slot for place in state.tracked):
         track_the_letter(levels, state, extras, overworld, opts)
 
 
-def price_potion_wares(own: ShopWarePlace, drawn: PoolPlace | None, rng: IntRng) -> None:
+def price_potion_wares(own: ShopWarePlace, drawn: PoolPlace | None, rng: IntRng,
+                       rules: PriceRules = DEFAULT_PRICE_RULES) -> None:
     """SI-PRICE-01's classes for the potion shop's middle ware; 25-55 for a blue potion in another shop."""
+    prices = rules.prices
     item = own.get()
-    if item != Item.BLUE_POTION and item in PRICES_BY_ITEM:
-        own.shop.ware(own.position).price = _uniform(rng, PRICES_BY_ITEM[item])
+    if item != Item.BLUE_POTION and item in prices:
+        own.shop.ware(own.position).price = _uniform(rng, prices[item])
     if isinstance(drawn, ShopWarePlace):
         drawn.shop.ware(drawn.position).price = _uniform(rng, BLUE_POTION_PRICES)
 

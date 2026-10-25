@@ -196,7 +196,7 @@ Items wait for normal play: close the item screen, finish the scroll or the text
 log says what it gave. If one still doesn't come, please report it.
 
 **Reporting a problem.**
-Ask in the [ZORA Discord](https://discord.gg/DVyPXcG5v). It helps to include:
+Ask in the [ZORA Discord](https://discord.gg/zescSjDtme). It helps to include:
 
 - your YAML and the game's name (`AP_<numbers>`);
 - a screenshot of the BizHawk Client window;

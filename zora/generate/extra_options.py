@@ -7,10 +7,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..flags.fields import WoodenSwordState
-from ..flags.zora_flags import OopsAllBosses, OopsAllEnemies
+from ..flags.zora_flags import GatekeeperBosses, OopsAllBosses, OopsAllEnemies
 from .acceptance_check import LogicRules, logic_rules
 from .steps.change_sword_hearts import MAGICAL_SWORD_HEARTS
 from .steps.overworld_gates import NO_GATES, OverworldGates
+from .steps.shop_prices import PriceRules
 
 
 @dataclass(frozen=True)
@@ -65,6 +66,8 @@ class ExtraOptions:
     expanded_dungeon_locations_seed: int = 0
     # Highlight No-Drop Rooms, resolved (the pass is skipped when B91 resolves on)
     highlight_no_drop_rooms: bool = False
+    # Gatekeeper Bosses (docs/zora-extras.md section 19): where each level 1-8's gatekeeper sits
+    gatekeeper_bosses: GatekeeperBosses = GatekeeperBosses.OFF
 
     @property
     def oops_all(self) -> bool:
@@ -94,6 +97,16 @@ class ExtraOptions:
                            wood_sword_in_pool=self.shuffle_wood_sword,
                            wooden_sword_state=self.wooden_sword_state,
                            expanded_recorder_set=self.expanded_dungeon_locations)
+
+    @property
+    def price_rules(self) -> PriceRules:
+        """The shop price classes' settings (shop_prices.py), resolved: the Book counts as required
+        only where the logic asks for it (a randomized maze's path with B48)."""
+        return PriceRules(swordless=self.wooden_sword_state is WoodenSwordState.SWORDLESS,
+                          wood_sword_in_pool=self.shuffle_wood_sword,
+                          swords_open_level_9=self.level_9_entrance_sword,
+                          book_needed=self.maze_hints_need_book and bool(self.gates.maze_hints()),
+                          pegasus_boots=self.pegasus_boots)
 
 
 # Every ZORA extra off: the default where none are given.

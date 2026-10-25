@@ -132,10 +132,16 @@ DO_NOT_SEGMENT_DUNGEONS_FIELDS = (
 # player settings only, never the game, so it is kept out of the game's random streams and level
 # encoding key (game_string): the same seed is the same game with it on or off.
 PLAYER_SETTING_RULES = frozenset({"disable_custom_music"})
+# Version 13: Start With Full Health (the Zelda Hack Pack's full_health.ips; docs/zora-extras.md section
+# 20), On / Off / ? like version 3's, a "?" decided by the same coins after version 10's. Written by its
+# asm/flags2 patch (zora/rom/owner_patches.py).
+FULL_HEALTH_FIELDS = (
+    "full_health",                         # loading a save and continuing after death fill every heart
+)
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
                       *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
-                      *DO_NOT_SEGMENT_DUNGEONS_FIELDS)
+                      *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS)
 
 
 
@@ -154,8 +160,18 @@ class OopsAllBosses(IntEnum):
     DODONGOS = 1           # triple and single
 
 
+class GatekeeperBosses(IntEnum):
+    """Gatekeeper Bosses (owner, 2026-10-24; docs/zora-extras.md section 19): in each level 1-8 one boss
+    room is the only way into the part holding the triforce, and how much of the level lies behind it."""
+    OFF = 0
+    ANYWHERE = 1           # a drawn share of the level behind the boss
+    LATE = 2               # close to the triforce: at most a quarter of the level behind the boss
+    EARLY = 3              # most of the level behind the boss
+
+
 # Fields whose digit is an enum's value
-ENUM_FIELDS: dict[str, type[IntEnum]] = {"oops_all_enemies": OopsAllEnemies, "oops_all_bosses": OopsAllBosses}
+ENUM_FIELDS: dict[str, type[IntEnum]] = {"oops_all_enemies": OopsAllEnemies, "oops_all_bosses": OopsAllBosses,
+                                         "gatekeeper_bosses": GatekeeperBosses}
 
 # Every field ever defined, in payload order (least significant first).
 # Append only: a field's position and radix never change once released.
@@ -197,6 +213,12 @@ FIELDS: tuple[ZoraField, ...] = (
     # Version 11: Disable Custom Music (PLAYER_SETTING_RULES), Off by default, so every older string
     # keeps its meaning and its spelling.
     ZoraField("disable_custom_music", 2, version=11),
+    # Version 12: Gatekeeper Bosses (GatekeeperBosses), Off by default, so every older string keeps its
+    # meaning and its spelling.
+    ZoraField("gatekeeper_bosses", len(GatekeeperBosses), version=12),
+    # Version 13: Start With Full Health (FULL_HEALTH_FIELDS), Off by default, so every older string keeps
+    # its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=13) for name in FULL_HEALTH_FIELDS),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -252,6 +274,10 @@ class ZoraFlags:
     do_not_segment_dungeons: ThreeState = ThreeState.OFF
     # Version 11: Disable Custom Music (PLAYER_SETTING_RULES): Music offers only Off and Vanilla.
     disable_custom_music: bool = False
+    # Version 12: Gatekeeper Bosses (GatekeeperBosses).
+    gatekeeper_bosses: GatekeeperBosses = GatekeeperBosses.OFF
+    # Version 13: Start With Full Health, On / Off / ? (FULL_HEALTH_FIELDS).
+    full_health: ThreeState = ThreeState.OFF
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -847,8 +873,8 @@ def forced_z1r_values(flags: ZoraFlags) -> list[tuple[str, ThreeState, str]]:
 
 # The version-3 and version-7 fields whose behavior this build produces; any other one on or "?" is
 # refused (FlagsRefused), never ignored.
-PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset((*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS))
-PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS)
+PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset((*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS))
+PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS)
 
 
 # Fields refused on or "?" until their generation is built (none now: Expanded Dungeon Locations'

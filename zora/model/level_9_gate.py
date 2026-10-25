@@ -23,6 +23,14 @@ class GateKind(Enum):
 # an arrow for either.
 GATE_ITEMS = (Item.WOOD_SWORD, Item.RECORDER, Item.BLUE_CANDLE, Item.WOOD_ARROWS, Item.BOW, Item.MAGICAL_KEY,
               Item.RAFT, Item.LADDER, Item.WAND, Item.BOOK, Item.POWER_BRACELET)
+# FP-TRIF-06: how the entrance person's text and the opening story (zora/rom/opening_story.py) name
+# each item; the gate admits any sword, either candle, either arrow
+GATE_ITEM_WORDS = {
+    Item.WOOD_SWORD: "A SWORD", Item.RECORDER: "THE RECORDER", Item.BLUE_CANDLE: "A CANDLE",
+    Item.WOOD_ARROWS: "AN ARROW", Item.BOW: "THE BOW", Item.MAGICAL_KEY: "THE MAGICAL KEY",
+    Item.RAFT: "THE RAFT", Item.LADDER: "THE LADDER", Item.WAND: "THE MAGICAL ROD", Item.BOOK: "THE BOOK OF MAGIC",
+    Item.POWER_BRACELET: "THE POWER BRACELET",
+}
 
 
 @dataclass(frozen=True)

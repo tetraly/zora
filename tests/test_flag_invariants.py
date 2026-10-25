@@ -45,7 +45,7 @@ from zora.flags.fields import (
     Level9Requirement,
     WoodenSwordState,
 )
-from zora.flags.zora_flags import OopsAllBosses, OopsAllEnemies
+from zora.flags.zora_flags import GatekeeperBosses, OopsAllBosses, OopsAllEnemies
 from zora.generate.alternative_values import AlternativeValues
 from zora.generate.extra_options import ExtraOptions
 from zora.generate.flag_steps import FlagSteps
@@ -129,6 +129,8 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     # Oops All Enemies and Oops All Bosses (docs/design/oops-all.md)
     "oops_all_enemies": tuple(OopsAllEnemies),
     "oops_all_bosses": tuple(OopsAllBosses),
+    # Gatekeeper Bosses (docs/zora-extras.md section 19): levels 1-8, every layout
+    "gatekeeper_bosses": tuple(GatekeeperBosses),
     # The ZORA 1.0 flags (docs/zora-extras.md section 13)
     "allow_triforces_in_stairways": (False, True),
     "shuffle_wood_sword": (False, True),

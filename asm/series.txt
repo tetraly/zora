@@ -17,3 +17,4 @@ fp-prog-02
 fp-start-02
 fp-entr-01-sides
 ht-book-01
+fp-credits-01

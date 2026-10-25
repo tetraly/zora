@@ -89,6 +89,18 @@ FIELDS: tuple[dict[str, Any], ...] = (
     {"name": "do_not_segment_dungeons", "kind": THREE_STATE_KIND, "label": "Do Not Segment Dungeons",
      "help": ("Shapes dungeons are never split into segments: every room can be reached through "
               "doors, and stairways become shortcuts.")},
+    # Version 12: Gatekeeper Bosses (owner, 2026-10-24; docs/zora-extras.md section 19).
+    {"name": "gatekeeper_bosses", "kind": "option", "label": "Gatekeeper Bosses",
+     "help": ("In each of levels 1 to 8, the level's boss guards the way to its triforce, as in the "
+              "original game: one boss room is the only way into the part of the level that holds "
+              "the triforce, and its shutters open when the boss falls. The room's item (the heart "
+              "container, or what the item shuffle put in its place) appears on the kill. The "
+              "compass is always in front of the boss. Anywhere: any share of the level lies behind "
+              "the boss. Late: the boss stands close to the triforce, with at most a quarter of the level "
+              "behind it. Early: at least half the level, mostly more, lies behind the boss. Level 9 "
+              "is unchanged."),
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Anywhere"},
+                {"value": 2, "label": "Late"}, {"value": 3, "label": "Early"}]},
     # The owner's 2.0 flags (docs/design/zora-flags-2.0.md): each On / Off / ?, "?" decided per seed.
     *({"name": name, "kind": THREE_STATE_KIND, "label": label, "help": help_text} for name, label, help_text in (
         ("shuffle_blue_potion", "Shuffle Blue Potion",
@@ -101,7 +113,7 @@ FIELDS: tuple[dict[str, Any], ...] = (
          ("Seven more cave screens on West Death Mountain sit behind power-bracelet boulders. Needs "
           'Shuffle "Take Any Road" Caves off.')),
         ("speed_up_dungeon_transitions", "Speed Up Dungeon Transitions",
-         "No scroll delay between dungeon rooms."),
+         "No scroll delay between dungeon rooms. By fiskbit."),
         ("speed_up_heart_fill", "Speed Up Heart Fill",
          "Fairies and potions refill hearts four times as fast. By snarfblam."),
         ("recorder_kills_pols_voice", "Recorder Kills Dungeon Pols Voice",
@@ -109,7 +121,7 @@ FIELDS: tuple[dict[str, Any], ...] = (
         ("four_potion_inventory", "Four Potion Inventory",
          "You can carry four potions instead of two."),
         ("like_like_eats_rupees", "Like-Like Eats Rupees",
-         "A Like-Like drains rupees instead of eating the magical shield."),
+         "A Like-Like drains rupees instead of eating the magical shield. By gzip."),
         ("magical_boomerang_damage", "Magical Boomerang Does 1 HP Damage",
          "The magical boomerang deals 1 HP of damage as well as stunning."),
         ("randomize_lost_hills", "Randomize Lost Hills",
@@ -119,6 +131,9 @@ FIELDS: tuple[dict[str, Any], ...] = (
          ("The Dead Woods' path is new. The hint shop that sells the path in the original game sells the new "
           "one, for 1 rupee; the screens beyond the maze need it in the logic. The maze now lets you out to the "
           "south, so Add Lost Woods Shortcut is on with it, the way west.")),
+        ("full_health", "Start With Full Health",
+         ("Loading a save file, and continuing or retrying after death, leave every heart container full. "
+          "By ShadowOne333, kalita-kun and gzip.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)

@@ -141,9 +141,11 @@ def test_data_edits_are_where_their_notes_say() -> None:
 
 
 def test_the_credits_are_recorded() -> None:
-    """The document's two community credits, in the data module, the patches' notes and
+    """The document's community credits and Start With Full Health's (the Zelda Hack Pack), in the data module, the patches' notes and
     docs/credits.md."""
-    assert data.CREDITS == {"fast-heart-fill": "snarfblam", "recorder-pols-voice": "Stratoform"}
+    assert data.CREDITS == {"fast-heart-fill": "snarfblam", "fast-dungeon-scroll": "fiskbit",
+                            "recorder-pols-voice": "Stratoform",
+                            "full-health": "ShadowOne333, kalita-kun and gzip"}
     credits = (REPO / "docs" / "credits.md").read_text()
     for name, author in data.CREDITS.items():
         assert author in (REPO / "asm" / "flags2" / name / "patch.toml").read_text()

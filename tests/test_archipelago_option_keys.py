@@ -59,11 +59,13 @@ KEYS = {
     "magical_boomerang_damage": "magical_boomerang_damage", "randomize_lost_hills": "randomize_lost_hills",
     "randomize_dead_woods": "randomize_dead_woods",
     "oops_all_enemies": "oops_all_enemies", "oops_all_bosses": "oops_all_bosses",
+    "gatekeeper_bosses": "gatekeeper_bosses",
     "allow_triforces_in_stairways": "allow_triforces_in_stairways",
     "pegasus_boots": "pegasus_boots",
     "expanded_dungeon_locations": "expanded_dungeon_locations",
     "highlight_no_drop_rooms": "highlight_no_drop_rooms",
     "do_not_segment_dungeons": "do_not_segment_dungeons",
+    "full_health": "full_health",
     # Shuffle Wood Sword is never offered (archipelago.ZORA_FORCED_OFF, owner ruling 2026-10-17): no key
 }
 CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")

@@ -164,6 +164,8 @@ class PoolEntry:
     reserved: bool = False
     placeholder: bool = False
     stand_in: bool = False
+    # Who sent the quote (the pool file's fourth column); never shown in the game
+    contributor: str = ""
 
     def slots(self, white_hearts: int, magical_hearts: int, book_needed: bool = False) -> tuple[int, ...]:
         """The slots this quote may be shown in, in a seed whose sword caves
@@ -186,7 +188,7 @@ def shown_class_slots(routing_class: str) -> tuple[int, ...]:
 
 
 def _pool_entry(row: str) -> PoolEntry:
-    routing_class, quote, note = [*row.split(POOL_COLUMNS), ""][:3]
+    routing_class, quote, note, contributor = [*row.split(POOL_COLUMNS), "", ""][:4]
     if routing_class not in POOL_CLASSES:
         raise ValueError(f"{POOL_FILE}: {row!r}: unknown routing class {routing_class!r}")
     lines = quote.split(POOL_LINE_BREAK)
@@ -204,7 +206,8 @@ def _pool_entry(row: str) -> PoolEntry:
     reserved = note == RESERVED_NOTE
     if reserved != (not shown_class_slots(routing_class)):
         raise ValueError(f"{POOL_FILE}: {row!r}: only the classes of slots 27 and 34 are reserved")
-    return PoolEntry(routing_class, tuple(lines), hearts, reserved, note == PLACEHOLDER_NOTE, note == STAND_IN_NOTE)
+    return PoolEntry(routing_class, tuple(lines), hearts, reserved, note == PLACEHOLDER_NOTE, note == STAND_IN_NOTE,
+                     contributor)
 
 
 def load_pool() -> tuple[PoolEntry, ...]:
@@ -650,6 +653,8 @@ class Deception:
         return region_of_screen(self.rng.below(OVERWORLD_SCREEN_COUNT))
 
     def pick(self, choices: Sequence[T]) -> T:
+        """One of `choices`, drawn uniformly; there is always at least one (rng.below(0) raises)."""
+        assert choices, "Deception draws from an empty pool"
         return choices[self.rng.below(len(choices))]
 
 
@@ -1505,7 +1510,9 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
     pairs read the appearances FP-PERSON-01 drew
     (zora/generate/steps/person_appearances.py). Under deception (HT-HINT-06 items 2 and 3): entry
     11's region by a coin; entry 12's item (one of the pool entries' items, `pool_items`) by a coin,
-    then its region by another; entry 10 has none."""
+    then its region by another; entry 10 has none. An Archipelago world whose tracked items all went
+    to other players has no pool entries left (finish.rebuild_tracking): the pick is then the cave's
+    own item, one draw as ever, so the coin's heads tells the truth rather than drawing from nothing."""
     pair10, pair11, pair12 = ((person_appearance(gw, giver), person_appearance(gw, target))
                               for giver, target in NAME_PAIR_TYPES)
     slot_texts[SHOW_SLOT] = [f"SHOW {person_name(*pair10)}", "SOMETHING"]
@@ -1532,7 +1539,7 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
         code = white_sword_cave.item & ITEM_CODE_MASK
         if deception is not None:
             if deception.heads():
-                code = deception.pick(pool_items) & ITEM_CODE_MASK
+                code = deception.pick(pool_items or [white_sword_cave.item]) & ITEM_CODE_MASK
             if deception.heads():
                 white_sword_region = deception.region()
         slot_texts[HOLDER_SLOT] = holder_hearts_lines(holder_text, names.phrase(code), names.label(code),

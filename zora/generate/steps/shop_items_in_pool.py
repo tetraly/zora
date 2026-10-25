@@ -8,10 +8,10 @@ shop ware (found by what it sells, after B08's stock shuffle), then the two exch
 arrows and the candle unlock things, so they become tracked items (PI-LOGIC-06); the ring
 unlocks nothing and joins untracked, like the letter.
 
-SI-PRICE-01 (owner revision, 6 Oct 2026): then each joined shop ware that holds a displaced item
-is priced by what it holds, drawn uniformly: progression items 60-80, items not needed to beat
-the game 200-240, heart containers and the letter 20-40 (the letter: owner decision, 6 Oct
-2026); any other item keeps the slot's price (B08's jitter included when B08 is on).
+SI-PRICE-01 (owner revision, 6 Oct 2026; the beta 9 rules, 2026-10-24): then each joined shop
+ware that holds a displaced item is priced by what it holds (steps/shop_prices.py: an item that can
+be required 60-80, the boomerangs 75-125, optional items 200-240, heart containers and the letter
+20-40); any other item keeps the slot's price (B08's jitter included when B08 is on).
 """
 from __future__ import annotations
 
@@ -26,39 +26,13 @@ from .extra_pool_items import (
     pool_places,
 )
 from .item_shuffle_result import ItemShuffleOptions, ItemShuffleResult
+from .shop_prices import DEFAULT_PRICE_RULES, PriceRules
 from .shuffle_shop_items import SHOPS
 
 # SI-JOIN-01: the joining items, in join order.
 JOINED_SHOP_ITEMS = (Item.WOOD_ARROWS, Item.BLUE_CANDLE, Item.BLUE_RING)
 # PI-LOGIC-06: the joined items that unlock something are tracked.
 TRACKED_SHOP_ITEMS = frozenset({Item.WOOD_ARROWS, Item.BLUE_CANDLE})
-# SI-PRICE-01 (owner revision, 6 Oct 2026): what a shop ware holding a displaced item costs, by
-# that item (inclusive ranges).
-PROGRESSION_PRICES = (60, 80)
-NOT_NEEDED_PRICES = (200, 240)
-HEART_CONTAINER_PRICES = (20, 40)
-# Priced like heart containers: cheap. The letter reaches a shop ware only with Randomize Letter on
-# (owner decision, 6 Oct 2026).
-CHEAP_ITEMS = frozenset({Item.HEART_CONTAINER, Item.LETTER})
-# A fairy costs 20-40 wherever it is sold (owner decision, 2026-10-19): the spare bait's fairy
-# (bait_in_pool), the logo look's shield fairies (finish.shields_to_fairies) and any ware the
-# price classes reach.
-FAIRY_PRICES = (20, 40)
-# Needed to beat the game: the four overworld progression items, the bow, and every candle-line
-# and arrow-line item (a candle burns the bushes, two arrow upgrades beat Ganon).
-PROGRESSION_ITEMS = frozenset({Item.LADDER, Item.RAFT, Item.POWER_BRACELET, Item.RECORDER, Item.BOW,
-                               Item.BLUE_CANDLE, Item.RED_CANDLE, Item.WOOD_ARROWS, Item.SILVER_ARROWS})
-# Not needed to beat the game: the sword, ring and boomerang lines, the wand, the book, the
-# magical key.
-NOT_NEEDED_ITEMS = frozenset({Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD, Item.BLUE_RING,
-                              Item.RED_RING, Item.WOOD_BOOMERANG, Item.MAGICAL_BOOMERANG, Item.WAND,
-                              Item.BOOK, Item.MAGICAL_KEY})
-PRICES_BY_ITEM: dict[Item, tuple[int, int]] = {
-    **dict.fromkeys(PROGRESSION_ITEMS, PROGRESSION_PRICES),
-    **dict.fromkeys(NOT_NEEDED_ITEMS, NOT_NEEDED_PRICES),
-    **dict.fromkeys(CHEAP_ITEMS, HEART_CONTAINER_PRICES),
-    Item.FAIRY: FAIRY_PRICES,
-}
 
 
 def own_shop_ware(overworld: Overworld, item: Item) -> ShopWarePlace:
@@ -84,16 +58,32 @@ def shop_items_in_pool(levels: list[Level], state: ItemShuffleResult, extras: Ex
         extras.shop_items.append(item)
         extras.slot_prices.append(own.shop.ware(own.position).price)
         exchange_with_drawn(own, places, state, rng)
-    price_displaced_wares(extras, rng)
+    price_displaced_wares(extras, rng, opts.prices)
 
 
-def price_displaced_wares(extras: ExtraPoolItems, rng: IntRng) -> None:
+def price_displaced_wares(extras: ExtraPoolItems, rng: IntRng, rules: PriceRules = DEFAULT_PRICE_RULES) -> None:
     """SI-PRICE-01: each joined shop ware, in join order, holding an item other than its own
     joined item is priced by that item, uniformly over its range; an item without a range
     keeps the slot's price."""
+    prices = rules.prices
     for ware, own_item in zip(extras.shop_wares, extras.shop_items, strict=True):
         item = ware.get()
-        if item == own_item or item not in PRICES_BY_ITEM:
+        if item == own_item or item not in prices:
             continue
-        low, high = PRICES_BY_ITEM[item]
+        low, high = prices[item]
         ware.shop.ware(ware.position).price = low + rng.below(high - low + 1)
+
+
+def price_ware(ware: ShopWarePlace, extras: ExtraPoolItems, rng: IntRng,
+               rules: PriceRules = DEFAULT_PRICE_RULES) -> None:
+    """SI-PRICE-01 for a joined ware a later step put a new item in: by the item's class, else its
+    slot price."""
+    prices = rules.prices
+    item = ware.get()
+    if item in prices:
+        low, high = prices[item]
+        ware.shop.ware(ware.position).price = low + rng.below(high - low + 1)
+    else:
+        joined = next(index for index, joined_ware in enumerate(extras.shop_wares)
+                      if joined_ware.shop is ware.shop and joined_ware.position == ware.position)
+        ware.shop.ware(ware.position).price = extras.slot_prices[joined]

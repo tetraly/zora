@@ -75,8 +75,9 @@ def setting_class(spec: zora_ap.PlayerSettingSpec) -> type[Choice]:
         return register(class_name_of(spec.yaml_key), (Choice,), namespace)
     namespace |= {f"option_{key}": index for index, (_value, key) in enumerate(spec.value_keys)}
     # the page's spellings too (p1-up-a), where they differ from the keys (p1_up_a)
+    # (not Random's "random", which Archipelago reads as its own: any value, drawn at generation)
     namespace |= {f"alias_{value}": index for index, (value, key) in enumerate(spec.value_keys)
-                  if spec.kind == zora_ap.CHOICE and str(value).lower() != key}
+                  if spec.kind == zora_ap.CHOICE and str(value).lower() != key and value != zora_ap.RANDOM_CHOICE}
     namespace["default"] = page_values.index(spec.default)
     namespace["page_values"] = tuple(page_values)
     if spec.kind == zora_ap.WORD:

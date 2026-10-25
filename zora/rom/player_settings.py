@@ -1,5 +1,6 @@
 """Player settings (features-behavior.md FP-SET-01 to FP-SET-04, FP-HOT-01,
-FP-RESET-01, FP-BEEP-01, FP-FIX-02; flags-behavior.md FL-SUP-05; FP-STATS-01).
+FP-RESET-01, FP-BEEP-01, FP-FIX-02, FP-LEVEL-01, FP-LINK-02; flags-behavior.md FL-SUP-05;
+FP-STATS-01).
 
 A player setting is not part of the flag string and never changes generation,
 the seed, the seed's code (FP-HASH-01) or the level encoding (FP-TOURNEY-01).
@@ -14,13 +15,19 @@ statistics screen (asm/fp-stats-01/) use the patches assembled by asm/settings/ 
 player_settings_data.py is a verbatim copy of its output, which
 tests/test_player_settings_wiring.py keeps equal. Select swap's off choice is
 not assembled there: it is PRG0's own code at FP-HOT-01's four sites.
+
+Random choices (FP-SET-01's rule, reviews 77-78): the low-health beep, each tunic slot, the heart
+color, the level label's word and the Link sprite may be Random. Each is resolved per seed, on a
+stream of its own made from the seed number alone (a hash of it, read from the title screen's seed
+row like the boss-sound label's Random), so the same flag string and seed always give the same
+result and no draw of generation's moves (resolved_player_settings).
 """
 from __future__ import annotations
 
 import hashlib
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Any
 
@@ -47,7 +54,9 @@ from .layout import (
     TITLE_SEED_ROW_ADDRESS,
     hint_text_regions,
 )
-from .level_9_entrance import chosen_levels, chosen_levels_text
+from .level_9_entrance import chosen_levels, chosen_levels_text, parsed_gate
+from .link_sprite import SpriteSet, SpriteSetError, link_tile_offsets, sprite_set_from_object, write_link_tiles
+from .opening_story import level_word_in_story
 from .parse.text import REFUSAL_SLOT
 from .player_settings_data import SETTINGS
 from .revision import Revision, back_to_revision, layout_of, moved_to_prg0_layout, prg1_offset
@@ -66,6 +75,13 @@ from .text_encoding import (
 # never used by PRG0, can upset a TV's picture sync) is refused.
 PALETTE_SIZE = 0x40
 BLACKER_THAN_BLACK = 0x0D
+# A color slot's Random (FP-SET-02, FP-SET-03): one past the palette's last value, so a slot is a
+# number wherever it is kept (the page, a player's YAML, a recipe).
+RANDOM_COLOR = PALETTE_SIZE
+# The values Random draws from, uniformly (the spec's lists): a tunic slot's eleven, of which a
+# later Random slot never repeats an earlier slot's value, fixed or drawn; the heart's seven.
+TUNIC_RANDOM_COLORS = (0x29, 0x32, 0x16, 0x24, 0x31, 0x30, 0x3D, 0x0C, 0x1A, 0x03, 0x17)
+HEART_RANDOM_COLORS = (0x29, 0x22, 0x16, 0x0C, 0x1A, 0x03, 0x17)
 
 # FP-SET-02: the tunic color of each ring state, in both copies PRG0 reads:
 # the file-select copy (LinkColors) and the pickup copy (LinkColors_CommonCode,
@@ -117,6 +133,9 @@ SELECT_SWAP_OFF_SITES = (0x0B010, 0x140E5, 0x1A040, 0x1EC46)
 # ("DUNGEON1"). Its patch is written only for a label text of 7 characters (the word and the
 # dash), which the 7-tile record cannot hold; every shorter label keeps PRG0's record and code.
 DEFAULT_LEVEL_WORD = "LEVEL"
+# FP-LEVEL-01's Random: a word of LEVEL_WORD_CHOICES. Lowercase, so it is never a word the player
+# types (a word is kept in capitals: "RANDOM" is the six-letter word).
+RANDOM_LEVEL_WORD = "random"
 LEVEL_WORD_CHOICES = (
     "LEVEL", "BOARD", "ABODE", "LAIR", "SECTOR", "AREA", "PALACE", "VAULT", "CRYPT", "TOMB", "KEEP",
     "MAZE", "TOWER", "TEMPLE", "SHRINE", "CASTLE", "FORT", "HALL", "DEN", "NEST", "HOLD", "STAGE",
@@ -187,6 +206,15 @@ class LowHealthBeep(Enum):
     REMOVED = "removed"
     KEPT = "kept"                # PRG0
     HALF_SPEED = "half_speed"    # kept, playing half as often
+    RANDOM = "random"            # removed or kept, with equal chance
+
+
+class LinkSprite(Enum):
+    """FP-LINK-02: PRG0's Link, the sprite set, or Random (offered only with a set: one of PRG0's
+    Link and the set, with equal chance)."""
+    LINK = "link"
+    SET = "set"
+    RANDOM = "random"
 
 
 class DeathWarp(Enum):
@@ -222,8 +250,10 @@ class PlayerSettings:
     tunic_colors: tuple[int, int, int] = (0x29, 0x32, 0x16)
     heart_color: int = 0x16                        # PRG0's
     music: Music = Music.ON
-    level_word: str = DEFAULT_LEVEL_WORD            # FP-LEVEL-01
+    level_word: str = DEFAULT_LEVEL_WORD            # FP-LEVEL-01: a word or RANDOM_LEVEL_WORD
     boss_sound_word: str = DEFAULT_BOSS_SOUND_WORD  # FP-ROAR-01's label: a word or RANDOM
+    link_sprite: LinkSprite = LinkSprite.LINK       # FP-LINK-02
+    sprite_set: SpriteSet | None = None             # the set offered (the player's; ZORA ships none yet)
     # With a random Music value (docs/design/music-settings.md section 3; zora.rom.music after the
     # player settings): only songs marked safe for streaming. Not offered to Archipelago (its Music
     # choices are PAGE_CHOICES' on and off).
@@ -234,6 +264,14 @@ class PlayerSettings:
         """Music is a random value: the statistics screen's music build, then lozft and the songs."""
         return self.music in RANDOM_MUSIC
 
+    @property
+    def has_random_choice(self) -> bool:
+        """A Random choice that resolved_player_settings resolves (the boss-sound label's resolves
+        on its own, boss_sound_word)."""
+        return (self.low_health_beep is LowHealthBeep.RANDOM or RANDOM_COLOR in self.tunic_colors
+                or self.heart_color == RANDOM_COLOR or self.level_word == RANDOM_LEVEL_WORD
+                or self.link_sprite is LinkSprite.RANDOM)
+
     def __post_init__(self) -> None:
         check_level_word(self.level_word)
         check_boss_sound_word(self.boss_sound_word)
@@ -242,10 +280,16 @@ class PlayerSettings:
         for name, value in (("green tunic", self.tunic_colors[0]), ("blue ring", self.tunic_colors[1]),
                             ("red ring", self.tunic_colors[2]), ("heart color", self.heart_color)):
             check_palette_value(name, value)
+        if self.sprite_set is not None and not isinstance(self.sprite_set, SpriteSet):
+            raise PlayerSettingError("Link sprite: the set offered is not a sprite set")
+        if self.link_sprite is not LinkSprite.LINK and self.sprite_set is None:
+            raise PlayerSettingError(f"Link sprite: {self.link_sprite.value} needs a sprite set; none is loaded")
 
 
-def check_palette_value(name: str, value: int) -> None:
-    """FP-SET-02 and FP-SET-03: $00-$3F, except $0D."""
+def check_palette_value(name: str, value: int, random_allowed: bool = True) -> None:
+    """FP-SET-02 and FP-SET-03: $00-$3F, except $0D, or (random_allowed) RANDOM_COLOR."""
+    if random_allowed and value == RANDOM_COLOR and isinstance(value, int):
+        return
     if not isinstance(value, int) or not 0 <= value < PALETTE_SIZE:
         raise PlayerSettingError(f"{name}: {value!r} is not an NES palette value ($00-$3F)")
     if value == BLACKER_THAN_BLACK:
@@ -259,7 +303,10 @@ def normalized_level_word(text: str) -> str:
 
 def level_word_problem(word: str) -> str | None:
     """Why `word` (normalized) cannot be the level label's word, or None. The page applies the
-    same rule (web/zora-web.js levelWordProblem, from metadata.levelWord)."""
+    same rule (web/zora-web.js levelWordProblem, from metadata.levelWord). RANDOM_LEVEL_WORD is
+    the Random choice."""
+    if word == RANDOM_LEVEL_WORD:
+        return None
     if not word:
         return "type a word"
     if len(word) > LEVEL_WORD_MAX_LENGTH:
@@ -271,7 +318,7 @@ def level_word_problem(word: str) -> str | None:
 
 
 def check_level_word(word: object) -> None:
-    if not isinstance(word, str) or word != normalized_level_word(word):
+    if not isinstance(word, str) or (word != normalized_level_word(word) and word != RANDOM_LEVEL_WORD):
         raise PlayerSettingError(f"level word: {word!r} is not in capitals without outer spaces")
     if (problem := level_word_problem(word)) is not None:
         raise PlayerSettingError(f"level word {word!r}: {problem}")
@@ -308,6 +355,52 @@ def random_boss_sound_word(seed: int) -> str:
     return BOSS_SOUND_WORDS[int.from_bytes(digest[:8], "big") % len(BOSS_SOUND_WORDS)]
 
 
+# Each Random choice's stream: a hash of its own label and the seed number alone (FP-SET-01's rule
+# for Random choices: fixed by the seed, never one of generation's draws)
+BEEP_STREAM = b"zora low-health beep:"
+TUNIC_STREAM = b"zora tunic color %d:"          # the slot (0-2)
+HEART_STREAM = b"zora heart color:"
+LEVEL_WORD_STREAM = b"zora level word:"
+LINK_SPRITE_STREAM = b"zora link sprite:"
+
+
+def random_index(stream: bytes, seed: int, count: int) -> int:
+    """One draw of 0 to count - 1 for a seed number on a stream: the first 8 bytes of a SHA-256 of
+    the stream's label and the number, modulo the count."""
+    digest = hashlib.sha256(stream + str(seed).encode()).digest()
+    return int.from_bytes(digest[:8], "big") % count
+
+
+def random_tunic_colors(colors: tuple[int, int, int], seed: int) -> tuple[int, int, int]:
+    """FP-SET-02's Random: in slot order, each Random slot one of TUNIC_RANDOM_COLORS but the values
+    of the slots before it, fixed or drawn."""
+    chosen: list[int] = []
+    for slot, color in enumerate(colors):
+        allowed = [value for value in TUNIC_RANDOM_COLORS if value not in chosen]
+        chosen.append(allowed[random_index(TUNIC_STREAM % slot, seed, len(allowed))] if color == RANDOM_COLOR
+                      else color)
+    return chosen[0], chosen[1], chosen[2]
+
+
+def resolved_player_settings(settings: PlayerSettings, seed: int) -> PlayerSettings:
+    """The settings with each Random choice resolved for a seed number (the boss-sound label's
+    Random excepted: boss_sound_word resolves it, as before these)."""
+    beep = settings.low_health_beep
+    if beep is LowHealthBeep.RANDOM:
+        beep = (LowHealthBeep.REMOVED, LowHealthBeep.KEPT)[random_index(BEEP_STREAM, seed, 2)]
+    heart = settings.heart_color
+    if heart == RANDOM_COLOR:
+        heart = HEART_RANDOM_COLORS[random_index(HEART_STREAM, seed, len(HEART_RANDOM_COLORS))]
+    word = settings.level_word
+    if word == RANDOM_LEVEL_WORD:
+        word = LEVEL_WORD_CHOICES[random_index(LEVEL_WORD_STREAM, seed, len(LEVEL_WORD_CHOICES))]
+    sprite = settings.link_sprite
+    if sprite is LinkSprite.RANDOM:
+        sprite = (LinkSprite.LINK, LinkSprite.SET)[random_index(LINK_SPRITE_STREAM, seed, 2)]
+    return replace(settings, low_health_beep=beep, tunic_colors=random_tunic_colors(settings.tunic_colors, seed),
+                   heart_color=heart, level_word=word, link_sprite=sprite)
+
+
 def title_seed_number(rom: bytes | bytearray) -> int:
     """The seed number the title screen shows (FP-TITLE-01: SEED, then the number right-aligned).
     The row is 24 tiles and shows at most 19 digits, a 20-digit seed's first 19 (since 2026-10-17;
@@ -321,7 +414,7 @@ def title_seed_number(rom: bytes | bytearray) -> int:
                                                                  seed_row + TITLE_ROW_LENGTH])
     label, number = row[:len(TITLE_SEED_LABEL)], row[len(TITLE_SEED_LABEL):].strip()
     if label != TITLE_SEED_LABEL or not number.isdigit():
-        raise PlayerSettingError("Random boss-sound word: this ROM's title screen shows no seed number")
+        raise PlayerSettingError("a Random player setting: this ROM's title screen shows no seed number")
     return int(number)
 
 
@@ -359,6 +452,8 @@ def write_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = Fal
     statistics screen's SRAM page ($7F00-$7FFF; docs/rom-map.md "Reserved for z1rr-coop"), so a
     co-op ROM leaves the screen out (statistics_screen with on=False: the ROM without it)."""
     out = bytearray(rom)
+    if settings.has_random_choice:
+        settings = resolved_player_settings(settings, title_seed_number(out))
     select_swap(out, settings.select_swap)
     low_health_beep(out, settings.low_health_beep)
     death_warp(out, settings.death_warp)
@@ -368,6 +463,7 @@ def write_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = Fal
     music(out, settings.music)
     level_word(out, settings.level_word)
     boss_sound_word(out, settings.boss_sound_word)
+    link_sprite(out, settings.link_sprite, settings.sprite_set)
     statistics_screen(out, on=not coop, for_music=settings.randomize_music)
     return bytes(out)
 
@@ -464,6 +560,7 @@ def level_word(rom: bytearray, word: str) -> None:
         return
     level_word_in_hints(rom, word)
     level_word_in_refusal_text(rom, word)
+    level_word_in_story(rom, parsed_gate(rom), word)
     tiles = [CHAR_TO_BYTE[char] for char in word]
     if len(word) <= LEVEL_WORD_DASH_MAX_LENGTH:
         tiles.append(FP_LEVEL_DASH_TILE)
@@ -488,6 +585,15 @@ def boss_sound_word(rom: bytearray, word: str) -> None:
         return
     rom[BOSS_SOUND_WORD_ADDRESS:BOSS_SOUND_WORD_ADDRESS + BOSS_SOUND_WORD_LENGTH] = bytes(
         CHAR_TO_BYTE[char] for char in word)
+
+
+def link_sprite(rom: bytearray, choice: LinkSprite, sprite_set: SpriteSet | None) -> None:
+    """FP-LINK-02: PRG0's Link writes nothing; the set writes its 640 bytes over Link's six groups.
+    Random is resolved before (resolved_player_settings)."""
+    assert choice is not LinkSprite.RANDOM, "resolve Random first"
+    if choice is LinkSprite.SET:
+        assert sprite_set is not None
+        write_link_tiles(rom, sprite_set.tiles)
 
 
 def statistics_screen(rom: bytearray, on: bool, for_music: bool = False) -> None:
@@ -693,13 +799,16 @@ def written_offsets(settings_field: str) -> set[int]:
                 *(offset + i for offset, run in label_runs for i in range(piece_length(run)))}
     elif settings_field == "heart_color":
         return {LEVEL_INFO_ADDRESS + k * LEVEL_INFO_SIZE + HEART_COLOR_OFFSET for k in range(LEVEL_INFORMATIONS)}
+    elif settings_field == "link_sprite":
+        return link_tile_offsets()
     else:
         runs = [run for runs in SETTINGS[settings_field].values() for run in runs]
     return {offset + i for offset, run in runs for i in range(piece_length(run))}
 
 
 SETTING_CHOICES: dict[str, type[Enum]] = {"select_swap": SelectSwap, "low_health_beep": LowHealthBeep,
-                                          "death_warp": DeathWarp, "music": Music}
+                                          "death_warp": DeathWarp, "music": Music, "link_sprite": LinkSprite}
+RANDOM_WORD = "random"                  # a color's or the level word's Random on the command line
 SWITCH_WORDS = {"off": False, "on": True}
 # Settings that are gone, by their command-line, YAML and page names: still accepted, with any value,
 # and ignored, so what named them before still reads (the statistics screen, always on since
@@ -710,10 +819,12 @@ RETIRED_PAGE_SETTINGS = frozenset({"statisticsScreen"})
 
 def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     """Command-line settings, each `name=value` with PlayerSettings' field names: a choice by
-    its value (music=off, music=random-standard), reduce_flashing=on, music_streaming_safe_only=off,
-    heart_color=0x21, tunic_colors=0x29,0x32,0x16, level_word=PALACE (any case),
-    boss_sound_word=MEOW or boss_sound_word=random. A retired
-    setting (RETIRED_SETTINGS) is ignored, whatever its value."""
+    its value (music=off, music=random-standard, low_health_beep=random), reduce_flashing=on,
+    music_streaming_safe_only=off, heart_color=0x21 or heart_color=random,
+    tunic_colors=0x29,random,0x16, level_word=PALACE (any case) or level_word=random (Random; the
+    word RANDOM is the page's), boss_sound_word=MEOW or boss_sound_word=random. A sprite set is
+    not read here (link_sprite=set or random needs one: the caller adds it). A retired setting
+    (RETIRED_SETTINGS) is ignored, whatever its value."""
     chosen: dict[str, object] = {}
     for pair in pairs:
         name, _, text = pair.partition("=")
@@ -725,11 +836,11 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
             elif name in ("reduce_flashing", *MUSIC_SWITCHES.values()):
                 chosen[name] = SWITCH_WORDS[text]
             elif name == "heart_color":
-                chosen[name] = int(text, 0)
+                chosen[name] = _color_word(text)
             elif name == "tunic_colors":
-                chosen[name] = tuple(int(value, 0) for value in text.split(","))
+                chosen[name] = tuple(_color_word(value) for value in text.split(","))
             elif name == "level_word":
-                chosen[name] = normalized_level_word(text)
+                chosen[name] = RANDOM_LEVEL_WORD if text.strip().lower() == RANDOM_WORD else normalized_level_word(text)
             elif name == "boss_sound_word":
                 chosen[name] = normalized_boss_sound_word(text)
             else:
@@ -741,6 +852,10 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     return PlayerSettings(**chosen)  # type: ignore[arg-type]
 
 
+def _color_word(text: str) -> int:
+    return RANDOM_COLOR if text.strip().lower() == RANDOM_WORD else int(text, 0)
+
+
 # The page's Cosmetic tab (web/zora-web.js PLAYER_CHOICES and PLAYER_COLORS): its keys and
 # choice values, as PlayerSettings fields. The page's names are also Archipelago's (a recipe's
 # playerSettings, zora/archipelago.py).
@@ -748,7 +863,8 @@ PAGE_CHOICES: dict[str, tuple[str, dict[str, Any]]] = {
     "selectButton": ("select_swap", {"off": SelectSwap.OFF, "swap": SelectSwap.SWAP_ONLY,
                                      "toggle": SelectSwap.TOGGLE}),
     "lowHealthBeep": ("low_health_beep", {"removed": LowHealthBeep.REMOVED, "kept": LowHealthBeep.KEPT,
-                                          "half-speed": LowHealthBeep.HALF_SPEED}),
+                                          "half-speed": LowHealthBeep.HALF_SPEED,
+                                          "random": LowHealthBeep.RANDOM}),
     "deathWarp": ("death_warp", {"p2-up-a": DeathWarp.CONTROLLER2_UP_A, "p1-up-a": DeathWarp.CONTROLLER1_UP_A,
                                  "p1-up-select": DeathWarp.CONTROLLER1_UP_SELECT}),
     "reduceFlashing": ("reduce_flashing", {"off": False, "on": True}),
@@ -758,6 +874,11 @@ PAGE_TUNIC_SLOTS = ("greenTunic", "blueRingTunic", "redRingTunic")
 PAGE_HEART_SLOT = "heart"
 PAGE_LEVEL_WORD = "levelWord"
 PAGE_BOSS_SOUND_WORD = "bossSoundWord"
+# FP-LINK-02 (web/zora-web.js linkSpriteRow): the choice, and the set the player loaded as its file's
+# JSON object. Not in PAGE_CHOICES: Archipelago's player settings do not offer it (a set is a file).
+PAGE_LINK_SPRITE = "linkSprite"
+PAGE_LINK_SPRITE_SET = "linkSpriteSet"
+PAGE_LINK_SPRITES = {sprite.value: sprite for sprite in LinkSprite}
 # Randomized music (web/zora-web.js MUSIC_CHOICES; docs/design/music-settings.md section 3): the page's
 # music key also takes the random values, and its switches. Not in PAGE_CHOICES, so Archipelago's
 # player settings (archipelago.player_setting_fields) never list them.
@@ -783,7 +904,17 @@ def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
     if PAGE_LEVEL_WORD in values:
         if not isinstance(values[PAGE_LEVEL_WORD], str):
             raise PlayerSettingError(f"{PAGE_LEVEL_WORD}: {values[PAGE_LEVEL_WORD]!r} is not text")
-        chosen["level_word"] = normalized_level_word(values[PAGE_LEVEL_WORD])
+        word = values[PAGE_LEVEL_WORD]
+        chosen["level_word"] = word if word == RANDOM_LEVEL_WORD else normalized_level_word(word)
+    if PAGE_LINK_SPRITE in values:
+        if values[PAGE_LINK_SPRITE] not in PAGE_LINK_SPRITES:
+            raise PlayerSettingError(f"{PAGE_LINK_SPRITE}: unknown choice {values[PAGE_LINK_SPRITE]!r}")
+        chosen["link_sprite"] = PAGE_LINK_SPRITES[values[PAGE_LINK_SPRITE]]
+    if values.get(PAGE_LINK_SPRITE_SET) is not None:
+        try:
+            chosen["sprite_set"] = sprite_set_from_object(values[PAGE_LINK_SPRITE_SET])
+        except SpriteSetError as exc:
+            raise PlayerSettingError(f"Link sprite: {exc}") from exc
     if PAGE_BOSS_SOUND_WORD in values:
         if not isinstance(values[PAGE_BOSS_SOUND_WORD], str):
             raise PlayerSettingError(f"{PAGE_BOSS_SOUND_WORD}: {values[PAGE_BOSS_SOUND_WORD]!r} is not text")

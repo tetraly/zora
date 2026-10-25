@@ -17,6 +17,9 @@ from typing import Any
 
 from ..generate.pipeline import NOT_PRODUCED_PREFIX, FlagsRefused, plan
 from ..rom import level_encoding
+from ..rom.link_sprite import FILE_FORMAT as LINK_SPRITE_FILE_FORMAT
+from ..rom.link_sprite import FILE_VERSION as LINK_SPRITE_FILE_VERSION
+from ..rom.link_sprite import SPRITE_SET_SIZE
 from ..rom.player_settings import (
     BOSS_SOUND_WORD_CHARACTERS,
     BOSS_SOUND_WORD_LENGTH,
@@ -29,6 +32,8 @@ from ..rom.player_settings import (
     LEVEL_WORD_MAX_LENGTH,
     MARKER_HIDING_COLORS,
     RANDOM_BOSS_SOUND_WORD,
+    RANDOM_COLOR,
+    RANDOM_LEVEL_WORD,
 )
 from ..version import PLAYER_VERSION
 from .codec import ALPHABET, FlagStringError, canonicalize, decode, encode
@@ -371,14 +376,19 @@ def metadata() -> dict[str, Any]:
         "version": PLAYER_VERSION,
         # The tunic colors that switch the map marker to Link's skin color (the page's note).
         "markerHidingColors": sorted(MARKER_HIDING_COLORS),
-        # The level label's word (FP-LEVEL-01): the page's list and its custom-word rule.
-        "levelWord": {"default": DEFAULT_LEVEL_WORD, "choices": list(LEVEL_WORD_CHOICES),
+        # A color slot's Random (FP-SET-02, FP-SET-03): the value the page keeps for it.
+        "randomColor": RANDOM_COLOR,
+        # The level label's word (FP-LEVEL-01): the page's list, Random's value and the custom-word rule.
+        "levelWord": {"default": DEFAULT_LEVEL_WORD, "random": RANDOM_LEVEL_WORD, "choices": list(LEVEL_WORD_CHOICES),
                       "maxLength": LEVEL_WORD_MAX_LENGTH, "dashMaxLength": LEVEL_WORD_DASH_MAX_LENGTH,
                       "characters": LEVEL_WORD_CHARACTERS},
         # The boss-sound label's word (FP-ROAR-01): the default, Random's value and list, the rule.
         "bossSoundWord": {"default": DEFAULT_BOSS_SOUND_WORD, "random": RANDOM_BOSS_SOUND_WORD,
                           "choices": list(BOSS_SOUND_WORDS), "length": BOSS_SOUND_WORD_LENGTH,
                           "characters": BOSS_SOUND_WORD_CHARACTERS},
+        # A Link sprite set's file (FP-LINK-02; zora/rom/link_sprite.py): what the page checks first.
+        "linkSpriteSet": {"format": LINK_SPRITE_FILE_FORMAT, "version": LINK_SPRITE_FILE_VERSION,
+                          "size": SPRITE_SET_SIZE},
     }
 
 

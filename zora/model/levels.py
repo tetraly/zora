@@ -138,6 +138,9 @@ class Level:
     # the count (exit_room_count).
     arrival_code: int | None = None
     exit_room: int | None = None
+    # Gatekeeper Bosses (ZORA extra; generate/late_gate/gatekeeper.py): the room whose boss alone leads
+    # to the triforce, set by generation only (a parsed ROM does not record it).
+    gatekeeper_room: int | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         self.block.levels.append(self)

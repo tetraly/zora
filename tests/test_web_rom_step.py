@@ -1,7 +1,9 @@
 """The web page's ROM step (web/zora-web.js, web/zora-worker.js) on zora_web.api.identify_rom
 (zora/rom/revision.py; docs/design/prg1.md): an unmodified PRG0 or PRG1 ROM accepted quietly, a
 ROM with modified graphics accepted with Python's message, any other refused with it, Generate
-on or off to match; and the worker's glue generating from the player's ROM as Python does."""
+on or off to match; the accepted ROM remembered in the browser (IndexedDB) for the next visit until
+Forget, and nothing remembered without storage; and the worker's glue generating from the
+player's ROM as Python does."""
 import json
 import re
 import shutil
@@ -23,6 +25,8 @@ PAGE_SCRIPT = (REPO / "web" / "zora-web.js").read_text()
 WORKER = (REPO / "web" / "zora-worker.js").read_text()
 FLAGS = api.flag_form.metadata()["defaultFlags"]
 SEED = 2535214729
+REMEMBERED_NOW, REMEMBERED_BEFORE = (re.search(rf'^const {name} = "(.*)";$', PAGE_SCRIPT, re.MULTILINE).group(1)  # type: ignore[union-attr]
+                                     for name in ("REMEMBERED_NOW", "REMEMBERED_BEFORE"))
 LEVEL_DATA_BYTE = NES_HEADER_SIZE + 0x18710      # outside every graphics block
 
 needs_prg0 = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
@@ -84,9 +88,18 @@ def page_function(name: str) -> str:
     return match.group(0)
 
 
+ROM_STEP_FUNCTIONS = ("romStepText", "useRom", "onRomChosen", "browserStore", "storeBaseRom", "forgetBaseRom",
+                      "showRememberedRom", "restoreBaseRom", "onForgetRom", "resetRomStep", "canGenerate",
+                      "updateButton")
+# The page's constants those functions read, from the page itself
+ROM_STEP_CONSTANTS = "\n".join(
+    re.search(rf"^(?:let|const) {name} = .*$", PAGE_SCRIPT, re.MULTILINE).group(0)  # type: ignore[union-attr]
+    for name in ("romChecks", "BASE_ROM_DB", "BASE_ROM_KEY", "REMEMBERED_NOW", "REMEMBERED_BEFORE"))
+
+
 # The page around onRomChosen, stubbed: its elements, a worker answering with `identity`, a form
 # that may generate and a seed, so Generate is on exactly when the ROM is accepted.
-ROM_STEP_HARNESS = """
+ROM_STEP_PAGE = """
 const elements = {};
 const $ = (id) => (elements[id] ||= { id, textContent: "", disabled: false, value: "",
                                        classList: { toggle() {} }, files: [] });
@@ -98,7 +111,11 @@ const canExport = () => false;
 const musicReady = () => true;
 const markStepDone = (id, number, done) => { elements[id + ":done"] = done; };
 $("seed").value = "123";
-$("rom-label").textContent = "Legend of Zelda, The (USA), PRG0 or PRG1 release, as a .nes file.";
+const ROM_LABEL = "Legend of Zelda, The (USA), PRG0 or PRG1 release, as a .nes file.";
+$("rom-label").textContent = ROM_LABEL;
+$("rom-remembered").hidden = true;
+"""
+ROM_STEP_HARNESS = """
 const answers = IDENTITIES;
 const shown = {};
 (async () => {
@@ -108,23 +125,29 @@ const shown = {};
     await onRomChosen();
     shown[name] = { label: $("rom-label").textContent, note: $("rom-identity").textContent,
                     error: $("rom-error").textContent, generateDisabled: $("generate").disabled,
-                    done: elements["step-rom-num:done"], accepted: baseRom !== null, status: statuses.at(-1) };
+                    done: elements["step-rom-num:done"], accepted: baseRom !== null, status: statuses.at(-1),
+                    remembered: !$("rom-remembered").hidden };
   }
   console.log(JSON.stringify(shown));
 })();
 """
 
 
-def run_rom_step(identities: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
-    """Choose each named ROM in turn on the stubbed page; what the ROM step then shows."""
+def run_on_stubbed_page(harness: str) -> dict[str, dict[str, Any]]:
+    """`harness` run under Node with the ROM step's functions and constants; what it prints."""
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node is not installed")
-    functions = [page_function(name) for name in ("romStepText", "onRomChosen", "canGenerate", "updateButton")]
-    source = "\n".join(["let ask;", *functions, ROM_STEP_HARNESS.replace("IDENTITIES", json.dumps(identities))])
+    functions = [page_function(name) for name in ROM_STEP_FUNCTIONS]
+    source = "\n".join(["let ask;", ROM_STEP_CONSTANTS, *functions, ROM_STEP_PAGE, harness])
     result: dict[str, dict[str, Any]] = json.loads(
         subprocess.run([node, "-e", source], capture_output=True, text=True, check=True).stdout)
     return result
+
+
+def run_rom_step(identities: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Choose each named ROM in turn on the stubbed page; what the ROM step then shows."""
+    return run_on_stubbed_page(ROM_STEP_HARNESS.replace("IDENTITIES", json.dumps(identities)))
 
 
 @needs_prg0
@@ -148,11 +171,90 @@ def test_each_outcome_shows_its_text_and_sets_generate() -> None:
         assert shown[name]["error"] == ("" if accepted else NOT_RECOGNIZED)
         assert shown[name]["accepted"] is accepted and shown[name]["done"] is accepted
         assert shown[name]["generateDisabled"] is not accepted, name
+        assert not shown[name]["remembered"]           # Node has no IndexedDB: nothing is remembered
     assert NOT_RECOGNIZED == ("ROM not recognized. If you believe this is in error, "
                               "please file a bug in the ZORA Discord")
     assert shown["prg1"]["status"] == ["Base ROM verified (PRG1).", ""]
     assert shown["prg0-graphics"]["status"] == ["Base ROM verified (PRG0, modified graphics).", ""]
     assert shown["refused"]["status"] == ["Choose the base ROM.", "error"]
+
+
+# The remembered ROM (player request, 2026-10-24) on an in-memory IndexedDB ("works"), one whose
+# open fails ("fails", as some private windows do) or none at all ("missing"): a ROM chosen, the next
+# visit (the page's state cleared, the stored ROM restored), Forget, and a visit after it.
+MEMORY_HARNESS = """
+const databases = new Map();
+const answer = (result) => { const request = { result }; setTimeout(() => request.onsuccess?.()); return request; };
+const objectStore = (data) => ({ put: (value, key) => (data.set(key, value), answer()),
+                                 get: (key) => answer(data.get(key)), delete: (key) => (data.delete(key), answer()) });
+globalThis.indexedDB = MODE === "missing" ? undefined : { open(name) {
+  const request = {};
+  setTimeout(() => {
+    if (MODE === "fails") { request.onerror?.(); return; }
+    const created = !databases.has(name);
+    if (created) databases.set(name, new Map());
+    request.result = { createObjectStore() {}, transaction: () => ({ objectStore: () => objectStore(databases.get(name)) }) };
+    if (created) request.onupgradeneeded?.();
+    request.onsuccess();
+  });
+  return request;
+} };
+const snapshot = () => ({ label: $("rom-label").textContent, note: $("rom-identity").textContent,
+                          remembered: $("rom-remembered").hidden ? null : $("rom-remembered-text").textContent,
+                          accepted: baseRom !== null, generateDisabled: $("generate").disabled,
+                          button: $("rom-btn").textContent, stored: Boolean(databases.get(BASE_ROM_DB)?.has(BASE_ROM_KEY)) });
+const nextVisit = () => { resetRomStep(); romChecks = 0; $("rom").files = []; };
+(async () => {
+  const shown = {};
+  ask = async () => ({ identity: IDENTITY });
+  $("rom").files = [{ name: "zelda.nes", arrayBuffer: async () => new ArrayBuffer(4) }];
+  await onRomChosen();
+  shown.chosen = snapshot();
+  nextVisit();
+  await restoreBaseRom();
+  shown.restored = snapshot();
+  await onForgetRom();
+  shown.forgotten = snapshot();
+  nextVisit();
+  await restoreBaseRom();
+  shown.afterForget = snapshot();
+  console.log(JSON.stringify(shown));
+})();
+"""
+CHOOSE_FILE = {"label": "Legend of Zelda, The (USA), PRG0 or PRG1 release, as a .nes file.", "note": "",
+               "remembered": None, "accepted": False, "generateDisabled": True, "button": "Choose file",
+               "stored": False}
+
+
+def remembered_rom(mode: str) -> dict[str, dict[str, Any]]:
+    identity = {"recognized": True, "revision": "PRG0", "modifiedGraphics": False, "message": ""}
+    return run_on_stubbed_page(MEMORY_HARNESS.replace("MODE", json.dumps(mode))
+                               .replace("IDENTITY", json.dumps(identity)))
+
+
+def test_the_rom_is_remembered_used_next_visit_and_forgotten() -> None:
+    shown = remembered_rom("works")
+    in_use = {"label": "zelda.nes", "note": "PRG0 ROM recognized", "accepted": True, "generateDisabled": False,
+              "button": "Change", "stored": True}
+    assert shown["chosen"] == {**in_use, "remembered": REMEMBERED_NOW}
+    assert shown["restored"] == {**in_use, "remembered": REMEMBERED_BEFORE}
+    assert shown["forgotten"] == shown["afterForget"] == CHOOSE_FILE
+
+
+@pytest.mark.parametrize("mode", ["fails", "missing"])
+def test_without_storage_the_rom_works_and_is_not_remembered(mode: str) -> None:
+    """A private window: the chosen ROM is used, no remembered line, and the next visit asks again."""
+    shown = remembered_rom(mode)
+    assert shown["chosen"] == {"label": "zelda.nes", "note": "PRG0 ROM recognized", "remembered": None,
+                               "accepted": True, "generateDisabled": False, "button": "Change", "stored": False}
+    assert shown["restored"] == shown["forgotten"] == shown["afterForget"] == CHOOSE_FILE
+
+
+def test_the_remembered_rom_stays_in_the_browser() -> None:
+    """Kept in the page's own IndexedDB and never sent anywhere: the only request carrying the ROM's
+    bytes is the worker's check and generation."""
+    assert page_function("storeBaseRom").count("store.put({ name, bytes }, BASE_ROM_KEY)") == 1
+    assert "fetch(" not in "".join(page_function(name) for name in ROM_STEP_FUNCTIONS)
 
 
 def test_the_rom_step_has_its_lines_and_no_prg0_only_wording() -> None:

@@ -28,7 +28,7 @@ from .steps.item_shuffle_result import (
     shop_ware_slot,
 )
 from .steps.potion_shop import BLUE_POTION_PRICES
-from .steps.shop_items_in_pool import FAIRY_PRICES, PRICES_BY_ITEM
+from .steps.shop_prices import FAIRY_PRICES
 
 if TYPE_CHECKING:
     from ..model.game_world import GameWorld
@@ -222,22 +222,25 @@ def _uniform(rng: IntRng, prices: tuple[int, int]) -> int:
 
 
 def reprice_wares(world: GameWorld, built: Built, rng: IntRng) -> None:
-    """The joined wares' prices for what they now hold, in join order: SI-PRICE-01's classes; a
-    blue potion in a ware other than its own costs 25-55 (potion_shop.price_potion_wares); a
-    ware holding its own joined item or an unpriced one keeps its price from before SI-PRICE-01."""
+    """The joined wares' prices for what they now hold, in join order: SI-PRICE-01's classes under
+    the seed's own settings (steps/shop_prices.py); a blue potion in a ware other than its own costs
+    25-55 (potion_shop.price_potion_wares); a ware holding its own joined item or an unpriced one
+    keeps its price from before SI-PRICE-01."""
+    from .pipeline import extra_options
     extras = built.result.extra_pool_items
     if extras is None:
         return
+    prices = extra_options(built.plan).price_rules.prices
     for ware, own_item, slot_price in zip(extras.shop_wares, extras.shop_items, extras.slot_prices, strict=True):
         shop = world.overworld.get_cave(ware.shop.destination, Shop)
         assert shop is not None
         held = shop.ware(ware.position)
-        if held.item == own_item or (held.item not in PRICES_BY_ITEM and held.item != Item.BLUE_POTION):
+        if held.item == own_item or (held.item not in prices and held.item != Item.BLUE_POTION):
             held.price = slot_price
         elif held.item == Item.BLUE_POTION:
             held.price = _uniform(rng, BLUE_POTION_PRICES)
         else:
-            held.price = _uniform(rng, PRICES_BY_ITEM[held.item])
+            held.price = _uniform(rng, prices[held.item])
 
 
 def shields_to_fairies(world: GameWorld, foreign_wares: Collection[tuple[Destination, int]], rng: IntRng) -> None:

@@ -456,6 +456,7 @@ MAZE_DIRECTIONS_ADDRESS = 0x6DA7   # file offset; Dead Woods first, Lost Hills s
 
 LEVEL_TABLE_SIZE = 0x80
 NUM_TABLES       = 6
+ITEM_BYTE_TABLE  = 4      # LevelBlockAttrsE, the item byte (item, boss sound, dark room)
 LEVEL_INFO_SIZE  = 0xFC
 NUM_QUOTES       = 38
 

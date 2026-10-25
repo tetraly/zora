@@ -387,22 +387,30 @@ def test_the_potion_shop_takes_a_held_letter_at_once(letter: int) -> None:
 
 # --- 10: Like-Like Eats Rupees ------------------------------------------------------------------
 
+FRAMES_PER_EATEN_RUPEE = 6  # 10 rupees a second (owner, 2026-10-24; was 2, 30 a second)
+
+
 def test_a_like_like_eats_rupees_not_the_shield() -> None:
-    """Held by a Like-Like past its $60 frames, Link keeps the magical shield and loses rupees
-    (one a frame while held); in the control he loses the shield and keeps the rupees."""
+    """Held by a Like-Like past its $60 frames, Link keeps the magical shield and loses a rupee
+    every 6 frames while held; in the control he loses the shield and keeps the rupees."""
     for name, rom in both("like-like-rupees").items():
         game = Game(rom)
         enter_room(game, *rooms_holding(Enemy.LIKE_LIKE)[0])
         emu = game.emu
         emu[INV_MAGIC_SHIELD], emu[INV_RUPEES] = 1, 50
         slot = next(slot for slot in MONSTER_SLOTS if emu[OBJ_TYPE + slot] == Enemy.LIKE_LIKE)
+        eaten_at = []
         for frame in range(420):
             emu[HEART_VALUES] = FULL_HEARTS
             if frame < 20:
                 emu[OBJ_X], emu[OBJ_Y] = emu[OBJ_X + slot], emu[OBJ_Y + slot]
+            rupees = emu[INV_RUPEES]
             emu.run(1)
+            eaten_at += [frame] * (rupees - emu[INV_RUPEES])
         if name == "patched":
             assert (emu[INV_MAGIC_SHIELD], emu[INV_RUPEES]) == (1, 0)
+            gaps = {later - earlier for earlier, later in zip(eaten_at, eaten_at[1:])}
+            assert gaps == {FRAMES_PER_EATEN_RUPEE}, gaps
         else:
             assert (emu[INV_MAGIC_SHIELD], emu[INV_RUPEES]) == (0, 50)
 

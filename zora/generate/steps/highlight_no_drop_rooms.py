@@ -1,36 +1,54 @@
 """Highlight No-Drop Rooms (ZORA flag highlight_no_drop_rooms; owner decision, 2026-10-18; the
-research doc "Highlight No-Drop Rooms: Research and Implementation Plan"): a dungeon room that can
-never hold an item draws its blocks in its level's palette 3, and every other room with blocks in
-palette 2, so a player can tell at a glance which rooms are worth searching.
+research doc "Highlight No-Drop Rooms: Research and Implementation Plan"; reworked 2026-10-24 after
+a bug report, docs/zora-extras.md section 16): a dungeon room that can never hold an item draws
+the tiles that use palette color 1 (blocks, water, statues, stairs) in red, and every other room
+as the level always looked, so a player can tell at a glance which rooms are worth searching.
 
 The rule (the doc's section 2): a room of level L is a no-drop room when none of L's four item
 positions (level information $29-$2C) is on the allowed list for the room's screen type, its
 layout with the push-block bit. After the shape stage an item reaches a room only with its layout
 and position (the reshuffles move item bytes between rooms that hold one; the late gate's re-deal
-and the room exchange move the whole contents), so such a room never receives one.
+and the room exchange move the whole contents), so such a room never receives one. (The engine
+itself places a room's item wherever its position byte says, in any room: the rule is the
+generator's, measured on its output.)
 
-Owner's decisions: only the inner palette selector (room table B bits 0-1) changes, and only in a
-room whose layout has blocks and whose selector is already 2 or 3; no color is written (where a
-level's palettes 2 and 3 are the same, the mark simply doesn't show). Water rooms and the entrance
-rooms keep their palette; dark rooms are marked like any other. No marking at all when Allow
-Universal Drops In Shapes (B91) resolves on. The pass runs on the shipped world, after every pass
-that moves rooms, items, layouts or palettes, and before the level encoding; it draws no random
-numbers."""
+The display (owner decisions, 2026-10-24): the inner palette selector (room table B bits 0-1) of
+every room that uses palette 2 or 3 becomes 3 when the room is a no-drop room and 2 otherwise,
+and each level's palette 3 has color 1 (the color of block faces, water, statues and stairs)
+NO_DROP_COLOR, red, in the palette and in the dark-room fade steps. Palette 2 stays the level's
+own, so a room that can drop, its walls and its doors look as the level always looked. (A room can
+pick only the level's four palettes, two of them the status bar's: a vanilla moat on palette 3
+that can drop therefore takes palette 2, and shows the level's block-face color rather than its
+water color.) Rooms on palette 0 (the person rooms) and 1 (sand) keep theirs, unmarked. Dark
+rooms are marked like any other. No marking at all when Allow Universal Drops In Shapes (B91)
+resolves on. The pass runs on the shipped world, after every pass that moves rooms, items,
+layouts or palettes, and before the level encoding; it draws no random numbers."""
 from collections.abc import Iterable
 
 from ...model.enums import Enemy, Item
 from ...model.levels import Level
-from ...model.rooms import LAYOUT_ID_MASK, Room
+from ...model.rooms import Room
 from ..shapes.t5_positions import T5_BASE
 from .remove_most_open_stairs import PUSH_STAIRS_LAYOUTS
 
-# The doc's section 5: the layouts (layout byte bits 5-0) that draw blocks and no water. Their
-# block tiles use color 1, the one color palettes 2 and 3 differ in.
-BLOCK_LAYOUTS = frozenset((*range(0x01, 0x0B), *range(0x0C, 0x12), *range(0x1A, 0x20), 0x20, 0x22, 0x27, 0x29))
 # Inner palette selectors (LevelBlockAttrsB bits 1-0)
 UNMARKED_PALETTE = 2
 MARKED_PALETTE = 3
 CHANGED_PALETTES = frozenset({UNMARKED_PALETTE, MARKED_PALETTE})
+# The no-drop color (owner, 2026-10-24): NES $16, the plain red. No dungeon color set (PS-COLOR-02)
+# uses it as palette 2's color 1, so it differs from a level's block face whatever Shuffle Dungeon
+# Colors draws.
+NO_DROP_COLOR = 0x16
+PALETTE_SIZE = 4                     # a background palette: the backdrop, then colors 1 to 3
+ACCENT_SLOT = 1                      # color 1: block faces, water, statues, stairs
+BRIGHTNESS_ROW = 0x10                # one NES brightness row; the dark-room fade steps down rows
+BLACK = 0x0F
+# fade_palette_raw (level information +$7C, 96 bytes): 12 steps of 8 bytes, palette 2's four
+# colors then palette 3's (AnimateWorldFading writes them to PPU $3F08). Steps 0 to 3 and 8 to 11
+# are the fade from the full colors to black (the dark room's light); steps 4 to 7 are grey.
+FADE_STEP_SIZE = 2 * PALETTE_SIZE
+FADE_GROUP_STARTS = (0, 8)           # in steps
+FADE_STEPS_PER_GROUP = 4
 # The doc's section 2: the positions the 2nd Quest dungeons place items at beyond the T5 base list,
 # by screen type, added for every level when any level reads a 2nd Quest room block (the room
 # exchange carries 2nd Quest contents into other levels). Rebuilt from PRG0's 2nd Quest item rooms
@@ -89,10 +107,9 @@ def is_ganon_room(room: Room) -> bool:
 
 
 def takes_part(room: Room) -> bool:
-    """The doc's implementation plan, step 5: a room changes only when its layout has blocks and
-    its inner selector is 2 or 3 (water rooms, the entrance and other blockless rooms, the person
-    rooms on 0 and the original palette-1 rooms keep theirs)."""
-    return (room.layout_code & LAYOUT_ID_MASK) in BLOCK_LAYOUTS and room.palette_1 in CHANGED_PALETTES
+    """A room on palette 2 or 3 takes the mark; the person rooms (0) and the original palette-1
+    rooms keep theirs."""
+    return room.palette_1 in CHANGED_PALETTES
 
 
 def is_exception(room: Room, open_stairs_removed: bool) -> bool:
@@ -107,12 +124,32 @@ def is_marked(level: Level, room: Room, allowed: dict[int, frozenset[int]], open
     return is_no_drop_room(level, room, allowed) and not is_exception(room, open_stairs_removed)
 
 
+def darker(color: int, rows: int) -> int:
+    """`color` `rows` brightness rows darker, black past the bottom row."""
+    return color - rows * BRIGHTNESS_ROW if color - rows * BRIGHTNESS_ROW >= 0 else BLACK
+
+
+def write_no_drop_color(level: Level) -> None:
+    """Palette 3's color 1 becomes NO_DROP_COLOR, in the level's palette and in the steps of its
+    dark-room fade (each step one brightness row darker)."""
+    palette_bytes, fade_bytes = level.color_sets
+    palette, fade = bytearray(palette_bytes), bytearray(fade_bytes)
+    palette[MARKED_PALETTE * PALETTE_SIZE + ACCENT_SLOT] = NO_DROP_COLOR
+    for group_start in FADE_GROUP_STARTS:
+        for step in range(FADE_STEPS_PER_GROUP):
+            offset = (group_start + step) * FADE_STEP_SIZE + PALETTE_SIZE + ACCENT_SLOT
+            fade[offset] = darker(NO_DROP_COLOR, step)
+    level.set_color_sets(bytes(palette), bytes(fade))
+
+
 def highlight_no_drop_rooms(levels: Iterable[Level], open_stairs_removed: bool) -> None:
-    """Every taking-part room of every level gets inner palette 3 when it is marked and inner
-    palette 2 otherwise. The caller skips the pass when B91 resolves on."""
+    """Every level's palette 3 takes the no-drop color; every room on palette 2 or 3 gets inner
+    palette 3 when it is marked and inner palette 2 otherwise. The caller skips the pass when B91
+    resolves on."""
     levels = list(levels)
     allowed = allowed_positions(any(level.is_second_quest for level in levels))
     for level in levels:
+        write_no_drop_color(level)
         for room in level.rooms:
             if takes_part(room):
                 marked = is_marked(level, room, allowed, open_stairs_removed)

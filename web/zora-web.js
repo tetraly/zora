@@ -43,6 +43,8 @@ const FLAG_TABS_EMBEDDED_ID = "zora-embedded-flag-tabs";
 // does not produce yet. The page words those per field instead.
 const NOT_PRODUCED_REFUSAL = "not produced: ";
 const NOT_IMPLEMENTED = "Not yet implemented";
+// A music problem (zora.rom.music's MusicError: a library, playlist or size problem) as Python names it.
+const MUSIC_PROBLEM = /^zora\.rom\.music\.(?:library|importer|playlist)\.\w+: /;
 const PASTED_FLAGS = "pasted flags";
 // The player's own presets: this many slots, kept in this browser. 8 since 2026-10-17 (owner; 4 before):
 // a list saved with fewer slots reads as its slots followed by empty ones (readCustomPresets).
@@ -101,6 +103,12 @@ let nextId = 0;
 let ready = false;
 let baseRom = null;             // Uint8Array of the recognized base ROM
 let romIdentity = null;         // its zora_web.api.identify_rom answer
+let romChecks = 0;              // ROMs taken so far (chosen, restored or forgotten); a newer one wins
+const BASE_ROM_DB = "zora-base-rom";     // IndexedDB: the remembered base ROM, this browser only
+const BASE_ROM_KEY = "rom";
+const ROM_LABEL = $("rom-label").textContent;     // the step's line before a ROM is chosen
+const REMEMBERED_NOW = "Remembered in this browser for your next visit (never uploaded).";
+const REMEMBERED_BEFORE = "Remembered from your last visit (kept in this browser, never uploaded).";
 let metadata = null;            // zora.flag_form.metadata()
 let form = null;                // the current zora.flag_form.form_state()
 // The state the changed-dots compare with: the last preset or pasted string
@@ -132,11 +140,13 @@ worker.onmessage = (event) => {
     metadata = message.metadata;
     metadata.multiworld = message.multiworld;
     showWorldLinks();
+    restoreBaseRom();
     flagTabsRequest.then((flagTabs) => {
       buildForm(flagTabs);
       status(`Ready in ${(window.zoraTimings.readyMs / 1000).toFixed(1)} s ` +
              `(Pyodide ${message.pyodide}, Python ${message.python}). ` +
-             (mode === MULTIWORLD ? "Choose your settings and player name." : "Choose the base ROM."));
+             (mode === MULTIWORLD ? "Choose your settings and player name."
+              : baseRom ? "Base ROM remembered from your last visit." : "Choose the base ROM."));
       if (sharedLink.flags !== null || sharedLink.zoraFlags !== null) {
         $("zora-flags").value = sharedLink.zoraFlags || "";
         loadFlags(sharedLink.flags || metadata.defaultFlags, { rewrite: true, start: true, name: SHARED_LINK });
@@ -629,9 +639,18 @@ const NES_PALETTE = [
 ];
 // $0D is darker than black; some TVs take it for the sync signal.
 const BLACKER_THAN_BLACK = 0x0D;
+// A color slot's Random: one past the palette (metadata.randomColor, zora/rom/player_settings.py's
+// RANDOM_COLOR; needed before the worker answers, to read the saved settings).
+const RANDOM_COLOR = NES_PALETTE.length;
 const EXCLUDED_COLORS = { [BLACKER_THAN_BLACK]: "Not used: can upset TV picture sync" };
 
 const PLAYER_SETTINGS_KEY = "zora-player-settings";
+// The Link sprite's choices and the key of the set this browser keeps (linkSpriteRow).
+const LINK_SPRITE_LINK = "link";
+const LINK_SPRITE_SET = "set";
+const LINK_SPRITE_RANDOM = "random";
+const LINK_SPRITES = [LINK_SPRITE_LINK, LINK_SPRITE_SET, LINK_SPRITE_RANDOM];
+const LINK_SPRITE_SET_KEY = "zora-link-sprite-set";
 
 // The choices, in the order the tab shows them: [value, label] pairs, and the help text.
 const PLAYER_CHOICES = [
@@ -640,9 +659,10 @@ const PLAYER_CHOICES = [
     help: "What Select does in play. Off: it pauses the game, as in the original. Swap only: it moves the " +
           "B button to your next item and never pauses. Toggle: you switch between the two on the item screen." },
   { key: "lowHealthBeep", label: "Low-health beep", default: "removed",
-    choices: [["removed", "Removed"], ["kept", "Kept"], ["half-speed", "Half speed"]],
+    choices: [["removed", "Removed"], ["kept", "Kept"], ["half-speed", "Half speed"], ["random", "Random"]],
     help: "Whether the warning beep sounds while your hearts are low, and how often. Half speed: it beeps " +
-          "half as often as in the original game." },
+          "half as often as in the original game. Random: removed or kept, picked by the seed number (the " +
+          "same seed always gives the same)." },
   { key: "deathWarp", label: "Death-warp", default: "p1-up-a",
     choices: [["p2-up-a", "Controller 2 Up+A"], ["p1-up-a", "Controller 1 Up+A"],
               ["p1-up-select", "Controller 1 Up+Select"]],
@@ -669,21 +689,26 @@ const MUSIC_CHOICES = [
     choices: [["on", "On"], ["off", "Off"]],
     help: "Only tracks the library marks safe for streaming. Off adds the others, which may draw copyright " +
           "claims on a stream or video. A local library's track without that mark counts as safe." },
+  { key: "musicHideTrackList", label: "Hide track list", default: "off", choices: [["off", "Off"], ["on", "On"]],
+    help: "On: the page does not show which tracks the seed got, so you can be surprised; a button shows " +
+          "them if you want to look later. It changes nothing in the ROM." },
 ];
 // The statistics screen is no longer a choice: every ROM has it (owner, 2026-10-17). A saved
 // statisticsScreen value is not loaded (loadPlayerSettings reads only these keys).
+const RANDOM_TUNIC_HELP = "Random: one of eleven colors, picked by the seed number, never a tunic above's color.";
 // The color slots, as NES palette indexes, under their headings.
 const PLAYER_COLORS = [
   { heading: "Tunic colors", slots: [
     { key: "greenTunic", label: "Green tunic", default: 0x29,
-      help: "The color of Link's tunic before he finds a ring." },
+      help: "The color of Link's tunic before he finds a ring. " + RANDOM_TUNIC_HELP },
     { key: "blueRingTunic", label: "Blue ring", default: 0x32,
-      help: "The color of Link's tunic with the blue ring." },
+      help: "The color of Link's tunic with the blue ring. " + RANDOM_TUNIC_HELP },
     { key: "redRingTunic", label: "Red ring", default: 0x16,
-      help: "The color of Link's tunic with the red ring." },
+      help: "The color of Link's tunic with the red ring. " + RANDOM_TUNIC_HELP },
   ] },
   { heading: "Heart color", slots: [{ key: "heart", label: "Hearts", default: 0x16,
-                                       help: "The color of the hearts in the life meter." }] },
+                                       help: "The color of the hearts in the life meter. Random: one of seven " +
+                                             "colors, picked by the seed number." }] },
 ];
 const COLOR_SLOTS = PLAYER_COLORS.flatMap((group) => group.slots);
 // The Archipelago games' own settings (zora/archipelago.py MULTIWORLD_SETTINGS): shown and sent only
@@ -732,11 +757,13 @@ function defaultPlayerSettings() {
   for (const slot of COLOR_SLOTS) settings[slot.key] = slot.default;
   settings.levelWord = "LEVEL";        // metadata.levelWord.default
   settings.bossSoundWord = "ROAR";     // metadata.bossSoundWord.default
+  settings.linkSprite = LINK_SPRITE_LINK;
   return settings;
 }
 
 function isPickableColor(value) {
-  return Number.isInteger(value) && value >= 0 && value < NES_PALETTE.length && !(value in EXCLUDED_COLORS);
+  return value === RANDOM_COLOR ||
+    (Number.isInteger(value) && value >= 0 && value < NES_PALETTE.length && !(value in EXCLUDED_COLORS));
 }
 
 // The saved settings, each value checked; anything unknown or missing takes its default.
@@ -761,6 +788,10 @@ function checkedPlayerSettings(saved) {
   // Checked against metadata.levelWord when the panel is built (the worker sends the rule).
   if (typeof saved.levelWord === "string") settings.levelWord = saved.levelWord;
   if (typeof saved.bossSoundWord === "string") settings.bossSoundWord = saved.bossSoundWord;
+  // A set or Random needs the set this browser keeps (a settings file from another browser may not)
+  if (LINK_SPRITES.includes(saved.linkSprite) && (saved.linkSprite === LINK_SPRITE_LINK || loadLinkSpriteSet())) {
+    settings.linkSprite = saved.linkSprite;
+  }
   return settings;
 }
 
@@ -772,10 +803,17 @@ function savePlayerSettings() {
   refreshMultiworld();      // the YAML carries them: check them again
 }
 
-// A copy for the worker's messages; the multiworld settings only in multiworld mode.
-function currentPlayerSettings() {
+// A copy for the worker's messages; the multiworld settings only in multiworld mode. The Link sprite
+// only outside it (Archipelago's player settings do not offer it), with the loaded set when the choice
+// uses it (withSet: the settings file keeps the choice alone).
+function currentPlayerSettings(withSet = true) {
   const settings = { ...playerSettings };
   if (mode !== MULTIWORLD) for (const choice of MULTIWORLD_CHOICES) delete settings[choice.key];
+  if (mode === MULTIWORLD) {
+    delete settings.linkSprite;
+  } else if (withSet && settings.linkSprite !== LINK_SPRITE_LINK) {
+    settings.linkSpriteSet = loadLinkSpriteSet();
+  }
   return settings;
 }
 
@@ -799,6 +837,7 @@ function buildLookPanel(panel) {
   for (const choice of PLAYER_CHOICES) if (choice.key !== "music") grid.append(choiceRow(choice));
   grid.append(levelWordRow());
   grid.append(bossSoundWordRow());
+  grid.append(linkSpriteRow());
   grid.append(element("h3", { className: "setting-heading", textContent: "Music" }));
   grid.append(musicRow(PLAYER_CHOICES.find((choice) => choice.key === "music")));
   for (const choice of MUSIC_CHOICES) {
@@ -816,7 +855,7 @@ function buildLookPanel(panel) {
       const host = element("span", { className: "setting-control" });
       initColorPicker(host, {
         palette: NES_PALETTE, excluded: EXCLUDED_COLORS, value: playerSettings[slot.key],
-        label: `${group.heading}: ${slot.label}`,
+        label: `${group.heading}: ${slot.label}`, random: metadata.randomColor,
         onChange: (index) => {
           playerSettings[slot.key] = index;
           savePlayerSettings();
@@ -839,9 +878,10 @@ function buildLookPanel(panel) {
   showMultiworldSettings();
 }
 
-// The multiworld settings' rows show only in multiworld mode.
+// The multiworld settings' rows show only in multiworld mode, the single-player ones only outside it.
 function showMultiworldSettings() {
   for (const node of document.querySelectorAll(".multiworld-only")) node.hidden = mode !== MULTIWORLD;
+  for (const node of document.querySelectorAll(".single-only")) node.hidden = mode === MULTIWORLD;
   refreshMusicRows();
 }
 
@@ -859,6 +899,9 @@ let musicPlaylistFills = 0;                         // the editor's fills so far
 let musicLocked = false;                            // the ZORA flag Disable Custom Music is on
 let musicPlaylistSummary = null;                    // the Playlist row's "n areas pinned"
 let musicLibraryShown = null;                       // the Library row's list of files
+let musicLibraryNotes = null;                       // the Library row's problem and warnings
+let musicLibraryCheck = null;                       // {problem, warnings} of the chosen files, once checked
+let musicLibraryChecks = 0;                         // the checks so far: only the latest one counts
 
 // The Music row: the list's On and Off, then the random values.
 function musicRow(choice) {
@@ -914,9 +957,12 @@ function musicLibraryRow() {
   pickFiles.addEventListener("click", () => files.click());
   const shown = element("span", { id: "music-library-files", className: "panel-note" });
   musicLibraryShown = shown;
-  const control = element("span", { className: "music-library" }, pickFolder, pickFiles, folder, files, shown);
+  musicLibraryNotes = element("span", { className: "music-library-notes" });
+  const control = element("span", { className: "music-library" }, pickFolder, pickFiles, folder, files, shown,
+                          musicLibraryNotes);
   const { row } = settingRow("Library", "FtRandoLib library files (.json5), the format of Quantam's standard " +
-    "library: FamiTracker modules with each song's title and the areas it fits. Zelda II Randomizer's libraries " +
+    "library: FamiTracker modules with each song's title and the areas it fits (Title for the title screen; a " +
+    "library with no Title track plays an overworld one there). Zelda II Randomizer's libraries " +
     "work too: their towns play on the overworld, palaces, caves and battles in levels 1-8, the great palace and " +
     "bosses in level 9, the credits at the ending. Recorded audio (MP3, WAV) and plain .ftm files cannot be used. " +
     "The files stay in this browser.", control);
@@ -934,6 +980,7 @@ async function chooseMusicLibrary(fileList) {
   showMusicLibrary();
   refreshMusicPlaylistEditor();
   updateButton();
+  checkMusicLibrary();
 }
 
 function showMusicLibrary() {
@@ -942,20 +989,52 @@ function showMusicLibrary() {
   shown.textContent = musicLibraryFiles.length
     ? `${musicLibraryFiles.length} file${musicLibraryFiles.length === 1 ? "" : "s"}: ${musicLibraryFiles.map((file) => file.name).join(", ")}`
     : "No library chosen: choose a folder or files to generate.";
+  const check = musicLibraryFiles.length ? musicLibraryCheck : null;
+  musicLibraryNotes.replaceChildren(
+    ...(check && check.problem ? [element("p", { className: "setting-reason music-library-problem",
+                                                 textContent: `This library cannot be used: ${check.problem}` })] : []),
+    ...(check ? check.warnings : []).map((warning) => element("p", { className: "setting-reason", textContent: warning })));
 }
 
-function musicLibraryStore(mode, work) {
+// The chosen files read as a seed would read them, before Generate: a library with nothing to place
+// stops Generate with the reason; tracks or uses left out are listed. A check that cannot run (Python
+// still loading) blocks nothing: generating reports the same problem.
+async function checkMusicLibrary() {
+  const check = ++musicLibraryChecks;
+  musicLibraryCheck = null;
+  if (musicLibraryFiles.length) {
+    let result = null;
+    try {
+      const answer = await ask("musicSongs", { source: "local", musicLibraries: musicLibraryFiles });
+      result = answer.error ? { problem: answer.error, warnings: [] } : { problem: null, warnings: answer.warnings || [] };
+    } catch { /* not checked */ }
+    if (check !== musicLibraryChecks) return;      // a newer choice replaces this one
+    musicLibraryCheck = result;
+  }
+  showMusicLibrary();
+  updateButton();
+}
+
+// One of this browser's own databases (IndexedDB), on this machine only. Resolves to null where
+// storage is unavailable (a private window, storage turned off) or the request fails.
+function browserStore(database, mode, work) {
   return new Promise((resolve) => {
     try {
-      const request = indexedDB.open(MUSIC_LIBRARY_DB, 1);
+      const request = indexedDB.open(database, 1);
       request.onupgradeneeded = () => request.result.createObjectStore("files");
       request.onerror = () => resolve(null);
       request.onsuccess = () => {
-        const store = request.result.transaction("files", mode).objectStore("files");
-        work(store, resolve);
+        try {
+          const store = request.result.transaction("files", mode).objectStore("files");
+          work(store, resolve);
+        } catch { resolve(null); }
       };
     } catch { resolve(null); }
   });
+}
+
+function musicLibraryStore(mode, work) {
+  return browserStore(MUSIC_LIBRARY_DB, mode, work);
 }
 
 function storeMusicLibrary() {
@@ -976,6 +1055,7 @@ async function restoreMusicLibrary() {
     showMusicLibrary();
     refreshMusicPlaylistEditor();
     updateButton();
+    checkMusicLibrary();
   }
 }
 
@@ -1074,7 +1154,7 @@ async function fillMusicPlaylistEditor(editor) {
     select.append(element("option", { value: "random", textContent: "Random" }),
                   element("option", { value: "original", textContent: "Original" }));
     for (const song of songs) {
-      const notes = [song.uses.includes(area.use) ? "" : "not tagged for this area", song.safe ? "" : "unsafe for streaming"]
+      const notes = [area.uses.some((use) => song.uses.includes(use)) ? "" : "not tagged for this area", song.safe ? "" : "unsafe for streaming"]
         .filter(Boolean);
       select.append(element("option", { value: song.title, disabled: safeOnly && !song.safe,
                                         textContent: notes.length ? `${song.title} (${notes.join("; ")})` : song.title }));
@@ -1124,9 +1204,10 @@ function exportMusicPlaylist() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// Random (local library) needs a library before a seed can be generated.
+// Random (local library) needs a library, one with tracks to place, before a seed can be generated.
 function musicReady() {
-  return !(randomMusicChosen() && playerSettings.music === "random-local" && musicLibraryFiles.length === 0);
+  if (!(randomMusicChosen() && playerSettings.music === "random-local")) return true;
+  return musicLibraryFiles.length > 0 && !(musicLibraryCheck && musicLibraryCheck.problem);
 }
 
 // The level label's word (FP-LEVEL-01): a listed word or the player's own. The rule is
@@ -1134,13 +1215,15 @@ function musicReady() {
 // in Node against Python's level_word_problem).
 const LEVEL_WORD_HELP = "The word the status bar and the hints show before a level's number in place of LEVEL. " +
                         "Words of up to six characters keep the dash (CASTLE-1); seven-character words drop it to " +
-                        "fit (DUNGEON1).";
+                        "fit (DUNGEON1). Random: one of the listed words, picked by the seed number (the same seed " +
+                        "always shows the same word).";
 
 function normalizedLevelWord(text) {
   return text.trim().toUpperCase();
 }
 
 function levelWordProblem(word, rule) {
+  if (word === rule.random) return null;
   if (!word) return "type a word";
   if (word.length > rule.maxLength) return `at most ${rule.maxLength} characters`;
   const unknown = [...new Set([...word].filter((char) => !rule.characters.includes(char)))].sort();
@@ -1154,13 +1237,15 @@ function levelLabel(word, rule) {
 
 function levelWordRow() {
   const rule = metadata.levelWord;
+  const random = "a listed word, picked by the seed number";
   return wordChoiceRow({
     key: "levelWord", name: "Level name", help: LEVEL_WORD_HELP, maxLength: rule.maxLength,
-    defaultWord: rule.default, options: rule.choices.map((word) => ({ value: word, label: word })),
+    defaultWord: rule.default,
+    options: [...rule.choices.map((word) => ({ value: word, label: word })), { value: rule.random, label: "Random" }],
     problem: (word) => levelWordProblem(word, rule),
-    shows: (word) => `Shows as ${levelLabel(word, rule)}` +
-                     (word.length > rule.dashMaxLength ? " (seven characters: no room for the dash)." : "."),
-    keeps: (word) => levelLabel(word, rule),
+    shows: (word) => (word === rule.random ? `Shows ${random}.` : `Shows as ${levelLabel(word, rule)}` +
+                      (word.length > rule.dashMaxLength ? " (seven characters: no room for the dash)." : ".")),
+    keeps: (word) => (word === rule.random ? random : levelLabel(word, rule)),
   });
 }
 
@@ -1226,6 +1311,99 @@ function wordChoiceRow({ key, name, help, maxLength, defaultWord, options, probl
     reason.textContent = shows(word);
   }
   update();
+  return row;
+}
+
+// The Link sprite (FP-LINK-02; zora/rom/link_sprite.py): PRG0's Link, a set the player loads (a JSON
+// file, docs/link-sprite-sets.md), or Random, offered only with a set: Link or the set, picked by the
+// seed number. ZORA ships no sets yet. The set is kept in this browser (not in the settings file,
+// which keeps the choice); Python checks it again when a seed is made. Single player only.
+const LINK_SPRITE_HELP = "Who Link looks like: the original Link, or a sprite set you load (a .json sprite-set " +
+  "file with a name, an author and 640 bytes of tile art). Random: the original Link or your set, picked by the " +
+  "seed number. A set changes only how Link is drawn, in play, on the title story and on the file-select " +
+  "screen; his tunic keeps the tunic color.";
+
+class LinkSpriteSetError extends Error {}
+
+// A sprite-set file's object, checked as Python checks it (zora/rom/link_sprite.py sprite_set_from_object):
+// the format and version, a name and an author, and exactly metadata.linkSpriteSet.size bytes of tiles.
+function checkedLinkSpriteSet(data, rule) {
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    throw new LinkSpriteSetError("a Link sprite set file holds one JSON object");
+  }
+  if (data.format !== rule.format) {
+    throw new LinkSpriteSetError(`not a Link sprite set file (its "format" is not "${rule.format}")`);
+  }
+  if (data.version !== rule.version) {
+    throw new LinkSpriteSetError(`a Link sprite set file of version ${JSON.stringify(data.version)}: this ZORA ` +
+                                 `reads version ${rule.version}`);
+  }
+  for (const field of ["name", "author"]) {
+    if (typeof data[field] !== "string" || !data[field].trim()) {
+      throw new LinkSpriteSetError(`a Link sprite set needs a ${field}`);
+    }
+  }
+  if (typeof data.tiles !== "string") throw new LinkSpriteSetError('a Link sprite set file needs its tile data ("tiles", base64)');
+  let size;
+  try { size = atob(data.tiles).length; } catch { throw new LinkSpriteSetError("a Link sprite set's tile data is not base64"); }
+  if (size !== rule.size) {
+    throw new LinkSpriteSetError(`a Link sprite set holds exactly ${rule.size} bytes of tile data, not ${size}`);
+  }
+  return { format: data.format, version: data.version, name: data.name, author: data.author,
+           provenance: typeof data.provenance === "string" ? data.provenance : "", tiles: data.tiles };
+}
+
+function loadLinkSpriteSet() {
+  try {
+    const saved = JSON.parse(pageStorage.getItem(LINK_SPRITE_SET_KEY) || "null");
+    return saved && typeof saved === "object" && typeof saved.tiles === "string" ? saved : null;
+  } catch { return null; }
+}
+
+function linkSpriteRow() {
+  const set = loadLinkSpriteSet();
+  const options = [{ value: LINK_SPRITE_LINK, label: "Link" }];
+  if (set) {
+    options.push({ value: LINK_SPRITE_SET, label: `${set.name}, by ${set.author}` },
+                 { value: LINK_SPRITE_RANDOM, label: "Random" });
+  }
+  if (!options.some((option) => option.value === playerSettings.linkSprite)) playerSettings.linkSprite = LINK_SPRITE_LINK;
+  const select = selectControl("player-linkSprite", "Link sprite", options, () => {
+    playerSettings.linkSprite = select.value;
+    savePlayerSettings();
+  });
+  select.value = playerSettings.linkSprite;
+  const file = element("input", { type: "file", id: "player-linkSprite-file", hidden: true, accept: ".json,application/json" });
+  const load = element("button", { type: "button", id: "player-linkSprite-load", className: "btn btn-tint btn-small",
+                                   textContent: "Load a set…" });
+  load.addEventListener("click", () => file.click());
+  const shown = element("span", { id: "player-linkSprite-set", className: "panel-note link-sprite-set",
+    textContent: set ? `Loaded: ${set.name}, by ${set.author}.${set.provenance ? ` ${set.provenance}` : ""}` : "" });
+  const control = element("span", { className: "link-sprite-control" }, select, load, file, shown);
+  const { row, reason } = settingRow("Link sprite", LINK_SPRITE_HELP, control);
+  row.classList.add("single-only");
+  file.addEventListener("change", async () => {
+    const chosen = file.files[0];
+    file.value = "";
+    if (!chosen) return;
+    try {
+      let data;
+      try { data = JSON.parse(await chosen.text()); } catch {
+        throw new LinkSpriteSetError("a Link sprite set file is JSON; this one does not read as JSON");
+      }
+      const checked = checkedLinkSpriteSet(data, metadata.linkSpriteSet);
+      try { pageStorage.setItem(LINK_SPRITE_SET_KEY, JSON.stringify(checked)); } catch {
+        throw new LinkSpriteSetError("this browser isn't keeping data for this page, so it can't keep the set");
+      }
+      playerSettings.linkSprite = LINK_SPRITE_SET;
+      savePlayerSettings();
+      row.replaceWith(linkSpriteRow());
+    } catch (err) {
+      if (!(err instanceof LinkSpriteSetError)) throw err;
+      row.classList.add("setting--problem");
+      reason.textContent = `${chosen.name}: ${err.message}. Not loaded.`;
+    }
+  });
   return row;
 }
 
@@ -1356,7 +1534,7 @@ function pageSettings() {
     mode,
     flags: form.flags,
     zora_flags: form.zora.ok ? form.zora.flags : "",
-    player_settings: currentPlayerSettings(),
+    player_settings: currentPlayerSettings(false),
     custom_presets: readCustomPresets() || [],
     player_name: savedPlayerName(),
     theme: getSetting(THEME_KEY),
@@ -2006,20 +2184,22 @@ function romStepText(identity) {
 
 // PRG0 or PRG1, with or without modified graphics, is accepted; generation takes its bytes as
 // they are (generate_rom identifies the ROM again itself). A refused ROM leaves Generate off.
-async function onRomChosen() {
+// `read` gives the ROM's bytes; resolves to them when the ROM is accepted, else null.
+async function useRom(name, read) {
+  const check = ++romChecks;
   baseRom = null;
   romIdentity = null;
   markStepDone("step-rom-num", 1, false);
   $("rom-identity").textContent = "";
   $("rom-error").textContent = "";
+  $("rom-remembered").hidden = true;
   updateButton();
-  const file = $("rom").files[0];
-  if (!file || !ready) return;
-  const data = new Uint8Array(await file.arrayBuffer());
+  if (!ready) return null;
+  const data = await read();
   const { identity } = await ask("check", { bytes: data });
-  if ($("rom").files[0] !== file) return;       // another file was chosen meanwhile
+  if (check !== romChecks) return null;         // another ROM was chosen meanwhile
   const shown = romStepText(identity);
-  $("rom-label").textContent = file.name;
+  $("rom-label").textContent = name;
   $("rom-identity").textContent = shown.note;
   $("rom-error").textContent = shown.error;
   if (identity.recognized) {
@@ -2031,6 +2211,75 @@ async function onRomChosen() {
   } else {
     status(shown.status, "error");
   }
+  updateButton();
+  return identity.recognized ? data : null;
+}
+
+async function onRomChosen() {
+  const file = $("rom").files[0];
+  if (!file) return;
+  const data = await useRom(file.name, async () => new Uint8Array(await file.arrayBuffer()));
+  if (data) showRememberedRom(data, await storeBaseRom(file.name, data), REMEMBERED_NOW);
+}
+
+// The base ROM, remembered (player request, 2026-10-24): a browser cannot reopen a file by name, so
+// the accepted ROM itself is kept in this browser's own storage (IndexedDB), on this machine only and
+// never uploaded, and used on the next visit without asking. Where storage is unavailable (a private
+// window) nothing is remembered and the step asks for the file each visit, as before.
+function storeBaseRom(name, bytes) {
+  return browserStore(BASE_ROM_DB, "readwrite", (store, done) => {
+    const put = store.put({ name, bytes }, BASE_ROM_KEY);
+    put.onsuccess = () => done(true);
+    put.onerror = () => done(false);
+  });
+}
+
+function forgetBaseRom() {
+  return browserStore(BASE_ROM_DB, "readwrite", (store, done) => {
+    const removed = store.delete(BASE_ROM_KEY);
+    removed.onsuccess = removed.onerror = () => done(null);
+  });
+}
+
+// The remembered line and its Forget button, for the ROM in use when it was stored.
+function showRememberedRom(data, stored, text) {
+  if (!stored || baseRom !== data) return;
+  $("rom-remembered-text").textContent = text;
+  $("rom-remembered").hidden = false;
+}
+
+// On load: the remembered ROM, checked again as a chosen file is, unless the player chose one first.
+async function restoreBaseRom() {
+  const saved = await browserStore(BASE_ROM_DB, "readonly", (store, done) => {
+    const get = store.get(BASE_ROM_KEY);
+    get.onsuccess = () => done(get.result || null);
+    get.onerror = () => done(null);
+  });
+  if (!saved || typeof saved.name !== "string" || !(saved.bytes instanceof Uint8Array) || romChecks) return;
+  const check = romChecks + 1;
+  const data = await useRom(saved.name, async () => saved.bytes);
+  if (data) showRememberedRom(data, true, REMEMBERED_BEFORE);
+  else if (romChecks === check) { await forgetBaseRom(); resetRomStep(); }      // no longer accepted
+}
+
+// Forget: the stored ROM removed from this browser, and the step back to asking for a file.
+async function onForgetRom() {
+  ++romChecks;
+  await forgetBaseRom();
+  resetRomStep();
+  status("Choose the base ROM.");
+}
+
+function resetRomStep() {
+  baseRom = null;
+  romIdentity = null;
+  $("rom").value = "";
+  $("rom-label").textContent = ROM_LABEL;
+  $("rom-identity").textContent = "";
+  $("rom-error").textContent = "";
+  $("rom-remembered").hidden = true;
+  $("rom-btn").textContent = "Choose file";
+  markStepDone("step-rom-num", 1, false);
   updateButton();
 }
 
@@ -2243,13 +2492,42 @@ function addCopyButtons(info) {
   }
 }
 
+// The result's Music entry: the library files, then the tracks and the warnings (which can name
+// tracks). Under Hide track list (TheGobOne's request for beta 9) the tracks and warnings wait behind
+// a button, so a player can be surprised and still look later; the copy buttons never carry them.
+function musicResult(result, hidden) {
+  const music = element("dd");
+  if (result.musicLibraries.length) {
+    music.append(element("p", { className: "panel-note", textContent: "Library: " +
+      result.musicLibraries.map(([name, id]) => `${name} (${id})`).join(", ") }));
+  }
+  const tracks = element("div", { className: "music-track-list" },
+                         element("ul", { className: "music-tracks" },
+                                 ...result.tracks.map(([area, title]) => element("li", { textContent: `${area}: ${title}` }))),
+                         ...result.musicWarnings.map((warning) => element("p", { className: "panel-note", textContent: warning })));
+  if (!hidden) {
+    music.prepend(tracks);
+    return music;
+  }
+  const reveal = element("button", { type: "button", id: "show-music-tracks", className: "btn btn-outline",
+                                     textContent: "Show track list" });
+  const note = element("p", { className: "panel-note", textContent: "Track list hidden (Hide track list)." });
+  reveal.addEventListener("click", () => {
+    note.remove();
+    reveal.replaceWith(tracks);
+  });
+  music.prepend(note, reveal);
+  return music;
+}
+
 async function onGenerate() {
   const seed = $("seed").value.trim();
   // What the player asked for. Owner ruling: the page never shows what a
   // Random field resolved to, so the result shows these and not the resolved
   // flags. Encode level data is on or off, never Random, so `encoded` is the switch.
   const requested = { flags: form.flags, zoraFlags: form.zora.flags, notices: form.notices || [],
-                      encoded: form.fields[metadata.encodeLevelData].value === TOGGLE_ON };
+                      encoded: form.fields[metadata.encodeLevelData].value === TOGGLE_ON,
+                      hideTracks: playerSettings.musicHideTrackList === "on" };
   const button = $("generate");
   button.disabled = true;
   button.replaceChildren(element("span", { className: "spinner", ariaHidden: "true" }), "Generating…");
@@ -2282,17 +2560,7 @@ async function onGenerate() {
     // Under Item Sprites other than normal the screen shows the code as four characters (FP-SPRITE-01)
     const code = typeof result.codeText === "string" ? [result.codeText]
       : Array.isArray(result.code) && result.code.length === SEED_CODE_LENGTH ? result.code : [];
-    if (result.tracks) {
-      const list = element("ul", { className: "music-tracks" });
-      for (const [area, title] of result.tracks) list.append(element("li", { textContent: `${area}: ${title}` }));
-      const music = element("dd", {}, list);
-      if (result.musicLibraries.length) {
-        music.append(element("p", { className: "panel-note", textContent: "Library: " +
-          result.musicLibraries.map(([name, id]) => `${name} (${id})`).join(", ") }));
-      }
-      for (const warning of result.musicWarnings) music.append(element("p", { className: "panel-note", textContent: warning }));
-      $("result").append(element("dt", { textContent: "Music" }), music);
-    }
+    if (result.tracks) $("result").append(element("dt", { textContent: "Music" }), musicResult(result, requested.hideTracks));
     // The ROM as identified when it was chosen: another chosen later does not change this seed's.
     addCopyButtons({ version: $("version").textContent, seed: result.seed, flags: requested.flags,
                      zoraFlags: requested.zoraFlags, identity: romIdentity, code,
@@ -2311,7 +2579,8 @@ async function onGenerate() {
     updateLink();
   } catch (err) {
     const notProduced = err.message.indexOf(NOT_PRODUCED_REFUSAL);
-    status(notProduced < 0 ? `Generation failed: ${err.message}`
+    if (MUSIC_PROBLEM.test(err.message)) status(`The music could not be made: ${err.message.replace(MUSIC_PROBLEM, "")}`, "error");
+    else status(notProduced < 0 ? `Generation failed: ${err.message}`
       : `${NOT_IMPLEMENTED}: ${err.message.slice(notProduced + NOT_PRODUCED_REFUSAL.length)}`, "error");
   }
   button.textContent = "Generate";
@@ -2321,6 +2590,7 @@ async function onGenerate() {
 initThemeToggle();
 $("rom-btn").addEventListener("click", () => $("rom").click());
 $("rom").addEventListener("change", onRomChosen);
+$("rom-forget").addEventListener("click", onForgetRom);
 $("presets-btn").addEventListener("click", openPresets);
 $("presets-close").addEventListener("click", closePresets);
 $("settings-save").addEventListener("click", saveSettingsFile);

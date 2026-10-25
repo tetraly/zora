@@ -12,7 +12,7 @@ from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.rom.layout import (
     EXT_BANK1_ROM_START, EXT_HINT_CPU_BASE, EXT_HINT_DATA_ROM_END, EXT_HINT_DATA_ROM_START,
-    HINT_SHOP_QUOTES_ADDRESS, OVERWORLD_PERSON_TEXT_SELECTORS_ADDRESS, QUOTE_DATA_ADDRESS, TOLL_TEXT_POINTER,
+    HINT_SHOP_QUOTES_ADDRESS, HINT_TEXT_SPILL_FILL, OVERWORLD_PERSON_TEXT_SELECTORS_ADDRESS, QUOTE_DATA_ADDRESS, TOLL_TEXT_POINTER,
     UNDERWORLD_PERSON_TEXT_SELECTORS_A_ADDRESS, UNDERWORLD_PERSON_TEXT_SELECTORS_B_ADDRESS,
     UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE,
 )
@@ -182,10 +182,19 @@ def test_no_metadata_region_at_end_of_hint_bank() -> None:
     # not populate them from a non-spec metadata region.
     assert parsed.hint_overlay_flags == ()
 
-    expected = b"".join(gw.hint_text_bytes or ())
+    # The texts that fit the bank, in slot order: the rest continue in the old text area
+    # (HT-TEXT-03), which the community pool's longer wording makes common.
+    bodies = list(gw.hint_text_bytes or ())
+    bank = EXT_HINT_DATA_ROM_END - EXT_HINT_DATA_ROM_START
+    in_bank = 0
+    while in_bank < len(bodies) and sum(map(len, bodies[:in_bank + 1])) <= bank:
+        in_bank += 1
+    expected = b"".join(bodies[:in_bank])
     start = EXT_HINT_DATA_ROM_START
     end = start + len(expected)
-    assert end <= EXT_HINT_DATA_ROM_END
     assert rom[start:end] == expected
+    if in_bank < len(bodies):
+        assert set(rom[end:EXT_HINT_DATA_ROM_END]) == {HINT_TEXT_SPILL_FILL}
+        return
     if end < EXT_HINT_DATA_ROM_END:
         assert rom[end:EXT_HINT_DATA_ROM_END] == base[end:EXT_HINT_DATA_ROM_END]

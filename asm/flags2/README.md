@@ -18,11 +18,12 @@ pinned disassembly includes as a binary. The version-3 ZORA flags write them
 | `recorder-pols-voice` | Recorder Kills Dungeon Pols Voice (7), credit Stratoform | 0x11BB2 (4 bytes): the call in UpdatePolsVoice; bank 4 $BA00-$BA17 (0x13A10, 24 bytes): `KillPolsVoiceAfterRecorder` |
 | `four-potions` | Four Potion Inventory (8) | 0x6C70 and 0x6C74 (1 byte each) |
 | `auto-show-letter` | Auto Show Letter (9; written in every ROM since 2026-10-17, no longer a flag) | 0x4708 (13 bytes) |
-| `like-like-rupees` | Like-Like Eats Rupees (10) | 0x11D45 and 0x11D47 (1 byte each) |
+| `like-like-rupees` | Like-Like Eats Rupees (10) | 0x11D45 and 0x11D47 (1 byte each); 0x11D4A (1 byte: the capture time's reset, a rupee every 6 frames) |
 | `magic-boomerang-damage` | Magical Boomerang Does 1 HP Damage (11) | 0x7478 (30 bytes) |
 | `lost-hills` | Randomize Lost Hills (12) | 11 bytes of RoomLayoutsOW: layouts 10-12, 27, 28 (screens $0B, $3C, $0C, $0D, $1C, $1D) |
 | `dead-woods` | Randomize Dead Woods (13) | 0x15B08 (1 byte): layout 110 (screen $73) |
 | `pegasus-boots` | Pegasus Boots (ZORA string version 7; owner spec 2026-10-17) | bank 5 0x14E48 (57 bytes: `WieldBoomerang`'s body, three hooks: `BootsPressB`, `BootsSpeed`; L1 speed operand 0x14E7A, L2's 0x14E7D) and 0x17376 (4 bytes: `InitLinkSpeed` calls `BootsSpeed`, in z1rr-coop's reserved hook); bank 1 0x06B84 (8 bytes: `ItemSlotToPaletteOffsetsOrValues`, L1 in the red palette), 0x0714F, 0x0717C (8 bytes each: the icon's frame tables) and 0x071CD (2 bytes: narrow tiles from $1C); bank 7 0x1F4F5 (9 bytes: `BoomerangFrameCycle`) and 0x1F716 (3 bytes: Goriya boomerangs keep their palette); data: sprite tiles $1C/$1D at 0x0824F (32 bytes, the boot) and the attract text at 0x09358 and 0x0936F (9 bytes each, BOOTS) |
+| `full-health` | Start With Full Health (ZORA version 13; the Hack Pack's full_health.ips, credit ShadowOne333, kalita-kun and gzip) | 0x0A645 (3 bytes: `UpdateMode1Menu_Sub1`'s `JMP GoToNextMode` becomes `JMP FullHealthAfterLoad`), 0x14B82 (5 bytes: the death menu's `ORA #$02 / STA HeartValues` becomes `JSR FullHealthAfterDeath` + 2 NOPs); bank 2 $B0E0 (0x0B0F0, 27 bytes) and bank 5 $B920 (0x17930, 14 bytes): the two routines |
 | `ring-color` | no flag: Archipelago games' ROMs only (`GameConfig.archipelago_rom`; owner 2026-10-18, the beta 5 fixes spec item 1) | bank 7 0x1EC8A (14 bytes: `BeginUpdateWorld`'s clock check calls bank 5's `RingColorAndClock`); bank 5 $BC80-$BCAC (0x17C90, 45 bytes): `RingColorAndClock`, Link repainted when a ring given through RAM disagrees with his tunic |
 
 RoomLayoutsOW is bank 5 $9418, file 0x15428-0x15BB7: 16 column descriptors per layout. A

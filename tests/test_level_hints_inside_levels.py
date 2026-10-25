@@ -32,9 +32,10 @@ from zora.rom.base_rom import remember_repo_base_rom
 pytestmark = needs_base_rom
 
 SEEDS = range(10)
-# Seed 6: a level 7 person would say where level 7 is, and no other (beta 8's output; seed 0 now has
-# two, levels 4 and 7, which the rule moves through three slots)
-SEED_WITH_ONE = 6
+# Seed 17: a level 7 person would say where level 7 is, and no other (the community texts of 2026-10-24
+# changed the pool's draws; it was seed 6 in beta 8, where seed 0 had two, levels 4 and 7, which the
+# rule moves through three slots)
+SEED_WITH_ONE = 17
 LEVEL_3_SLOT = LEVEL_LOCATION_SLOTS[2]
 
 

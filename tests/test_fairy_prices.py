@@ -1,7 +1,7 @@
 """A fairy costs 20-40 rupees wherever a shop sells one (owner decision, 2026-10-19; beta 6
 testing): the spare bait's fairy (Shop Items in the Item Pool with one hungry Goriya,
 bait_in_pool), the logo look's shield fairies (finish.shields_to_fairies) and any joined ware the
-price classes reprice holding a fairy (PRICES_BY_ITEM, SI-PRICE-01)."""
+price classes reprice holding a fairy (shop_prices.PriceRules.prices, SI-PRICE-01)."""
 import copy
 
 import pytest
@@ -13,7 +13,8 @@ from zora.generate.pipeline import finish
 from zora.generate.rng import Rng
 from zora.generate.steps.bait_in_pool import bait_in_pool, bait_wares
 from zora.generate.steps.extra_pool_items import ExtraPoolItems
-from zora.generate.steps.shop_items_in_pool import FAIRY_PRICES, PRICES_BY_ITEM, price_displaced_wares
+from zora.generate.steps.shop_items_in_pool import price_displaced_wares
+from zora.generate.steps.shop_prices import DEFAULT_PRICE_RULES, FAIRY_PRICES
 from zora.model.enums import Item
 from zora.model.overworld import Shop
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
@@ -34,7 +35,7 @@ def fairy_prices(image: bytes) -> list[int]:
 
 def test_every_path_shares_one_range() -> None:
     assert FAIRY_PRICES == (LOW, HIGH)
-    assert PRICES_BY_ITEM[Item.FAIRY] == FAIRY_PRICES and LOGO_SHOP_FAIRY_PRICES == FAIRY_PRICES
+    assert DEFAULT_PRICE_RULES.prices[Item.FAIRY] == FAIRY_PRICES and LOGO_SHOP_FAIRY_PRICES == FAIRY_PRICES
 
 
 def test_the_spare_bait_fairy_draws_over_the_whole_range() -> None:

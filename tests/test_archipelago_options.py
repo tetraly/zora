@@ -14,9 +14,10 @@ from zora.archipelago import OptionsConflict, OptionSpec, flag_strings, option_c
 from zora.flags import form as flag_form
 from zora.flags import zora_flags, zora_form
 from zora.flags.codec import canonicalize, decode
-from zora.flags.support import LEVEL_9_PINS
 from zora.flags.fields import (ENCODE_LEVEL_DATA, HitPointChange, OptionField, PinnedItem, ThreeState, ToggleField,
                                WoodenSwordState)
+from zora.flags.support import LEVEL_9_PINS
+from zora.flags.zora_flags import GatekeeperBosses
 from zora.generate.pipeline import build, plan
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
@@ -121,7 +122,10 @@ BETA_8_HELD_BACK = {"B47": {ThreeState.ON, ThreeState.POSSIBLE}}
 BETA_9_HELD_LEVEL_9_PINS = {PinnedItem.BOW, PinnedItem.LADDER, PinnedItem.POWER_BRACELET, PinnedItem.RAFT,
                             PinnedItem.RECORDER, PinnedItem.WAND}
 BETA_9_HELD_BACK = {"C12": {PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER},
-                    **dict.fromkeys(("C26", "C27"), BETA_9_HELD_LEVEL_9_PINS)}
+                    **dict.fromkeys(("C26", "C27"), BETA_9_HELD_LEVEL_9_PINS),
+                    # Gatekeeper Bosses, held for its scan (owner, 2026-10-24): only Off is offered
+                    "gatekeeper_bosses": {GatekeeperBosses.ANYWHERE, GatekeeperBosses.LATE,
+                                          GatekeeperBosses.EARLY}}
 # Released on 2026-10-22 once their scan passed (archipelago.HELD_BACK's comment)
 BETA_8_RELEASED_TOGGLES = ("B18", "B20", "B32", "B33", "B35", "B07", "B39", "B21", "B37")
 
@@ -188,6 +192,7 @@ def test_values_wait_for_the_logic_scan() -> None:
     assert offered_values("C05") == (0, 1, 2, 3, 4)
     offered = {spec.id: spec.values for spec in SPECS}
     assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0, 1, 2, 3), (0, 1))
+    assert offered["gatekeeper_bosses"] == (GatekeeperBosses.OFF,)
     assert offered["B29"] == tuple(ThreeState)                 # "?" since beta 9 (FL-DEP-02 rule 4 after its coin)
     assert offered["B23"] == (ThreeState.ON, ThreeState.POSSIBLE)   # "?" beside merchants resolves on (FL-DEP-04)
     # Shop Items in the Item Pool's on, with the bait, passed its scan (2026-10-17)

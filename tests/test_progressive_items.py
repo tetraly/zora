@@ -13,7 +13,7 @@ from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_world, plan
 from zora.generate.steps.hint_text import (
-    ITEM_NAMES, LINE_WIDTH, PROGRESSIVE_NAMES, UPGRADE_LINES, VANILLA_NAMES, Form, Requirement, item_name,
+    ITEM_NAMES, LINE_WIDTH, POOL, PROGRESSIVE_NAMES, UPGRADE_LINES, VANILLA_NAMES, Form, Requirement, item_name,
     requirement_text,
 )
 from zora.generate.steps.item_shuffle_result import shop_of_slot
@@ -67,12 +67,16 @@ def test_progressive_requirement_texts_fit(item: int, form: str) -> None:
 @pytest.mark.parametrize("seed", [1, 2, 3])
 def test_generated_hints_name_lines_not_items(zora: str, seed: int) -> None:
     """With Progressive Items on, no hint text names an upgrade-line item, apart from the
-    white-sword cave's own name and the owner's quotes in slot 0 (the wood sword cave)."""
+    white-sword cave's own name and the owner's quotes in slot 0 (the wood sword cave); the pool's
+    jokes are not checked (a community text may name an item: "THE BLUE RING IS THE REAL MVP")."""
     world, _ = generated(zora, seed)
+    jokes = {" ".join(entry.lines) for entry in POOL}
     for slot, quote in enumerate(world.quotes):
         if slot == 0:
             continue
         text = quote.text.replace("~", "").replace("|", " ").replace("WHITE SWORD CAVE", "")
+        if text in jokes:
+            continue
         assert not any(item_name(code) in text for code in UPGRADE_LINES), (slot, text)
 
 

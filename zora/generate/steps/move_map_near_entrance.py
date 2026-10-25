@@ -15,12 +15,17 @@ whatever the trigger.
 Owner-ruled deviation (ZORA, 2026-10-17; docs/deviations.md): a room on the last-boss trigger
 (3) is never a candidate. Its item never appears outside Ganon's room, and in the spec the
 map could end there, behind Zelda's shutters, where the player cannot collect it.
+
+Gatekeeper Bosses (ZORA, owner 2026-10-24; docs/zora-extras.md section 19): the gatekeeper is never a
+candidate (it keeps its drop), and while the map lies behind the gatekeeper the compass is not one
+either, so the swap never sends the compass behind the boss.
 """
 from collections import deque
 
 from ...model import room_grid
 from ...model.enums import Item, RoomAction, RoomType, Side, WallType
 from ...model.levels import Level
+from ..late_gate.gatekeeper import gated_part
 from ..rng import Rng
 from ..shapes.tables import (
     MAP_MOVE_TRIGGER_CODES,
@@ -88,6 +93,18 @@ def _dijkstra(links: dict[int, list[tuple[int, int]]], start: int
     return distance, count
 
 
+def _gatekeeper_barred(level: Level) -> set[int]:
+    """Gatekeeper Bosses: the rooms a map move may not swap with, the gatekeeper and, while the map lies
+    behind it, the compass's room."""
+    gatekeeper = level.gatekeeper_room
+    if gatekeeper is None:
+        return set()
+    map_room = next((room.room_num for room in level.rooms if room.item == Item.MAP), None)
+    if map_room not in gated_part(level, gatekeeper):
+        return {gatekeeper}
+    return {gatekeeper} | {room.room_num for room in level.rooms if room.item == Item.COMPASS}
+
+
 def move_map_near_entrance(level: Level, rng: Rng) -> None:
     """Move the level's map room toward the entrance (SH-MAP-03..07).
 
@@ -99,10 +116,12 @@ def move_map_near_entrance(level: Level, rng: Rng) -> None:
     links = _room_graph(level)
     distance, count = _dijkstra(links, entrance)
     block = level.block
+    barred = _gatekeeper_barred(level)
     entries: list[tuple[int, int]] = []      # (room number, weight)
     for room_number in sorted(links):
         room = block.room(room_number)
-        if room_number not in distance or room.item not in CANDIDATE_ITEMS or is_last_boss_room(room):
+        if (room_number not in distance or room.item not in CANDIDATE_ITEMS or is_last_boss_room(room)
+                or room_number in barred):
             continue
         grid_distance = (abs(room_grid.row(room_number) - room_grid.row(entrance))
                          + abs(room_grid.column(room_number) - room_grid.column(entrance)))
@@ -123,7 +142,8 @@ def move_map_near_entrance(level: Level, rng: Rng) -> None:
     map_room = next(room for room in level.rooms if room.item == Item.MAP)
     # Quirk (SH-MAP-05/06): the whole item byte is swapped, so the dark flag
     # and the boss sound (which the late gate has set by now) move with the
-    # items.
+    # items. The moved boss sound never ships: the end pass (PS-MONRD-07,
+    # zora/generate/boss_sounds.py) resets every one.
     map_room.item_info, chosen.item_info = chosen.item_info, map_room.item_info
     # SH-MAP-05: the four-in-five test draws one number whatever the trigger; only trigger 0 or
     # 1 changes.

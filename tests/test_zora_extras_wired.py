@@ -175,6 +175,7 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
     from zora.flags.zora_flags import (
         DO_NOT_SEGMENT_DUNGEONS_FIELDS,
         EXPANDED_DUNGEON_LOCATIONS_FIELDS,
+        FULL_HEALTH_FIELDS,
         HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
         OWNER_2_0_FIELDS,
         PEGASUS_BOOTS_FIELDS,
@@ -185,7 +186,8 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
               "level_9_entrance_sword": "0", "oops_all_enemies": "0", "oops_all_bosses": "0",
               **dict.fromkeys(ZORA_1_0_FIELDS, "0"), **dict.fromkeys(PEGASUS_BOOTS_FIELDS, "0"),
               **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, "0"), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, "0"),
-              **dict.fromkeys(DO_NOT_SEGMENT_DUNGEONS_FIELDS, "0"), "disable_custom_music": "0"}
+              **dict.fromkeys(DO_NOT_SEGMENT_DUNGEONS_FIELDS, "0"), "disable_custom_music": "0",
+              "gatekeeper_bosses": "0", **dict.fromkeys(FULL_HEALTH_FIELDS, "0")}
     assert flag_form.zora_form_change(FLAGS, values)["zora"]["flags"] == SWORD
     off = dict.fromkeys(values, "0")
     assert flag_form.zora_form_change(FLAGS, off)["zora"]["flags"] == ""
@@ -195,7 +197,8 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
         "level_9_entrance_sword": 0, "oops_all_enemies": 0, "oops_all_bosses": 0,
         **dict.fromkeys(ZORA_1_0_FIELDS, 0), **dict.fromkeys(PEGASUS_BOOTS_FIELDS, 0),
         **dict.fromkeys(EXPANDED_DUNGEON_LOCATIONS_FIELDS, 0), **dict.fromkeys(HIGHLIGHT_NO_DROP_ROOMS_FIELDS, 0),
-        **dict.fromkeys(DO_NOT_SEGMENT_DUNGEONS_FIELDS, 0), "disable_custom_music": 0}
+        **dict.fromkeys(DO_NOT_SEGMENT_DUNGEONS_FIELDS, 0), "disable_custom_music": 0, "gatekeeper_bosses": 0,
+        **dict.fromkeys(FULL_HEALTH_FIELDS, 0)}
     assert set(field["name"] for field in flag_form.metadata()["zora"]["fields"]) == set(values)
 
 

@@ -2,15 +2,16 @@
 the same plan with it resolved off, run with the same inputs from the same state, so every pixel
 that differs is a room's inner palette, the one thing the flag changes.
 
-  - A scroll pair: a marked room (palette 2 off, 3 on) and its unmarked neighbor (3 off, 2 on)
+  - A scroll pair: a marked room (palette 2 or 3 off, 3 on) and its unmarked neighbor
     through an open door, entered and left in both directions (seed 1, level 9, rooms $46 and $56,
     north and south; seed 2, level 5, rooms $2C and $2D, east and west). In each room only the
-    inner area differs, and the two rooms' colors swap: the marked room shows the colors the
-    unmarked one showed with the flag off, and the other way round.
+    inner area differs: the marked room draws its color-1 tiles
+    in the one red (NES $16), the unmarked one never in it.
   - A marked dark room lit with the candle and left (1st Quest dungeons, seed 1, level 6, room $39,
     into the unchanged room $3A): a step in from the doorway (where no item can be used), the
     candle lights the room (its inner area brightens), and lit only its inner area differs; next
     door nothing differs.
+  - Water and block rooms in PRG0 and PRG1: red when the room can't drop, never red when it can.
   - A block pushed in a marked room (seed 2, level 5, room $2C): while it slides (a sprite) and
     once it lands, only the inner area differs; down the stairs it opened and back up, the room
     shows the same colors (the stairway's exit draws it).
@@ -23,7 +24,15 @@ import pytest
 from tests.emulator import ITEMS, NAMETABLE_BASE, OBJ_TYPE, OBJ_X, OBJ_Y, ROOM_ID, SELECTED_ITEM_SLOT, Button, Mode
 from tests.needs import needs_base_rom
 from tests.test_assignment_emulator import Console
-from tests.test_highlight_no_drop_rooms import SOURCES, roms
+from tests.test_highlight_no_drop_rooms import ON, SOURCES, roms
+from tests.test_revision import prg1
+from zora.generate.pipeline import build, finish, plan
+from zora.generate.steps.highlight_no_drop_rooms import MARKED_PALETTE, UNMARKED_PALETTE, allowed_positions, is_marked
+from zora.model.enums import WallType
+from zora.model.game_world import GameWorld
+from zora.model.rooms import LAYOUT_ID_MASK
+from zora.rom.base_rom import PRG1_ROM_PATH, remember_repo_base_rom
+from zora.rom.parse.rom_file import parse_rom
 
 pytestmark = needs_base_rom
 
@@ -70,6 +79,8 @@ PUSHES = {Button.UP: (0, ONE_SQUARE - LINK_Y_OFFSET), Button.DOWN: (0, -ONE_SQUA
 
 Color = tuple[int, int, int]
 
+RED_RGB: Color = (152, 34, 32)          # NES $16, the no-drop color, as the emulator draws it
+
 
 @cache
 def consoles(source: str, seed: int) -> tuple[Console, Console]:
@@ -79,8 +90,9 @@ def consoles(source: str, seed: int) -> tuple[Console, Console]:
 
 
 def changed_colors(on: Console, off: Console) -> set[tuple[Color, Color]]:
-    """The (flag off, flag on) colors of every pixel that differs, all inside the inner area; each
-    off color maps to one on color, so the difference is a palette, not what is drawn."""
+    """The (flag off, flag on) colors of every pixel that differs, all inside the inner area (the
+    walls, the status bar, Link and the monsters never differ); each off color maps to one on color,
+    so the difference is a palette, not what is drawn."""
     frame_on, frame_off = on.emu.last_frame, off.emu.last_frame
     differs = np.any(frame_on != frame_off, axis=2)
     rows, columns = np.nonzero(differs)
@@ -170,11 +182,11 @@ def visit_pair(source: str, seed: int, level: int, marked: int, side: str) -> No
     pair = consoles(source, seed)
     enter_from(pair, level, marked, side)
     marked_colors = changed_colors(*pair)
-    assert marked_colors, "the marked room looks the same"
+    assert {after for _, after in marked_colors} == {RED_RGB}, "the marked room is not drawn in red"
     both(pair, "walk", side)
     assert pair[0].emu[ROOM_ID] == marked + STEPS[side]
-    unmarked_colors = changed_colors(*pair)
-    assert unmarked_colors == {(after, before) for before, after in marked_colors}
+    # an unmarked room that changes (a vanilla moat on palette 3) never turns red
+    assert RED_RGB not in {after for _, after in changed_colors(*pair)}
     both(pair, "walk", OPPOSITE[side])
     assert pair[0].emu[ROOM_ID] == marked
     assert changed_colors(*pair) == marked_colors
@@ -235,3 +247,74 @@ def test_a_block_pushed_in_a_marked_room() -> None:
     assert pair[0].emu[ROOM_ID] == pair[1].emu[ROOM_ID] == 0x2C
     assert changed_colors(*pair) == landed
 
+
+
+# --- water and blocks, in each release ---------------------------------------------------------------
+# A level's water layouts (the doc's section 5) and three of its block layouts (the "pointless moat"
+# $15 and "NSU room" $17 among the water ones); the emulator tests below scroll into one room of
+# each kind and mark.
+WATER_LAYOUTS = frozenset({0x0B, *range(0x12, 0x1A)})
+BLOCK_LAYOUTS = frozenset({0x02, 0x03, 0x0A, 0x1D, 0x1E, 0x1F})
+SIDES = ("east", "west", "north", "south")
+WATER_SEED = 1
+ATTEMPTS = 6
+MARK_PIXELS = 150                    # the least a marked room draws in its color (sprites draw under 100 of the other)
+
+
+def _rooms_to_visit(world: GameWorld, layouts: frozenset[int], marked: bool) -> list[tuple[int, int, str]]:
+    """(level, room, side) of lit rooms of `layouts` on palette 2 or 3 whose mark is `marked`, each
+    with a lit neighbor through an open door on that side (the way the scroll enters)."""
+    allowed = allowed_positions(any(level.is_second_quest for level in world.levels))
+    found = []
+    for level in world.levels:
+        rooms = {room.room_num: room for room in level.rooms}
+        for room in level.rooms:
+            if room.is_dark or room.palette_1 not in (UNMARKED_PALETTE, MARKED_PALETTE):
+                continue
+            if room.layout_code & LAYOUT_ID_MASK not in layouts or is_marked(level, room, allowed, False) != marked:
+                continue
+            for side in SIDES:
+                neighbor = rooms.get(room.room_num + STEPS[side])
+                if (neighbor and not neighbor.is_dark and getattr(room.walls, side) == WallType.OPEN_DOOR
+                        and getattr(neighbor.walls, OPPOSITE[side]) == WallType.OPEN_DOOR):
+                    found.append((level.level_num, room.room_num, side))
+                    break
+    return found
+
+
+def _marks_in_a_room(rom: bytes, layouts: frozenset[int], marked: bool) -> dict[Color, int]:
+    """The pixels of each color in the inner area of the first reachable room of `layouts` with this
+    mark."""
+    for level, room, side in _rooms_to_visit(parse_rom(rom), layouts, marked)[:ATTEMPTS]:
+        console = Console(rom)
+        walker = Walker(console)
+        walker.enter(level, room + STEPS[side])
+        try:
+            walker.walk(OPPOSITE[side])
+        except AssertionError:                 # something stands before the door
+            continue
+        assert console.emu[ROOM_ID] == room
+        colors, counts = np.unique(inner_area(console).reshape(-1, 3), axis=0, return_counts=True)
+        return {tuple(int(c) for c in color): int(count) for color, count in zip(colors, counts, strict=True)}  # type: ignore[misc]
+    raise AssertionError("no room to visit")
+
+
+@cache
+def _finished(on_prg1: bool) -> bytes:
+    base = prg1() if on_prg1 else remember_repo_base_rom()
+    return finish(build(plan(SOURCES["MVP baseline"], WATER_SEED, ON), base), base)
+
+
+@pytest.mark.parametrize("on_prg1", [False, True], ids=["PRG0", "PRG1"])
+@pytest.mark.parametrize("layouts", [WATER_LAYOUTS, BLOCK_LAYOUTS], ids=["water", "blocks"])
+def test_a_room_is_red_only_when_it_cannot_drop(layouts: frozenset[int], on_prg1: bool) -> None:
+    """In each release, water (and blocks) show red in a room that can't hold an item and not in
+    one that can."""
+    if on_prg1 and not PRG1_ROM_PATH.exists():
+        pytest.skip(f"{PRG1_ROM_PATH.name} is not beside the PRG0 base")
+    rom = _finished(on_prg1)
+    no_drop = _marks_in_a_room(rom, layouts, marked=True)
+    can_drop = _marks_in_a_room(rom, layouts, marked=False)
+    # (a sprite, such as a heart or the key, may draw the odd red or blue pixel)
+    assert no_drop.get(RED_RGB, 0) >= MARK_PIXELS
+    assert can_drop.get(RED_RGB, 0) < MARK_PIXELS

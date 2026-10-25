@@ -45,6 +45,7 @@ from zora.rom.player_settings import (
     LEVEL_WORD_CHOICES,
     LEVEL_WORD_DASH_MAX_LENGTH,
     LEVEL_WORD_MAX_LENGTH,
+    RANDOM_LEVEL_WORD,
     PlayerSettingError,
     PlayerSettings,
     apply_player_settings,
@@ -190,7 +191,7 @@ def page_function(name: str) -> str:
 
 def test_the_page_gets_the_rule_from_the_metadata() -> None:
     metadata = json.loads(json.dumps(flag_form.metadata()))["levelWord"]
-    assert metadata == {"default": DEFAULT_LEVEL_WORD, "choices": list(LEVEL_WORD_CHOICES),
+    assert metadata == {"default": DEFAULT_LEVEL_WORD, "random": RANDOM_LEVEL_WORD, "choices": list(LEVEL_WORD_CHOICES),
                         "maxLength": LEVEL_WORD_MAX_LENGTH, "dashMaxLength": 6, "characters": LEVEL_WORD_CHARACTERS}
     page = PAGE_SCRIPT.read_text()
     assert "const rule = metadata.levelWord;" in page

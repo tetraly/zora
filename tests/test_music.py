@@ -6,7 +6,7 @@ from the standard library at test time, never committed."""
 import hashlib
 import json
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
@@ -17,14 +17,15 @@ from zora.rom.base_rom import BASE_ROM_PATH, PRG1_ROM_PATH, remember_repo_base_r
 from zora.flags import zora_flags
 from zora.flags.fields import ThreeState
 from zora.rom.music import json5
-from zora.rom.music.importer import AREA_SONGS, Placed, RomFull, pack_songs
+from zora.rom.music.importer import AREA_SONGS, MODULE_ADDRESSES, Placed, RomFull, pack_songs
 from zora.rom.music.library import (DUNGEON, ENDING, LAST_DUNGEON, ORIGINAL_SONGS, OVERWORLD, TITLE, LibraryError,
-                                    LibraryFile, MusicError,
-                                    library_songs, module_data)
+                                    USES, LibraryFile, MusicError,
+                                    library_songs, module_data, read_library)
 from zora.rom.music.lozft import LOZFT_ROM_SIZE, LozftUnavailable, apply_bps, lozft_bytes, lozft_bytes_sha256, with_lozft
 from zora.rom.music.pin import MusicAssets, MusicAssetsInvalid
 from zora.rom.music.playlist import AREA_KEYS, PlaylistError, parse_playlist
 from zora.rom.music.randomize import MusicOptions, MusicSource, options_for, randomize_music
+from zora_web.api import music_library_songs, music_playlist_areas
 from zora.rom.player_settings import (
     Music,
     PlayerSettingError,
@@ -32,6 +33,9 @@ from zora.rom.player_settings import (
     parse_player_settings,
     player_settings_from_page,
 )
+
+if TYPE_CHECKING:
+    from tests.emulator import Emulator
 
 pytestmark = [pytest.mark.skipif(not assets_available(), reason="needs the music clone (scripts/music_assets.py)"),
               pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")]
@@ -277,7 +281,6 @@ def test_a_bad_local_library_is_refused_naming_the_file(music_zora_rom: bytes, a
     good = entry(standard_entries(assets), "Moskau.ftm")
     cases = {
         "syntax.json5": (b'{ single: [ { title: "x", data: "hex:00" },, ] }', "line 1"),
-        "use.json5": (json.dumps({"single": [{**good, "uses": ["Castle"]}]}).encode(), "no use Castle"),
         "data.json5": (json.dumps({"single": [{**good, "data": "deflate:not base64!"}]}).encode(), "cannot be read"),
         "short.json5": (json.dumps({"single": [{**good, "data": "hex:0001"}]}).encode(), "cannot be placed"),
     }
@@ -344,12 +347,158 @@ def test_a_playlist_that_cannot_be_used_is_refused(music_zora_rom: bytes, assets
 def test_a_zelda_ii_library_loads_with_its_areas_translated(assets: MusicAssets) -> None:
     """A Zelda II (Z2Randomizer) library's uses become Zelda's areas (ZELDA_II_USES): towns the
     overworld, palaces, caves and encounters the dungeons, the great palace and bosses level 9, the
-    credits the ending; a use neither game has is still refused."""
+    credits the ending, its title screen ZORA's Title; a use neither game has (Zelda II's House,
+    GameComplete and PalaceClear among them) leaves the song out with a warning."""
     good = entry(standard_entries(assets), "Moskau.ftm")
     uses = {"Town": OVERWORLD, "Palace": DUNGEON, "Cave": DUNGEON, "Encounter": DUNGEON,
-            "GreatPalace": LAST_DUNGEON, "Boss": LAST_DUNGEON, "LastBoss": LAST_DUNGEON, "Credits": ENDING}
+            "GreatPalace": LAST_DUNGEON, "Boss": LAST_DUNGEON, "LastBoss": LAST_DUNGEON, "Credits": ENDING,
+            "Title": TITLE}
     for zelda_ii, zelda in uses.items():
         [song] = library_songs(library_file("z2.json5", [{**good, "uses": [zelda_ii]}]).data, safe_only=False)
         assert song.uses == {zelda}, zelda_ii
-    with pytest.raises(LibraryError, match="no use Castle"):
-        library_songs(library_file("z2.json5", [{**good, "uses": ["Castle"]}]).data, safe_only=False)
+    for other in ("House", "GameComplete", "PalaceClear", "Castle"):
+        songs, warnings = read_library(library_file("z2.json5", [{**good, "uses": [other]}]).data, safe_only=False)
+        assert songs == [] and warnings == [f"Moskau.ftm: left out, The Legend of Zelda has no area for {other}"]
+
+
+def test_the_standard_library_reads_without_warnings(assets: MusicAssets) -> None:
+    """The pinned standard library: every track's uses are Zelda's, so nothing is left out (its
+    Refights uses are commented out)."""
+    songs, warnings = read_library(assets.library, safe_only=False)
+    assert warnings == [] and songs
+    assert all(song.uses <= set(USES) for song in songs)
+
+
+def test_a_use_zelda_has_no_area_for_is_left_out_with_a_warning(music_zora_rom: bytes, assets: MusicAssets,
+                                                                 local_library: list[LibraryFile]) -> None:
+    """A use of another game's (the player's report: a Mega Man library's Refights) never stops the
+    library: a track that has a Zelda use as well keeps that one, a track with none is left out, and
+    the seed is made with the warnings."""
+    entries = standard_entries(assets)
+    mixed = {**entry(entries, "Moskau.ftm"), "uses": ["Overworld", "Refights"]}
+    other_game = {**entry(entries, "Asgore 2A03"), "uses": ["refights"]}
+    songs, warnings = read_library(library_file("mixed.json5", [mixed, other_game]).data, safe_only=False)
+    assert [(song.title, song.uses) for song in songs] == [("Moskau.ftm", frozenset({OVERWORLD}))]
+    assert warnings == ["Moskau.ftm: The Legend of Zelda has no area for Refights; it plays as Overworld only",
+                        "Asgore 2A03: left out, The Legend of Zelda has no area for refights"]
+    files = [*local_library, library_file("FtSoundTrackConfiguration.json5", [mixed, other_game])]
+    result = randomize_music(music_zora_rom, BASE, assets, SEED, MusicOptions(source=MusicSource.LOCAL), files)
+    assert "FtSoundTrackConfiguration.json5: Asgore 2A03: left out, The Legend of Zelda has no area for refights" \
+        in result.warnings
+    assert all(place.song.title != "Asgore 2A03" for place in result.placed)
+    listed = music_library_songs(local_libraries=[(file.name, file.data) for file in files])
+    songs_listed = listed["songs"]
+    assert "error" not in listed and isinstance(songs_listed, list)
+    assert "Asgore 2A03" not in {song["title"] for song in songs_listed}
+
+
+def test_a_library_with_no_track_to_place_is_refused_in_plain_words(music_zora_rom: bytes,
+                                                                    assets: MusicAssets) -> None:
+    """Files whose every track is another game's (or disabled) cannot give a seed music: refused with
+    the reason, by the page's check (music_library_songs) as by generating."""
+    only_other = library_file("other.json5", [{**entry(standard_entries(assets), "Asgore 2A03"), "uses": ["Refights"]}])
+    with pytest.raises(MusicError, match="no track for The Legend of Zelda's areas"):
+        randomize_music(music_zora_rom, BASE, assets, SEED, MusicOptions(source=MusicSource.LOCAL), [only_other])
+    error = music_library_songs(local_libraries=[(only_other.name, only_other.data)])["error"]
+    assert isinstance(error, str) and "no track" in error
+
+
+# --- The Title tag (TheGobOne's request for beta 9) --------------------------------------------------
+
+# lozft's driver: the address of the module it plays (its state in the stack page; found by probing
+# the title screen and play, it follows the song table's module address for the song playing).
+DRIVER_MODULE_ADDRESS = 0x159
+TITLE_SCREEN_FRAMES = 40
+PLAY_FRAMES = 120
+TITLE_TRACK = "Arumana no Kiseki - Level 5 Revisited"
+OVERWORLD_TRACKS = ("Blue Water Blue Sky", "Moskau.ftm")
+
+
+def title_library(assets: MusicAssets, title_uses: list[str] | None) -> LibraryFile:
+    """Two overworld tracks and TITLE_TRACK with title_uses (None: its own, a dungeon's)."""
+    entries = standard_entries(assets)
+    title = entry(entries, TITLE_TRACK)
+    return library_file("title.json5", [*({**entry(entries, name), "uses": [OVERWORLD]} for name in OVERWORLD_TRACKS),
+                                        title if title_uses is None else {**title, "uses": title_uses}])
+
+
+def placed_title(result: Any) -> Any:
+    return next(place.song for place in result.placed if place.song_number == TITLE_SONG)
+
+
+def test_the_loader_takes_the_title_tag(assets: MusicAssets) -> None:
+    """Title is a use like the importer's (any case, no warning); a use Zelda has no area for is still
+    left out with a warning."""
+    for spelling in ("Title", "title", "TITLE"):
+        songs, warnings = read_library(title_library(assets, [spelling, "Refights"]).data, safe_only=False)
+        assert songs[-1].uses == {TITLE}
+        assert warnings == [f"{TITLE_TRACK}: The Legend of Zelda has no area for Refights; it plays as Title only"]
+
+
+def test_the_title_screen_draws_from_title_tracks_else_overworld_ones(music_zora_rom: bytes,
+                                                                      assets: MusicAssets) -> None:
+    """With a Title track the title screen gets one, and no other area does; with none (every library
+    made for the Zelda importer, the standard one included) it gets an overworld track as before."""
+    local = MusicOptions(source=MusicSource.LOCAL)
+    for seed in range(SEED, SEED + 4):
+        tagged = randomize_music(music_zora_rom, BASE, assets, seed, local, [title_library(assets, [TITLE])])
+        assert placed_title(tagged).title == TITLE_TRACK
+        assert all(place.song.title != TITLE_TRACK for place in tagged.placed if place.song_number != TITLE_SONG)
+        both = randomize_music(music_zora_rom, BASE, assets, seed, local, [title_library(assets, [TITLE, OVERWORLD])])
+        assert placed_title(both).title == TITLE_TRACK
+        untagged = randomize_music(music_zora_rom, BASE, assets, seed, local, [title_library(assets, None)])
+        assert placed_title(untagged).title in OVERWORLD_TRACKS
+    standard = randomize_music(music_zora_rom, BASE, assets, SEED)
+    assert OVERWORLD in placed_title(standard).uses
+    only_title = randomize_music(music_zora_rom, BASE, assets, SEED, local,
+                                 [library_file("only.json5", [{**entry(standard_entries(assets), TITLE_TRACK),
+                                                               "uses": [TITLE]}])])
+    assert [place.song.title for place in only_title.placed] == [TITLE_TRACK]     # the other areas keep the ROM's
+
+
+def test_a_playlist_takes_a_title_track_for_the_title_screen(music_zora_rom: bytes, assets: MusicAssets) -> None:
+    """A Title or Overworld track pinned to the title screen is tagged for it; a Title track pinned
+    to a level is not. The editor lists both uses for the title screen."""
+    playlist = parse_playlist(f'{{ tracks: {{ title: "{TITLE_TRACK}", level1: "{TITLE_TRACK}", '
+                              f'overworld: "{OVERWORLD_TRACKS[0]}" }} }}')
+    result = randomize_music(music_zora_rom, BASE, assets, SEED,
+                             MusicOptions(source=MusicSource.LOCAL, playlist=playlist),
+                             [title_library(assets, [TITLE])])
+    assert [warning for warning in result.warnings if "not tagged" in warning] == \
+        [f"Level 1: {TITLE_TRACK} is not tagged for this area"]
+    overworld_title = parse_playlist(f'{{ tracks: {{ title: "{OVERWORLD_TRACKS[0]}" }} }}')
+    assert not randomize_music(music_zora_rom, BASE, assets, SEED,
+                               MusicOptions(source=MusicSource.LOCAL, playlist=overworld_title),
+                               [title_library(assets, [TITLE])]).warnings
+    listed = music_playlist_areas()["areas"]
+    assert isinstance(listed, list)
+    areas = {area["key"]: area["uses"] for area in listed}
+    assert areas["title"] == [TITLE, OVERWORLD] and areas["overworld"] == [OVERWORLD]
+
+
+def playing(emulator: "Emulator") -> int:
+    """The address of the module lozft's driver plays."""
+    return emulator[DRIVER_MODULE_ADDRESS] | emulator[DRIVER_MODULE_ADDRESS + 1] << 8
+
+
+def module_address(rom: bytes, song_number: int) -> int:
+    entry_offset = MODULE_ADDRESSES + 2 * song_number
+    return rom[entry_offset] | rom[entry_offset + 1] << 8
+
+
+def test_the_title_screen_plays_the_title_track_in_the_emulator(music_zora_rom: bytes, assets: MusicAssets) -> None:
+    """Powered on, the title screen plays song 7's module: the Title track's when the library has one,
+    an overworld track's when it has none; in play the driver moves to the overworld's module."""
+    from tests.emulator import Emulator
+    local = MusicOptions(source=MusicSource.LOCAL)
+    for uses in ([TITLE], None):
+        result = randomize_music(music_zora_rom, BASE, assets, SEED, local, [title_library(assets, uses)])
+        assert (placed_title(result).title == TITLE_TRACK) is (uses is not None)
+        emulator = Emulator(result.rom)
+        emulator.run(TITLE_SCREEN_FRAMES)
+        assert playing(emulator) == module_address(result.rom, TITLE_SONG)
+        if uses is not None:
+            assert playing(emulator) != module_address(result.rom, AREA_SONGS[OVERWORLD][0])
+            emulator.new_game()
+            emulator.run(PLAY_FRAMES)
+            assert playing(emulator) == module_address(result.rom, AREA_SONGS[OVERWORLD][0])

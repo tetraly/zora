@@ -8,6 +8,7 @@ from ...model.levels import Level
 from ...model.rooms import LifeOrMoneyToll, Room, RoomPlace
 from ..shapes.world import blocks_of
 from .dungeon_quest import ALL_SHAPES, SetSources
+from .shop_prices import DEFAULT_PRICE_RULES, PriceRules
 
 
 @dataclass
@@ -23,6 +24,8 @@ class ItemShuffleOptions:
     level_9_items: tuple[int, int] = (0, 0)
     # SH-SRC: each set's source; a vanilla set gives PS-VAN-03's fixed item rooms
     set_sources: SetSources = ALL_SHAPES
+    # The shop price classes (shop_prices.py): what a joined shop ware costs, by the item it holds
+    prices: PriceRules = DEFAULT_PRICE_RULES
 
 
 @dataclass(frozen=True)

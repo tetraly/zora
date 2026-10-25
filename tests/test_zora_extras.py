@@ -287,8 +287,11 @@ from zora.generate.rng import ScriptedRng  # noqa: E402
 from zora.generate.steps.extra_pool_items import ShopWarePlace  # noqa: E402
 from zora.generate.steps.item_shuffle_result import shop_of_slot, shop_ware_slot  # noqa: E402
 from zora.generate.steps.shop_items_in_pool import (  # noqa: E402
-    CHEAP_ITEMS, HEART_CONTAINER_PRICES, JOINED_SHOP_ITEMS, NOT_NEEDED_ITEMS, NOT_NEEDED_PRICES, PRICES_BY_ITEM,
-    PROGRESSION_ITEMS, PROGRESSION_PRICES, own_shop_ware, price_displaced_wares, shop_items_in_pool,
+    JOINED_SHOP_ITEMS, own_shop_ware, price_displaced_wares, shop_items_in_pool,
+)
+from zora.generate.steps.shop_prices import (  # noqa: E402
+    ALWAYS_REQUIRED, BOOMERANG_PRICES, BOOMERANGS, CHEAP_ITEMS, DEFAULT_PRICE_RULES, HEART_CONTAINER_PRICES,
+    OPTIONAL_ITEMS, OPTIONAL_PRICES, REQUIRED_PRICES,
 )
 from zora.model.overworld import Shop  # noqa: E402
 
@@ -349,8 +352,8 @@ def test_draw_k_lands_the_arrows_on_the_kth_place_and_prices_the_displaced_item(
         seen.add(describe(next(place for place in pool_places(world.levels, state, extras, OPTIONS)
                                if place.get() == Item.WOOD_ARROWS)))
         price = ware.shop.items[ware.position].price
-        if displaced in PRICES_BY_ITEM:
-            assert price == PRICES_BY_ITEM[displaced][0]     # the scripted 0 is the range's low end
+        if displaced in DEFAULT_PRICE_RULES.prices:
+            assert price == DEFAULT_PRICE_RULES.prices[displaced][0]     # the scripted 0 is the range's low end
         if displaced != Item.HEART_CONTAINER:
             slot = shop_ware_slot(ware.shop.destination, ware.position)
             assert any(place.item == displaced & 0x1F and place.slot == slot for place in state.tracked)
@@ -370,11 +373,11 @@ def test_the_candle_may_take_the_arrows_ware() -> None:
     assert isinstance(arrows, ShopWarePlace)
     # both are candle-line or arrow-line items, priced 60-80 in join order; the ring stays home
     # and keeps its slot's price
-    assert arrows.shop.items[arrows.position].price == PROGRESSION_PRICES[0] + 3 != kept
-    assert candle.shop.items[candle.position].price == PROGRESSION_PRICES[0] + 7
+    assert arrows.shop.items[arrows.position].price == REQUIRED_PRICES[0] + 3 != kept
+    assert candle.shop.items[candle.position].price == REQUIRED_PRICES[0] + 7
 
 
-# --- SI-PRICE-01, owner revision 6 Oct 2026: the price classes on constructed cases ---------------
+# --- SI-PRICE-01 (owner revision 6 Oct 2026; beta 9 rules): the price classes on constructed cases --
 
 def _priced(own: Item, holds: Item, price: int, draws: list[int]) -> int:
     """Price one joined ware whose own item is `own` and which now holds `holds`; the scripted
@@ -388,16 +391,22 @@ def _priced(own: Item, holds: Item, price: int, draws: list[int]) -> int:
     return ware.shop.items[ware.position].price
 
 
-@pytest.mark.parametrize("item", sorted(PROGRESSION_ITEMS - {Item.WOOD_ARROWS}))
+@pytest.mark.parametrize("item", sorted(ALWAYS_REQUIRED - {Item.WOOD_ARROWS}))
 def test_a_progression_item_costs_60_to_80(item: Item) -> None:
     assert _priced(Item.WOOD_ARROWS, item, 10, [0]) == 60
     assert _priced(Item.WOOD_ARROWS, item, 10, [20]) == 80
 
 
-@pytest.mark.parametrize("item", sorted(NOT_NEEDED_ITEMS - {Item.BLUE_RING}))
+@pytest.mark.parametrize("item", sorted(OPTIONAL_ITEMS - BOOMERANGS - {Item.BLUE_RING}))
 def test_an_item_not_needed_to_win_costs_200_to_240(item: Item) -> None:
     assert _priced(Item.BLUE_RING, item, 10, [0]) == 200
     assert _priced(Item.BLUE_RING, item, 10, [40]) == 240
+
+
+@pytest.mark.parametrize("item", sorted(BOOMERANGS))
+def test_a_boomerang_costs_75_to_125(item: Item) -> None:
+    assert _priced(Item.BLUE_RING, item, 10, [0]) == 75
+    assert _priced(Item.BLUE_RING, item, 10, [50]) == 125
 
 
 @pytest.mark.parametrize("item", [Item.HEART_CONTAINER, Item.LETTER])
@@ -418,6 +427,7 @@ def test_an_item_at_home_keeps_its_price_without_a_draw() -> None:
 
 
 def test_the_classes_are_disjoint_and_match_the_owner_list() -> None:
-    assert not PROGRESSION_ITEMS & NOT_NEEDED_ITEMS and not CHEAP_ITEMS & (PROGRESSION_ITEMS | NOT_NEEDED_ITEMS)
+    assert not ALWAYS_REQUIRED & OPTIONAL_ITEMS and not CHEAP_ITEMS & (ALWAYS_REQUIRED | OPTIONAL_ITEMS)
     assert CHEAP_ITEMS == {Item.HEART_CONTAINER, Item.LETTER}
-    assert PROGRESSION_PRICES == (60, 80) and NOT_NEEDED_PRICES == (200, 240) and HEART_CONTAINER_PRICES == (20, 40)
+    assert REQUIRED_PRICES == (60, 80) and OPTIONAL_PRICES == (200, 240) and HEART_CONTAINER_PRICES == (20, 40)
+    assert BOOMERANG_PRICES == (75, 125)

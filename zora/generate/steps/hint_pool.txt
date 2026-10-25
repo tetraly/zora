@@ -21,6 +21,8 @@
 #           hearts" (shown only when that cave asks for N hearts),
 #           "reserved" (slots 27 and 34: kept for a future toll-room option,
 #           never drawn), "placeholder" (padding; see the end of the file)
+#   contributor   optional fourth column: who sent a community text, kept here
+#           and never shown in the game (docs/credits.md lists them)
 # Lines starting with "#" are comments.
 slot 0 (owner ruling)	DID SOMEBODY SAY| ... WOOD?
 slot 0 (owner ruling)	YAY! A POINTY STICK!
@@ -197,65 +199,65 @@ slot 1 or 19	A DOZEN HEARTS	magical sword 12 hearts
 slot 1 or 19	TWELVE LABORS	magical sword 12 hearts
 slot 1 or 19	TWELVE IS SO VANILLA	magical sword 12 hearts
 
-# ---- Placeholders: replace each INSERT COMMUNITY HINT line's quote with a
-# ---- real one of the same class (docs/ui-provenance.md).
-slot 20	INSERT COMMUNITY HINT 1	placeholder
-slot 21	INSERT COMMUNITY HINT 2	placeholder
-slot 24	INSERT COMMUNITY HINT 3	placeholder
-slot 1 or 19	INSERT COMMUNITY HINT 4	placeholder
-slot 1 or 19	INSERT COMMUNITY HINT 5	placeholder
-slots 10-13	INSERT COMMUNITY HINT 6	placeholder
-slots 10-13	INSERT COMMUNITY HINT 7	placeholder
-slots 10-13	INSERT COMMUNITY HINT 8	placeholder
-slots 10-13	INSERT COMMUNITY HINT 9	placeholder
-slots 20-31	INSERT COMMUNITY HINT 10	placeholder
-slots 20-31	INSERT COMMUNITY HINT 11	placeholder
-slots 20-31	INSERT COMMUNITY HINT 12	placeholder
-slots 20-31	INSERT COMMUNITY HINT 13	placeholder
-slots 20-31	INSERT COMMUNITY HINT 14	placeholder
-slots 20-31	INSERT COMMUNITY HINT 15	placeholder
-slots 20-31	INSERT COMMUNITY HINT 16	placeholder
-slots 20-31	INSERT COMMUNITY HINT 17	placeholder
-slots 20-31	INSERT COMMUNITY HINT 18	placeholder
-slots 34-37	INSERT COMMUNITY HINT 19	placeholder
-slots 34-37	INSERT COMMUNITY HINT 20	placeholder
-slots 34-37	INSERT COMMUNITY HINT 21	placeholder
-unrouted	INSERT COMMUNITY HINT 22	placeholder
-unrouted	INSERT COMMUNITY HINT 23	placeholder
-unrouted	INSERT COMMUNITY HINT 24	placeholder
-unrouted	INSERT COMMUNITY HINT 25	placeholder
-unrouted	INSERT COMMUNITY HINT 26	placeholder
-unrouted	INSERT COMMUNITY HINT 27	placeholder
-unrouted	INSERT COMMUNITY HINT 28	placeholder
-unrouted	INSERT COMMUNITY HINT 29	placeholder
-unrouted	INSERT COMMUNITY HINT 30	placeholder
-unrouted	INSERT COMMUNITY HINT 31	placeholder
-unrouted	INSERT COMMUNITY HINT 32	placeholder
-unrouted	INSERT COMMUNITY HINT 33	placeholder
-unrouted	INSERT COMMUNITY HINT 34	placeholder
-unrouted	INSERT COMMUNITY HINT 35	placeholder
-unrouted	INSERT COMMUNITY HINT 36	placeholder
-unrouted	INSERT COMMUNITY HINT 37	placeholder
-unrouted	INSERT COMMUNITY HINT 38	placeholder
-unrouted	INSERT COMMUNITY HINT 39	placeholder
-unrouted	INSERT COMMUNITY HINT 40	placeholder
-unrouted	INSERT COMMUNITY HINT 41	placeholder
-unrouted	INSERT COMMUNITY HINT 42	placeholder
-unrouted	INSERT COMMUNITY HINT 43	placeholder
-unrouted	INSERT COMMUNITY HINT 44	placeholder
-unrouted	INSERT COMMUNITY HINT 45	placeholder
-unrouted	INSERT COMMUNITY HINT 46	placeholder
-unrouted	INSERT COMMUNITY HINT 47	placeholder
-# Slot 19: eight more (48-55), so the white-sword item hint competes with
+# ---- Padding rows: each one a community hint text (they were INSERT COMMUNITY HINT 1-55
+# ---- placeholders; the class keeps each class at its minimum, docs/ui-provenance.md).
+slot 20	THIS IS HYRULE.|GOT IT RANDOMIZED?		ultralavos
+slot 21	IT'S DANGEROUS TO GO|ALONE. TAKE A HINT!		Whyforce89887
+slot 24	YOU'VE MET WITH|A TERRIBLE HINT,|HAVEN'T YOU?		Whyforce89887
+slot 1 or 19	WELL EXCUUUUUSE|ME, PRINCESS!		Whyforce89887
+slot 1 or 19	IT'S A SECRET|TO EVERYBODY.|ESPECIALLY YOU.		Whyforce89887
+slots 10-13	THE HINT YOU'RE|LOOKING FOR IS IN|ANOTHER CASTLE.		Whyforce89887
+slots 10-13	HEY! LISTEN!|YOU'RE PROBABLY|MISSING SOMETHING.		Whyforce89887
+slots 10-13	DON'T BE A GORIYA,|USE YOUR WORDS.		Whyforce89887
+slots 10-13	THIS HINT WILL|COST 256 RUPEES		Whyforce89887
+slots 20-31	YOU'VE GOT A HEART|OF GOLD. TOO BAD|IT'S NOT A KEY.		Whyforce89887
+slots 20-31	I AM ERROR. AND SO|IS YOUR ROUTING.		Whyforce89887
+slots 20-31	THE REAL TREASURE WAS|THE FRIENDS WE BOMBED.		Whyforce89887
+slots 20-31	A WISE OLD MAN ONCE|SAID - CHECK YOUR CAVES.		Whyforce89887
+slots 20-31	THIS HINT IS SPONSORED|BY THE LETTER N.		Whyforce89887
+slots 20-31	DON'T LET YOUR DREAMS BE|DREAMS. BOMB THAT WALL.		Whyforce89887
+slots 20-31	DID YOU CHECK BEHIND THE|WATERFALL? SERIOUSLY.		Whyforce89887
+slots 20-31	THAT STAIRCASE ISN'T|GOING TO FIND ITSELF.		Whyforce89887
+slots 20-31	THE COAST IS|CLEAR. OR IS IT?		Whyforce89887
+slots 34-37	YOU'RE ONE HORN AWAY|FROM A BAD TIME.		Whyforce89887
+slots 34-37	THE TAKE-ANY ROAD|LESS TRAVELED.		Whyforce89887
+slots 34-37	BOMBS ARE TEMPORARY.|LEVEL 9 IS FOREVER.		Whyforce89887
+unrouted	SPECTACLE ROCK|CALLED. IT WANTS|ITS SECRET BACK.		Whyforce89887
+unrouted	MAYBE THE REAL ITEM|WAS IN THE ARMOS CAVES.		Whyforce89887
+unrouted	THERE'S NO SUCH THING|AS TOO MANY BOMBS.		Whyforce89887
+unrouted	THE OLD MAN IS TIRED|OF YOUR NONSENSE.		Whyforce89887
+unrouted	DON'T FORGET TO CHECK|THE VANILLA LOCATIONS.		Whyforce89887
+unrouted	SOMETIMES THE BEST ROUTE|IS THE WRONG ROUTE.		Whyforce89887
+unrouted	YOU CAN'T SPELL TRIFORCE|WITHOUT FORCING A PLAY.		Whyforce89887
+unrouted	THE BLUE RING|IS THE REAL MVP.		Whyforce89887
+unrouted	DID YOU BRING|ENOUGH RUPEES FOR|THE WHOLE CLASS?		Whyforce89887
+unrouted	I'M PRETTY SURE|THAT ROOM DROPS...		Whyforce89887
+unrouted	THE LETTER IS IN THE|LAKE. NO, NOT THAT LAKE.		Whyforce89887
+unrouted	THE GRAVEYARD SHIFT|IS WHERE THE REAL|MAGIC HAPPENS.		Whyforce89887
+unrouted	WHY DID LINK CROSS|THE ROAD? TO GET TO|THE NEXT DUNGEON.		Whyforce89887
+unrouted	WHAT DOES GANON|EAT FOR BREAKFAST?|TRIFORCE FLAKES.		Whyforce89887
+unrouted	I TRIED TO FIND|A SECRET. IT WAS|A GRAVE MISTAKE.		Whyforce89887
+unrouted	LINK'S FAVORITE|EXERCISE? SWORD LIFTING.		Whyforce89887
+unrouted	GANON'S FAVORITE|MUSIC? HEAVY METAL.		Whyforce89887
+unrouted	WHY WAS THE DUNGEON|SO COLD? IT HAD|TOO MANY FANS.		Whyforce89887
+unrouted	I USED TO BE A HERO|LIKE YOU. THEN I|TOOK A LIKE LIKE.		Whyforce89887
+unrouted	WHAT DO YOU CALL A LAZY|DODONGO? A DON'T-ONGO.		Whyforce89887
+unrouted	THAT HINT WAS|BOMB. LITERALLY.		Whyforce89887
+unrouted	DODONGO DISLIKES|SMOKE. AND APPARENTLY|YOUR ROUTING.		Whyforce89887
+unrouted	PATRA? I HARDLY|KNOW HER!		Whyforce89887
+unrouted	GLEEOK? MORE|LIKE GLEE-NO!		Whyforce89887
+unrouted	MANHANDLA? MORE|LIKE MANHANDLED!		Whyforce89887
+unrouted	AQUAMENTUS IS|JUST A HORSE WITH|COMMITMENT ISSUES.		Whyforce89887
+# Slot 19: eight padding rows, so the white-sword item hint competes with
 # as many candidates as in the spec's pool (docs/ui-provenance.md).
-slot 19	INSERT COMMUNITY HINT 48	placeholder
-slot 19	INSERT COMMUNITY HINT 49	placeholder
-slot 19	INSERT COMMUNITY HINT 50	placeholder
-slot 19	INSERT COMMUNITY HINT 51	placeholder
-slot 19	INSERT COMMUNITY HINT 52	placeholder
-slot 19	INSERT COMMUNITY HINT 53	placeholder
-slot 19	INSERT COMMUNITY HINT 54	placeholder
-slot 19	INSERT COMMUNITY HINT 55	placeholder
+slot 19	POLS VOICE HATES YOU.|AND YOUR MICROPHONE.		Whyforce89887
+slot 19	WIZZROBES - RUINING|PERFECTLY GOOD|RUNS SINCE 1986.		Whyforce89887
+slot 19	DARKNUTS HAVE MORE|ARMOR THAN YOUR EXCUSES.		Whyforce89887
+slot 19	THIS HINT IS PROBABLY|USELESS. JUST LIKE|YOUR LAST DEATH.		Whyforce89887
+slot 19	YOUR ROUTE IS|LOOKING GREAT. SHAME|ABOUT THE EXECUTION.		Whyforce89887
+slot 19	YOU DIDN'T NEED THAT|ITEM. YOU NEEDED|BETTER DECISIONS.		Whyforce89887
+slot 19	THE SEED GIVETH, AND|THE SEED TAKETH AWAY.		Whyforce89887
+slot 19	RNGESUS HAS|ABANDONED THIS SEED.		Whyforce89887
 # Book to Understand NPCs (B48, HT-BOOK-02): slot 0 shows one of these, and only these, and
 # without the Book every person shows slot 0. The spec's pool has 50 strings in which the
 # speaker cannot be understood; ZORA's pool had none. Owner ruling (2026-10-12): five stand-ins
@@ -266,3 +268,37 @@ slot 0 with the Book	GLORB FLINDOR|WAKKA ZOOP!	stand-in
 slot 0 with the Book	THE WORDS ARE IN A|TONGUE YOU DO NOT KNOW.	stand-in
 slot 0 with the Book	THE VOICE IS|TOO FAINT TO|MAKE OUT.	stand-in
 slot 0 with the Book	IF ONLY YOU HAD A|BOOK TO MAKE SENSE|OF THESE WORDS...	stand-in
+
+# ---- Community texts (Discord submissions, 2026-10-24; docs/credits.md): the fourth column names
+# ---- the contributor, kept here and never shown in the game. Hint-person texts beyond the placeholders'
+# ---- number go to slots 20-31, the hint people (not "unrouted": more unrouted quotes would change slot 19's hint odds, docs/ui-provenance.md). "ZORA" marks texts the owner approved.
+slot 5	SIR, THIS IS A WENDY'S		GrandpaSzabo
+slot 5	UHHHHH.....PASS|THE TP.....		TheGobOne
+slot 5	15 BUCKS LITTLE MAN....		ultralavos
+slot 5	SHHH! THIS IS A LIBRARY		Tetra
+slot 5	THIS IS THE FEE FEE		Whyforce89887
+slot 5	YOU BOMBED IT,|YOU BOUGHT IT.		ZORA
+slot 5	THE DOOR WAS LIKE|THAT WHEN I GOT HERE.		ZORA
+slot 5	I ACCEPT EXACT CHANGE|OR YOUR DIGNITY.		ZORA
+slot 25	NOW WITH 20 PERCENT|MORE KABOOM.		ZORA
+slot 14 or 15	THIS BAD BOY CAN FIT|SO MANY RUPEES IN IT!		GrandpaSzabo
+slot 14 or 15	I WASN'T EVEN SUPPOSED|TO BE HERE TODAY.		Crump
+slot 14 or 15	NO REFUNDS. NO|EXCHANGES. NO HEARTS.		ZORA
+slot 8	SIDE EFFECTS MAY|INCLUDE NOT DYING.		ZORA
+slot 17	I'M IN THE MONEY!		Whyforce89887
+slot 17	YOUR ONLYFANS|FINALLY PAID OFF!		Whyforce89887
+slot 17	FINALLY, A|POSITIVE CASH FLOW.		ZORA
+slot 0 (owner ruling)	IT'S YOUR POKEY STABBY!		Whyforce89887
+slot 0 (owner ruling)	TAKE ONE. JUST ONE.|I'M WATCHING YOU.		ZORA
+slots 20-31	IF AT FIRST YOU|DON'T SUCCEED,|BLAME THE FLAGS.		Whyforce89887
+slots 20-31	CONGRATULATIONS! YOU'VE|WASTED 20 MINUTES.		Whyforce89887
+slots 20-31	THE HINT WAS RIGHT. YOUR|INTERPRETATION WAS NOT.		Whyforce89887
+slots 20-31	THIS SEED WAS|DESIGNED BY SOMEONE|WHO HATES YOU.		Whyforce89887
+slots 20-31	YOU'RE NOT LOST.|YOU'RE JUST|AGGRESSIVELY EXPLORING.		Whyforce89887
+slots 20-31	EVERY SECOND COUNTS.|EXCEPT THE ONES|SPENT CHECKING CAVES.		Whyforce89887
+slots 20-31	THE TRIFORCE OF WISDOM|SAYS YOU SHOULD'VE|CHECKED EARLIER.		Whyforce89887
+slots 20-31	YOUR PB CALLED.|IT SAID NOT TODAY.		Whyforce89887
+slots 20-31	THERE'S A FINE LINE|BETWEEN ROUTING|AND GAMBLING.		Whyforce89887
+slots 20-31	THE ONLY THING|WORSE THAN THIS|HINT IS YOUR LUCK.		Whyforce89887
+slots 20-31	I'D TELL YOU, BUT|THE FLAGS SAID NO.		ZORA
+slots 20-31	THE ITEM IS IN A|LEVEL. YOU'RE WELCOME.		ZORA

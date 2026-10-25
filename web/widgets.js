@@ -118,8 +118,9 @@ const VIEWPORT_MARGIN_PX = 8;
 // with the current color opens a panel of every palette entry, 16 per row.
 // excluded maps an index to the tooltip saying why it cannot be picked; such
 // a swatch stays in the grid (aria-disabled, so its tooltip still shows).
+// random, when given, is the value of a "Random" choice under the grid (a color drawn per seed).
 // Returns a function that sets the shown value.
-function initColorPicker(host, { palette, excluded = {}, value, label, onChange }) {
+function initColorPicker(host, { palette, excluded = {}, value, label, onChange, random = null }) {
   const hexCode = (index) => "$" + index.toString(16).toUpperCase().padStart(2, "0");
   const make = (tag, props) => Object.assign(document.createElement(tag), props);
   const picker = make("span", { className: "flag-color-picker" });
@@ -146,6 +147,14 @@ function initColorPicker(host, { palette, excluded = {}, value, label, onChange 
   });
   const code = make("span", { className: "color-picker-code" });
   panel.append(grid);
+  let randomButton = null;
+  if (random !== null) {
+    randomButton = make("button", { type: "button", className: "btn btn-tint btn-small color-picker-random",
+                                    textContent: "Random" });
+    randomButton.title = "A color drawn for each seed: the same seed always gives the same color";
+    randomButton.addEventListener("click", () => { show(random); close(); toggle.focus(); onChange(random); });
+    panel.append(randomButton);
+  }
   picker.append(toggle, panel);
   host.append(picker, code);
   const close = initPopover(toggle, panel, picker);
@@ -158,10 +167,14 @@ function initColorPicker(host, { palette, excluded = {}, value, label, onChange 
     if (overflow > 0) panel.style.right = `${-overflow}px`;
   });
   function show(index) {
-    toggle.style.background = palette[index];
-    toggle.setAttribute("aria-label", `${label}: ${hexCode(index)}`);
-    code.textContent = hexCode(index);
+    const isRandom = random !== null && index === random;
+    toggle.classList.toggle("color-picker-toggle--random", isRandom);
+    toggle.style.background = isRandom ? "" : palette[index];
+    toggle.textContent = isRandom ? "?" : "";
+    toggle.setAttribute("aria-label", `${label}: ${isRandom ? "Random" : hexCode(index)}`);
+    code.textContent = isRandom ? "Random" : hexCode(index);
     swatches.forEach((swatch, i) => swatch.classList.toggle("color-swatch--selected", i === index));
+    if (randomButton) randomButton.classList.toggle("color-picker-random--selected", isRandom);
   }
   show(value);
   return show;

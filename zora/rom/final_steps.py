@@ -27,8 +27,11 @@ from . import (
     archipelago_logo,
     bait_count,
     code_patches,
+    credits_staff,
+    fairy_refill,
     hidden_tiles,
     item_sprites,
+    opening_story,
     overworld_crossings,
     owner_patches,
     slot_identity,
@@ -71,7 +74,9 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     Shop Items in the Item Pool on, bait is a count (bait_count); Permanent Sword Beam (B52) and OHKO
     (B53) write their fixed patches (sword_and_harm), Add Bridges to the River (B87) and Add Lost
     Woods Shortcut (B88) their overworld bytes (overworld_crossings), and so do the wooden-sword states (C07,
-    sword_states)."""
+    sword_states); and in every ROM a bought fairy refills every heart (fairy_refill), the opening
+    story is ZORA's, naming level 9's requirement (opening_story), and the ending credits hold the
+    Randomizer Staff box (fp-credits-01's tables, credits_staff)."""
     config = settings.config
     left_out = code_patches.left_out_patches(config.book_is_an_atlas, config.progressive_items,
                                              config.shop_items_in_pool, config.potion_shop_in_pool,
@@ -82,8 +87,14 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     for address, data in code_patches.code_patch_writes(world, left_out, config.progressive_items,
                                                         config.one_time_places, config.bait_in_pool):
         rom[address:address + len(data)] = data
+    for address, data in credits_staff.credits_writes(world.credits_pointers):
+        rom[address:address + len(data)] = data
+    for address, data in fairy_refill.fairy_refill_writes():
+        rom[address:address + len(data)] = data
     for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword,
                                                           config.archipelago_rom):
+        rom[address:address + len(data)] = data
+    for address, data in opening_story.story_writes(rom, world.level_9_gate, config.level_9_entrance_sword):
         rom[address:address + len(data)] = data
     if config.foreign_logo:
         for address, data in archipelago_logo.logo_writes():

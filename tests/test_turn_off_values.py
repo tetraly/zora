@@ -38,7 +38,13 @@ from zora.model.overworld import (
 from zora.rom.base_rom import piece_length, verify_base_rom
 from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import BOOK_IS_AN_ATLAS, overworld_start_y
-from zora.rom.layout import PERSON_UPDATE_BRANCH_ADDRESS
+from zora.rom.layout import (
+    CONSTERNATION_HINT_SLOTS,
+    EXT_BANK1_ROM_START,
+    EXT_HINT_CPU_BASE,
+    PERSON_UPDATE_BRANCH_ADDRESS,
+    hint_text_regions,
+)
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.serialize.rom_file import serialize_to_rom
 
@@ -164,11 +170,24 @@ def triforce_pointers_name_triforce_rooms(world: GameWorld, rom: bytes, gw: Game
         assert room.item_info.item == TRIFORCE, level.level_num
 
 
+def _placement_order(pointer: int) -> tuple[int, int]:
+    """Where a hint text lies in the order the serializer places texts (PI-HINT-02): the extended
+    bank, then the overflow region after the pointer table, which sits lower in bank 1."""
+    offset = pointer - EXT_HINT_CPU_BASE + EXT_BANK1_ROM_START
+    regions = hint_text_regions(CONSTERNATION_HINT_SLOTS)
+    region = next((index for index, (start, end) in enumerate(regions) if start <= offset < end), len(regions))
+    return region, offset
+
+
 def hint_pointers_ascend(world: GameWorld, rom: bytes, gw: GameWorld) -> None:
-    """B19: the eleven pointers lie in ascending address order (each slot its own text)."""
+    """B19: the eleven pointers lie in ascending order (each slot its own text). The spec's
+    "ascending address order" holds while the texts fit the extended bank; a text that does not
+    continues in the overflow region below it (the community hint texts), so the order is the
+    placement order, the bank's addresses then the overflow's. Nothing reads the pointers in
+    order: the game takes each slot's own, and the parser walks the regions."""
     assert world.hint_pointers is not None
-    pointers = [world.hint_pointers[slot] for slot in SLOT_ORDER]
-    assert pointers == sorted(pointers)
+    placed = [_placement_order(world.hint_pointers[slot]) for slot in SLOT_ORDER]
+    assert placed == sorted(placed)
 
 
 def no_merchants(world: GameWorld, rom: bytes, gw: GameWorld) -> None:

@@ -11,14 +11,30 @@ Third-party material keeps its own license, given with it.
 
 | Feature | Credit | ZORA's patch |
 |---|---|---|
-| Speed Up Heart Fill | snarfblam | `asm/flags2/fast-heart-fill/` |
-| Recorder Kills Dungeon Pols Voice | Stratoform | `asm/flags2/recorder-pols-voice/` |
+| Speed Up Dungeon Transitions | fiskbit (the fast scroll) | `asm/flags2/fast-dungeon-scroll/` |
+| Speed Up Heart Fill | snarfblam (the Zelda Hack Pack's fast_fill.ips) | `asm/flags2/fast-heart-fill/` |
+| Recorder Kills Dungeon Pols Voice | Stratoform (the Zelda Hack Pack's flute_kills_pols.ips) | `asm/flags2/recorder-pols-voice/` |
+| Like-Like Eats Rupees | gzip (the Zelda Hack Pack's like_like_rupees.ips) | `asm/flags2/like-like-rupees/` |
+| Start With Full Health | ShadowOne333, kalita-kun and gzip (the Zelda Hack Pack's full_health.ips) | `asm/flags2/full-health/` |
 | Reduce flashing | Z1R community resource |
 | Statistics screen (the idea: an end-of-game list of times, deaths and counts) | Z2Randomizer | `asm/fp-stats-01/` |
 | Low-health beep at half speed (the idea) | Z2Randomizer | `asm/settings/half-speed-beep/` |
 
+The four Hack Pack rows above come from the **Zelda Hack Pack** by gzip
+(https://www.romhacking.net/hacks/5937/), a collection of standalone patches for The Legend of
+Zelda. ZORA's versions are its own code, written from the disassembly after reading what each
+patch changes; the patches' authors are named in the Hack Pack's readme, and the ending credits
+thank them under Additional Technical Contributions.
+
 These features are included with credit to their authors; the owner will remove them if their
 authors ask. ZORA's patches for them are its own code, written from the disassembly.
+
+## Community hint texts
+
+The texts people read in caves and from hint people come from the community's submissions on ZORA's
+Discord, many of them in the pool since 2.0. Each text added since is credited in the fourth column of
+`zora/generate/steps/hint_pool.txt` (never shown in the game). Thank you, Whyforce89887, GrandpaSzabo,
+Crump, ultralavos, TheGobOne, Tetra, PDXRex and heccinhayley.
 
 ## Sprite art
 

@@ -1,0 +1,889 @@
+# ROM space: PRG0's free space, the ranges reserved for others, and every claim on them
+# (docs/rom-map.md; asm/rom_space.py reads this file; asm/README.md "Adding a patch").
+#
+# Addresses are CPU addresses in a bank, inclusive: banks 0-6 switch at $8000, bank 7 is fixed
+# at $C000. This is the one copy of each range: the patch builders place new segments from it,
+# tests/test_rom_space.py checks every builder's bytes, the reservations and the per-seed sites
+# against it, and tests/test_coop_reserved.py reads z1rr-coop's ranges from it.
+#
+# The 256 KB layout of randomized music (docs/music.md: lozft moves the fixed bank to bank 15 and
+# fills bank 0 $8000-$82A0) has no table yet. It would go here as a second set of [[free]] rows
+# (with a `layout = "music"` key), which asm/rom_space.py would use for a patch built for that
+# layout; until then the one such patch, asm/fp-stats-01-music, keeps its hand-chosen address.
+
+# --- Free space in PRG0 --------------------------------------------------------------------------
+# The linker gaps each bank's code leaves before its ISR copy at $BF50 ($FF-filled), and PRG0's
+# unused $FF runs. Each row is $FF in PRG0 (checked).
+
+[[free]]
+bank = 0
+first = 0x8000
+last = 0x8D5F
+what = "bank 0's gap before its code at $8D60"
+
+[[free]]
+bank = 0
+first = 0x9FF9
+last = 0xBF4F
+what = "bank 0's linker gap"
+
+[[free]]
+bank = 1
+first = 0x9ED4
+last = 0x9FFF
+what = "PRG0's $FF block after DemoBackgroundPatterns"
+
+[[free]]
+bank = 1
+first = 0xA423
+last = 0xA4FF
+what = "PRG0's $FF block before CommonCodeBlock_Bank1"
+
+[[free]]
+bank = 1
+first = 0xB751
+last = 0xB76F
+what = "$FF in the part of bank 1 copied to RAM ($7EE1-$7EFF there)"
+
+[[free]]
+bank = 1
+first = 0xB770
+last = 0xBF4F
+what = "bank 1's linker gap"
+
+[[free]]
+bank = 2
+first = 0xAF90
+last = 0xBF4F
+what = "bank 2's linker gap"
+
+[[free]]
+bank = 3
+first = 0xABDB
+last = 0xBF4F
+what = "bank 3's linker gap"
+
+[[free]]
+bank = 4
+first = 0xAFD0
+last = 0xAFDE
+what = "PRG0's $FF run"
+
+[[free]]
+bank = 4
+first = 0xB46F
+last = 0xBF4F
+what = "bank 4's linker gap"
+
+[[free]]
+bank = 5
+first = 0xB8A0
+last = 0xBF4F
+what = "bank 5's linker gap"
+
+[[free]]
+bank = 6
+first = 0x9D66
+last = 0x9FFF
+what = "PRG0's $FF block"
+
+[[free]]
+bank = 6
+first = 0xACCA
+last = 0xBF4F
+what = "bank 6's linker gap"
+
+[[free]]
+bank = 7
+first = 0xED94
+last = 0xED9F
+what = "PRG0's unused $FF run after UpdateHeartsAndRupees"
+
+[[free]]
+bank = 7
+first = 0xFAE4
+last = 0xFAEE
+what = "PRG0's unused $FF run before ObjectTypeToAttributes"
+
+[[free]]
+bank = 7
+first = 0xFF43
+last = 0xFF4F
+what = "bank 7's gap before its ISR code"
+
+[[free]]
+bank = 7
+first = 0xFFC0
+last = 0xFFEA
+what = "bank 7's last linker gap"
+
+# $BFC0-$BFF9 in banks 0-6: between the ISR copy's code ($BF50-$BFBF) and the vectors ($BFFA).
+[[free]]
+bank = 0
+first = 0xBFC0
+last = 0xBFF9
+what = "between the ISR copy and the vectors"
+
+[[free]]
+bank = 1
+first = 0xBFC0
+last = 0xBFF9
+what = "between the ISR copy and the vectors"
+
+[[free]]
+bank = 2
+first = 0xBFC0
+last = 0xBFF9
+what = "between the ISR copy and the vectors"
+
+[[free]]
+bank = 3
+first = 0xBFC0
+last = 0xBFF9
+what = "between the ISR copy and the vectors"
+
+[[free]]
+bank = 4
+first = 0xBFC0
+last = 0xBFF9
+what = "between the ISR copy and the vectors"
+
+[[free]]
+bank = 5
+first = 0xBFC0
+last = 0xBFF9
+what = "between the ISR copy and the vectors"
+
+[[free]]
+bank = 6
+first = 0xBFC0
+last = 0xBFF9
+what = "between the ISR copy and the vectors"
+
+# --- Reserved for z1rr-coop -----------------------------------------------------------------------
+# z1rr-coop's EverDrive N8 Pro patch is applied on top of a ZORA ROM (docs/rom-map.md "Reserved for
+# z1rr-coop"). Its blocks for both its releases while beta 8 is the released bridge: 2.0 beta 8's
+# (the owner's figures from its patch) and its patch revision 1's (bridge/docs/patch-revision-1.md),
+# which grows bank 4's by its guarded write ($B883-$B8DA), adds bank 4 $BA40-$BAFF (its NMI drain and
+# checksum check, 2026-10-24) and no longer uses bank 5's two. Each is reserved whole: unchanged
+# bytes inside a block are part of the co-op code.
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 1
+first = 0xA233
+last = 0xA235
+what = "in-place hook"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 1
+first = 0xA430
+last = 0xA449
+what = "PRG0's unused $FF block"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 4
+first = 0xB46F
+last = 0xB8DA
+what = "bank 4's linker gap, 1,132 bytes"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 4
+first = 0xBA40
+last = 0xBAFF
+what = "PRG0's free space: patch revision 1's NMI drain ($BA40) and checksum check ($BAC0)"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 5
+first = 0xB366
+last = 0xB369
+what = "in-place hook in InitLinkSpeed"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 5
+first = 0xB8F0
+last = 0xB901
+what = "bank 5's linker gap"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 6
+first = 0xAAE8
+last = 0xAAEF
+what = "title-screen data the co-op patch overwrites"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 6
+first = 0xB100
+last = 0xB14C
+what = "bank 6's linker gap"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 7
+first = 0xE65A
+last = 0xE65D
+what = "in-place hook in ReadOneController"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 7
+first = 0xED8A
+last = 0xED93
+what = "in-place hook in UpdateHeartsAndRupees"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 7
+first = 0xFAE4
+last = 0xFAEE
+what = "PRG0's unused $FF run"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 7
+first = 0xFFD4
+last = 0xFFDB
+what = "NMI entry"
+
+[[reserved]]
+owner = "z1rr-coop"
+bank = 7
+first = 0xFFFA
+last = 0xFFFB
+what = "NMI vector"
+
+# The co-op hooks replace whole instructions: the PRG0 instructions they touch, which ZORA leaves as
+# they are too. The hook at $ED8A starts on the operand of the instruction at $ED89; the others
+# start and end on instruction boundaries.
+
+[[reserved_instructions]]
+owner = "z1rr-coop"
+bank = 1
+first = 0xA233
+last = 0xA235
+what = "co-op hook's instruction"
+
+[[reserved_instructions]]
+owner = "z1rr-coop"
+bank = 5
+first = 0xB366
+last = 0xB369
+what = "co-op hook's instructions"
+
+[[reserved_instructions]]
+owner = "z1rr-coop"
+bank = 7
+first = 0xE65A
+last = 0xE65D
+what = "co-op hook's instructions"
+
+[[reserved_instructions]]
+owner = "z1rr-coop"
+bank = 7
+first = 0xED89
+last = 0xED93
+what = "co-op hook's instructions, from the LDA whose operand it starts on"
+
+# --- Slots: each segment's range -----------------------------------------------------------------
+# Every segment of every builder (asm/series.txt, asm/settings, asm/flags2, asm/asnb) has a slot, the
+# range it may fill as its code grows; its bytes stay inside it (checked). Owners are named
+# "series:FOLDER", "flags2:FOLDER", "asnb:FOLDER" and "setting:SETTING". New segments placed by the
+# build are in asm/placements.toml instead.
+
+[[slot]]
+segment = "ZORA_FP_FIX_06"
+owner = "series:fp-fix-06"
+bank = 5
+first = 0xB8A0
+last = 0xB8BF
+
+[[slot]]
+segment = "ZORA_FP_ENTR_02"
+owner = "series:fp-entr-02"
+bank = 5
+first = 0xB8C0
+last = 0xB8DF
+
+[[slot]]
+segment = "ZORA_FP_BOOK_01_MAP"
+owner = "series:fp-book-01"
+bank = 5
+first = 0xB8E0
+last = 0xB8EF
+
+[[slot]]
+segment = "ZORA_FP_BOOK_01_TAKE"
+owner = "series:fp-book-01"
+bank = 7
+first = 0xFFC0
+last = 0xFFCA
+
+[[slot]]
+segment = "ZORA_FP_FIX_03"
+owner = "series:fp-fix-03"
+bank = 3
+first = 0xABE0
+last = 0xABFF
+
+[[slot]]
+segment = "ZORA_FP_FIX_02"
+owner = "series:fp-fix-02"
+bank = 1
+first = 0xBEC0
+last = 0xBEDF
+
+[[slot]]
+segment = "ZORA_FP_HASH_01"
+owner = "series:fp-hash-01"
+bank = 2
+first = 0xAFA0
+last = 0xAFFF
+
+[[slot]]
+segment = "ZORA_FP_ENTR_01"
+owner = "series:fp-entr-01"
+bank = 5
+first = 0xBAC0
+last = 0xBAFF
+
+[[slot]]
+segment = "ZORA_FP_ROAR_01"
+owner = "series:fp-roar-01"
+bank = 5
+first = 0xB940
+last = 0xB9BF
+
+[[slot]]
+segment = "ZORA_FP_HOT_01_PLAY"
+owner = "series:fp-hot-01"
+bank = 2
+first = 0xB000
+last = 0xB07F
+
+[[slot]]
+segment = "ZORA_FP_HOT_01_MENU"
+owner = "series:fp-hot-01"
+bank = 5
+first = 0xB9C0
+last = 0xBA3F
+
+[[slot]]
+segment = "ZORA_FP_HOT_01_BANK5"
+owner = "series:fp-hot-01"
+bank = 7
+first = 0xFFDC
+last = 0xFFEA
+
+[[slot]]
+segment = "ZORA_FP_PROG_01_SHOP"
+owner = "series:fp-prog-01"
+bank = 1
+first = 0xBE40
+last = 0xBEBF
+
+[[slot]]
+segment = "ZORA_FP_PROG_01_RESOLVE"
+owner = "series:fp-prog-01"
+bank = 1
+first = 0xBEE0
+last = 0xBF4F
+
+[[slot]]
+segment = "ZORA_FP_PROG_02_ARMOS"
+owner = "series:fp-prog-02"
+bank = 4
+first = 0xB900
+last = 0xB9FF
+
+[[slot]]
+segment = "ZORA_FP_PROG_02_ROOM"
+owner = "series:fp-prog-02"
+bank = 5
+first = 0xBB00
+last = 0xBBFF
+
+[[slot]]
+segment = "ZORA_FP_START_02"
+owner = "series:fp-start-02"
+bank = 2
+first = 0xB700
+last = 0xB77F
+
+[[slot]]
+segment = "ZORA_FP_ENTR_01_SIDES"
+owner = "series:fp-entr-01-sides"
+bank = 5
+first = 0xBC40
+last = 0xBC7F
+
+[[slot]]
+segment = "ZORA_FP_CREDITS_01"
+owner = "series:fp-credits-01"
+bank = 2
+first = 0xB800
+last = 0xB8FF
+
+[[slot]]
+segment = "ZORA_FP_CREDITS_01_DATA"
+owner = "series:fp-credits-01"
+bank = 2
+first = 0xB900
+last = 0xBEFF
+
+[[slot]]
+segment = "ZORA_F2_POLS_VOICE"
+owner = "flags2:recorder-pols-voice"
+bank = 4
+first = 0xBA00
+last = 0xBA3F
+
+[[slot]]
+segment = "ZORA_F2_L4_TAKE_FIXED"
+owner = "flags2:l4-sword-take"
+bank = 7
+first = 0xFF43
+last = 0xFF4F
+
+[[slot]]
+segment = "ZORA_F2_L4_TAKE"
+owner = "flags2:l4-sword-take"
+bank = 1
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_F2_RING_COLOR"
+owner = "flags2:ring-color"
+bank = 5
+first = 0xBC80
+last = 0xBCBF
+
+[[slot]]
+segment = "ZORA_F2_BOOTS_ENDING"
+owner = "flags2:pegasus-boots"
+bank = 2
+first = 0xAF90
+last = 0xAF9F
+
+[[slot]]
+segment = "ZORA_F2_FULL_HEALTH_LOAD"
+owner = "flags2:full-health"
+bank = 2
+first = 0xB0E0
+last = 0xB0FF
+
+[[slot]]
+segment = "ZORA_F2_FULL_HEALTH_DEATH"
+owner = "flags2:full-health"
+bank = 5
+first = 0xB920
+last = 0xB93F
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B7"
+owner = "asnb:l4-sword-look"
+bank = 7
+first = 0xFF43
+last = 0xFF4F
+
+# ASNB's copies at the same address in banks 0-6 (mirrored by hand before mirrored segments existed)
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B0"
+owner = "asnb:l4-sword-look"
+bank = 0
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B1"
+owner = "asnb:l4-sword-look"
+bank = 1
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B2"
+owner = "asnb:l4-sword-look"
+bank = 2
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B3"
+owner = "asnb:l4-sword-look"
+bank = 3
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B4"
+owner = "asnb:l4-sword-look"
+bank = 4
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B5"
+owner = "asnb:l4-sword-look"
+bank = 5
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_ASNB_LOOK_B6"
+owner = "asnb:l4-sword-look"
+bank = 6
+first = 0xBFC0
+last = 0xBFDF
+
+[[slot]]
+segment = "ZORA_ASNB_TAKE_B0"
+owner = "asnb:take-l4"
+bank = 0
+first = 0xBFE0
+last = 0xBFF9
+
+[[slot]]
+segment = "ZORA_ASNB_TAKE_B1"
+owner = "asnb:take-l4"
+bank = 1
+first = 0xBFE0
+last = 0xBFF9
+
+[[slot]]
+segment = "ZORA_ASNB_TAKE_B2"
+owner = "asnb:take-l4"
+bank = 2
+first = 0xBFE0
+last = 0xBFF9
+
+[[slot]]
+segment = "ZORA_ASNB_TAKE_B3"
+owner = "asnb:take-l4"
+bank = 3
+first = 0xBFE0
+last = 0xBFF9
+
+[[slot]]
+segment = "ZORA_ASNB_TAKE_B4"
+owner = "asnb:take-l4"
+bank = 4
+first = 0xBFE0
+last = 0xBFF9
+
+[[slot]]
+segment = "ZORA_ASNB_TAKE_B5"
+owner = "asnb:take-l4"
+bank = 5
+first = 0xBFE0
+last = 0xBFF9
+
+[[slot]]
+segment = "ZORA_ASNB_TAKE_B6"
+owner = "asnb:take-l4"
+bank = 6
+first = 0xBFE0
+last = 0xBFF9
+
+[[slot]]
+segment = "ZORA_SET_MUSIC_OFF"
+owner = "setting:music"
+bank = 0
+first = 0xA000
+last = 0xA03F
+
+[[slot]]
+segment = "ZORA_SET_MUSIC_OFF_STATS"
+owner = "setting:music"
+bank = 2
+first = 0xB7A0
+last = 0xB7A0
+
+[[slot]]
+segment = "ZORA_SET_HALF_SPEED_BEEP"
+owner = "setting:low_health_beep"
+bank = 0
+first = 0xA040
+last = 0xA07F
+
+[[slot]]
+segment = "ZORA_FP_STATS_TICK"
+owner = "setting:statistics_screen"
+bank = 0
+first = 0x8000
+last = 0x81FF
+
+[[slot]]
+segment = "ZORA_FP_STATS_TICK"
+owner = "setting:statistics_screen"
+bank = 0
+first = 0xB000
+last = 0xB1FF
+what = "asm/fp-stats-01-music's StatsTick"
+
+[[slot]]
+segment = "ZORA_FP_STATS_SCREEN"
+owner = "setting:statistics_screen"
+bank = 2
+first = 0xB100
+last = 0xB6FF
+
+[[slot]]
+segment = "ZORA_FP_STATS_STAB"
+owner = "setting:statistics_screen"
+bank = 5
+first = 0xBC00
+last = 0xBC3F
+
+[[slot]]
+segment = "ZORA_FP_LEVEL_02"
+owner = "setting:level_label"
+bank = 5
+first = 0xBCC0
+last = 0xBCFF
+
+# In-place hooks that replace PRG0's unused $FF bytes, outside any segment
+[[slot]]
+hook = "ht-book-01.person-text"
+owner = "series:ht-book-01"
+bank = 1
+first = 0x9F30
+last = 0x9F3E
+
+[[slot]]
+hook = "fp-fix-04.take-power-triforce"
+owner = "series:fp-fix-04"
+bank = 7
+first = 0xED94
+last = 0xED9F
+
+# --- Sites: bytes ZORA's Python writes in free space -------------------------------------------
+# Per-seed, per-flag and per-setting writes outside the builders' data. `source` names the module
+# constant holding the site's first byte (its file offset; checked); the range is the most it
+# writes. Owners are "site:NAME".
+
+[[site]]
+name = "level-9-entrance"
+bank = 1
+first = 0x9F00
+last = 0x9F19
+source = "zora.rom.level_9_entrance:ROUTINE"
+what = "level 9's entrance routine (C08 other than 8 triforces; FP-TRIF-02 to -05)"
+
+[[site]]
+name = "recorder-complement"
+bank = 1
+first = 0x9FF0
+last = 0x9FF5
+source = "zora.rom.uphill_battle:RECORDER_COMPLEMENT_ROUTINE"
+what = "OW-WARP-02's complement of InvTriforce (B07)"
+
+[[site]]
+name = "fairy-refill"
+bank = 1
+first = 0xA450
+last = 0xA46E
+source = "zora.rom.fairy_refill:TAKE_CAVE_ITEM"
+what = "TakeCaveItem (every ROM)"
+
+[[site]]
+name = "book-blast"
+bank = 1
+first = 0xB751
+last = 0xB75C
+source = "zora.rom.uphill_battle:BLAST_ROUTINE"
+what = "FP-BOOK-02's blast routine, run at $7EE1 (B47)"
+
+[[site]]
+name = "bomb-upgrade-slot"
+bank = 1
+first = 0xB75D
+last = 0xB766
+source = "zora.rom.sword_states:SLOT_ROUTINE"
+what = "the bomb upgrade's slot routine, run at $7EED (C07 = 1 and 3)"
+
+[[site]]
+name = "inverted-controls-stub"
+bank = 1
+first = 0xB767
+last = 0xB76F
+source = "zora.rom.uphill_battle:INVERT_STUB"
+what = "FP-BUBL-01's bank-2 stub, run at $7EF7 (C19 = 1)"
+
+[[site]]
+name = "hint-text"
+bank = 1
+first = 0xB770
+last = 0xBE3F
+source = "zora.rom.layout:EXT_HINT_DATA_ROM_START"
+what = "the extended hint text and, under normal hints, the refusal and hint-shop texts"
+
+[[site]]
+name = "credits-records"
+bank = 2
+first = 0xB080
+last = 0xB0DF
+source = "zora.rom.layout:CREDITS_FREE_SPACE_ADDRESS"
+what = "FP-LOCK-02's blank credits records"
+
+[[site]]
+name = "statistics-seed-digits"
+bank = 2
+first = 0xB780
+last = 0xB793
+source = "zora.rom.code_patches:STATS_SEED_DIGITS"
+what = "the statistics screen's seed number"
+
+[[site]]
+name = "inverted-controls"
+bank = 2
+first = 0xBF20
+last = 0xBF41
+source = "zora.rom.uphill_battle:INVERT_ROUTINE"
+what = "FP-BUBL-01's inverted controls (C19 = 1)"
+
+[[site]]
+name = "ganon-wand"
+bank = 4
+first = 0xAFD0
+last = 0xAFDE
+source = "zora.rom.sword_states:GANON_WAND_ROUTINE"
+what = "Ganon's wand test (C07 = 3; FP-WOOD-03)"
+
+[[site]]
+name = "overworld-wizzrobe"
+bank = 4
+first = 0xBF00
+last = 0xBF28
+what = "the overworld red Wizzrobe routine (layout.OVERWORLD_WIZZROBE_PATCH, PS-EGRP-05)"
+
+[[site]]
+name = "killable-drop-items"
+bank = 4
+first = 0xBF3B
+last = 0xBF4F
+source = "zora.rom.small_settings:ITEM_KILL_ROUTINES"
+what = "FP-KILL-01's routines (B56)"
+
+[[site]]
+name = "link-speed-hook"
+bank = 5
+first = 0xB366
+last = 0xB369
+source = "zora.rom.uphill_battle:LINK_SPEED_INIT"
+what = "InitLinkSpeed's call: Slow Speed's (C19 = 2) or Rupees Affect Speed's (B80)"
+
+[[site]]
+name = "rupee-speed"
+bank = 5
+first = 0xB90A
+last = 0xB91A
+source = "zora.rom.small_settings:RUPEE_SPEED_ROUTINE"
+what = "FP-RSPD-01's routine (B80 without Slow Speed)"
+
+[[site]]
+name = "slow-speed"
+bank = 5
+first = 0xBD00
+last = 0xBD1A
+source = "zora.rom.uphill_battle:SLOW_SPEED_ROUTINE"
+what = "FP-BUBL-01's slow speed (C19 = 2), with Rupees Affect Speed's branch (B80) and the boots' call"
+
+[[site]]
+name = "archipelago-slot-identity"
+bank = 0
+first = 0xBF00
+last = 0xBF1F
+source = "zora.rom.slot_identity:SLOT_IDENTITY_ADDRESS"
+what = "Archipelago's slot identity (External mode with a slot name)"
+
+[[site]]
+name = "bomb-upgrade-store"
+bank = 7
+first = 0xFFC8
+last = 0xFFCA
+source = "zora.rom.sword_states:STORE_ROUTINE"
+what = "the bomb upgrade's STA Items,Y (C07 = 1 and 3 with B49 off), over fp-book-01's last bytes"
+
+[[site]]
+name = "bomb-count-tail"
+bank = 7
+first = 0xFFCB
+last = 0xFFD2
+source = "zora.rom.sword_states:BOMB_COUNT_TAIL"
+what = "the bomb upgrade's bomb-count tail (C07 = 1 and 3)"
+
+# --- Shared bytes ---------------------------------------------------------------------------------
+# Two owners write the same byte only where a [[shared]] row names both and the range. `together`
+# says how: "chained" (both may be on in one ROM: the later writer builds on the earlier's bytes,
+# as a setting choice rewriting ZORA's code does), "exclusive" (the flag rules refuse them together:
+# `refused_by` names the zora_flags check), or "retired" (one of them is never written).
+
+[[shared]]
+owners = ["z1rr-coop", "flags2:pegasus-boots", "site:link-speed-hook"]
+ranges = [[5, 0xB366, 0xB369]]
+together = "chained"
+why = """InitLinkSpeed's first two instructions. Pegasus Boots (owner spec, 2026-10-17), Slow Speed
+(C19 = 2; owner ruling, 2026-10-22) and Rupees Affect Speed (B80) each call their routine there, and
+with more than one on the later routine calls the earlier (zora/rom/small_settings.py). z1rr-coop's
+beta 8 patch hooks them too, so its bridge refuses such a ROM; revision 1 leaves them as PRG0's."""
+flags = { z1r = { C19 = 2, B80 = "on" }, zora = { pegasus_boots = "on" } }
+
+[[shared]]
+owners = ["series:fp-entr-01", "series:fp-entr-01-sides"]
+ranges = [[5, 0xB045, 0xB046]]
+together = "chained"
+why = "fp-entr-01-sides points fp-entr-01's JMP at PlaceLinkBySide (B26 with a moved start room)."
+
+[[shared]]
+owners = ["series:fp-fix-02", "setting:reduce_flashing"]
+ranges = [[1, 0xBEC7, 0xBEC8]]
+together = "chained"
+why = "Reduce flashing's choices rewrite an operand of fp-fix-02's SelectFanfarePaletteIfIdle."
+
+[[shared]]
+owners = ["series:fp-hot-01", "setting:select_swap"]
+ranges = [[2, 0xB000, 0xB07F], [5, 0x80D5, 0x80D6], [6, 0xA030, 0xA031], [7, 0xEC36, 0xEC39]]
+together = "chained"
+why = "Select swap's choices replace fp-hot-01's play routine and its hooks (player setting, FP-SET-01)."
+
+[[shared]]
+owners = ["series:fp-hot-01", "setting:death_warp"]
+ranges = [[5, 0xB9C0, 0xBA3F]]
+together = "chained"
+why = "Death warp's choices rewrite fp-hot-01's menu routine (player setting, FP-SET-01)."
+
+[[shared]]
+owners = ["series:fp-prog-01", "asnb:sword-cap"]
+ranges = [[1, 0xBEE0, 0xBF4F]]
+together = "chained"
+why = "sword-cap grows fp-prog-01's ResolveProgressive copy (Add L4 Sword; docs/design/asnb.md)."
+
+[[shared]]
+owners = ["series:fp-prog-02", "asnb:sword-cap"]
+ranges = [[4, 0x8CF6, 0x8CFA], [4, 0xB900, 0xB9FF], [5, 0xB854, 0xB858], [5, 0xB88B, 0xB88E], [5, 0xBB00, 0xBBFF]]
+together = "chained"
+why = """sword-cap grows fp-prog-02's two ResolveProgressive copies, which moves the code after them
+and the hooks' call operands (Add L4 Sword; docs/design/asnb.md)."""
+
+[[shared]]
+owners = ["flags2:l4-sword-take", "asnb:l4-sword-look"]
+ranges = [[1, 0xBFC0, 0xBFDF], [7, 0xFF43, 0xFF4F]]
+together = "retired"
+why = "l4-sword-take is retired (docs/design/asnb.md 3a): asm/flags2 still builds it, ZORA never writes it."
+
+[[shared]]
+owners = ["series:fp-book-01", "site:bomb-upgrade-store"]
+ranges = [[7, 0xFFC8, 0xFFCA]]
+together = "chained"
+why = """Under Swords: Wood sword only and Swordless (C07 = 1 and 3) fp-book-01's last byte becomes a NOP,
+and with Book is an Atlas off (B49) the bomb upgrade's STA Items,Y takes its place (zora/rom/sword_states.py)."""
+flags = { z1r = { C07 = 3 } }

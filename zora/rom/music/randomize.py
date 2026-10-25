@@ -21,6 +21,7 @@ from .library import (
     Song,
     library_songs,
     local_library_songs,
+    read_library,
 )
 from .lozft import with_lozft
 from .pin import MusicAssets
@@ -84,7 +85,7 @@ def _library(assets: MusicAssets, options: MusicOptions,
              local_libraries: Sequence[LibraryFile]) -> tuple[list[Song], list[str]]:
     """Every song of the chosen library, unsafe ones included, and its warnings."""
     if options.source is MusicSource.STANDARD:
-        return library_songs(assets.library, safe_only=False), []
+        return read_library(assets.library, safe_only=False)
     if not local_libraries:
         raise MusicError("Random (local library) needs a library: choose your library files")
     songs, warnings = local_library_songs(local_libraries)

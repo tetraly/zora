@@ -42,9 +42,10 @@ AREA_SONGS = {
     DUNGEON: (6, 11, 12, 13, 14, 15, 16, 17),
     TITLE: (7,),
 }
-# The use whose songs an area draws from: its own, but the title screen, which no library tags (the
-# Zelda importer has no such use), draws from the overworld's.
-CANDIDATE_USE = {TITLE: OVERWORLD}
+# The use an area draws from when the library has no song of its own use: the title screen's songs
+# are those tagged Title, else (a library made for the Zelda importer, which has no such use) the
+# overworld's.
+FALLBACK_USE = {TITLE: OVERWORLD}
 
 
 MUSIC_BANK_ROOM = len(MUSIC_BANKS) * (BANK_SIZE - DRIVER_SIZE)     # bytes of modules the banks hold
@@ -60,9 +61,22 @@ class Placed:
     song: Song
 
 
+def area_uses(area: str) -> tuple[str, ...]:
+    """The uses a song can be tagged with to play in an area: its own, then its FALLBACK_USE."""
+    return (area, FALLBACK_USE[area]) if area in FALLBACK_USE else (area,)
+
+
+def area_candidates(songs: list[Song], area: str) -> list[Song]:
+    """The songs an area draws from: those tagged for it, else those of its FALLBACK_USE."""
+    candidates = [song for song in songs if area in song.uses]
+    if not candidates and area in FALLBACK_USE:
+        candidates = [song for song in songs if FALLBACK_USE[area] in song.uses]
+    return candidates
+
+
 def draw_songs(songs: list[Song], rng: Rng, distinct: bool, areas: tuple[str, ...],
                fixed: dict[int, Song] | None = None) -> list[Placed]:
-    """A song for each song number of `areas`, from the songs whose uses include the area. A
+    """A song for each song number of `areas`, from the area's candidates (area_candidates). A
     shuffle of the area's candidates per area; with `distinct`, no song is used twice while unused
     candidates remain (so the overworld, level 9 and each level get their own track when the library
     has enough). An area with no candidate keeps the ROM's song. `fixed` (a playlist's songs, by
@@ -75,8 +89,7 @@ def draw_songs(songs: list[Song], rng: Rng, distinct: bool, areas: tuple[str, ..
                       if number in fixed and area not in areas)
         if area not in areas:
             continue
-        use = CANDIDATE_USE.get(area, area)
-        candidates = [song for song in songs if use in song.uses]
+        candidates = area_candidates(songs, area)
         if not candidates:
             placed.extend(Placed(number, fixed[number]) for number in song_numbers if number in fixed)
             continue

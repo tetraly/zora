@@ -17,11 +17,14 @@ PAGE_SCRIPT = (REPO / "web" / "zora-web.js").read_text()
 WIDGETS_SCRIPT = (REPO / "web" / "widgets.js").read_text()
 PREFIX = "zora-test:"
 PAGE_CONSTANTS = ["CUSTOM_PRESETS_KEY", "CUSTOM_SLOT_COUNT", "PLAYER_NAME_KEY", "THEME_KEY", "TAB_KEY", "NES_PALETTE",
-                  "BLACKER_THAN_BLACK", "EXCLUDED_COLORS", "PLAYER_SETTINGS_KEY", "PLAYER_CHOICES", "PLAYER_COLORS",
+                  "BLACKER_THAN_BLACK", "RANDOM_COLOR", "EXCLUDED_COLORS", "PLAYER_SETTINGS_KEY", "LINK_SPRITE_LINK",
+                  "LINK_SPRITE_SET", "LINK_SPRITE_RANDOM", "LINK_SPRITES", "LINK_SPRITE_SET_KEY", "PLAYER_CHOICES",
+                  "RANDOM_TUNIC_HELP", "PLAYER_COLORS",
                   "COLOR_SLOTS", "MULTIWORLD_CHOICES", "MUSIC_RANDOM_CHOICES", "RANDOM_MUSIC", "MUSIC_CHOICES",
                   "ALL_CHOICES", "COPIED_FROM_REGULAR_KEY"]
-PAGE_FUNCTIONS = ["defaultPlayerSettings", "isPickableColor", "checkedPlayerSettings", "checkedCustomPresets",
-                  "copyRegularChannelSettings", "readCustomPresets", "writeCustomPresets", "loadPlayerSettings"]
+PAGE_FUNCTIONS = ["defaultPlayerSettings", "isPickableColor", "loadLinkSpriteSet", "checkedPlayerSettings",
+                  "checkedCustomPresets", "copyRegularChannelSettings", "readCustomPresets", "writeCustomPresets",
+                  "loadPlayerSettings"]
 WIDGET_CONSTANTS = ["REGULAR_CHANNEL", "TEST_CHANNEL", "TEST_STORAGE_PREFIX"]
 # Saved by an earlier regular page: four preset slots (no ZORA flags in one), a player-settings object
 # with a retired key and a color the page no longer allows, a name, a theme and a tab.
