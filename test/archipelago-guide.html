@@ -272,6 +272,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .step-sub strong { color: var(--ink); }
 .step-note { margin: 6px 0 0; font-size: 14px; color: var(--ink); }
 .step-note:empty { display: none; }
+#rom-remembered .btn { margin-left: 8px; vertical-align: middle; }
 .step-error { margin: 6px 0 0; font-size: 14px; color: var(--error); }
 .step-error:empty { display: none; }
 
@@ -420,6 +421,15 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .color-swatch--excluded { cursor: not-allowed; opacity: .2; }
 .color-swatch--excluded:hover { transform: none; border-color: rgba(255, 255, 255, .15); }
 .color-picker-code { font: 12px 'DM Mono', ui-monospace, monospace; color: var(--muted); min-width: 2.4em; }
+/* Random: a choice under the grid, and a toggle showing "?" over the palette's colors */
+.color-picker-random { display: block; width: 100%; margin-top: 8px; min-height: 32px; }
+.color-picker-random--selected { outline: 2px solid var(--action); outline-offset: 1px; }
+.color-picker-toggle--random {
+  background: conic-gradient(#ec6a64, #d48820, #74c400, #38b4cc, #787cec, #e454ec, #ec6a64);
+  color: #FFFFFF; font-weight: 700; text-shadow: 0 0 3px #000000;
+}
+.link-sprite-control { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.link-sprite-set { flex-basis: 100%; text-align: right; }
 
 /* ---------------------------------------------------------------------------
    Step 3: seed, Generate, status and the result card
@@ -698,6 +708,9 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .setting--wide .setting-control { flex: 1 1 100%; min-width: 0; margin-left: 0; }
 .music-playlist-control { display: block; width: 100%; min-width: 0; }
 .music-library, .music-playlist-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.music-library-notes { flex-basis: 100%; }
+.music-library-notes .setting-reason { margin-left: 0; }
+.music-library-problem { color: var(--error); }
 .music-playlist { display: grid; gap: 6px; margin-top: 10px; }
 .music-playlist-area { display: grid; grid-template-columns: minmax(7em, auto) minmax(0, 1fr); align-items: center; gap: 8px; }
 .music-playlist-area .select { min-width: 0; width: 100%; }
@@ -846,7 +859,7 @@ Install the <code>zora.apworld</code> the game was generated with. Everyone in a
 <p><strong>An item doesn't arrive.</strong><br>
 Items wait for normal play: close the item screen, finish the scroll or the text. The client's log says what it gave. If one still doesn't come, please report it.</p>
 <p><strong>Reporting a problem.</strong><br>
-Ask in the <a href="https://discord.gg/DVyPXcG5v">ZORA Discord</a>. It helps to include:</p>
+Ask in the <a href="https://discord.gg/zescSjDtme">ZORA Discord</a>. It helps to include:</p>
 <ul>
 <li>your YAML and the game's name (<code>AP_&lt;numbers&gt;</code>);</li>
 <li>a screenshot of the BizHawk Client window;</li>
@@ -979,8 +992,9 @@ const VIEWPORT_MARGIN_PX = 8;
 // with the current color opens a panel of every palette entry, 16 per row.
 // excluded maps an index to the tooltip saying why it cannot be picked; such
 // a swatch stays in the grid (aria-disabled, so its tooltip still shows).
+// random, when given, is the value of a "Random" choice under the grid (a color drawn per seed).
 // Returns a function that sets the shown value.
-function initColorPicker(host, { palette, excluded = {}, value, label, onChange }) {
+function initColorPicker(host, { palette, excluded = {}, value, label, onChange, random = null }) {
   const hexCode = (index) => "$" + index.toString(16).toUpperCase().padStart(2, "0");
   const make = (tag, props) => Object.assign(document.createElement(tag), props);
   const picker = make("span", { className: "flag-color-picker" });
@@ -1007,6 +1021,14 @@ function initColorPicker(host, { palette, excluded = {}, value, label, onChange 
   });
   const code = make("span", { className: "color-picker-code" });
   panel.append(grid);
+  let randomButton = null;
+  if (random !== null) {
+    randomButton = make("button", { type: "button", className: "btn btn-tint btn-small color-picker-random",
+                                    textContent: "Random" });
+    randomButton.title = "A color drawn for each seed: the same seed always gives the same color";
+    randomButton.addEventListener("click", () => { show(random); close(); toggle.focus(); onChange(random); });
+    panel.append(randomButton);
+  }
   picker.append(toggle, panel);
   host.append(picker, code);
   const close = initPopover(toggle, panel, picker);
@@ -1019,10 +1041,14 @@ function initColorPicker(host, { palette, excluded = {}, value, label, onChange 
     if (overflow > 0) panel.style.right = `${-overflow}px`;
   });
   function show(index) {
-    toggle.style.background = palette[index];
-    toggle.setAttribute("aria-label", `${label}: ${hexCode(index)}`);
-    code.textContent = hexCode(index);
+    const isRandom = random !== null && index === random;
+    toggle.classList.toggle("color-picker-toggle--random", isRandom);
+    toggle.style.background = isRandom ? "" : palette[index];
+    toggle.textContent = isRandom ? "?" : "";
+    toggle.setAttribute("aria-label", `${label}: ${isRandom ? "Random" : hexCode(index)}`);
+    code.textContent = isRandom ? "Random" : hexCode(index);
     swatches.forEach((swatch, i) => swatch.classList.toggle("color-swatch--selected", i === index));
+    if (randomButton) randomButton.classList.toggle("color-picker-random--selected", isRandom);
   }
   show(value);
   return show;
