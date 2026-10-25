@@ -7,10 +7,17 @@
 BossSoundLabelFlag := $6C7E
 STATUS_BAR_TEMPLATE_END = $28       ; the template's terminator in DynTileBuf
 LABEL_RECORD_SIZE = 13              ; address, count, 9 tiles, terminator
+GANON_SOUND_INDEX = 1               ; boss sound 1, which only level 9's rooms beside Ganon have
 
+; X holds the room's boss sound index (CheckBossSoundEffectUW). Every boss sound still plays, but
+; the label shows only for Ganon's sound (owner, 2026-10-24: a gatekeeper's roar shows no label).
 RequestBossSoundAndLabel:
     STA SampleRequest
+    LDA #$00
+    CPX #GANON_SOUND_INDEX
+    BNE :+
     LDA #$01
+:
     STA BossSoundLabelFlag
     RTS
 

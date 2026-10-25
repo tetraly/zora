@@ -10,12 +10,17 @@ three hearts, so the change is in the cave's take path, not in the item table:
   1. The cave take (`UpdateCavePersonState_TalkOrShopOrDoorCharge`'s @Take, bank 1 $891E, file
      0x0492E), which every shop and item cave runs from bank 1: `JSR TakeItem` ($7370, the RAM
      copy) becomes `JSR TakeCaveItem`.
-  2. TakeCaveItem, 31 bytes in PRG0's unused $FF block after z1rr-coop's $A430-$A449 (bank 1
-     $A450-$A46E, file 0x06460-0x0647E; docs/rom-map.md): it runs TakeItem as before (the lift,
+  2. TakeCaveItem, 31 bytes in PRG0's unused $FF block (bank 1 $A460-$A47E, file
+     0x06470-0x0648E; docs/rom-map.md): it runs TakeItem as before (the lift,
      the tune, the three hearts), then for item $23 sets HeartValues' hearts to its containers and
      HeartPartial full. Any other item returns as before.
 
 Written in every ROM. PRG1 holds the same bytes at both sites.
+
+Not at $A450, where 2.0 beta 9 had it (hotfix, 2026-10-24): randomized music's lozft writes its own
+code over bank 1 $A423-$A456, so with Music on every cave take ran 7 bytes of lozft's and then the
+rest of the routine, and hung or crashed depending on what was in RAM. tests/test_music.py checks
+that lozft's bytes meet no claim of asm/rom_space.toml but the known ones.
 """
 from __future__ import annotations
 
@@ -23,8 +28,8 @@ from .base_rom import original_bytes
 
 CAVE_TAKE_ITEM_CALL = 0x0492E                     # bank 1 $891E: JSR TakeItem
 JSR_TAKE_ITEM = bytes.fromhex("207073")           # JSR $7370
-TAKE_CAVE_ITEM = 0x06460                          # bank 1 $A450, in PRG0's $FF block $A423-$A4FF
-TAKE_CAVE_ITEM_CPU = 0xA450
+TAKE_CAVE_ITEM = 0x06470                          # bank 1 $A460, past lozft's $A423-$A456
+TAKE_CAVE_ITEM_CPU = 0xA460
 FREE_BYTE = 0xFF
 FAIRY_ITEM = 0x23
 HEART_VALUES, HEART_PARTIAL = 0x066F, 0x0670

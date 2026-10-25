@@ -689,8 +689,8 @@ what = "OW-WARP-02's complement of InvTriforce (B07)"
 [[site]]
 name = "fairy-refill"
 bank = 1
-first = 0xA450
-last = 0xA46E
+first = 0xA460
+last = 0xA47E
 source = "zora.rom.fairy_refill:TAKE_CAVE_ITEM"
 what = "TakeCaveItem (every ROM)"
 

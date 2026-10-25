@@ -4,9 +4,11 @@ color and the level label's word may be Random, resolved per seed from the seed 
 (zora/rom/player_settings.py resolved_player_settings). A Random choice writes exactly what the
 choice it resolves to writes, the same seed always gives the same, and generation, the seed's code
 and the encoded level data never change."""
+import re
 from collections import Counter
 from dataclasses import replace
 from functools import cache
+from pathlib import Path
 
 import pytest
 
@@ -24,6 +26,7 @@ from zora.rom.player_settings import (
     RANDOM_COLOR,
     RANDOM_LEVEL_WORD,
     TUNIC_RANDOM_COLORS,
+    PALETTE_SIZE,
     LowHealthBeep,
     PlayerSettingError,
     PlayerSettings,
@@ -47,8 +50,18 @@ def finished(seed: int) -> bytes:
     return generate_rom(CP5, seed, remember_repo_base_rom()).rom
 
 
-def test_the_spec_lists() -> None:
-    assert TUNIC_RANDOM_COLORS == (0x29, 0x32, 0x16, 0x24, 0x31, 0x30, 0x3D, 0x0C, 0x1A, 0x03, 0x17)
+def test_the_lists() -> None:
+    """A tunic's Random: each color the page's palette shows, once (the owner, 2026-10-24: any
+    color, the original tunics' too); the heart's, the spec's seven."""
+    page = (Path(__file__).resolve().parent.parent / "web" / "zora-web.js").read_text()
+    listed = re.search(r"^const NES_PALETTE = \[(.*?)\];", page, re.MULTILINE | re.DOTALL)
+    assert listed
+    palette = re.findall(r'"(#[0-9a-f]{6})"', listed.group(1))
+    assert len(palette) == PALETTE_SIZE
+    looks = {palette[color] for color in range(PALETTE_SIZE)}
+    assert len(TUNIC_RANDOM_COLORS) == len(looks) == 54
+    assert {palette[color] for color in TUNIC_RANDOM_COLORS} == looks          # every look, each once
+    assert {0x29, 0x32, 0x16, 0x0F, 0x30} <= set(TUNIC_RANDOM_COLORS)
     assert HEART_RANDOM_COLORS == (0x29, 0x22, 0x16, 0x0C, 0x1A, 0x03, 0x17)
     assert 0x0D not in TUNIC_RANDOM_COLORS + HEART_RANDOM_COLORS
 

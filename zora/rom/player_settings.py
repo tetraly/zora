@@ -78,9 +78,18 @@ BLACKER_THAN_BLACK = 0x0D
 # A color slot's Random (FP-SET-02, FP-SET-03): one past the palette's last value, so a slot is a
 # number wherever it is kept (the page, a player's YAML, a recipe).
 RANDOM_COLOR = PALETTE_SIZE
-# The values Random draws from, uniformly (the spec's lists): a tunic slot's eleven, of which a
-# later Random slot never repeats an earlier slot's value, fixed or drawn; the heart's seven.
-TUNIC_RANDOM_COLORS = (0x29, 0x32, 0x16, 0x24, 0x31, 0x30, 0x3D, 0x0C, 0x1A, 0x03, 0x17)
+# The palette values that show the same color (the page's NES_PALETTE): the blacks, $0D among them,
+# and the two whites. The game's own black ($0F) and white ($30) stand for them in TUNIC_RANDOM_COLORS.
+PALETTE_BLACKS = (0x0D, 0x0E, 0x0F, 0x1D, 0x1E, 0x1F, 0x2E, 0x2F, 0x3E, 0x3F)
+PALETTE_WHITES = (0x20, 0x30)
+GAME_BLACK, GAME_WHITE = 0x0F, 0x30
+# The values Random draws from, uniformly: a tunic slot's, every color the page's picker offers, each
+# look once (54; the owner, 2026-10-24, replacing FP-SET-02's eleven, so Random can be any color), of
+# which a later Random slot never repeats an earlier slot's value, fixed or drawn; the heart's seven
+# (the spec's list).
+TUNIC_RANDOM_COLORS = tuple(color for color in range(PALETTE_SIZE)
+                            if (color not in PALETTE_BLACKS or color == GAME_BLACK)
+                            and (color not in PALETTE_WHITES or color == GAME_WHITE))
 HEART_RANDOM_COLORS = (0x29, 0x22, 0x16, 0x0C, 0x1A, 0x03, 0x17)
 
 # FP-SET-02: the tunic color of each ring state, in both copies PRG0 reads:

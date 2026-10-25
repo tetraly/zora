@@ -72,10 +72,10 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x1EDA4, bytes.fromhex("a2028e02068e7206ee4f0360")),
     ),
     "fp-roar-01": (
-        (0x065CE, bytes.fromhex("53b9")),
-        (0x15359, bytes.fromhex("4c40b9ea4c49b9eaea")),
-        (0x17950, bytes.fromhex("8d0106a9018d7e6c60a9008d7e6ca9804c806d20506da000a510f007ad7e6cf002a00da200b972b99d"
-                                "2a03c8e8e00dd0f460207609242f15120f0e2f2424ff207609242f1b180a1b2f2424")),
+        (0x065CE, bytes.fromhex("59b9")),
+        (0x15359, bytes.fromhex("4c40b9ea4c4fb9eaea")),
+        (0x17950, bytes.fromhex("8d0106a900e001d002a9018d7e6c60a9008d7e6ca9804c806d20506da000a510f007ad7e6cf002a00d"
+                                "a200b978b99d2a03c8e8e00dd0f460207609242f15120f0e2f2424ff207609242f1b180a1b2f2424")),
     ),
     "fp-hot-01": (
         (0x0B010, bytes.fromhex("298405121d0e161cff298405190a1e1c0effa000ad7a06f002a009a200b900b09d7f6cc8e8e009d0f4"
@@ -187,6 +187,6 @@ SYMBOLS: dict[str, int] = {
     "ZORA_B2_CreditsSecondQuestSkip": 0x0B9B2,
     "ZORA_B2_CreditsTextRows": 0x0B910,
     "ZORA_B2_StartItems": 0x0B710,
-    "ZORA_B5_BossSoundWord": 0x17994,
+    "ZORA_B5_BossSoundWord": 0x1799A,
     "ZORA_B5_OverworldStartY": 0x17AD0,
 }

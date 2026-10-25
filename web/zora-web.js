@@ -695,7 +695,7 @@ const MUSIC_CHOICES = [
 ];
 // The statistics screen is no longer a choice: every ROM has it (owner, 2026-10-17). A saved
 // statisticsScreen value is not loaded (loadPlayerSettings reads only these keys).
-const RANDOM_TUNIC_HELP = "Random: one of eleven colors, picked by the seed number, never a tunic above's color.";
+const RANDOM_TUNIC_HELP = "Random: any of the palette's colors, picked by the seed number, never a tunic above's color.";
 // The color slots, as NES palette indexes, under their headings.
 const PLAYER_COLORS = [
   { heading: "Tunic colors", slots: [

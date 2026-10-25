@@ -511,13 +511,14 @@ BOSS_SOUND_LABEL = tiles(" -ROAR-  ")                  # ZORA's own (the word is
 LABEL_PIXELS = (slice(0, 40), slice(160, 256))           # the label's corner of the frame
 
 
-def _room_labels(features_b10: bool) -> tuple[bytes, bytes, bytes, bytes]:
-    """Level 1's start room given a boss sound: the label on the
+def _room_labels(features_b10: bool, sound: BossSound = BossSound.ROAR_AQUAMENTUS_GLEEOK_GANON
+                 ) -> tuple[bytes, bytes, bytes, bytes]:
+    """Level 1's start room given boss sound SOUND: the label on the
     overworld, in that room and in the room north of it, and the label's
     pixels on the overworld."""
     world = _prg0_world()
     room = next(level for level in world.levels if level.level_num == 1).block.room(LEVEL_1_START_ROOM)
-    room.boss_sound = BossSound.ROAR_AQUAMENTUS_GLEEOK_GANON
+    room.boss_sound = sound
     emu = Emulator(serialize_to_rom(world, vanilla(), config=GameConfig(features_b10=features_b10)))
     emu.new_game()
     emu.run(10)
@@ -541,6 +542,14 @@ def test_boss_sound_room_changes_the_label() -> None:
     assert prg0[:3] == (PRG0_LABEL, PRG0_LABEL, PRG0_LABEL)
     assert zora[:3] == (USUAL_LABEL, BOSS_SOUND_LABEL, USUAL_LABEL)
     assert zora[3] == prg0[3]
+
+
+@pytest.mark.parametrize("sound", [BossSound.ROAR_DODONGO_GOHMA, BossSound.ROAR_DIGDOGGER_MANHANDLA_PATRA])
+def test_only_ganons_sound_changes_the_label(sound: BossSound) -> None:
+    """Owner, 2026-10-24 (seed 555594931's level 4): the label shows only for Ganon's sound 1, which
+    only level 9's rooms beside Ganon have (PS-MONRD-07); a gatekeeper's sound 2 or 3 (Gatekeeper
+    Bosses) still plays, with the usual label."""
+    assert _room_labels(features_b10=True, sound=sound)[:3] == (USUAL_LABEL, USUAL_LABEL, USUAL_LABEL)
 
 
 # --- FP-HOT-01 ----------------------------------------------------------------

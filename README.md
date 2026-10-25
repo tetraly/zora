@@ -56,7 +56,7 @@ you're welcome here.
 
 *It's dangerous to go alone. Take this.*
 
-## Known limitations (2.0 beta 9)
+## Known limitations (2.0 beta 10)
 
 - Some flag values are not made yet: the page shows them grayed out as "Not yet implemented".
 - "Encode level data" is not available in the public build.
