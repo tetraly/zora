@@ -1,0 +1,30 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Ganon",
+  "author": "ZeroMeaning",
+  "provenance": "Drawn by ZeroMeaning for Z1M1 (Ganon, ZeroMeaning.Ganon.LinkAsset.asset at Z1M1's assets commit 20b4c27); ZeroMeaning's permission for use in other projects came through MetalMachine (2026-10-28, docs/permissions.md).",
+  "tiles": "AAcDDx8/Pz8AAAAPHz4yIT8fHx8/f3A4IRAYHyB4cDgAoNDI/Pz6+AAgMDgAAgYG9Pz8xOz0PDiEdCTkHBQ8OAcDHz9/f///AAAfP34OBw9/Px8PDwcHBwMBHwAAAQcHoNDI/Pz6+PIgMDgAAgYGgv7+wsLCgIDA8uLiIkKAgMA9Gxl//Pr4/wQGH3Dj5/d0/89IHD8eHDwfDw8DMBgcPLzYmP4/Xx//IGD4Dsfm7Cj/93/++Dg8APjw4AwYODwAOx8ff/////8AABh//z8fH//vTx8fHgwADw8HABAYDADc+Pj+/////wAAGP7////+//L4+Ph4eDD48MAIGHh4MAADAQ8fPz8/AAAADx8/ODAfHx8f///gcBAYHA/A8OBwANDo5P7+/fwAEBicgAGDf/z44ODc+BweAAAA8CwYHB4bP3fz/3g0EBsMbJ+gx08vPx8QOT9wAAAoHx8nMHAAAOD4vDz+fr4+4MDM3B6e7ub8/Pj+/u5PAETEwIqODg8Ad5/f////fz8AABg/Hx8/Px8PH3//4AAAHw8HQMDgAAC48PD4/Pz9+wAAEPj8/fPnAAAAAAAAAAD///4cGBg8PFvBz/z6+P9/BgcAIycXFR4fDwwePx4cPB8PDwEwGBw8AKDQyP78+vgAIDA4AgIHB/T8/MTs9D4+hvZm5h4WPj6g0Mj//fr48iAwOAMDBweD/v7CwsKDg8Dz4+MjQ4ODwD0bGX/8+vj/BAYfcOPn93zfjdzc/QIcPP/////+fBw8PRsZf/z6+P8EBh9w42c3Pu/G7u5+ADwAf39/f38+PAA9Gxl//Pr/5wQGH3Dj5wAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "recommendedColors": {
+    "tunics": [
+      44,
+      43,
+      39
+    ],
+    "other": [
+      48,
+      22
+    ],
+    "colorOne": "art"
+  },
+  "fromGame": [
+    [
+      432,
+      440
+    ],
+    [
+      622,
+      640
+    ]
+  ]
+}

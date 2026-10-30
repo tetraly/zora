@@ -21,7 +21,7 @@
  },
  "C06": {
   "tab": "Items",
-  "help": "Chooses how widely items are shuffled: not at all, among dungeon items only, within each dungeon, or across dungeons, caves and the overworld together."
+  "help": "Chooses how widely items are shuffled: not at all, among dungeon items only, within each dungeon, across dungeons, caves and the overworld together, or one picked for each seed (Random No Vanilla picks Item Only, Intra-Dungeon or Full, never None)."
  },
  "C07": {
   "tab": "Items",
@@ -78,7 +78,11 @@
  },
  "C20": {
   "tab": "Items",
-  "help": "Sets the fewest hearts the white-sword cave can ask for (4 to 6)."
+  "help": "Sets the fewest hearts the white-sword cave can ask for (4 to 6).",
+  "summaryRange": {
+   "max": "C21",
+   "needs": "B10"
+  }
  },
  "C21": {
   "tab": "Items",
@@ -86,7 +90,11 @@
  },
  "C22": {
   "tab": "Items",
-  "help": "Sets the fewest hearts the magical-sword cave can ask for (10 to 14)."
+  "help": "Sets the fewest hearts the magical-sword cave can ask for (10 to 14).",
+  "summaryRange": {
+   "max": "C23",
+   "needs": "B10"
+  }
  },
  "C23": {
   "tab": "Items",
@@ -94,7 +102,10 @@
  },
  "C24": {
   "tab": "Dungeons",
-  "help": "Sets the fewest Triforce pieces level 9 can ask for when Level 9 Entry is Triforce Range or Specific Triforces (or Random, when it picks one of them). Under any other Level 9 Entry it has no effect."
+  "help": "Sets the fewest Triforce pieces level 9 can ask for when Level 9 Entry is Triforce Range or Specific Triforces (or Random, when it picks one of them). Under any other Level 9 Entry it has no effect.",
+  "summaryRange": {
+   "max": "C25"
+  }
  },
  "C25": {
   "tab": "Dungeons",
@@ -496,5 +507,17 @@
  "B91": {
   "tab": "Dungeons",
   "help": "With it on, generated dungeons can use universal drops; with it off, they don't."
+ },
+ "B92": {
+  "tab": "Dungeons",
+  "help": "With it on, no level holds a map; with it off, the maps are in the levels as usual."
+ },
+ "B93": {
+  "tab": "Dungeons",
+  "help": "With it on, a new game starts with every level's map; with it off, maps are found as usual."
+ },
+ "B94": {
+  "tab": "Dungeons",
+  "help": "With it on, a new game starts with every level's compass; with it off, compasses are found as usual."
  }
 }

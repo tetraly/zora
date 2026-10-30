@@ -25,6 +25,12 @@ PRG1_ONLY_OFFSET = 0x1A2D3
 # Joined at run time: this file is released too, and the scan must not find the mention in it
 PRIVATE_REPO = "-".join(("zora", "private"))
 PLANTED_MENTION = f"built beside {PRIVATE_REPO}"
+# BogieSmalls' project's name in each spelling a file might use (owner, 2026-10-30), joined the same way; and
+# the enemy that shares half of it, which a released file names freely
+GHINI = "Ghini"
+PROJECT_SPELLINGS = (f"Game {GHINI}", f"Game{GHINI}", f"game_{GHINI.lower()}", f"GAME_{GHINI.upper()}",
+                     f"Game-{GHINI}", f"SWAP_GAME_{GHINI.upper()}_FIELDS")
+ENEMY_MENTIONS = (f"the {GHINI} in the graveyard", f"InitArmosOrFlying{GHINI}", f"{GHINI.upper()}_1 = 0x21")
 
 pytestmark = [pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM"),
               # a release leaves out the scan and make_release.py (release/allowlist.txt)
@@ -72,6 +78,20 @@ def test_a_planted_mention_fails(checkout: Path) -> None:
     done = _scan(checkout)
     assert done.returncode == 1
     assert re.search(rf"notes/new\.md:1: the private repo: .*{PRIVATE_REPO}", done.stdout)
+
+
+def test_the_project_name_fails_in_every_spelling(checkout: Path) -> None:
+    (checkout / "notes" / "credits.md").write_text("".join(f"{spelling}\n" for spelling in PROJECT_SPELLINGS))
+    done = _scan(checkout)
+    assert done.returncode == 1
+    for line in range(1, len(PROJECT_SPELLINGS) + 1):
+        assert f"notes/credits.md:{line}: BogieSmalls' project's name" in done.stdout, (line, done.stdout)
+
+
+def test_the_enemy_passes(checkout: Path) -> None:
+    (checkout / "notes" / "enemies.md").write_text("".join(f"{mention}\n" for mention in ENEMY_MENTIONS))
+    done = _scan(checkout)
+    assert done.returncode == 0, done.stdout + done.stderr
 
 
 def test_a_planted_byte_run_fails(checkout: Path) -> None:

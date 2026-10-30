@@ -4,7 +4,7 @@
 [[segment]]
 name = "ZORA_SET_HALF_SPEED_BEEP"
 bank = 0
-start = 0xA040              # bank 0 free space after music off's routine ($A000-$A01C)
+start = 0xA240              # bank 0 free space after music off's routine ($A200-$A21C)
 
 [[hook]]
 name = "heart-warning-start"

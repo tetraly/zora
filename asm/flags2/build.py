@@ -81,6 +81,7 @@ PATCHES = (
     "pegasus-boots",            # Pegasus Boots (ZORA string version 7; owner spec 2026-10-17)
     "ring-color",               # Archipelago ROMs only: a ring given through RAM repaints Link
     "full-health",              # Start With Full Health (credit: ShadowOne333, kalita-kun, gzip)
+    "harder-ganon",             # Harder Ganon (credit: MetalMachine, Z1M1)
 )
 
 # Community members who wrote a feature (the document's credits; docs/credits.md).
@@ -89,6 +90,7 @@ CREDITS = {
     "fast-dungeon-scroll": "fiskbit",
     "recorder-pols-voice": "Stratoform",
     "full-health": "ShadowOne333, kalita-kun and gzip",
+    "harder-ganon": "MetalMachine",
 }
 
 
@@ -116,6 +118,7 @@ FREE_SPACE = {
     "ZORA_F2_BOOTS_ENDING": FreeSpace(2, 0xAF90, 0xAF9F),
     "ZORA_F2_FULL_HEALTH_LOAD": FreeSpace(2, 0xB0E0, 0xB0FF),
     "ZORA_F2_FULL_HEALTH_DEATH": FreeSpace(5, 0xB920, 0xB93F),
+    "ZORA_F2_HARDER_GANON": FreeSpace(4, 0xBB00, 0xBBFF),
 }
 
 

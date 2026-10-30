@@ -28,8 +28,10 @@ rule applies only when its flag is on, so with both off the rules are
 today's.
 """
 from dataclasses import dataclass, field, replace
+from typing import TYPE_CHECKING
 
 from ..flags.fields import WoodenSwordState
+from ..flags.zora_flags import Pacing
 from ..model.enums import Destination, Item, RoomType
 from ..model.level_9_gate import EIGHT_PIECES, TRIFORCE_LEVELS, GateKind, Level9Gate
 from ..model.levels import GANON_LIST, LEVEL_9, ZELDA_LIST, Level
@@ -58,6 +60,9 @@ from .steps.cave_entries import (
     CaveShuffle,
 )
 from .steps.item_shuffle_result import EXTRA_SLOT_CAVES, ItemShuffleResult, TrackedPlace, shop_of_slot
+
+if TYPE_CHECKING:
+    from .steps.extra_pool_items import ExtraPoolItems, PoolPlace
 from .steps.overworld_gates import NO_GATES, OverworldGates
 from .steps.shuffle_shop_items import bomb_shop_door_failure, front_door_failure
 
@@ -91,13 +96,52 @@ ONE_CANDLE = -4                    # a candle count of at least 1
 # wooden-sword cave's sword (always held), the magical-sword cave's while its cave keeps it (reached),
 # and every tracked sword (the white sword, a randomized magical sword, the level-2 sword).
 SWORD_LINE = frozenset({Item.WOOD_SWORD, Item.WHITE_SWORD, Item.MAGICAL_SWORD})
+RING_LINE = frozenset({Item.BLUE_RING, Item.RED_RING})
 SWORDS_FOR_LEVEL_9 = 4
 HELD_FROM_START_SWORDS = 1                 # the wooden-sword cave's (C07 = normal; VA-REJ-07's start)
 # VA-REJ-22: the wooden-sword states under which the wooden sword is held from the start
 WOOD_SWORD_FROM_START = frozenset({WoodenSwordState.NORMAL, WoodenSwordState.WOODEN_SWORD_ONLY})
+# Offense and Defense Item Pacing (docs/zora-extras.md section 22; Z1M1's GameBuilder.cs:2468-2507 and
+# docs/z1m1/pacing.md): how many swords or rings a dungeon needs before its items count. The counts are
+# pseudo-items in the held set, as the line counts are: SWORDS_2 is a sword count of at least 2.
+# "N swords" counts sword items, as Z1M1 does, not tiers: the wooden sword (held from the start) is one.
+SWORDS_1, SWORDS_2 = -6, -7
+RINGS_1, RINGS_2 = -8, -9
+SWORD_COUNTS = (SWORDS_1, SWORDS_2)
+RING_COUNTS = (RINGS_1, RINGS_2)
+PACING_CURVES = {Pacing.EARLIER: 0, Pacing.NORMAL: 1, Pacing.LATER: 2}      # Z1M1's OffenseCurve, DefenseCurve
+
+
+def swords_needed(pacing: Pacing, level: int) -> int:
+    """Z1M1's CreateDungeonDest: 1 sword from level 2c + 1, 2 from level 2c + 5 (c is the curve)."""
+    if pacing is Pacing.OFF:
+        return 0
+    curve = PACING_CURVES[pacing]
+    return (level >= 2 * curve + 1) + (level >= 2 * curve + 5)
+
+
+def rings_needed(pacing: Pacing, level: int) -> int:
+    """Z1M1's CreateDungeonDest: 1 ring from level 2c + 5, 2 from level 2c + 9."""
+    if pacing is Pacing.OFF:
+        return 0
+    curve = PACING_CURVES[pacing]
+    return (level >= 2 * curve + 5) + (level >= 2 * curve + 9)
+
+
 # The vanilla shop ware each line's count may take (PI-LOGIC-01, Shop Items in the Item Pool off).
 LINE_SHOP_WARES = ((ARROW_LINE, Item.WOOD_ARROWS, (ONE_ARROW, TWO_ARROWS)),
                    (CANDLE_LINE, Item.BLUE_CANDLE, (ONE_CANDLE,)))
+
+
+@dataclass(frozen=True)
+class PacingHearts:
+    """Offense Item Pacing's heart model: a sword cave's sword counts only once the heart containers
+    reachable at that point, plus the starting hearts, meet the cave's requirement. The requirements
+    are the highest the draw can give (the sword caves' counts are drawn after the attempt ships, as
+    white_sword_cave_hearts_met judges them), or PRG0's with Change Sword Hearts off."""
+    starting: int
+    white_sword: int
+    magical_sword: int
 
 
 @dataclass(frozen=True)
@@ -139,14 +183,41 @@ class LogicRules:
     # Shuffle Wood Sword (docs/zora-extras.md section 13): the wood sword is a tracked item to
     # collect, no longer held from the start (the sword family still takes it or the wand)
     wood_sword_in_pool: bool = False
+    # Offense and Defense Item Pacing (Pacing): a dungeon's items count only with that many swords or rings held
+    offense_pacing: Pacing = Pacing.OFF
+    defense_pacing: Pacing = Pacing.OFF
+    # Offense Item Pacing only: the hearts a sword cave's sword needs (None: the caves count when reached)
+    pacing_hearts: PacingHearts | None = None
+    # Recorder Warping: a dungeon whose entry door needs the raft is also entered with the recorder, which
+    # warps to its entry door (set only with Recorder to Unbeaten Dungeons and the new entries on)
+    recorder_warps: bool = False
     # Swords (C07; VA-REJ-22): the wooden sword is held from the start only under Normal and Wood
     # Sword Only, and part of the target but under Swordless; under No Wood Sword the white sword
     # brings it; under Swordless with B25 off level 9 needs the wand too, and E6 runs
     wooden_sword_state: WoodenSwordState = WoodenSwordState.NORMAL
+    # Swordlish (features FP-SWL-02, VA-REJ-23; generated as Normal): the wooden sword is held once the walk
+    # holds N pieces (0: off), counting the starting pieces (one bit per level 1-8, FL-ALT-06) and the levels
+    # completed, each level once; or once the white sword is held, as under No Wood Sword
+    swordlish_pieces: int = 0
+    start_triforce_pieces: int = 0
     # Which walk (dungeon_walk.WalkRules): VA-REJ-17/18's in generation (ZORA mode and the
     # original randomizer's validator); the logic walk only for Archipelago's rules and FINISH's
     # sanity check (logic_walk_rules)
     walk: WalkRules = SPEC_WALK
+
+    @property
+    def paces(self) -> bool:
+        return self.offense_pacing is not Pacing.OFF or self.defense_pacing is not Pacing.OFF
+
+    @property
+    def counts_swords(self) -> bool:
+        """The closure tracks the sword records it collects: ASNB's level-9 entrance and Offense Item Pacing."""
+        return self.level_9_by_swords or self.offense_pacing is not Pacing.OFF
+
+    def pacing_needs(self, level: int) -> frozenset[int]:
+        """The count pseudo-items a level's items need (none for a level that asks nothing)."""
+        return frozenset({*SWORD_COUNTS[:swords_needed(self.offense_pacing, level)],
+                          *RING_COUNTS[:rings_needed(self.defense_pacing, level)]})
 
     @property
     def level_9_entry_needs(self) -> frozenset[int]:
@@ -170,7 +241,15 @@ class LogicRules:
     def wood_sword_from_start(self) -> bool:
         """VA-REJ-07 and VA-REJ-22: the closure starts with the wooden sword under Normal and Wood
         Sword Only (unless Shuffle Wood Sword puts it in the pool)."""
+        if self.swordlish_pieces:
+            return self.swordlish_opens(set())         # VA-REJ-23: with N starting pieces or more
         return not self.wood_sword_in_pool and self.wooden_sword_state in WOOD_SWORD_FROM_START
+
+    def swordlish_opens(self, completed: set[int]) -> bool:
+        """VA-REJ-23: the pieces held, the starting pieces and the completed levels 1 to 8 (each level once),
+        are N or more."""
+        starting = {level for level in TRIFORCE_LEVEL_SET if self.start_triforce_pieces >> (level - 1) & 1}
+        return len(starting | (completed & TRIFORCE_LEVEL_SET)) >= self.swordlish_pieces
 
     @property
     def wood_sword_in_target(self) -> bool:
@@ -195,7 +274,10 @@ def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: Overwo
                 eleven_screen_recorder_set: bool = False, important_items_in_level_9: bool = False,
                 maze_hints_need_book: bool = False, wood_sword_in_pool: bool = False,
                 wooden_sword_state: WoodenSwordState = WoodenSwordState.NORMAL,
-                expanded_recorder_set: bool = False) -> LogicRules:
+                expanded_recorder_set: bool = False, offense_pacing: Pacing = Pacing.OFF,
+                defense_pacing: Pacing = Pacing.OFF, recorder_warps: bool = False,
+                pacing_hearts: PacingHearts | None = None, swordlish_pieces: int = 0,
+                start_triforce_pieces: int = 0) -> LogicRules:
     """Plan section 5, the owner's 2.0 overworld gates and ASNB's level-9 entrance: each rule only
     when its flag is on. Every overworld quest but the first (C01 = 1, 2, 3) reads the
     eleven-screen recorder set (OW-MIX-08, OW-QST-02, OW-QST-04: an entry door or the white-sword
@@ -215,8 +297,15 @@ def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: Overwo
     if expanded_recorder_set:
         rules = replace(rules, screen_needs=tuple((EXPANDED_RECORDER_SCREENS if screens == RECORDER_SCREENS
                                                    else screens, need) for screens, need in rules.screen_needs))
-    if level_9_by_swords:
-        rules = replace(rules, level_9_by_swords=True, magical_sword_cave_counts=magical_sword_cave_counts)
+    if level_9_by_swords or offense_pacing is not Pacing.OFF:
+        rules = replace(rules, level_9_by_swords=level_9_by_swords, magical_sword_cave_counts=magical_sword_cave_counts)
+    if offense_pacing is not Pacing.OFF or defense_pacing is not Pacing.OFF:
+        rules = replace(rules, offense_pacing=offense_pacing, defense_pacing=defense_pacing,
+                        pacing_hearts=pacing_hearts if offense_pacing is not Pacing.OFF else None)
+    if recorder_warps:
+        rules = replace(rules, recorder_warps=True)
+    if swordlish_pieces:
+        rules = replace(rules, swordlish_pieces=swordlish_pieces, start_triforce_pieces=start_triforce_pieces)
     if gates.any:
         rules = replace(rules, screen_needs=(*rules.screen_needs, *gates.screen_needs()),
                         maze_hints=gates.maze_hints(), front_door_barred=gates.gated_screens(),
@@ -235,6 +324,41 @@ def logic_rules(progressive_items: bool, shop_items_in_pool: bool, gates: Overwo
                         family_lists=_family(rules.family_lists, "bow", frozenset({Item.BOW, ONE_ARROW})),
                         screen_needs=(*rules.screen_needs, (BURNABLE_SCREENS, ONE_CANDLE)))
     return rules
+
+
+class _ClosureReach:
+    """HeartReach by the closure's own predicates, for a held set (AcceptanceCheck.hearts_held)."""
+
+    def __init__(self, check: "AcceptanceCheck", held: frozenset[int]) -> None:
+        self.check, self.held = check, held
+
+    def reaches(self, place: "PoolPlace") -> bool:
+        from .steps.extra_pool_items import (
+            CaveSlotPlace,
+            ExtraSlotPlace,
+            ItemCellarPlace,
+            LevelRoomPlace,
+            ShopWarePlace,
+            is_extra_slot_collected,
+        )
+        check, held = self.check, self.held
+        if isinstance(place, LevelRoomPlace):
+            return check.can_enter(place.level.level_num, held) and check.can_reach_room(
+                place.level.level_num, place.room.room_num, held)
+        if isinstance(place, ItemCellarPlace):
+            return check.can_enter(place.level.level_num, held) and check.reaches_cellar(
+                place.level.level_num, place.cellar.room_num, held)
+        if isinstance(place, CaveSlotPlace):
+            if place.slot == "armos":
+                return True
+            if place.slot == "coast":
+                return Item.LADDER in held
+            return check.reaches_cave(Destination.WHITE_SWORD_CAVE, held)
+        if isinstance(place, ShopWarePlace):
+            return check.shop_door_reached(place.shop.destination, held)
+        if isinstance(place, ExtraSlotPlace):
+            return is_extra_slot_collected(place.slot, check.caves, held, check.rules)
+        raise TypeError(place)
 
 
 def logic_walk_rules(rules: LogicRules) -> LogicRules:
@@ -258,6 +382,8 @@ class AcceptanceCheck:
     # Items held from the start besides the wooden sword: none in ZORA. Archipelago's FINISH grants
     # the items this player receives from other worlds (docs/archipelago.md, R4's second walk).
     granted: frozenset[int] = frozenset()
+    # The ZORA extras' caves and joined shop wares, which Offense Item Pacing's heart count reads
+    extras: "ExtraPoolItems | None" = None
     _walks: dict[tuple[int, int | None, frozenset[int]], Walk] = field(default_factory=dict)
 
     def _level(self, level_num: int) -> Level:
@@ -288,6 +414,11 @@ class AcceptanceCheck:
         """VA-REJ-07 (i), VA-REJ-08: the level's entry door is reached (level 9: and the long
         items held, and level-9 entry: the eight triforces, or with ASNB four swords)."""
         needs = self.rules.needs(self.caves.entry_door(level))
+        if not self.meets_pacing(level, held):
+            return False
+        if self.rules.recorder_warps and level != LEVEL_9 and Item.RAFT in needs and Item.RAFT not in held:
+            # Recorder Warping: the recorder takes Link to the entry door, raft or none
+            needs = (needs - {Item.RAFT}) | {Item.RECORDER}
         if level == LEVEL_9:
             # Bug fix (owner decision 2026-10-08, beta 2): a level-9 item is collected only once
             # level 9 can be entered. VA-REJ-07 asked level-9 entry only as E1's target, so an
@@ -297,6 +428,10 @@ class AcceptanceCheck:
             # level 9's own door needs already.
             needs |= self.rules.level_9_entry_needs
         return needs <= held
+
+    def meets_pacing(self, level: int, held: frozenset[int]) -> bool:
+        """Offense and Defense Item Pacing: the sword and ring counts the level asks for are held."""
+        return self.rules.pacing_needs(level) <= held
 
     def can_reach_room(self, level: int, room: int, held: frozenset[int]) -> bool:
         """VA-REJ-07 (ii)-(iv) for a target room. The logic walk judges arrival on the walk
@@ -355,7 +490,8 @@ class AcceptanceCheck:
         """The same check under other rules (itself when they are its own, keeping its walks)."""
         if rules == self.rules:
             return self
-        return AcceptanceCheck(self.levels, self.item_shuffle_result, self.overworld, self.caves, rules, self.granted)
+        return AcceptanceCheck(self.levels, self.item_shuffle_result, self.overworld, self.caves, rules, self.granted,
+                               self.extras)
 
     def reaches_cave(self, cave: Destination, held: frozenset[int]) -> bool:
         """A one-item cave (the white-sword cave, a ZORA extra's): its first screen's needs are
@@ -425,9 +561,12 @@ class AcceptanceCheck:
             changed = False
             if brought_by_white_sword and Item.WHITE_SWORD in held and Item.WOOD_SWORD not in held:
                 held.add(Item.WOOD_SWORD)        # VA-REJ-22: No Wood Sword's first sword is the white
+            if self.rules.swordlish_pieces and Item.WOOD_SWORD not in held and (
+                    Item.WHITE_SWORD in held or self.rules.swordlish_opens(completed)):
+                held.add(Item.WOOD_SWORD)        # VA-REJ-23: N pieces held, or the white sword
             frozen = frozenset(held)
             for index, place in enumerate(tracked):
-                if self.rules.level_9_by_swords and place.item in SWORD_LINE:
+                if self.rules.counts_swords and place.item in SWORD_LINE:
                     if index not in swords and self.collects(place, frozen):
                         swords.add(index)
                         held.add(place.item)
@@ -468,7 +607,58 @@ class AcceptanceCheck:
                 counts = self.line_counts(frozenset(held))
                 changed |= not counts <= held
                 held |= counts
+            if self.rules.paces:
+                counts = self.pacing_counts(swords, frozenset(held))
+                changed |= not counts <= held
+                held |= counts
         return held, completed
+
+    def pacing_counts(self, swords: set[int], held: frozenset[int]) -> set[int]:
+        """Offense and Defense Item Pacing: the sword and ring count pseudo-items a held set gives. The
+        swords are sword_count's (items, not tiers); the rings the held ring items plus (Shop Items in the
+        Item Pool off) the vanilla blue ring ware once a door of its shop is reached, as line_counts
+        counts a line. Rupees are not modeled."""
+        rings = len(held & RING_LINE)
+        if self.rules.counts_shop_wares and self.ware_door_reached(Item.BLUE_RING, held):
+            rings += 1
+        return {*SWORD_COUNTS[:self.pacing_sword_count(swords, held)], *RING_COUNTS[:rings]}
+
+    def pacing_sword_count(self, swords: set[int], held: frozenset[int]) -> int:
+        """sword_count with Offense Item Pacing's heart model (rules.pacing_hearts): a sword that lies in a
+        sword cave counts only once the hearts held (the starting hearts, the heart containers reachable with
+        `held` and the take-any allowance, as the heart check counts them) meet the cave's requirement.
+        Without the model, sword_count itself."""
+        model = self.rules.pacing_hearts
+        if model is None:
+            return self.sword_count(swords, held)
+        from .steps.item_shuffle_result import MAGICAL_SWORD_SLOT
+        from .steps.randomize_magical_sword import WHITE_SWORD_SLOT
+        hearts = self.hearts_held(held, model)
+        requirements = {WHITE_SWORD_SLOT: model.white_sword, MAGICAL_SWORD_SLOT: model.magical_sword}
+        counted = sum(hearts >= requirements.get(self.item_shuffle_result.tracked[index].slot or "", 0)
+                      for index in swords)
+        cave = (self.rules.magical_sword_cave_counts and self.reaches_cave(Destination.MAGICAL_SWORD_CAVE, held)
+                and hearts >= model.magical_sword)
+        from_start = 0 if self.rules.wood_sword_in_pool else HELD_FROM_START_SWORDS
+        return from_start + counted + cave + len(self.granted & SWORD_LINE)
+
+    def hearts_held(self, held: frozenset[int], model: PacingHearts) -> int:
+        """The hearts a player has with `held`: the starting hearts, the take-any caves' allowance and the
+        heart containers of the pool's places reached (check_magical_sword_hearts' count, with the
+        closure's own reach); the white-sword cave's own container counts once the others meet its requirement."""
+        from .steps.extra_pool_items import ExtraPoolItems
+        from .steps.randomize_magical_sword import (
+            count_reachable_heart_containers,
+            heart_container_places,
+            reachable_take_any_hearts,
+            take_any_heart_allowance,
+        )
+        extras = self.extras if self.extras is not None else ExtraPoolItems()
+        take_any = take_any_heart_allowance(reachable_take_any_hearts(self.overworld, held, self.rules))
+        places = heart_container_places(self.levels, self.item_shuffle_result, extras)
+        reachable = count_reachable_heart_containers(places, _ClosureReach(self, held), model.starting + take_any,
+                                                     model.white_sword)
+        return model.starting + take_any + reachable
 
     def holds_gate_item(self, held: frozenset[int]) -> bool:
         """FP-TRIF-06: the item level 9's entrance asks for is held. A sword, a candle or an arrow is
@@ -531,14 +721,14 @@ class AcceptanceCheck:
 
 def acceptance_check(levels: list[Level], item_shuffle_result: ItemShuffleResult, overworld: Overworld,
                      caves: CaveShuffle, rules: LogicRules = DEFAULT_RULES,
-                     granted: frozenset[int] = frozenset()) -> str | None:
+                     granted: frozenset[int] = frozenset(), extras: "ExtraPoolItems | None" = None) -> str | None:
     """VA-REJ-12: E1, E3, ZORA's E10, E4, E5, under Swordless E6 (VA-REJ-22), and, last, E9 (VA-REJ-21)
     in order;
     the first failure's label,
     or None when the pass is accepted. levels: the pass's nine staged levels.
     E4/E5 are skipped under Shop Items in the Item Pool (PI-LOGIC-05).
     granted: items held from the start (AcceptanceCheck.granted; none in ZORA)."""
-    checks = AcceptanceCheck(levels, item_shuffle_result, overworld, caves, rules, granted)
+    checks = AcceptanceCheck(levels, item_shuffle_result, overworld, caves, rules, granted, extras)
     if not checks.collects_everything():
         return "E1"
     if not checks.is_zelda_reachable():

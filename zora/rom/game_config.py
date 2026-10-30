@@ -72,6 +72,9 @@ class GameConfig:
     # Book to Understand NPCs (B48; HT-BOOK-01): on writes ht-book-01, so a person shows text 0
     # unless Link holds the Book. Off leaves the patch out.
     book_to_understand_npcs: bool = False
+    # Hint style Blank (C03 = 5; HT-HINT-07): writes ht-hint-07, so the empty texts draw no tile.
+    # Omitted at its default, so every other seed keeps its code (FP-HASH-01).
+    blank_hints: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     # The ZORA flags Progressive Items and Shop Items in the Item Pool (PI-CODE-01): they
     # choose which of fp-prog-01 / fp-prog-02 are written, and fp-prog-01's on/off byte.
     progressive_items: bool = False
@@ -128,10 +131,18 @@ class GameConfig:
     hidden_numbers: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     rupees_affect_speed: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     prevent_clipping: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Harder Bosses and Harder Ganon (ZORA version 14; zora/rom/harder_bosses.py): 0 is off, 1 to 3 the level.
+    # Omitted from the seed's code while off.
+    harder_bosses: int = field(default=0, metadata=OMITTED_AT_DEFAULT)
+    harder_ganon: int = field(default=0, metadata=OMITTED_AT_DEFAULT)
     # Change Hidden OW Tiles (B89, FP-VIS-01; zora/rom/hidden_tiles.py), and whether its step 3 runs
     # (the resolved overworld quest is the first or the second, C01 = 0 or 1)
     change_hidden_tiles: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     plain_dead_secrets: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Mirror Overworld (B06, OW-MIR-01): the overworld flipped left to right. FINISH flips the model's
+    # (pipeline.written_world) and the writer the rest, by the world's own
+    # overworld_mirrored (zora/rom/mirror_overworld.py); kept here, where the seed's code reads it
+    mirror_overworld: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     # Item and Sprite Appearance (C15 resolved to 1 or 2, FP-SPRITE-01; zora/rom/item_sprites.py) and
     # its own stream's key (pipeline.item_sprites_key); 0 and None with it at normal
     item_appearance: int = field(default=0, metadata=OMITTED_AT_DEFAULT)

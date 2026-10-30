@@ -205,10 +205,11 @@ WRITABLE_CHANGED = (
 #   (small_settings.RUPEE_BOOTS_CALLED; without the boots the word there is RAM's $066D or free
 #   space).
 # tests/test_revision.py scans every patch for other operands.
+MUSIC_OFF_AUDIO_CALL = 0x02228       # the JSR's operand in Music: Off's routine at bank 0's $A200
 PEGASUS_BOOTS_SPEED_CALL = 0x17377
 SLOW_SPEED_BOOTS_CALL = 0x17D11
 RUPEE_SPEED_BOOTS_CALL = 0x1791B
-MOVED_POINTERS = (0x02028, TRANSFER_BUF_ADDRS_SELECT_SWAP, PEGASUS_BOOTS_SPEED_CALL, SLOW_SPEED_BOOTS_CALL,
+MOVED_POINTERS = (MUSIC_OFF_AUDIO_CALL, TRANSFER_BUF_ADDRS_SELECT_SWAP, PEGASUS_BOOTS_SPEED_CALL, SLOW_SPEED_BOOTS_CALL,
                   RUPEE_SPEED_BOOTS_CALL)
 
 # The title screen (GameTitleTransferBuf; FP-TITLE-01's rows): PRG1 draws its "TM" glyph

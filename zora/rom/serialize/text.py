@@ -28,6 +28,7 @@ from ..text_encoding import (
     QUOTE_END_BITS,
     QUOTE_LINE1_BIT,
     QUOTE_LINE2_BIT,
+    closed_line,
 )
 from .patch import Patch, log
 
@@ -50,7 +51,8 @@ def _center_line(line: str) -> list[int]:
     result = [_QUOTE_PAD_BYTE] * left_padding
     for char in line:
         result.append(_CHAR_TO_BYTE.get(char.upper(), _QUOTE_PAD_BYTE))
-    return result
+    # A character the font lacks is written as the pad tile: never as the line's last tile.
+    return closed_line(result)
 
 
 def _encode_quote(text: str, center: bool = False) -> list[int]:
@@ -61,24 +63,21 @@ def _encode_quote(text: str, center: bool = False) -> list[int]:
     (COMMUNITY / HELPFUL modes). Leave False for vanilla text, which already
     has its own hand-crafted spacing.
     """
-    if not text:
+    # A blank line writes no tiles, so it is left out and the marks go by the lines written: counted
+    # by the text's own lines, a blank first line gave the next one line 2's mark (drawn a row low),
+    # and an empty middle line put its mark on the line before, the two marks making the end mark.
+    lines = [line for line in text.split("|") if (line.strip() if center else line)]
+    if not lines:
         return [QUOTE_EMPTY]
-    lines = text.split("|")
     result: list[int] = []
-    for line_idx, line in enumerate(lines):
+    for position, line in enumerate(lines):
         if center:
-            if not line.strip():
-                continue
             result.extend(_center_line(line))
         else:
-            result.extend(_CHAR_TO_BYTE.get(char.upper(), _QUOTE_PAD_BYTE) for char in line)
-        if result and line_idx < len(lines) - 1:
-            if line_idx == 0:
-                result[-1] |= QUOTE_LINE1_BIT
-            elif line_idx == 1:
-                result[-1] |= QUOTE_LINE2_BIT
-    if result:
-        result[-1] |= QUOTE_END_BITS
+            result.extend(closed_line([_CHAR_TO_BYTE.get(char.upper(), _QUOTE_PAD_BYTE) for char in line]))
+        if position < len(lines) - 1:
+            result[-1] |= QUOTE_LINE1_BIT if position == 0 else QUOTE_LINE2_BIT
+    result[-1] |= QUOTE_END_BITS
     return result
 
 

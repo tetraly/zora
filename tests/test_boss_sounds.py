@@ -5,9 +5,7 @@ beside a moved boss when the late gate is skipped (VA-REJ-02); the finished ROM 
 import pytest
 
 from tests.needs import needs_base_rom, needs_encoder
-from zora.flags.zora_flags import GatekeeperBosses, ZoraFlags, encode
-from zora.generate.boss_sounds import (GANON_NEIGHBOR_SOUND, GATEKEEPER_SOUNDS, boss_sound_problems,
-                                       check_boss_sounds)
+from zora.generate.boss_sounds import boss_sound_problems, check_boss_sounds
 from zora.generate.pipeline import build, finish, plan
 from zora.model import room_grid
 from zora.model.enums import BossSound, Enemy, Item, RoomAction, Side
@@ -27,11 +25,16 @@ MAP_MOVE_FLAGS, MAP_MOVE_SEED, MAP_MOVE_PHANTOM_ROOM = "8hq4BeR1JXo89BJ2!TFpTP02
 # $3C) and level 9's $43 (beside Ganon's $42)
 NO_GATE_FLAGS, NO_GATE_ZORA_FLAGS, NO_GATE_SEED = "HOex8H7vIa1XhP3Ix!9gqr6n8aBeih", "3.6!CBH", 15030716473229726510
 NO_GATE_STRAYS = ((8, 0x3B), (8, 0x3D), (9, 0x43))
-# The second player report (beta 9): Gatekeeper Bosses at Anywhere; level 4's Patra gatekeeper in $19,
-# three rooms from its entrance, roars in $09, $18, $1A and $29 with its own sound 3, and the -ROAR-
-# label showed there (FP-ROAR-01; the label is Ganon's sound 1 alone, owner ruling 2026-10-24)
+# The second player report (beta 9): Gatekeeper Bosses at Anywhere; level 4's Patra gatekeeper in $19 had its
+# neighbours roar with its own sound 3, and the -ROAR- label showed there (FP-ROAR-01; the label is Ganon's
+# sound 1 alone, ruling of 2026-10-24). Gatekeeper Bosses is retired (2026-10-29): the string builds without it.
 LABEL_FLAGS, LABEL_ZORA_FLAGS, LABEL_SEED = "GmCbTYod5zhctry3rLc3dnV8pI4XyIev4e7sx", "13.9APWzUqn", 555594931
-LABEL_GATEKEEPER_ROOM, LABEL_GATEKEEPER_ROARS = 0x19, {0x09, 0x18, 0x1A, 0x29}
+LABEL_SEEDS = 5
+# The third player report (beta 10, f1e6636, race ROM; docs/reports/bugs-2809934285.md): rooms beside the
+# Patra and Dodongo gatekeepers roared in levels 1-8, among them level 8's grid room $51 beside the Triple
+# Dodongo gatekeeper in $52, which the players took for bugs. Gatekeeper Bosses is retired (2026-10-29), so
+# the string builds without gatekeepers; the test checks the silence, not those rooms.
+SILENT_FLAGS, SILENT_ZORA_FLAGS, SILENT_SEED = "143oNtDD5PnY96Ucd3gJKWt7uxCXDJqvd2pAYZ", "12.2820FQxB", 2809934285
 # PS-MONRD-07's Check string where the late gate does not run (C14 = 0, C02 = 0, B32 and B33 on)
 REFERENCE_NO_GATE_FLAGS = "8hq4BeQou4cxYVgPqbtlBZYk41PJ07"
 
@@ -106,43 +109,19 @@ def test_the_check_rejects_any_other_boss_sound() -> None:
 
 
 @needs_base_rom
-@pytest.mark.parametrize("seed", [1, 2, 3])
-def test_a_gatekeepers_neighbours_roar_with_its_own_sound(seed: int) -> None:
-    """Gatekeeper Bosses (owner decision 8, docs/zora-extras.md section 19): in levels 1-8 the rooms
-    beside each gatekeeper roar with its boss's own sound, never Ganon's sound 1 (Aquamentus and Gleeok,
-    whose own sound it is, and Moldorm and Lanmola stay silent); level 9 still roars only beside Ganon."""
-    gatekeepers = encode(ZoraFlags(gatekeeper_bosses=GatekeeperBosses.ANYWHERE))
-    gw = built_world(MAP_MOVE_FLAGS, seed, gatekeepers)
-    assert not boss_sound_problems(gw)
-    for level in gw.levels[:8]:
-        gatekeeper = level.gatekeeper_room
-        assert gatekeeper is not None
-        boss = level.block.room(gatekeeper).enemy
-        beside = {number for side in Side if (number := room_grid.neighbor(gatekeeper, side)) in level.room_nums}
-        sound = GATEKEEPER_SOUNDS.get(boss, BossSound.NONE)
-        assert sound != BossSound.ROAR_AQUAMENTUS_GLEEOK_GANON
-        assert {room.room_num: room.boss_sound for room in level.rooms if room.boss_sound != BossSound.NONE} == (
-            dict.fromkeys(beside, sound) if sound != BossSound.NONE else {})
-        assert level.boss_room == gatekeeper
+@needs_encoder
+def test_the_third_players_seed_roars_only_beside_ganon() -> None:
+    gw = built_world(SILENT_FLAGS, SILENT_SEED, SILENT_ZORA_FLAGS)
+    assert not any(roaring_rooms(level) for level in gw.levels[:8])
     assert roaring_rooms(gw.levels[8]) == ganon_neighbors(gw.levels[8])
-
-
-def test_no_gatekeeper_takes_ganons_sound() -> None:
-    """fp-roar-01 shows the -ROAR- label for sound 1 alone, which must stay level 9's beside Ganon:
-    a gatekeeper whose boss has Ganon's sound (Aquamentus, Gleeok) stays silent. The end pass's
-    own check reads this table, so it would not catch a sound 1 added here."""
-    assert GANON_NEIGHBOR_SOUND not in GATEKEEPER_SOUNDS.values()
 
 
 @needs_base_rom
 def test_the_label_players_seed_has_ganons_sound_only_beside_ganon() -> None:
-    """Seed 555594931 (player report, beta 9): level 4's gatekeeper roars with sound 3 beside it,
-    and sound 1, the one the -ROAR- label shows for, is only in level 9's rooms beside Ganon."""
-    gw = built_world(LABEL_FLAGS, LABEL_SEED, LABEL_ZORA_FLAGS)
-    level_4 = gw.levels[3]
-    assert level_4.boss_room == LABEL_GATEKEEPER_ROOM and roaring_rooms(level_4) == LABEL_GATEKEEPER_ROARS
-    assert {level_4.block.room(number).boss_sound for number in LABEL_GATEKEEPER_ROARS} == {
-        BossSound.ROAR_DIGDOGGER_MANHANDLA_PATRA}
-    for level in gw.levels:
-        ganons_sound = {room.room_num for room in level.rooms if room.boss_sound == GANON_NEIGHBOR_SOUND}
-        assert ganons_sound == (ganon_neighbors(level) if level.level_num == 9 else set()), level.level_num
+    """The report's seed and the next ones, with its settings: sound 1, the one the -ROAR- label shows for,
+    is only in level 9's rooms beside Ganon, and no room of levels 1-8 roars (its string has Gatekeeper
+    Bosses on, retired since 2026-10-29 and ignored)."""
+    for seed in range(LABEL_SEED, LABEL_SEED + LABEL_SEEDS):
+        gw = built_world(LABEL_FLAGS, seed, LABEL_ZORA_FLAGS)
+        assert not any(roaring_rooms(level) for level in gw.levels[:8]), seed
+        assert roaring_rooms(gw.levels[8]) == ganon_neighbors(gw.levels[8]), seed

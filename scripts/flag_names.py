@@ -76,7 +76,8 @@ WHAT_IT_DOES = {
     "C05": "Chooses which entrances lead somewhere new: none, only the dungeon doors, only the other "
            "caves, all of them, or one picked for each seed.",
     "C06": "Chooses how widely items are shuffled: not at all, among dungeon items only, within each "
-           "dungeon, or across dungeons, caves and the overworld together.",
+           "dungeon, across dungeons, caves and the overworld together, or one picked for each seed (Random No "
+           "Vanilla picks Item Only, Intra-Dungeon or Full, never None).",
     "C07": "Chooses how the wooden sword works: as usual, as the only sword, never given, no swords at "
            "all, or one picked for each seed.",
     "C08": "Chooses what opens level 9: 1 to 8 Triforce pieces, nothing (it is open), a random count in "
@@ -207,6 +208,9 @@ WHAT_IT_DOES = {
     "B89": "With it on, the hidden tiles on the overworld change; with it off, they are as usual.",
     "B90": "With it on, the bomb upgrade adds more bombs; with it off, it adds the usual number.",
     "B91": "With it on, generated dungeons can use universal drops; with it off, they don't.",
+    "B92": "With it on, no dungeon room holds a map; with it off, the maps stay.",
+    "B93": "With it on, the player starts with every level's map; with it off, maps are found as usual.",
+    "B94": "With it on, the player starts with every level's compass; with it off, compasses are found as usual.",
 }
 # The starting-item fields (FL-ENC-05 B57 to B78 and B85), whose sentences share one form.
 _START_ITEMS = {

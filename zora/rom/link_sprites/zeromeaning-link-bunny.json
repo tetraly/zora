@@ -1,0 +1,20 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Link (Bunny)",
+  "author": "ZeroMeaning",
+  "provenance": "Drawn by ZeroMeaning for Z1M1 (Link (Bunny), ZeroMeaning.Link_Bunny_.LinkAsset.asset at Z1M1's assets commit 20b4c27); ZeroMeaning's permission for use in other projects came through MetalMachine (2026-10-28, docs/permissions.md).",
+  "tiles": "AAQeJwMHBQkAGCAAAAACBg8PBwcbHB8OAAAABw4fBwAAAAAAAMDglAAAAAAAAABktPzk/OTk/BBkBBTkBBT0AAgeEwMHBQkPBgEAAAACBgAPBwcPBxkPAwAABwwODgcAAAAAAMDgkrIAAAAAAABiYvrm/mLiguDAAhLi4nJy4AAQPiYHDg8ZGwwAAAABAAYGDy4/DwQYHwwAFQ8PDwcDAAh8ZOBw8JjYMAAAAIAAYGDwcPz8zDjwAACo+PDw+MAAGDwkBw8OHh8EAgIAAAEBAA8vPw8HDB8MABAODw8DAQAgeGTgcBAYOBgEAACA4ODA8PDw/PzI8AAAADjw8DgwAAAAAw8xAQIDAAAMEAAAAQADAQMPDR4fDgAAAwcPDwMAAADg4PB4bOwAAIBAAICQGP74vPzwAPwOAPxAgPj4+AAAHj9//P57OwYRNHzrycR2Hw4HBBg/AAA4HQcPDwcAAAAEHvI4eNzcABggAMCAIGD4ePj4bPzeABigwIicEAAAAAg8Tx58fn8AMEAAAQMBIF8/Hwc4f3cAIBwfHx8eBgBA8MjgIDBw4TAIAADAwIED4/fv3gzw/DwHf//+/HhgAAAQPiYODxtZAAwAAAEABobfbj8HCwwfDDATCQ4PFwMAAAAAAAbG5JQAAAAABgYGZrT85Pzk5P4WZgYW5gYW9gYAAAADw+KSsgAAAAMDA2Nj+ub+YuKD48ADE+Pjc3PjABA+JgcODxkbDAAAAAEABgZ/3o3d3PwDDHz//////38AED4mBw4PGRsMAAAAAQAGBj9vRm5ufgEAPn9/f39/PwAQPiYHDg//5wwAAAABAP//54GB5+fnfzz///////9/PA==",
+  "recommendedColors": {
+    "tunics": [
+      37,
+      37,
+      37
+    ],
+    "other": [
+      52,
+      26
+    ],
+    "colorOne": "art"
+  }
+}

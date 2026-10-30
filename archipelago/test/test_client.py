@@ -4,6 +4,7 @@ still holds what the read saw). ZORA's own tests cover client_step itself; these
 wrapper adds: the reads, the reports, the writes through guarded_write, the memory kept only on a
 landed write, and never stopping on an error."""
 import asyncio
+import sys
 import types
 import unittest
 from collections.abc import Callable
@@ -51,8 +52,15 @@ class Console:
         self.ram = ram
         self.between: Callable[[list[int]], Any] | None = None
         self.writes = self.refused = 0
+        self.errors: list[Exception | None] = []    # for the next requests, one each (None: no error)
+
+    def error(self) -> None:
+        error = self.errors.pop(0) if self.errors else None
+        if error is not None:
+            raise error
 
     async def read(self, _ctx: Any, reads: list[tuple[int, int, str]]) -> list[bytes]:
+        self.error()
         data = [bytes(self.ram[address:address + length]) for address, length, _domain in reads]
         if self.between is not None:
             self.between(self.ram)
@@ -61,6 +69,7 @@ class Console:
 
     async def guarded_write(self, _ctx: Any, writes: list[tuple[int, list[int], str]],
                             guards: list[tuple[int, list[int], str]]) -> bool:
+        self.error()
         if any(self.ram[address:address + len(values)] != list(values) for address, values, _domain in guards):
             self.refused += 1
             return False
@@ -157,6 +166,32 @@ class TestClient(unittest.TestCase):
             self.tick(2)
         self.tick(3)
         self.assertEqual(self.console.ram[RAFT], 1)
+
+    def test_a_connector_error_skips_the_tick(self) -> None:
+        """z1rr-coop's console bridge answers ERROR while the console can't be read: as Archipelago's
+        send_requests raises it (an ExceptionGroup on Python 3.11+), on a read and on a write."""
+        from worlds._bizhawk import ConnectorError
+
+        def raised(message: str) -> Exception:
+            error = ConnectorError(message)
+            return ExceptionGroup("Connector script returned errors", [error]) if sys.version_info >= (3, 11) else error
+
+        self.ctx.items_received.append(NetworkItem(ITEM_NAME_TO_ID["Raft"], -2, SLOT))
+        self.console.errors = [raised("EverDrive did not answer"), raised("EverDrive did not answer")]
+        with self.assertLogs("Client", "INFO") as logged:
+            self.tick(2)
+        self.assertEqual(len(logged.records), 1)                # the same message, logged once
+        self.assertEqual((self.console.writes, self.console.ram[RAFT]), (0, 0))
+        self.console.errors = [None, raised("no answer to a guarded write")]
+        self.tick()                                             # read works, the write errs
+        self.assertEqual(self.console.writes, 0)
+        self.tick(4)
+        self.assertEqual((self.console.writes, self.console.ram[RAFT]), (1, 1))
+
+    def test_other_errors_still_stop_the_tick(self) -> None:
+        self.console.errors = [ValueError("not the connector")]
+        with self.assertRaises(ValueError):
+            self.tick()
 
     def test_an_upgrade_is_given_as_its_line_s_next_level(self) -> None:
         self.ctx.slot_data = {"client_tables": {**TABLES, "rules": {**TABLES["rules"], "progressiveItems": True}}}

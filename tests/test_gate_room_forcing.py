@@ -18,6 +18,7 @@ from zora.rom.parse.rom_file import parse_rom
 pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
 LEVELS_7_TO_9_BLOCK = 1
+PRG0_SECOND_QUEST_GATE_ROOM = 0x64       # VA-WALK-08's fixed second-quest cell, which ZORA does not keep
 
 
 def _gate_room(level: Level) -> Room:
@@ -26,24 +27,31 @@ def _gate_room(level: Level) -> Room:
 
 def _second_quest_level_9_moved() -> tuple[GameWorld, Level, Room]:
     """PRG0's second-quest level 9 with its start room moved (B26) to the first edge whose gate
-    room is not the walks' fixed cell $64 (VA-WALK-08's quirk), the gate room's east side open."""
+    room is not PRG0's $64, the gate room's east side open."""
     gw = parse_rom(remember_repo_base_rom())
     level = gw.levels_2q[LEVEL_9 - 1]
-    assert level.is_second_quest and _gate_room(level).room_num == level9_entry_room(level)
-    edge = next(edge for edge in level_edges(level) if edge.room - 16 != level9_entry_room(level))
+    assert level.is_second_quest and _gate_room(level).room_num == level9_entry_room(level) \
+        == PRG0_SECOND_QUEST_GATE_ROOM
+    edge = next(edge for edge in level_edges(level) if edge.room - 16 != PRG0_SECOND_QUEST_GATE_ROOM)
     swap_start_room(level, LEVELS_7_TO_9_BLOCK, edge, [], RoomLists())
     gate = _gate_room(level)
-    assert gate.room_num == level.entrance_room - 16 != level9_entry_room(level)
+    assert gate.room_num == level.entrance_room - 16 != PRG0_SECOND_QUEST_GATE_ROOM
     gate.walls.east = WallType.OPEN_DOOR
     return gw, level, gate
 
 
-def test_a_moved_second_quest_gate_room_with_trigger_0_keeps_its_open_side_through_the_gate() -> None:
-    """A80: the walks would find a closed shutter there, where the original randomizer's open side passes."""
+def test_a_moved_second_quest_gate_room_is_the_walks_cell() -> None:
+    """The deviation from VA-WALK-08's fixed $64: the walks' cell follows the gate room in every quest."""
+    _, level, gate = _second_quest_level_9_moved()
+    assert level9_entry_room(level) == gate.room_num
+
+
+def test_a_moved_second_quest_gate_room_with_trigger_0_is_forced_after_the_repair() -> None:
+    """It is the walks' cell, so its shutters count as open and it is forced as A80 allows."""
     _, level, gate = _second_quest_level_9_moved()
     gate.room_action = RoomAction.NONE
     _reforce_level9_person_sides(level)
-    assert gate.walls.east == WallType.OPEN_DOOR
+    assert gate.walls.east == WallType.SHUTTER_DOOR
 
 
 def test_a_moved_second_quest_gate_room_with_trigger_1_is_forced_after_the_repair() -> None:

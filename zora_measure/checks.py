@@ -397,13 +397,14 @@ def check_heart_containers(gw: GameWorld) -> CheckResult:
     return CheckResult("SH-BOSS-06", not bad, f"problems: {bad[:6]}")
 
 
-def check_compass_map(gw: GameWorld) -> CheckResult:
-    """SH-ITEM-01: exactly one compass ($16) and one map ($17) per level."""
+def check_compass_map(gw: GameWorld, maps: int = 1) -> CheckResult:
+    """SH-ITEM-01: exactly one compass ($16) and one map ($17) per level (maps=0: Remove Maps,
+    B92, FP-MAP-01, leaves no map in any room)."""
     bad = []
     for level in gw.levels:
         comp = sum(1 for r in level.rooms if int(r.item) == 0x16)
         mapn = sum(1 for r in level.rooms if int(r.item) == 0x17)
-        if comp != 1 or mapn != 1:
+        if comp != 1 or mapn != maps:
             bad.append((level.level_num, comp, mapn))
     return CheckResult("SH-ITEM-01", not bad, f"mismatches: {bad[:6]}")
 
@@ -525,12 +526,16 @@ BOTTOM_ROW_ENTRANCE_CHECKS = (check_entrances, check_level9_entrance)
 
 def finished_rom_checks(sort_shapes: bool = True, post_shapes: bool = True,
                         level_2_sword: bool = False, shaped: bool = True,
-                        start_rooms_moved: bool = False) -> tuple[Check, ...]:
+                        start_rooms_moved: bool = False, maps_removed: bool = False) -> tuple[Check, ...]:
     """The checks a finished ROM generated with these options must pass (level_2_sword: ASNB's
     Add L4 Sword = Level 2, which gives level 2 an item cellar; shaped: False when a set keeps a
     quest's own dungeons, which leaves out the shape stage's rules; start_rooms_moved: B26,
-    which leaves out the bottom-row entrance rules and SH-DOOR-01's person rooms)."""
+    which leaves out the bottom-row entrance rules and SH-DOOR-01's person rooms; maps_removed:
+    Remove Maps, B92, after which SH-ITEM-01 counts no map in a level)."""
     checks: tuple[Check, ...] = FINISHED_CHECKS
+    if maps_removed:
+        checks = tuple(partial(check_compass_map, maps=0) if check is check_compass_map else check
+                       for check in checks)
     if level_2_sword:
         conditional: dict[Check, Check] = {check_cellar_counts: partial(check_cellar_counts, level_2_sword=True),
                                            check_stair_budget: partial(check_stair_budget, level_2_sword=True)}

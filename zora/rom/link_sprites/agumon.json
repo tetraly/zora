@@ -1,0 +1,19 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Agumon",
+  "author": "Irenepunmaster",
+  "provenance": "Drawn by Irenepunmaster, who gave it to ZORA to ship with credit (2026-10-26).",
+  "tiles": "DxAjIyAkJxMPHz89Pz87HB8hIFGPeAgQHz8/f/9/Dx+AQDAICgrK0oDA8Pj6+voy/sqe+sKAgMDyOvI6woCAAB8gRkZASE8nHz9/e39/dzg/Q0GjH/Fecj9+f/7//39jAIBgEBAQkKQAgODw8PDwZPyUPPSEBIBg5HTkdIQEgMAHCBYWEBQXOwcPHx0fHxs8R4CIqPqrER9/////Xw8fFeAQaGgIKOjc4PD4uPj42DziARUfVYj4AP7///rw+KgABwgQEBAQEDgHDx8fHx8fP0eAiKj6qhIff/////8PHxXgEAgICAgIHODw+Pj4+Pj84gEVH1VI+AD+////8PjoAAAHCBEREBITAAcPHx4fHx0JDxIpRzwXHA4PHz9/Px8YAMAgmIQEBOQAwOD4/Pz8/O70DgzwQKCYGPz4/PDA4PAfOHb2+Hw3Wx8/f/3//3t8JxAICgEfAAA/Hw8PDxUAAOAQaGgIKOjY4PD4uPj42DjkJER42ID4APz8/Ljo8KgABwgQEBAQMCgHDx8fHx8/PycQCBASIj8APx8PHx8/KwDgEAgICAgJG+Dw+Pj4+fv/5w8eDFRUZL7///78/Pz8qlN0W0tISistAyd/fn9/PT4TCAQFBAgPAB8PBwcHDwoAgEAwCwsKytKAwPD7+/v7M/7KnvrCg4PA8zvzO8ODgwAAgGAQFhaUpACA4PD29vZm/JQ89IQEhmbmduZ2hgaGxgcIFhYQFBc7Bw8fHR8fGzx/3ozc3P0BH3///////38VBwgWFhAUFzsHDx8dHx8bPH/vxu7ufgEAf///f39/PwAHCA4WEBT/5wcPDx0fH///54GB5+fnfz////////9/PQ==",
+  "recommendedColors": {
+    "tunics": [
+      41,
+      50,
+      22
+    ],
+    "other": [
+      39,
+      23
+    ]
+  }
+}

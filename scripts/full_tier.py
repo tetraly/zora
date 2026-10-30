@@ -18,7 +18,10 @@ The release gate (release-check, which scripts/make_release.py runs; owner decis
 HEAD may be released when its tree has a stamp, or when the newest stamped commit HEAD descends
 from is followed only by low-risk changes and the quick check passed on HEAD's tree. Low-risk:
 Markdown files (docs and notes; a test that reads one is in the quick check's selection), and
-zora/version.py when only the ZORA_VERSION string changed. Anything else since the stamp needs a
+zora/version.py when only the ZORA_VERSION string changed, and the page's hero graphic, web/zora-logo.png, when
+it is still a PNG of at most HERO_GRAPHIC_LIMIT bytes (owner decision, 2026-10-30: the artist's logo replaces the
+placeholder after the batch run; nothing the full tier tests reads it, the site-build test uses its own stand-in,
+and the browser check of the staged page covers it). Anything else since the stamp needs a
 new batch run. (The docs/ folder's other files are data that tests and code read, manifests and
 tables, so they are not low-risk.)
 """
@@ -39,6 +42,9 @@ COPY_ADDED_SETTING = "ZORA_COPY_ADDED"
 STAMP_FOLDER = Path("temp") / "verify" / "full-tier"
 QUICK_FOLDER = Path("temp") / "verify" / "quick-check"
 VERSION_FILE = "zora/version.py"
+HERO_GRAPHIC = "web/zora-logo.png"         # the page's hero graphic (web/index.html)
+HERO_GRAPHIC_LIMIT = 1_000_000             # bytes: it is inlined into the single-file page
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 VERSION_NAME = "ZORA_VERSION"
 RELEASE_LOG = Path("release") / "published.log"
 
@@ -164,7 +170,18 @@ def low_risk_reason(repo: Path, path: str, stamped_commit: str, head: str) -> st
         except subprocess.CalledProcessError:
             return None
         return "the version bump" if only_version_changed(old, new) else None
+    if path == HERO_GRAPHIC:
+        return "the hero graphic" if hero_graphic_ok(repo, head) else None
     return None
+
+
+def hero_graphic_ok(repo: Path, head: str) -> bool:
+    """HEAD's web/zora-logo.png is a PNG of at most HERO_GRAPHIC_LIMIT bytes (a removed one is not)."""
+    environment = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
+    found = subprocess.run(["git", "-C", str(repo), "show", f"{head}:{HERO_GRAPHIC}"], capture_output=True,
+                           check=False, env=environment)
+    return (found.returncode == 0 and found.stdout.startswith(PNG_SIGNATURE)
+            and len(found.stdout) <= HERO_GRAPHIC_LIMIT)
 
 
 def release_check() -> int:

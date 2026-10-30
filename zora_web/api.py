@@ -10,6 +10,7 @@ them importable from here whenever modules move.
 import json
 
 from zora.flags import form as flag_form
+from zora.generate.deadline import GenerationStopped, stop_after
 from zora.generate.pipeline import generate_rom
 from zora.rom import item_sprites, revision
 from zora.rom.base_rom import EXPECTED_CRC32, EXPECTED_MD5, EXPECTED_SHA1
@@ -45,6 +46,7 @@ __all__ = [
     "PAGE_LEVEL_WORD",
     "PAGE_TUNIC_SLOTS",
     "EncodedSeedRefused",
+    "GenerationStopped",
     "MusicAssetsInvalid",
     "MusicError",
     "PlayerSettingError",
@@ -61,6 +63,7 @@ __all__ = [
     "music_rom",
     "player_settings_from_page",
     "seed_report",
+    "stop_after",
 ]
 
 
@@ -142,9 +145,8 @@ def music_library_songs(library: bytes | None = None,
 
 def music_playlist_areas() -> dict[str, object]:
     """The playlist's areas for the editor: [{"key", "label", "uses"}] (the uses a song tagged for
-    the area has, zora.rom.music.importer.area_uses), and its two words."""
-    from zora.rom.music.importer import area_uses
-    return {"areas": [{"key": key, "label": area.label, "uses": list(area_uses(area.area))}
+    the area has: the area's own), and its two words."""
+    return {"areas": [{"key": key, "label": area.label, "uses": [area.area]}
                       for key, area in AREA_KEYS.items()],
             "original": ORIGINAL, "random": RANDOM}
 

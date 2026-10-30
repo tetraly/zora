@@ -21,7 +21,8 @@ PAGE_CONSTANTS = ["CUSTOM_PRESETS_KEY", "CUSTOM_SLOT_COUNT", "PLAYER_NAME_KEY", 
                   "LINK_SPRITE_SET", "LINK_SPRITE_RANDOM", "LINK_SPRITES", "LINK_SPRITE_SET_KEY", "PLAYER_CHOICES",
                   "RANDOM_TUNIC_HELP", "PLAYER_COLORS",
                   "COLOR_SLOTS", "MULTIWORLD_CHOICES", "MUSIC_RANDOM_CHOICES", "RANDOM_MUSIC", "MUSIC_CHOICES",
-                  "ALL_CHOICES", "COPIED_FROM_REGULAR_KEY"]
+                  "ALL_CHOICES", "COPIED_FROM_REGULAR_KEY", "CHARACTER_COLORS_SET", "CHARACTER_COLORS_MINE",
+                  "TUNIC_SLOTS", "LINK_COLOR_SLOTS"]
 PAGE_FUNCTIONS = ["defaultPlayerSettings", "isPickableColor", "loadLinkSpriteSet", "checkedPlayerSettings",
                   "checkedCustomPresets", "copyRegularChannelSettings", "readCustomPresets", "writeCustomPresets",
                   "loadPlayerSettings"]
@@ -80,6 +81,7 @@ console.log(JSON.stringify({ copied, writes, store: Object.fromEntries(store), p
         "name": "Old", "flags": "BBBB", "zoraFlags": ""}
     settings = found["settings"]
     assert settings["music"] == "off" and settings["greenTunic"] == 0x2A
+    assert settings["characterColors"] == "mine"         # saved before the choice, with a tunic of its own
     assert "statisticsScreen" not in settings and settings["heart"] == 0x16        # retired key gone; $0D refused
     assert json.loads(found["store"][PREFIX + "zora-player-settings"]) == settings
     assert found["store"][PREFIX + "zora.playerName"] == "Tester"

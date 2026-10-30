@@ -110,6 +110,8 @@ const status = (text, kind) => statuses.push([text, kind || ""]);
 const canExport = () => false;
 const musicReady = () => true;
 const markStepDone = (id, number, done) => { elements[id + ":done"] = done; };
+// The Link sprite preview redraws from the ROM; it has its own tests (test_link_sprite*.py, test_link_art.py)
+const refreshLinkSpritePreview = () => {};
 $("seed").value = "123";
 const ROM_LABEL = "Legend of Zelda, The (USA), PRG0 or PRG1 release, as a .nes file.";
 $("rom-label").textContent = ROM_LABEL;

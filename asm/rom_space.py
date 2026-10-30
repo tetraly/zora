@@ -53,6 +53,8 @@ class Area:
     last: int
     owner: str = ""
     what: str = ""
+    # A free run inside the disassembly's own segments: no segment can be linked there.
+    inside_code: bool = False
 
     def file_range(self) -> range:
         start = file_offset(self.bank, self.first)
@@ -127,7 +129,7 @@ def table(path: Path = TABLE) -> Table:
         shared.append(Shared(frozenset(row["owners"]), tuple(Area(*area) for area in row["ranges"]),
                              row["together"], row["why"], row.get("flags", {})))
     return Table(
-        free=tuple(_area(row) for row in spec.get("free", [])),
+        free=tuple(_area(row, inside_code=row.get("inside_code", False)) for row in spec.get("free", [])),
         reserved=tuple(_area(row) for row in spec.get("reserved", [])),
         reserved_instructions=tuple(_area(row) for row in spec.get("reserved_instructions", [])),
         slots=tuple(_area(row, Slot, segment=row.get("segment", ""), hook=row.get("hook", ""))
@@ -319,11 +321,12 @@ def _fits(claimed: dict[int, set[str]], free: set[int], bank: int, start: int, s
 
 def find_space(request: Request, space: Table, claimed: dict[int, set[str]]) -> Placement | None:
     """The lowest aligned start, in the first of the request's banks that has room (every bank, for a
-    mirrored segment), where `size` free bytes are claimed by nobody."""
-    free = {offset for area in space.free for offset in area.file_range()}
+    mirrored segment), where `size` free bytes outside the disassembly's segments are claimed by nobody."""
+    linkable = [area for area in space.free if not area.inside_code]
+    free = {offset for area in linkable for offset in area.file_range()}
     candidates = [request.banks] if request.mirrored else [(bank,) for bank in request.banks]
     for banks in candidates:
-        starts = sorted({start for area in space.free if area.bank == banks[0]
+        starts = sorted({start for area in linkable if area.bank == banks[0]
                          for start in range(area.first + -area.first % request.align, area.last + 1, request.align)})
         for start in starts:
             if all(_fits(claimed, free, bank, start, request.size) for bank in banks):

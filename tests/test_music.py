@@ -23,7 +23,7 @@ from zora.rom.music.library import (DUNGEON, ENDING, LAST_DUNGEON, ORIGINAL_SONG
                                     library_songs, module_data, read_library)
 from zora.rom.music.lozft import LOZFT_ROM_SIZE, LozftUnavailable, apply_bps, lozft_bytes, lozft_bytes_sha256, with_lozft
 from zora.rom.music.pin import MusicAssets, MusicAssetsInvalid
-from zora.rom.music.playlist import AREA_KEYS, PlaylistError, parse_playlist
+from zora.rom.music.playlist import AREA_KEYS, ORIGINAL_TITLES, PlaylistError, parse_playlist
 from zora.rom.music.randomize import MusicOptions, MusicSource, options_for, randomize_music
 from zora_web.api import music_library_songs, music_playlist_areas
 from zora.rom.player_settings import (
@@ -139,9 +139,9 @@ def test_randomized_music_gives_every_area_its_own_track(music_zora_rom: bytes, 
     areas = [title for area, title in first.track_list()]
     songs = sum(len(numbers) for numbers in AREA_SONGS.values())
     assert len(areas) == songs and len(set(areas)) == len(areas)    # the ending and credits drawn too
-    assert not any(place.song.is_original for place in first.placed)
-    title = next(place.song for place in first.placed if place.song_number == TITLE_SONG)
-    assert OVERWORLD in title.uses and first.rom[SONG_TABLE + 2 * TITLE_SONG] in FAMITRACKER_BANKS
+    # the standard library tags no track Title: the title screen keeps the game's own song
+    assert [place.song_number for place in first.placed if place.song.is_original] == [TITLE_SONG]
+    assert first.rom[SONG_TABLE + 2 * TITLE_SONG] not in FAMITRACKER_BANKS
     ending = next(place.song for place in first.placed if place.song_number == ENDING_SONG)
     assert ENDING in ending.uses and first.rom[SONG_TABLE + 2 * ENDING_SONG] in FAMITRACKER_BANKS
     other = randomize_music(music_zora_rom, BASE, assets, SEED + 1)
@@ -269,7 +269,7 @@ def test_a_local_library_is_merged_and_drawn_from(music_zora_rom: bytes, assets:
     options = MusicOptions(source=MusicSource.LOCAL)
     result = randomize_music(music_zora_rom, BASE, assets, SEED, options, local_library)
     titles = {song.title for file in local_library for song in library_songs(file.data, safe_only=False)}
-    assert {place.song.title for place in result.placed} <= titles
+    assert {place.song.title for place in result.placed} <= titles | {ORIGINAL_TITLES[TITLE]}
     assert any("bossy.ftm" in warning and "the first is used" for warning in result.warnings)
     assert result.libraries == tuple((file.name, file.library_id) for file in local_library)
     assert randomize_music(music_zora_rom, BASE, assets, SEED, options, local_library).rom == result.rom
@@ -408,6 +408,8 @@ def test_a_library_with_no_track_to_place_is_refused_in_plain_words(music_zora_r
 # lozft's driver: the address of the module it plays (its state in the stack page; found by probing
 # the title screen and play, it follows the song table's module address for the song playing).
 DRIVER_MODULE_ADDRESS = 0x159
+DRIVER_STATE = range(0x150, 0x1BA)       # lozft's driver's variables in the stack page
+NO_MODULE = 0
 TITLE_SCREEN_FRAMES = 40
 PLAY_FRAMES = 120
 TITLE_TRACK = "Arumana no Kiseki - Level 5 Revisited"
@@ -435,10 +437,11 @@ def test_the_loader_takes_the_title_tag(assets: MusicAssets) -> None:
         assert warnings == [f"{TITLE_TRACK}: The Legend of Zelda has no area for Refights; it plays as Title only"]
 
 
-def test_the_title_screen_draws_from_title_tracks_else_overworld_ones(music_zora_rom: bytes,
-                                                                      assets: MusicAssets) -> None:
+def test_the_title_screen_draws_from_title_tracks_else_keeps_the_games_own(music_zora_rom: bytes,
+                                                                           assets: MusicAssets) -> None:
     """With a Title track the title screen gets one, and no other area does; with none (every library
-    made for the Zelda importer, the standard one included) it gets an overworld track as before."""
+    made for the Zelda importer, the standard one included) it keeps the game's own title song, which
+    the track list names (TheGobOne's request, 2026-10-25: no overworld track there)."""
     local = MusicOptions(source=MusicSource.LOCAL)
     for seed in range(SEED, SEED + 4):
         tagged = randomize_music(music_zora_rom, BASE, assets, seed, local, [title_library(assets, [TITLE])])
@@ -447,9 +450,13 @@ def test_the_title_screen_draws_from_title_tracks_else_overworld_ones(music_zora
         both = randomize_music(music_zora_rom, BASE, assets, seed, local, [title_library(assets, [TITLE, OVERWORLD])])
         assert placed_title(both).title == TITLE_TRACK
         untagged = randomize_music(music_zora_rom, BASE, assets, seed, local, [title_library(assets, None)])
-        assert placed_title(untagged).title in OVERWORLD_TRACKS
+        assert placed_title(untagged).is_original
     standard = randomize_music(music_zora_rom, BASE, assets, SEED)
-    assert OVERWORLD in placed_title(standard).uses
+    assert placed_title(standard).is_original
+    assert ("Title screen", ORIGINAL_TITLES[TITLE]) in standard.track_list()
+    lozft = with_lozft(music_zora_rom, assets.patch, BASE)
+    title_entry = SONG_TABLE + 2 * TITLE_SONG
+    assert standard.rom[title_entry:title_entry + 2] == lozft[title_entry:title_entry + 2]
     only_title = randomize_music(music_zora_rom, BASE, assets, SEED, local,
                                  [library_file("only.json5", [{**entry(standard_entries(assets), TITLE_TRACK),
                                                                "uses": [TITLE]}])])
@@ -457,8 +464,8 @@ def test_the_title_screen_draws_from_title_tracks_else_overworld_ones(music_zora
 
 
 def test_a_playlist_takes_a_title_track_for_the_title_screen(music_zora_rom: bytes, assets: MusicAssets) -> None:
-    """A Title or Overworld track pinned to the title screen is tagged for it; a Title track pinned
-    to a level is not. The editor lists both uses for the title screen."""
+    """A Title track pinned to the title screen is tagged for it; an Overworld one, or a Title track
+    pinned to a level, is not (warned, and placed). The editor's title screen lists Title alone."""
     playlist = parse_playlist(f'{{ tracks: {{ title: "{TITLE_TRACK}", level1: "{TITLE_TRACK}", '
                               f'overworld: "{OVERWORLD_TRACKS[0]}" }} }}')
     result = randomize_music(music_zora_rom, BASE, assets, SEED,
@@ -467,13 +474,15 @@ def test_a_playlist_takes_a_title_track_for_the_title_screen(music_zora_rom: byt
     assert [warning for warning in result.warnings if "not tagged" in warning] == \
         [f"Level 1: {TITLE_TRACK} is not tagged for this area"]
     overworld_title = parse_playlist(f'{{ tracks: {{ title: "{OVERWORLD_TRACKS[0]}" }} }}')
-    assert not randomize_music(music_zora_rom, BASE, assets, SEED,
-                               MusicOptions(source=MusicSource.LOCAL, playlist=overworld_title),
-                               [title_library(assets, [TITLE])]).warnings
+    pinned = randomize_music(music_zora_rom, BASE, assets, SEED,
+                             MusicOptions(source=MusicSource.LOCAL, playlist=overworld_title),
+                             [title_library(assets, [TITLE])])
+    assert pinned.warnings == (f"Title screen: {OVERWORLD_TRACKS[0]} is not tagged for this area",)
+    assert placed_title(pinned).title == OVERWORLD_TRACKS[0]
     listed = music_playlist_areas()["areas"]
     assert isinstance(listed, list)
     areas = {area["key"]: area["uses"] for area in listed}
-    assert areas["title"] == [TITLE, OVERWORLD] and areas["overworld"] == [OVERWORLD]
+    assert areas["title"] == [TITLE] and areas["overworld"] == [OVERWORLD]
 
 
 def playing(emulator: "Emulator") -> int:
@@ -487,8 +496,9 @@ def module_address(rom: bytes, song_number: int) -> int:
 
 
 def test_the_title_screen_plays_the_title_track_in_the_emulator(music_zora_rom: bytes, assets: MusicAssets) -> None:
-    """Powered on, the title screen plays song 7's module: the Title track's when the library has one,
-    an overworld track's when it has none; in play the driver moves to the overworld's module."""
+    """Powered on, the title screen plays song 7's module, the Title track's, and in play the driver
+    moves to the overworld's module; with no Title track it plays the game's own title song (no
+    module, the driver as lozft alone has it)."""
     from tests.emulator import Emulator
     local = MusicOptions(source=MusicSource.LOCAL)
     for uses in ([TITLE], None):
@@ -496,8 +506,13 @@ def test_the_title_screen_plays_the_title_track_in_the_emulator(music_zora_rom: 
         assert (placed_title(result).title == TITLE_TRACK) is (uses is not None)
         emulator = Emulator(result.rom)
         emulator.run(TITLE_SCREEN_FRAMES)
-        assert playing(emulator) == module_address(result.rom, TITLE_SONG)
-        if uses is not None:
+        if uses is None:
+            alone = Emulator(bytes(with_lozft(music_zora_rom, assets.patch, BASE)))
+            alone.run(TITLE_SCREEN_FRAMES)
+            assert playing(emulator) == NO_MODULE
+            assert [emulator[address] for address in DRIVER_STATE] == [alone[address] for address in DRIVER_STATE]
+        else:
+            assert playing(emulator) == module_address(result.rom, TITLE_SONG)
             assert playing(emulator) != module_address(result.rom, AREA_SONGS[OVERWORLD][0])
             emulator.new_game()
             emulator.run(PLAY_FRAMES)

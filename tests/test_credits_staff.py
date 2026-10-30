@@ -42,8 +42,9 @@ def test_the_file_fits_the_box() -> None:
     assert staff.title == "RANDOMIZER STAFF"
     texts = [row.text for row in staff.rows]
     assert texts[:2] == ["DESIGN AND", "PROGRAMMING... TETRALY"] and texts[-1] == "FCOUGHLIN"
-    for name in ("THEREALQUANTAM", "IRENEPUNMASTER", "CUSTOMSHIELD", "GRANDPASZABO", "HECCINHAYLEY", "ISUMATT",
-                 "PDXREX", "THEGOBONE", "BOGIESMALLS", "CLAUDE OPUS 5.5", "THE ZORA COMMUNITY", "ALDONUNEZ"):
+    for name in ("THEREALQUANTAM", "IRENEPUNMASTER", "ZEROMEANING", "GROMFALLOON", "CUSTOMSHIELD", "GRANDPASZABO",
+                 "HECCINHAYLEY", "ISUMATT", "PDXREX", "THEGOBONE", "BOGIESMALLS", "METALMACHINE", "CLAUDE OPUS 5.5",
+                 "THE ZORA COMMUNITY", "ALDONUNEZ"):
         assert any(text.endswith(name) for text in texts), name
     assert all(len(text) <= credits.BOX_WIDTH for text in texts)
 

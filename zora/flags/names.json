@@ -269,6 +269,15 @@
  "B91": {
   "name": "Allow Universal Drops in Shapes"
  },
+ "B92": {
+  "name": "Remove Maps"
+ },
+ "B93": {
+  "name": "All Maps"
+ },
+ "B94": {
+  "name": "All Compasses"
+ },
  "C01": {
   "name": "Overworld Quest",
   "values": [

@@ -11,7 +11,7 @@ import json
 from dataclasses import dataclass, field
 
 from . import json5
-from .importer import area_uses
+from .importer import song_loops
 from .library import DUNGEON, ENDING, LAST_DUNGEON, OVERWORLD, TITLE, MusicError, Song
 
 PLAYLIST_VERSION = 1
@@ -99,7 +99,10 @@ def resolve_playlist(playlist: Playlist, songs: list[Song], safe_only: bool) -> 
         if safe_only and not song.streaming_safe:
             raise PlaylistError(f"the playlist, {key}: {track!r} is marked unsafe for streaming "
                                 "(turn Streaming-safe tracks only off to use it)")
-        if not song.uses & set(area_uses(area.area)):
+        if area.area not in song.uses:
             warnings.append(f"{area.label}: {track} is not tagged for this area")
+        if not song_loops(song):
+            warnings.append(f"{area.label}: {track} doesn't loop: it stops when it ends and can leave a note "
+                            "held until the music changes. Did you mean another track?")
         fixed[area.song_number] = song
     return fixed, warnings

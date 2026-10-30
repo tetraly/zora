@@ -126,10 +126,10 @@ def test_a_randomized_maze_s_offer_shows_its_path_for_1_rupee(seed: int) -> None
     selectors = world.hint_shop_offer_selectors
     assert selectors is not None
     shown_prices = prices(world)
-    for offer, lines in offers.items():
+    for offer, maze in offers.items():
         text = world.quotes[selectors[offer] // 2].text or ""
-        assert all(line.strip() in text for line in lines), (offer, text)
-        assert shown_prices[offer] == MAZE_PRICE
+        assert all(line.strip() in text for line in maze.lines), (offer, text)
+        assert maze.price == shown_prices[offer] == MAZE_PRICE
 
 
 @pytest.mark.parametrize("seed", (1, 2))

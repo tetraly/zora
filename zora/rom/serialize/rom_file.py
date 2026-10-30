@@ -3,18 +3,19 @@
 from dataclasses import replace
 
 from ...model.game_world import GameWorld
-from ..base_rom import recognized_player_rom, using_player_rom
+from ..base_rom import PlayerRom, recognized_player_rom, using_player_rom
 from ..code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, overworld_start_y
 from ..final_steps import FinalSettings, run_final_steps
 from ..game_config import GameConfig
+from ..graphics_theme import GraphicsTheme
 from ..parse.rom_file import original_bins_from_rom
-from ..player_settings import PlayerSettings
+from ..player_settings import PlayerSettingError, PlayerSettings
 from ..revision import Revision, back_to_revision, layout_of, moved_to_prg0_layout
 
 
 def serialize_to_rom(
     game_world: GameWorld,
-    rom: bytes,
+    rom: bytes | PlayerRom,
     config: GameConfig | None = None,
     player_settings: PlayerSettings | None = None,
 ) -> bytes:
@@ -30,9 +31,13 @@ def serialize_to_rom(
     graphics are modified. Any other ROM (a finished ROM written again) is written in PRG0's
     layout too, moved back when it was made from PRG1 (revision.layout_of), and keeps the seed's
     code it shows (the code comes from the generated world, which a parsed ROM only reflects).
+    A graphics theme comes with the PlayerRom (graphics_theme.themed_player_rom), whose canvas is
+    written over; settings naming another theme are refused (check_graphics_theme).
     """
-    player = recognized_player_rom(rom)
+    player = rom if isinstance(rom, PlayerRom) else recognized_player_rom(rom)
+    check_graphics_theme(player, player_settings)
     if player is None:
+        assert not isinstance(rom, PlayerRom)
         if layout_of(rom) is Revision.PRG1:          # a finished PRG1 ROM written again
             image = moved_to_prg0_layout(rom)
             return back_to_revision(rom, Revision.PRG1, image,
@@ -41,7 +46,18 @@ def serialize_to_rom(
     with using_player_rom(player):
         cfg = replace(config or GameConfig(), revision=player.revision,
                       modified_graphics=player.identity.modified_graphics)
-        return player.finished(_serialize(game_world, player.layout, cfg, player_settings, True))
+        return player.finished(_serialize(game_world, player.canvas, cfg, player_settings, True))
+
+
+def check_graphics_theme(player: PlayerRom | None, player_settings: PlayerSettings | None) -> None:
+    """A graphics theme's tiles go in before generation (graphics_theme.themed_player_rom), so the
+    settings may name a theme only when the ROM was generated from that theme's working copy: never
+    a finished ROM written again, never a build made without it."""
+    if player_settings is None or player_settings.graphics_theme is GraphicsTheme.OFF:
+        return
+    if player is None or player.theme != player_settings.graphics_theme.value:
+        raise PlayerSettingError(f"Graphics theme {player_settings.graphics_theme.value}: it applies only when "
+                                 "the ROM is generated with it, not to a finished ROM or another build")
 
 
 def _serialize(game_world: GameWorld, rom: bytes, cfg: GameConfig, player_settings: PlayerSettings | None,

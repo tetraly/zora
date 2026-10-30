@@ -224,11 +224,12 @@ def test_ship_order_is_pinned():
     """The staged results ship in this order (ship.SHIP_STEPS): the
     overworld copy before B1's cave items and the ZORA extras' caves are
     written onto it, and the groups' goriya tile after B1's and B2's, and the start screen's monster
-    exchange after the groups' overworld monsters. Change it only on purpose."""
+    exchange after the groups' overworld monsters, and Remove Maps (B92) last, over every block the rest
+    wrote. Change it only on purpose."""
     from zora.generate.ship import SHIP_STEPS
     assert [name for name, _ in SHIP_STEPS] == [
             "sets", "overworld", "item shuffle", "extra pool items", "hints", "monster shuffle", "hit points", "groups", "colors",
-            "start screen"]
+            "start screen", "remove maps"]
 
 
 def test_the_attempt_cap_error_names_what_kept_failing() -> None:
@@ -245,6 +246,6 @@ def test_an_exhausted_attempt_cap_names_the_acceptance_code(monkeypatch: pytest.
     (Randomize Magical Sword with Level 9 Entrance = Level 4 sword failed E1 on every attempt)."""
     import zora.generate.generation_pass as generation_pass
     monkeypatch.setattr(generation_pass, "MAX_ATTEMPTS", 3)
-    monkeypatch.setattr(generation_pass, "acceptance_check", lambda *args: "E1")
+    monkeypatch.setattr(generation_pass, "acceptance_check", lambda *args, **kwargs: "E1")
     with pytest.raises(RuntimeError, match=r"after 3 attempts.*the acceptance check 3 \(E1 3\)$"):
         generate_shapes(parse_rom(_vanilla_rom()), Rng(31), ShapeOptions())

@@ -21,6 +21,7 @@ from functools import partial
 from itertools import combinations
 from typing import TYPE_CHECKING, Any
 
+from ..flags.zora_flags import Pacing
 from ..model.enums import Destination, Item
 from ..model.level_9_gate import GateKind, Level9Gate
 from ..model.levels import LEVEL_9
@@ -36,7 +37,14 @@ from .acceptance_check import (
     LONG_ITEMS,
     ONE_ARROW,
     ONE_CANDLE,
+    RING_COUNTS,
+    RING_LINE,
+    RINGS_1,
+    RINGS_2,
+    SWORD_COUNTS,
     SWORD_LINE,
+    SWORDS_1,
+    SWORDS_2,
     SWORDS_FOR_LEVEL_9,
     TRIFORCES_NEEDED,
     TWO_ARROWS,
@@ -59,6 +67,7 @@ if TYPE_CHECKING:
 ARROW = "Arrow"
 CANDLE = "Candle"
 SWORD = "Sword"                   # ASNB: level-9 entry is Sword 4 (docs/design/asnb.md section 5)
+RING = "Ring"                     # Defense Item Pacing: a level's items need Ring 1 or Ring 2
 BAIT = "Bait"                     # Shop Items in the Item Pool: every bait held (docs/zora-extras.md 10)
 MAGICAL_SWORD_CAVE_EVENT = "Magical Sword Cave"
 LEVEL9_ENTRY_EVENT = "Level 9 Entry"
@@ -113,10 +122,15 @@ PSEUDO_TERMS: dict[int, Term] = {
     LOST_HILLS_HINT: EventTerm("Lost Hills Hint"),
     DEAD_WOODS_HINT: EventTerm("Dead Woods Hint"),
     Item.TRIFORCE_OF_POWER: EventTerm(TRIFORCE_OF_POWER_EVENT),
+    SWORDS_1: CountTerm(SWORD, 1),
+    SWORDS_2: CountTerm(SWORD, 2),
+    RINGS_1: CountTerm(RING, 1),
+    RINGS_2: CountTerm(RING, 2),
 }
 # A pseudo-item that implies another: a count of two is a count of one. The subsets derive
 # evaluates are closed under these, as every held set the closure builds is.
-IMPLIED: dict[int, frozenset[int]] = {TWO_ARROWS: frozenset({ONE_ARROW})}
+IMPLIED: dict[int, frozenset[int]] = {TWO_ARROWS: frozenset({ONE_ARROW}), SWORDS_2: frozenset({SWORDS_1}),
+                                      RINGS_2: frozenset({RINGS_1})}
 
 
 def term_of(code: int, named: Mapping[int, Term] = PSEUDO_TERMS) -> Term:
@@ -282,7 +296,9 @@ class Universes:
         # Shop Items in the Item Pool's bait: a hungry Goriya's room opens once every bait is held
         bait = frozenset({Item.BAIT}) if rules.bait_in_pool else frozenset()
         gate_item = {LEVEL9_ITEM} if rules.level_9_gate.kind is GateKind.ITEM else set()
-        return cls(screen=screen, entry=screen | LONG_ITEMS | {LEVEL9_ENTRY} | gate_item,
+        # Offense and Defense Item Pacing: can_enter asks for the level's sword and ring counts
+        pacing = {*SWORD_COUNTS, *RING_COUNTS} if rules.paces else set()
+        return cls(screen=screen, entry=screen | LONG_ITEMS | {LEVEL9_ENTRY} | gate_item | pacing,
                    inside=family_items(rules.family_lists) | {Item.LADDER} | bait,
                    cave=screen | {Item.LADDER, Item.LETTER})
 
@@ -342,9 +358,10 @@ def logic_model(built: Built) -> LogicModel:
         events[triforce_event(level)] = conjoin(
             entry[level], held_derive(partial(check.completes, level), universes.inside, triforce_event(level),
                                  named=named))
-    if rules.level_9_by_swords:
-        # ASNB: level-9 entry is four swords (the closure's sword_count); the magical-sword cave's
-        # own sword is an event with its cave's hearts (R2), as the game asks
+    if rules.counts_swords:
+        # ASNB's level-9 entry (four swords) and Offense Item Pacing count the swords held (the
+        # closure's sword_count); the magical-sword cave's own sword is an event with its cave's
+        # hearts (R2), as the game asks, and a sword cave's place has its cave's hearts (place_rule)
         lines[SWORD] = Line(frozenset(Item(code) for code in SWORD_LINE),
                             starting=0 if rules.wood_sword_in_pool else HELD_FROM_START_SWORDS)
         if rules.magical_sword_cave_counts:
@@ -356,6 +373,15 @@ def logic_model(built: Built) -> LogicModel:
                        MAGICAL_SWORD_CAVE_EVENT),
                 rule_of(HeartsTerm(hearts, take_any=True)))
             lines[SWORD] = replace(lines[SWORD], ware_event=MAGICAL_SWORD_CAVE_EVENT)
+    if rules.defense_pacing is not Pacing.OFF:
+        # Defense Item Pacing counts the rings held, and (Shop Items in the Item Pool off) the
+        # vanilla blue ring ware once a door of its shop is reached (pacing_counts)
+        lines[RING] = Line(frozenset(Item(code) for code in RING_LINE))
+        if rules.counts_shop_wares:
+            events[ware_event(Item.BLUE_RING)] = held_derive(partial(check.ware_door_reached, Item.BLUE_RING),
+                                                             universes.screen, ware_event(Item.BLUE_RING))
+            lines[RING] = replace(lines[RING], ware_event=ware_event(Item.BLUE_RING))
+    if rules.level_9_by_swords:
         events[LEVEL9_ENTRY_EVENT] = rule_of(CountTerm(SWORD, SWORDS_FOR_LEVEL_9))
     else:
         events[LEVEL9_ENTRY_EVENT] = level_9_entry_rule(rules.level_9_gate)

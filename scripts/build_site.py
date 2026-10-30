@@ -90,6 +90,8 @@ GUIDE_LOCAL_LINKS = re.compile(r'(?:href|src)="(?!data:|https://|\./"|#)[^"]*"')
 STYLESHEET_TAG = re.compile(r'<link rel="stylesheet" href="([^"]+)">')
 SCRIPT_TAG = re.compile(r'<script src="([^"]+)"></script>')
 FONT_URL = re.compile(r"url\('(fonts/[^']+\.woff2)'\)")
+# A page image (the hero graphic, web/zora-logo.png), inlined as a data: URI
+IMAGE_SRC = re.compile(r'(<img [^>]*\bsrc=")([^":]+\.png)(")')
 FONT_LICENSE = "fonts/OFL.txt"
 DOCTYPE = "<!doctype html>\n"
 # --noindex (optional; scripts/publish_site.sh leaves it off): asks search engines not to list the published page.
@@ -342,6 +344,9 @@ def single_file_html(site: Path, label: str) -> str:
                 f'<script type="application/json" id="{EMBEDDED_FLAG_TABS_ID}">{flag_tabs}</script>\n'
                 f'<script type="text/plain" id="{EMBEDDED_WORKER_ID}">{worker}</script>\n'
                 f'<script type="text/plain" id="{EMBEDDED_WHEEL_ID}">{wheel}</script>\n')
+    page = IMAGE_SRC.sub(lambda match: match.group(1) + "data:image/png;base64,"
+                         + base64.b64encode((site / match.group(2)).read_bytes()).decode("ascii") + match.group(3),
+                         page)
     scripts = SCRIPT_TAG.findall(page)
     page = SCRIPT_TAG.sub(lambda match: "<script>\n" + _inline((site / match.group(1)).read_text(),
                                                                  "</script", match.group(1)) + "</script>",

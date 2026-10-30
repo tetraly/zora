@@ -185,7 +185,10 @@ def test_the_module_lists_one_field_per_flag() -> None:
         "progressive_items", "shop_items_in_pool", *zora_flags.OWNER_2_0_SLOTS,
         "l4_sword_in_level_2", "level_9_entrance_sword", "oops_all_enemies", "oops_all_bosses",
         *zora_flags.ZORA_1_0_FIELDS, "pegasus_boots", "expanded_dungeon_locations", "highlight_no_drop_rooms",
-        "do_not_segment_dungeons", "disable_custom_music", "gatekeeper_bosses", *zora_flags.FULL_HEALTH_FIELDS]
+        "do_not_segment_dungeons", "disable_custom_music", "gatekeeper_bosses", *zora_flags.FULL_HEALTH_FIELDS,
+        "harder_bosses", "harder_ganon", "offense_pacing", "defense_pacing", "recorder_warping",
+        *zora_flags.SWAP_SWORDS_AND_RINGS_FIELDS, "swordlish", "swordlish_lowest", "swordlish_highest",
+        "item_shuffle_no_vanilla"]
 
 
 def field_named(name: str) -> zora_flags.ZoraField:

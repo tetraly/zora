@@ -27,6 +27,7 @@ from zora.rom.player_settings import (
     RANDOM_LEVEL_WORD,
     TUNIC_RANDOM_COLORS,
     PALETTE_SIZE,
+    CharacterColors,
     LowHealthBeep,
     PlayerSettingError,
     PlayerSettings,
@@ -141,14 +142,17 @@ def test_random_needs_a_seed_number() -> None:
 
 
 def test_the_page_the_command_line_and_archipelago_name_random() -> None:
+    # Random tunics are tunic colors of the player's own, so settings that do not name Playable
+    # character's colors read as My own (dd2d7e7); without a sprite set that writes nothing more
+    named = replace(ALL_RANDOM, character_colors=CharacterColors.MINE)
     page = {"lowHealthBeep": "random", "greenTunic": RANDOM_COLOR, "blueRingTunic": RANDOM_COLOR,
             "redRingTunic": RANDOM_COLOR, "heart": RANDOM_COLOR, "levelWord": RANDOM_LEVEL_WORD}
-    assert player_settings_from_page(page) == ALL_RANDOM
+    assert player_settings_from_page(page) == named
     assert parse_player_settings(["low_health_beep=random", "tunic_colors=random,random,random", "heart_color=random",
-                                  "level_word=random"]) == ALL_RANDOM
+                                  "level_word=random"]) == named
     yaml = {"low_health_beep": "random_choice", "green_tunic": "random_color", "blue_ring_tunic": "random_color",
             "red_ring_tunic": "random_color", "hearts": "random_color", "level_word": "random_word"}
-    assert player_settings_from_page(archipelago.page_player_settings(yaml)) == ALL_RANDOM
+    assert player_settings_from_page(archipelago.page_player_settings(yaml)) == named
 
 
 def test_the_word_random_is_a_word_and_random_is_lowercase() -> None:

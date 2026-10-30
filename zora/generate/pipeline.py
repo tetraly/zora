@@ -42,11 +42,13 @@ from ..flags.dependencies import (
     resolve,
     starting_hearts,
     white_sword_hearts,
-    with_the_toll_beside_merchants,
     without_both_boss_health_rules,
 )
 from ..flags.fields import (
+    ALL_COMPASSES,
+    ALL_MAPS,
     ARMOS_PIN,
+    BLACKOUT,
     BOOK_EXPLOSION,
     BOOK_TO_UNDERSTAND_NPCS,
     BOSS_HIT_POINTS,
@@ -58,7 +60,9 @@ from ..flags.fields import (
     DUNGEON_MONSTER_SHUFFLE,
     DUNGEON_ROOM_SHUFFLE,
     ENCODE_LEVEL_DATA,
+    ENEMY_DROP_GROUPS,
     ENEMY_HIT_POINTS,
+    EXTRA_BOSSES,
     FORCE_OVERWORLD_BLOCK,
     GANON_AND_ZELDA_SHUFFLE,
     GANON_HIT_POINTS_ZERO,
@@ -79,6 +83,8 @@ from ..flags.fields import (
     LOST_WOODS_SHORTCUT,
     MAXIMUM_BOSS_HEALTH,
     MAXIMUM_ENEMY_HEALTH,
+    MINOR_DUNGEON_DROPS,
+    MIRROR_OVERWORLD,
     MOST_OPEN_STAIRS_REMOVED,
     ONE_HIT_KNOCK_OUT,
     OPTIONS_BY_ID,
@@ -89,8 +95,10 @@ from ..flags.fields import (
     RANDOM_DROP_RATE,
     RECORDER_TO_UNBEATEN,
     RED_BUBBLE,
+    REMOVE_MAPS,
     RIVER_BRIDGES,
     RUPEES_AFFECT_SPEED,
+    SECRET_SPOTS_MOVE,
     START_ROOM_MAY_MOVE,
     START_SCREEN,
     TOGGLES_BY_ID,
@@ -122,6 +130,7 @@ from ..flags.support import (
 from ..flags.zora_flags import ZoraFlags, ZoraFlagStringError
 from ..model.enums import DungeonNothingCode
 from ..rom import level_encoding
+from ..rom.base_rom import PlayerRom
 from ..rom.game_config import GameConfig, HintMode, LevelEncodingKey
 from ..rom.player_settings import DEFAULT_PLAYER_SETTINGS, PlayerSettings, check_music_allowed
 from .alternative_values import AlternativeValues
@@ -131,6 +140,7 @@ from .rng import Rng
 from .shapes.options import ShapeOptions
 from .steps.expanded_dungeon_locations import expanded_dungeon_locations_seed
 from .steps.level_9_entry import Level9Entry
+from .steps.mirror_overworld import mirror_overworld
 from .steps.overworld_gates import OverworldGates
 from .steps.start_items import resolve_start_item_coins, start_state
 from .steps.sword_states import BOMB_UPGRADE_STATES
@@ -159,6 +169,7 @@ HINT_STYLE_MODES: dict[int, HintMode] = {
 NOT_PRODUCED_PREFIX = "not produced: "
 # Book is an Atlas: a code patch, so the serializer's switch (GameConfig).
 BOOK_IS_AN_ATLAS = TOGGLES_BY_ID["B49"]
+RECORDER_TO_NEW_DUNGEONS = TOGGLES_BY_ID["B01"]
 # The "?" stream's key: the seed number as eight bytes, and its own label.
 SEED_BYTES = 8
 QUESTION_MARK_STREAM = b"zora ? values"
@@ -293,10 +304,10 @@ def room_prerequisite_rng(seed: int, flag_string: str) -> Rng:
 
 
 def after_resolving(asked: Settings, resolved: Settings) -> Settings:
-    """FL-DEP-04's rules after resolving that FL-DEP-01 rule 3 adds (B41 and B46 never both on) and
-    the B22 and B23 rule (merchants never come without the toll re-drawn, owner ruling), each its own
-    spoiler-log stage. Rule 4 (B47 beside a Book pin) is not applied: docs/deviations.md."""
-    return with_the_toll_beside_merchants(asked, without_both_boss_health_rules(asked, resolved))
+    """FL-DEP-04's rule after resolving that FL-DEP-01 rule 3 adds (B41 and B46 never both on), its
+    own spoiler-log stage. B22 and B23 have none: each "?" is its own coin (2026-10-28 export, L113).
+    Rule 4 (B47 beside a Book pin) is not applied: docs/deviations.md."""
+    return without_both_boss_health_rules(asked, resolved)
 
 
 def cave_prerequisite_rng(seed: int, flag_string: str) -> Rng:
@@ -347,8 +358,14 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     zora_canonical = zora_flags.encode(zora)
     resolved = after_resolving(adjusted, resolve_question_marks(adjusted, seed, canonical))
     zora_game = zora_flags.game_string(zora)        # without the flags that rule only player settings
+    # Item Shuffle: Random (No Vanilla): Random's value drawn again among the three non-vanilla ones, its own stream
+    resolved = zora_flags.resolve_item_shuffle_no_vanilla(
+        zora, adjusted, resolved, Rng(zora_flags.no_vanilla_rng_key(seed, canonical, zora_game)).below)
     zora_resolved, resolved = zora_flags.resolve_owner_dependencies(
         zora_flags.resolve_question_marks(zora, seed, canonical, zora_game), zora, resolved, adjusted)
+    # FP-SWL-04 and FP-SWL-01: Random's state (a pick of Swords' four sets C07) and Swordlish's N
+    zora_resolved, resolved = zora_flags.resolve_swordlish(
+        zora_resolved, resolved, Rng(zora_flags.swordlish_rng_key(seed, canonical, zora_game)).below)
     resolved = meet_cave_prerequisite(resolved, cave_prerequisite_rng(seed, canonical))     # FL-DEP-02 rule 1
     resolved = meet_room_prerequisite(resolved, room_prerequisite_rng(seed, canonical))     # rule 2
     resolved = meet_monster_prerequisite(resolved, monster_prerequisite_rng(seed, canonical))   # rule 3
@@ -375,16 +392,22 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             features_b10=True,
             book_is_an_atlas=settings.is_on(BOOK_IS_AN_ATLAS),
             book_to_understand_npcs=settings.is_on(BOOK_TO_UNDERSTAND_NPCS),
+            blank_hints=settings.option(HINT_STYLE) == HintStyle.BLANK,
             level_encoding=(LevelEncodingKey(seed, zora_flags.level_encoding_text(canonical, zora_game))
                             if encode_level_data else None),
-            # a magical sword may lie in a dungeon room: "no item" becomes $0E (docs/zora-extras.md section 6)
-            dungeon_nothing_code=(DungeonNothingCode.ZORA_REMAP if zora.randomize_magical_sword
+            # a magical sword may lie in a dungeon room: "no item" becomes $0E (docs/zora-extras.md section 6),
+            # with Randomize Magical Sword, or the swap (FP-SWAP-01: the magical sword takes the red ring's place)
+            dungeon_nothing_code=(DungeonNothingCode.ZORA_REMAP
+                                  if zora.randomize_magical_sword or zora_flags.swaps_swords_and_rings(
+                                      zora_resolved, settings)
                                   else DungeonNothingCode.VANILLA),
             progressive_items=zora.progressive_items,
             shop_items_in_pool=zora.shop_items_in_pool,
             potion_shop_in_pool=zora_resolved.is_on("shuffle_blue_potion"),
             owner_flags=tuple(name for name in zora_flags.THREE_STATE_FIELDS if zora_resolved.is_on(name)),
             level_9_entrance_sword=zora_resolved.level_9_entrance_sword,
+            harder_bosses=int(zora_resolved.harder_bosses),              # Z1M1's boss_level
+            harder_ganon=int(zora_resolved.harder_ganon),                # Z1M1's harder_ganon
             permanent_sword_beam=settings.is_on(PERMANENT_SWORD_BEAM),
             one_hit_knock_out=settings.is_on(ONE_HIT_KNOCK_OUT),
             river_bridges=settings.is_on(RIVER_BRIDGES),                  # FP-BRIDGE-01
@@ -395,6 +418,7 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
             recorder_to_unbeaten=settings.is_on(RECORDER_TO_UNBEATEN),             # OW-WARP-02
             book_explosion=settings.is_on(BOOK_EXPLOSION),                         # FP-BOOK-02's blast
             change_hidden_tiles=settings.is_on(CHANGE_HIDDEN_TILES),               # FP-VIS-01
+            mirror_overworld=settings.is_on(MIRROR_OVERWORLD),                     # OW-MIR-01
             item_appearance=settings.option(ITEM_APPEARANCE),                      # FP-SPRITE-01
             item_sprites_key=(_flag_key(seed, canonical, ITEM_SPRITES_STREAM)
                               if settings.option(ITEM_APPEARANCE) else None),
@@ -504,6 +528,15 @@ def alternative_values(settings: Settings) -> AlternativeValues:
         ganon_hit_points_zero=settings.is_on(GANON_HIT_POINTS_ZERO),
         maximum_boss_health=settings.is_on(MAXIMUM_BOSS_HEALTH),
         maximum_enemy_health=settings.is_on(MAXIMUM_ENEMY_HEALTH),
+        shuffle_enemy_drop_groups=settings.is_on(ENEMY_DROP_GROUPS),
+        blackout=settings.is_on(BLACKOUT),
+        extra_bosses=settings.is_on(EXTRA_BOSSES),
+        minor_dungeon_drops=settings.is_on(MINOR_DUNGEON_DROPS),
+        change_secret_spots=settings.is_on(SECRET_SPOTS_MOVE),
+        remove_maps=settings.is_on(REMOVE_MAPS),
+        start_all_maps=settings.is_on(ALL_MAPS),
+        start_all_compasses=settings.is_on(ALL_COMPASSES),
+        mirror_overworld=settings.is_on(MIRROR_OVERWORLD),
         armos_pin=settings.option(ARMOS_PIN),
         white_sword_pin=settings.option(WHITE_SWORD_CAVE_PIN),
         coast_pin=settings.option(COAST_PIN),
@@ -546,20 +579,22 @@ def shape_options(settings: Settings) -> ShapeOptions:
     )
 
 
-def generate_world(chosen: GenerationPlan, base_rom: bytes) -> tuple[GameWorld, GenerationResult]:
+def generate_world(chosen: GenerationPlan, base_rom: bytes | PlayerRom) -> tuple[GameWorld, GenerationResult]:
     """The generated world for a plan, on the player's base ROM (not yet serialized): either
     release, with or without modified graphics (revision.identify_rom; RomNotRecognized for
-    any other). Both releases parse into the same world, so the generation never knows which."""
-    from ..rom.base_rom import player_rom_of, remember_base_rom, using_player_rom
+    any other). Both releases parse into the same world, so the generation never knows which.
+    A PlayerRom with a graphics theme (graphics_theme.themed_player_rom) is parsed from its working
+    copy, so the tiles the generation copies carry the theme's art."""
+    from ..rom.base_rom import as_player_rom, remember_base_rom, using_player_rom
     from ..rom.parse.rom_file import parse_rom
     from .generation_pass import generate_shapes
     from .rng import Rng
-    player = player_rom_of(base_rom)
+    player = as_player_rom(base_rom)
     # The process's fallback for reading the finished ROM afterwards (the web page's seed
     # report parses it); this call itself reads only its own ROM.
-    remember_base_rom(base_rom)
+    remember_base_rom(player.data)
     with using_player_rom(player):
-        world = parse_rom(base_rom)
+        world = parse_rom(player)
         result = generate_shapes(world, Rng(chosen.generation_seed), chosen.shape_options,
                                  post_shapes=chosen.post_shapes, feature_data=chosen.config.features_b10,
                                  seed=chosen.seed, steps=chosen.steps, extras=extra_options(chosen),
@@ -601,7 +636,15 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         expanded_dungeon_locations_seed=expanded_dungeon_locations_seed(chosen.seed, chosen.flag_string,
                                                                         chosen.zora_game_string),
         highlight_no_drop_rooms=chosen.zora_resolved.is_on("highlight_no_drop_rooms"),
-        gatekeeper_bosses=chosen.zora_resolved.gatekeeper_bosses,
+        offense_pacing=chosen.zora_resolved.offense_pacing,
+        defense_pacing=chosen.zora_resolved.defense_pacing,
+        white_sword_hearts=chosen.alternatives.white_sword_hearts,
+        # the recorder reaches an unbeaten dungeon's entry door only with both of these on (OW-WARP-01, -02)
+        recorder_warps=(chosen.zora_resolved.recorder_warping and chosen.settings.is_on(RECORDER_TO_NEW_DUNGEONS)
+                        and chosen.settings.is_on(RECORDER_TO_UNBEATEN)),
+        swap_swords_and_rings=zora_flags.swaps_swords_and_rings(chosen.zora_resolved, chosen.settings),
+        swordlish_pieces=chosen.zora_resolved.swordlish_pieces,
+        start_triforce_pieces=chosen.alternatives.start_triforce_pieces,
     )
 
 
@@ -632,17 +675,17 @@ class Built:
     places: list[Place]
     # The player's base ROM it was built on, which FINISH writes over (Archipelago keeps one
     # Built per player, each with its own ROM and release).
-    base_rom: bytes = b""
+    base_rom: bytes | PlayerRom = b""
 
 
-def build(chosen: GenerationPlan, base_rom: bytes) -> Built:
+def build(chosen: GenerationPlan, base_rom: bytes | PlayerRom) -> Built:
     """BUILD: generate_world, unchanged, and the item places of the world it made."""
     from .places import all_item_places
     world, result = generate_world(chosen, base_rom)
     return Built(chosen, world, result, all_item_places(world, extra_options(chosen)), base_rom)
 
 
-def finish(built: Built, base_rom: bytes, assignment: Assignment | None = None,
+def finish(built: Built, base_rom: bytes | PlayerRom, assignment: Assignment | None = None,
            player_settings: PlayerSettings = DEFAULT_PLAYER_SETTINGS, recompute: bool = True,
            received: Collection[Item] = (), check: bool = True, slot_identity: bytes = b"",
            look: ForeignLook | None = None) -> bytes:
@@ -651,15 +694,27 @@ def finish(built: Built, base_rom: bytes, assignment: Assignment | None = None,
     (External mode) the items go into a copy of the world first (finish_world); `slot_identity`
     is Archipelago's record for the slot (zora/rom/slot_identity.py), written only with one;
     `look`, how another player's item looks (finish.ForeignLook; the rupee by default)."""
-    from ..rom.base_rom import player_rom_of, using_player_rom
+    from ..rom.base_rom import as_player_rom, using_player_rom
     from ..rom.serialize.rom_file import serialize_to_rom
     if assignment is None:
         assert not slot_identity, "a slot identity is External mode's"
-        return serialize_to_rom(built.world, base_rom, config=built.plan.config, player_settings=player_settings)
-    with using_player_rom(player_rom_of(base_rom)):
+        return serialize_to_rom(written_world(built.world, built.plan.config), base_rom, config=built.plan.config,
+                                player_settings=player_settings)
+    with using_player_rom(as_player_rom(base_rom)):
         world, finished = finish_world(built, assignment, recompute, received, check, look)
     config = replace(finished.config, slot_identity=slot_identity, archipelago_rom=True, seed_number=None)
-    return serialize_to_rom(world, base_rom, config=config, player_settings=player_settings)
+    return serialize_to_rom(written_world(world, config), base_rom, config=config, player_settings=player_settings)
+
+
+def written_world(world: GameWorld, config: GameConfig) -> GameWorld:
+    """The world FINISH writes: with Mirror Overworld (B06) a copy with its overworld flipped
+    (steps/mirror_overworld.py), the world as the finished ROM holds it, which the parser reads back;
+    the built world stays as generation and its logic made it, left to right as PRG0's."""
+    if not config.mirror_overworld:
+        return world
+    flipped = copy.deepcopy(world)
+    mirror_overworld(flipped)
+    return flipped
 
 
 def finish_world(built: Built, assignment: Assignment, recompute: bool = True, received: Collection[Item] = (),
@@ -680,10 +735,13 @@ def generate_rom(flag_string: str, seed: int, base_rom: bytes,
     the player's base ROM, with the player settings applied last (FP-SET-01: after
     the level encoding and the seed's code, which they never change):
     BUILD, then FINISH with no assignment (ZORA mode). Disable Custom Music on refuses a random
-    Music value (PlayerSettingError)."""
+    Music value (PlayerSettingError). A graphics theme's tiles go into a working copy of the base
+    ROM first (graphics_theme.themed_player_rom), which the generation parses and copies from."""
     from ..rom.code_patches import seed_code
+    from ..rom.graphics_theme import themed_player_rom
     chosen = plan(flag_string, seed, zora_flag_string)
     check_music_allowed(player_settings, chosen.zora.disable_custom_music)
-    rom = finish(build(chosen, base_rom), base_rom, None, player_settings)
+    player = themed_player_rom(base_rom, player_settings.graphics_theme)
+    rom = finish(build(chosen, player), player, None, player_settings)
     return GeneratedRom(rom, seed, chosen.flag_string, chosen.encode_level_data, seed_code(rom),
                         chosen.zora_flag_string)

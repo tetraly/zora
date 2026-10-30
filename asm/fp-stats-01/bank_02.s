@@ -85,6 +85,7 @@ LastIndex    = $02                      ; its index, or NO_CANDIDATE
 RowsWritten  = $03
 BestStamp    = $04                      ; 16 bits
 BestIndex    = $06
+OrderIx      = $06                      ; the unfinished levels' place in StatsLevelOrder (after the stamps)
 CandidateIx  = $07
 Number       = $08                      ; 16 bits, being formatted
 DigitShown   = $0A
@@ -415,7 +416,8 @@ PutCounterCell:
 ; --- the list -----------------------------------------------------------------------------------
 
 ; The overworld, then the levels and key items with a stamp in stamp order (ties by index), then
-; the levels entered and not completed in level order, then blank rows: 17 rows.
+; the levels entered and not completed in the order of their shown numbers (StatsLevelOrder), then
+; blank rows: 17 rows.
 WriteList:
     LDX #TextOverworld - StatsText
     LDY #LABEL_LENGTH
@@ -496,9 +498,11 @@ WriteList:
 
 @Unfinished:
     LDA #$00
-    STA CandidateIx
+    STA OrderIx
 @Level:
-    LDA CandidateIx
+    LDX OrderIx
+    LDA StatsLevelOrder, X
+    STA CandidateIx
     JSR LoadStamp
     BNE @NextLevel
     LDA CandidateIx
@@ -510,8 +514,8 @@ WriteList:
     LDA CandidateIx
     JSR PutListRow
 @NextLevel:
-    INC CandidateIx
-    LDA CandidateIx
+    INC OrderIx
+    LDA OrderIx
     CMP #LEVELS
     BCC @Level
 
@@ -556,9 +560,8 @@ PutListRow:
     DEX
     BNE :-
 @Number:
-    LDA RowIndex
-    CLC
-    ADC #$01
+    LDX RowIndex
+    LDA StatsLevelNumbers, X
     STA PpuData_2007
     LDA #LABEL_LENGTH
     SEC
@@ -975,3 +978,13 @@ StatsAttributes:
     .BYTE $00, $00, $00, $00, $AA, $AA, $AA, $22
     .BYTE $00, $00, $00, $05, $05, $05, $05, $01
     .RES 5 * 8, $00
+
+; Each level's number as the status bar shows it (LevelInfo_LevelNumber's tile), and the levels
+; (0-8) in the order of those numbers: a second-quest or mixed seed's level 4 may be the game's
+; fifth level, and Hide dungeon numbers shows "?". The player settings write both from the ROM's
+; level information (player_settings.statistics_screen); these are first-quest PRG0's.
+.SEGMENT "ZORA_FP_STATS_LEVELS"
+StatsLevelNumbers:
+    .BYTE 1, 2, 3, 4, 5, 6, 7, 8, 9
+StatsLevelOrder:
+    .BYTE 0, 1, 2, 3, 4, 5, 6, 7, 8

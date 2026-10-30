@@ -11,7 +11,10 @@ Each test loads a plan from the folder at most once (docs/design/test-speed.md 3
 later request for it in the same test generates afresh, so a test that builds twice and compares
 (a determinism check, a recipe rebuilt) still compares two generations, while another test asking
 for the same plan, in any process, loads the stored copy. A test that monkeypatches anything
-neither loads nor stores (its generation may be patched). conftest.py marks each test's start.
+neither loads nor stores (its generation may be patched), and neither does a generation under a
+caller's time limit (zora/generate/deadline.py's stop_after): the limit is not in the plan, so a
+stored world would skip the deadline checks the test is there for (test_generation_time_limit's
+stop test failed whenever an earlier test had built its seed). conftest.py marks each test's start.
 
 prebuild() generates a list of plans in a few processes into the folder, so a test that walks
 many seeds one after another loads them instead of generating each in turn.
@@ -25,9 +28,10 @@ from hashlib import sha1
 from pathlib import Path
 
 import zora.generate.pipeline as pipeline
+from zora.generate import deadline
 from zora.generate.context import GenerationResult
 from zora.model.game_world import GameWorld
-from zora.rom.base_rom import remember_base_rom, remember_repo_base_rom
+from zora.rom.base_rom import PlayerRom, remember_base_rom, remember_repo_base_rom
 
 FOLDER_ENV = "ZORA_TEST_SHARED_BUILDS"
 WAIT_SECONDS = 120                      # past this, a waiting process generates its own
@@ -35,7 +39,7 @@ POLL_SECONDS = 0.05
 PREBUILD_PROCESSES = 4                  # beside xdist's workers
 
 World = tuple[GameWorld, GenerationResult]
-GenerateWorld = Callable[[pipeline.GenerationPlan, bytes], World]
+GenerateWorld = Callable[[pipeline.GenerationPlan, bytes | PlayerRom], World]
 
 
 class SharedBuilds:
@@ -53,11 +57,15 @@ class SharedBuilds:
 
     def folder(self) -> Path | None:
         folder = os.environ.get(FOLDER_ENV)
-        return Path(folder) if folder and not self.patched_test else None
+        time_limited = deadline._LIMIT.deadline is not None      # stop_after: generation must run
+        return Path(folder) if folder and not self.patched_test and not time_limited else None
 
-    def __call__(self, chosen: pipeline.GenerationPlan, base_rom: bytes) -> World:
+    def __call__(self, chosen: pipeline.GenerationPlan, base_rom: bytes | PlayerRom) -> World:
         folder = self.folder()
-        key = sha1(repr(chosen).encode() + sha1(base_rom).digest()).hexdigest()
+        # A graphics theme's working copy (graphics_theme.themed_player_rom) is part of the key:
+        # its tiles are in the world's sprite data
+        data, theme = (base_rom.data, base_rom.theme) if isinstance(base_rom, PlayerRom) else (base_rom, "")
+        key = sha1(repr(chosen).encode() + sha1(data).digest() + theme.encode()).hexdigest()
         if folder is None or key in self.handed_out:
             return self.generate_world(chosen, base_rom)
         self.handed_out.add(key)
@@ -78,12 +86,12 @@ class SharedBuilds:
                     lock.unlink()
         if not path.exists():                    # the generating process failed or is slow
             return self.generate_world(chosen, base_rom)
-        remember_base_rom(base_rom)              # generate_world's side effect, before any read
+        remember_base_rom(data)                  # generate_world's side effect, before any read
         with path.open("rb") as stored:
             world: World = pickle.load(stored)
         return world
 
-    def _generate_and_store(self, chosen: pipeline.GenerationPlan, base_rom: bytes, path: Path) -> World:
+    def _generate_and_store(self, chosen: pipeline.GenerationPlan, base_rom: bytes | PlayerRom, path: Path) -> World:
         generated = self.generate_world(chosen, base_rom)
         # Waiting processes poll for the file: write privately, then rename.
         partial = path.with_name(f"{path.name}.part")

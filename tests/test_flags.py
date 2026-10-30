@@ -96,11 +96,9 @@ NO_TURN_OFF = "-"
 NOT_SPECIFIED_ENTRY = re.compile(r"\(FL-(OFF|ALT)-\d+")
 STATE_WORDS = {"off": ThreeState.OFF, "on": ThreeState.ON, "possible": ThreeState.POSSIBLE}
 # Specified values ZORA does not produce yet (each leaves this table once it is implemented).
-# C05, C06 and B91 (6c6506b export, docs only) wait until after Hopla.
-# The 2026-10-17 export's Muffle Rug and Pick 5 values are all produced.
-NOT_YET_PRODUCED: dict[str, set[int]] = {
-    **{toggle: {ThreeState.OFF} for toggle in ("B04",)},
-}
+# B04 off left it in 2026-10 (built since 2026-10-07 as ZORA's own turn-off, OWNER_TURN_OFF_TOGGLES:
+# the take-any-road caves keep their PRG0 screens).
+NOT_YET_PRODUCED: dict[str, set[int]] = {}
 
 
 def support_entries(row: list[str]) -> list[str]:
@@ -188,9 +186,9 @@ def test_fl_enc_01_alphabet() -> None:
 
 
 def test_fl_enc_04_05_field_tables() -> None:
-    assert len(OPTION_FIELDS) == 27 and len(TOGGLE_FIELDS) == 91
+    assert len(OPTION_FIELDS) == 27 and len(TOGGLE_FIELDS) == 94
     assert [option.id for option in OPTION_FIELDS] == [f"C{n:02d}" for n in range(1, 28)]
-    assert [toggle.id for toggle in TOGGLE_FIELDS] == [f"B{n:02d}" for n in range(1, 92)]
+    assert [toggle.id for toggle in TOGGLE_FIELDS] == [f"B{n:02d}" for n in range(1, 95)]
     for option in OPTION_FIELDS:
         assert option.slots > option.count >= 1
         for random_index, choices in option.random_choices.items():
@@ -210,21 +208,29 @@ def test_fl_enc_04_05_field_tables() -> None:
 
 
 def test_fl_enc_04_check_distinct_strings_and_longest_canonical_string() -> None:
-    expected = 3 ** 91
+    """FL-ENC-04: 3 to the power 94 times the slot counts; the longest canonical string has 41
+    characters, 40 with B92 to B94 off (FL-ENC-03 rule 4)."""
+    expected = 3 ** 94
     for option in OPTION_FIELDS:
         expected *= option.slots
     assert distinct_string_count() == expected
     largest = decode(_format_base63(expected - 1))
     assert all(largest.option(option) == option.last_index for option in OPTION_FIELDS)
     assert all(largest.toggle(toggle) is ThreeState.POSSIBLE for toggle in TOGGLE_FIELDS)
-    assert len(_format_base63(expected - 1)) == 40
-    assert len(encode(largest)) <= 40
+    assert len(_format_base63(expected - 1)) == 41
+    assert len(encode(largest)) <= 41
+    assert len(encode(largest.updated(toggles=dict.fromkeys(MAP_FIELDS, ThreeState.OFF)))) <= 40
 
 
 def test_fl_enc_06_zero_string_and_preset_lengths() -> None:
     assert decode("0") == Settings.zero()
     assert encode(Settings.zero()) == "0"
     assert all(37 <= len(preset) <= 39 for preset in PRESETS.values())
+
+
+# FL-ENC-03 rule 4 and the checkpoint row notes: B92 to B94 (off, on, possible) where a row names them
+MAP_FIELDS = ("B92", "B93", "B94")
+MAP_FIELDS_IN_ROW_NOTES = {"CP-9": (2, 1, 0), "CP-16": (1, 1, 1), "CP-18": (2, 2, 2)}
 
 
 @pytest.mark.parametrize("checkpoint", list(CHECKPOINT_ROWS))
@@ -239,19 +245,22 @@ def test_checkpoint_row_round_trips(checkpoint: str) -> None:
         return
     settings = decode(flag_string)
     assert [settings.option(option) for option in OPTION_FIELDS] == [int(v) for v in option_cell.split(",")]
-    assert "".join(str(int(settings.toggle(toggle))) for toggle in TOGGLE_FIELDS) == toggle_cell.strip("`")
+    # The toggle column holds B01 to B91; B92 to B94 are in the row notes (off where not named)
+    assert "".join(str(int(settings.toggle(toggle))) for toggle in TOGGLE_FIELDS[:91]) == toggle_cell.strip("`")
+    assert [settings.toggle(field) for field in MAP_FIELDS] == list(MAP_FIELDS_IN_ROW_NOTES.get(checkpoint, (0, 0, 0)))
     assert encode(settings) == re_encoded_cell.strip("`")
     assert decode(encode(settings)) == settings
 
 
-def test_checkpoint_table_has_the_thirteen_codec_rows() -> None:
-    assert list(CHECKPOINT_ROWS) == [f"CP-{n}" for n in range(1, 14)]
+def test_checkpoint_table_has_the_codec_rows() -> None:
+    """CP-1 to CP-13 and CP-16 to CP-18 (CP-14 and CP-15 are the seed rows)."""
+    assert list(CHECKPOINT_ROWS) == [f"CP-{n}" for n in (*range(1, 14), 16, 17, 18)]
 
 
 def test_fl_enc_03_tolerated_forms_beyond_the_table() -> None:
     assert decode("000" + MVP_BASELINE) == decode(MVP_BASELINE)
     assert canonicalize("000" + MVP_BASELINE) == MVP_BASELINE
-    # A left-over part above B91 is dropped; a one-digit string is read as a number.
+    # A left-over part above B94 is dropped (CP-17); a one-digit string is read as a number.
     assert decode("00") == Settings.zero()
     assert decode("1").option("C01") == 1
     for bad in ("", " ", "+", "/", "=", "oIbn PfPb"):
@@ -518,7 +527,7 @@ def test_fl_dep_05_b14_and_b16_select_no_generation_setting() -> None:
 def test_fl_sup_02_03_tables_match_the_mvp_baseline_decode() -> None:
     baseline = mvp_baseline_settings()
     assert baseline == decode(MVP_BASELINE)
-    assert len(SUPPORT_OPTION_ROWS) == 27 and len(SUPPORT_TOGGLE_ROWS) == 91
+    assert len(SUPPORT_OPTION_ROWS) == 27 and len(SUPPORT_TOGGLE_ROWS) == 94
     for row in SUPPORT_OPTION_ROWS:
         assert baseline.option(row[0]) == _leading_int(row[2]), row
     for row in SUPPORT_TOGGLE_ROWS:
@@ -530,7 +539,7 @@ def test_fl_sup_02_03_tables_match_the_mvp_baseline_decode() -> None:
 
 def test_fl_sup_01_mvp_baseline_preset_is_fully_supported() -> None:
     matrix = support(decode(MVP_BASELINE))
-    assert len(matrix) == 118 and set(matrix.values()) == {Support.SUPPORTED}
+    assert len(matrix) == 121 and set(matrix.values()) == {Support.SUPPORTED}
     assert is_fully_supported(decode(MVP_BASELINE))
     assert is_fully_supported(decode(MVP_BASELINE_LEVEL_ENCODING_OFF))
     # Support is judged on decoded values, not on the spelling (a leading `0`, CP-7).
@@ -564,13 +573,14 @@ def test_fl_sup_01_level_encoding_is_on_or_off_never_question_mark() -> None:
 
 
 def test_not_produced_rows_cover_the_spec_tables() -> None:
-    # 91 fields, 32 on at the baseline, and 30 off at the baseline with further values (FL-SUP-03):
+    # 94 fields, 32 on at the baseline, and 62 off at the baseline with further values (FL-SUP-03):
     # B03 and B81 (2026-10-10 export), B25, B26, B30, B48 and the nine start items (eca85cc
     # export), B91 (6c6506b export), the other fourteen start items (d8cf117 export), B41, B52, B53
     # and B86 (2026-10-17 export), B87 and B88 (2a68977 export), B07, B21, B24, B37, B39, B44, B46,
     # B47, B51, B55 and B89 (beta 8 export, 372f545); C15 and C19 are specified there too; B45, B56,
-    # B80, B83, B84 and B90 (beta 9 export, 04f2d1b)
-    assert len(NOT_PRODUCED_TOGGLE_ROWS) == 91 - 32 - 53
+    # B80, B83, B84 and B90 (beta 9 export, 04f2d1b); B05, B17, B38, B50 and B79 (4333098 export);
+    # B06, B92, B93 and B94 (7e32c5c export)
+    assert len(NOT_PRODUCED_TOGGLE_ROWS) == 94 - 32 - 62
     assert NOT_PRODUCED_OPTION_ROWS == []
 
 
@@ -636,6 +646,7 @@ def test_fl_sup_02_03_specified_values() -> None:
         **dict.fromkeys(("B02", "B18", "B20", "B32", "B33", "B35", "B43"), {ThreeState.OFF, ThreeState.POSSIBLE}),
         **dict.fromkeys(("B03", "B07", "B21", "B24", "B25", "B26", "B30", "B37", "B39", "B41", "B44", "B45", "B46",
                          "B47", "B48", "B51", "B52", "B53", "B55", "B56", "B80", "B81", "B83", "B84", "B86",
+                         "B05", "B17", "B38", "B50", "B79", "B06", "B92", "B93", "B94",
                          "B87", "B88", "B89", "B90", "B91",
                          *(f"B{n}" for n in range(57, 79)), "B85"), on_or_possible)}
 
@@ -671,8 +682,7 @@ def test_fl_alt_random_hint_style_is_supported() -> None:
 def test_fl_sup_03_supported_three_state_values_are_the_baseline_and_the_turn_off_value(toggle: ToggleField) -> None:
     """FL-SUP-03: the baseline value and the "Also supported" column; "?" wherever off is supported
     (owner ruling, in place of "Possible (2) is not supported for any field"), that is where both
-    values are. B23's off needs B22
-    off (FL-DEP-06), so it is judged with B22 off."""
+    values are."""
     row = next(row for row in SUPPORT_TOGGLE_ROWS if row[0] == toggle.id)
     produced = (({mvp_baseline_settings().toggle(toggle)} | turn_off_values(row) | specified_values(row))
                 - NOT_YET_PRODUCED.get(toggle.id, set()))
@@ -682,9 +692,8 @@ def test_fl_sup_03_supported_three_state_values_are_the_baseline_and_the_turn_of
         produced = {ThreeState.OFF, ThreeState.ON}       # never "?" (owner ruling, 2026-10-06)
     if toggle.id in OWNER_TURN_OFF_TOGGLES:
         produced = set(ThreeState)                       # ZORA's own off (owner ruling, 2026-10-07)
-    others = {"B22": ThreeState.OFF} if toggle.id == "B23" else {}
     for state in ThreeState:
-        judged = support(_settings(toggles={**others, toggle.id: state}))[toggle.id]
+        judged = support(_settings(toggles={toggle.id: state}))[toggle.id]
         assert judged is (Support.SUPPORTED if state in produced else Support.NOT_PRODUCED), state
 
 
@@ -704,15 +713,15 @@ def test_fl_off_07_table_matches_the_support_columns_and_counts() -> None:
 
 def test_fl_sup_01_check_turn_off_strings() -> None:
     """FL-SUP-01's Check: CP-5 with every turn-off value (C17 at 0, B22 and B23 off) has 0
-    unsupported fields; CP-5 with B22 off and B23 on has 0 too (B23 kept as given); B22 on with B23
-    off is not supported."""
+    unsupported fields; CP-5 with B22 off and B23 on has 0 too (B23 kept as given), and so has B22 on
+    with B23 off (L111, PS-MERCH-05)."""
     cp5 = decode(MVP_BASELINE_LEVEL_ENCODING_OFF)
     all_off = cp5.updated(toggles=dict.fromkeys(TURN_OFF_TOGGLES, ThreeState.OFF),
                           options={f: min(v) for f, v in TURN_OFF_OPTIONS.items()})
     assert all_off.option(START_ITEM_LIMIT) == 0
     assert is_fully_supported(all_off)
     assert is_fully_supported(cp5.updated(toggles={"B22": ThreeState.OFF}))
-    assert unsupported_fields(cp5.updated(toggles={"B23": ThreeState.OFF})) == ["B23"]
+    assert is_fully_supported(cp5.updated(toggles={"B23": ThreeState.OFF}))
 
 
 def test_fl_dep_06_b23_is_kept_as_given_while_b22_is_off() -> None:
@@ -735,9 +744,8 @@ def test_question_mark_on_a_field_without_a_supported_off_is_refused_up_front() 
     # B29's "?" since the beta 9 export (a coin before FL-DEP-02 rule 4)
     assert is_fully_supported(cp5.updated(toggles={"B29": ThreeState.POSSIBLE}))
     assert is_fully_supported(cp5.updated(toggles={"B29": ThreeState.OFF}))
-    # B23's off needs B22 off or "?" (FL-DEP-04's B22 and B23 rule then turns B22 off); its "?" goes
-    # with any B22 (the rule turns it on beside merchants)
-    assert unsupported_fields(cp5.updated(toggles={"B22": ThreeState.ON, "B23": ThreeState.OFF})) == ["B23"]
+    # B23's off and "?" go with any B22 (each a plain coin, L113; B22 on with B23 off, PS-MERCH-05)
+    assert is_fully_supported(cp5.updated(toggles={"B22": ThreeState.ON, "B23": ThreeState.OFF}))
     for b22 in ThreeState:
         assert is_fully_supported(cp5.updated(toggles={"B22": b22, "B23": ThreeState.POSSIBLE}))
     assert is_fully_supported(cp5.updated(toggles={"B22": ThreeState.POSSIBLE, "B23": ThreeState.OFF}))

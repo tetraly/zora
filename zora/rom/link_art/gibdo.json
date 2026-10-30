@@ -1,0 +1,41 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Gibdo",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Gibdo art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      2,
+      18,
+      22
+    ],
+    "other": [
+      34,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$02": {"block": "PatternBlockUWSP358", "tile": "$A6"},
+    "$04": {"block": "PatternBlockUWSP358", "tile": "$A6", "mirror": true},
+    "$06": {"block": "PatternBlockUWSP358", "tile": "$A4", "mirror": true},
+    "$08": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$0A": {"block": "PatternBlockUWSP358", "tile": "$A6"},
+    "$0C": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$0E": {"block": "PatternBlockUWSP358", "tile": "$A6"},
+    "$10": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$12": {"block": "PatternBlockUWSP358", "tile": "$A6"},
+    "$14": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$16": {"block": "PatternBlockUWSP358", "tile": "$A6"},
+    "$18": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$1A": {"block": "PatternBlockUWSP358", "tile": "$A6"},
+    "$78": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$80": {"block": "PatternBlockUWSP358", "tile": "$A6"},
+    "$54": {"block": "PatternBlockUWSP358", "tile": "$A4", "mirror": true},
+    "$58": {"block": "PatternBlockUWSP358", "tile": "$A4"},
+    "$5A": {"block": "PatternBlockUWSP358", "tile": "$A6", "mirror": true},
+    "$60": {"block": "PatternBlockUWSP358", "tile": "$A4"}
+  }
+}

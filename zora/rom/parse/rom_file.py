@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from ...model.game_world import GameWorld
-from ..base_rom import recognized_player_rom, using_player_rom
+from ..base_rom import PlayerRom, recognized_player_rom, using_player_rom
 from ..game_config import GameConfig
 from ..layout import (
     LEVEL_1_6_DATA_ADDRESS,
@@ -12,6 +12,7 @@ from ..layout import (
     NES_HEADER_SIZE,
     OVERWORLD_DATA_ADDRESS,
 )
+from ..mirror_overworld import is_mirrored
 from ..revision import finished_in_prg0_layout
 from .bin_files import load_bin_files_from_rom
 from .game_world import parse_game_world
@@ -33,7 +34,7 @@ def load_rom(path: Path) -> bytes:
     return rom
 
 
-def parse_rom(rom: bytes, config: GameConfig | None = None) -> GameWorld:
+def parse_rom(rom: bytes | PlayerRom, config: GameConfig | None = None) -> GameWorld:
     """Parse a full .nes ROM image into a GameWorld (no randomizer magic check).
 
     Accepts vanilla and randomized ROMs alike; regions not present in a vanilla
@@ -43,14 +44,20 @@ def parse_rom(rom: bytes, config: GameConfig | None = None) -> GameWorld:
     same world, and is the source of the original bytes the patches keep or move
     (base_rom.Original) while it is parsed. Any other ROM (a finished or corpus ROM) is parsed
     in PRG0's layout too (a finished PRG1 ROM moved back; revision.layout_of), reading those
-    bytes from the player's ROM of the call in progress (or the remembered one).
+    bytes from the player's ROM of the call in progress (or the remembered one). A PlayerRom is
+    parsed from its canvas (a graphics theme's working copy, graphics_theme.themed_player_rom).
     """
-    player = recognized_player_rom(rom)
+    player = rom if isinstance(rom, PlayerRom) else recognized_player_rom(rom)
     if player is None:
+        assert not isinstance(rom, PlayerRom)
         image = finished_in_prg0_layout(rom)
-        return parse_game_world(load_bin_files_from_rom(image), config=config, rom_bytes=image)
+        world = parse_game_world(load_bin_files_from_rom(image), config=config, rom_bytes=image)
+        # Mirror Overworld (B06): the model's overworld is read as the ROM holds it, flipped; the
+        # flip's spawn call says so, and the writer applies the rest of the flip again
+        world.overworld_mirrored = is_mirrored(image)
+        return world
     with using_player_rom(player):
-        return parse_game_world(load_bin_files_from_rom(player.layout), config=config, rom_bytes=player.layout)
+        return parse_game_world(load_bin_files_from_rom(player.canvas), config=config, rom_bytes=player.canvas)
 
 
 def parse_rom_file(path: Path,

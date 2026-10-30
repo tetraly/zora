@@ -1,8 +1,9 @@
-"""The low-health beep's half speed (FP-BEEP-01's third choice, tetraly/zora#3;
-asm/settings/half-speed-beep/) in the emulator: with no full heart left, Kept starts a beep every
-BEEP_FRAMES frames, as PRG0 does, and Half speed every 2 x BEEP_FRAMES; refilled hearts stop it, and
+"""The low-health beep's half and quarter speed (FP-BEEP-01's third and fourth choices,
+tetraly/zora#3; asm/settings/half-speed-beep/ and quarter-speed-beep/) in the emulator: with no full
+heart left, Kept starts a beep every BEEP_FRAMES frames, as PRG0 does, Half speed every
+2 x BEEP_FRAMES and Quarter speed every 4 x BEEP_FRAMES (76 frames); refilled hearts stop it, and
 it starts again at its own rate when they run low again. Removed, and Hidden Health (FP-HIDE-01)
-over Half speed, never beep. The beep is read off the sound engine's tune channel 0 (Tune0 holds
+over Half or Quarter speed, never beep. The beep is read off the sound engine's tune channel 0 (Tune0 holds
 HEART_WARNING while it plays), a beep starting on the frame Tune0 turns to it."""
 from functools import cache
 from itertools import pairwise
@@ -60,8 +61,13 @@ def intervals(starts: list[int]) -> set[int]:
     return {later - earlier for earlier, later in pairwise(starts)}
 
 
+QUARTER_SPEED_PERIOD = 76                # frames between beep starts, a quarter of PRG0's rate
+SLOWER = (LowHealthBeep.HALF_SPEED, LowHealthBeep.QUARTER_SPEED)
+
+
 @pytest.mark.parametrize(("beep", "period"), [(LowHealthBeep.KEPT, BEEP_FRAMES),
-                                               (LowHealthBeep.HALF_SPEED, 2 * BEEP_FRAMES)])
+                                               (LowHealthBeep.HALF_SPEED, 2 * BEEP_FRAMES),
+                                               (LowHealthBeep.QUARTER_SPEED, QUARTER_SPEED_PERIOD)])
 def test_the_beep_starts_at_its_rate_and_stops_when_hearts_are_refilled(beep: LowHealthBeep, period: int) -> None:
     emu = low_health(finished(beep))
     starts = beep_starts(emu, WATCHED_FRAMES)
@@ -77,21 +83,25 @@ def test_removed_never_beeps() -> None:
     assert beep_starts(low_health(finished(LowHealthBeep.REMOVED)), WATCHED_FRAMES) == []
 
 
-def test_hidden_health_silences_half_speed() -> None:
+@pytest.mark.parametrize("beep", SLOWER)
+def test_hidden_health_silences_the_slower_beeps(beep: LowHealthBeep) -> None:
     """FP-HIDE-01 (B55) writes the request's operand alone, after the player settings."""
-    rom = finished(LowHealthBeep.HALF_SPEED, B55_ON)
+    rom = finished(beep, B55_ON)
     assert rom[LOW_HEALTH_BEEP_OPERAND_ADDRESS] == BEEP_NEVER
     assert beep_starts(low_health(rom), WATCHED_FRAMES) == []
 
 
-def test_half_speed_changes_only_the_settings_bytes() -> None:
-    kept, half = finished(LowHealthBeep.KEPT), finished(LowHealthBeep.HALF_SPEED)
-    changed = {offset for offset, (a, b) in enumerate(zip(kept, half, strict=True)) if a != b}
+@pytest.mark.parametrize("beep", SLOWER)
+def test_the_slower_beeps_change_only_the_settings_bytes(beep: LowHealthBeep) -> None:
+    kept, slower = finished(LowHealthBeep.KEPT), finished(beep)
+    changed = {offset for offset, (a, b) in enumerate(zip(kept, slower, strict=True)) if a != b}
     assert changed and changed <= written_offsets("low_health_beep")
 
 
 @needs_both
-def test_half_speed_on_prg1() -> None:
+@pytest.mark.parametrize(("beep", "period"), [(LowHealthBeep.HALF_SPEED, 2 * BEEP_FRAMES),
+                                               (LowHealthBeep.QUARTER_SPEED, QUARTER_SPEED_PERIOD)])
+def test_the_slower_beeps_on_prg1(beep: LowHealthBeep, period: int) -> None:
     """On PRG1 the routine sits in bank 0's free space after the audio code PRG1 moves."""
-    starts = beep_starts(low_health(finished(LowHealthBeep.HALF_SPEED, on_prg1=True)), WATCHED_FRAMES)
-    assert intervals(starts) == {2 * BEEP_FRAMES}
+    starts = beep_starts(low_health(finished(beep, on_prg1=True)), WATCHED_FRAMES)
+    assert intervals(starts) == {period}

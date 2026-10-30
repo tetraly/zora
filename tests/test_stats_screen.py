@@ -41,6 +41,14 @@ from tests.emulator import (
 from tests.revision_layout import written_in_prg0_layout
 from tests.test_feature_patches import vanilla
 from zora import archipelago
+from zora.flags.codec import decode, encode
+from zora.flags.fields import (
+    DO_NOT_SORT_SHAPES,
+    DUNGEON_LAYOUT_SOURCE,
+    HIDE_DUNGEON_NUMBERS,
+    DungeonLayoutSource,
+    ThreeState,
+)
 from zora.flags.presets import ASNB_FLAGS, ASNB_ZORA_FLAGS, MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom, generate_world, plan
 from zora.generate.steps.hint_text import UPGRADE_LINES, item_name
@@ -48,7 +56,10 @@ from zora.model.enums import Item
 from zora.rom.base_rom import PRG1_ROM_PATH, verify_base_rom
 from zora.rom.code_patches import SEED_DIGITS_LENGTH, STATS_SEED_DIGITS, seed_code_items, seed_digit_tiles
 from zora.rom.layout import FP_LEVEL_DASH_TILE as DASH_TILE
+from zora.rom.parse.rom_file import parse_rom
 from zora.rom.player_settings import (
+    STATS_LEVEL_NUMBERS,
+    STATS_LEVEL_ORDER,
     Music,
     PlayerSettings,
     apply_player_settings,
@@ -280,6 +291,17 @@ def test_the_win_mode_freezes_the_clock(name: str) -> None:
 
 # --- the screen -----------------------------------------------------------------------------------
 
+# Levels 1-9's number tiles in first-quest PRG0 (LevelInfo_LevelNumber; digits are tiles 0-9).
+FIRST_QUEST_NUMBERS = bytes(range(1, 10))
+QUESTION_MARK_TILE = 0x2E                  # Hide dungeon numbers (B24)
+
+
+def shown_place(numbers: bytes, index: int) -> int:
+    """Where level `index` (0-8) stands among the unfinished levels: by its shown number, a hidden
+    number ("?") keeping the level's own place."""
+    return numbers[index] if numbers[index] < 10 else index + 1
+
+
 def time_text(seconds: int) -> str:
     hours, rest = divmod(seconds, 3600)
     return "9.59.59" if hours >= 10 else f"{hours}.{rest // 60:02d}.{rest % 60:02d}"
@@ -301,23 +323,24 @@ def seed_digits_in(rom: bytes) -> bytes | None:
 
 
 def expected_rows(data: bytes, name: bytes, level_record: bytes, deaths: int, hearts: int,
-                  seed_digits: bytes | None = None) -> list[bytes]:
+                  seed_digits: bytes | None = None, numbers: bytes = FIRST_QUEST_NUMBERS) -> list[bytes]:
     """The 30 nametable rows the screen draws for a block: the seed number (`seed_digits`, the
     ROM's digit tiles; none, blank rows), the file name, the counters (deaths and stabs, heart
     containers and bombs) and the B items' box, the headings, the overworld, the
-    stamped levels and items in stamp order, the levels entered and not completed, and PUSH START
-    BUTTON. A level's label is the status bar's record (its tiles but the number) and the level's
-    number."""
+    stamped levels and items in stamp order, the levels entered and not completed in the order of
+    their shown numbers, and PUSH START BUTTON. A level's label is the status bar's record (its
+    tiles but the number) and the number the status bar shows in that level (`numbers`, levels
+    1-9's, the ROM's level information)."""
     def at(offset: int) -> int:
         return data[offset] | data[offset + 1] << 8
 
     def tiles(text: str) -> bytes:
         return bytes(CHAR_TO_BYTE[char] for char in text)
 
-    def level_tiles(level: int) -> bytes:
+    def level_tiles(index: int) -> bytes:
         count = level_record[LEVEL_RECORD_COUNT]
         word_tiles = level_record[LEVEL_RECORD_TILES:LEVEL_RECORD_TILES + count - 1]
-        return (word_tiles + bytes([level])).ljust(LABEL_LENGTH, tiles(" "))
+        return (word_tiles + numbers[index:index + 1]).ljust(LABEL_LENGTH, tiles(" "))
 
     def list_row(label: bytes, time_in: int | None, stamp: int) -> bytes:
         time_in_text = time_text(time_in) if time_in is not None else " " * 7
@@ -343,11 +366,12 @@ def expected_rows(data: bytes, name: bytes, level_record: bytes, deaths: int, he
     stamps = [(at(LEVEL_STAMPS + 2 * index), index) for index in range(9 + len(ITEM_LABELS))]
     for stamp, index in sorted(entry for entry in stamps if entry[0]):
         if index < 9:
-            rows.append(list_row(level_tiles(index + 1), at(AREAS + 2 * (index + 1)), stamp))
+            rows.append(list_row(level_tiles(index), at(AREAS + 2 * (index + 1)), stamp))
         else:
             rows.append(list_row(tiles(ITEM_LABELS[index - 9].ljust(LABEL_LENGTH)), None, stamp))
-    rows += [list_row(level_tiles(index + 1), at(AREAS + 2 * (index + 1)), 0)
-             for index in range(9) if not stamps[index][0] and at(AREAS + 2 * (index + 1))]
+    rows += [list_row(level_tiles(index), at(AREAS + 2 * (index + 1)), 0)
+             for index in sorted(range(9), key=lambda index: shown_place(numbers, index))
+             if not stamps[index][0] and at(AREAS + 2 * (index + 1))]
     rows += [blank] * (PUSH_START_ROW - len(rows))
     rows += [tiles(" " * 7 + "PUSH START BUTTON" + " " * 8), blank, blank]
     return rows
@@ -541,6 +565,90 @@ def test_the_screen_takes_a_long_level_word(level_word: str) -> None:
     label = nametable_rows(emu)[LIST_FIRST_ROW + 2][2:2 + LABEL_LENGTH]       # level 1, after the sword
     tiles = bytes(DASH_TILE if char == "-" else CHAR_TO_BYTE[char] for char in level_label(level_word))
     assert len(tiles) == 8 and label == tiles.ljust(LABEL_LENGTH, bytes([CHAR_TO_BYTE[" "]]))
+
+
+# --- the shown level numbers ----------------------------------------------------------------------
+
+# Every dungeon layout source and level-number setting: the second quest and mixed dungeons show
+# numbers other than their level's own (a second-quest seed's level 4 shows 5), and Hide dungeon
+# numbers shows "?" in levels 1-8 (beta 10 bug: the screen labeled levels by their own index).
+QUEST_CASES = {
+    "first-quest": (DungeonLayoutSource.FIRST_QUEST, {}),
+    "second-quest": (DungeonLayoutSource.SECOND_QUEST, {}),
+    "mixed": (DungeonLayoutSource.MIXED, {}),
+    "generated-shapes": (DungeonLayoutSource.GENERATED_SHAPES, {}),
+    "shapes-not-sorted": (DungeonLayoutSource.GENERATED_SHAPES, {DO_NOT_SORT_SHAPES: ThreeState.ON}),
+    "second-quest-hidden-numbers": (DungeonLayoutSource.SECOND_QUEST, {HIDE_DUNGEON_NUMBERS: ThreeState.ON}),
+}
+
+
+@cache
+def quest_rom(case: str) -> bytes:
+    source, toggles = QUEST_CASES[case]
+    flags = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated({DUNGEON_LAYOUT_SOURCE: source}, toggles))
+    return generate_rom(flags, 1, vanilla()).rom
+
+
+def status_bar_numbers(case: str) -> bytes:
+    """Levels 1-9's number tiles as the status bar shows them: the world's level numbers, or "?"
+    in levels 1-8 with Hide dungeon numbers on."""
+    hidden = HIDE_DUNGEON_NUMBERS in QUEST_CASES[case][1]
+    levels = sorted(parse_rom(quest_rom(case)).levels, key=lambda level: level.level_num)
+    return bytes(QUESTION_MARK_TILE if hidden and level.level_num < 9 else level.rom_level_num for level in levels)
+
+
+@pytest.mark.parametrize("case", QUEST_CASES)
+def test_the_screen_holds_the_status_bars_level_numbers(case: str) -> None:
+    rom = quest_rom(case)
+    numbers = status_bar_numbers(case)
+    assert rom[STATS_LEVEL_NUMBERS:STATS_LEVEL_NUMBERS + LEVELS] == numbers
+    assert list(rom[STATS_LEVEL_ORDER:STATS_LEVEL_ORDER + LEVELS]) == \
+        sorted(range(LEVELS), key=lambda index: shown_place(numbers, index))
+    if case == "second-quest":
+        assert numbers[3:5] == bytes([5, 4])                      # the reported swap is still in the data
+
+
+def quest_block() -> bytes:
+    """Levels 2 and 4 completed (in that order), 3, 5, 7 and 8 entered: in a second-quest seed each
+    shows another level's number, and the unfinished ones follow the shown numbers."""
+    data = bytearray(STATS_SIZE)
+    data[MAGIC], data[FLAGS] = STATS_MAGIC, FINISHED
+
+    def put(offset: int, value: int) -> None:
+        data[offset:offset + 2] = value.to_bytes(2, "little")
+
+    put(TOTAL, 9000)
+    for area, seconds in ((0, 3000), (2, 200), (3, 300), (4, 400), (5, 500), (7, 700), (8, 800)):
+        put(AREAS + 2 * area, seconds)
+    for level, stamp in ((2, 1200), (4, 2400)):
+        put(LEVEL_STAMPS + 2 * (level - 1), stamp)
+    return bytes(data)
+
+
+@pytest.mark.parametrize("case", ["second-quest", "mixed", "second-quest-hidden-numbers"])
+def test_the_screen_labels_levels_as_the_status_bar_does(case: str) -> None:
+    """In the emulator: each level row's label is the number the status bar shows in that level,
+    its times that level's own."""
+    rom = quest_rom(case)
+    emu = Emulator(rom)
+    emu.new_game()
+    emu.run(10)
+    emu[GAME_MODE] = WIN_MODE
+    emu[IS_UPDATING_MODE] = 1
+    emu[GAME_SUBMODE] = LAST_WIN_SUBMODE
+    emu.run_until(lambda: emu[OBJ_TIMER] == 0, limit=2000)
+    emu.run(5)
+    for i, value in enumerate(quest_block()):
+        emu[STATS_BLOCK + i] = value
+    emu.press(Button.START, after=6)
+    assert emu[STATS_BLOCK + SCREEN_STATE] == 1
+    slot = emu[CUR_SAVE_SLOT]
+    file_name = bytes(emu[NAMES + slot * NAME_LENGTH + i] for i in range(NAME_LENGTH))
+    record = bytes(emu[LEVEL_RECORD_RAM + i] for i in range(LEVEL_RECORD_SIZE))
+    expected = expected_rows(quest_block(), file_name, record, deaths=0, hearts=0,
+                             seed_digits=seed_digits_in(rom), numbers=status_bar_numbers(case))
+    list_rows = slice(LIST_FIRST_ROW, LIST_FIRST_ROW + LIST_ROWS)       # the counters are other tests'
+    assert nametable_rows(emu)[list_rows] == expected[list_rows]
 
 
 # --- the top: seed number, counters, inventory -----------------------------------------------------

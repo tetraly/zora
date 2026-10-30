@@ -271,3 +271,16 @@ class Overworld:
             if c.destination == destination and isinstance(c, cave_type):
                 return c
         return None
+
+
+@dataclass(frozen=True)
+class OverworldLayouts:
+    """The overworld's screen layouts as a ROM holds them, for Change Secret Spots (B05,
+    overworld-behavior.md OW-ENTR-01): each layout's 16 column codes (RoomLayoutsOW), the 11 square
+    indices each code draws (ColumnDirectoryOW and its heaps, rows from the top; the three cave layouts,
+    which follow RoomLayoutsOW, are layouts 121 to 123), and PRG0's monster
+    spawn spots for a screen entered facing down (SpawnPosList2: low nibble the column, high nibble
+    minus 3 the row)."""
+    layouts: tuple[tuple[int, ...], ...]
+    squares: dict[int, tuple[int, ...]]
+    spawn_spots: bytes

@@ -22,8 +22,8 @@ RAW_DEFLATE = -15                    # zlib's wbits for a raw deflate stream (.N
 
 # The Zelda importer's uses (ZeldaMusicRandomizer's MusicImporter: Uses and DefaultUses), and ZORA's
 # own Title (TheGobOne's request for beta 9): the title screen's songs, which the Zelda importer has
-# no use for. A library without Title songs gives the title screen an Overworld song
-# (importer.FALLBACK_USE).
+# no use for. A library without Title songs leaves the title screen the game's own title song
+# (TheGobOne's request, 2026-10-25; randomize.with_title_song).
 OVERWORLD, DUNGEON, LAST_DUNGEON, ENDING = "Overworld", "Dungeon", "LastDungeon", "Ending"
 TITLE = "Title"
 USES = (OVERWORLD, DUNGEON, LAST_DUNGEON, ENDING, TITLE)

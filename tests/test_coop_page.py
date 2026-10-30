@@ -45,8 +45,9 @@ COOP_PAGE = range(0x7F00, 0x8000)
 # ROM. The one place to change when the counters move.
 STATS_ALLOWED = range(STATS_BLOCK, STATS_BLOCK + STATS_SIZE)
 STATS_SETTING, STATS_ON = "statistics_screen", "on"
-# The choices that hold the screen: "music" is the same code with StatsTick moved (randomized music)
-STATS_CHOICES = (STATS_ON, "music")
+# The choices that hold the screen: "music" is the same code with StatsTick moved (randomized music),
+# "lozft2" the same with StatsTick hooked in DriveAudio (a lozft2 music ROM)
+STATS_CHOICES = (STATS_ON, "music", "lozft2")
 SAVE_RAM_END, SAVE_RAM_END_MARKER = 0x7FFF, 0xA5      # PRG0's own write at power-on and reset
 
 # --- the static scan ------------------------------------------------------------------------------

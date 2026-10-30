@@ -103,13 +103,15 @@ def redraw_extra_prices(overworld: Overworld, rng: IntRng) -> None:
     repair.cost = _uniform(rng, *DOOR_REPAIR_CHARGE)
 
 
-def extra_candles(overworld: Overworld) -> None:
+def extra_candles(overworld: Overworld, in_wood_sword_cave: bool = True) -> None:
     """Extra Candles (B09; OW-SHOP-05): the blue candle in the wooden-sword cave's ware 0 and the
-    code-17 cave's ware 1 (not shop stock)."""
+    code-17 cave's ware 1 (not shop stock). Under Swordlish (FP-SWL-03, owner ruling 2026-10-29) the
+    wooden-sword cave gets none (`in_wood_sword_cave` False): taking either of its wares ends the cave."""
     wood_sword = _cave(overworld, Destination.WOOD_SWORD_CAVE)
     take_any = _cave(overworld, Destination.TAKE_ANY)
     assert isinstance(wood_sword, ItemCave) and isinstance(take_any, TakeAnyCave)
-    wood_sword.maybe_extra_candle = Item.BLUE_CANDLE
+    if in_wood_sword_cave:
+        wood_sword.maybe_extra_candle = Item.BLUE_CANDLE
     take_any.items[TAKE_ANY_CANDLE_SLOT] = Item.BLUE_CANDLE
 
 

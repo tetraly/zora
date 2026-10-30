@@ -111,6 +111,10 @@ def main() -> int:
     ap.add_argument("--seeds", type=int, nargs="+", default=[1, 2, 3, 4, 5])
     ap.add_argument("--flags", default=MVP_BASELINE_LEVEL_ENCODING_OFF,
                     help="flag string (default: the MVP baseline, level encoding off)")
+    ap.add_argument("--zora-flags", default="",
+                    help="ZORA flag string, as the page writes it (docs/zora-extras.md; default: empty, every "
+                         "ZORA setting off); Item Shuffle: Random (No Vanilla) is --flags at Item Shuffle: Random "
+                         "with --zora-flags 17.PfSiSWqYrGj")
     ap.add_argument("--outdir", type=Path, default=REPO / "temp" / "playtest")
     ap.add_argument("--report", type=Path, default=REPO / "temp" / "playtest_report.md")
     ap.add_argument("--base-rom", type=Path, default=BASE_ROM_PATH,
@@ -146,7 +150,7 @@ def main() -> int:
     report: list[str] = []
     for seed in args.seeds:
         try:
-            chosen = plan(args.flags, seed)
+            chosen = plan(args.flags, seed, args.zora_flags)
         except (FlagsRefused, level_encoding.LevelEncodingUnavailable) as exc:
             print(exc, file=sys.stderr)
             return 1

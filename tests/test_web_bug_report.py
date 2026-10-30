@@ -1,4 +1,4 @@
-"""The web page's copy buttons (web/zora-web.js): "Copy bug-report info" (bugReportText; owner's
+"""The web page's copy buttons (web/zora-web.js): "Copy bug report info" (bugReportText; owner's
 triage, 2026-10-17), one block with the version, the seed, both flag strings, the ROM (PRG0 or PRG1,
 and modified graphics if so, from zora_web.api.identify_rom) and the seed code as its item names;
 "Copy seed code" (seedCodeText; owner, 2026-10-17), the item names alone, for a race room; and "Copy
@@ -98,7 +98,7 @@ def test_the_buttons_follow_each_generated_seed() -> None:
     assert "zoraFlags: requested.zoraFlags, identity: romIdentity, code," in on_generate
     assert "encoded: requested.encoded, notices: requested.notices });" in on_generate
     buttons = page_function("addCopyButtons")
-    assert '"Copy bug-report info", bugReportText(info)' in buttons
+    assert '"Copy bug report info", bugReportText(info)' in buttons
     assert '"Copy race info", raceInfoText(info)' in buttons
     assert 'if (info.code.length) {' in buttons and '"Copy seed code", seedCodeText(info.code)' in buttons
 

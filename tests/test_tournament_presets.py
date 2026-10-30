@@ -6,7 +6,8 @@ and beaten before the last-boss shutters open (E10).
 
 The damaged copy of the Uphill Battle string (an out-of-date document's) is checked too: its five
 out-of-range slots decode as their last options (FL-ENC-03 rule 3), it differs from the tournament
-string, and with every value produced it generates, unmirrored, with the mirror notice."""
+string, and with every value produced (Mirror Overworld, B06, since the 7e32c5c export) it generates,
+mirrored, with no notice."""
 from functools import cache
 
 import pytest
@@ -21,7 +22,7 @@ from zora.flags.presets import (
     TTP5_UPHILL_BATTLE_FLAGS,
     ZORA_PRESETS,
 )
-from zora.flags.support import MIRRORED_OVERWORLD_NOTICE, unsupported_fields
+from zora.flags.support import unsupported_fields
 from zora.generate.acceptance_check import AcceptanceCheck
 from zora.generate.pipeline import Built, build, plan, shipped_logic_rules
 from zora.rom.base_rom import remember_repo_base_rom
@@ -76,10 +77,11 @@ def test_the_damaged_uphill_battle_string() -> None:
     settings = decode(DAMAGED_UPHILL_BATTLE)
     assert [settings.option(field_id) for field_id in ("C01", "C07", "C10", "C22", "C23")] == [4] * 5
     assert encode(settings) != TTP5_UPHILL_BATTLE_FLAGS
-    assert unsupported_fields(settings) == ["B06"]                 # postponed: accepted, not produced
-    assert plan(DAMAGED_UPHILL_BATTLE, 1).notices == (MIRRORED_OVERWORLD_NOTICE,)
+    assert unsupported_fields(settings) == [] and settings.is_on("B06")
+    assert plan(DAMAGED_UPHILL_BATTLE, 1).notices == ()
+    assert plan(DAMAGED_UPHILL_BATTLE, 1).config.mirror_overworld
 
 
 @needs_base_rom
-def test_the_damaged_uphill_battle_string_generates_unmirrored() -> None:
+def test_the_damaged_uphill_battle_string_generates() -> None:
     assert built(DAMAGED_UPHILL_BATTLE, 1).world.levels

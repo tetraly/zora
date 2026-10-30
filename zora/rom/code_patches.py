@@ -65,6 +65,8 @@ SIDE_ARRIVAL_CODES = frozenset({1, 3, 4})
 BOOK_IS_AN_ATLAS = "fp-book-01"
 # HT-BOOK-01, the patch of Book to Understand NPCs (B48): written only with B48 on.
 BOOK_TO_UNDERSTAND_NPCS = "ht-book-01"
+# HT-HINT-07, Blank hints (C03 = 5): the empty texts draw no tile. Written only with Blank hints.
+BLANK_HINTS = "ht-hint-07"
 
 # PI-CODE-01 (docs/design/progressive-items-plan.md; docs/progressive-patches.md):
 # fp-prog-01 (bank 1: caves and shops) is written with Progressive Items or Shop
@@ -98,11 +100,12 @@ ONE_TIME_POTION_SHOP_WARE = (SHOPS_BY_NUMBER.index(Destination.POTION_SHOP), POT
 
 def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items_in_pool: bool,
                      potion_shop_in_pool: bool = False, start_items: bool = False,
-                     start_rooms_moved: bool = False, book_to_understand_npcs: bool = False) -> tuple[str, ...]:
+                     start_rooms_moved: bool = False, book_to_understand_npcs: bool = False,
+                     blank_hints: bool = False) -> tuple[str, ...]:
     """The code patches a seed's settings leave out (FL-OFF-05, PI-CODE-01; fp-prog-01's buy-once
     rule also with Shuffle Blue Potion on; fp-start-02 unless a seed
     starts with other items than PRG0's, FP-START-02; fp-entr-01-sides unless the start-room swap
-    ran, PS-START; ht-book-01 unless B48 is on, HT-BOOK-01)."""
+    ran, PS-START; ht-book-01 unless B48 is on, HT-BOOK-01; ht-hint-07 unless the hints are Blank, HT-HINT-07)."""
     left_out = []
     if not book_is_an_atlas:
         left_out.append(BOOK_IS_AN_ATLAS)
@@ -116,6 +119,8 @@ def left_out_patches(book_is_an_atlas: bool, progressive_items: bool, shop_items
         left_out.append(ENTR_01_SIDES)
     if not book_to_understand_npcs:
         left_out.append(BOOK_TO_UNDERSTAND_NPCS)
+    if not blank_hints:
+        left_out.append(BLANK_HINTS)
     return tuple(left_out)
 
 
@@ -184,7 +189,8 @@ def seed_data(world: GameWorld, progressive_items: bool = False,
     data.update(enumerate(one_time_wares(world, one_time_places, bait_in_pool), start=ONE_TIME_WARES))
     if world.uses_start_table:
         data.update(enumerate(start_table(world.start_items, world.new_file_heart_containers,
-                                          world.new_file_full_hearts, world.start_triforce_pieces),
+                                          world.new_file_full_hearts, world.start_triforce_pieces,
+                                          world.start_all_maps, world.start_all_compasses),
                               start=START_ITEMS_TABLE))
     return data
 

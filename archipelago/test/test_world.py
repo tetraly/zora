@@ -11,8 +11,9 @@ from Fill import distribute_items_restrictive
 from . import ZoraTestBase
 from ..names import BOMB_UPGRADE, BOOTS_UPGRADE, LINE_OF, LOCATION_NAME_TO_ID, ItemNaming, zora_names
 from ..options import OPTION_CLASSES, SETTING_CLASSES
-from ..zora.generate.acceptance_check import logic_walk_rules
-from ..zora.generate.logic import ItemTerm, triforce_event
+from ..zora.flags.zora_flags import Pacing
+from ..zora.generate.acceptance_check import RING_LINE, SWORD_LINE, logic_walk_rules, rings_needed, swords_needed
+from ..zora.generate.logic import RING, SWORD, CountTerm, ItemTerm, implies, triforce_event
 from ..zora.generate.pipeline import extra_options
 from ..zora.generate.places import CELLAR_SUFFIX, ROOM_SUFFIX
 from ..zora.generate.steps.mixed_overworld_quest import SHOWN
@@ -22,6 +23,9 @@ from ..zora.model.enums import Item, RoomType
 # until an Expanded Brackets 2nd Quest seed's fix and its rescan, they come back on their own.
 EXPANDED_OFFERED = "on" in OPTION_CLASSES["expanded_dungeon_locations"].options
 skip_unless_expanded = unittest.skipUnless(EXPANDED_OFFERED, "Expanded Dungeon Locations is held back")
+# Offense and Defense Item Pacing's seeds run once the world offers them (zora/archipelago.py HELD_BACK)
+PACING_OFFERED = all("earlier" in OPTION_CLASSES[key].options for key in ("offense_pacing", "defense_pacing"))
+skip_unless_pacing = unittest.skipUnless(PACING_OFFERED, "Offense and Defense Item Pacing are held back")
 
 
 def assert_dungeon_entrances(test: ZoraTestBase) -> None:
@@ -68,6 +72,31 @@ def assert_triforce_spots(test: ZoraTestBase) -> None:
             test.assertIn(Item.TRIFORCE, {stair.item for stair in level.block.staircases
                                           if stair.room_type == RoomType.ITEM_STAIRCASE
                                           and stair.return_dest == room_num}, place)
+
+
+def assert_pacing(test: ZoraTestBase) -> None:
+    """Offense and Defense Item Pacing: every clause of a level's locations and Triforce asks for the
+    swords and rings ZORA's acceptance check asks for there (swords_needed, rings_needed: 1 or 2 of
+    the Sword or Ring line), and the items those lines count are progression."""
+    built = test.multiworld.worlds[test.player].built
+    rules = extra_options(built.state.plan).logic_rules
+    for line, pacing, needed, items in ((SWORD, rules.offense_pacing, swords_needed, SWORD_LINE),
+                                        (RING, rules.defense_pacing, rings_needed, RING_LINE)):
+        if pacing is Pacing.OFF:
+            continue
+        rules_by_level = [(place.name, place.level, built.logic.places[place.name])
+                          for place in built.state.places if place.level is not None]
+        rules_by_level += [(triforce_event(level), level, built.logic.events[triforce_event(level)])
+                           for level in range(1, 9)]
+        asked = 0
+        for name, level, rule in rules_by_level:
+            count = needed(pacing, level)
+            if count:
+                asked += 1
+                for clause in rule:
+                    test.assertTrue(implies(clause, CountTerm(line, count)), f"{name}: {line} {count}")
+        test.assertTrue(asked, f"no level asks for a {line} count")
+        test.assertLessEqual({Item(code) for code in items} - {Item.WOOD_SWORD}, built.logic.progression)
 
 
 class TestDefaults(ZoraTestBase):
@@ -193,6 +222,37 @@ class TestTriforcesInStairways(ZoraTestBase):
 
     def test_each_triforce_is_named_where_zora_put_it(self) -> None:
         assert_triforce_spots(self)
+
+
+@skip_unless_pacing
+class TestOffensePacing(ZoraTestBase):
+    """Offense Item Pacing, Earlier: levels 1 to 4 ask for one sword, 5 to 9 for two (the wooden
+    sword is one); a sword in a sword cave counts once its cave's hearts are met, as its location asks."""
+    options: ClassVar[dict[str, Any]] = {"offense_pacing": "earlier"}
+
+    def test_each_level_asks_for_its_swords(self) -> None:
+        assert_pacing(self)
+
+
+@skip_unless_pacing
+class TestDefensePacing(ZoraTestBase):
+    """Defense Item Pacing, Normal (Earlier's generation often runs past 30 s): levels 7 to 9 ask for
+    one ring; the blue ring's shop ware counts once a door of its shop is reached."""
+    options: ClassVar[dict[str, Any]] = {"defense_pacing": "normal"}
+
+    def test_each_level_asks_for_its_rings(self) -> None:
+        assert_pacing(self)
+
+
+@skip_unless_pacing
+class TestBothPacingsProgressive(ZoraTestBase):
+    """Both pacings under Progressive Items and Shop Items in the Item Pool: the counts read Sword
+    Upgrade and Ring Upgrade, and no shop ware counts for a line."""
+    options: ClassVar[dict[str, Any]] = {"offense_pacing": "later", "defense_pacing": "later",
+                                         "progressive_items": "on", "shop_items_in_pool": "on"}
+
+    def test_each_level_asks_for_its_swords_and_rings(self) -> None:
+        assert_pacing(self)
 
 
 class TestSevenLetterLevelWord(ZoraTestBase):

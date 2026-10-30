@@ -35,7 +35,7 @@ from .flags.fields import (
     WoodenSwordState,
 )
 from .flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from .flags.zora_flags import GatekeeperBosses
+from .flags.zora_flags import SWORDLISH_HIGHEST_FIELD, SWORDLISH_LOWEST_FIELD, SWORDLISH_PIECES, HarderLevel, Swordlish
 from .generate.finish import FOREIGN, AssignmentRefused, AssignmentUnbeatable, Foreign, ForeignLook
 from .generate.logic import LogicModel, logic_model, triforce_event
 from .generate.pipeline import Built, FlagsRefused, GenerationPlan, plan
@@ -47,6 +47,10 @@ from .model.item_names import ITEM_NAMES, ITEMS_BY_NAME
 from .rom import inventory, slot_identity
 from .rom.base_rom import NoPlayerRom, player_rom, remember_base_rom
 from .rom.code_patches import SHOPS_BY_NUMBER
+from .rom.graphics_theme import GraphicsTheme, themed_player_rom
+from .rom.link_art import link_sprite_set_object, offered_sprite_sets
+from .rom.link_sprite import LINK_FIXED_COLORS
+from .rom.mirror_overworld import mirror_screen
 from .rom.player_settings import BLACKER_THAN_BLACK as REFUSED_COLOR
 from .rom.player_settings import (
     BOSS_SOUND_WORD_CHARACTERS,
@@ -60,6 +64,9 @@ from .rom.player_settings import (
     PAGE_CHOICES,
     PAGE_HEART_SLOT,
     PAGE_LEVEL_WORD,
+    PAGE_LINK_COLORS,
+    PAGE_LINK_SPRITE,
+    PAGE_LINK_SPRITE_SET,
     PAGE_TUNIC_SLOTS,
     PALETTE_SIZE,
     RANDOM_BOSS_SOUND_WORD,
@@ -67,6 +74,7 @@ from .rom.player_settings import (
     RANDOM_LEVEL_WORD,
     RETIRED_PAGE_SETTINGS,
     RETIRED_SETTINGS,
+    LinkSprite,
     PlayerSettingError,
     PlayerSettings,
     player_settings_from_page,
@@ -171,8 +179,20 @@ ZORA_FORCED_OFF = {
                           "so bombs come from enemies.",
     "disable_custom_music": "Not needed in Archipelago: its games have no randomized music, only Music On "
                             "or Off.",
+    # Item Shuffle: Random (No Vanilla) narrows Item Shuffle, which Archipelago never offers (FIXED_OPTIONS)
+    "item_shuffle_no_vanilla": "Not offered in Archipelago: it places every item itself, so Item Shuffle is "
+                               "always Full.",
 }
 NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS, *ZORA_FORCED_OFF})
+# ZORA flags a released world offered and ZORA has since retired (zora_flags.RETIRED_FIELDS), each with
+# its label, its value keys as that world named them (value, key, label) and the hidden option's reason. A
+# YAML may still name one with any of those values: it is accepted and ignored, so a player's file from
+# that release still loads. Gatekeeper Bosses: retired 2026-10-29 (docs/reports/gatekeeper-lessons.md).
+RETIRED_ZORA_FLAGS: dict[str, tuple[str, tuple[tuple[int, str, str], ...], str]] = {
+    "gatekeeper_bosses": ("Gatekeeper Bosses",
+                          ((0, "off", "Off"), (1, "anywhere", "Anywhere"), (2, "late", "Late"), (3, "early", "Early")),
+                          "Retired; a gate-based dungeon style is planned."),
+}
 # Values ZORA generates but Archipelago holds back until each passes C2's logic scan (owner
 # ruling, 2026-10-10); a held toggle offers only Off. C01 = 1, 3, 4, C04 = 2, 3, B81, B03,
 # Helpful hints (C03 = 1), Dungeon Quest 1st Quest (C02 = 0), the nine start items' on and Random
@@ -247,24 +267,55 @@ NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS, *ZORA_FORCED_OFF})
 # sword and bombs from the start (owner decision 1), and these take the sword away.
 HELD_BACK: dict[str, frozenset[int]] = {
     "C07": frozenset({WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS, WoodenSwordState.RANDOM}),
-    # Replace Book Fire with Explosion (B47), on and "?", is not compatible with Archipelago (owner
-    # ruling, 2026-10-22): as first built it sold the Book and dealt the magic shield in its place,
-    # and with Item Shuffle Full and random other settings generation did not finish in 120 s for 23
-    # of 100 seeds On and 10 of 100 Random (at b275933); Off is offered. B47 is now the blast alone
-    # (docs/deviations.md), and the scan at e8e5c66 passed 100 of 100 seeds each way, but it stays
-    # held until the owner says otherwise.
-    "B47": frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
-    # The beta 9 export's item pins change where items may lie, which the logic reads: held until
-    # their scan. The coast's Non-Heart (C12 = 16), and level 9's two places at the Bow, the Ladder,
-    # the Power Bracelet, the Raft, the Recorder and the Wand (C26, C27 = 3, 5, 8, 9, 10, 14; FL-DEP-01
-    # rule 5), behind level 9's entry.
-    "C12": frozenset({PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER}),
-    **dict.fromkeys(("C26", "C27"), frozenset({PinnedItem.BOW, PinnedItem.LADDER, PinnedItem.POWER_BRACELET,
-                                               PinnedItem.RAFT, PinnedItem.RECORDER, PinnedItem.WAND})),
-    # Gatekeeper Bosses (beta 9) seals each level's triforce part behind its boss, which the logic reads
-    # through the boss's shutters: held until the logic is scanned (owner, 2026-10-24).
-    "gatekeeper_bosses": frozenset({GatekeeperBosses.ANYWHERE, GatekeeperBosses.LATE,
-                                    GatekeeperBosses.EARLY}),
+    # The beta 9 export's item pins change where items may lie, which the logic reads. The 2026-10-27 scan
+    # (100 seeds per value, random settings for every other offered option, every place, event and the goal
+    # reached; a control of 200 seeds with the pins at the Red Candle and the Silver Arrow, already offered:
+    # 199 ok, one 180 s timeout) released Coast Item: Non-Heart (C12 = 16: 98 ok, 2 generation failures, 0
+    # unreachable), Level 9 Item 1 and 2 at the Bow (C26, C27 = 3: 97 ok, 2 timeouts, 1 failure, 0 unreachable)
+    # and Replace Book Fire with Explosion On and Random (B47, now the blast alone: 98 of 100 ok each way, 0
+    # unreachable). Level 9's places at the Wand (C26, C27 = 14) left 1 of 100 seeds with no way to Ganon's drop
+    # (seed 100967: a Mixed + Shapes level 9 whose gate room the walk read at the fixed second-quest cell); that
+    # walk was fixed (ac9b19e) and the rescan of 2026-10-27 released the Wand (98 ok, 2 generation failures by E1,
+    # 0 unreachable). These stay held: the Ladder, the Raft, the Recorder and the Power Bracelet (C26, C27 = 5, 9,
+    # 10, 8): generation failed after 2000 attempts, the acceptance check E1 rejecting every attempt, in 17, 9, 6
+    # and 10 of 100 seeds (the control: none). It needs the gate item to be unreachable without itself: the Ladder
+    # with Dungeon Quest 1st Quest and Dungeon Room Shuffle Vanilla (6 of 8 seeds), the Raft with Cave Shuffle
+    # Vanilla; the Recorder and the Power Bracelet probably the same, with their own entrances.
+    **dict.fromkeys(("C26", "C27"), frozenset({PinnedItem.LADDER, PinnedItem.POWER_BRACELET, PinnedItem.RAFT,
+                                               PinnedItem.RECORDER})),
+    # Gatekeeper Bosses (offered from 2026-10-28) is retired since 2026-10-29: RETIRED_ZORA_FLAGS.
+    # The 2026-10-28 export's settings that change the logic wait for their scan, on and Random: Add Extra
+    # Bosses (B79) puts Digdoggers and Gohmas in ordinary rooms, which the walk blocks until the recorder
+    # or the bow is held (VA-REJ-17); Shuffle Minor Dungeon Drops (B17) adds the bombs, five rupees and
+    # keys of the levels' rooms to the item pool, and so to Archipelago's locations
+    **dict.fromkeys(("B79", "B17"), frozenset({ThreeState.ON, ThreeState.POSSIBLE})),
+    # (Remove Maps, All Maps and All Compasses, B92 to B94, on and Random, are offered since 2026-10-28: the
+    # scan on 7e9603c built 600 of 600 seeds with 0 unreachable places.)
+    # (Mirror Overworld, B06, on and Random, is offered since 2026-10-28: pickup_checks takes the mirrored
+    # screen on a mirrored seed, checked in the emulator, and the scan built 200 of 200 seeds with 0
+    # unreachable places; docs/archipelago.md "Interface", Options.)
+    # Harder Bosses and Harder Ganon (ZORA version 14, from Z1M1): data and bank 4 patches that change no
+    # item, door or room, so the logic does not read them. Held until a 100-seed scan, like every new field.
+    **dict.fromkeys(("harder_bosses", "harder_ganon"), frozenset({HarderLevel.LEVEL_1, HarderLevel.LEVEL_2,
+                                                                  HarderLevel.LEVEL_3})),
+    # Offense and Defense Item Pacing (version 15, from Z1M1) are offered since 2026-10-28, every value. Archipelago's
+    # logic model did not name the sword and ring counts, so the places of paced levels got rules nothing satisfied
+    # (19 of 20 seeds per value unreachable); APClaude's patch to logic.py names them, and delta-debugging the slow
+    # seeds found two causes, fixed: the blue ring joined the pool untracked with Shop Items in the Item Pool
+    # (5ef6830), and Level 9 Item 1 or 2 at the Red Ring with Defense Earlier or at the White Sword with any Offense
+    # value can never be satisfied, so the options refuse them. The rescans (100 seeds per value, random settings
+    # for every other offered option): 0 unreachable places, 100 of 100 built for each of the six values, the
+    # slowest seed 25 s.
+    # Recorder Warping (version 15) is offered since 2026-10-28 (100 of 100 seeds built, 0 unreachable; its
+    # raft-screen drop-off was checked in the emulator).
+    # BogieSmalls' additions (version 16; docs/zora-extras.md section 23) are held (owner, 2026-10-29):
+    # Swap Swords and Rings moves the swords and rings the logic reads, and Swordlish gates the wooden sword
+    # Archipelago's player starts with (owner decision 1). Swordlish's range is held at its defaults with it.
+    "swap_swords_and_rings": frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
+    "swordlish": frozenset({Swordlish.ON, Swordlish.RANDOM}),
+    # (the page's controls count from 0: piece count less one)
+    SWORDLISH_LOWEST_FIELD: frozenset(range(1, len(SWORDLISH_PIECES))),
+    SWORDLISH_HIGHEST_FIELD: frozenset(range(len(SWORDLISH_PIECES) - 1)),
 }
 CHOICE, THREE_STATE, SWITCH = "choice", "three_state", "switch"
 # A switch's two values; every on/off/random value is labeled as on the page (zora/flags/fields.py).
@@ -304,6 +355,11 @@ class OptionsConflict(ValueError):
     def __init__(self, reasons: list[str]) -> None:
         super().__init__("ZORA cannot generate these options: " + "; ".join(reasons))
         self.reasons = reasons
+
+    def __reduce__(self) -> tuple[type[OptionsConflict], tuple[list[str]]]:
+        # Rebuilt from its reasons, not its message: a pickled copy (a process pool's) otherwise
+        # passes the message string as the reasons and joins it letter by letter
+        return type(self), (self.reasons,)
 
 
 # Words a key spells differently from the community's flag names (owner, before beta 3 froze the
@@ -348,6 +404,9 @@ VALUE_UNITS = {"C16": "hearts", "C17": "items", "C18": "pieces", "C20": "hearts"
 DEFAULT_VALUE_UNIT = "value"              # a new field's number labels, until it is given a unit
 # Keys the rule below would spell unevenly (Level 9 Entry's "1 triforce", Starting Hearts' range).
 VALUE_KEY_OVERRIDES = {("C08", 7): "triforces_1", ("C16", 16): "hearts_1_to_5"}
+# ZORA flags' values the rule would key unclearly: Swordlish's Random picks among five sword states, Swordlish one
+# of them, and random_per_seed alone would read as Swords' Random (owner, 2026-10-30; never shipped, held).
+ZORA_VALUE_KEY_OVERRIDES = {("swordlish", int(Swordlish.RANDOM)): "random_with_swordlish"}
 
 
 def value_key(label: str, unit: str | None = None) -> str:
@@ -379,7 +438,8 @@ def _z1r_value_keys(field: flag_form.FieldDef) -> dict[int, str]:
 def _zora_value_keys(field: Mapping[str, Any]) -> dict[int, str]:
     """Every value of a ZORA flag and its key."""
     if field["kind"] == "option":
-        return {value["value"]: value_key(value["label"]) for value in field["values"]}
+        return {value["value"]: (ZORA_VALUE_KEY_OVERRIDES.get((field["name"], value["value"]))
+                                 or value_key(value["label"])) for value in field["values"]}
     states = THREE_STATE_KEYS if field["kind"] == zora_form.THREE_STATE_KIND else dict.fromkeys(SWITCH_STATES)
     return {int(state): THREE_STATE_KEYS[state] for state in states}
 
@@ -445,13 +505,17 @@ def option_keys() -> dict[str, str]:
 
 
 def never_offered_fields() -> list[OptionSpec]:
-    """The ZORA flags Archipelago never offers (ZORA_FORCED_OFF), each with every value and its
-    reason as the description. The world keeps each as a hidden option, so a YAML that names one
-    (written for an unreleased build that offered it, or by hand) gets never_offered_refusal's
-    message rather than Archipelago's "not a valid option name" warning and a silent Off."""
+    """The ZORA flags Archipelago never offers (ZORA_FORCED_OFF) and the retired ones a released world
+    offered (RETIRED_ZORA_FLAGS), each with every value and its reason as the description. The world
+    keeps each as a hidden option, so a YAML that names one gets never_offered_refusal's verdict
+    rather than Archipelago's "not a valid option name" warning."""
     zora_defaults = zora_flags.decode(DEFAULT_ZORA_FLAGS)
-    return [replace(_zora_spec(field, zora_defaults), description=ZORA_FORCED_OFF[field["name"]])
-            for field in zora_form.FIELDS if field["name"] in ZORA_FORCED_OFF]
+    forced_off = [replace(_zora_spec(field, zora_defaults), description=ZORA_FORCED_OFF[field["name"]])
+                  for field in zora_form.FIELDS if field["name"] in ZORA_FORCED_OFF]
+    retired = [OptionSpec(key, key, label, reason, CHOICE, tuple((value, name) for value, _key, name in values),
+                          values[0][0], tuple((value, value_key) for value, value_key, _name in values))
+               for key, (label, values, reason) in RETIRED_ZORA_FLAGS.items()]
+    return forced_off + retired
 
 
 def _is_off(given: object) -> bool:
@@ -463,8 +527,9 @@ def _is_off(given: object) -> bool:
 
 def never_offered_refusal(key: str, given: object) -> str | None:
     """Why a YAML's value for a ZORA flag Archipelago never offers (ZORA_FORCED_OFF) is refused, or
-    None for off, which ZORA uses anyway."""
-    if _is_off(given):
+    None for off, which ZORA uses anyway, and for any value of a retired flag (RETIRED_ZORA_FLAGS),
+    which is ignored."""
+    if _is_off(given) or key in RETIRED_ZORA_FLAGS:
         return None
     label = next(field["label"] for field in zora_form.FIELDS if field["name"] == key)
     return (f"{label} ({key}): {given!r} is not offered. {ZORA_FORCED_OFF[key]} "
@@ -546,17 +611,26 @@ COLOR, WORD = "color", "word"
 # Keys, values, defaults and rules come from zora/rom/player_settings.py, which finish() reads.
 PLAYER_SETTING_LABELS = {
     "selectButton": "Select button", "lowHealthBeep": "Low-health beep", "deathWarp": "Death-warp",
-    "reduceFlashing": "Reduce flashing", "music": "Music",
+    "reduceFlashing": "Reduce flashing", "music": "Music", "graphicsTheme": "Graphics theme",
     "greenTunic": "Green tunic", "blueRingTunic": "Blue ring", "redRingTunic": "Red ring", PAGE_HEART_SLOT: "Hearts",
     PAGE_LEVEL_WORD: "Level name", PAGE_BOSS_SOUND_WORD: "Boss-sound label",
+    PAGE_LINK_SPRITE: "Playable character", PAGE_LINK_COLORS[0]: "Playable character's color 2",
+    PAGE_LINK_COLORS[1]: "Playable character's color 3",
 }
+# The playable character's choice (the page's Link sprite row, web/zora-web.js linkSpriteRow): PRG0's
+# Link, one of ZORA's built-in sets by its id (the page's "built-in:" choices; a file the player loads
+# is the page's alone), or Random (the seed number picks).
+LINK_SPRITE_ORIGINAL = LinkSprite.LINK.value
+LINK_SPRITE_ORIGINAL_LABEL = "Link (original)"
 PLAYER_CHOICE_LABELS = {
     "selectButton": {"off": "Off", "swap": "Swap only", "toggle": "Toggle"},
-    "lowHealthBeep": {"removed": "Removed", "kept": "Kept", "half-speed": "Half speed", "random": "Random"},
+    "lowHealthBeep": {"removed": "Removed", "kept": "Kept", "half-speed": "Half speed",
+                      "quarter-speed": "Quarter speed", "random": "Random"},
     "deathWarp": {"p2-up-a": "Controller 2 Up+A", "p1-up-a": "Controller 1 Up+A",
                   "p1-up-select": "Controller 1 Up+Select"},
     "reduceFlashing": {"off": "Off", "on": "On"},
     "music": {"on": "On", "off": "Off"},
+    "graphicsTheme": {"off": "Off", "halloween": "Halloween"},
 }
 RANDOM_WORD_LABEL = "Random"
 # The Archipelago games' own settings (owner decisions 2026-10-18; the beta 5 fixes spec items 4
@@ -576,6 +650,7 @@ MULTIWORLD_SETTINGS: dict[str, tuple[str, str, tuple[tuple[str, str], ...]]] = {
 # Every NES palette value but $0D (FP-SET-02, FP-SET-03; player_settings.check_palette_value), and
 # Random (RANDOM_COLOR, one past the palette).
 ALLOWED_COLORS = (*(value for value in range(PALETTE_SIZE) if value != REFUSED_COLOR), RANDOM_COLOR)
+NO_RANDOM_COLORS = ALLOWED_COLORS[:-1]
 # A Random choice's value key in a player's YAML, by kind. Never "random": Archipelago reads that word as
 # its own (any one of the option's values, drawn when the multiworld is generated).
 RANDOM_COLOR_KEY = "random_color"
@@ -627,9 +702,11 @@ BOSS_SOUND_WORD_RULE = TextRule(BOSS_SOUND_WORD_LENGTH, BOSS_SOUND_WORD_LENGTH, 
 # Each player setting's YAML key, by its page key (stable from beta 3 on).
 PLAYER_SETTING_KEYS = {
     "selectButton": "select_button", "lowHealthBeep": "low_health_beep", "deathWarp": "death_warp",
-    "reduceFlashing": "reduce_flashing", "music": "music",
+    "reduceFlashing": "reduce_flashing", "music": "music", "graphicsTheme": "graphics_theme",
     "greenTunic": "green_tunic", "blueRingTunic": "blue_ring_tunic", "redRingTunic": "red_ring_tunic",
     PAGE_HEART_SLOT: "hearts", PAGE_LEVEL_WORD: "level_word", PAGE_BOSS_SOUND_WORD: "boss_sound_word",
+    PAGE_LINK_SPRITE: "playable_character", PAGE_LINK_COLORS[0]: "playable_character_color_2",
+    PAGE_LINK_COLORS[1]: "playable_character_color_3",
     PAGE_FOREIGN_ITEM_LOOK: "foreign_item_look", PAGE_ITEM_ARRIVAL_SOUND: "item_arrival_sound",
 }
 RANDOM_WORD_KEY = "random_word"           # the boss-sound label's RANDOM, which the recipe keeps
@@ -662,9 +739,20 @@ def player_setting_fields() -> list[PlayerSettingSpec]:
         default = next(value for value, setting in values.items() if setting == getattr(defaults, field))
         specs.append(PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], CHOICE, default,
                                        tuple((value, PLAYER_CHOICE_LABELS[key][value]) for value in values)))
-    slots = (*zip(PAGE_TUNIC_SLOTS, defaults.tunic_colors, strict=True), (PAGE_HEART_SLOT, defaults.heart_color))
+    sprites = ((LINK_SPRITE_ORIGINAL, LINK_SPRITE_ORIGINAL_LABEL),
+               *((set_id, link_sprite_set_object(sprite_set)["name"])
+                 for set_id, sprite_set in offered_sprite_sets().items()),
+               (RANDOM_CHOICE, RANDOM_WORD_LABEL))
+    specs.append(PlayerSettingSpec(PAGE_LINK_SPRITE, PLAYER_SETTING_LABELS[PAGE_LINK_SPRITE], CHOICE,
+                                   defaults.link_sprite.value, sprites))
+    slots = (*zip(PAGE_TUNIC_SLOTS, defaults.tunic_colors, strict=True),)
     specs += [PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], COLOR, default, colors=ALLOWED_COLORS)
               for key, default in slots]
+    # The character's colors 2 and 3 (sets drawn in other colors): no Random, as on the page
+    specs += [PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], COLOR, default, colors=NO_RANDOM_COLORS)
+              for key, default in zip(PAGE_LINK_COLORS, LINK_FIXED_COLORS, strict=True)]
+    specs.append(PlayerSettingSpec(PAGE_HEART_SLOT, PLAYER_SETTING_LABELS[PAGE_HEART_SLOT], COLOR,
+                                   defaults.heart_color, colors=ALLOWED_COLORS))
     level_words = (*((word, word) for word in LEVEL_WORD_CHOICES), (RANDOM_LEVEL_WORD, RANDOM_WORD_LABEL))
     specs.append(PlayerSettingSpec(PAGE_LEVEL_WORD, PLAYER_SETTING_LABELS[PAGE_LEVEL_WORD], WORD, defaults.level_word,
                                    level_words, rule=LEVEL_WORD_RULE))
@@ -700,6 +788,11 @@ def page_player_settings(values: Mapping[str, Any]) -> dict[str, Any]:
             page[name] = value
             continue
         page[spec.key] = _page_value(spec, value)
+    chosen = page.get(PAGE_LINK_SPRITE)
+    built_in = offered_sprite_sets().get(chosen) if isinstance(chosen, str) else None
+    if built_in is not None:      # a built-in set by its id, as the page sends one: the set itself
+        page[PAGE_LINK_SPRITE] = LinkSprite.SET.value
+        page[PAGE_LINK_SPRITE_SET] = link_sprite_set_object(built_in)
     return page
 
 
@@ -777,15 +870,28 @@ def checked_rom(rom: bytes) -> bytes:
     return rom
 
 
-def build(values: Mapping[str, object], seed: int, rom: bytes) -> BuildResult:
+def build(values: Mapping[str, object], seed: int, rom: bytes,
+          player_settings: Mapping[str, Any] | None = None) -> BuildResult:
     """BUILD from Archipelago's option values (flag_strings) and ZORA's seed number, which the
-    Archipelago world draws from its own random generator, with the player's ROM (PRG0 or PRG1)."""
-    return build_from_strings(*flag_strings(values), seed, rom)
+    Archipelago world draws from its own random generator, with the player's ROM (PRG0 or PRG1).
+    `player_settings` (as finish() takes them): read here for the Graphics theme only, whose tiles go
+    in before generation (graphics_theme.themed_player_rom); finish() must then be given the same."""
+    return build_from_strings(*flag_strings(values), seed, rom, player_settings)
 
 
-def build_from_strings(flag_string: str, zora_flag_string: str, seed: int, rom: bytes) -> BuildResult:
-    """BUILD from ZORA's two flag strings and seed number, with the player's ROM."""
-    built = build_seed(plan(flag_string, seed, zora_flag_string), checked_rom(rom))
+def graphics_theme_of(player_settings: Mapping[str, Any] | None) -> GraphicsTheme:
+    """The Graphics theme player settings name (as finish() takes them); Off without any."""
+    if not player_settings:
+        return GraphicsTheme.OFF
+    return player_settings_from_page(page_player_settings(player_settings)).graphics_theme
+
+
+def build_from_strings(flag_string: str, zora_flag_string: str, seed: int, rom: bytes,
+                       player_settings: Mapping[str, Any] | None = None) -> BuildResult:
+    """BUILD from ZORA's two flag strings and seed number, with the player's ROM, themed when the
+    player settings name a Graphics theme (build)."""
+    base = themed_player_rom(checked_rom(rom), graphics_theme_of(player_settings))
+    built = build_seed(plan(flag_string, seed, zora_flag_string), base)
     return BuildResult(places=tuple(place_info(place) for place in built.places), logic=logic_model(built),
                        pool=tuple(ITEM_NAMES[read_item(built.world, place)] for place in built.places), state=built,
                        triforces=tuple((triforce_event(level), name) for level, name in triforce_spots(built.world)))
@@ -948,7 +1054,7 @@ def rom_from_recipe(data: Mapping[str, Any], rom: bytes) -> bytes:
     generation, with the same sanity check (RecipeNotReproduced if it now fails)."""
     check_recipe(data)
     seed = data["seed"]
-    result = build_from_strings(seed["flags"], seed["zoraFlags"], int(seed["number"]), rom)
+    result = build_from_strings(seed["flags"], seed["zoraFlags"], int(seed["number"]), rom, data["playerSettings"])
     try:
         ap_name = None if data["apName"] is None else bytes.fromhex(data["apName"])
         return finish(result, _recipe_assignment(data["assignment"]), data["received"], data["playerSettings"],
@@ -971,10 +1077,13 @@ class RamCheck:
         return bool(ram[self.address] & self.mask)
 
 
-def pickup_check(place: Place) -> RamCheck:
+def pickup_check(place: Place, mirrored: bool = False) -> RamCheck:
     """Where the game records that the place's item was taken: a room's or cellar's item bit in
     its level's room flags, a cave's (and the Armos and coast items') in its overworld screen's,
-    and a ware place's ShopBoughtFlags bit (External mode sells every ware place once)."""
+    and a ware place's ShopBoughtFlags bit (External mode sells every ware place once). On a
+    `mirrored` seed (Mirror Overworld, B06) the game is played on the flipped overworld, so a
+    screen's flags are those of its mirrored screen (OW-MIR-02: s XOR $0F), while the place,
+    read from the built world, names the screen before the flip (pipeline.written_world)."""
     if place.kind in (PlaceKind.ROOM, PlaceKind.CELLAR):
         assert place.level is not None and place.room_num is not None
         return RamCheck(inventory.room_flags(place.level) + place.room_num, inventory.ITEM_TAKEN)
@@ -982,13 +1091,16 @@ def pickup_check(place: Place) -> RamCheck:
         assert place.destination is not None and place.position is not None
         return RamCheck(inventory.SHOP_BOUGHT_FLAGS + place.position, 1 << SHOPS_BY_NUMBER.index(place.destination))
     screen = place.screens[0] if place.screens else inventory.COAST_SCREEN
+    if mirrored:
+        screen = mirror_screen(screen)
     return RamCheck(inventory.room_flags(0) + screen, inventory.ITEM_TAKEN)
 
 
 def pickup_checks(result: BuildResult) -> dict[str, RamCheck]:
     """Each place's RamCheck, by place name: the client reports a place collected when its check
     is set (only during normal play: docs/archipelago.md "Interface", when to read and write)."""
-    return {place.name: pickup_check(place) for place in result.state.places}
+    mirrored = result.state.plan.config.mirror_overworld
+    return {place.name: pickup_check(place, mirrored) for place in result.state.places}
 
 
 def _give_rules(chosen: GenerationPlan) -> inventory.GiveRules:

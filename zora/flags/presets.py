@@ -57,7 +57,8 @@ TTP5_PICK_5_FLAGS = "p8GIOeYEAonHy5131VdG6b94Ts3EMMvBaQoWR"
 # The 2026 tournament presets as v3.6.6 builds them in (owner, beta 8): TTP5 Muffle Rug and Pick 5 above
 # are those strings already; TTP5 Uphill Battle (replacing a damaged copy from an out-of-date
 # document) and SGLive Onsite join them. The beta 8 export (flags-behavior.md FL-SUP-01) produces every
-# field of all four.
+# field of all four. Rookie Rumble, v3.6.6's fifth built-in preset, is not on the menu (owner ruling,
+# 2026-10-27).
 TTP5_UPHILL_BATTLE_FLAGS = "143oNtDD4Pw3Yw6SRryTCXlqTsRz2fxg4s4pJW"
 SGLIVE_ONSITE_FLAGS = "12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA"
 ZORA_PRESETS: dict[str, tuple[str, str]] = {

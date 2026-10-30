@@ -31,8 +31,6 @@ from .fields import (
     MAGICAL_SWORD_LOWEST_BASE,
     MAX_TRIFORCE_PIECES,
     MAXIMUM_BOSS_HEALTH,
-    MONEY_OR_LIFE_ROOMS,
-    MONEY_OR_LIFE_TOLL,
     MONSTERS_BETWEEN_LEVELS,
     OPTION_FIELDS,
     PIECE_RANGE_HIGH,
@@ -130,20 +128,6 @@ def without_both_boss_health_rules(asked: Settings, resolved: Settings) -> Setti
         return resolved
     loser = GANON_HIT_POINTS_ZERO if asked.toggle(MAXIMUM_BOSS_HEALTH) is ThreeState.ON else MAXIMUM_BOSS_HEALTH
     return resolved.updated(toggles={loser: ThreeState.OFF})
-
-
-def with_the_toll_beside_merchants(asked: Settings, resolved: Settings) -> Settings:
-    """FL-DEP-04's B22 and B23 rule (ZORA's, owner ruling 2026-10-22): B22 on (life-or-money
-    merchants) with B23 off (the toll not re-drawn) never comes out. B22 is resolved first: B22 on
-    (as given, or a "?" come up on) turns a possible B23 on; B23 off as given turns a possible B22
-    off. With both "?" and B22 off, B23 keeps its coin. (B22 on with B23 off as given is not
-    supported, FL-SUP-01.)"""
-    if not resolved.is_on(MONEY_OR_LIFE_ROOMS) or resolved.is_on(MONEY_OR_LIFE_TOLL):
-        return resolved
-    if asked.toggle(MONEY_OR_LIFE_TOLL) is ThreeState.POSSIBLE:
-        return resolved.updated(toggles={MONEY_OR_LIFE_TOLL: ThreeState.ON})
-    assert asked.toggle(MONEY_OR_LIFE_ROOMS) is ThreeState.POSSIBLE, "B22 on with B23 off is not supported"
-    return resolved.updated(toggles={MONEY_OR_LIFE_ROOMS: ThreeState.OFF})
 
 
 # FL-DEP-02 rule 1: the prerequisite is a cave shuffle that moves non-dungeon caves; the coin's

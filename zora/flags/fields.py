@@ -1,4 +1,4 @@
-"""The flag fields (FL-ENC-04, FL-ENC-05): the 27 option fields, the 91
+"""The flag fields (FL-ENC-04, FL-ENC-05): the 27 option fields, the 94
 three-state fields, and Settings, which holds a value for each."""
 from __future__ import annotations
 
@@ -259,7 +259,7 @@ PIN_FIELDS: tuple[OptionField, ...] = (ARMOS_PIN, COAST_PIN, WHITE_SWORD_CAVE_PI
 
 
 # ---------------------------------------------------------------------------
-# FL-ENC-05: the 91 three-state fields
+# FL-ENC-05: the 94 three-state fields
 # ---------------------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -361,6 +361,9 @@ _TOGGLE_SETTINGS = (
     "Change hidden overworld tiles",                                # B89
     "Increase the bomb capacity upgrade",                           # B90
     "Allow universal drops in shapes",                              # B91
+    "Remove the dungeon maps",                                      # B92
+    "Start with every level's map",                                 # B93
+    "Start with every level's compass",                             # B94
 )
 TOGGLE_FIELDS: tuple[ToggleField, ...] = tuple(
     ToggleField(f"B{number:02d}", setting) for number, setting in enumerate(_TOGGLE_SETTINGS, start=1)
@@ -398,6 +401,16 @@ RUPEES_AFFECT_SPEED = TOGGLES_BY_ID["B80"]
 HIDDEN_NUMBERS = TOGGLES_BY_ID["B83"]
 PREVENT_CLIPPING = TOGGLES_BY_ID["B84"]
 BOMB_CAPACITY_UPGRADE = TOGGLES_BY_ID["B90"]
+# The 2026-10-28 export's settings (4333098, reviews 81-84)
+SECRET_SPOTS_MOVE = TOGGLES_BY_ID["B05"]                 # OW-ENTR-01
+MINOR_DUNGEON_DROPS = TOGGLES_BY_ID["B17"]               # PS-ITEM-14
+ENEMY_DROP_GROUPS = TOGGLES_BY_ID["B38"]                 # PS-EDROP-03
+BLACKOUT = TOGGLES_BY_ID["B50"]                          # PS-COLOR-04
+EXTRA_BOSSES = TOGGLES_BY_ID["B79"]                      # PS-BOSS-07
+# The 7e32c5c export's settings (review 87)
+REMOVE_MAPS = TOGGLES_BY_ID["B92"]                       # FP-MAP-01
+ALL_MAPS = TOGGLES_BY_ID["B93"]                          # FP-MAP-02
+ALL_COMPASSES = TOGGLES_BY_ID["B94"]                     # FP-MAP-02
 PRINT_QUEST_INFO = TOGGLES_BY_ID["B51"]
 RECORDER_TO_UNBEATEN = TOGGLES_BY_ID["B07"]
 HIDE_DUNGEON_NUMBERS = TOGGLES_BY_ID["B24"]
@@ -434,7 +447,7 @@ def _field_id(ref: FieldRef) -> str:
 
 @dataclass(frozen=True)
 class Settings:
-    """The decoded values of all 118 fields, keyed by the spec labels C01 to C27 and B01 to B91.
+    """The decoded values of all 121 fields, keyed by the spec labels C01 to C27 and B01 to B94.
 
     Option values are clamped indices (FL-ENC-03 rule 3), never raw slot values.
     """

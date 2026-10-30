@@ -14,6 +14,7 @@ CREDITS: dict[str, str] = {
     "fast-dungeon-scroll": "fiskbit",
     "recorder-pols-voice": "Stratoform",
     "full-health": "ShadowOne333, kalita-kun and gzip",
+    "harder-ganon": "MetalMachine",
 }
 
 PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
@@ -124,5 +125,29 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x0B0F0, bytes.fromhex("a9ff8d7006ad6f064a4a4a4a8500ad6f0629f005008d6f064ca1eb")),
         (0x14B82, bytes.fromhex("2020b9eaea")),
         (0x17930, bytes.fromhex("8d6f064a4a4a4a0d6f068d6f0660")),
+    ),
+    "harder-ganon": (
+        (0x10661, bytes.fromhex("03")),
+        (0x10662, Original(0x10662, 6)),
+        (0x10668, bytes.fromhex("34bb")),
+        (0x1066A, Original(0x1066A, 1)),
+        (0x1066B, bytes.fromhex("02")),
+        (0x1066C, Original(0x1066C, 1)),
+        (0x1066D, bytes.fromhex("11bb")),
+        (0x10689, bytes.fromhex("14bb")),
+        (0x10696, bytes.fromhex("2050bbea")),
+        (0x106AA, bytes.fromhex("18bb")),
+        (0x106B7, bytes.fromhex("28bb")),
+        (0x106B9, Original(0x106B9, 5)),
+        (0x106BE, bytes.fromhex("1cbb")),
+        (0x12CFA, bytes.fromhex("64bb")),
+        (0x12F38, bytes.fromhex("207cbbea")),
+        (0x12F3C, Original(0x12F3C, 7)),
+        (0x12F43, bytes.fromhex("2096bbeaea")),
+        (0x13B10, bytes.fromhex("010004030200383020002040600050a0f0242328030103010004060ac0bc645c948cc0bc645c828624"
+                                "c824c8648824c824c848a8205ae8488a48a20bbd4f03c93ef007cad0f668aa686068aa68a92860a40b"
+                                "c002d009ac00bbb518d90dbb60b518c9f060a515291fd00fbd8504f00ac9e0b0066d00bb9d85044ce4"
+                                "ae9848ac00bbb901bba8b5184a88d0fcac00bb7905bb952868a860a515290fd01d9848ac00bbb518d9"
+                                "09bb68a8b00fa51a4a69309570a51b4a4a69659584ad5906c90260")),
     ),
 }

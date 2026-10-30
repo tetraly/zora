@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import hashlib
 import re
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, fields, replace
 from enum import Enum, IntEnum
 
@@ -92,8 +92,10 @@ OWNER_2_0_SLOTS = (
 )
 # Fields that are no longer settings: their payload slot stays, so every string decodes as before;
 # decode reads and drops its digit, encode writes its default, and ZoraFlags has no attribute for
-# it. Auto Show Letter: always on (owner, 2026-10-17; owner_patches.ALWAYS_WRITTEN).
-RETIRED_FIELDS = frozenset({"auto_show_letter"})
+# it. Auto Show Letter: always on (owner, 2026-10-17; owner_patches.ALWAYS_WRITTEN). Gatekeeper Bosses
+# (version 12, released in beta 9 and 10): retired 2026-10-29 as a premature release, so a string with it
+# on builds without gatekeepers (docs/reports/gatekeeper-lessons.md; a gate-based dungeon style is planned).
+RETIRED_FIELDS = frozenset({"auto_show_letter", "gatekeeper_bosses"})
 # The owner's 2.0 flags that are settings, in payload order.
 OWNER_2_0_FIELDS = tuple(name for name in OWNER_2_0_SLOTS if name not in RETIRED_FIELDS)
 # Version 6: three ZORA 1.0 flags recreated as ZORA extras (owner design, 2026-10-17; docs/
@@ -138,10 +140,16 @@ PLAYER_SETTING_RULES = frozenset({"disable_custom_music"})
 FULL_HEALTH_FIELDS = (
     "full_health",                         # loading a save and continuing after death fill every heart
 )
+# Version 16: BogieSmalls' additions (features-behavior.md FP-SWAP and FP-SWL; his permission,
+# 2026-10-29). Swap Swords and Rings is On / Off / ? like version 3's, a "?" decided by the same coins after
+# version 13's; Swordlish has its own three values (Swordlish) and the range of N it draws from.
+SWAP_SWORDS_AND_RINGS_FIELDS = (
+    "swap_swords_and_rings",               # FP-SWAP-01: the White Sword and Blue Ring, Magical Sword and Red Ring
+)
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
                       *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
-                      *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS)
+                      *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS, *SWAP_SWORDS_AND_RINGS_FIELDS)
 
 
 
@@ -160,18 +168,50 @@ class OopsAllBosses(IntEnum):
     DODONGOS = 1           # triple and single
 
 
-class GatekeeperBosses(IntEnum):
-    """Gatekeeper Bosses (owner, 2026-10-24; docs/zora-extras.md section 19): in each level 1-8 one boss
-    room is the only way into the part holding the triforce, and how much of the level lies behind it."""
+# Gatekeeper Bosses' retired slot (version 12): Off, Anywhere, Late, Early, a base-4 digit read and dropped
+GATEKEEPER_BOSSES_SLOTS = 4
+
+
+class HarderLevel(IntEnum):
+    """Harder Bosses and Harder Ganon (docs/zora-extras.md section 21), from Z1M1's boss_level and
+    harder_ganon: Off, or how much harder level 1, 2 or 3 makes them."""
     OFF = 0
-    ANYWHERE = 1           # a drawn share of the level behind the boss
-    LATE = 2               # close to the triforce: at most a quarter of the level behind the boss
-    EARLY = 3              # most of the level behind the boss
+    LEVEL_1 = 1
+    LEVEL_2 = 2
+    LEVEL_3 = 3
+
+
+class Pacing(IntEnum):
+    """Offense Item Pacing and Defense Item Pacing (docs/zora-extras.md section 22), from Z1M1's
+    when_offense_items and when_defense_items: how many swords or rings the logic asks for before each
+    dungeon's items count. Off asks for none, as ZORA always has; Normal is Z1M1's default, not ZORA's."""
+    OFF = 0
+    EARLIER = 1
+    NORMAL = 2
+    LATER = 3
+
+
+class Swordlish(IntEnum):
+    """Swordlish (features-behavior.md FP-SWL-01 and FP-SWL-04; from BogieSmalls): Off, On (the
+    wooden sword costs N triforce pieces), or Random, one of five wooden-sword states per seed."""
+    OFF = 0
+    ON = 1
+    RANDOM = 2
+
+
+# Swordlish's N (FP-SWL-01): drawn per seed from a range of piece counts, each end 1 to 8, defaults 1 and 8.
+# The low end's digit is its count less one and the high end's eight less its count, so both defaults are
+# digit 0 and every older string keeps its meaning and its spelling.
+SWORDLISH_PIECES = range(1, 9)
+SWORDLISH_LOWEST_FIELD = "swordlish_lowest"
+SWORDLISH_HIGHEST_FIELD = "swordlish_highest"
 
 
 # Fields whose digit is an enum's value
 ENUM_FIELDS: dict[str, type[IntEnum]] = {"oops_all_enemies": OopsAllEnemies, "oops_all_bosses": OopsAllBosses,
-                                         "gatekeeper_bosses": GatekeeperBosses}
+                                         "harder_bosses": HarderLevel, "harder_ganon": HarderLevel,
+                                         "offense_pacing": Pacing, "defense_pacing": Pacing,
+                                         "swordlish": Swordlish}
 
 # Every field ever defined, in payload order (least significant first).
 # Append only: a field's position and radix never change once released.
@@ -213,12 +253,31 @@ FIELDS: tuple[ZoraField, ...] = (
     # Version 11: Disable Custom Music (PLAYER_SETTING_RULES), Off by default, so every older string
     # keeps its meaning and its spelling.
     ZoraField("disable_custom_music", 2, version=11),
-    # Version 12: Gatekeeper Bosses (GatekeeperBosses), Off by default, so every older string keeps its
-    # meaning and its spelling.
-    ZoraField("gatekeeper_bosses", len(GatekeeperBosses), version=12),
+    # Version 12: Gatekeeper Bosses, retired (RETIRED_FIELDS): its slot stays, so every string decodes.
+    ZoraField("gatekeeper_bosses", GATEKEEPER_BOSSES_SLOTS, version=12),
     # Version 13: Start With Full Health (FULL_HEALTH_FIELDS), Off by default, so every older string keeps
     # its meaning and its spelling.
     *(ZoraField(name, THREE_STATE_SLOTS, version=13) for name in FULL_HEALTH_FIELDS),
+    # Version 14: Harder Bosses and Harder Ganon (HarderLevel; from Z1M1, MetalMachine), Off by default, so
+    # every older string keeps its meaning and its spelling. No random value.
+    ZoraField("harder_bosses", len(HarderLevel), version=14),
+    ZoraField("harder_ganon", len(HarderLevel), version=14),
+    # Version 15: Offense Item Pacing, Defense Item Pacing (Pacing) and Recorder Warping (from Z1M1; the last a
+    # switch), Off by default, so every older string keeps its meaning and its spelling.
+    ZoraField("offense_pacing", len(Pacing), version=15),
+    ZoraField("defense_pacing", len(Pacing), version=15),
+    ZoraField("recorder_warping", 2, version=15),
+    # Version 16: BogieSmalls' additions, Swap Swords and Rings (SWAP_SWORDS_AND_RINGS_FIELDS) and Swordlish
+    # with its range, Off by default (the range at 1 to 8), so every older string keeps its meaning and its
+    # spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=16) for name in SWAP_SWORDS_AND_RINGS_FIELDS),
+    ZoraField("swordlish", len(Swordlish), version=16),
+    ZoraField(SWORDLISH_LOWEST_FIELD, len(SWORDLISH_PIECES), version=16),
+    ZoraField(SWORDLISH_HIGHEST_FIELD, len(SWORDLISH_PIECES), version=16),
+    # Version 17: Item Shuffle: Random (No Vanilla) (ITEM_SHUFFLE_NO_VANILLA_FIELD; owner, 2026-10-29), a switch
+    # beside the Z1R string's Item Shuffle: Random (C06 = 4), Off by default, so every older string keeps its
+    # meaning and its spelling.
+    ZoraField("item_shuffle_no_vanilla", 2, version=17),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -274,16 +333,49 @@ class ZoraFlags:
     do_not_segment_dungeons: ThreeState = ThreeState.OFF
     # Version 11: Disable Custom Music (PLAYER_SETTING_RULES): Music offers only Off and Vanilla.
     disable_custom_music: bool = False
-    # Version 12: Gatekeeper Bosses (GatekeeperBosses).
-    gatekeeper_bosses: GatekeeperBosses = GatekeeperBosses.OFF
     # Version 13: Start With Full Health, On / Off / ? (FULL_HEALTH_FIELDS).
     full_health: ThreeState = ThreeState.OFF
+    # Version 14: Harder Bosses and Harder Ganon (HarderLevel).
+    harder_bosses: HarderLevel = HarderLevel.OFF
+    harder_ganon: HarderLevel = HarderLevel.OFF
+    # Version 15: the pacing settings, and the switch that lets the logic ask for a recorder warp
+    # (docs/zora-extras.md section 22).
+    offense_pacing: Pacing = Pacing.OFF
+    defense_pacing: Pacing = Pacing.OFF
+    recorder_warping: bool = False
+    # Version 16: BogieSmalls' additions (docs/zora-extras.md section 23). Swordlish's range of N,
+    # in either order (a reversed range is put in order, FP-SWL-01); resolved flags hold the drawn N at both ends.
+    swap_swords_and_rings: ThreeState = ThreeState.OFF
+    swordlish: Swordlish = Swordlish.OFF
+    swordlish_lowest: int = SWORDLISH_PIECES[0]
+    swordlish_highest: int = SWORDLISH_PIECES[-1]
+    # Version 17: with Item Shuffle: Random (C06 = 4), each seed draws Item Only, Intra-Dungeon or Full, never
+    # None (docs/zora-extras.md section 24); the page shows the two as Item Shuffle's sixth choice.
+    item_shuffle_no_vanilla: bool = False
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
         if cap is not None and cap not in HEARTS_CAP_CHOICES:
             raise ValueError(f"magical_sword_hearts_highest must be None or in "
                              f"{HEARTS_CAP_CHOICES.start}..{HEARTS_CAP_CHOICES.stop - 1}, got {cap}")
+        for name in (SWORDLISH_LOWEST_FIELD, SWORDLISH_HIGHEST_FIELD):
+            if getattr(self, name) not in SWORDLISH_PIECES:
+                raise ValueError(f"{name} must be in {SWORDLISH_PIECES.start}..{SWORDLISH_PIECES.stop - 1}, "
+                                 f"got {getattr(self, name)}")
+
+    @property
+    def swordlish_range(self) -> range:
+        """FP-SWL-01: the piece counts N is drawn from, the two ends put in order."""
+        lowest, highest = sorted((self.swordlish_lowest, self.swordlish_highest))
+        return range(lowest, highest + 1)
+
+    @property
+    def swordlish_pieces(self) -> int:
+        """The pieces the wooden sword costs (call on resolved flags): N, or 0 when Swordlish is off."""
+        if self.swordlish is not Swordlish.ON:
+            return 0
+        assert len(self.swordlish_range) == 1, "N is drawn when the flags are resolved"
+        return self.swordlish_lowest
 
     @property
     def is_default(self) -> bool:
@@ -323,6 +415,10 @@ def _index_of(flags: ZoraFlags, field: ZoraField) -> int:
     value = getattr(flags, field.name)
     if field.name == "magical_sword_hearts_highest":
         return HEARTS_FOLLOW_Z1R if value is None else value - HEARTS_CAP_BASE
+    if field.name == SWORDLISH_LOWEST_FIELD:
+        return int(value) - SWORDLISH_PIECES[0]
+    if field.name == SWORDLISH_HIGHEST_FIELD:
+        return SWORDLISH_PIECES[-1] - int(value)
     return int(value)
 
 
@@ -332,6 +428,10 @@ def _value_of(field: ZoraField, index: int) -> bool | int | ThreeState | None:
         return ENUM_FIELDS[field.name](index)
     if field.name == "magical_sword_hearts_highest":
         return None if index == HEARTS_FOLLOW_Z1R else HEARTS_CAP_BASE + index
+    if field.name == SWORDLISH_LOWEST_FIELD:
+        return SWORDLISH_PIECES[0] + index
+    if field.name == SWORDLISH_HIGHEST_FIELD:
+        return SWORDLISH_PIECES[-1] - index
     if field.slots == THREE_STATE_SLOTS:
         return ThreeState(index)
     return bool(index)
@@ -543,17 +643,18 @@ RAFT_BLOCKS_CONFLICT_FIELDS = ("extra_raft_blocks", OVERWORLD_QUEST.id, ITEM_SHU
                                DUNGEON_QUEST.id)
 
 
-def keeps_raft_behind_raft(z1r: Settings) -> bool:
+def keeps_raft_behind_raft(z1r: Settings, item_shuffle_no_vanilla: bool = False) -> bool:
     """Whether the Z1R settings (asked, Random values counted, or resolved) can leave the raft in level
-    3 behind its own raft-blocked entrance under Extra Raft Blocks."""
+    3 behind its own raft-blocked entrance under Extra Raft Blocks. Item Shuffle: Random (No Vanilla) never
+    draws None, so with it Item Shuffle never counts (item_shuffle_no_vanilla: the asked ZORA field)."""
     return (z1r.option(OVERWORLD_QUEST) in RAFT_TRAP_OVERWORLDS
-            and z1r.option(ITEM_SHUFFLE) in RAFT_TRAP_ITEM_SHUFFLES
+            and z1r.option(ITEM_SHUFFLE) in RAFT_TRAP_ITEM_SHUFFLES and not item_shuffle_no_vanilla
             and z1r.option(CAVE_SHUFFLE) in RAFT_TRAP_CAVE_SHUFFLES
             and z1r.option(DUNGEON_QUEST) not in RAFT_FREE_DUNGEON_QUESTS)
 
 
 def raft_blocks_conflict(flags: ZoraFlags, z1r: Settings) -> str | None:
-    if flags.extra_raft_blocks is ThreeState.ON and keeps_raft_behind_raft(z1r):
+    if flags.extra_raft_blocks is ThreeState.ON and keeps_raft_behind_raft(z1r, flags.item_shuffle_no_vanilla):
         return RAFT_BLOCKS_CONFLICT
     return None
 
@@ -623,12 +724,26 @@ def asnb_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str
 # Each pin with its name on the page (form.field_label; tests/test_pinned_items.py checks them)
 LEVEL_9_PIN_NAMES = {LEVEL_9_FIRST_PIN: "Level 9 Item 1", LEVEL_9_SECOND_PIN: "Level 9 Item 2"}
 BOOK_PIN = 1
+RED_RING_PIN = 12
 WHITE_SWORD_PIN = 15
 # Level 9 Entrance = Level 4 sword opens level 9 on four swords (wood, white, magical and Add L4
 # Sword's level-2 one): a white sword in level 9 never counts toward it.
 WHITE_SWORD_PIN_CONFLICT = ("{pin} = White Sword cannot be used with Level 9 Entrance = Level 4 sword: level 9 "
                             "opens on four swords, the White Sword among them, so it cannot wait inside. Choose "
                             "another item for {pin}, or set Level 9 Entrance to Triforce pieces.")
+# Defense Item Pacing: Earlier asks for two rings to enter level 9, and only the blue and the red ring exist: the red
+# ring inside level 9 can never be held first (measured 2026-10-28: 4 of 4 seeds ran to the generation limit).
+RED_RING_PIN_CONFLICT = ("{pin} = Red Ring cannot be used with Defense Item Pacing: Earlier: level 9 asks for both "
+                         "rings, so the Red Ring cannot wait inside it. Choose another item for {pin}, or set "
+                         "Defense Item Pacing to Normal, Later or Off.")
+# Offense Item Pacing: every value asks for two swords to enter level 9: the wooden sword and one more, which the
+# White Sword inside level 9 cannot be; only the Magical Sword could, from its cave (10 to 14 hearts first) or, with
+# Randomize Magical Sword, from the pool. Measured 2026-10-28 with the pin: Earlier 7 of 7 seeds ran to the generation
+# limit (4 of 4 with Randomize Magical Sword off, 3 of 3 on), Normal 3 of 4 with it off, Later 0 of 3 with it on and
+# 7 of 8 built with it off, and the 100-seed rescan lost one more Later seed (msword off). Refused with every value.
+WHITE_SWORD_PACING_CONFLICT = ("{pin} = White Sword cannot be used with Offense Item Pacing: level 9 asks for two "
+                               "swords, so the White Sword cannot wait inside it, and the seeds that remain often "
+                               "never generate. Choose another item for {pin}, or set Offense Item Pacing to Off.")
 # Book to Understand NPCs (B48) hides a randomized maze's path until the book is held
 # (AcceptanceCheck.knows_maze_path), and a dungeon door can lie past either maze (level 5's at $0B,
 # past the Lost Hills, on the 1st Quest overworld; under a dungeon shuffle, some door past the Lost
@@ -651,6 +766,11 @@ def level_9_pin_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tu
         value = z1r.option(pin)
         if value == WHITE_SWORD_PIN and flags.level_9_entrance_sword:
             found.append((WHITE_SWORD_PIN_CONFLICT.format(pin=name), (pin.id, "level_9_entrance_sword")))
+        if value == RED_RING_PIN and flags.defense_pacing is Pacing.EARLIER:
+            found.append((RED_RING_PIN_CONFLICT.format(pin=name), (pin.id, "defense_pacing")))
+        if value == WHITE_SWORD_PIN and flags.offense_pacing is not Pacing.OFF:
+            found.append((WHITE_SWORD_PACING_CONFLICT.format(pin=name),
+                          (pin.id, "offense_pacing", "randomize_magical_sword")))
         if value == BOOK_PIN and book_hides_a_maze:
             found.append((BOOK_PIN_CONFLICT.format(pin=name),
                           (pin.id, BOOK_TO_UNDERSTAND_NPCS.id, "randomize_lost_hills", "randomize_dead_woods")))
@@ -731,7 +851,8 @@ def warnings(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]
 # included, changes or removes swords, so the ZORA flags that place, add or upgrade swords are
 # refused with it (owner decision, 2026-10-17): each named with its own message at both settings.
 SWORD_FLAG_LABELS = {"add_l4_sword": "Add L4 Sword", "randomize_magical_sword": "Randomize Magical Sword",
-                     "shuffle_wood_sword": "Shuffle Wood Sword", "progressive_items": "Progressive Items"}
+                     "shuffle_wood_sword": "Shuffle Wood Sword", "progressive_items": "Progressive Items",
+                     "offense_pacing": "Offense Item Pacing"}
 
 
 def sword_state_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
@@ -742,7 +863,8 @@ def sword_state_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tu
     asked = {"add_l4_sword": flags.add_l4_sword is not ThreeState.OFF,
              "randomize_magical_sword": flags.randomize_magical_sword,
              "shuffle_wood_sword": flags.shuffle_wood_sword is not ThreeState.OFF,
-             "progressive_items": flags.progressive_items}
+             "progressive_items": flags.progressive_items,
+             "offense_pacing": flags.offense_pacing is not Pacing.OFF}
     return [(sword_state_message(label), (name, WOODEN_SWORD_STATE.id))
             for name, label in SWORD_FLAG_LABELS.items() if asked[name]]
 
@@ -750,6 +872,94 @@ def sword_state_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tu
 def sword_state_message(label: str) -> str:
     return (f"{label} cannot be used with Swords set to anything but Normal (Random included): Swords changes "
             f"or removes the swords {label} works with. Set Swords to Normal, or turn {label} off.")
+
+
+# BogieSmalls' additions (features-behavior.md FP-SWAP-03 and FP-SWL-01; owner rulings,
+# 2026-10-29): each refused, never changed for the player.
+SWAP_FIELD = "swap_swords_and_rings"
+SWORDLISH_FIELD = "swordlish"
+# FP-SWAP-03: these states take the White Sword and the Magical Sword out of the game, so the swap never happens
+SWORDS_WITHOUT_SWAP = frozenset({WoodenSwordState.WOODEN_SWORD_ONLY, WoodenSwordState.SWORDLESS})
+SWAP_NEEDS_SWORDS = ("Swap Swords and Rings (on or Random) cannot be used with Swords: Wood Sword Only or "
+                     "Swordless: those take the White Sword and the Magical Sword out of the game, so there "
+                     "is nothing to swap. Set Swords to Normal, No Wood Sword or Random, or turn the swap off.")
+SWAP_NEEDS_SWORDS_FIELDS = (SWAP_FIELD, WOODEN_SWORD_STATE.id)
+# Level 9 Entrance = Level 4 sword counts the magical-sword cave as a sword (LogicRules.magical_sword_cave_counts),
+# which the swap would make the Red Ring's cave.
+SWAP_WITH_SWORD_ENTRANCE = ("Swap Swords and Rings (on or Random) cannot be used with Level 9 Entrance = Level 4 "
+                            "sword: the entrance counts the magical-sword cave's sword, which the swap moves.")
+SWAP_WITH_SWORD_ENTRANCE_FIELDS = (SWAP_FIELD, "level_9_entrance_sword")
+SWORDLISH_NEEDS_NORMAL = ("Swordlish (On or Random) needs Swords: Normal: it is a wooden-sword state of its "
+                          "own, and Random picks among Swords' first four and Swordlish.")
+SWORDLISH_NEEDS_NORMAL_FIELDS = (SWORDLISH_FIELD, WOODEN_SWORD_STATE.id)
+SWORDLISH_SWORD_FLAG_LABELS = {**SWORD_FLAG_LABELS, "level_9_entrance_sword": "Level 9 Entrance = Level 4 sword"}
+
+
+def swap_and_swordlish_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """FP-SWAP-03's refusal, the swap with the level-4-sword entrance, and Swordlish's: Swords other than
+    Normal and the ZORA flags that place, add or upgrade swords (as sword_state_conflicts
+    refuses them with Swords other than Normal)."""
+    found: list[tuple[str, tuple[str, ...]]] = []
+    if flags.swap_swords_and_rings is not ThreeState.OFF:
+        if z1r.option(WOODEN_SWORD_STATE) in SWORDS_WITHOUT_SWAP:
+            found.append((SWAP_NEEDS_SWORDS, SWAP_NEEDS_SWORDS_FIELDS))
+        if flags.level_9_entrance_sword:
+            found.append((SWAP_WITH_SWORD_ENTRANCE, SWAP_WITH_SWORD_ENTRANCE_FIELDS))
+    if flags.swordlish is Swordlish.OFF:
+        return found
+    if z1r.option(WOODEN_SWORD_STATE) != WoodenSwordState.NORMAL:
+        found.append((SWORDLISH_NEEDS_NORMAL, SWORDLISH_NEEDS_NORMAL_FIELDS))
+    asked = {"add_l4_sword": flags.add_l4_sword is not ThreeState.OFF,
+             "randomize_magical_sword": flags.randomize_magical_sword,
+             "shuffle_wood_sword": flags.shuffle_wood_sword is not ThreeState.OFF,
+             "progressive_items": flags.progressive_items,
+             "offense_pacing": flags.offense_pacing is not Pacing.OFF,
+             "level_9_entrance_sword": flags.level_9_entrance_sword}
+    found += [(swordlish_message(label), (name, SWORDLISH_FIELD))
+              for name, label in SWORDLISH_SWORD_FLAG_LABELS.items() if asked[name]]
+    return found
+
+
+def swordlish_message(label: str) -> str:
+    return (f"{label} cannot be used with Swordlish (On or Random): Swordlish changes the swords {label} "
+            f"works with. Turn Swordlish or {label} off.")
+
+
+# Item Shuffle: Random (No Vanilla) (owner, 2026-10-29): the ZORA field narrows the Z1R string's Item Shuffle: Random
+# (C06 = 4) to Item Only, Intra-Dungeon and Full; with any other Item Shuffle it means nothing, and is refused (the
+# page never writes it so: it sets both, or neither).
+ITEM_SHUFFLE_NO_VANILLA_FIELD = "item_shuffle_no_vanilla"
+NO_VANILLA_ITEM_SHUFFLES = (ItemShuffleScope.DUNGEON_ITEMS_ONLY, ItemShuffleScope.WITHIN_EACH_DUNGEON,
+                            ItemShuffleScope.FULL)
+NO_VANILLA_NEEDS_RANDOM = ("Item Shuffle: Random (No Vanilla) needs the Z1R string's Item Shuffle at Random: the ZORA "
+                           "flag only narrows Random's draw. Choose Random (No Vanilla) in Item Shuffle again, or "
+                           "another Item Shuffle value.")
+NO_VANILLA_NEEDS_RANDOM_FIELDS = (ITEM_SHUFFLE_NO_VANILLA_FIELD, ITEM_SHUFFLE.id)
+
+
+# Defense Item Pacing: Earlier asks for both rings before level 9, and Item Shuffle: None leaves the Red Ring in level
+# 9 (Random may draw None; Random (No Vanilla) never does). Measured 2026-10-30 (beta 11 batch run, the invariant
+# sample): None with Earlier 0 of 3 seeds generated (2,000 attempts each), Within each dungeon and Item Only 3 of 3,
+# None with Normal or Later 3 of 3.
+DEFENSE_PACING_ITEM_SHUFFLES = frozenset({ItemShuffleScope.NONE, ItemShuffleScope.RANDOM})
+DEFENSE_PACING_CONFLICT = ("Defense Item Pacing: Earlier cannot be used with Item Shuffle: None or Random: level 9 "
+                           "asks for both rings, and with the items left in place the Red Ring waits inside level 9, "
+                           "so the seed can never be made. Choose another Item Shuffle (Random (No Vanilla) works), "
+                           "or set Defense Item Pacing to Normal, Later or Off.")
+DEFENSE_PACING_CONFLICT_FIELDS = ("defense_pacing", ITEM_SHUFFLE.id)
+
+
+def defense_pacing_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    if (flags.defense_pacing is Pacing.EARLIER and z1r.option(ITEM_SHUFFLE) in DEFENSE_PACING_ITEM_SHUFFLES
+            and not flags.item_shuffle_no_vanilla):
+        return [(DEFENSE_PACING_CONFLICT, DEFENSE_PACING_CONFLICT_FIELDS)]
+    return []
+
+
+def no_vanilla_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    if flags.item_shuffle_no_vanilla and z1r.option(ITEM_SHUFFLE) != ItemShuffleScope.RANDOM:
+        return [(NO_VANILLA_NEEDS_RANDOM, NO_VANILLA_NEEDS_RANDOM_FIELDS)]
+    return []
 
 
 def conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
@@ -764,7 +974,8 @@ def conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...
              (pegasus_boots_conflict(flags), PEGASUS_BOOTS_CONFLICT_FIELDS)]
     return ([(message, names) for message, names in found if message is not None] + asnb_conflicts(flags, z1r)
             + sword_state_conflicts(flags, z1r) + expanded_dungeon_locations_conflicts(flags, z1r)
-            + level_9_pin_conflicts(flags, z1r))
+            + level_9_pin_conflicts(flags, z1r) + swap_and_swordlish_conflicts(flags, z1r)
+            + no_vanilla_conflicts(flags, z1r) + defense_pacing_conflicts(flags, z1r))
 
 
 def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
@@ -782,6 +993,9 @@ def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
     reasons.extend(message for message, _names in sword_state_conflicts(flags, z1r))
     reasons.extend(message for message, _names in expanded_dungeon_locations_conflicts(flags, z1r))
     reasons.extend(message for message, _names in level_9_pin_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in swap_and_swordlish_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in no_vanilla_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in defense_pacing_conflicts(flags, z1r))
     return reasons
 
 
@@ -817,6 +1031,67 @@ def resolve_question_marks(flags: ZoraFlags, seed: int, z1r_canonical: str, zora
     decided = {name: ThreeState.ON if next(coins) else ThreeState.OFF
                for name in THREE_STATE_FIELDS if getattr(flags, name) is ThreeState.POSSIBLE}
     return replace(flags, **decided)  # type: ignore[arg-type]
+
+
+SWORDLISH_STREAM = b"zora swordlish"       # 16 bytes at most (BLAKE2b's person)
+# FP-SWL-04: Random's five states, C07's first four and Swordlish, each with equal chance
+SWORDLISH_RANDOM_STATES = (WoodenSwordState.NORMAL, WoodenSwordState.WOODEN_SWORD_ONLY,
+                           WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS, None)
+
+
+def swordlish_rng_key(seed: int, z1r_canonical: str, zora_canonical: str) -> int:
+    """The key of Swordlish's own draws (Random's state, then N): derived only from the seed number and
+    both canonical strings, so they move nothing in the other streams (FP-SWL-04: not normative)."""
+    message = KEY_SEPARATOR.join((str(seed), z1r_canonical, zora_canonical)).encode("utf-8")
+    digest = hashlib.blake2b(message, digest_size=SEED_BITS // 8, person=SWORDLISH_STREAM).digest()
+    return int.from_bytes(digest, "little")
+
+
+def resolve_swordlish(resolved: ZoraFlags, resolved_z1r: Settings, below: Callable[[int], int]
+                      ) -> tuple[ZoraFlags, Settings]:
+    """FP-SWL-01 and FP-SWL-04 after the "?" values: Random picks one of five states (`below(n)`, a uniform
+    draw from 0 to n - 1), a pick of Swords' four setting C07 and turning Swordlish off; Swordlish then draws N
+    from its range, held at both ends of the resolved range (a range of one value takes no draw)."""
+    if resolved.swordlish is Swordlish.RANDOM:
+        state = SWORDLISH_RANDOM_STATES[below(len(SWORDLISH_RANDOM_STATES))]
+        if state is not None:
+            return (replace(resolved, swordlish=Swordlish.OFF),
+                    resolved_z1r.updated(options={WOODEN_SWORD_STATE.id: int(state)}))
+        resolved = replace(resolved, swordlish=Swordlish.ON)
+    if resolved.swordlish is Swordlish.ON:
+        pieces = resolved.swordlish_range
+        drawn = pieces[below(len(pieces))] if len(pieces) > 1 else pieces[0]
+        resolved = replace(resolved, swordlish_lowest=drawn, swordlish_highest=drawn)
+    return resolved, resolved_z1r
+
+
+NO_VANILLA_STREAM = b"zora no vanilla"     # 16 bytes at most (BLAKE2b's person)
+
+
+def no_vanilla_rng_key(seed: int, z1r_canonical: str, zora_canonical: str) -> int:
+    """The key of Item Shuffle: Random (No Vanilla)'s draw: derived only from the seed number and both canonical
+    strings, so it moves nothing in the other streams (the Z1R string's own draw for Random still happens)."""
+    message = KEY_SEPARATOR.join((str(seed), z1r_canonical, zora_canonical)).encode("utf-8")
+    digest = hashlib.blake2b(message, digest_size=SEED_BITS // 8, person=NO_VANILLA_STREAM).digest()
+    return int.from_bytes(digest, "little")
+
+
+def resolve_item_shuffle_no_vanilla(asked: ZoraFlags, asked_z1r: Settings, resolved_z1r: Settings,
+                                    below: Callable[[int], int]) -> Settings:
+    """Item Shuffle: Random (No Vanilla): with the field on and Item Shuffle asked at Random, Item Shuffle is
+    Item Only, Intra-Dungeon or Full, one in three each (`below(n)`, a uniform draw from 0 to n - 1), in place of
+    the value Random drew from the four; anything else is left as resolved."""
+    if not asked.item_shuffle_no_vanilla or asked_z1r.option(ITEM_SHUFFLE) != ItemShuffleScope.RANDOM:
+        return resolved_z1r
+    drawn = NO_VANILLA_ITEM_SHUFFLES[below(len(NO_VANILLA_ITEM_SHUFFLES))]
+    return resolved_z1r.updated(options={ITEM_SHUFFLE.id: int(drawn)})
+
+
+def swaps_swords_and_rings(resolved: ZoraFlags, resolved_z1r: Settings) -> bool:
+    """FP-SWAP-01 and FP-SWAP-03 on resolved flags: the swap is on, and Swords resolved to a state with the
+    White Sword and the Magical Sword (Normal or No Wood Sword; Swordlish is generated as Normal)."""
+    return (resolved.is_on(SWAP_FIELD)
+            and resolved_z1r.option(WOODEN_SWORD_STATE) not in SWORDS_WITHOUT_SWAP)
 
 
 def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z1r: Settings,

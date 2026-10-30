@@ -47,7 +47,7 @@ def test_pool_is_the_owners_routed_quotes_with_provenance() -> None:
     text = files("zora.generate.steps").joinpath(POOL_FILE).read_text(encoding="utf-8")
     assert "owner-quotes-routed.tsv" in text and "afb5732" in text and "docs/ui-provenance.md" in text
     owner = [entry for entry in POOL if not entry.placeholder and not entry.stand_in and not entry.contributor]
-    assert len(owner) == 174
+    assert len(owner) == 171        # 174 from the crossing, less three removed by hand on 2026-10-30
     assert sum(entry.reserved for entry in owner) == 12
     assert sum(entry.hearts is not None for entry in owner) == 27
     assert len({entry.lines for entry in POOL}) == len(POOL)
@@ -55,7 +55,8 @@ def test_pool_is_the_owners_routed_quotes_with_provenance() -> None:
         assert quote_problems(list(entry.lines)) == [], entry
 
 
-COMMUNITY_TEXTS = 85           # the Discord submissions of 2026-10-24: 55 replaced placeholders, 30 appended
+COMMUNITY_TEXTS = 87           # the Discord submissions of 2026-10-24: 55 replaced placeholders, 30 appended;
+                               # 2 more on 2026-10-30
 
 
 def test_community_texts_fit_the_game_and_are_credited() -> None:

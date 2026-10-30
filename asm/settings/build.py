@@ -80,10 +80,12 @@ SETTINGS = (
              "controller1_up_a": "death-warp-controller1-up-a",
              "controller1_up_select": "death-warp-controller1-up-select"},
             default="controller1_up_a"),
-    # FP-BEEP-01: the request's operand is data (zora/rom/player_settings.py); half speed's patch
-    # gates the heart warning in the sound engine. Removed and kept hold the ZORA build's bytes.
+    # FP-BEEP-01: the request's operand is data (zora/rom/player_settings.py); half and quarter
+    # speed's patches gate the heart warning in the sound engine. Removed and kept hold the ZORA
+    # build's bytes.
     Setting("low_health_beep", "FP-BEEP-01",
-            {"removed": None, "kept": None, "half_speed": "half-speed-beep"}, default="removed"),
+            {"removed": None, "kept": None, "half_speed": "half-speed-beep",
+             "quarter_speed": "quarter-speed-beep"}, default="removed"),
     # FP-SET-04.
     Setting("music", "FP-SET-04", {"on": None, "off": "music-off"}, default="on"),
     # FP-FIX-02.
@@ -94,8 +96,11 @@ SETTINGS = (
     # owner ruling, beta 3).
     # "music": the same screen with StatsTick at bank 0 $B000, for ROMs with randomized music
     # (asm/fp-stats-01-music/; docs/music.md), whose song table and glue take bank 0 $8000-$82A0.
+    # "lozft2": the same with StatsTick run from DriveAudio's end, for lozft built from source, whose
+    # NMI replaces IsrNmi's JSR DriveAudio (asm/fp-stats-01-lozft2/; tests only for now).
     Setting("statistics_screen", "FP-STATS-01",
-            {"off": None, "on": "../fp-stats-01", "music": "../fp-stats-01-music"}, default="off"),
+            {"off": None, "on": "../fp-stats-01", "music": "../fp-stats-01-music",
+             "lozft2": "../fp-stats-01-lozft2"}, default="off"),
     # FP-LEVEL-02, the 8-tile level label: its own patch folder asm/fp-level-02/ (not in
     # asm/series.txt), written by level_word only for a 7-character label text.
     Setting("level_label", "FP-LEVEL-02", {"short": None, "long": "../fp-level-02"}, default="short"),
@@ -258,8 +263,8 @@ PORTED_SITES = {
     # applied inside ZORA's own code instead.
     "flash site 4 in PRG0": range(0x061A3, 0x061A6),
 }
-# Music off's routine, in bank 0's free space ($A000).
-MUSIC_OFF_ROUTINE = 0x02010
+# Music off's routine, in bank 0's free space ($A200).
+MUSIC_OFF_ROUTINE = 0x02210
 
 
 def ported_sites(rom: bytes) -> dict[str, str]:

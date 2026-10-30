@@ -1,0 +1,19 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Abobo",
+  "author": "Irenepunmaster",
+  "provenance": "Drawn by Irenepunmaster, who gave it to ZORA to ship with credit (2026-10-26).",
+  "tiles": "AAEAAAgEACAHHx8/Pz8/PxcIAAE/Hw8PP39/Pz8ADw8AAODgAgLCgoDg4LDywuLiYiKiIuLAAID+/vri4gAAgAAAAQAACAQAAAcfHz8/Pz8gFwgAAN//cD8/f38//+BwAAAA4OAEBMQAgODgsPTE5IRkJKSk5Phw5Pz89OTEOHAAAAIJDwcgMwMPDx8fHT8/Fgw7HB8PDg4/Pz8PAwAODgAAQJDw4ADAwPDw+Pi4+PBsNtIw+PBwAPz+/v7EAHAAAAAAAAAAABADDw8fHx8fHxAMAAcfHx4MPz8fHwAcHgwAAAAAAAAACMDw8Pj4+Pj4CDAA4PjwYAD4/Pz8ABBgAAAAAAAABAIAAAMPDx8fHx8QCxAweP//cB8fHx8Px+BwAACAcHAAAGAAwPDw2Pjg8FjwAAD4+Pwe/v7+8PDgDB4YKGnU13MwGRk/f////n8/Cw4NDh87AQAfDwcDGTgAAAAAIMj48ADk4Pj4/Pzc/Pz0GOAAgocPAPz8/Pz+f/8AAAAAAAAAICAHHx8/Pz9/fxgHEH//4QAAPz8/T8DgAAAAAAAAAAARE4Dg4PDw8fP/Z48e7PD4PDz///78CBg8PAABFBcTCAkLY3d/f34/Pz8FAAAcHx8ODh8fHx8DAA4OAADg4wMCwoKA4OCz88Pj42IioiLiwwOA///74+MDA4AAAADg5gYExACA4OC29sbmhGQkpKTk/nbm/v725sY+dgAAAgkPBwADAw8PHx8dHw9+3o3c3f0CDn///////n4OAAACCQ8HAAMDDw8fHx0fDz5vRm5ufgAAP39/f39/PgAAAAIJDwf/5wMPDx8fHf//54GB5+fnfj7///////9+Pg==",
+  "recommendedColors": {
+    "tunics": [
+      41,
+      50,
+      22
+    ],
+    "other": [
+      39,
+      23
+    ]
+  }
+}

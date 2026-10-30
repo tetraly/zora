@@ -33,6 +33,7 @@ from typing import Any
 
 from .base_rom import Piece, original_bytes, piece_bytes, piece_length
 from .code_patch_data import PATCHES, SYMBOLS
+from .graphics_theme import GraphicsTheme, theme_after_generation, theme_offsets
 from .layout import (
     CONSTERNATION_HINT_SLOTS,
     EXT_BANK1_ROM_START,
@@ -43,6 +44,7 @@ from .layout import (
     LEVEL_LABEL_RECORD,
     LEVEL_LABEL_RECORD_SIZE,
     LEVEL_NAME_OFFSET,
+    LEVEL_NUMBER_OFFSET,
     LOW_HEALTH_BEEP_OPERAND_ADDRESS,
     NORMAL_REFUSAL_TEXT_ADDRESS,
     NUM_QUOTES,
@@ -55,7 +57,22 @@ from .layout import (
     hint_text_regions,
 )
 from .level_9_entrance import chosen_levels, chosen_levels_text, parsed_gate
-from .link_sprite import SpriteSet, SpriteSetError, link_tile_offsets, sprite_set_from_object, write_link_tiles
+from .link_art import (
+    ArtSet,
+    LinkSpriteSet,
+    has_swap,
+    link_sprite_set_from_object,
+    offered_sprite_sets,
+    sprite_set_tiles,
+    swap_target_offsets,
+    swap_writes,
+)
+from .link_sprite import (
+    LINK_FIXED_COLORS,
+    SpriteSetError,
+    link_tile_offsets,
+    write_link_tiles,
+)
 from .opening_story import level_word_in_story
 from .parse.text import REFUSAL_SLOT
 from .player_settings_data import SETTINGS
@@ -69,6 +86,7 @@ from .text_encoding import (
     QUOTE_END_BITS,
     QUOTE_LINE1_BIT,
     QUOTE_LINE2_BIT,
+    closed_line,
 )
 
 # NES palette values (FP-SET-02): six bits, and $0D ("blacker than black",
@@ -121,7 +139,21 @@ SKIN_DOT_HIGH_PLANE = bytes([MARKER_DOT_COLUMNS_BITS] * MARKER_DOT_ROWS)
 # FP-SET-03: the heart color, byte 8 of each of the ten level informations'
 # palette records (the overworld's is k = 0).
 HEART_COLOR_OFFSET = 8
+# Link's other colors (a page setting, 2026-10-26: for sprite sets drawn in other colors): colors 2 and
+# 3 of sprite palette 0, in every palette record the game loads Link's palette from. A record is a PPU
+# transfer: a 3-byte header, 16 background colors, then sprite palette 0 (its color 0, then 1 to 3).
+LINK_COLOR_2_IN_RECORD = 3 + 16 + 2
+STORY_PALETTE_RECORD = 0x955F        # StoryPaletteTransferRecord (the title story; color 2 there is $37)
+MENU_PALETTE_RECORD = 0x19CE8        # MenuPalettesTransferBuf (file select): sprite palettes 0-2, one
+MENU_SAVE_SLOTS = 3                  # Link per save slot (color 3 there is $07)
+SPRITE_PALETTE_SIZE = 4
 LEVEL_INFORMATIONS = 10
+# FP-STATS-01's StatsLevelNumbers and StatsLevelOrder (asm/fp-stats-01/bank_02.s, bank 2 $B7B0): levels
+# 1-9's shown number tiles, then the levels' indexes (0-8) in the order of those numbers.
+STATS_LEVEL_NUMBERS = 0x0B7C0
+STATS_LEVEL_ORDER = STATS_LEVEL_NUMBERS + 9
+STATS_LEVELS = range(1, 10)
+DIGIT_TILES = range(10)                  # digits are tiles 0-9
 # FP-BEEP-01: the operand ORed into Tune0Request ($40 requests the tone).
 BEEP_REMOVED, BEEP_KEPT = 0x00, 0x40
 # FP-HOT-01's patch: select swap off restores PRG0 at every site of it that
@@ -167,7 +199,7 @@ TRANSFER_END = 0xFF
 # The hints name levels the same way ("THE RAFT RESTS IN LEVEL-3.", "LEVEL-3 LIES BY THE COAST."),
 # and hint text is written at generation, before the player settings. The setting rewrites each
 # hint line holding a label in place: the label replaced, the line centered again on the box's
-# width, then padded at its end with the blank padding tile to its old length, so every text
+# width, then padded at its end to its old length (end_padded_hint_line), so every text
 # keeps its length and place and the pointers stay. A label is at most one character longer than
 # "LEVEL-3" ("CASTLE-3", "DUNGEON3"; FP-LEVEL-02), which takes a centering pad tile. A line
 # without one (its text 23 or 24 characters) has its text wrapped again in the text's length, or,
@@ -176,6 +208,12 @@ TRANSFER_END = 0xFF
 HINT_LEVEL_LABEL = re.compile(r"(?<![A-Z0-9])LEVEL-([1-9])(?![0-9])")
 HINT_LINE_WIDTH = 24                      # hint_text.LINE_WIDTH: hint lines are centered on it
 HINT_MAX_LINES = 3                        # hint_text.MAX_LINES: the text box's lines
+# A line's last tile carries its line-break or end bits, and the person text drawer skips the
+# padding tile before it reads them (Z_01.asm @WriteChar: `AND #$3F / CMP #$25 / BEQ @WriteChar`):
+# a line ending on one runs on into the next line's tiles and past the box's right edge. So the
+# padding at a line's end closes with a space, which the drawer shows as a blank and whose bits
+# it reads.
+HINT_LINE_END_CHARACTER = " "
 POINTER_BANK_BIT = 0x80                   # a pointer's high byte in bank 1 ($8000-$BFFF)
 # InitMode3_Sub7's `STA LevelNumberTransferBuf+9` (8D 25 68 at 0x1703F): its operand's low byte.
 LEVEL_NUMBER_STORE_OPERAND = 0x17040
@@ -211,19 +249,29 @@ class SelectSwap(Enum):
 
 
 class LowHealthBeep(Enum):
-    """FP-BEEP-01; half speed is tetraly/zora#3 (asm/settings/half-speed-beep/)."""
+    """FP-BEEP-01; half speed is tetraly/zora#3 (asm/settings/half-speed-beep/), quarter speed
+    the same routine with a longer wait (asm/settings/quarter-speed-beep/)."""
     REMOVED = "removed"
     KEPT = "kept"                # PRG0
     HALF_SPEED = "half_speed"    # kept, playing half as often
+    QUARTER_SPEED = "quarter_speed"  # kept, playing a quarter as often
     RANDOM = "random"            # removed or kept, with equal chance
 
 
 class LinkSprite(Enum):
-    """FP-LINK-02: PRG0's Link, the sprite set, or Random (offered only with a set: one of PRG0's
-    Link and the set, with equal chance)."""
+    """FP-LINK-02: PRG0's Link, the sprite set (a built-in one or the player's), or Random: one of
+    PRG0's Link, the built-in sets and the player's set if there is one, with equal chance."""
     LINK = "link"
     SET = "set"
     RANDOM = "random"
+
+
+class CharacterColors(Enum):
+    """Playable character's colors: a sprite set's own (its recommendedColors: colors 2 and 3, and
+    its tunic colors when its color 1 is art), unless the player picks their own. Without a set, or
+    with a set that has none, both are the player's."""
+    SET = "set"
+    MINE = "mine"
 
 
 class DeathWarp(Enum):
@@ -262,11 +310,22 @@ class PlayerSettings:
     level_word: str = DEFAULT_LEVEL_WORD            # FP-LEVEL-01: a word or RANDOM_LEVEL_WORD
     boss_sound_word: str = DEFAULT_BOSS_SOUND_WORD  # FP-ROAR-01's label: a word or RANDOM
     link_sprite: LinkSprite = LinkSprite.LINK       # FP-LINK-02
-    sprite_set: SpriteSet | None = None             # the set offered (the player's; ZORA ships none yet)
+    # Link's colors 2 and 3 (link_other_colors): the game's by default, which writes nothing
+    link_colors: tuple[int, int] = LINK_FIXED_COLORS
+    # Whose colors the playable character gets (shown_link_colors): a set's own by default
+    character_colors: CharacterColors = CharacterColors.SET
+    sprite_set: LinkSpriteSet | None = None         # the set chosen (built-in or the player's); Random adds it
+    # A person set's swap (link_art.ArtSet.swaps): the person also drawn as Link. Off by default, and
+    # Random never turns it on.
+    link_sprite_swap: bool = False
     # With a random Music value (docs/design/music-settings.md section 3; zora.rom.music after the
     # player settings): only songs marked safe for streaming. Not offered to Archipelago (its Music
     # choices are PAGE_CHOICES' on and off).
     music_streaming_safe_only: bool = True
+    # Look and feel's Graphics theme (Halloween Mode, owner, 2026-10-29; graphics_theme.py): its tiles go
+    # in before generation, so it applies only when a ROM is generated (apply_player_settings refuses it).
+    # Never drawn by Random.
+    graphics_theme: GraphicsTheme = GraphicsTheme.OFF
 
     @property
     def randomize_music(self) -> bool:
@@ -289,10 +348,16 @@ class PlayerSettings:
         for name, value in (("green tunic", self.tunic_colors[0]), ("blue ring", self.tunic_colors[1]),
                             ("red ring", self.tunic_colors[2]), ("heart color", self.heart_color)):
             check_palette_value(name, value)
-        if self.sprite_set is not None and not isinstance(self.sprite_set, SpriteSet):
+        if len(self.link_colors) != len(LINK_FIXED_COLORS):
+            raise PlayerSettingError(f"Link's other colors: two values, not {len(self.link_colors)}")
+        for number, value in enumerate(self.link_colors, start=2):
+            check_palette_value(f"Link's color {number}", value, random_allowed=False)
+        if self.sprite_set is not None and not isinstance(self.sprite_set, LinkSpriteSet):
             raise PlayerSettingError("Link sprite: the set offered is not a sprite set")
-        if self.link_sprite is not LinkSprite.LINK and self.sprite_set is None:
+        if self.link_sprite is LinkSprite.SET and self.sprite_set is None:
             raise PlayerSettingError(f"Link sprite: {self.link_sprite.value} needs a sprite set; none is loaded")
+        if self.link_sprite_swap and not (self.link_sprite is LinkSprite.RANDOM or has_swap(self.sprite_set)):
+            raise PlayerSettingError("Link sprite: the swap needs a set of a person who can also be drawn as Link")
 
 
 def check_palette_value(name: str, value: int, random_allowed: bool = True) -> None:
@@ -403,11 +468,27 @@ def resolved_player_settings(settings: PlayerSettings, seed: int) -> PlayerSetti
     word = settings.level_word
     if word == RANDOM_LEVEL_WORD:
         word = LEVEL_WORD_CHOICES[random_index(LEVEL_WORD_STREAM, seed, len(LEVEL_WORD_CHOICES))]
-    sprite = settings.link_sprite
+    sprite, sprite_set = settings.link_sprite, settings.sprite_set
     if sprite is LinkSprite.RANDOM:
-        sprite = (LinkSprite.LINK, LinkSprite.SET)[random_index(LINK_SPRITE_STREAM, seed, 2)]
+        sprite_set = random_sprite_set(sprite_set, seed)
+        sprite = LinkSprite.LINK if sprite_set is None else LinkSprite.SET
+        swap = False                                   # Random never swaps
+    else:
+        swap = settings.link_sprite_swap
     return replace(settings, low_health_beep=beep, tunic_colors=random_tunic_colors(settings.tunic_colors, seed),
-                   heart_color=heart, level_word=word, link_sprite=sprite)
+                   heart_color=heart, level_word=word, link_sprite=sprite, sprite_set=sprite_set,
+                   link_sprite_swap=swap)
+
+
+def random_sprite_set(players_set: LinkSpriteSet | None, seed: int) -> LinkSpriteSet | None:
+    """FP-LINK-02's Random: PRG0's Link (None), each built-in set (the 640-byte sets, then the
+    built-in-art ones, link_art.offered_sprite_sets), then the player's set if one is loaded (and not
+    a built-in one), with equal chance."""
+    sets = list(offered_sprite_sets().values())
+    if players_set is not None and players_set not in sets:
+        sets.append(players_set)
+    choices: list[LinkSpriteSet | None] = [None, *sets]
+    return choices[random_index(LINK_SPRITE_STREAM, seed, len(choices))]
 
 
 def title_seed_number(rom: bytes | bytearray) -> int:
@@ -445,7 +526,11 @@ DEFAULT_PLAYER_SETTINGS = PlayerSettings()
 def apply_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = False) -> bytes:
     """A finished ROM with the player settings written; nothing else changes. A ROM made from
     PRG1 is written in PRG0's layout and moved back (revision.layout_of). coop: as in
-    write_player_settings."""
+    write_player_settings. A graphics theme is refused: its tiles go in before generation
+    (graphics_theme.themed_player_rom), so it applies only when a ROM is generated with it."""
+    if settings.graphics_theme is not GraphicsTheme.OFF:
+        raise PlayerSettingError(f"Graphics theme {settings.graphics_theme.value}: it applies only when the ROM "
+                                 "is generated with it, not to a finished ROM")
     if layout_of(rom) is Revision.PRG1:
         image = moved_to_prg0_layout(rom)
         return back_to_revision(rom, Revision.PRG1, image, write_player_settings(image, settings, coop))
@@ -467,13 +552,17 @@ def write_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = Fal
     low_health_beep(out, settings.low_health_beep)
     death_warp(out, settings.death_warp)
     reduce_flashing(out, settings.reduce_flashing)
-    tunic_colors(out, settings.tunic_colors)
+    tunics, others = shown_link_colors(settings)
+    tunic_colors(out, tunics)
+    link_other_colors(out, others)
     heart_color(out, settings.heart_color)
     music(out, settings.music)
     level_word(out, settings.level_word)
     boss_sound_word(out, settings.boss_sound_word)
     link_sprite(out, settings.link_sprite, settings.sprite_set)
+    link_sprite_swap(out, settings.sprite_set, settings.link_sprite_swap)
     statistics_screen(out, on=not coop, for_music=settings.randomize_music)
+    theme_after_generation(out, settings.graphics_theme)
     return bytes(out)
 
 
@@ -506,8 +595,8 @@ def select_swap(rom: bytearray, choice: SelectSwap) -> None:
 
 
 def low_health_beep(rom: bytearray, choice: LowHealthBeep) -> None:
-    """FP-BEEP-01: the tone request's operand, and half speed's gate in the sound engine (PRG0's
-    bytes for the other two). Hidden Health (FP-HIDE-01), written later, clears the operand
+    """FP-BEEP-01: the tone request's operand, and half or quarter speed's gate in the sound engine
+    (PRG0's bytes for removed and kept). Hidden Health (FP-HIDE-01), written later, clears the operand
     alone: with nothing requesting the beep, the gate never runs."""
     rom[LOW_HEALTH_BEEP_OPERAND_ADDRESS] = BEEP_REMOVED if choice is LowHealthBeep.REMOVED else BEEP_KEPT
     _write(rom, SETTINGS["low_health_beep"][choice.value])
@@ -523,6 +612,25 @@ def reduce_flashing(rom: bytearray, on: bool) -> None:
     _write(rom, SETTINGS["reduce_flashing"]["on" if on else "off"])
 
 
+def shown_link_colors(settings: PlayerSettings) -> tuple[tuple[int, int, int], tuple[int, int]]:
+    """The tunic colors and Link's colors 2 and 3 the ROM gets (Random resolved): the player's, or
+    under The set's own (CharacterColors.SET) a chosen set's recommended colors: colors 2 and 3, and
+    the tunic colors too when the set's color 1 is art rather than clothing (all three ring states,
+    as the set gives them)."""
+    chosen = settings.sprite_set if settings.link_sprite is LinkSprite.SET else None
+    recommended = chosen.recommended if chosen is not None else None
+    if settings.character_colors is CharacterColors.MINE or recommended is None:
+        return settings.tunic_colors, settings.link_colors
+    return (recommended.tunics if recommended.color_one_is_art else settings.tunic_colors), recommended.other
+
+
+def own_colors_picked(tunics: object, others: object) -> bool:
+    """Whether a player's Link colors differ from the defaults: settings that name no CharacterColors
+    (a page saved before it, a command line without it) then mean My own."""
+    defaults = PlayerSettings()
+    return tunics != defaults.tunic_colors or others != defaults.link_colors
+
+
 def tunic_colors(rom: bytearray, colors: tuple[int, int, int]) -> None:
     """FP-SET-02: each slot's value in both copies; with a color that hides the map marker in
     any slot, the marker in Link's skin color (owner ruling, docs/reports/minimap-marker.md)."""
@@ -531,6 +639,26 @@ def tunic_colors(rom: bytearray, colors: tuple[int, int, int]) -> None:
     if hides_the_map_marker(colors):
         rom[MARKER_DOT_LOW_PLANE:MARKER_DOT_LOW_PLANE + MARKER_DOT_ROWS] = SKIN_DOT_LOW_PLANE
         rom[MARKER_DOT_HIGH_PLANE:MARKER_DOT_HIGH_PLANE + MARKER_DOT_ROWS] = SKIN_DOT_HIGH_PLANE
+
+
+def link_palette_color_offsets(number: int) -> list[int]:
+    """Every byte the game loads Link's color 2 or 3 (number) from: the ten level palettes, the title
+    story's, and the file-select screen's, once per save slot."""
+    in_record = LINK_COLOR_2_IN_RECORD + number - 2
+    records = [LEVEL_INFO_ADDRESS + level_information * LEVEL_INFO_SIZE
+               for level_information in range(LEVEL_INFORMATIONS)]
+    return ([record + in_record for record in [*records, STORY_PALETTE_RECORD]]
+            + [MENU_PALETTE_RECORD + in_record + slot * SPRITE_PALETTE_SIZE for slot in range(MENU_SAVE_SLOTS)])
+
+
+def link_other_colors(rom: bytearray, colors: tuple[int, int]) -> None:
+    """Link's colors 2 and 3: each one changed from the game's written everywhere the game loads it
+    (link_palette_color_offsets), level 3's lighter skin and the file select's darker color 3
+    included; one left at the game's writes nothing, so those keep their own."""
+    for number, (color, game) in enumerate(zip(colors, LINK_FIXED_COLORS, strict=True), start=2):
+        if color != game:
+            for offset in link_palette_color_offsets(number):
+                rom[offset] = color
 
 
 def hides_the_map_marker(colors: tuple[int, int, int]) -> bool:
@@ -596,13 +724,24 @@ def boss_sound_word(rom: bytearray, word: str) -> None:
         CHAR_TO_BYTE[char] for char in word)
 
 
-def link_sprite(rom: bytearray, choice: LinkSprite, sprite_set: SpriteSet | None) -> None:
-    """FP-LINK-02: PRG0's Link writes nothing; the set writes its 640 bytes over Link's six groups.
-    Random is resolved before (resolved_player_settings)."""
+def link_sprite(rom: bytearray, choice: LinkSprite, sprite_set: LinkSpriteSet | None) -> None:
+    """FP-LINK-02: PRG0's Link writes nothing; the set writes its 640 bytes over Link's six groups
+    (a built-in-art set's assembled from the player's ROM, link_art.art_tiles). Random is resolved
+    before (resolved_player_settings)."""
     assert choice is not LinkSprite.RANDOM, "resolve Random first"
     if choice is LinkSprite.SET:
         assert sprite_set is not None
-        write_link_tiles(rom, sprite_set.tiles)
+        write_link_tiles(rom, sprite_set_tiles(sprite_set))
+
+
+def link_sprite_swap(rom: bytearray, sprite_set: LinkSpriteSet | None, swap: bool) -> None:
+    """The swap: a person set also redraws the person as the original Link (link_art.swap_writes), in
+    the person's own halves only (link_art.SWAP_TARGETS). PlayerSettings refuses it without a set that
+    has one, and Random never swaps."""
+    if swap:
+        assert isinstance(sprite_set, ArtSet)
+        for offset, data in swap_writes(sprite_set):
+            rom[offset:offset + len(data)] = data
 
 
 def statistics_screen(rom: bytearray, on: bool, for_music: bool = False) -> None:
@@ -610,6 +749,26 @@ def statistics_screen(rom: bytearray, on: bool, for_music: bool = False) -> None
     ROM has without it (free space and the game's own instructions). for_music: StatsTick at bank 0
     $B000, clear of lozft's song table, for randomized music (asm/fp-stats-01-music/)."""
     _write(rom, SETTINGS["statistics_screen"]["off" if not on else "music" if for_music else "on"])
+    if on:
+        numbers = shown_level_numbers(rom)
+        rom[STATS_LEVEL_NUMBERS:STATS_LEVEL_NUMBERS + len(numbers)] = numbers
+        order = levels_in_shown_order(numbers)
+        rom[STATS_LEVEL_ORDER:STATS_LEVEL_ORDER + len(order)] = order
+
+
+def shown_level_numbers(rom: bytes | bytearray) -> bytes:
+    """Levels 1-9's number tiles as the status bar shows them (LevelInfo_LevelNumber): a second-quest
+    or mixed seed's level information in slot 4 may show 5, and Hide dungeon numbers shows "?"."""
+    return bytes(rom[LEVEL_INFO_ADDRESS + level * LEVEL_INFO_SIZE + LEVEL_NUMBER_OFFSET] for level in STATS_LEVELS)
+
+
+def levels_in_shown_order(numbers: bytes) -> bytes:
+    """The levels' indexes (0-8) by their shown numbers; a level whose number is hidden keeps its
+    own place (its index + 1), so with every number hidden the order is the levels' own."""
+    def place(index: int) -> int:
+        return numbers[index] if numbers[index] in DIGIT_TILES else index + 1
+    order: list[int] = sorted(range(len(numbers)), key=place)
+    return bytes(order)
 
 
 def relabel_hint_line(line: str, word: str, dash: bool = True) -> str | None:
@@ -623,7 +782,15 @@ def relabel_hint_line(line: str, word: str, dash: bool = True) -> str | None:
     if len(text) > len(line):
         return None
     pad = min((HINT_LINE_WIDTH - len(text)) // 2, len(line) - len(text))
-    return (TEXT_PAD_CHARACTER * pad + text).ljust(len(line), TEXT_PAD_CHARACTER)
+    return end_padded_hint_line(TEXT_PAD_CHARACTER * pad + text, len(line))
+
+
+def end_padded_hint_line(line: str, length: int) -> str:
+    """A hint line padded at its end to `length`: padding tiles, the last one a space, so the
+    line's last tile is never one the drawer skips with its bits (HINT_LINE_END_CHARACTER)."""
+    if len(line) >= length:
+        return line
+    return line.ljust(length - 1, TEXT_PAD_CHARACTER) + HINT_LINE_END_CHARACTER
 
 
 def hint_label(word: str, number: str, dash: bool = True) -> str:
@@ -662,7 +829,7 @@ def rewrapped_hint_lines(lines: list[str], word: str, length: int | None) -> lis
     for index, line in enumerate(rewrapped):
         extra = min(HINT_LINE_WIDTH - len(line), spare)
         spare -= extra
-        rewrapped[index] = line + TEXT_PAD_CHARACTER * extra
+        rewrapped[index] = end_padded_hint_line(line, len(line) + extra)
     return rewrapped if spare == 0 else None
 
 
@@ -692,7 +859,7 @@ def relabel_hint_text(body: bytes, word: str) -> bytes:
     out = bytearray(body)
     for (first, last), line, new in zip(spans, lines, relabeled, strict=True):
         if new is not None and new != line:
-            out[first:last] = bytes(CHAR_TO_BYTE[char] for char in new)
+            out[first:last] = bytes(closed_line([CHAR_TO_BYTE[char] for char in new]))
             out[last - 1] |= body[last - 1] & QUOTE_END_BITS
     return bytes(out)
 
@@ -702,7 +869,7 @@ def encoded_hint_lines(lines: list[str]) -> bytes:
     the text's end)."""
     out = bytearray()
     for index, line in enumerate(lines):
-        out += bytes(CHAR_TO_BYTE[char] for char in line)
+        out += bytes(closed_line([CHAR_TO_BYTE[char] for char in line]))
         last = index == len(lines) - 1
         out[-1] |= QUOTE_END_BITS if last else QUOTE_LINE1_BIT if index == 0 else QUOTE_LINE2_BIT
     return bytes(out)
@@ -810,13 +977,20 @@ def written_offsets(settings_field: str) -> set[int]:
         return {LEVEL_INFO_ADDRESS + k * LEVEL_INFO_SIZE + HEART_COLOR_OFFSET for k in range(LEVEL_INFORMATIONS)}
     elif settings_field == "link_sprite":
         return link_tile_offsets()
+    elif settings_field == "link_sprite_swap":
+        return swap_target_offsets()
+    elif settings_field == "graphics_theme":
+        return {offset for theme in GraphicsTheme for offset in theme_offsets(theme)}
+    elif settings_field == "link_colors":
+        return {*link_palette_color_offsets(2), *link_palette_color_offsets(3)}
     else:
         runs = [run for runs in SETTINGS[settings_field].values() for run in runs]
     return {offset + i for offset, run in runs for i in range(piece_length(run))}
 
 
 SETTING_CHOICES: dict[str, type[Enum]] = {"select_swap": SelectSwap, "low_health_beep": LowHealthBeep,
-                                          "death_warp": DeathWarp, "music": Music, "link_sprite": LinkSprite}
+                                          "death_warp": DeathWarp, "music": Music, "link_sprite": LinkSprite,
+                                          "character_colors": CharacterColors, "graphics_theme": GraphicsTheme}
 RANDOM_WORD = "random"                  # a color's or the level word's Random on the command line
 SWITCH_WORDS = {"off": False, "on": True}
 # Settings that are gone, by their command-line, YAML and page names: still accepted, with any value,
@@ -830,10 +1004,11 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     """Command-line settings, each `name=value` with PlayerSettings' field names: a choice by
     its value (music=off, music=random-standard, low_health_beep=random), reduce_flashing=on,
     music_streaming_safe_only=off, heart_color=0x21 or heart_color=random,
-    tunic_colors=0x29,random,0x16, level_word=PALACE (any case) or level_word=random (Random; the
-    word RANDOM is the page's), boss_sound_word=MEOW or boss_sound_word=random. A sprite set is
-    not read here (link_sprite=set or random needs one: the caller adds it). A retired setting
-    (RETIRED_SETTINGS) is ignored, whatever its value."""
+    tunic_colors=0x29,random,0x16, link_colors=0x36,0x0F (Link's colors 2 and 3), character_colors=set or
+    mine (without it, tunic or Link colors other than the defaults mean mine), level_word=PALACE (any
+    case) or level_word=random (Random; the word RANDOM is the page's), boss_sound_word=MEOW or
+    boss_sound_word=random. A sprite set is not read here (link_sprite=set or random needs one: the
+    caller adds it). A retired setting (RETIRED_SETTINGS) is ignored, whatever its value."""
     chosen: dict[str, object] = {}
     for pair in pairs:
         name, _, text = pair.partition("=")
@@ -848,6 +1023,8 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
                 chosen[name] = _color_word(text)
             elif name == "tunic_colors":
                 chosen[name] = tuple(_color_word(value) for value in text.split(","))
+            elif name == "link_colors":
+                chosen[name] = tuple(int(value, 0) for value in text.split(","))
             elif name == "level_word":
                 chosen[name] = RANDOM_LEVEL_WORD if text.strip().lower() == RANDOM_WORD else normalized_level_word(text)
             elif name == "boss_sound_word":
@@ -858,6 +1035,10 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
             if isinstance(exc, PlayerSettingError):
                 raise
             raise PlayerSettingError(f"{pair!r}: not a choice of {name}") from exc
+    defaults = PlayerSettings()
+    if "character_colors" not in chosen and own_colors_picked(chosen.get("tunic_colors", defaults.tunic_colors),
+                                                              chosen.get("link_colors", defaults.link_colors)):
+        chosen["character_colors"] = CharacterColors.MINE
     return PlayerSettings(**chosen)  # type: ignore[arg-type]
 
 
@@ -873,11 +1054,14 @@ PAGE_CHOICES: dict[str, tuple[str, dict[str, Any]]] = {
                                      "toggle": SelectSwap.TOGGLE}),
     "lowHealthBeep": ("low_health_beep", {"removed": LowHealthBeep.REMOVED, "kept": LowHealthBeep.KEPT,
                                           "half-speed": LowHealthBeep.HALF_SPEED,
+                                          "quarter-speed": LowHealthBeep.QUARTER_SPEED,
                                           "random": LowHealthBeep.RANDOM}),
     "deathWarp": ("death_warp", {"p2-up-a": DeathWarp.CONTROLLER2_UP_A, "p1-up-a": DeathWarp.CONTROLLER1_UP_A,
                                  "p1-up-select": DeathWarp.CONTROLLER1_UP_SELECT}),
     "reduceFlashing": ("reduce_flashing", {"off": False, "on": True}),
     "music": ("music", {"on": Music.ON, "off": Music.OFF}),
+    # Look and feel's Graphics theme: the page's and Archipelago's (read at the world's build, P3)
+    "graphicsTheme": ("graphics_theme", {"off": GraphicsTheme.OFF, "halloween": GraphicsTheme.HALLOWEEN}),
 }
 PAGE_TUNIC_SLOTS = ("greenTunic", "blueRingTunic", "redRingTunic")
 PAGE_HEART_SLOT = "heart"
@@ -887,7 +1071,14 @@ PAGE_BOSS_SOUND_WORD = "bossSoundWord"
 # JSON object. Not in PAGE_CHOICES: Archipelago's player settings do not offer it (a set is a file).
 PAGE_LINK_SPRITE = "linkSprite"
 PAGE_LINK_SPRITE_SET = "linkSpriteSet"
+PAGE_LINK_SPRITE_SWAP = "linkSpriteSwap"           # "on" or "off" (SWITCH_WORDS)
 PAGE_LINK_SPRITES = {sprite.value: sprite for sprite in LinkSprite}
+# Link's other colors (link_other_colors): the page's two keys, color 2 then color 3. Not in
+# PAGE_CHOICES: Archipelago's player settings do not offer them.
+PAGE_LINK_COLORS = ("linkColor2", "linkColor3")
+# Playable character's colors (CharacterColors): "set" or "mine"; a page saved before it has none, and
+# then its own Link colors, if any, mean mine (own_colors_picked). Not in PAGE_CHOICES either.
+PAGE_CHARACTER_COLORS = "characterColors"
 # Randomized music (web/zora-web.js MUSIC_CHOICES; docs/design/music-settings.md section 3): the page's
 # music key also takes the random values, and its switches. Not in PAGE_CHOICES, so Archipelago's
 # player settings (archipelago.player_setting_fields) never list them.
@@ -919,15 +1110,28 @@ def player_settings_from_page(values: Mapping[str, Any]) -> PlayerSettings:
         if values[PAGE_LINK_SPRITE] not in PAGE_LINK_SPRITES:
             raise PlayerSettingError(f"{PAGE_LINK_SPRITE}: unknown choice {values[PAGE_LINK_SPRITE]!r}")
         chosen["link_sprite"] = PAGE_LINK_SPRITES[values[PAGE_LINK_SPRITE]]
+    if any(key in values for key in PAGE_LINK_COLORS):
+        chosen["link_colors"] = tuple(values.get(key, game) for key, game in zip(PAGE_LINK_COLORS, LINK_FIXED_COLORS,
+                                                                                 strict=True))
+    if PAGE_CHARACTER_COLORS in values:
+        if values[PAGE_CHARACTER_COLORS] not in {choice.value for choice in CharacterColors}:
+            raise PlayerSettingError(f"{PAGE_CHARACTER_COLORS}: unknown choice {values[PAGE_CHARACTER_COLORS]!r}")
+        chosen["character_colors"] = CharacterColors(values[PAGE_CHARACTER_COLORS])
+    elif own_colors_picked(tunics, chosen.get("link_colors", defaults.link_colors)):
+        chosen["character_colors"] = CharacterColors.MINE
     if values.get(PAGE_LINK_SPRITE_SET) is not None:
         try:
-            chosen["sprite_set"] = sprite_set_from_object(values[PAGE_LINK_SPRITE_SET])
+            chosen["sprite_set"] = link_sprite_set_from_object(values[PAGE_LINK_SPRITE_SET])
         except SpriteSetError as exc:
             raise PlayerSettingError(f"Link sprite: {exc}") from exc
     if PAGE_BOSS_SOUND_WORD in values:
         if not isinstance(values[PAGE_BOSS_SOUND_WORD], str):
             raise PlayerSettingError(f"{PAGE_BOSS_SOUND_WORD}: {values[PAGE_BOSS_SOUND_WORD]!r} is not text")
         chosen["boss_sound_word"] = normalized_boss_sound_word(values[PAGE_BOSS_SOUND_WORD])
+    if PAGE_LINK_SPRITE_SWAP in values:
+        if values[PAGE_LINK_SPRITE_SWAP] not in SWITCH_WORDS:
+            raise PlayerSettingError(f"{PAGE_LINK_SPRITE_SWAP}: unknown choice {values[PAGE_LINK_SPRITE_SWAP]!r}")
+        chosen["link_sprite_swap"] = SWITCH_WORDS[values[PAGE_LINK_SPRITE_SWAP]]
     for key, field in MUSIC_SWITCHES.items():
         if key in values:
             if values[key] not in SWITCH_WORDS:

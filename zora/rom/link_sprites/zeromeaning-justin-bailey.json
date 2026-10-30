@@ -1,0 +1,29 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Justin Bailey",
+  "author": "ZeroMeaning",
+  "provenance": "Drawn by ZeroMeaning for Z1M1 (Justin Bailey, ZeroMeaning.JustinBailey.LinkAsset.asset at Z1M1's assets commit 20b4c27); ZeroMeaning's permission for use in other projects came through MetalMachine (2026-10-28, docs/permissions.md).",
+  "tiles": "AAEHDw8fDh8AAQcPDx8PHx8fFwUAHBwOHx8XBAcDDAAAwPD47NJSQgDA8Pj86vr+wsry2vICGDz69kJiAjIIEAMPHx8fPB4/Aw8fHx8/Hz8/Lw8FAgAAAT8uCAAAAgAAgODw2KKigoKA4PD40vL68pri8uKCQODw5oKCAmKAYIADBw8NCgoICQMHDw8NDw8LFhsJEQEGBgYREAACFgAGAMDg8LBQUBCQwODw8LDw8NBo2JiIgGBgAIgIAEBkYAAAAwcPDw8PDw8DBw8PDw8PDx8fGREBBgIAHRUAAiYGAADA4PDw8PDw8MDg8PDw8PDw+PiQiIBgYEC4KABAaABgAAAAAwcHDwcPAAADBwcPBw8PHxcFABwcDg8fFwQHAwwAAOD4/PboKKAA4Pj8/vT8/uDg/PjwAAwe/PhCQAA4FAgZP2/O/X08Hhk/f//2938/DwUAAgYOAAAcBAABBwAAAPD4/NwsLszO8Pj8/Nz+/P4c5NLQJC4PAOwEAigYBigABx8fHz8/Px8XDx8fHx8/Hz8vQxM4cAAAOypADCAAAACAwODg4OLm7oDA4ODi5u7+3rwYAAAAcHh+fDjQYGAQAAMHHRoaGAkJEzcPDQ8PBwMWHxUBAQYGBhEcFAIGAAYAAMDw+O/TUkIAwPD4/+v7/8LK8tryAhs/+/dDYwMzCxOA4PDbo6KCgoDg8PvT8/vzmuLy4oJD4/Dng4MDY4NjgAMHDw0KCggJAwcPDw0PDwt+343d3fwCBn3+/v7+/n4AAwcPDQoKCAkDBw8PDQ8PCwAAAAAAAAAAAAAAAAAAAAADBw8NCgr/5wMHDw8NDwAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "recommendedColors": {
+    "tunics": [
+      21,
+      19,
+      22
+    ],
+    "other": [
+      54,
+      26
+    ]
+  },
+  "fromGame": [
+    [
+      592,
+      608
+    ],
+    [
+      622,
+      640
+    ]
+  ]
+}

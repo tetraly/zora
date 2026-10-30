@@ -25,7 +25,9 @@ def flags(**values: ThreeState | bool) -> ZoraFlags:
 def test_version_3_holds_thirteen_three_state_fields() -> None:
     """Thirteen slots; Auto Show Letter's is retired (always on since 2026-10-17), twelve are flags."""
     assert len(zora_flags.OWNER_2_0_SLOTS) == 13 and len(OWNER_2_0_FIELDS) == 12
-    assert set(zora_flags.OWNER_2_0_SLOTS) - set(OWNER_2_0_FIELDS) == zora_flags.RETIRED_FIELDS == {"auto_show_letter"}
+    # version 3's one retired slot; Gatekeeper Bosses (version 12) is retired too since 2026-10-29
+    assert set(zora_flags.OWNER_2_0_SLOTS) - set(OWNER_2_0_FIELDS) == {"auto_show_letter"}
+    assert zora_flags.RETIRED_FIELDS == {"auto_show_letter", "gatekeeper_bosses"}
     assert all(field.version == 3 for field in zora_flags.FIELDS if field.name in OWNER_2_0_FIELDS)
     for name in OWNER_2_0_FIELDS:
         for value in (ON, MAYBE):

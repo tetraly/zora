@@ -5,8 +5,9 @@ own Check strings:
     (OW-CAVE-12); Shuffle Hungry Goriya and Shuffle Bomb Upgraders (B28, B29) at Random: coins first,
     then rule 4 (C02 = 1, 2, 4 turn both off), before rules 1 to 3, so a B28 rule 4 turned off does
     not meet rule 2.
-  - Add Money or Life Rooms and Change Leave Your Rooms (B22, B23) at Random: FL-DEP-04's rule (ZORA's,
-    owner ruling) never gives merchants without the toll re-drawn.
+  - Add Money or Life Rooms and Change Leave Your Rooms (B22, B23) at Random: each its own coin since
+    the 2026-10-28 export (L113: ZORA's old rule is gone), so all four pairs come out, B22 on with B23
+    off included (PS-MERCH-05).
   - Encode level data (B82, the spec's tournament mode) at Random reads as off (FP-TOURNEY-01; owner
     ruling: the page does not offer it)."""
 from collections import Counter
@@ -20,7 +21,6 @@ from zora.flags.fields import DungeonLayoutSource, DungeonRoomShuffle, ThreeStat
 from zora.flags.support import is_fully_supported
 from zora.generate.pipeline import build, finish, plan, resolve_question_marks
 from zora.rom.base_rom import remember_repo_base_rom
-from zora_export.seed_document import MERCHANT_RULE, resolution_stages
 
 B28_B29_POSSIBLE, B28_B29_POSSIBLE_SECOND_QUEST = "8hq4BeRs!KuZ63ioqOs3v61ejrUJ3A", "8hq4BeRs!KuZ63ioqOs3v61ejrUJ2v"
 B04_POSSIBLE = "8hq4BeR1JXo89EHDHHWaOtyr5gUJ3A"
@@ -76,29 +76,19 @@ def test_b04_at_random_resolves_both_ways() -> None:
     assert {plan(B04_POSSIBLE, seed).settings.is_on("B04") for seed in SEEDS} == {False, True}
 
 
-def test_merchants_never_come_without_the_toll() -> None:
-    both = resolved_pairs(B22_B23_POSSIBLE, "B22", "B23")
-    assert set(both) == {(True, True), (False, True), (False, False)}
-    assert resolved_pairs(B22_ON_B23_POSSIBLE, "B22", "B23") == {(True, True): len(SEEDS)}
-    assert resolved_pairs(B22_POSSIBLE_B23_OFF, "B22", "B23") == {(False, False): len(SEEDS)}
+def test_b22_and_b23_at_random_are_plain_coins() -> None:
+    """FL-DEP-04 (L113): no rule between them, so every pair comes out, and each field as given stays."""
+    assert set(resolved_pairs(B22_B23_POSSIBLE, "B22", "B23")) == {(True, True), (True, False), (False, True),
+                                                                    (False, False)}
+    assert set(resolved_pairs(B22_ON_B23_POSSIBLE, "B22", "B23")) == {(True, True), (True, False)}
+    assert set(resolved_pairs(B22_POSSIBLE_B23_OFF, "B22", "B23")) == {(True, False), (False, False)}
 
 
-def test_b23_off_beside_b22_on_stays_unsupported() -> None:
+def test_b23_off_beside_b22_on_is_supported() -> None:
+    """FL-DEP-06 and PS-MERCH-05 (L111): B22 on with B23 off, given as such."""
     asked = decode(B22_ON_B23_POSSIBLE)
-    assert not is_fully_supported(asked.updated(toggles={"B23": ThreeState.OFF}))
+    assert is_fully_supported(asked.updated(toggles={"B23": ThreeState.OFF}))
     assert is_fully_supported(asked.updated(toggles={"B22": ThreeState.POSSIBLE, "B23": ThreeState.OFF}))
-
-
-def test_the_spoiler_log_names_the_merchant_rule() -> None:
-    """A seed whose B22 coin came up on and whose B23 coin came up off shows the override."""
-    for seed in SEEDS:
-        chosen = plan(B22_B23_POSSIBLE, seed)
-        stages = dict(resolution_stages(chosen))
-        drawn = stages[""]
-        if drawn.is_on("B22") and not drawn.is_on("B23"):
-            assert stages[MERCHANT_RULE].is_on("B23")
-            return
-    raise AssertionError("no seed drew merchants without the toll")
 
 
 @needs_base_rom

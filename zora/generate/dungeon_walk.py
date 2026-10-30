@@ -216,8 +216,8 @@ def has_trap_monsters(room: Room) -> bool:
                                      or room.monster_list in TRAP_MONSTER_LISTS)
 
 
-def entry_row(room: Room, is_level9_entry: bool, has_ladder: bool,
-              measured_turnstile: bool = False, goriya_hungry: bool = False) -> Row | None:
+def entry_row(room: Room, is_level9_entry: bool, has_ladder: bool, measured_turnstile: bool = False,
+              goriya_hungry: bool = False) -> Row | None:
     """VA-REJ-18: the room's table line, the first that fits; None is the
     default row ("all" for every entry side). measured_turnstile: the $60
     room's measured line instead of VA-REJ-18's (WalkRules). goriya_hungry: Shuffle Major Shop
@@ -264,7 +264,8 @@ class WalkRules:
       through_target: a target room's arrival sides come from the walk without a target, so
         the target may be walked through like any room (rule 4 lifted; acceptance_check)
       triforce_of_power_opens: the last-boss shutters are open while the Triforce of Power is
-        held (CheckSecretTriggerLastBoss reads LastBossDefeated, which taking it sets)"""
+        held (CheckSecretTriggerLastBoss reads LastBossDefeated, which taking it sets)
+"""
     ladder_moats: frozenset[int] = frozenset()
     measured_turnstile: bool = False
     through_target: bool = False

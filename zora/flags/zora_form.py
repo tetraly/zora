@@ -12,12 +12,17 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .fields import THREE_STATE_LABELS, Settings, ThreeState
+from .fields import THREE_STATE_LABELS, TOGGLES_BY_ID, Settings, ThreeState
 from .zora_flags import (
     ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
+    ITEM_SHUFFLE_NO_VANILLA_FIELD,
+    SWORDLISH_HIGHEST_FIELD,
+    SWORDLISH_LOWEST_FIELD,
+    SWORDLISH_PIECES,
     THREE_STATE_FIELDS,
     L4Sword,
+    Swordlish,
     ZoraFlags,
     ZoraFlagStringError,
     conflicts,
@@ -89,18 +94,38 @@ FIELDS: tuple[dict[str, Any], ...] = (
     {"name": "do_not_segment_dungeons", "kind": THREE_STATE_KIND, "label": "Do Not Segment Dungeons",
      "help": ("Shapes dungeons are never split into segments: every room can be reached through "
               "doors, and stairways become shortcuts.")},
-    # Version 12: Gatekeeper Bosses (owner, 2026-10-24; docs/zora-extras.md section 19).
-    {"name": "gatekeeper_bosses", "kind": "option", "label": "Gatekeeper Bosses",
-     "help": ("In each of levels 1 to 8, the level's boss guards the way to its triforce, as in the "
-              "original game: one boss room is the only way into the part of the level that holds "
-              "the triforce, and its shutters open when the boss falls. The room's item (the heart "
-              "container, or what the item shuffle put in its place) appears on the kill. The "
-              "compass is always in front of the boss. Anywhere: any share of the level lies behind "
-              "the boss. Late: the boss stands close to the triforce, with at most a quarter of the level "
-              "behind it. Early: at least half the level, mostly more, lies behind the boss. Level 9 "
-              "is unchanged."),
-     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Anywhere"},
-                {"value": 2, "label": "Late"}, {"value": 3, "label": "Early"}]},
+    # Version 14: Harder Bosses and Harder Ganon (docs/zora-extras.md section 21; from Z1M1, MetalMachine).
+    {"name": "harder_bosses", "kind": "option", "label": "Harder Bosses",
+     "help": ("Digdogger and Manhandla move faster, Gohma fires more often, and Aquamentus fires more "
+              "often and less regularly. Level 1 is a little harder, Level 3 much harder. The other "
+              "bosses are unchanged, and no boss gains hit points or damage."),
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Level 1"},
+                {"value": 2, "label": "Level 2"}, {"value": 3, "label": "Level 3"}]},
+    # Version 15: the pacing settings (docs/zora-extras.md section 22; from Z1M1, MetalMachine).
+    {"name": "offense_pacing", "kind": "option", "label": "Offense Item Pacing",
+     "help": ("How soon the swords must come. The logic asks for a number of swords before it counts a "
+              "dungeon's items, and counts sword items, not their tiers (the wooden sword is one). Earlier: 1 sword "
+              "for levels 1 to 4, 2 from level 5. Normal: 1 sword from level 3, 2 from level 7. Later: 1 sword "
+              "from level 5, 2 for level 9. Off asks for none. Needs Swords: Normal."),
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Earlier"},
+                {"value": 2, "label": "Normal"}, {"value": 3, "label": "Later"}]},
+    {"name": "defense_pacing", "kind": "option", "label": "Defense Item Pacing",
+     "help": ("How soon the rings must come. The logic asks for a number of rings before it counts a "
+              "dungeon's items. Earlier: 1 ring from level 5, 2 for level 9. Normal: 1 ring from level 7. "
+              "Later: 1 ring for level 9. Off asks for none. The blue ring counts once its shop's door is "
+              "reached."),
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Earlier"},
+                {"value": 2, "label": "Normal"}, {"value": 3, "label": "Later"}]},
+    {"name": "recorder_warping", "kind": "toggle", "label": "Recorder Warping",
+     "help": ("The logic may ask you to reach a dungeon by playing the recorder instead of using the raft, "
+              "where the dungeon's door stands on a screen only the raft reaches. Greyed out, and doing nothing, "
+              "unless both Recorder to Unbeaten Dungeons and Recorder to New Dungeons are on.")},
+    {"name": "harder_ganon", "kind": "option", "label": "Harder Ganon",
+     "help": ("Ganon heals slowly while the sword can hurt him, the time he stays visible after a hit "
+              "varies, he may jump to another spot while the silver arrows can finish him, and Ganon's "
+              "room shoots fireballs. Level 1 is a little harder, Level 3 much harder."),
+     "values": [{"value": 0, "label": "Off"}, {"value": 1, "label": "Level 1"},
+                {"value": 2, "label": "Level 2"}, {"value": 3, "label": "Level 3"}]},
     # The owner's 2.0 flags (docs/design/zora-flags-2.0.md): each On / Off / ?, "?" decided per seed.
     *({"name": name, "kind": THREE_STATE_KIND, "label": label, "help": help_text} for name, label, help_text in (
         ("shuffle_blue_potion", "Shuffle Blue Potion",
@@ -197,7 +222,44 @@ PEGASUS_BOOTS_FIELD = {"name": "pegasus_boots", "kind": THREE_STATE_KIND, "label
                                 "saved after the ending holds the Magical Boots. Needs "
                                 "Magical Boomerang Does 1 HP Damage off. With a custom-sprite ROM, a custom "
                                 "sprite in the boomerang's tiles is replaced by the boot.")}
-FIELDS = (*FIELDS, PEGASUS_BOOTS_FIELD)
+# Version 16: BogieSmalls' additions (features-behavior.md FP-SWAP and FP-SWL; docs/zora-extras.md
+# section 23), named as he names them.
+BOGIESMALLS_CREDIT = "From BogieSmalls."
+SWORDLISH_RANGE_HELP = ("The pieces the wooden sword costs under Swordlish are drawn per seed from this range "
+                        "(a reversed range is put in order).")
+BOGIESMALLS_FIELDS: tuple[dict[str, Any], ...] = (
+    {"name": "swap_swords_and_rings", "kind": THREE_STATE_KIND, "label": "Swap Swords and Rings",
+     "help": ("The White Sword and the Blue Ring trade places wherever they were placed, and so do the Magical "
+              "Sword and the Red Ring: the White Sword is sold where the Blue Ring was, at its price, and the "
+              "magical-sword cave offers the Red Ring for its hearts. Each cave keeps its heart requirement, "
+              "and the hints name what is really there. A pair with a starting item is not swapped. Not with "
+              "Swords: Wood Sword Only or Swordless. " + BOGIESMALLS_CREDIT)},
+    {"name": "swordlish", "kind": "option", "label": "Swordlish",
+     "help": ("The wooden-sword cave gives its sword only to a player holding N triforce pieces (starting "
+              "pieces count), and its old man says how many. The logic reaches the sword once N levels are "
+              "won, or treats the white sword as the first sword. Swordlish removes the cave's extra candle (Extra "
+              "Candles still adds the other one). Random picks one of five per seed: Normal, Wood Sword Only, "
+              "No Wood Sword, Swordless or Swordlish. Needs Swords: Normal. " + BOGIESMALLS_CREDIT),
+     "values": [{"value": int(Swordlish.OFF), "label": "Off"}, {"value": int(Swordlish.ON), "label": "On"},
+                {"value": int(Swordlish.RANDOM), "label": "Random"}]},
+    *({"name": name, "kind": "option", "label": label, "help": SWORDLISH_RANGE_HELP,
+       "values": [{"value": pieces - SWORDLISH_PIECES[0], "label": str(pieces)} for pieces in SWORDLISH_PIECES],
+       **extra}
+      for name, label, extra in (
+          # The page's flag summary reads the pair as one line, and only while Swordlish is not Off.
+          (SWORDLISH_LOWEST_FIELD, "Swordlish pieces (min)",
+           {"summaryRange": {"max": SWORDLISH_HIGHEST_FIELD, "needs": "swordlish"}}),
+          (SWORDLISH_HIGHEST_FIELD, "Swordlish pieces (max)", {}))),
+)
+FIELDS = (*FIELDS, PEGASUS_BOOTS_FIELD, *BOGIESMALLS_FIELDS)
+# Version 17: Item Shuffle: Random (No Vanilla) (owner, 2026-10-29). The page offers it as Item Shuffle's sixth
+# choice (flag_form.ITEM_SHUFFLE_NO_VANILLA_CHOICE), never on this tab: its row is hidden, and its control only
+# carries the value between the two strings.
+ITEM_SHUFFLE_NO_VANILLA_ROW = {
+    "name": ITEM_SHUFFLE_NO_VANILLA_FIELD, "kind": "toggle", "label": "Item Shuffle: Random (No Vanilla)",
+    "hidden": True,
+    "help": "Set by Item Shuffle's Random (No Vanilla): each seed draws Item Only, Intra-Dungeon or Full, never None."}
+FIELDS = (*FIELDS, ITEM_SHUFFLE_NO_VANILLA_ROW)
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 
@@ -222,6 +284,8 @@ def control_value(flags: ZoraFlags, name: str) -> int:
     value = getattr(flags, name)
     if name == "magical_sword_hearts_highest":
         return 0 if value is None else HEARTS_CAP_CHOICES.index(value) + 1
+    if name in (SWORDLISH_LOWEST_FIELD, SWORDLISH_HIGHEST_FIELD):
+        return int(value) - SWORDLISH_PIECES[0]
     return int(value)
 
 
@@ -230,9 +294,26 @@ def _field_value(name: str, control: int) -> bool | int | ThreeState | None:
         return ENUM_FIELDS[name](control)
     if name == "magical_sword_hearts_highest":
         return None if control == 0 else HEARTS_CAP_CHOICES[control - 1]
+    if name in (SWORDLISH_LOWEST_FIELD, SWORDLISH_HIGHEST_FIELD):
+        return SWORDLISH_PIECES[0] + control         # a control counts from 0, as every option's does
     if name in THREE_STATE_FIELDS:
         return ThreeState(control)
     return bool(control)
+
+
+# Recorder Warping does something only where the recorder warps to an unbeaten dungeon's door (Recorder to
+# Unbeaten Dungeons, OW-WARP-02) and to the new doors (Recorder to New Dungeons, OW-WARP-01): the page greys it out
+# until both are on.
+RECORDER_WARPING_NEEDS = (TOGGLES_BY_ID["B01"], TOGGLES_BY_ID["B07"])
+RECORDER_WARPING_UNAVAILABLE = ("Recorder Warping does nothing until both Recorder to Unbeaten Dungeons and Recorder "
+                                "to New Dungeons are on.")
+
+
+def unavailable_fields(z1r: Settings | None) -> list[dict[str, str]]:
+    """The ZORA settings that do nothing under these Z1R settings, each with its note."""
+    if z1r is None or all(z1r.toggle(toggle) is ThreeState.ON for toggle in RECORDER_WARPING_NEEDS):
+        return []
+    return [{"field": "recorder_warping", "message": RECORDER_WARPING_UNAVAILABLE}]
 
 
 def zora_state(zora_flag_string: str, z1r: Settings | None) -> dict[str, Any]:
@@ -255,6 +336,8 @@ def zora_state(zora_flag_string: str, z1r: Settings | None) -> dict[str, Any]:
         # Z1R fields these flags set whatever the Z1R string holds (shown so, with the note)
         "forced": [{"field": field_id, "value": int(value), "message": message}
                    for field_id, value, message in forced_z1r_values(flags)],
+        # ZORA settings greyed out until the Z1R settings they need are on (the value is kept)
+        "unavailable": unavailable_fields(z1r),
     }
 
 

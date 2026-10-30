@@ -14,12 +14,9 @@ after its repair wherever the walks count the room's shutters open; this catches
 leave alone until after the beatability checks (A80: a second-quest level 9 whose start room moved,
 trigger 0).
 
-Gatekeeper Bosses (ZORA, owner decision 8 of 2026-10-24; docs/zora-extras.md section 19): in levels 1-8
-each gatekeeper's neighbours in its level then roar with its boss's own sound, the original game's:
-sound 2 for Dodongo and Gohma, sound 3 for Digdogger, Manhandla and Patra. A boss whose own sound is
-Ganon's sound 1 (Aquamentus, Gleeok) stays silent, so Ganon's roar is heard only in level 9, and
-Moldorm and Lanmola never had one. The gatekeeper is its level's boss room, so the roar stops once it
-falls. Level 9's roars stay exactly as PS-MONRD-07 makes them."""
+Every boss of levels 1-8 is silent, so a roar is heard only beside Ganon. (Gatekeeper Bosses, retired
+2026-10-29, first gave its gatekeepers' neighbours their boss's own sound; players took those roars for
+bugs: docs/reports/bugs-2809934285.md, docs/reports/gatekeeper-lessons.md.)"""
 from __future__ import annotations
 
 from ..model import room_grid
@@ -34,13 +31,6 @@ GANON_MONSTER_BYTE = Enemy.THE_BEAST.value                               # whole
 GANON_ITEM = ItemInfo(Item.TRIFORCE_OF_POWER, BossSound.NONE, True)      # item byte $8E
 GANON_NEIGHBOR_SOUND = BossSound.ROAR_AQUAMENTUS_GLEEOK_GANON            # boss sound 1 (bit 5, $20)
 LEVELS_7_TO_9_BLOCK = 1                                                  # index in each quest's pair
-# Gatekeeper Bosses: each boss's own sound (the original game's), Ganon's sound 1 left out
-GATEKEEPER_SOUNDS = {
-    **dict.fromkeys((Enemy.SINGLE_DODONGO, Enemy.TRIPLE_DODONGO, Enemy.BLUE_GOHMA, Enemy.RED_GOHMA),
-                    BossSound.ROAR_DODONGO_GOHMA),
-    **dict.fromkeys((Enemy.SINGLE_DIGDOGGER, Enemy.TRIPLE_DIGDOGGER, Enemy.MANHANDLA, Enemy.PATRA_1, Enemy.PATRA_2),
-                    BossSound.ROAR_DIGDOGGER_MANHANDLA_PATRA),
-}
 
 
 def _level_9_rooms(gw: GameWorld, block: LevelBlock) -> set[int]:
@@ -85,36 +75,13 @@ def _gate_room(gw: GameWorld, block: LevelBlock) -> Room | None:
                  and room.monster_byte == L9_ENTRY_PERSON_LIST and room.layout_byte == PERSON_LAYOUT_BYTE), None)
 
 
-def gatekeeper_neighbor_sounds(gw: GameWorld) -> dict[int, dict[int, BossSound]]:
-    """Gatekeeper Bosses: by block (its id), each room that roars beside a level 1-8 gatekeeper, with
-    its boss's sound: the gatekeeper's up, down, left and right neighbours in its level, no test
-    crossing a row end."""
-    sounds: dict[int, dict[int, BossSound]] = {}
-    for level in gw.levels:
-        if level.gatekeeper_room is None or level.level_num == LEVEL_9:
-            continue
-        sound = GATEKEEPER_SOUNDS.get(level.block.room(level.gatekeeper_room).enemy)
-        if sound is None:
-            continue
-        for side in Side:
-            number = room_grid.neighbor(level.gatekeeper_room, side)
-            if number is not None and number in level.room_nums:
-                sounds.setdefault(id(level.block), {})[number] = sound
-    return sounds
-
-
 def boss_sound_end_pass(gw: GameWorld) -> None:
     """PS-MONRD-07: clear every room's boss sound in all four blocks; in the two levels 7-9 blocks
     give each Ganon room item byte $8E and trigger byte $03, then set boss sound 1 on its level-9
-    neighbours, and force the Triforce gate room's north, east and west sides (VA-REJ-19).
-    Gatekeeper Bosses: each gatekeeper's neighbours take its boss's sound."""
+    neighbours, and force the Triforce gate room's north, east and west sides (VA-REJ-19)."""
     for block in _all_blocks(gw):
         for room in block.rooms:
             room.boss_sound = BossSound.NONE
-    gatekeeper_sounds = gatekeeper_neighbor_sounds(gw)
-    for block in _all_blocks(gw):
-        for number, sound in gatekeeper_sounds.get(id(block), {}).items():
-            block.room(number).boss_sound = sound
     for block in _levels_7_to_9_blocks(gw):
         for room in _ganon_rooms(block):
             room.item_info = GANON_ITEM
@@ -127,17 +94,13 @@ def boss_sound_end_pass(gw: GameWorld) -> None:
 
 def boss_sound_problems(gw: GameWorld) -> list[str]:
     """Every room whose boss sound is not PS-MONRD-07's result: sound 1 on Ganon's level-9
-    neighbours in the levels 7-9 blocks, a gatekeeper's sound beside it (Gatekeeper Bosses), none
-    anywhere else."""
+    neighbours in the levels 7-9 blocks, none anywhere else."""
     problems = []
     marked = {id(block): ganon_neighbors(gw, block) for block in _levels_7_to_9_blocks(gw)}
-    gatekeeper_sounds = gatekeeper_neighbor_sounds(gw)
     for block_name, block in zip(("1-6", "7-9", "2Q 1-6", "2Q 7-9"), (*gw.blocks, *gw.blocks_2q), strict=True):
         expected_rooms = marked.get(id(block), set())
-        beside_gatekeepers = gatekeeper_sounds.get(id(block), {})
         for room in block.rooms:
-            expected = (GANON_NEIGHBOR_SOUND if room.room_num in expected_rooms
-                        else beside_gatekeepers.get(room.room_num, BossSound.NONE))
+            expected = GANON_NEIGHBOR_SOUND if room.room_num in expected_rooms else BossSound.NONE
             if room.boss_sound != expected:
                 problems.append(f"block {block_name}: room ${room.room_num:02X} has boss sound "
                                 f"{room.boss_sound.name}, PS-MONRD-07 gives {expected.name}")

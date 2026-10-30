@@ -4,7 +4,7 @@
 [[segment]]
 name = "ZORA_SET_MUSIC_OFF"
 bank = 0
-start = 0xA000
+start = 0xA200              # bank 0 free space after lozft's UpdateSoundPart2 ($A000-$A1AE on lozft ROMs)
 
 [[segment]]
 name = "ZORA_SET_MUSIC_OFF_STATS"

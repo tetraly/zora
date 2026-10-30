@@ -41,7 +41,7 @@ code = """
 name = "coast-item"
 offset = 0x1789B
 length = 4
-note = "The coast item's store and its Y go through StoreCoastItemAtNextLevel."
+note = "The coast item's store and its X go through StoreCoastItemAtNextLevel."
 code = """
     JSR StoreCoastItemAtNextLevel
     NOP

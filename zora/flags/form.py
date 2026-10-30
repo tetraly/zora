@@ -12,14 +12,22 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
+from dataclasses import replace
 from functools import cache
 from typing import Any
 
 from ..generate.pipeline import NOT_PRODUCED_PREFIX, FlagsRefused, plan
 from ..rom import level_encoding
+from ..rom.link_art import ART_BLOCKS, link_sprite_set_object, offered_sprite_sets
+from ..rom.link_art import FILE_FORMAT as LINK_ART_FILE_FORMAT
 from ..rom.link_sprite import FILE_FORMAT as LINK_SPRITE_FILE_FORMAT
 from ..rom.link_sprite import FILE_VERSION as LINK_SPRITE_FILE_VERSION
-from ..rom.link_sprite import SPRITE_SET_SIZE
+from ..rom.link_sprite import (
+    LINK_FIXED_COLORS,
+    LINK_HALVES,
+    LINK_TILE_GROUPS,
+    SPRITE_SET_SIZE,
+)
 from ..rom.player_settings import (
     BOSS_SOUND_WORD_CHARACTERS,
     BOSS_SOUND_WORD_LENGTH,
@@ -48,7 +56,6 @@ from .fields import (
     MAGICAL_SWORD_HIGHEST_BASE,
     MAGICAL_SWORD_LOWEST_BASE,
     MAX_TRIFORCE_PIECES,
-    MONEY_OR_LIFE_TOLL,
     OPTION_FIELDS,
     PIECE_RANGE_HIGH,
     PIECE_RANGE_LOW,
@@ -80,6 +87,7 @@ from .support import (
 )
 from .zora_flags import ZoraFlagStringError
 from .zora_flags import decode as decode_zora
+from .zora_flags import encode as encode_zora
 from .zora_form import zora_flags_from_values, zora_metadata, zora_state
 
 NOT_PRODUCED_TEXT = "Not produced by ZORA yet"
@@ -101,8 +109,8 @@ LEVEL_9_ENTRY_BY_SWORD_TEXT = ("Level 9 Entrance = Level 4 sword (ZORA Extras) d
 # both with level encoding on as published.
 PRESET_LABELS = {"MVP baseline": "Consternation", "Published variant A": "Consternation Remastered",
                  "Published variant C": "Hopla"}
-# Kept in presets.py but not on the menu (owner, beta 5): Random%, published variant B, which ZORA
-# does not produce in full.
+# Kept in presets.py but not on the menu (owner, beta 5): Random%, published variant B. ZORA produces
+# every field of it since the beta 8 export (flags-behavior.md FL-SUP-01); it stays off the menu.
 HIDDEN_PRESETS = frozenset({"Published variant B"})
 # CP-5: the MVP baseline with level encoding off. Listed with the presets so
 # a build without level encoding has a preset it can produce.
@@ -206,6 +214,13 @@ VALUE_NOTES: dict[tuple[str, int], str] = {
         "Level 9 opens for an item instead of Triforce pieces",
 }
 
+# Item Shuffle: Random (No Vanilla) (owner, 2026-10-29): Item Shuffle's sixth choice on the page, after Random. No
+# Z1R string holds it: it stands for Item Shuffle: Random (C06 = 4) with the ZORA field item_shuffle_no_vanilla on,
+# which narrows Random's draw to Item Only, Intra-Dungeon and Full (zora_flags.resolve_item_shuffle_no_vanilla).
+# The page's C06 control holds it like any value; form_change writes both strings.
+ITEM_SHUFFLE_NO_VANILLA_CHOICE = ItemShuffleScope.RANDOM + 1
+ITEM_SHUFFLE_NO_VANILLA_LABEL = "Random (No Vanilla)"
+
 # The owner's names for the fields and option values (owner-authored; owner
 # decision 2026-10-03), edited in docs/flag-names.csv and imported into
 # zora/flags/names.json by scripts/flag_names.py. A field or value without
@@ -286,16 +301,6 @@ def supported_values(field: FieldDef) -> tuple[int, ...]:
                  if support(_with_value(baseline, field, value))[field.id] is Support.SUPPORTED)
 
 
-def _supported_values_here(settings: Settings, field: FieldDef) -> tuple[int, ...]:
-    """supported_values, except that B23's off and "?" are offered while B22 is off (FL-DEP-06:
-    B23 is kept as given, and its off is supported only with B22 off). Every other field's
-    support does not depend on the rest of the string."""
-    if field != MONEY_OR_LIFE_TOLL:
-        return supported_values(field)
-    return tuple(value for value in field_values(field)
-                 if support(_with_value(settings, field, value))[field.id] is Support.SUPPORTED)
-
-
 def _value_unavailable(field: FieldDef, value: int) -> str | None:
     """Why this build cannot produce a supported value (level encoding without its module)."""
     if field == ENCODE_LEVEL_DATA and value == ThreeState.ON and not level_encoding.is_available():
@@ -356,6 +361,11 @@ def _field_metadata(field: FieldDef) -> dict[str, Any]:
     if isinstance(field, OptionField):
         entry["slots"] = field.slots
         entry["randomValues"] = sorted(field.random_choices)
+    if field == ITEM_SHUFFLE_SCOPE:
+        entry["values"].append({"value": ITEM_SHUFFLE_NO_VANILLA_CHOICE, "label": ITEM_SHUFFLE_NO_VANILLA_LABEL,
+                                "specLabel": ITEM_SHUFFLE_NO_VANILLA_LABEL})
+        entry["supportedValues"].append(ITEM_SHUFFLE_NO_VANILLA_CHOICE)
+        entry["randomValues"].append(ITEM_SHUFFLE_NO_VANILLA_CHOICE)
     if field == ENCODE_LEVEL_DATA:
         entry["help"] = level_encoding.HELP_TEXT
     return entry
@@ -386,9 +396,20 @@ def metadata() -> dict[str, Any]:
         "bossSoundWord": {"default": DEFAULT_BOSS_SOUND_WORD, "random": RANDOM_BOSS_SOUND_WORD,
                           "choices": list(BOSS_SOUND_WORDS), "length": BOSS_SOUND_WORD_LENGTH,
                           "characters": BOSS_SOUND_WORD_CHARACTERS},
-        # A Link sprite set's file (FP-LINK-02; zora/rom/link_sprite.py): what the page checks first.
+        # A Link sprite set's file (FP-LINK-02; zora/rom/link_sprite.py): what the page checks first, ZORA's
+        # own sets, and for the preview the groups a ROM keeps Link in and the palette's fixed colors.
         "linkSpriteSet": {"format": LINK_SPRITE_FILE_FORMAT, "version": LINK_SPRITE_FILE_VERSION,
-                          "size": SPRITE_SET_SIZE},
+                          "size": SPRITE_SET_SIZE,
+                          "builtIn": [{"id": set_id, **link_sprite_set_object(sprite_set)}
+                                      for set_id, sprite_set in offered_sprite_sets().items()],
+                          # A built-in-art set (zora/rom/link_art.py): its format, Link's halves in a
+                          # set's order, and each block's file offset and first tile, which the preview
+                          # assembles it from in the player's ROM.
+                          "art": {"format": LINK_ART_FILE_FORMAT, "halves": list(LINK_HALVES),
+                                  "blocks": {name: [block.offset, block.first_tile]
+                                             for name, block in ART_BLOCKS.items()}},
+                          "groups": [list(group) for group in LINK_TILE_GROUPS],
+                          "fixedColors": list(LINK_FIXED_COLORS)},
     }
 
 
@@ -400,7 +421,7 @@ def _blocked_values(settings: Settings, field: FieldDef, refused: set[str]) -> d
     """The values of a field the player cannot pick from here, with the reason: a dependency
     rule the change would break (flags.check_dependencies), or the support matrix."""
     current = _value_of(settings, field)
-    supported = _supported_values_here(settings, field)
+    supported = supported_values(field)
     blocked = {}
     for value in field_values(field):
         if value == current:
@@ -418,7 +439,7 @@ def _blocked_values(settings: Settings, field: FieldDef, refused: set[str]) -> d
 def _field_state(settings: Settings, field: FieldDef, refused: set[str]) -> dict[str, Any]:
     value = _value_of(settings, field)
     blocked = _blocked_values(settings, field, refused)
-    current_ok = value in _supported_values_here(settings, field) and _value_unavailable(field, value) is None
+    current_ok = value in supported_values(field) and _value_unavailable(field, value) is None
     # a pasted string's postponed value, and B82's "?" (read as off): accepted, with a notice
     postponed = is_postponed(settings, field.id) or (field == ENCODE_LEVEL_DATA and value == ThreeState.POSSIBLE)
     others = [v for v in field_values(field) if v != value]
@@ -449,6 +470,39 @@ def _locked(field: FieldDef, state: dict[str, Any], reason: str) -> dict[str, An
     return {**state, "disabled": True, "reason": reason, "blocked": others}
 
 
+def _item_shuffle_no_vanilla(zora_flag_string: str) -> bool:
+    try:
+        return decode_zora(zora_flag_string.strip()).item_shuffle_no_vanilla
+    except ZoraFlagStringError:
+        return False
+
+
+def _with_no_vanilla_choice(state: dict[str, Any]) -> dict[str, Any]:
+    """Item Shuffle's control at Random (No Vanilla) when the ZORA string narrows its Random: the same choices
+    blocked as at Random, and Random itself (the ZORA field off) pickable."""
+    blocked = {value: reason for value, reason in state["blocked"].items()
+               if value != str(ITEM_SHUFFLE_NO_VANILLA_CHOICE)}
+    return {**state, "value": ITEM_SHUFFLE_NO_VANILLA_CHOICE, "blocked": blocked}
+
+
+def _with_no_vanilla_offered(state: dict[str, Any]) -> dict[str, Any]:
+    """Item Shuffle's control elsewhere: Random (No Vanilla) blocked exactly when Random is."""
+    random_reason = state["blocked"].get(str(ItemShuffleScope.RANDOM))
+    if random_reason is None:
+        return state
+    return {**state, "blocked": {**state["blocked"], str(ITEM_SHUFFLE_NO_VANILLA_CHOICE): random_reason}}
+
+
+def with_item_shuffle_no_vanilla(zora_flag_string: str, on: bool) -> str:
+    """The ZORA string with Item Shuffle: Random (No Vanilla)'s field set; one that does not decode is
+    returned as it is (its error stays shown)."""
+    try:
+        flags = decode_zora(zora_flag_string.strip())
+    except ZoraFlagStringError:
+        return zora_flag_string
+    return encode_zora(replace(flags, item_shuffle_no_vanilla=on))
+
+
 def _level_9_entrance_sword(zora_flag_string: str) -> bool:
     try:
         return decode_zora(zora_flag_string.strip()).level_9_entrance_sword
@@ -475,6 +529,10 @@ def form_state(flag_string: str, zora_flag_string: str = "") -> dict[str, Any]:
     if settings.option(LEVEL_9_REQUIREMENT) not in RANGE_READERS:
         for field in (PIECE_RANGE_LOW, PIECE_RANGE_HIGH):
             fields[field.id] = _locked(field, fields[field.id], RANGE_UNUSED_TEXT)
+    no_vanilla = (settings.option(ITEM_SHUFFLE_SCOPE) == ItemShuffleScope.RANDOM
+                  and _item_shuffle_no_vanilla(zora_flag_string))
+    fields[ITEM_SHUFFLE_SCOPE.id] = (_with_no_vanilla_choice if no_vanilla
+                                     else _with_no_vanilla_offered)(fields[ITEM_SHUFFLE_SCOPE.id])
     eight_pieces = settings.option(LEVEL_9_REQUIREMENT) == Level9Requirement.EIGHT_PIECES
     if eight_pieces and _level_9_entrance_sword(zora_flag_string):
         fields[LEVEL_9_REQUIREMENT.id] = _locked(LEVEL_9_REQUIREMENT, fields[LEVEL_9_REQUIREMENT.id],
@@ -508,15 +566,20 @@ def flags_from_values(values: Mapping[str, int | str]) -> str:
 
 def form_change(previous_flags: str, values: Mapping[str, int | str],
                 zora_flag_string: str = "") -> dict[str, Any]:
-    """The player changed a control: the new state, or the change blocked with the rule it breaks."""
+    """The player changed a control: the new state, or the change blocked with the rule it breaks. Item
+    Shuffle at Random (No Vanilla) writes Random into the Z1R string and the ZORA field on; any other Item
+    Shuffle value writes the field off."""
     previous = decode(previous_flags)
+    no_vanilla = int(values[ITEM_SHUFFLE_SCOPE.id]) == ITEM_SHUFFLE_NO_VANILLA_CHOICE
+    if no_vanilla:
+        values = {**values, ITEM_SHUFFLE_SCOPE.id: int(ItemShuffleScope.RANDOM)}
     new_flags = flags_from_values(values)
     broken = sorted(_refusal_texts(decode(new_flags)) - _refusal_texts(previous))
     if broken:
         state = form_state(previous_flags, zora_flag_string)
         state["blockedChange"] = "; ".join(broken)
         return state
-    return form_state(new_flags, zora_flag_string)
+    return form_state(new_flags, with_item_shuffle_no_vanilla(zora_flag_string, no_vanilla))
 
 
 def zora_form_change(flag_string: str, zora_values: Mapping[str, int | str]) -> dict[str, Any]:

@@ -1,0 +1,19 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Jason Voorhees",
+  "author": "Irenepunmaster",
+  "provenance": "Drawn by Irenepunmaster, who gave it to ZORA to ship with credit (2026-10-26).",
+  "tiles": "AAUMDRwcHTwDAwMDAwMfPz4/Pz8/Hw8PJwAAID8ADw8AAACAggICAgCAwMDCwsLCehoaAsKAAICG5uLCAgAAgAAFDA0cHB08AwMDAwMDHz8+Pz8/H3/48CcAACAfQODwAAAAgIAAAAQAgMDAwMDAxEQUFDTE5PhwhOzsxAQEGHAAAgAGBAECAAMHDw8PDw8PGTwPHx8PBg4PDz4+HgAGDgBAAGAggEAAwODw8PDw8PCYPP7y8PBwAPj4eHx+BnAAAAADBwcHBwcDBwwICAgLDx8/Dx8fDwYODw8/Px8ABg4AAMDg4ODg4MDgMBAQENDw+Pz+8vDwcAD4+Pj8/gZwAAAFDA0cHB08AwMDAwMDHz8/Pz8/P///cDw8PD8fz+BwAAAAgIAAAAAAgMDAwMDAwPj4+MDg8PgcBAQAAGCAOBwYOnD29GEyEBs/f////38/AQQHDx8/AAAXBwYGGjwAAABAAGAggEAAwODw8PDw8PCQOPz8nh8PAODABAxq5+8AAAAHL29vby8Hb3hQEBAXHz8/P3//4QAAPz8fT8DgAAAAAIDAwMDB24DAYCAgIaPn9+/e7PD4PDzv//78CBg8PAACYGZkMTIwY3cPDw8PDw8ZHB8fHw8GDh8fHh4eAAYOAAAAg4MCAgIAgMDDw8PDw3oaGgLCgwOAh+fjwwMDA4AAAACAhgYEBACAwMDGxsbGfBwcBMTk/naG5ubGBgYedgACAAYEAQIAAwcPDw8PDw993o3d3f0CDn///v7+/n4OAAIABgQBAgADBw8PDw8PDz9vRm5ufgAAP39/f39/PgAAAgAGBAH/5wMHDw8PD///54GB5+fnfj7///////9+Pg==",
+  "recommendedColors": {
+    "tunics": [
+      41,
+      50,
+      22
+    ],
+    "other": [
+      39,
+      23
+    ]
+  }
+}

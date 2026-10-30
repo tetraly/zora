@@ -14,10 +14,17 @@ from zora.archipelago import OptionsConflict, OptionSpec, flag_strings, option_c
 from zora.flags import form as flag_form
 from zora.flags import zora_flags, zora_form
 from zora.flags.codec import canonicalize, decode
-from zora.flags.fields import (ENCODE_LEVEL_DATA, HitPointChange, OptionField, PinnedItem, ThreeState, ToggleField,
-                               WoodenSwordState)
+from zora.flags.fields import (
+    ENCODE_LEVEL_DATA,
+    HitPointChange,
+    OptionField,
+    PinnedItem,
+    ThreeState,
+    ToggleField,
+    WoodenSwordState,
+)
 from zora.flags.support import LEVEL_9_PINS
-from zora.flags.zora_flags import GatekeeperBosses
+from zora.flags.zora_flags import HarderLevel, Pacing, Swordlish
 from zora.generate.pipeline import build, plan
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
@@ -32,6 +39,9 @@ EXPECTED_CONFLICTS = {
     ("add_l4_sword", 2): "Add L4 Sword needs Progressive Items",
     ("level_9_entrance_sword", 1): "needs Add L4 Sword = Level 2",
     ("extra_power_bracelet_blocks", int(ThreeState.ON)): "Extra Power Bracelet Blocks",   # B04 on
+    # FL-DEP-01 rule 5: the Bow inside level 9 needs Allow Important Items in 9 (B25), off in the preset
+    ("C26", 3): "names the Bow, which needs Allow Important Items in 9 (B25) on",
+    ("C27", 3): "names the Bow, which needs Allow Important Items in 9 (B25) on",
 }
 
 
@@ -76,7 +86,8 @@ def test_only_supported_values_are_offered() -> None:
                                         if v not in held)
     assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} | set(zora_form.FIELD_NAMES)
                                            ) - archipelago.NOT_OFFERED
-    assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword", "disable_custom_music"}
+    assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword", "disable_custom_music",
+                                       "item_shuffle_no_vanilla"}
 
 
 def test_shuffle_wood_sword_is_never_offered_and_always_off() -> None:
@@ -114,18 +125,21 @@ def test_item_shuffle_is_never_offered_and_always_full() -> None:
         flag_strings({"C06": 2})
 
 
-# Beta 8's value still held (archipelago.HELD_BACK's comment): Replace Book Fire with Explosion, not
-# compatible with Archipelago (owner ruling, 2026-10-22)
-BETA_8_HELD_BACK = {"B47": {ThreeState.ON, ThreeState.POSSIBLE}}
-# The beta 9 export's pins, held for their scan (archipelago.HELD_BACK's comment): the coast's Non-Heart
-# and level 9's places at the five-item rule's items and the Wand
-BETA_9_HELD_LEVEL_9_PINS = {PinnedItem.BOW, PinnedItem.LADDER, PinnedItem.POWER_BRACELET, PinnedItem.RAFT,
-                            PinnedItem.RECORDER, PinnedItem.WAND}
-BETA_9_HELD_BACK = {"C12": {PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER},
-                    **dict.fromkeys(("C26", "C27"), BETA_9_HELD_LEVEL_9_PINS),
-                    # Gatekeeper Bosses, held for its scan (owner, 2026-10-24): only Off is offered
-                    "gatekeeper_bosses": {GatekeeperBosses.ANYWHERE, GatekeeperBosses.LATE,
-                                          GatekeeperBosses.EARLY}}
+# The beta 9 export's pins that stay held after the 2026-10-27 scan (archipelago.HELD_BACK's comment): level 9's
+# places at the Ladder, the Power Bracelet, the Raft and the Recorder. Coast Item: Non-Heart, level 9's
+# places at the Bow and the Wand and Replace Book Fire with Explosion (B47) passed and are offered.
+HELD_LEVEL_9_PINS = {PinnedItem.LADDER, PinnedItem.POWER_BRACELET, PinnedItem.RAFT, PinnedItem.RECORDER}
+NEW_IN_BETA_11 = ("B79", "B17")      # B92 to B94 (scan on 7e9603c) and B06 offered since 2026-10-28
+HELD_BACK_AFTER_BETA_9 = {**dict.fromkeys(("C26", "C27"), HELD_LEVEL_9_PINS),
+                          # Harder Bosses and Harder Ganon (version 14), until their scan
+                          **dict.fromkeys(("harder_bosses", "harder_ganon"), set(HarderLevel) - {HarderLevel.OFF}),
+                          # the 2026-10-28 export's settings, on and Random, until their scan
+                          **dict.fromkeys(NEW_IN_BETA_11, {ThreeState.ON, ThreeState.POSSIBLE}),
+                          # BogieSmalls' additions (version 16), held (owner, 2026-10-29), Swordlish's
+                          # range at its defaults (controls count from 0: the piece count less one)
+                          "swap_swords_and_rings": {ThreeState.ON, ThreeState.POSSIBLE},
+                          "swordlish": {Swordlish.ON, Swordlish.RANDOM},
+                          "swordlish_lowest": set(range(1, 8)), "swordlish_highest": set(range(7))}
 # Released on 2026-10-22 once their scan passed (archipelago.HELD_BACK's comment)
 BETA_8_RELEASED_TOGGLES = ("B18", "B20", "B32", "B33", "B35", "B07", "B39", "B21", "B37")
 
@@ -158,7 +172,7 @@ def test_values_wait_for_the_logic_scan() -> None:
     (C14 = 0, 3) and B07, B39, B21 and B37 on and Random, and on 2026-10-23 Do Not Segment Dungeons on
     and Random (100 of 100 seeds each way at e8e5c66). Still held (archipelago.HELD_BACK's comment):
     Swords' No Wood Sword, Swordless and Random, which take away the sword Archipelago's player starts
-    with; Replace Book Fire with Explosion on and Random (B47), not compatible. Shuffle Overworld Group (B43) off and "?" are offered. A held value is refused by
+    with; the level 9 pins at the Ladder, the Power Bracelet, the Raft and the Recorder. Released 2026-10-27 after their scan: Replace Book Fire with Explosion on and Random (B47), Coast Item: Non-Heart and the level 9 pins at the Bow and the Wand. Shuffle Overworld Group (B43) off and "?" are offered. A held value is refused by
     name. Item Shuffle's values and Shuffle Wood Sword are never held: neither is offered at all
     (NOT_OFFERED)."""
     start_items = ("B57", "B59", "B60", "B61", "B63", "B64", "B73", "B77", "B78", "B58", "B62", "B65", "B66",
@@ -167,12 +181,12 @@ def test_values_wait_for_the_logic_scan() -> None:
                         "allow_triforces_in_stairways", "expanded_dungeon_locations", "B87", "B88",
                         "do_not_segment_dungeons")
     assert archipelago.HELD_BACK == {"C07": {WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS,
-                                             WoodenSwordState.RANDOM}, **BETA_8_HELD_BACK, **BETA_9_HELD_BACK}
+                                             WoodenSwordState.RANDOM}, **HELD_BACK_AFTER_BETA_9}
     assert offered_values("C08") == tuple(range(13))
     assert offered_values("C14") == (0, 1, 2, 3)
     assert all(offered_values(field_id) == tuple(int(state) for state in ThreeState)
                for field_id in BETA_8_RELEASED_TOGGLES)
-    assert offered_values("B47") == (ThreeState.OFF,)
+    assert offered_values("B47") == tuple(int(state) for state in ThreeState)     # released 2026-10-27
     assert offered_values("B43") == tuple(int(state) for state in ThreeState)      # no rule reads it
     assert all(offered_values(field_id) == tuple(int(state) for state in ThreeState) for field_id in released_toggles)
     assert offered_values("C09") == offered_values("C10") == tuple(int(change) for change in HitPointChange)
@@ -183,18 +197,20 @@ def test_values_wait_for_the_logic_scan() -> None:
     assert offered_values("C16") == tuple(range(17))
     assert offered_values("C11") == tuple(PinnedItem)
     assert offered_values("C13") == tuple(PinnedItem)
-    assert offered_values("C12") == tuple(item for item in PinnedItem
-                                          if item not in (PinnedItem.LADDER, PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER))
-    assert offered_values("C26") == offered_values("C27") == tuple(sorted({0, *LEVEL_9_PINS} - BETA_9_HELD_LEVEL_9_PINS))
+    assert offered_values("C12") == tuple(item for item in PinnedItem if item != PinnedItem.LADDER)
+    assert offered_values("C26") == offered_values("C27") == tuple(sorted({0, *LEVEL_9_PINS} - HELD_LEVEL_9_PINS))
     assert offered_values("C07") == (WoodenSwordState.NORMAL, WoodenSwordState.WOODEN_SWORD_ONLY)
     assert offered_values("B91") == tuple(int(state) for state in ThreeState)
     assert offered_values("B02") == tuple(int(state) for state in ThreeState)     # "?": beta 8, OW-CAVE-12
     assert offered_values("C05") == (0, 1, 2, 3, 4)
     offered = {spec.id: spec.values for spec in SPECS}
     assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0, 1, 2, 3), (0, 1))
-    assert offered["gatekeeper_bosses"] == (GatekeeperBosses.OFF,)
+    assert "gatekeeper_bosses" not in offered                  # retired 2026-10-29: RETIRED_ZORA_FLAGS
+    assert offered["harder_bosses"] == offered["harder_ganon"] == (HarderLevel.OFF,)
+    assert offered["offense_pacing"] == offered["defense_pacing"] == tuple(Pacing)     # offered since 2026-10-28
+    assert offered["recorder_warping"] == tuple(ThreeState)[:2]
     assert offered["B29"] == tuple(ThreeState)                 # "?" since beta 9 (FL-DEP-02 rule 4 after its coin)
-    assert offered["B23"] == (ThreeState.ON, ThreeState.POSSIBLE)   # "?" beside merchants resolves on (FL-DEP-04)
+    assert offered["B23"] == tuple(ThreeState)     # off beside merchants since the 2026-10-28 export (PS-MERCH-05)
     # Shop Items in the Item Pool's on, with the bait, passed its scan (2026-10-17)
     assert offered["shop_items_in_pool"] == (ThreeState.OFF, ThreeState.ON)
     assert offered["C01"] == (0, 1, 2, 3, 4)
@@ -243,15 +259,15 @@ def test_each_conflict_resolves_with_its_counterpart() -> None:
 
 
 def test_merchant_toll_is_kept_as_given() -> None:
-    """FL-DEP-06: B22 off leaves B23 on (the one value offered for it), with no note."""
+    """FL-DEP-06: B22 off leaves B23 on, as given, with no note."""
     flags, _zora = flag_strings({"B22": int(ThreeState.OFF)})
     assert decode(flags).toggle("B23") is ThreeState.ON
     assert option_corrections({"B22": int(ThreeState.OFF)}) == option_corrections({}) == []
 
 
 def test_values_must_be_offered() -> None:
-    with pytest.raises(OptionsConflict, match="Enemy Drop Groups"):
-        flag_strings({"B38": 1})                 # Shuffle Enemy Drop Groups: not produced
+    with pytest.raises(OptionsConflict, match="Swords"):
+        flag_strings({"C07": 2})                 # Swords: No Wood Sword, held
     with pytest.raises(OptionsConflict, match="unknown options"):
         flag_strings({"B82": 1})
 

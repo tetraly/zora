@@ -20,6 +20,7 @@ from tests.test_coop_reserved import FINISHED_CASES, OTHER_PLAYER_SETTINGS, PROD
 from tests.test_feature_patches import vanilla
 from zora.flags import zora_flags
 from zora.flags.fields import ThreeState
+from zora.rom.base_rom import PRG1_ROM_PATH, verify_prg1_rom
 from zora.rom.player_settings import apply_player_settings
 
 REPO = Path(__file__).resolve().parent.parent
@@ -63,6 +64,17 @@ def test_the_overlap_check_finds_a_clash() -> None:
 @needs_base_rom
 def test_free_space_is_free_in_prg0() -> None:
     original = vanilla()
+    for area in rom_space().table().free:
+        assert set(original[area.file_range().start:area.file_range().stop]) == {0xFF}, str(area)
+
+
+@needs_base_rom
+def test_free_space_is_free_in_prg1() -> None:
+    """Every free range is unused in both releases: PRG1's title-screen data runs 139 bytes past PRG0's
+    to $AD53, so bank 6's gap starts after it."""
+    if not PRG1_ROM_PATH.exists():
+        pytest.skip("needs the PRG1 ROM")
+    original = verify_prg1_rom().read_bytes()
     for area in rom_space().table().free:
         assert set(original[area.file_range().start:area.file_range().stop]) == {0xFF}, str(area)
 
@@ -246,6 +258,17 @@ def test_a_pooled_segment_takes_the_first_bank_with_room(lock_file: Path) -> Non
     space = rom_space()
     placement = space.place(space.Request("ZORA_TEST_POOL", "series:test-pool", (7, 3), 0x40), lock_file)
     assert placement.banks == (3,)
+
+
+def test_a_segment_is_never_placed_inside_the_disassemblys_segments(lock_file: Path) -> None:
+    """Bank 2's lowest free bytes ($8F5F on) are a $FF block inside the disassembly's own segment, which
+    takes sites and in-place hooks; the linker cannot put a segment there, so the placer skips it."""
+    space = rom_space()
+    inside = {offset for area in space.table().free if area.inside_code for offset in area.file_range()}
+    for first in (0x8F60, 0x9BD8, 0xA830):
+        assert space.file_offset(2, first) in inside, hex(first)
+    placement = space.place(space.Request("ZORA_TEST_INSIDE", "series:test-inside", (2,), 0x10), lock_file)
+    assert not set(placement.areas()[0].file_range()) & inside
 
 
 # Today no address is free in all of banks 0-6: bank 1's free space is full from $B770 (the extended

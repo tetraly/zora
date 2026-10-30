@@ -27,7 +27,14 @@ from ...rom.layout import (
     cpu_address_in_bank1,
     place_hint_texts,
 )
-from ...rom.text_encoding import CHAR_TO_BYTE, QUOTE_EMPTY, QUOTE_END_BITS, QUOTE_LINE1_BIT, QUOTE_LINE2_BIT
+from ...rom.text_encoding import (
+    CHAR_TO_BYTE,
+    QUOTE_EMPTY,
+    QUOTE_END_BITS,
+    QUOTE_LINE1_BIT,
+    QUOTE_LINE2_BIT,
+    closed_line,
+)
 from ..dungeon_walk import item_cellar, item_room, walk_level
 from ..rng import IntRng, Rng
 from .assign_hints_for_hint_type import HintAssignmentResult
@@ -37,7 +44,7 @@ from .item_shuffle_result import ItemShuffleResult, TrackedPlace
 from .mixed_overworld_quest import door_screen
 from .overworld_gates import NO_GATES, OverworldGates
 from .person_appearances import person_appearance
-from .randomize_mazes import MAZE_HINT_PRICE
+from .randomize_mazes import MAZE_NAMES, MazeOffer
 
 LINE_WIDTH = 24
 T = TypeVar("T")
@@ -47,6 +54,12 @@ SLOT_COUNT = 45
 TOLL_SLOT = 27
 REFUSAL_SLOT = 34          # FP-TRIF-01's level-9 refusal text replaces its pointer
 UNSHOWN_SLOTS = frozenset({TOLL_SLOT, REFUSAL_SLOT})
+
+
+def toll_slot_shown(item_shuffle_result: ItemShuffleResult) -> bool:
+    """HT-TEXT-02 and PS-MERCH-05: slot 27 shows its own drawn text while the toll is not re-drawn
+    (B23 off: no toll, so nothing replaces its pointer)."""
+    return item_shuffle_result.toll is None
 
 
 
@@ -71,7 +84,8 @@ def _encode_line(line: str) -> list[int]:
         if character.upper() in SHOWN_CHARACTERS
     )
     padding = max(0, (LINE_WIDTH - len(cleaned)) // 2)
-    return [PAD_TILE] * padding + [CHAR_TO_BYTE[character] for character in cleaned]
+    # A line with no shown character is all padding: closed_line ends it on a space.
+    return closed_line([PAD_TILE] * padding + [CHAR_TO_BYTE[character] for character in cleaned])
 
 
 def encode_text(lines: list[str]) -> list[int]:
@@ -167,13 +181,18 @@ class PoolEntry:
     # Who sent the quote (the pool file's fourth column); never shown in the game
     contributor: str = ""
 
-    def slots(self, white_hearts: int, magical_hearts: int, book_needed: bool = False) -> tuple[int, ...]:
+    def slots(self, white_hearts: int, magical_hearts: int, book_needed: bool = False,
+              toll_slot_shown: bool = False) -> tuple[int, ...]:
         """The slots this quote may be shown in, in a seed whose sword caves
         ask for these heart counts. Reserved quotes and slots 27 and 34 are
-        never drawn: their final pointers are replaced (HT-TEXT-02). book_needed: Book to
+        never drawn: their final pointers are replaced (HT-TEXT-02), slot 27's only while the toll
+        is re-drawn (B23). With toll_slot_shown (B23 off, PS-MERCH-05) slot 27 keeps its own text,
+        so its reserved quotes are drawn there like any other slot's. book_needed: Book to
         Understand NPCs (B48), whose lines take slot 0 from the wood sword cave's quotes
         (HT-BOOK-02)."""
-        if self.reserved or self.routing_class == (WOOD_SWORD_SLOT_0_CLASS if book_needed else BOOK_SLOT_0_CLASS):
+        if self.reserved:
+            return (TOLL_SLOT,) if toll_slot_shown and POOL_CLASSES[self.routing_class] == (TOLL_SLOT,) else ()
+        if self.routing_class == (WOOD_SWORD_SLOT_0_CLASS if book_needed else BOOK_SLOT_0_CLASS):
             return ()
         if self.hearts is not None:
             slot, count = self.hearts
@@ -247,6 +266,15 @@ REGION_TABLE: tuple[int, ...] = (
 
 def region_of_screen(screen: int) -> int:
     return REGION_TABLE[screen]
+
+
+MIRROR_SCREEN = 0x0F                 # Mirror Overworld's m(s) = s XOR $0F (OW-MIR)
+
+
+def stated_region(screen: int, mirrored: bool) -> int:
+    """HT-MIR-01: the region a hint states for a screen chosen on the unflipped world, the region of
+    the screen it stands on in the finished ROM, m(s), with Mirror Overworld (B06) on."""
+    return region_of_screen(screen ^ MIRROR_SCREEN if mirrored else screen)
 
 
 # -----------------------------------------------------------------------------
@@ -642,15 +670,17 @@ BOSS_LABEL_LEVELS = range(1, 9)
 @dataclass
 class Deception:
     """HT-HINT-06's coins and replacements, from their own stream (the helpful draws keep theirs;
-    FL-SEED-01 leaves the order open). A coin is one equal-chance draw; heads replaces the fact."""
+    FL-SEED-01 leaves the order open). A coin is one equal-chance draw; heads replaces the fact.
+    `mirrored`: Mirror Overworld (HT-MIR-01), a false region is the drawn screen's mirror's."""
     rng: Rng
+    mirrored: bool = False
 
     def heads(self) -> bool:
         return self.rng.below(2) == 1
 
     def region(self) -> int:
         """The region of an overworld screen drawn uniformly from all 128 (HT-APP-A1)."""
-        return region_of_screen(self.rng.below(OVERWORLD_SCREEN_COUNT))
+        return stated_region(self.rng.below(OVERWORLD_SCREEN_COUNT), self.mirrored)
 
     def pick(self, choices: Sequence[T]) -> T:
         """One of `choices`, drawn uniformly; there is always at least one (rng.below(0) raises)."""
@@ -1022,7 +1052,7 @@ def draw_requirements(candidates: list[Requirement], rng: Rng) -> list[Requireme
 # -----------------------------------------------------------------------------
 
 def place_pool(rng: Rng, white_hearts: int, magical_hearts: int,
-               book_needed: bool = False) -> dict[int, list[list[str]]]:
+               book_needed: bool = False, toll_slot_shown: bool = False) -> dict[int, list[list[str]]]:
     """HT-TEXT-02 steps 1-3: route every pool quote to a slot's candidate list.
 
     Owner rulings (docs/ui-provenance.md), departing from the spec's
@@ -1036,7 +1066,7 @@ def place_pool(rng: Rng, white_hearts: int, magical_hearts: int,
     candidates: dict[int, list[list[str]]] = {slot: [] for slot in range(SLOT_COUNT)}
     filled: dict[str, set[int]] = defaultdict(set)
     for entry in POOL:
-        slots = entry.slots(white_hearts, magical_hearts, book_needed)
+        slots = entry.slots(white_hearts, magical_hearts, book_needed, toll_slot_shown)
         if not slots:
             continue
         open_slots = [slot for slot in slots if slot not in filled[entry.routing_class]] or list(slots)
@@ -1172,10 +1202,10 @@ def hinted_level_records(item_shuffle_result: ItemShuffleResult) -> list[Tracked
 
 def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
                        rng: Rng, names: ItemNames = VANILLA_NAMES,
-                       maze_offers: dict[int, list[str]] | None = None,
+                       maze_offers: dict[int, MazeOffer] | None = None,
                        gates: OverworldGates = NO_GATES,
                        every_helpful_hint: bool = False, book_needed: bool = False,
-                       deceive: bool = False) -> HintTextResult:
+                       deceive: bool = False, mirrored: bool = False) -> HintTextResult:
     """HT-TEXT and HT-HINT. every_helpful_hint: Helpful hints (C03 = 1, HT-HINT-04), where every
     slot with a helpful text shows it, with no overlay coin. deceive: Deception (C03 = 3, HT-HINT-06),
     helpful hints whose facts each a coin may replace (Deception, its own stream drawn first), and
@@ -1188,7 +1218,7 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     dropped text, the requirement texts, the pool routing, and per slot the
     overlay coin and the pool pick."""
     opener_rng = copy.deepcopy(rng)          # the openers' order, from a copy: no other draw moves
-    deception = Deception(Rng(rng.below(DECEPTION_SEED_RANGE))) if deceive else None
+    deception = Deception(Rng(rng.below(DECEPTION_SEED_RANGE)), mirrored) if deceive else None
     every_helpful_hint = every_helpful_hint or deceive
     hint_prices = draw_hint_shop_prices(gw, rng)
 
@@ -1200,9 +1230,9 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     sentences: list[str | None] = [None] * SLOT_COUNT
     # the player level each level-location text names, by slot
     level_slots: list[int | None] = [None] * SLOT_COUNT
-    write_level_location_texts(gw, slot_texts, sentences, level_slots, deception)
+    write_level_location_texts(gw, slot_texts, sentences, level_slots, deception, mirrored)
     write_person_name_texts(gw, slot_texts, names, deception,
-                            pool_items=[record.item for record in item_shuffle_result.tracked])
+                            pool_items=[record.item for record in item_shuffle_result.tracked], mirrored=mirrored)
 
     trio = level9_trio_texts(gw, item_shuffle_result, names, deception)
     trio.pop(1 + rng.below(3))
@@ -1232,7 +1262,7 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     relocate(sentences)
     relocate(level_slots)
 
-    pool_candidates = route_pool_candidates(gw, rng, book_needed)
+    pool_candidates = route_pool_candidates(gw, rng, book_needed, toll_slot_shown(item_shuffle_result))
     final_texts, overlay_flags = select_final_texts(slot_texts, pool_candidates, rng, every_helpful_hint)
     add_openers(final_texts, overlay_flags, sentences, opener_rng)
     level_location_slots = {slot: level for slot, level in enumerate(level_slots)
@@ -1247,7 +1277,7 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
 
 def generate_blank_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
                              hint_assignment: HintAssignmentResult,
-                             maze_offers: dict[int, list[str]] | None = None) -> HintTextResult:
+                             maze_offers: dict[int, MazeOffer] | None = None) -> HintTextResult:
     """HT-HINT-07 (C03 = 5, blank hints): no text is generated and no draw is taken; the 45 slots
     point at 45 empty texts (one end mark each) where the generated body goes, in slot order. The
     later passes set slot 27 (the toll) and slot 34 (the level-9 entrance text, at the generated
@@ -1267,7 +1297,7 @@ def generate_blank_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResu
 def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
                                  hint_assignment: HintAssignmentResult, rng: Rng,
                                  names: ItemNames = VANILLA_NAMES,
-                                 maze_offers: dict[int, list[str]] | None = None,
+                                 maze_offers: dict[int, MazeOffer] | None = None,
                                  book_needed: bool = False) -> HintTextResult:
     """FL-ALT-04 (C03 = 2, community hints): the helpful texts (HT-HINT-01) are not made and the
     mixed overlay (HT-HINT-02) does not run, nor its moves between slots 38, 12 and 19: each
@@ -1284,7 +1314,7 @@ def generate_community_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffle
     names and book_needed as in generate_hint_text.
 
     The random draws, in order: the pool routing, then per slot the pool pick."""
-    pool_candidates = route_pool_candidates(gw, rng, book_needed)
+    pool_candidates = route_pool_candidates(gw, rng, book_needed, toll_slot_shown(item_shuffle_result))
     final_texts, overlay_flags = select_final_texts([None] * SLOT_COUNT, pool_candidates, rng)
     assert gw.hint_shop_offer_selectors is not None, "the base ROM's hint-shop offer selectors"
     return _hint_text_result(gw, item_shuffle_result, hint_assignment, final_texts, overlay_flags,
@@ -1307,7 +1337,7 @@ def prg0_pointers(gw: GameWorld) -> list[int]:
 
 def generate_normal_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
                               hint_assignment: HintAssignmentResult,
-                              maze_offers: dict[int, list[str]] | None = None) -> HintTextResult:
+                              maze_offers: dict[int, MazeOffer] | None = None) -> HintTextResult:
     """HT-HINT-05 (C03 = 0, normal hints): no text is generated and no draw is taken. PRG0's text
     block and its 38 pointers stay, apart from slot 36 pointing at slot 0's text, slot 27 at the
     toll text (PS-MERCH-04) and slot 34 at the level-9 refusal text, stored outside the block (the
@@ -1327,12 +1357,16 @@ def generate_normal_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleRes
     prices = hint_shop_prices(gw)
     texts: list[bytes] = []
     offset = NORMAL_HINT_TEXT_ADDRESS
-    for offer, lines in sorted((maze_offers or {}).items()):
-        encoded = bytes(encode_text(lines))
-        pointers[offer_selectors[offer] // SELECTOR_TO_SLOT] = cpu_address_in_bank1(offset)
+    for offer, maze in sorted((maze_offers or {}).items()):
+        slot = offer_selectors[offer] // SELECTOR_TO_SLOT
+        if maze.price is None and MAZE_NAMES[offer] not in (gw.quotes[slot].text or ""):
+            continue                    # a mirrored path replaces only a text naming its maze
+        encoded = bytes(encode_text(maze.lines))
+        pointers[slot] = cpu_address_in_bank1(offset)
         texts.append(encoded)
         offset += len(encoded)
-        prices[offer] = MAZE_HINT_PRICE
+        if maze.price is not None:
+            prices[offer] = maze.price
     if offset > EXT_HINT_DATA_ROM_END:
         raise ValueError("normal hints: ZORA's texts overrun the free bank-1 space")
     selectors_a, selectors_b = _build_selector_tables(gw, hint_assignment, replaces_26=False)
@@ -1354,14 +1388,18 @@ def generate_normal_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleRes
 def _hint_text_result(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
                       final_texts: list[list[str]], overlay_flags: list[bool],
                       hint_shop_offer_selectors: tuple[int, ...], hint_prices: tuple[int, ...],
-                      maze_offers: dict[int, list[str]] | None = None) -> HintTextResult:
+                      maze_offers: dict[int, MazeOffer] | None = None) -> HintTextResult:
     """The texts encoded and placed, and the selector tables (no draws). maze_offers (Randomize
     Lost Hills / Dead Woods, owner design): a hint shop offer's new text, written into the slot
     that offer shows, overriding it, and the offer priced at 1 rupee."""
     prices = list(hint_prices)
-    for offer, lines in (maze_offers or {}).items():
-        final_texts[hint_shop_offer_selectors[offer] // SELECTOR_TO_SLOT] = lines
-        prices[offer] = MAZE_HINT_PRICE
+    for offer, maze in (maze_offers or {}).items():
+        slot = hint_shop_offer_selectors[offer] // SELECTOR_TO_SLOT
+        if maze.price is None and MAZE_NAMES[offer] not in " ".join(final_texts[slot] or []):
+            continue                    # a mirrored path replaces only a text naming its maze
+        final_texts[slot] = maze.lines
+        if maze.price is not None:
+            prices[offer] = maze.price
     hint_prices = tuple(prices)
     encoded, pointers = encode_hint_texts(final_texts, item_shuffle_result)
     quotes = [Quote(quote_id=i, text="|".join(final_texts[i])) for i in range(SLOT_COUNT)]
@@ -1485,7 +1523,7 @@ def draw_hint_shop_prices(gw: GameWorld, rng: Rng) -> list[int]:
 
 def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None],
                                sentences: list[str | None], level_slots: list[int | None] | None = None,
-                               deception: Deception | None = None) -> None:
+                               deception: Deception | None = None, mirrored: bool = False) -> None:
     """HT-HINT-01's level-location entries, in ZORA's wording (no draws): entry N names player
     level N and the region of its door, the door of the data level shown as N (SH-NUM-03; for a
     second-quest level in a pair, its partner's door). Under deception (HT-HINT-06 item 1) a coin
@@ -1493,7 +1531,7 @@ def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None]
     for player_level, slot in enumerate(LEVEL_LOCATION_SLOTS, start=1):
         screen = _door_screen(gw, level_shown_as(gw.levels, player_level).level_num)
         assert screen is not None, f"player level {player_level} has no door screen"
-        region = region_of_screen(screen)
+        region = stated_region(screen, mirrored)
         if deception is not None and deception.heads():
             region = deception.region()
         sentence = level_location_sentence(player_level, region)
@@ -1505,7 +1543,7 @@ def write_level_location_texts(gw: GameWorld, slot_texts: list[list[str] | None]
 
 def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
                             names: ItemNames = VANILLA_NAMES, deception: Deception | None = None,
-                            pool_items: Sequence[int] = ()) -> None:
+                            pool_items: Sequence[int] = (), mirrored: bool = False) -> None:
     """HT-HINT-01's person-name entries (no draws): the three (giver, target)
     pairs read the appearances FP-PERSON-01 drew
     (zora/generate/steps/person_appearances.py). Under deception (HT-HINT-06 items 2 and 3): entry
@@ -1521,7 +1559,7 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
     meet_screen = next((screen_info.screen_num for screen_info in gw.overworld.screens
                         if screen_info.destination == Destination.MAGICAL_SWORD_CAVE
                         and not _hidden_flag(screen_info)), None)
-    meet_region = region_of_screen(meet_screen) if meet_screen is not None else 0
+    meet_region = stated_region(meet_screen, mirrored) if meet_screen is not None else 0
     if deception is not None and deception.heads():
         meet_region = deception.region()
     meet_lines = [f"MEET {person_name(*pair11)}", region_phrase(meet_region)]
@@ -1532,7 +1570,8 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
 
     white_sword_cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
     white_sword_screen = _white_sword_screen(gw)
-    white_sword_region = region_of_screen(white_sword_screen) if white_sword_screen is not None else 0
+    white_sword_region = (stated_region(white_sword_screen, mirrored)
+                          if white_sword_screen is not None else 0)
     # the same form speaks of the giver itself: "I HAVE", not "ME HAS"
     holder_text = "I HAVE" if name_form(*pair12) == SAME_FORM else f"{person_name(*pair12)} HAS"
     if white_sword_cave is not None:
@@ -1686,19 +1725,21 @@ def _arrow_upgrade_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
     return ["ARROW UPGRADES", "LIE ELSEWHERE"]
 
 
-def route_pool_candidates(gw: GameWorld, rng: Rng, book_needed: bool = False) -> dict[int, list[list[str]]]:
+def route_pool_candidates(gw: GameWorld, rng: Rng, book_needed: bool = False,
+                          toll_slot_shown: bool = False) -> dict[int, list[list[str]]]:
     """The pool's candidate lists (place_pool's draws); heart-count quotes follow the sword
     caves' requirements. Each sword cave's own slot draws only from the quotes about its heart
     count (sword_cave_heart_quotes; owner decision, 2026-10-17): the quotes place_pool routed
     there otherwise are not shown. A slot still makes one pick, but a shorter list changes how
     many words Rng.below takes (rejection sampling; none for a single candidate), so the later
     slots' picks change with it.
-    With book_needed (B48) slot 0 draws from the lines in which the speaker cannot be understood."""
+    With book_needed (B48) slot 0 draws from the lines in which the speaker cannot be understood;
+    with toll_slot_shown (B23 off) slot 27 draws from its own quotes (PoolEntry.slots)."""
     white_sword_cave = gw.overworld.get_cave(Destination.WHITE_SWORD_CAVE, ItemCave)
     magical_sword_cave = gw.overworld.get_cave(Destination.MAGICAL_SWORD_CAVE, ItemCave)
     white_hearts = white_sword_cave.heart_requirement if white_sword_cave is not None else 0
     magical_hearts = magical_sword_cave.heart_requirement if magical_sword_cave is not None else 0
-    pool_candidates = place_pool(rng, white_hearts, magical_hearts, book_needed)
+    pool_candidates = place_pool(rng, white_hearts, magical_hearts, book_needed, toll_slot_shown)
     for cave, slot in ((white_sword_cave, WHITE_SWORD_TEXT_SLOT), (magical_sword_cave, MAGICAL_SWORD_TEXT_SLOT)):
         if cave is not None:
             pool_candidates[slot] = sword_cave_heart_quotes(slot, cave.heart_requirement)
@@ -1737,16 +1778,18 @@ def encode_hint_texts(final_texts: list[list[str]],
     extended bank in slot order, then the overflow region
     (rom_layout.place_hint_texts).
 
-    HT-TEXT-02: the final pointers of slots 27 and 34 are replaced by other
-    passes, so their drawn texts are never shown; the rebuild MAY skip them.
-    They are written as empty texts, leaving the bank's room to the shown
-    ones (HT-TEXT-03). The pointer exchange (HT-TEXT-04) is
+    HT-TEXT-02: the final pointers of slot 34, and of slot 27 while the toll
+    is re-drawn (B23), are replaced by other passes, so their drawn texts are
+    never shown; the rebuild MAY skip them. They are written as empty texts,
+    leaving the bank's room to the shown ones (HT-TEXT-03). With B23 off slot
+    27 keeps its drawn text (PS-MERCH-05). The pointer exchange (HT-TEXT-04) is
     shuffle_dungeon_text (B19), which the flow runs on this pass's result."""
-    encoded = [encode_text([""] if slot in UNSHOWN_SLOTS else text) for slot, text in enumerate(final_texts)]
+    unshown = UNSHOWN_SLOTS - ({TOLL_SLOT} if toll_slot_shown(item_shuffle_result) else set())
+    encoded = [encode_text([""] if slot in unshown else text) for slot, text in enumerate(final_texts)]
     offsets = place_hint_texts([len(e) for e in encoded], CONSTERNATION_HINT_SLOTS)
     pointers = [cpu_address_in_bank1(offset) for offset in offsets]
     # Slot 27 is the toll text; the pointer is patched by B1 after this pass.
-    # Without a toll (B22 and B23 off, FL-OFF-04) the slot keeps its own text.
+    # Without a toll (B23 off, FL-OFF-04, PS-MERCH-05) the slot keeps its own text.
     if item_shuffle_result.toll is not None:
         pointers[TOLL_SLOT] = TOLL_TEXT_POINTER[0] | (TOLL_TEXT_POINTER[1] << 8)
     return encoded, pointers

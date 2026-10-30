@@ -25,10 +25,11 @@ from zora.rom import level_encoding
 from zora.rom.base_rom import piece_bytes, verify_base_rom
 from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, seed_code
 from zora.rom.layout import LEVEL_LABEL_RECORD, LEVEL_LABEL_RECORD_SIZE, LOW_HEALTH_BEEP_OPERAND_ADDRESS
+from zora.rom.link_art import offered_sprite_sets
 from zora.rom.link_sprite import SpriteSet
 from zora.rom.player_settings import (
-    DeathWarp, LinkSprite, LowHealthBeep, Music, PlayerSettingError, PlayerSettings, SelectSwap, apply_player_settings,
-    written_offsets,
+    CharacterColors, DeathWarp, LinkSprite, LowHealthBeep, Music, PlayerSettingError, PlayerSettings, SelectSwap,
+    apply_player_settings, written_offsets,
 )
 from zora.rom.serialize.rom_file import serialize_to_rom
 
@@ -40,7 +41,7 @@ HEART_ENTRY, TUNIC_ENTRY = 8, 20     # its palette record's background 1.1 and s
 # Every non-default choice of every setting
 NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "select_swap": (SelectSwap.OFF, SelectSwap.SWAP_ONLY),
-    "low_health_beep": (LowHealthBeep.KEPT, LowHealthBeep.HALF_SPEED),
+    "low_health_beep": (LowHealthBeep.KEPT, LowHealthBeep.HALF_SPEED, LowHealthBeep.QUARTER_SPEED),
     "death_warp": (DeathWarp.CONTROLLER2_UP_A, DeathWarp.CONTROLLER1_UP_SELECT),
     "reduce_flashing": (True,),
     "tunic_colors": ((VIVID, 0x32, 0x16), (0x29, VIVID, 0x16), (0x29, 0x32, VIVID)),
@@ -49,15 +50,22 @@ NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "level_word": ("DEN", "PALACE"),
     "boss_sound_word": ("MEOW", "RANDOM", "HI !"),
     "link_sprite": (LinkSprite.SET,),
+    "link_colors": ((VIVID, 0x17), (0x27, VIVID)),
+    "link_sprite_swap": (True,),
 }
 # A Link sprite set for the cases (FP-LINK-02's Check: 640 bytes of any content), given with the
-# Link sprite's choice: the set field alone writes nothing
+# Link sprite's choice: the set field alone writes nothing. Playable character's colors writes only
+# with a set that has colors of its own (tests/test_character_colors.py), which the test set has not.
 TEST_SPRITE_SET = SpriteSet("Test set", "ZORA tests", "made for this test", bytes(range(256)) * 2 + bytes(128))
-WITH_ANOTHER = frozenset({"sprite_set"})
+WITH_ANOTHER = frozenset({"sprite_set", "character_colors"})
 # Randomized music (docs/design/music-settings.md): applied after the player settings
 # (zora.rom.music.randomize), so here a random Music value only chooses the statistics screen's music
 # build and the switch beside it writes nothing (test_randomized_music_chooses_only_the_statistics_screen).
 APPLIED_AFTER = frozenset({"music_streaming_safe_only"})
+# Graphics theme (Halloween Mode): its tiles go in before generation, so it applies only when a ROM is
+# generated (apply_player_settings refuses it) and has no apply-afterwards cases here;
+# tests/test_graphics_theme.py checks it on generated ROMs.
+GENERATED_ONLY = frozenset({"graphics_theme"})
 # What every ROM gets besides the settings: the statistics screen (FP-STATS-01; a setting up to 2.0
 # beta 6), left out only by the co-op hook (write_player_settings' coop).
 STATISTICS_SCREEN = "statistics_screen"
@@ -96,7 +104,8 @@ def test_data_is_the_assembled_copy() -> None:
 
 
 def test_every_setting_has_its_defaults_and_one_function() -> None:
-    assert {field.name for field in fields(PlayerSettings)} - APPLIED_AFTER - WITH_ANOTHER == set(NON_DEFAULTS)
+    assert ({field.name for field in fields(PlayerSettings)} - APPLIED_AFTER - WITH_ANOTHER - GENERATED_ONLY
+            == set(NON_DEFAULTS))
 
 
 def test_randomized_music_chooses_only_the_statistics_screen() -> None:
@@ -127,15 +136,24 @@ def test_defaults_leave_finished_roms_byte_identical(seed: int) -> None:
         assert differing and differing <= written_offsets(STATISTICS_SCREEN)
 
 
+def beside(name: str) -> PlayerSettings:
+    """What a setting's case starts from: the defaults, with the test set for the Link sprite's choice,
+    and the Old Man's set chosen for the swap (refused without a person set)."""
+    if name == "link_sprite":
+        return replace(PlayerSettings(), sprite_set=TEST_SPRITE_SET)
+    if name == "link_sprite_swap":
+        return replace(PlayerSettings(), link_sprite=LinkSprite.SET, sprite_set=offered_sprite_sets()["old-man"])
+    return PlayerSettings()
+
+
 def one_setting(name: str, value: Any) -> PlayerSettings:
-    """The defaults with one setting changed (the Link sprite's with the test set)."""
-    settings = replace(PlayerSettings(), sprite_set=TEST_SPRITE_SET) if name == "link_sprite" else PlayerSettings()
-    return replace(settings, **{name: value})
+    """What a setting's case starts from with that one setting changed."""
+    return replace(beside(name), **{name: value})
 
 
 @pytest.mark.parametrize(("name", "value"), CASES, ids=CASE_IDS)
 def test_each_setting_changes_only_its_own_bytes(name: str, value: Any) -> None:
-    rom = apply_player_settings(unset(MVP_BASELINE_LEVEL_ENCODING_OFF, SEEDS[0]), PlayerSettings())
+    rom = apply_player_settings(unset(MVP_BASELINE_LEVEL_ENCODING_OFF, SEEDS[0]), beside(name))
     changed = apply_player_settings(rom, one_setting(name, value))
     differing = {i for i, (a, b) in enumerate(zip(rom, changed, strict=True)) if a != b}
     assert differing and differing <= written_offsets(name)
@@ -186,10 +204,12 @@ def test_the_pages_settings_map_to_player_settings() -> None:
     page = {"selectButton": "swap", "lowHealthBeep": "kept", "deathWarp": "p1-up-select", "reduceFlashing": "on",
             "music": "off", "greenTunic": 0x21, "blueRingTunic": 0x22, "redRingTunic": 0x23, "heart": 0x24,
             "levelWord": " palace ", "bossSoundWord": "meow", "statisticsScreen": "on"}
-    # statisticsScreen: retired (every ROM has the screen), read by no one
+    # statisticsScreen: retired (every ROM has the screen), read by no one; tunic colors of its own and no
+    # characterColors (a page saved before it): My own
     assert player_settings_from_page(page) == PlayerSettings(
         SelectSwap.SWAP_ONLY, LowHealthBeep.KEPT, DeathWarp.CONTROLLER1_UP_SELECT, True, (0x21, 0x22, 0x23),
-        0x24, Music.OFF, "PALACE", "MEOW")
+        0x24, Music.OFF, "PALACE", "MEOW", character_colors=CharacterColors.MINE)
+    assert player_settings_from_page({**page, "characterColors": "set"}).character_colors is CharacterColors.SET
     defaults = {"selectButton": "toggle", "lowHealthBeep": "removed", "deathWarp": "p1-up-a",
                 "reduceFlashing": "off", "music": "on", "greenTunic": 0x29, "blueRingTunic": 0x32,
                 "redRingTunic": 0x16, "heart": 0x16, "statisticsScreen": "off"}
@@ -231,6 +251,14 @@ def test_wired_path_writes_the_assembled_bytes(seed: int) -> None:
         "select_swap": SelectSwap, "low_health_beep": LowHealthBeep, "death_warp": DeathWarp, "music": Music}
     for name, choices in data.SETTINGS.items():
         for choice in choices:
+            if name == STATISTICS_SCREEN and choice == "lozft2":
+                # lozft built from source writes it over the music build (lozft.with_lozft2_statistics)
+                from zora.rom.base_rom import player_rom_of, remember_repo_base_rom
+                from zora.rom.music.lozft import with_lozft2_statistics
+                music = apply_player_settings(rom, replace(UNSET, music=Music.RANDOM_STANDARD))
+                lozft2 = with_lozft2_statistics(music, player_rom_of(remember_repo_base_rom()))
+                assert lozft2 == bytes(build.apply_settings(music, {name: choice}, data.SETTINGS)), (name, choice)
+                continue
             if name == STATISTICS_SCREEN:           # always on; off only through the co-op hook
                 # the music build with Randomize music (docs/music.md)
                 settings = replace(UNSET, music=Music.RANDOM_STANDARD) if choice == "music" else UNSET
@@ -289,10 +317,15 @@ def test_command_line_settings() -> None:
                                   "tunic_colors=0x24,0x32,0x16", "death_warp=controller2_up_a", "level_word=lair",
                                   "boss_sound_word=random", "statistics_screen=on"]) == \
         PlayerSettings(SelectSwap.OFF, LowHealthBeep.REMOVED, DeathWarp.CONTROLLER2_UP_A, True,
-                       (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM")
+                       (0x24, 0x32, 0x16), 0x21, Music.OFF, "LAIR", "RANDOM", character_colors=CharacterColors.MINE)
+    # a tunic or Link color of the player's own means My own unless character_colors says otherwise
+    assert parse_player_settings(["link_colors=0x36,0x0F"]) == PlayerSettings(
+        link_colors=(0x36, 0x0F), character_colors=CharacterColors.MINE)
+    assert parse_player_settings(["tunic_colors=0x24,0x32,0x16", "character_colors=set"]).character_colors \
+        is CharacterColors.SET
     # the retired statistics_screen is ignored, whatever its value
     assert parse_player_settings(["statistics_screen=yes"]) == PlayerSettings()
     for bad in (["music=loud"], ["heart_color=0x0D"], ["volume=11"], ["reduce_flashing=maybe"],
-                ["level_word=FORTRESS"], ["level_word=A~B"], ["boss_sound_word=GROWL"]):
+                ["level_word=FORTRESS"], ["level_word=A~B"], ["boss_sound_word=GROWL"], ["character_colors=theirs"]):
         with pytest.raises(PlayerSettingError):
             parse_player_settings(bad)

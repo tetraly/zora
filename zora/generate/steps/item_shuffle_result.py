@@ -16,6 +16,8 @@ class ItemShuffleOptions:
     """Preset values (Consternation): dungeon hearts on, minor items off,
     all "which item goes here" choices random (index 0)."""
     dungeon_hearts: bool = True
+    # PS-ITEM-14 (B17): the level rooms holding bombs, five rupees or a key join the deal
+    minor_items: bool = False
     armos_item: int = 0          # FORCED_ITEM_OPTIONS index
     white_sword_item: int = 0
     coast_item: int = 0

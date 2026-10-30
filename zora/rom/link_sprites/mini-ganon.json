@@ -1,0 +1,19 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Mini-Ganon",
+  "author": "Irenepunmaster",
+  "provenance": "Drawn by Irenepunmaster, who gave it to ZORA to ship with credit (2026-10-26).",
+  "tiles": "AAAOPHh4/OYGAwEDBwcDGeLh8PkPDh8fHR4P9v9xIAAAQGBgegoWDgCAoNDi+vr6Mury4sIAAADOFgIiwoAAAAAADjx4+PziBgMBAwcHAx3ix8PjJBhwfR04PN3b5wsAAEBgYHoKEg4AgKDQ4vr6+jbq8uICAADwyhYO4sLAwAAAAwUOFxATFwgMAwUOL29tGx0OAww7PHzm4qEMHwcCAADAoHDoCMjoEDDAoHD09LbYuHDgGOweAGZHhxX48CAAAAADBx8fHx8IDAwAACBgYD8/PwcAGDw8QEA4Px8HAgAAAMDg8Pjw8BAwMAAAAAwO8Pj4xAAEDgAOBjz8/PgQAAAABx4cPD5/AwEAAQMDAQB8eHh/B0D4cAMHB3h/PwcAACAwMDwECOYAwNDo8Pz8HAIAAPDgMHg8/Pz4EODAgAAYOXp3+/g5Gxw+eXL393c2DQ4HAwQbPAATAQAEDwcCAADg0Dj0BOT0CBjg0Dj4+trs2DDgEO4eHzMnzhzs8CAAAAAHDx8/Pz+Q2NjAwMDAQD8/H0/AwOAAACAwPz8/AQAAAIDA8PHz9yBgYAABCw8P7//+7AAQOHgfHx786ODAAAADBQ4XEBMXCKzj5W5vby0bHQ4DCBc4PAYCAQwfDwQAAEBjY3oKFg4AgKPT4/v7+zLq8uLCAwMAzxcDI8ODAwAAQGNjegoSDgCAo9Pj+/v7Nury4gIDA/DLFw/jw8PDAAADBQ4XEBMXCAwDBQ4vb21934zd3P0AfP7+//7//34AAAMFDhcQExcIDAMFDi8vbX3fjN3c/QAAfv7//v//fAAAAwUO///n5wgMAwX/////gYHn5+fnfnz///////9+PA==",
+  "recommendedColors": {
+    "tunics": [
+      43,
+      33,
+      22
+    ],
+    "other": [
+      50,
+      48
+    ]
+  }
+}

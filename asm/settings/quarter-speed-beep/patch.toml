@@ -1,0 +1,16 @@
+# ZORA quarter-speed low-health beep (a player setting, FP-BEEP-01's fourth choice): the heart
+# warning plays a quarter as often. asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_SET_QUARTER_SPEED_BEEP"
+bank = 0
+start = 0xA240              # half speed's slot: the two choices are alternatives
+
+[[hook]]
+name = "heart-warning-start"
+offset = 0x018E7
+length = 3
+note = "DriveTune0, for a request of the heart warning alone: LDX Tune0 becomes JSR HeartWarningAtQuarterSpeed (Z set starts it)."
+code = """
+    JSR HeartWarningAtQuarterSpeed
+"""

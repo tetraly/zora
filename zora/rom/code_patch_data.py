@@ -169,6 +169,10 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "0000000000000000000000000000000000000000000000000000000000000000000000000000000000"
                                 "00000000000000000000000000000000000000000000")),
     ),
+    "ht-hint-07": (
+        (0x04860, bytes.fromhex("20449f")),
+        (0x05F54, bytes.fromhex("8d0503b100c9e4d005a9ff8d020360")),
+    ),
 }
 
 # Data the passes fill per seed: exported label -> file offset.

@@ -1,0 +1,26 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Samus",
+  "author": "ZeroMeaning",
+  "provenance": "Drawn by ZeroMeaning for Z1M1 (Samus, ZeroMeaning.Samus.LinkAsset.asset at Z1M1's assets commit 20b4c27); ZeroMeaning's permission for use in other projects came through MetalMachine (2026-10-28, docs/permissions.md).",
+  "tiles": "AAcfPz9/fzgABx8/P39/PxAAAQcDYDgYHw8HBw9fJBgAwIDw+Oz0/ADA4PC4mMjgfIz89MQMODD4+DgQMPBIMAcfPz9/fzgQBx8/P39/Px8MDw8HAgABAQ8ODAQDAQABwIDw+Ory+nrA4PC4mMjg+I4+ksIiAMDg/Pxw8ODAAOAHDh8/PT4fBwcPHzczOXz/CBczHAIADg7/ew0PDw4ADuBw+Py8fPjg4PD47MycPv8c7s4+TnRwAP7evvDwAHAABw4fPz8/Hw8HDx8/Pz9/9z82cmwCDgAAfz8vDw8OAADgcPj8/Pz48ODw+Pz8/P7v8GhMPEBYeDD//vz4+Hh4MAADDx8fPz8YAAMPHx8/Px8AAAEHAsFwYA8PBw8fv0BgAODA+Pz0+PwA4PD43Mzk8H78+BAgQBwe8PD48PD4IB4bP37//3wvBwMHL383m1w/CAcPBBg5AAAfBwsPBTgAAPD4fP7+PvDg8Pj8/u7ePv8Q2Lxw4MeHAP++ePwuAAcAL3l/f39/Px8PHz9/f39/7y0NFQgIwOAAfx8fP3/g4ADA4PD4+PjgwcDg8Pj4+Pm+w6cPXowwPDz8+PDg8Hg8PEfu//3+/39nBw8X8/n8fv94FwMMAgAODv97DQ8PDgAOAMCA9v7s9PwAwODwuJrK4nyE/PzEDD42+vI6GjLySDDAgPP76vL6esDg8LiZyeH5jj6SwiIDw+D9/XHx4cAA4AcOHz89Ph8HBw8fNzM5fP98343c3PwCAAMhcyMjAn4ABw4fPz0+HwcHDx83Mzl8/z5vRm5ufgAOwRA5EREBPg4HDh8/PT7/5wcPHzczOQAYAAAAAAAAAAAYfn4YGBgAAA==",
+  "recommendedColors": {
+    "tunics": [
+      26,
+      28,
+      22
+    ],
+    "other": [
+      39,
+      6
+    ],
+    "colorOne": "art"
+  },
+  "fromGame": [
+    [
+      624,
+      632
+    ]
+  ]
+}

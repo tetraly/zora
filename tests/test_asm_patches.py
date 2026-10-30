@@ -13,7 +13,7 @@ from tests.test_feature_patches import vanilla
 from zora.rom.base_rom import Original, original_bytes, piece_bytes, piece_length
 from zora.rom.code_patch_data import PATCHES
 from zora.rom.code_patches import (
-    BOOK_TO_UNDERSTAND_NPCS, ENTR_01, ENTR_01_SIDES, EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT, ONE_TIME_WARES, PROGRESSIVE_CAVES,
+    BLANK_HINTS, BOOK_TO_UNDERSTAND_NPCS, ENTR_01, ENTR_01_SIDES, EXIT_ROOM_COUNT_FLAG, LEVEL_INFO_EXIT_ROOM_COUNT, ONE_TIME_WARES, PROGRESSIVE_CAVES,
     PROGRESSIVE_ITEMS_BYTE,
     PROGRESSIVE_ROOM_ITEMS, SHOPS_BY_NUMBER, START_ITEMS, left_out_patches, one_time_wares,
 )
@@ -228,9 +228,9 @@ def test_the_progressive_patches_follow_their_flags(zora: str, caves: bool, room
 
 def test_left_out_patches() -> None:
     assert left_out_patches(True, False, False) == (PROGRESSIVE_CAVES, PROGRESSIVE_ROOM_ITEMS, START_ITEMS,
-                                                    ENTR_01_SIDES, BOOK_TO_UNDERSTAND_NPCS)
+                                                    ENTR_01_SIDES, BOOK_TO_UNDERSTAND_NPCS, BLANK_HINTS)
     assert left_out_patches(False, False, True) == ("fp-book-01", PROGRESSIVE_ROOM_ITEMS, START_ITEMS, ENTR_01_SIDES,
-                                                    BOOK_TO_UNDERSTAND_NPCS)
-    assert left_out_patches(True, True, False) == (START_ITEMS, ENTR_01_SIDES, BOOK_TO_UNDERSTAND_NPCS)
+                                                    BOOK_TO_UNDERSTAND_NPCS, BLANK_HINTS)
+    assert left_out_patches(True, True, False) == (START_ITEMS, ENTR_01_SIDES, BOOK_TO_UNDERSTAND_NPCS, BLANK_HINTS)
     assert left_out_patches(True, True, False, start_items=True, start_rooms_moved=True,
-                            book_to_understand_npcs=True) == ()
+                            book_to_understand_npcs=True, blank_hints=True) == ()

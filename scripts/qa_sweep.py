@@ -61,7 +61,7 @@ from zora.flags import zora_flags  # noqa: E402
 from zora.flags.codec import decode, encode  # noqa: E402
 from zora.flags.dependencies import check_dependencies  # noqa: E402
 from zora.flags.fields import (  # noqa: E402
-    ENCODE_LEVEL_DATA, MONEY_OR_LIFE_ROOMS, MONEY_OR_LIFE_TOLL, OPTION_FIELDS, OPTIONS_BY_ID, TOGGLE_FIELDS,
+    ENCODE_LEVEL_DATA, OPTION_FIELDS, OPTIONS_BY_ID, TOGGLE_FIELDS,
     Settings, ThreeState, WoodenSwordState,
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF  # noqa: E402
@@ -145,11 +145,9 @@ def supported_choices(field_id: str, settings: Settings) -> dict[str, list[Any]]
 def draw_settings(rng: random.Random) -> Settings:
     """Every selectable field (FL-OFF-07, FL-ALT-02 to -04 and B82) at its baseline, a turn-off
     value, an alternative value or a "?", the group drawn first so C17's many turn-off values do
-    not crowd out the rest; B82 on or off (never "?"). B22 is drawn before B23, whose off needs
-    it (FL-DEP-06)."""
+    not crowd out the rest; B82 on or off (never "?")."""
     settings = mvp_baseline_settings()
     selectable = [*TURN_OFF_OPTIONS, *ALTERNATIVE_OPTIONS, *TURN_OFF_TOGGLES]
-    selectable.sort(key=lambda field_id: field_id == MONEY_OR_LIFE_TOLL.id)
     for field_id in selectable:
         groups = supported_choices(field_id, settings)
         value = rng.choice(groups[rng.choice(sorted(groups))])
@@ -553,14 +551,13 @@ SETTING_NAMES = dict(zip((*PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT), ("green tunic", "
 
 
 def unsupported_values(field_id: str) -> list[Any]:
-    """Values of a field the support matrix refuses on the baseline (with B22 off for B23)."""
+    """Values of a field the support matrix refuses on the baseline."""
     baseline = mvp_baseline_settings()
     if field_id in OPTIONS_BY_ID:
         return [index for index in range(OPTIONS_BY_ID[field_id].count)
                 if not _supported(baseline.updated(options={field_id: index}), field_id)]
     return [state for state in ThreeState
-            if not _supported(baseline.updated(toggles={field_id: state}), field_id)
-            and field_id != MONEY_OR_LIFE_TOLL.id]
+            if not _supported(baseline.updated(toggles={field_id: state}), field_id)]
 
 
 def bad_inputs(count: int) -> list[BadInput]:
@@ -588,12 +585,6 @@ def bad_inputs(count: int) -> list[BadInput]:
     def random_level_encoding() -> BadInput:
         settings = draw_settings(rng).updated(toggles={ENCODE_LEVEL_DATA.id: ThreeState.POSSIBLE})
         return BadInput("B82 ?", encode(settings), "cannot be random")
-
-    def toll_without_merchants_on() -> BadInput:
-        b22 = rng.choice([ThreeState.ON, ThreeState.POSSIBLE])
-        b23 = rng.choice([ThreeState.OFF, ThreeState.POSSIBLE])
-        return BadInput("B23 off or ? with B22 on or ?", encode(baseline.updated(
-            toggles={MONEY_OR_LIFE_ROOMS.id: b22, MONEY_OR_LIFE_TOLL.id: b23})), "B23")
 
     def malformed_flags() -> BadInput:
         good = encode(baseline)
@@ -626,7 +617,7 @@ def bad_inputs(count: int) -> list[BadInput]:
         return BadInput("seed out of range", encode(baseline.updated(toggles={ENCODE_LEVEL_DATA.id: encoding})),
                         "seed", seed=rng.choice([-1, SEED_LIMIT, SEED_LIMIT * 7, -(SEED_LIMIT // 2)]))
 
-    makers = [unsupported_field, unsupported_field, unsupported_field, toll_without_merchants_on,
+    makers = [unsupported_field, unsupported_field, unsupported_field,
               malformed_flags, malformed_zora, sword_hearts_conflict, bad_player_setting, bad_seed,
               random_level_encoding]
     return [makers[index % len(makers)]() for index in range(count)]

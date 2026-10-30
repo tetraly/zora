@@ -15,6 +15,7 @@ which this reader does not: once a room's secret is found, a tree ($E7)
 or armos ($EA) square becomes stairs and a rock wall ($E6) a cave entrance;
 CheckTileObject turns tile-object squares into their objects.
 """
+from ...model.overworld import OverworldLayouts
 from .tables import (
     CAVE_LAYOUT_COUNT,
     COLUMN_DIRECTORY_OW,
@@ -107,3 +108,16 @@ def square_tiles(rom: bytes, square_index: int) -> tuple[int, int, int, int]:
         return a, b, c, d
     primary = primary_squares(rom)[square_index]
     return primary, primary + 1, primary + 2, primary + 3
+
+
+def read_overworld_layouts(rom: bytes, spawn_spots: bytes) -> OverworldLayouts:
+    """OW-ENTR-01's reading: every layout's column codes and the squares each code draws. The three
+    cave layouts follow RoomLayoutsOW as layouts 121 to 123, which a screen's layout number can name
+    (the second quest's screens $0B and $3C name $7B)."""
+    table = ROOM_LAYOUTS_OW.read(rom) + ROOM_LAYOUTS_OW_CAVE.read(rom)
+    heaps = _heap_starts(rom)
+    layouts = tuple(tuple(table[layout * LAYOUT_COLUMNS:(layout + 1) * LAYOUT_COLUMNS])
+                    for layout in range(OW_LAYOUT_COUNT + CAVE_LAYOUT_COUNT))
+    codes = {code for layout in layouts for code in layout}
+    squares = {code: tuple(_column(rom, heaps[code >> HEAP_SHIFT], code & COLUMN_INDEX_MASK)) for code in codes}
+    return OverworldLayouts(layouts, squares, spawn_spots)

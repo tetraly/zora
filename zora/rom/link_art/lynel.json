@@ -1,0 +1,41 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Lynel",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Lynel art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      2,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockOWSP", "tile": "$CE"},
+    "$02": {"block": "PatternBlockOWSP", "tile": "$D0"},
+    "$04": {"block": "PatternBlockOWSP", "tile": "$D2"},
+    "$06": {"block": "PatternBlockOWSP", "tile": "$D4"},
+    "$08": {"block": "PatternBlockOWSP", "tile": "$D6"},
+    "$0A": {"block": "PatternBlockOWSP", "tile": "$D8"},
+    "$0C": {"block": "PatternBlockOWSP", "tile": "$DA"},
+    "$0E": {"block": "PatternBlockOWSP", "tile": "$DC"},
+    "$10": {"block": "PatternBlockOWSP", "tile": "$CE"},
+    "$12": {"block": "PatternBlockOWSP", "tile": "$D0"},
+    "$14": {"block": "PatternBlockOWSP", "tile": "$D6"},
+    "$16": {"block": "PatternBlockOWSP", "tile": "$D8"},
+    "$18": {"block": "PatternBlockOWSP", "tile": "$DA"},
+    "$1A": {"block": "PatternBlockOWSP", "tile": "$DC"},
+    "$78": {"block": "PatternBlockOWSP", "tile": "$D6"},
+    "$80": {"block": "PatternBlockOWSP", "tile": "$D0"},
+    "$54": {"block": "PatternBlockOWSP", "tile": "$D4"},
+    "$58": {"block": "PatternBlockOWSP", "tile": "$D6"},
+    "$5A": {"block": "PatternBlockOWSP", "tile": "$D8", "mirror": true},
+    "$60": {"block": "PatternBlockOWSP", "tile": "$D6"}
+  }
+}

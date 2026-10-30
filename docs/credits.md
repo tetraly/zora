@@ -16,6 +16,10 @@ Third-party material keeps its own license, given with it.
 | Recorder Kills Dungeon Pols Voice | Stratoform (the Zelda Hack Pack's flute_kills_pols.ips) | `asm/flags2/recorder-pols-voice/` |
 | Like-Like Eats Rupees | gzip (the Zelda Hack Pack's like_like_rupees.ips) | `asm/flags2/like-like-rupees/` |
 | Start With Full Health | ShadowOne333, kalita-kun and gzip (the Zelda Hack Pack's full_health.ips) | `asm/flags2/full-health/` |
+| Harder Bosses | MetalMachine (Z1M1's boss_level) | `zora/rom/harder_bosses.py` |
+| Harder Ganon | MetalMachine (Z1M1's harder_ganon) | `asm/flags2/harder-ganon/` |
+| Offense and Defense Item Pacing, Recorder Warping | MetalMachine (Z1M1's pacing settings) | `zora/generate/acceptance_check.py`, `zora/generate/dungeon_walk.py` |
+| Swap Swords and Rings, Swordlish | BogieSmalls | `zora/generate/steps/swap_swords_and_rings.py`, `zora/rom/swordlish.py` |
 | Reduce flashing | Z1R community resource |
 | Statistics screen (the idea: an end-of-game list of times, deaths and counts) | Z2Randomizer | `asm/fp-stats-01/` |
 | Low-health beep at half speed (the idea) | Z2Randomizer | `asm/settings/half-speed-beep/` |
@@ -29,6 +33,21 @@ thank them under Additional Technical Contributions.
 These features are included with credit to their authors; the owner will remove them if their
 authors ask. ZORA's patches for them are its own code, written from the disassembly.
 
+## Z1M1
+
+- **MetalMachine**, author of Z1M1, gave permission to use Z1M1's source code directly to add
+  similar features to ZORA. Features taken from Z1M1 are credited to MetalMachine
+  (`docs/permissions.md`).
+- **ZeroMeaning**, who drew the sprites that ship with Z1M1: permission, through MetalMachine, to
+  use them in other projects; nine of their Link sprites ship as playable characters, and their
+  Halloween pack as the Graphics theme Halloween (Sprite art, below; `docs/permissions.md`).
+
+## BogieSmalls
+
+- **BogieSmalls**: permission to bring his features into ZORA (2026-10-29), built
+  clean-room from a reviewed spec. Swap Swords and Rings and Swordlish are his, by his names, with
+  Swordlish's text in his words (docs/permissions.md section 3).
+
 ## Community hint texts
 
 The texts people read in caves and from hint people come from the community's submissions on ZORA's
@@ -38,7 +57,30 @@ Crump, ultralavos, TheGobOne, Tetra, PDXRex and heccinhayley.
 
 ## Sprite art
 
+- **The website logo** (the ZORA character on the page) by Gromfalloon, commissioned for ZORA
+  (`web/zora-logo.png`).
 - **The Pegasus Boots sprite** by Irenepunmaster. 
+- **The playable character sprites** Abobo, Agumon, Jason Voorhees, Mini-Ganon and Twilight Sparkle
+  Humanoid Pony Edition by Irenepunmaster (`zora/rom/link_sprites/`).
+- **The playable character sprites** Ganon, Justin Bailey, Kraid, Link (Bunny), Link (Female), Link
+  (Invisible), Mother Brain, Samus and Zelda by ZeroMeaning, drawn for Z1M1
+  (`zora/rom/link_sprites/zeromeaning-*.json`, `docs/z1m1/sprites.md`).
+- **The Halloween graphics theme** ("Hallowe'en" for the overworld, the dungeons and the bosses, and
+  "Lord of the Flies" for Ganon) by ZeroMeaning, drawn for Z1M1 (`zora/rom/themes/halloween.json`).
+
+## Music
+
+- **Music engine: lozft by TheRealQuantam (MPL 2.0), using bhop by zeta0134 (MIT-0).** Randomized
+  music plays through lozft, Quantam's FamiTracker driver for The Legend of Zelda
+  (github.com/TheRealQuantam/lozft). For lozft built from source, ZORA uses that repository at
+  commit 44b1bb5, which includes the PRG0 build option ZORA contributed (pull request
+  TheRealQuantam/lozft#1). `scripts/lozft_build.py` builds it, and
+  `zora/rom/music/lozft_patch_data.py` holds the result, lozft's executable form under MPL 2.0.
+  Its source is that commit. The pinned `lozft.bps` that ZORA downloads today is
+  Quantam's own build, as he sent it.
+- **The importer** (`zora/rom/music/`) is a port of Quantam's FtRandoLib and MusicImporter, with his
+  permission. **The standard library** of songs is Quantam's ZeldaMusicRandomizer's, fetched from
+  his repository and never hosted by ZORA (`docs/music.md`).
 
 ## Fonts and colors
 

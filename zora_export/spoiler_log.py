@@ -121,15 +121,6 @@ def place_line(level: dict[str, Any], room: dict[str, Any], kind: str, item: str
 L4_SWORD_LABEL = "Level-4 sword (progressive sword)"
 
 
-def gatekeeper_lines(level: dict[str, Any]) -> list[str]:
-    """Gatekeeper Bosses: the level's gatekeeper, the only way to its triforce, when it has one."""
-    if "gatekeeper" not in level:
-        return []
-    room = next(room for room in level["rooms"] if room["number"] == level["gatekeeper"])
-    boss = room["enemies"]["name"] if room["enemies"] else "its boss"
-    return wrapped(f"Gatekeeper: {room_label(room)}, {boss}", " " * 6, "    ")
-
-
 def major_items(document: dict[str, Any]) -> list[str]:
     progressive = bool(document.get("progressiveItems"))
     l4 = document.get("zoraExtras", {}).get("l4Sword")
@@ -149,7 +140,6 @@ def major_items(document: dict[str, Any]) -> list[str]:
             if stair and stair["kind"] == "item" and stair["item"] in MAJOR_ITEMS:
                 found.append(place_line(level, room, STAIRWAY_ITEM, item_label(stair["item"], progressive)))
         lines.append(f"Level {level['shownNumber']}")
-        lines += gatekeeper_lines(level)
         lines += [line for entry in found for line in wrapped(entry, " " * 6, "    ")] or ["    (none)"]
     overworld = document["overworld"]
     lines.append("Overworld")

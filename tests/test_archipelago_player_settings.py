@@ -29,13 +29,17 @@ from zora.flags.presets import ASNB_FLAGS, ASNB_ZORA_FLAGS
 from zora.generate.places import read_item
 from zora.rom import inventory
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
+from zora.rom.link_art import offered_sprite_sets
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.player_settings import (
     PAGE_BOSS_SOUND_WORD,
     PAGE_CHOICES,
     PAGE_HEART_SLOT,
     PAGE_LEVEL_WORD,
+    PAGE_LINK_COLORS,
+    PAGE_LINK_SPRITE,
     PAGE_TUNIC_SLOTS,
+    RANDOM_COLOR,
     PlayerSettingError,
     PlayerSettings,
     boss_sound_word_problem,
@@ -55,7 +59,8 @@ AP_NAME = b"Link"
 # Each setting's PlayerSettings field (written_offsets' name).
 FIELD = {**{key: field for key, (field, _values) in PAGE_CHOICES.items()},
          **dict.fromkeys(PAGE_TUNIC_SLOTS, "tunic_colors"), PAGE_HEART_SLOT: "heart_color",
-         PAGE_LEVEL_WORD: "level_word", PAGE_BOSS_SOUND_WORD: "boss_sound_word"}
+         PAGE_LEVEL_WORD: "level_word", PAGE_BOSS_SOUND_WORD: "boss_sound_word", PAGE_LINK_SPRITE: "link_sprite",
+         **dict.fromkeys(PAGE_LINK_COLORS, "link_colors")}
 CUSTOM_WORDS = {PAGE_LEVEL_WORD: ("X", "PALACE", "ZORA1", "A-B.C"), PAGE_BOSS_SOUND_WORD: ("?!?!", "ZZ9Z")}
 # The ROM's own settings, and the Archipelago games' settings (multiworld_only), which change no ROM
 # byte ZORA's player settings write.
@@ -65,16 +70,22 @@ MULTIWORLD_SPECS = {key: spec for key, spec in ALL_SPECS.items() if spec.multiwo
 # Multiworld settings the page has no row for yet (its rows in web/zora-web.js come next, emptying
 # this set; owner decision 2026-10-18).
 PAGE_PENDING: frozenset[str] = frozenset()
+# The playable character's rows have their own shape on the page (a select with the sets and a file button;
+# colors under their heading): checked apart in test_the_page_has_the_playable_characters_rows
+PAGE_OWN_ROWS = frozenset({PAGE_LINK_SPRITE, *PAGE_LINK_COLORS})
 CLIENT_FRAMES = 240
+# Graphics theme: read at the world's build (its tiles go in before generation), so its cases build anew
+GRAPHICS_THEME, GRAPHICS_THEME_OFF = "graphicsTheme", "off"
 RECEIVED = ("Bow", "Raft", "Ladder", "Recorder")
 
 
 # --- P3: the fields ------------------------------------------------------------------------------------
 
 def test_every_setting_once_with_its_default() -> None:
-    assert list(ALL_SPECS) == [*PAGE_CHOICES, *PAGE_TUNIC_SLOTS, PAGE_HEART_SLOT, PAGE_LEVEL_WORD, PAGE_BOSS_SOUND_WORD,
-                               *archipelago.MULTIWORLD_SETTINGS]
-    assert player_settings_from_page({key: spec.default for key, spec in SPECS.items()}) == PlayerSettings()
+    assert list(ALL_SPECS) == [*PAGE_CHOICES, PAGE_LINK_SPRITE, *PAGE_TUNIC_SLOTS, *PAGE_LINK_COLORS, PAGE_HEART_SLOT,
+                               PAGE_LEVEL_WORD, PAGE_BOSS_SOUND_WORD, *archipelago.MULTIWORLD_SETTINGS]
+    defaults = archipelago.page_player_settings({key: spec.default for key, spec in SPECS.items()})
+    assert player_settings_from_page(defaults) == PlayerSettings()
 
 
 @pytest.mark.parametrize("key", list(MULTIWORLD_SPECS))
@@ -104,7 +115,7 @@ def values_of(spec: archipelago.PlayerSettingSpec) -> list[str | int]:
 def test_every_listed_value_is_accepted_and_nothing_else(key: str) -> None:
     spec = SPECS[key]
     for value in values_of(spec):
-        player_settings_from_page({key: value})
+        player_settings_from_page(archipelago.page_player_settings({key: value}))
     refused: dict[str, list[object]] = {archipelago.CHOICE: ["bogus", 1], archipelago.COLOR: [0x0D, 0x41, -1, "0x16"],
                                         archipelago.WORD: [7]}
     for wrong in refused[spec.kind]:
@@ -150,7 +161,7 @@ def test_the_page_shows_the_same_settings() -> None:
     settings' rows likewise, but those still PAGE_PENDING."""
     page = page_source()
     for key, spec in ALL_SPECS.items():
-        if key in PAGE_PENDING:
+        if key in PAGE_PENDING | PAGE_OWN_ROWS:
             continue
         if spec.kind == archipelago.CHOICE:
             pattern = rf'\{{ key: "{key}", label: "([^"]+)", default: "([^"]+)",\s*choices: \[(.*?)\]\s*,\s*help'
@@ -165,17 +176,34 @@ def test_the_page_shows_the_same_settings() -> None:
             assert re.search(rf'key: "{key}", name: "{re.escape(spec.label)}"', page), key
 
 
+def test_the_page_has_the_playable_characters_rows() -> None:
+    """The world offers the built-in sets (not a loaded file) and the character's colors 2 and 3: the
+    page has the same keys, the colors with the same defaults, and a built-in choice for every set the
+    world lists."""
+    page = page_source()
+    for key, default in zip(PAGE_LINK_COLORS, (0x27, 0x17), strict=True):
+        assert re.search(rf'key: "{key}", label: "Color [23]", default: 0x{default:02X}', page), key
+        assert ALL_SPECS[key].default == default and RANDOM_COLOR not in ALL_SPECS[key].colors
+    sprite = ALL_SPECS[PAGE_LINK_SPRITE]
+    assert sprite.default == "link" and sprite.choices[0][0] == "link" and sprite.choices[-1][0] == "random"
+    assert "player-linkSprite" in page and 'LINK_SPRITE_RANDOM = "random"' in page
+    assert [value for value, _label in sprite.choices[1:-1]] == list(offered_sprite_sets())
+
+
 # --- P4: settings never change what Archipelago relies on -----------------------------------------------
 
 @cache
-def recipe_parts(case: str) -> tuple[archipelago.BuildResult, dict, tuple[str, ...]]:
-    result = archipelago.build_from_strings(*CASES[case], SEED, remember_repo_base_rom())
+def recipe_parts(case: str, theme: str = GRAPHICS_THEME_OFF) -> tuple[archipelago.BuildResult, dict, tuple[str, ...]]:
+    """A case's build (with a Graphics theme, built from its working copy: the world reads that
+    setting at its build) and its accepted assignment."""
+    themed = {GRAPHICS_THEME: theme} if theme != GRAPHICS_THEME_OFF else None
+    result = archipelago.build_from_strings(*CASES[case], SEED, remember_repo_base_rom(), themed)
     assignment, received = accepted_assignment(result, SEED)
     return result, assignment, tuple(received)
 
 
 def rom_with(case: str, settings: dict[str, object]) -> bytes:
-    result, assignment, received = recipe_parts(case)
+    result, assignment, received = recipe_parts(case, str(settings.get(GRAPHICS_THEME, GRAPHICS_THEME_OFF)))
     return archipelago.finish(result, assignment, received, settings, AP_NAME)
 
 
@@ -204,10 +232,15 @@ def every_change() -> dict[str, list[str | int]]:
 def test_a_setting_writes_only_its_own_bytes(case: str, key: str) -> None:
     base = default_rom(case)
     allowed = written_offsets(FIELD[key])
+    if key == PAGE_LINK_SPRITE:
+        # a set's own colors come with it (Playable character's colors: The set's own, the default)
+        allowed |= written_offsets("tunic_colors") | written_offsets("link_colors")
     for value in every_change()[key]:
         rom = rom_with(case, {key: value})
         diff = changed(base, rom)
-        assert diff and diff <= allowed, (key, value, sorted(diff - allowed)[:8])
+        # the playable character's Random may draw the original Link for this seed, which changes nothing
+        assert diff or (key, value) == (PAGE_LINK_SPRITE, archipelago.RANDOM_CHOICE), (key, value)
+        assert diff <= allowed, (key, value, sorted(diff - allowed)[:8])
         assert archipelago.rom_identity(rom) == archipelago.rom_identity(base)
 
 

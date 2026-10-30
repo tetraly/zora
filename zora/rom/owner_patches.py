@@ -55,10 +55,13 @@ RETIRED_PATCHES = frozenset({"l4-sword-take"})
 # asm/flags2's patches only an Archipelago game's ROM gets (GameConfig.archipelago_rom): ring-color, the
 # tunic repainted for a ring the client gives through RAM (the beta 5 fixes spec, item 1).
 ARCHIPELAGO_PATCHES = ("ring-color",)
+# asm/flags2's patches a setting with levels writes, not a flag that is on or off: Harder Ganon's
+# (zora/rom/harder_bosses.py sets its level byte).
+LEVEL_PATCHES = ("harder-ganon",)
 # Every built patch belongs to a flag or is retired; a flag's patch not built yet keeps that flag
 # unproduced (zora_flags.PRODUCED_OWNER_FIELDS; tests/test_owner_flags_wired.py).
 assert set(PATCHES) <= {name for names in PATCHES_BY_FLAG.values() for name in names} | RETIRED_PATCHES \
-    | set(ALWAYS_WRITTEN) | set(ARCHIPELAGO_PATCHES)
+    | set(ALWAYS_WRITTEN) | set(ARCHIPELAGO_PATCHES) | set(LEVEL_PATCHES)
 PATCH_CREDITS = CREDITS
 
 # ASNB's patches by the setting that writes them: Add L4 Sword on (either place), and GameConfig's

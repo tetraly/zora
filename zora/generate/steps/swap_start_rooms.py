@@ -4,7 +4,7 @@ it (FP-ENTR-01's arrival codes 1-4) and leaves the level by it (FP-ENTR-02's exi
 from dataclasses import dataclass
 
 from ...model import room_grid
-from ...model.enums import Side, WallType
+from ...model.enums import Enemy, Side, WallType
 from ...model.levels import Level, LevelBlock
 from ...model.rooms import Room, RoomPlace, StaircaseRoom
 from ..rng import IntRng
@@ -69,11 +69,18 @@ def _redirect_staircase(staircases: list[StaircaseRoom], old: int, new: int) -> 
 
 def _exchange_contents(first: Room, second: Room) -> None:
     """PS-START-02: the monster, layout, item and trigger bytes (tables C to F) change rooms;
-    the door bytes (A, B) stay with the cell."""
+    the door bytes (A, B) stay with the cell.
+
+    ZORA's deviation (2026-10-29; docs/deviations.md): when either room holds the hungry Goriya, the
+    inner palette selectors (table B bits 0-1) change rooms too, so the Goriya keeps its black floor
+    (inner 0, SH-DOOR-01) and the other room its own look. As the spec has it, a Goriya moved into the
+    old start room took that room's palette (14 of 300 seeds of a beta 10 player's flags)."""
     for attr in ("enemy_info", "layout_info", "item_info", "secret_info"):
         first_value, second_value = getattr(first, attr), getattr(second, attr)
         setattr(first, attr, second_value)
         setattr(second, attr, first_value)
+    if Enemy.HUNGRY_GORIYA in (first.enemy, second.enemy):
+        first.palette_1, second.palette_1 = second.palette_1, first.palette_1
 
 
 def _exchange_in_list(room_lists: RoomLists, level: Level, block_index: int, old: int, new: int) -> bool:

@@ -111,8 +111,9 @@ StoreRoomItemAtNextLevel:
     RTS
 
 ; Called by the coast-item hook at @MakeHeartContainerOW (patch.toml), for
-; the item store and the Y load it replaces. A: the coast item. Returns A: $C0, the item's Y. Keeps X, [00] and [01].
-COAST_ITEM_Y = $C0
+; the item store and the X load it replaces (@StoreLocation stores A in ObjX+19).
+; A: the coast item. Returns A: $C0, the item's X. Keeps X, [00] and [01].
+COAST_ITEM_X = $C0
 
 StoreCoastItemAtNextLevel:
     TAY
@@ -127,5 +128,5 @@ StoreCoastItemAtNextLevel:
     STA $00
     PLA
     STA $01
-    LDA #COAST_ITEM_Y
+    LDA #COAST_ITEM_X
     RTS

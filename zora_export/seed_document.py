@@ -27,13 +27,11 @@ from zora.flags.dependencies import (
     meet_cave_prerequisite,
     meet_monster_prerequisite,
     meet_room_prerequisite,
-    with_the_toll_beside_merchants,
     without_both_boss_health_rules,
 )
 from zora.flags.fields import OptionField, Settings, ThreeState, ToggleField
 from zora.flags.form import ALL_FIELDS
 from zora.flags.zora_form import FIELDS as ZORA_FIELDS
-from zora.generate.late_gate.gatekeeper import GATEKEEPER_LEVELS
 from zora.generate.pipeline import (
     GenerationPlan,
     cave_prerequisite_rng,
@@ -42,6 +40,7 @@ from zora.generate.pipeline import (
     resolve_question_marks,
     room_prerequisite_rng,
 )
+from zora.generate.rng import Rng
 from zora.generate.steps.add_l4_sword import L4_SWORD_ITEM
 from zora.generate.steps.mixed_overworld_quest import second_quest_leftovers
 from zora.generate.steps.overworld_gates import DEAD_WOODS_HINT, LOST_HILLS_HINT
@@ -205,8 +204,7 @@ def level_staircases(level: Level, names: Mapping[Item, str] = ITEM_NAMES) -> di
     return stairs
 
 
-def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str] = ITEM_NAMES,
-                has_gatekeepers: bool = False) -> dict[str, Any]:
+def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str] = ITEM_NAMES) -> dict[str, Any]:
     stairs = level_staircases(level, names)
     rooms = [{
         "number": room.room_num,
@@ -218,12 +216,8 @@ def level_entry(level: Level, selling: frozenset[int], names: Mapping[Item, str]
         "staircase": stairs.get(room.room_num),
         "doors": {side: DOORS[getattr(room.walls, side)] for side in ("north", "east", "south", "west")},
     } for room in level.rooms]
-    entry = {"number": level.level_num, "shownNumber": shown_number(level), "color": level_color(level),
-             "rooms": rooms}
-    if has_gatekeepers and level.level_num in GATEKEEPER_LEVELS:
-        # Gatekeeper Bosses: the ROM's boss room (LevelInfo_BossRoomId) is the gatekeeper; only when set
-        entry["gatekeeper"] = level.boss_room
-    return entry
+    return {"number": level.level_num, "shownNumber": shown_number(level), "color": level_color(level),
+            "rooms": rooms}
 
 
 def seed_code_entry(rom: bytes, names: Mapping[Item, str]) -> list[str | None]:
@@ -493,7 +487,7 @@ QUESTION_MARK = "?"
 # rule, which the log leaves out.
 ZORA_RULES = "a ZORA Extras rule"
 BOSS_HEALTH_RULE = "Ganon HP 0 rule, FL-DEP-01 rule 3"
-MERCHANT_RULE = "merchant toll rule, FL-DEP-04"
+SWORDLISH_RANDOM_RULE = "Swordlish: Random, FP-SWL-04"
 CAVE_RULE = "cave shuffle coin, FL-DEP-02 rule 1"
 ROOM_RULE = "room shuffle coin, FL-DEP-02 rule 2"
 MONSTER_RULE = "monster shuffle coin, FL-DEP-02 rule 3"
@@ -502,17 +496,25 @@ MONSTER_RULE = "monster shuffle coin, FL-DEP-02 rule 3"
 def resolution_stages(chosen: GenerationPlan) -> list[tuple[str, Settings]]:
     """The Z1R settings as the seed's "?" values resolved them (FL-DEP-04's own stream, the one
     generation used), then after each later rule that can change a value, as plan() applies them:
-    FL-DEP-01 rule 3 (B41 and B46 never both on), FL-DEP-04's B22 and B23 rule, the
+    FL-DEP-01 rule 3 (B41 and B46 never both on), the
     ZORA Extras' rules (the owner's 2.0 dependencies), FL-DEP-02
     rule 1's coin (OW-CAVE-10), rule 2's (beta 8) and rule 3's (the 2026-10-22 export). The last is
     what the seed was generated with."""
     asked = decode(chosen.flag_string)
-    resolved = resolve_question_marks(asked, chosen.seed, chosen.flag_string)
+    # Item Shuffle: Random (No Vanilla)'s draw is shown as Random's is: the "?" resolved to the drawn value
+    resolved = zora_flags.resolve_item_shuffle_no_vanilla(
+        chosen.zora, asked, resolve_question_marks(asked, chosen.seed, chosen.flag_string),
+        Rng(zora_flags.no_vanilla_rng_key(chosen.seed, chosen.flag_string, chosen.zora_game_string)).below)
     stages = [("", resolved)]
     stages.append((BOSS_HEALTH_RULE, without_both_boss_health_rules(asked, stages[-1][1])))
-    stages.append((MERCHANT_RULE, with_the_toll_beside_merchants(asked, stages[-1][1])))
-    _, owner = zora_flags.resolve_owner_dependencies(chosen.zora_resolved, chosen.zora, stages[-1][1], asked)
+    owner_flags, owner = zora_flags.resolve_owner_dependencies(
+        zora_flags.resolve_question_marks(chosen.zora, chosen.seed, chosen.flag_string, chosen.zora_game_string),
+        chosen.zora, stages[-1][1], asked)
     stages.append((ZORA_RULES, owner))
+    # FP-SWL-04: Random's pick of Swords' four (C07), from Swordlish's own stream, as plan() draws it
+    _, owner = zora_flags.resolve_swordlish(owner_flags, owner, Rng(zora_flags.swordlish_rng_key(
+        chosen.seed, chosen.flag_string, chosen.zora_game_string)).below)
+    stages.append((SWORDLISH_RANDOM_RULE, owner))
     stages.append((CAVE_RULE, meet_cave_prerequisite(owner, cave_prerequisite_rng(chosen.seed, chosen.flag_string))))
     stages.append((ROOM_RULE, meet_room_prerequisite(stages[-1][1], room_prerequisite_rng(chosen.seed,
                                                                                          chosen.flag_string))))
@@ -564,15 +566,18 @@ LEVEL_9_ENTRANCE = "level_9_entrance_sword"
 L4_SWORD_TEXT = {zora_flags.L4Sword.LEVEL_2: "level 2", zora_flags.L4Sword.LEVEL_9: "level 9"}
 
 
-# Oops All Enemies and Oops All Bosses (version 5) and Gatekeeper Bosses (version 12): shown only when
-# set, by their value's name, so a seed without them keeps its document too.
+# The enum-valued fields (Oops All Enemies and Oops All Bosses, version 5, and the later ones): shown only
+# when set, by their value's name, so a seed without them keeps its document too.
 OOPS_ALL_FIELDS = tuple(zora_flags.ENUM_FIELDS)
 
 
 LISTED_WHEN_SET = frozenset((*zora_flags.ZORA_1_0_FIELDS, *zora_flags.PEGASUS_BOOTS_FIELDS,
                             *zora_flags.EXPANDED_DUNGEON_LOCATIONS_FIELDS,
                             *zora_flags.HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
-                            *zora_flags.DO_NOT_SEGMENT_DUNGEONS_FIELDS))
+                            *zora_flags.DO_NOT_SEGMENT_DUNGEONS_FIELDS, *zora_flags.SWAP_SWORDS_AND_RINGS_FIELDS,
+                            zora_flags.ITEM_SHUFFLE_NO_VANILLA_FIELD))
+# Swordlish's range (version 16): listed only with Swordlish asked for, its resolved value N at both ends
+SWORDLISH_RANGE_FIELDS = (zora_flags.SWORDLISH_LOWEST_FIELD, zora_flags.SWORDLISH_HIGHEST_FIELD)
 
 
 def zora_entry_shown(flags: zora_flags.ZoraFlags, name: str) -> bool:
@@ -581,6 +586,8 @@ def zora_entry_shown(flags: zora_flags.ZoraFlags, name: str) -> bool:
     if name in OOPS_ALL_FIELDS or name in LISTED_WHEN_SET:
         # listed only when set, so the documents of seeds without them stay as they were
         return bool(getattr(flags, name))
+    if name in SWORDLISH_RANGE_FIELDS:
+        return flags.swordlish is not zora_flags.Swordlish.OFF
     return name != LEVEL_9_ENTRANCE or flags.level_9_entrance_sword
 
 
@@ -624,7 +631,7 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
         "seed": {"number": str(chosen.seed), "flags": chosen.flag_string, "zoraFlags": chosen.zora_flag_string,
                  "code": seed_code_entry(rom, names)},
         "progressiveItems": chosen.zora.progressive_items,
-        "levels": [level_entry(level, selling_levels(world), names, bool(chosen.zora_resolved.gatekeeper_bosses))
+        "levels": [level_entry(level, selling_levels(world), names)
                    for level in sorted(world.levels, key=lambda level: level.level_num)],
         "overworld": overworld_entry(world, names),
         "caves": cave_entries(world, sells_once, chosen.config.bait_in_pool, names),

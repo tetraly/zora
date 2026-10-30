@@ -1,0 +1,19 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Twilight Sparkle Humanoid Pony Edition",
+  "author": "Irenepunmaster",
+  "provenance": "Drawn by Irenepunmaster, who gave it to ZORA to ship with credit (2026-10-26).",
+  "tiles": "CxMzMAAEDz8PHz8/BwMOOD5+f///jw//P39g/+CPDwAQ+ABiAhoC2vD48PL6+vIe+vrCwsAAgP8+OgLCAACAAAcLEzMwAAQfBw8fPz8HAx4/f/////9w/zh//+D/4HAAgBD4AGAAHATg8Pjw8Pj89PR0dOT0+HD/PJyUJOQYcAACBhc4AggYLQsPHz8HBx83T25/f39uDv9zcWxjeG4OAEBg6BxAEBi80PD4/ODg+Oz2cuL2/nYA/86OHu4OdgAAAgYfPwAIHj8LDx8/BwcROH9/f28fHgz/fH9/YR4eDABAYPj8ABB4/NDw+Pzg4Igc/v7+9vBgAP8+/v7mEGAAAAcLEzMwAAQfBw8fPz8HAx4/f/////9w/zhz4+D/4HAAgBD4AGAAGADg8Pjw8Pj48PDw8ODw+HD/+PjwIOAYcAAWNnf48ng4fR8/f//3939/f39PHzsAAP9zcE4ZOAAAAEBg6BxAGBy+0PD4/ODo/P7+/vwenw8A//4+ePJHDwAABAw//8Dw/P8XH///z+/j8P+/f///AAD/+L9fz+AAAACAwPD4AD3796Dg8PjB3x8/797s9Pg8PP9//vzsGDw8AAIGB3ByODg9Cw9vd3c3Pz9/fn9/f24O/3NxbGN4bg4AEPgDYgIaAtrw+PPz+/vzH/r6wsLCA4D/PzsDwwMDgACAEPgGZAQcBODw+Pb2/v729HR05PT8dv8+npYm5h52AAIGFzgCCBhdCw8fPwcHH3+P3I3d/QIO/////v/+fg4AAgYXOAIIGC8LDx8/BwcfP0duRm5+QAD/f39/f39+AAACBhc4AufngQsPHz8H////gefngYFmJv///////34+AA==",
+  "recommendedColors": {
+    "tunics": [
+      41,
+      34,
+      53
+    ],
+    "other": [
+      50,
+      20
+    ]
+  }
+}

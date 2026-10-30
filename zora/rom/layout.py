@@ -328,6 +328,13 @@ BOMB_DISPLAY_SPACE_TILE = 0x24   # leading-zero suppression tile (blank)
 # GLEEOK_HP/PATRA_HP — they never belonged to Aquamentus or Patra.)
 # ---------------------------------------------------------------------------
 
+# PS-EDROP-03 (B38): the drop-class lists the game searches for a killed monster's type, bank 4 $B01B:
+# no-drop (7 types), class A (6), class B (9) and class C (9), one run of 31 bytes
+ENEMY_DROP_CLASSES_ADDRESS = 0x1302B
+ENEMY_DROP_CLASSES_SIZE = 31
+# OW-ENTR-01 (B05): SpawnPosList2, the nine monster spawn spots of a screen entered facing down
+SPAWN_POS_LIST_2_ADDRESS = 0x14670
+SPAWN_POS_LIST_2_SIZE = 9
 ENEMY_HP_TABLE_ADDRESS = 0x1FB5E      # ObjectTypeToHpPairs bytes 0-25 (Enemy 0x00-0x33)
 ENEMY_HP_TABLE_SIZE    = 26
 ENEMY_HP_NIBBLE_COUNT  = 52
@@ -457,7 +464,9 @@ MAZE_DIRECTIONS_ADDRESS = 0x6DA7   # file offset; Dead Woods first, Lost Hills s
 LEVEL_TABLE_SIZE = 0x80
 NUM_TABLES       = 6
 ITEM_BYTE_TABLE  = 4      # LevelBlockAttrsE, the item byte (item, boss sound, dark room)
+TRIGGER_BYTE_TABLE = 5    # LevelBlockAttrsF, the secret trigger and the item position
 LEVEL_INFO_SIZE  = 0xFC
+LEVEL_NUMBER_OFFSET = 0x33  # LevelInfo_LevelNumber: the number tile the status bar shows
 NUM_QUOTES       = 38
 
 # ---------------------------------------------------------------------------

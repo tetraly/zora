@@ -26,8 +26,8 @@
 // no field list of its own; generation calls the same entry point as the
 // native scripts (zora.generate). Results cross to JavaScript as JSON.
 const GLUE = `
-import json, sys
-from zora_web.api import code_icons, code_text, flag_form, generate_rom, identify_rom, multiworld, music_asset_urls, music_library_songs, music_playlist_areas, music_rom, player_settings_from_page, seed_report
+import contextlib, json, sys
+from zora_web.api import code_icons, code_text, flag_form, generate_rom, identify_rom, multiworld, music_asset_urls, music_library_songs, music_playlist_areas, music_rom, player_settings_from_page, seed_report, stop_after
 
 def identify(data):
     return json.dumps(identify_rom(bytes(data.to_py())))
@@ -62,10 +62,12 @@ def music_areas():
     return json.dumps(music_playlist_areas())
 
 def generate(data, seed, flag_string, player_settings, zora_flag_string, library=None, patch=None,
-             names=None, files=None, playlist=None):
+             names=None, files=None, playlist=None, limit=None):
     global LAST_RESULT, REPORT_ROM
     settings = player_settings_from_page(json.loads(player_settings))
-    result = generate_rom(flag_string, int(seed), bytes(data.to_py()), settings, zora_flag_string)
+    # limit: the page's time limit in seconds (GenerationStopped once it passes; zora/generate/deadline.py)
+    with stop_after(limit) if limit is not None else contextlib.nullcontext():
+        result = generate_rom(flag_string, int(seed), bytes(data.to_py()), settings, zora_flag_string)
     info = {"flags": result.flag_string, "zoraFlags": result.zora_flag_string, "seed": str(result.seed),
             "encoded": result.encode_level_data, "code": [str(name) for name in result.code],
             "codeIcons": code_icons(result.rom), "codeText": code_text(result.rom)}
@@ -183,7 +185,7 @@ async function loadMusicAssets() {
 // to PlayerSettings, applied after generation (FP-SET-01). With randomized music the result also
 // carries reportRom, the ROM before the music, which the seed report reads.
 const RANDOM_MUSIC = ["random-standard", "random-local"];
-async function generate({ id, bytes, seed, flags, zoraFlags, playerSettings, musicLibraries, musicPlaylist }) {
+async function generate({ id, bytes, seed, flags, zoraFlags, playerSettings, musicLibraries, musicPlaylist, limit }) {
   const t0 = performance.now();
   const music = playerSettings && RANDOM_MUSIC.includes(playerSettings.music) ? await loadMusicAssets() : null;
   const local = music && playerSettings.music === "random-local" ? musicLibraries || [] : null;
@@ -191,7 +193,7 @@ async function generate({ id, bytes, seed, flags, zoraFlags, playerSettings, mus
                       music ? music.library : null, music ? music.patch : null,
                       // undefined, not null: Pyodide passes JavaScript's null as JsNull, not None
                       local ? local.map((file) => file.name) : undefined, local ? local.map((file) => file.bytes) : undefined,
-                      music && musicPlaylist ? musicPlaylist : undefined);
+                      music && musicPlaylist ? musicPlaylist : undefined, limit ?? undefined);
   const rom = result.toJs();
   result.destroy();
   const info = JSON.parse(pyodide.globals.get("LAST_RESULT"));

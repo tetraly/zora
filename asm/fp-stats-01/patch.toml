@@ -16,6 +16,11 @@ bank = 2
 start = 0xB100
 
 [[segment]]
+name = "ZORA_FP_STATS_LEVELS"
+bank = 2
+start = 0xB7B0          # the shown level numbers (player_settings.statistics_screen writes them)
+
+[[segment]]
 name = "ZORA_FP_STATS_STAB"
 bank = 5
 start = 0xBC00

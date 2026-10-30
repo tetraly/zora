@@ -246,11 +246,9 @@ def _reforce_level9_person_sides(level: Level) -> None:
     and the side becomes a shutter. The repair sets the room's trigger to 1
     when it opens a pair, which keeps the walk's verdict (0 of 5,500 passing
     level-9 walks changed) and gives the finals' trigger split (QUESTIONS
-    #66.2).
-    Quirk (VA-WALK-08): a second-quest level 9's walk cell stays $64 when
-    its start room moves (B26), so a gate room elsewhere with trigger 0
-    keeps its open sides until the end pass; forced here, the walks would
-    find closed shutters where the original randomizer's open side passes (A80)."""
+    #66.2). The walks' cell is the gate room in every quest (level9_entry_room's deviation from
+    VA-WALK-08's fixed second-quest cell), so a second-quest gate room is forced here too when its
+    start room moves."""
     if level.level_num != LEVEL_9:
         return
     walk_cell = level9_entry_room(level)

@@ -88,18 +88,14 @@ _MOVES: dict[int, dict[int, set[int]]] = {
 _PERSON_MOVES = _group((Side.SOUTH, Side.WEST, Side.EAST, STAIR_SIDE))
 
 
-# VA-WALK-08: a second-quest level 9's goriya room, a fixed cell
-SECOND_QUEST_LEVEL_9_GORIYA_ROOM = 0x64
-
-
 def level9_entry_room(level: Level) -> int | None:
-    """Quest 1's level-9 room RECORDED one row north of the entrance
-    (VA-WALK-08): its shutters count as open; a fixed cell for a
-    second-quest level 9 (Dungeon Quest, PS-VAN-06)."""
+    """VA-WALK-08: level 9's Triforce gate room, one row north of the entrance, whose shutters count
+    as open (its person opens them when Link holds the pieces, InitUnderworldPersonC).
+    Deviation (docs/deviations.md): in every quest. VA-WALK-08 keeps a second-quest level 9's cell
+    at $64, PRG0's gate room, even when its start room moves (B26), where the walks would then find
+    the real gate room's shutters closed and level 9 shut."""
     if level.level_num != LEVEL_9:
         return None
-    if level.is_second_quest:
-        return SECOND_QUEST_LEVEL_9_GORIYA_ROOM
     if level.entrance_room < GRID_COLS:
         return None
     return level.entrance_room - GRID_COLS

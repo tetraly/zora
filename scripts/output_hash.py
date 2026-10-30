@@ -7,8 +7,8 @@
 Generates seeds 0..N-1 with the post-shapes passes on and off, serializes each
 onto the PRG0 base ROM and prints one combined SHA-1 per mode; --json writes
 the per-seed hashes. --matrix hashes the ROM matrix instead: every flag case of
-tests/archipelago_cases.py and zora.flags.presets, seeds 1-4, with each ROM's seed
-document and spoiler log. --code DIR imports `zora` from another revision's files
+tests/archipelago_cases.py and zora.flags.presets, and matrix_jobs()'s own cases, seeds
+1-4, with each ROM's seed document and spoiler log. --code DIR imports `zora` from another revision's files
 (scripts/compare_revision.py exports them), so that revision is hashed with this
 same script and, for the matrix, this checkout's cases; the run stops if `zora`
 would come from anywhere else. --compare lists the seeds or matrix entries whose
@@ -100,9 +100,30 @@ def matrix_jobs() -> list[MatrixJob]:
     """(case, flag string, ZORA flag string, seed) for every matrix ROM, from this checkout's
     cases: a revision hashed with --code gets the same inputs."""
     from tests.archipelago_cases import FLAG_CASES
+    from tests.test_coop_reserved import z1r_with
+    from zora.flags import zora_flags
+    from zora.flags.fields import ThreeState
     from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF, ZORA_PRESETS
+    # Matrix-only cases: settings no flag case or preset turns on, so the release tripwires cover them
     cases = {**FLAG_CASES, **ZORA_PRESETS, "MVP baseline (encoded)": (MVP_BASELINE, ""),
-             "baseline, ZORA 1.2": (MVP_BASELINE_LEVEL_ENCODING_OFF, "1.2")}
+             "baseline, ZORA 1.2": (MVP_BASELINE_LEVEL_ENCODING_OFF, "1.2"),
+             "change secret spots": (z1r_with(toggles={"B05": ThreeState.ON}), ""),
+             "remove maps, all maps and all compasses": (
+                 z1r_with(toggles=dict.fromkeys(("B92", "B93", "B94"), ThreeState.ON)), ""),
+             "mirror overworld": (z1r_with(toggles={"B06": ThreeState.ON}), ""),
+             # Harder Bosses and Harder Ganon (ZORA version 14), each at Level 3
+             "harder bosses": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
+                 zora_flags.ZoraFlags(harder_bosses=zora_flags.HarderLevel.LEVEL_3))),
+             "harder ganon": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
+                 zora_flags.ZoraFlags(harder_ganon=zora_flags.HarderLevel.LEVEL_3))),
+             # The pacing settings and Recorder Warping (with the recorder warping to unbeaten dungeons)
+             # (ZORA version 15)
+             "offense pacing earlier": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
+                 zora_flags.ZoraFlags(offense_pacing=zora_flags.Pacing.EARLIER))),
+             "defense pacing later": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
+                 zora_flags.ZoraFlags(defense_pacing=zora_flags.Pacing.LATER))),
+             "recorder warping": (z1r_with(toggles={"B07": ThreeState.ON}), zora_flags.encode(
+                 zora_flags.ZoraFlags(recorder_warping=True)))}
     return [(name, flags, zora_flags, seed) for name, (flags, zora_flags) in cases.items() for seed in MATRIX_SEEDS]
 
 

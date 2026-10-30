@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from ..generate.rng import IntRng
 from .base_rom import original_bytes
-from .layout import LEVEL_INFO_ADDRESS, LEVEL_INFO_SIZE, LOW_HEALTH_BEEP_OPERAND_ADDRESS
+from .layout import LEVEL_INFO_ADDRESS, LEVEL_INFO_SIZE, LEVEL_NUMBER_OFFSET, LOW_HEALTH_BEEP_OPERAND_ADDRESS
 
 Writes = list[tuple[int, bytes]]
 
@@ -38,7 +38,6 @@ RECORDER_COMPLEMENT_ROUTINE = 0x06000            # bank 1 $9FF0, PRG0 $FF
 RECORDER_COMPLEMENT = bytes.fromhex("ad710649ff60")          # LDA InvTriforce / EOR #$FF / RTS
 
 # --- FP-LEVEL-02 (B24): levels 1 to 8 show "?" ----------------------------------------------------
-LEVEL_NUMBER_OFFSET = 0x33                       # LevelInfo_LevelNumber
 QUESTION_MARK_TILE = 0x2E
 HIDDEN_NUMBER_LEVELS = range(1, 9)
 

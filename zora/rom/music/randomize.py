@@ -13,7 +13,18 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from ...generate.rng import Rng
-from .importer import AREA_SONGS, MUSIC_BANK_ROOM, Placed, RomFull, check_modules, draw_songs, modules_size, pack_songs
+from .importer import (
+    AREA_SONGS,
+    LOZFT2,
+    LOZFT_2026_10_22,
+    Placed,
+    RomFull,
+    check_modules,
+    draw_songs,
+    modules_size,
+    pack_songs,
+    song_loops,
+)
 from .library import (
     LibraryError,
     LibraryFile,
@@ -23,9 +34,9 @@ from .library import (
     local_library_songs,
     read_library,
 )
-from .lozft import with_lozft
+from .lozft import with_lozft, with_lozft_from_source
 from .pin import MusicAssets
-from .playlist import AREA_KEYS, Playlist, resolve_playlist
+from .playlist import AREA_KEYS, Playlist, original_song, resolve_playlist
 
 if TYPE_CHECKING:
     from ..player_settings import PlayerSettings
@@ -43,9 +54,10 @@ class MusicSource(Enum):
 class MusicOptions:
     """source: the library the songs come from. Every area is drawn, the ending and credits too, unless
     the playlist pins it (a playlist's `original` puts the game's own song there). The title screen
-    always gets an overworld track. distinct: every area gets its own track while the library has
-    enough. safe_only: no track marked unsafe for streaming (Streaming-safe tracks only), the
-    playlist's included. playlist: songs pinned to areas."""
+    draws from the tracks tagged Title, and without any keeps the game's own title song (TheGobOne's
+    request, 2026-10-25). distinct: every area gets its own track while the library has enough.
+    safe_only: no track marked unsafe for streaming (Streaming-safe tracks only), the playlist's
+    included. playlist: songs pinned to areas."""
     source: MusicSource = MusicSource.STANDARD
     distinct: bool = True
     safe_only: bool = True
@@ -63,6 +75,15 @@ class MusicResult:
         """(area, song title) per placed song, in the importer's order: "Level 3" for level 3."""
         names = {area.song_number: area.label for area in AREA_KEYS.values()}
         return [(names[place.song_number], place.song.title) for place in self.placed]
+
+
+def with_title_song(placed: list[Placed]) -> list[Placed]:
+    """The placed songs, and the game's own title song on the title screen when nothing else is
+    there (a library with no Title track), so the track list names it."""
+    title = AREA_KEYS["title"]
+    if any(place.song_number == title.song_number for place in placed):
+        return placed
+    return [*placed, Placed(title.song_number, original_song(title))]
 
 
 def music_rng(seed: int) -> Rng:
@@ -97,13 +118,22 @@ def _library(assets: MusicAssets, options: MusicOptions,
     return songs, warnings
 
 
+def drawable_songs(library: list[Song], safe_only: bool) -> list[Song]:
+    """The songs Random draws from: with safe_only the streaming-safe ones, and only songs that loop
+    (importer.song_loops); a playlist may still name any of the library's songs."""
+    return [song for song in library if (song.streaming_safe or not safe_only) and song_loops(song)]
+
+
 def randomize_music(rom: bytes, base: bytes, assets: MusicAssets, seed: int,
                     options: MusicOptions = DEFAULT_OPTIONS,
-                    local_libraries: Sequence[LibraryFile] = ()) -> MusicResult:
+                    local_libraries: Sequence[LibraryFile] = (), from_source: bool = False) -> MusicResult:
     """rom: the finished ROM; base: the player's ROM it was made from (lozft is made from it).
-    MusicError (LibraryError, PlaylistError, RomFull) when it cannot be made as asked."""
+    from_source: lozft built from its source (lozft2) instead of the pinned lozft.bps; tests only
+    until it is ready (lozft.with_lozft_from_source). MusicError (LibraryError, PlaylistError,
+    RomFull) when it cannot be made as asked."""
+    layout = LOZFT2 if from_source else LOZFT_2026_10_22
     library, warnings = _library(assets, options, local_libraries)
-    pool = [song for song in library if song.streaming_safe or not options.safe_only]
+    pool = drawable_songs(library, options.safe_only)
     fixed: dict[int, Song] = {}
     if options.playlist is not None:
         fixed, playlist_warnings = resolve_playlist(options.playlist, library, options.safe_only)
@@ -112,15 +142,15 @@ def randomize_music(rom: bytes, base: bytes, assets: MusicAssets, seed: int,
     drawn_numbers = {number for area in areas for number in AREA_SONGS[area]} - set(fixed)
     rng = music_rng(seed)
     for draw in range(DRAWS):
-        placed = draw_songs(pool, rng, options.distinct, areas, fixed)
-        out = with_lozft(rom, assets.patch, base)
+        placed = with_title_song(draw_songs(pool, rng, options.distinct, areas, fixed))
+        out = with_lozft_from_source(rom, base) if from_source else with_lozft(rom, assets.patch, base)
         try:
-            pack_songs(out, placed)
+            pack_songs(out, placed, layout)
         except RomFull:
             if draw + 1 < DRAWS and drawn_numbers:
                 continue
             raise RomFull(f"the songs need {modules_size(placed):,} bytes of modules; the music banks hold "
-                          f"{MUSIC_BANK_ROOM:,}") from None
+                          f"{layout.room:,}") from None
         libraries = tuple((file.name, file.library_id) for file in local_libraries) \
             if options.source is MusicSource.LOCAL else ()
         return MusicResult(bytes(out), tuple(placed), tuple(warnings), libraries)

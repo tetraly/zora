@@ -5,6 +5,9 @@ key); PLAYER_KEYS every player setting's. A key is lowercase words joined by und
 identifier, unique within its option and never "random" (Archipelago's own "pick one"); ZORA's
 per-seed Random is random_per_seed. Labels may change; renaming a key needs the owner. The old
 forms keep working: numbers, the page's player-setting names and values, released flag strings."""
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from tests.test_archipelago_option_keys import KEYS
@@ -154,6 +157,9 @@ VALUE_KEYS = {
     "change_hidden_ow_tiles": THREE_STATE,
     "increase_bomb_capacity_upgrade": THREE_STATE,
     "allow_universal_drops_in_shapes": THREE_STATE,
+    "remove_maps": THREE_STATE,
+    "all_maps": THREE_STATE,
+    "all_compasses": THREE_STATE,
     "randomize_magical_sword": SWITCH,
     "randomize_letter": SWITCH,
     "magical_sword_hearts_highest": ("follow_the_z1r_flags", "at_most_10_hearts", "at_most_11_hearts",
@@ -175,7 +181,14 @@ VALUE_KEYS = {
     "randomize_dead_woods": THREE_STATE,
     "oops_all_enemies": ("off", "wizzrobes", "keese", "bouncers"),
     "oops_all_bosses": ("off", "dodongos"),
-    "gatekeeper_bosses": ("off", "anywhere", "late", "early"),
+    "harder_bosses": ("off", "level_1", "level_2", "level_3"),
+    "harder_ganon": ("off", "level_1", "level_2", "level_3"),
+    "offense_pacing": ("off", "earlier", "normal", "later"),
+    "defense_pacing": ("off", "earlier", "normal", "later"),
+    "recorder_warping": SWITCH,
+    "swap_swords_and_rings": THREE_STATE,
+    "swordlish": ("off", "on", "random_with_swordlish"),
+    **dict.fromkeys(("swordlish_lowest", "swordlish_highest"), tuple(f"value_{pieces}" for pieces in range(1, 9))),
     "allow_triforces_in_stairways": THREE_STATE,
     "pegasus_boots": THREE_STATE,
     "expanded_dungeon_locations": THREE_STATE,
@@ -188,10 +201,11 @@ COLORS = (*(f"0x{value:02X}" for value in range(0x40) if value != 0x0D), "random
 # page key -> (YAML key, each listed value's key in the page's order; a color's are COLORS)
 PLAYER_KEYS = {
     "selectButton": ("select_button", ("off", "swap", "toggle")),
-    "lowHealthBeep": ("low_health_beep", ("removed", "kept", "half_speed", "random_choice")),
+    "lowHealthBeep": ("low_health_beep", ("removed", "kept", "half_speed", "quarter_speed", "random_choice")),
     "deathWarp": ("death_warp", ("p2_up_a", "p1_up_a", "p1_up_select")),
     "reduceFlashing": ("reduce_flashing", ("off", "on")),
     "music": ("music", ("on", "off")),
+    "graphicsTheme": ("graphics_theme", ("off", "halloween")),
     "greenTunic": ("green_tunic", COLORS),
     "blueRingTunic": ("blue_ring_tunic", COLORS),
     "redRingTunic": ("red_ring_tunic", COLORS),
@@ -203,6 +217,17 @@ PLAYER_KEYS = {
     "bossSoundWord": ("boss_sound_word", (
         "roar", "random_word", "rawr", "meow", "woof", "awoo", "oink", "weef", "honk", "aaaa", "goal", "ohai",
         "waah", "howl", "hiss", "purr", "bark", "hoot", "baaa", "grrr", "bonk", "eeek", "oops", "yaay")),
+    # The playable character (beta 11): PRG0's Link, ZORA's built-in sets by id (the tile sets, then the
+    # built-in-art sets, each in id order: the page's order), Random; and the character's colors 2 and 3
+    # (every NES color but $0D, no Random)
+    "linkSprite": ("playable_character", (
+        "link", "abobo", "agumon", "jason_voorhees", "mini_ganon", "twilight_sparkle", "zeromeaning_ganon",
+        "zeromeaning_justin_bailey", "zeromeaning_kraid", "zeromeaning_link_bunny", "zeromeaning_link_female",
+        "zeromeaning_link_invisible", "zeromeaning_mother_brain", "zeromeaning_samus", "zeromeaning_zelda",
+        "darknut", "gibdo", "goriya", "lynel", "merchant", "moblin", "old_man", "old_woman", "stalfos", "wizzrobe",
+        "zelda", "random_choice")),
+    "linkColor2": ("playable_character_color_2", COLORS[:-1]),
+    "linkColor3": ("playable_character_color_3", COLORS[:-1]),
     # Multiworld mode only (owner decision 2026-10-18)
     "foreignItemLook": ("foreign_item_look", ("rupee", "logo")),
     "itemArrivalSound": ("item_arrival_sound", ("item_appears", "item_taken", "none")),
@@ -321,3 +346,28 @@ def test_finish_and_the_recipe_take_the_yaml_form() -> None:
         archipelago.finish(result, assignment, player_settings=PAGE_FORM)
     assert archipelago.recipe(result, assignment, player_settings=YAML_FORM)["playerSettings"] == PAGE_FORM
     assert archipelago.recipe(result, assignment, player_settings=PAGE_FORM)["playerSettings"] == PAGE_FORM
+
+
+REPO = Path(__file__).resolve().parent.parent
+# Swordlish's Random had a longer label until 2026-10-30, and so another key by the rule. That key never
+# shipped (Swordlish is held from Archipelago and came after beta 10's world), so nothing needs it. The
+# keys are joined at run time, so this file does not name them.
+OLD_SWORDLISH_RANDOM_KEYS = ("_".join((archipelago.RANDOM_PER_SEED, "gg")), "_".join(("random", "gg")))
+
+
+def test_swordlish_random_is_random_with_swordlish_and_no_old_key_is_needed() -> None:
+    from zora.flags.zora_flags import Swordlish
+    keys = archipelago.option_value_keys()
+    assert keys["swordlish"][int(Swordlish.RANDOM)] == "random_with_swordlish"
+    assert not any(old in values.values() for values in keys.values() for old in OLD_SWORDLISH_RANDOM_KEYS)
+    assert not any(name in OLD_SWORDLISH_RANDOM_KEYS for name in archipelago.RETIRED_ZORA_FLAGS)
+    listed = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z"], capture_output=True, check=True)
+    for name in filter(None, listed.stdout.decode().split("\0")):
+        path = REPO / name
+        if name.startswith("docs/spec/") or not path.is_file():      # the spec export keeps its own wording
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        assert not any(old in text for old in OLD_SWORDLISH_RANDOM_KEYS), name

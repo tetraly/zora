@@ -23,9 +23,9 @@ def test_the_changelog_ends_at_this_version() -> None:
 @pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 def test_the_title_screen_shows_the_version() -> None:
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, verify_base_rom().read_bytes()).rom
-    assert parse_rom(rom).title_version_line == f"ZORA {PLAYER_VERSION}".upper() == "ZORA 2.0 BETA 10"
+    assert parse_rom(rom).title_version_line == f"ZORA {PLAYER_VERSION}".upper() == "ZORA 2.0 BETA 11"
 
 
 def test_players_read_a_beta_as_beta_n() -> None:
-    assert ZORA_VERSION == "2.0.0b10" and PLAYER_VERSION == "2.0 beta 10"
+    assert ZORA_VERSION == "2.0.0b11" and PLAYER_VERSION == "2.0 beta 11"
     assert player_version("2.1.0b12") == "2.1 beta 12" and player_version("2.0.0") == "2.0.0"

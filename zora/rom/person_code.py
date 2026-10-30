@@ -16,7 +16,7 @@ from .layout import (
     TOLL_TEXT_POINTER,
     TOLL_TEXT_POINTER_ADDRESS,
 )
-from .text_encoding import CHAR_TO_BYTE, QUOTE_END_BITS, QUOTE_LINE1_BIT
+from .text_encoding import CHAR_TO_BYTE, QUOTE_END_BITS, QUOTE_LINE1_BIT, closed_line
 
 # --- UpdateUnderworldPerson_Full (PS-BOMB-03) --------------------------------
 BOMB_BRANCH_NOPS = bytes([0xEA, 0xEA])        # replaces the vanilla BCC $90 $08
@@ -106,7 +106,7 @@ def toll_text(toll: LifeOrMoneyToll) -> bytes:
     byte)."""
     def line(text: str) -> list[int]:
         pad = [TEXT_PAD_TILE] * ((TOLL_LINE_WIDTH - len(text)) // 2)
-        return pad + [CHAR_TO_BYTE[ch] for ch in text]
+        return closed_line(pad + [CHAR_TO_BYTE[ch] for ch in text])
     first = line("LEAVE YOUR " + toll.first.value)
     second = line("OR " + toll.second.value)
     first[-1] |= QUOTE_LINE1_BIT

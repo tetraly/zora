@@ -197,7 +197,8 @@ RETIRED_STATISTICS_SCREEN, ALWAYS_ON = "statistics_screen", "on"
 # FP-BEEP-01: Removed and Kept hold the same patch bytes (the ZORA build's); the tone request's
 # operand, which zora/rom/player_settings.py writes, tells them apart
 LOW_HEALTH_BEEP = "low_health_beep"
-BEEP_OPERANDS = {"removed": BEEP_REMOVED, "kept": BEEP_KEPT, "half_speed": BEEP_KEPT}
+BEEP_OPERANDS = {"removed": BEEP_REMOVED, "kept": BEEP_KEPT, "half_speed": BEEP_KEPT,
+                 "quarter_speed": BEEP_KEPT}
 
 
 def held_choices(rom: bytes, name: str) -> list[str]:

@@ -18,7 +18,8 @@ from .steps.extra_pool_items import ExtraPoolItems, apply_extra_pool_items
 from .steps.hint_text import HintTextResult, keep_level_hints_out_of_their_levels
 from .steps.item_shuffle_result import ItemShuffleResult
 from .steps.monster_lists import MonsterShuffleResult
-from .steps.shuffle_dungeon_palettes import DungeonPaletteResult, apply_dungeon_palettes
+from .steps.remove_maps import remove_maps
+from .steps.shuffle_dungeon_palettes import DungeonPaletteResult, apply_dungeon_palettes, black_out_rooms
 from .steps.shuffle_groups import GroupShuffleResult, apply_groups
 from .steps.shuffle_hungry_goriya import GORIYA_TILE_INDEX
 from .steps.shuffle_start_screen import StartScreen, apply_start_screen
@@ -55,6 +56,10 @@ class Staged:
     extras: ExtraPoolItems = field(default_factory=ExtraPoolItems)
     # SH-SRC-05
     monsters_take_second_quest_path: bool = False
+    # PS-COLOR-04 (B50): the blocks no level uses take Blackout's room writes when the pass ships
+    blackout: bool = False
+    # FP-MAP-01 (B92): the maps leave all four blocks when the pass ships
+    remove_maps: bool = False
 
 
 def _ship_sets(gw: GameWorld, staged: Staged) -> None:
@@ -158,6 +163,16 @@ def _ship_groups(gw: GameWorld, staged: Staged) -> None:
 def _ship_colors(gw: GameWorld, staged: Staged) -> None:
     if staged.colors is not None:
         apply_dungeon_palettes(gw, staged.colors)
+    if staged.blackout:
+        # PS-COLOR-04 writes all four blocks, used by a level or not; the passes worked on the two in use
+        black_out_rooms(block for block in (*gw.blocks, *gw.blocks_2q)
+                        if all(block is not used for used in staged.sets.blocks))
+
+
+def _ship_remove_maps(gw: GameWorld, staged: Staged) -> None:
+    if staged.remove_maps:
+        # FP-MAP-01 covers all four blocks, used by a level or not, so the seed's two quests lose all 18 maps
+        remove_maps((*gw.blocks, *gw.blocks_2q))
 
 
 # The order the staged results are written in when a pass ships. It
@@ -180,6 +195,7 @@ SHIP_STEPS: tuple[tuple[str, Callable[[GameWorld, Staged], None]], ...] = (
     ("groups", _ship_groups),                    # B4's tiles, frames, lists, overworld monsters
     ("colors", _ship_colors),                    # B5's color sets
     ("start screen", _ship_start_screen),        # OW-START-01's start screen, Y and monster exchange
+    ("remove maps", _ship_remove_maps),          # FP-MAP-01, after every pass that places dungeon items
 )
 
 

@@ -7,8 +7,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..flags.fields import WoodenSwordState
-from ..flags.zora_flags import GatekeeperBosses, OopsAllBosses, OopsAllEnemies
-from .acceptance_check import LogicRules, logic_rules
+from ..flags.zora_flags import OopsAllBosses, OopsAllEnemies, Pacing
+from .acceptance_check import LogicRules, PacingHearts, logic_rules
 from .steps.change_sword_hearts import MAGICAL_SWORD_HEARTS
 from .steps.overworld_gates import NO_GATES, OverworldGates
 from .steps.shop_prices import PriceRules
@@ -46,7 +46,7 @@ class ExtraOptions:
     wooden_sword_state: WoodenSwordState = WoodenSwordState.NORMAL
     # Not a ZORA extra: Book to Understand NPCs (B48, HT-BOOK-01) without the book among the start
     # items, so the maze paths the hint shops sell need the book (LogicRules.maze_hints_need_book).
-    # Start Book (B67) is not produced yet; see the TODO at flags/support.py START_ITEM_TOGGLES.
+    # With Start Book (B67) on the book is held from the start, so this stays off.
     maze_hints_need_book: bool = False
     # Oops All Enemies and Oops All Bosses (docs/design/oops-all.md), and the key of their own
     # random stream (zora_flags.oops_all_seed)
@@ -54,7 +54,7 @@ class ExtraOptions:
     oops_all_bosses: OopsAllBosses = OopsAllBosses.OFF
     oops_all_seed: int = 0
     # The ZORA 1.0 flags (docs/zora-extras.md section 13), resolved
-    # Allow Triforces in Stairways, resolved (off unless C06 = 2)
+    # Allow Triforces in Stairways, resolved (under any Item Shuffle setting since 2026-10-18)
     allow_triforces_in_stairways: bool = False
     # Shuffle Wood Sword, resolved
     shuffle_wood_sword: bool = False
@@ -66,8 +66,19 @@ class ExtraOptions:
     expanded_dungeon_locations_seed: int = 0
     # Highlight No-Drop Rooms, resolved (the pass is skipped when B91 resolves on)
     highlight_no_drop_rooms: bool = False
-    # Gatekeeper Bosses (docs/zora-extras.md section 19): where each level 1-8's gatekeeper sits
-    gatekeeper_bosses: GatekeeperBosses = GatekeeperBosses.OFF
+    # Offense and Defense Item Pacing and Recorder Warping (docs/zora-extras.md section 22). The
+    # recorder rule is set only where the game can warp the recorder to an unbeaten dungeon's entry door
+    # (Recorder to Unbeaten Dungeons and the new entries on)
+    offense_pacing: Pacing = Pacing.OFF
+    defense_pacing: Pacing = Pacing.OFF
+    # The white-sword cave's hearts, the range B10 may draw from (Offense Item Pacing's heart model)
+    white_sword_hearts: range = range(4, 7)
+    recorder_warps: bool = False
+    # BogieSmalls' additions (docs/zora-extras.md section 23), resolved: the swap where it applies
+    # (zora_flags.swaps_swords_and_rings), Swordlish's N (0: off) and the starting pieces its walk counts
+    swap_swords_and_rings: bool = False
+    swordlish_pieces: int = 0
+    start_triforce_pieces: int = 0
 
     @property
     def oops_all(self) -> bool:
@@ -96,7 +107,12 @@ class ExtraOptions:
                            maze_hints_need_book=self.maze_hints_need_book,
                            wood_sword_in_pool=self.shuffle_wood_sword,
                            wooden_sword_state=self.wooden_sword_state,
-                           expanded_recorder_set=self.expanded_dungeon_locations)
+                           expanded_recorder_set=self.expanded_dungeon_locations,
+                           offense_pacing=self.offense_pacing, defense_pacing=self.defense_pacing,
+                           recorder_warps=self.recorder_warps,
+                           swordlish_pieces=self.swordlish_pieces, start_triforce_pieces=self.start_triforce_pieces,
+                           pacing_hearts=PacingHearts(self.starting_heart_containers, max(self.white_sword_hearts),
+                                                      max(self.magical_sword_hearts)))
 
     @property
     def price_rules(self) -> PriceRules:

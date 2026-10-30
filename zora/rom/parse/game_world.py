@@ -70,8 +70,11 @@ from ..layout import (
     POINTER_COUNT,
     QUOTE_DATA_ADDRESS,
     ROOM_BLOCK_HIGH_BYTES,
+    SPAWN_POS_LIST_2_ADDRESS,
+    SPAWN_POS_LIST_2_SIZE,
     TOLL_TEXT_POINTER_ADDRESS,
 )
+from ..vanilla_overworld.layouts import read_overworld_layouts
 from .bin_files import RawBinFiles
 from .enemies import _parse_enemy_hp, _parse_enemy_tile_data, _parse_mixed_enemy_groups
 from .features import _parse_b10_data
@@ -170,6 +173,8 @@ def parse_game_world(bins: RawBinFiles,
         dungeon_nothing_code=_engine_nothing_code(rom_bytes),
         **_parse_person_code(bins, rom_bytes=rom_bytes),
         **_parse_b10_data(rom_bytes, bins.tile_mapping_pointers, _slot_text(quotes, REFUSAL_SLOT)),
+        overworld_layouts=(None if rom_bytes is None else read_overworld_layouts(
+            rom_bytes, bytes(rom_bytes[SPAWN_POS_LIST_2_ADDRESS:SPAWN_POS_LIST_2_ADDRESS + SPAWN_POS_LIST_2_SIZE]))),
     )
 
 

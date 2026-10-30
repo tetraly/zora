@@ -48,6 +48,7 @@ KEYS = {
     "B84": "prevent_clipping", "B85": "start_magical_shield", "B86": "do_not_sort_shapes",
     "B87": "add_bridges_to_the_river", "B88": "add_lost_woods_shortcut", "B89": "change_hidden_ow_tiles",
     "B90": "increase_bomb_capacity_upgrade", "B91": "allow_universal_drops_in_shapes",
+    "B92": "remove_maps", "B93": "all_maps", "B94": "all_compasses",
     "randomize_magical_sword": "randomize_magical_sword", "randomize_letter": "randomize_letter",
     "magical_sword_hearts_highest": "magical_sword_hearts_highest", "progressive_items": "progressive_items",
     "shop_items_in_pool": "shop_items_in_pool", "shuffle_blue_potion": "shuffle_blue_potion",
@@ -59,13 +60,17 @@ KEYS = {
     "magical_boomerang_damage": "magical_boomerang_damage", "randomize_lost_hills": "randomize_lost_hills",
     "randomize_dead_woods": "randomize_dead_woods",
     "oops_all_enemies": "oops_all_enemies", "oops_all_bosses": "oops_all_bosses",
-    "gatekeeper_bosses": "gatekeeper_bosses",
     "allow_triforces_in_stairways": "allow_triforces_in_stairways",
     "pegasus_boots": "pegasus_boots",
     "expanded_dungeon_locations": "expanded_dungeon_locations",
     "highlight_no_drop_rooms": "highlight_no_drop_rooms",
     "do_not_segment_dungeons": "do_not_segment_dungeons",
     "full_health": "full_health",
+    "harder_bosses": "harder_bosses", "harder_ganon": "harder_ganon",
+    "offense_pacing": "offense_pacing", "defense_pacing": "defense_pacing",
+    "recorder_warping": "recorder_warping",
+    "swap_swords_and_rings": "swap_swords_and_rings", "swordlish": "swordlish",
+    "swordlish_lowest": "swordlish_lowest", "swordlish_highest": "swordlish_highest",
     # Shuffle Wood Sword is never offered (archipelago.ZORA_FORCED_OFF, owner ruling 2026-10-17): no key
 }
 CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")

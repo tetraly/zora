@@ -1,0 +1,30 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Kraid",
+  "author": "ZeroMeaning",
+  "provenance": "Drawn by ZeroMeaning for Z1M1 (Kraid, ZeroMeaning.Kraid.LinkAsset.asset at Z1M1's assets commit 20b4c27); ZeroMeaning's permission for use in other projects came through MetalMachine (2026-10-28, docs/permissions.md).",
+  "tiles": "Ahs/Pz8+b38FBAEAOAUVHTd9P394/HAgLisYB2cTABgAwOD4qDTEpABQkMBQNMT09Py8BCR0OHAE9NTExIQECAwdHz8/fe//AgIAADgKFHtf/258fF4HDil8UycbAQABAIDA4OLictaAAECAylKCIvp+AgICAAAA8tLCwsKAAIABAwcPDx5/PQQEAQQGKwg2T3y4uCgcJAA7c1cXPwcYAIDA4PDweP68ICCAIGDUEGzmfjY8LHgYJNiO2Mj0pAAYAQcHDw8vfz8EAAEAABIINz9/fx8fHzwAEGgnEA8EAACAwODw8PD0/gAgAAAAEGig/Pr8/vr4GDwcTIwQkGgAAAACBwcPHwk/AgEAAAcJBhAffyc7bv/wYA8aHgcTBAAYAPT//fTA/vBEEiA6CKC+mPx+3Pw4CA4cwvBsxPjwAAMAAQMHBwcfFQECAwQVCQAPH/pPmBg4YTE/FxgXLw8CwACA4ODw8Hj8IEAAgIAA2ND2/tx8vPjMUqg4bOhQ0AAMACE3Nz8XPU8CAgo+EDgqND8fHx8/OwAACxACEQhAAAAAgMDg4OD5+yBAAEAAAVMX9+/e7PD43BzvHz78CNAAAqGnb08+Lx0PBEFkNjsYBgcFDwgIDB8MAAMEBw8HAjAAAMDg+K42xKQAUJDAVjbG9vT8vAQkdD52BvbWxsaGBg4AgMDj4+Jy1oAAQIPLU4Mj+n4CAgIDAwDz08PDw4MDgAEDBw8PHn89BAQBBAYrCDZ/3ozc3PwAJH///////3wYAQMHDw8efz0EBAEEBisINn9vxu4AAAAAAAAAAAAAAAABAwcPDx7/5wQEAQQGCwAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "recommendedColors": {
+    "tunics": [
+      27,
+      28,
+      23
+    ],
+    "other": [
+      57,
+      6
+    ],
+    "colorOne": "art"
+  },
+  "fromGame": [
+    [
+      596,
+      608
+    ],
+    [
+      622,
+      640
+    ]
+  ]
+}

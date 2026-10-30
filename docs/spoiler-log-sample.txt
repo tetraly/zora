@@ -1,9 +1,9 @@
-ZORA 2.0 beta 10 spoiler log
+ZORA 2.0 beta 11 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Triforce, Compass, Letter, Raft
+Seed code: Compass, Bow, Letter, Heart
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -129,6 +129,9 @@ B88   Add Lost Woods Shortcut .............................................. Off
 B89   Change Hidden OW Tiles ............................................... Off
 B90   Increase Bomb Capacity Upgrade ....................................... Off
 B91   Allow Universal Drops in Shapes ...................................... Off
+B92   Remove Maps .......................................................... Off
+B93   All Maps ............................................................. Off
+B94   All Compasses ........................................................ Off
 ZORA  Randomize Magical Sword .............................................. off
 ZORA  Randomize Letter ...................................................... on
 ZORA  Magical-sword hearts, highest ....................... follow the Z1R flags
@@ -148,6 +151,7 @@ ZORA  Randomize Lost Hills ................................................. off
 ZORA  Randomize Dead Woods ................................................. off
 ZORA  Disable Custom Music ................................................. off
 ZORA  Start With Full Health ............................................... off
+ZORA  Recorder Warping ..................................................... off
 
 ================================================================================
 Major items by place
@@ -244,7 +248,7 @@ Texts: the game's texts in its order, with who says them
      said by Lost Hills Hint
  4.  WHAT HAPPENS IN VEGAS STAYS IN VEGAS!
      said by Money Making Game
- 5.  NOIDS NOIDS NOIDS
+ 5.  YOU HAVE BEEN RECRUITED BY THE STAR LEAGUE
      said by Door Repair
  6.  FILL THIS AT YOUR LOCAL PHARMACY
      said by Letter Cave
@@ -263,7 +267,7 @@ Texts: the game's texts in its order, with who says them
      said by Shop 1; Shop 2
 15.  YOU CAN PROBABLY FIND THIS CHEAPER ONLINE
      said by Shop 3; Shop 4
-16.  CAKE OR DEATH?
+16.  LIMIT ONE PER CUSTOMER
      said by Take Any
 17.  BANANA. TAKE A BUCK! BANANA. TAKE A BUCK!
      said by Medium Secret; Large Secret; Small Secret

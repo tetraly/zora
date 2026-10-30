@@ -79,7 +79,8 @@ by name.
 # ZORA FP-FIX-06: what the patch does, in one or two lines.
 
 # Optional: build another folder's bank_NN.s into this patch's own segments and hooks
-# (asm/fp-stats-01-music builds asm/fp-stats-01's this way).
+# (asm/fp-stats-01-music builds asm/fp-stats-01's this way). The patch's own bank_NN.s, if any,
+# go before the borrowed ones (asm/fp-stats-01-lozft2 defines StatsTickExit there).
 # routines_from = "../fp-stats-01"
 
 [[segment]]                 # each segment of the routines, in a bank's free space

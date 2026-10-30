@@ -33,6 +33,10 @@ from .shuffle_shop_items import SHOPS
 JOINED_SHOP_ITEMS = (Item.WOOD_ARROWS, Item.BLUE_CANDLE, Item.BLUE_RING)
 # PI-LOGIC-06: the joined items that unlock something are tracked.
 TRACKED_SHOP_ITEMS = frozenset({Item.WOOD_ARROWS, Item.BLUE_CANDLE})
+# Defense Item Pacing counts the rings a player holds, so the blue ring unlocks levels and is tracked too
+# (docs/zora-extras.md section 22): untracked, only the red ring counted and Earlier's two rings at level 9
+# could never be held, so every attempt was rejected (E1) until the generation limit.
+PACED_SHOP_ITEMS = TRACKED_SHOP_ITEMS | {Item.BLUE_RING}
 
 
 def own_shop_ware(overworld: Overworld, item: Item) -> ShopWarePlace:
@@ -46,13 +50,14 @@ def own_shop_ware(overworld: Overworld, item: Item) -> ShopWarePlace:
 
 
 def shop_items_in_pool(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems,
-                       overworld: Overworld, rng: IntRng, opts: ItemShuffleOptions | None = None) -> None:
-    """SI-JOIN-01, then SI-PRICE-01."""
+                       overworld: Overworld, rng: IntRng, opts: ItemShuffleOptions | None = None,
+                       tracked: frozenset[Item] = TRACKED_SHOP_ITEMS) -> None:
+    """SI-JOIN-01, then SI-PRICE-01. tracked: the joined items that unlock something (PI-LOGIC-06)."""
     opts = opts or ItemShuffleOptions()
     for item in JOINED_SHOP_ITEMS:
         own = own_shop_ware(overworld, item)
         places = pool_places(levels, state, extras, opts)
-        if item in TRACKED_SHOP_ITEMS:
+        if item in tracked:
             state.tracked.append(own.tracked(item))
         extras.shop_wares.append(own)
         extras.shop_items.append(item)

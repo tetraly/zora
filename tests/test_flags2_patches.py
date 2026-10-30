@@ -145,7 +145,7 @@ def test_the_credits_are_recorded() -> None:
     docs/credits.md."""
     assert data.CREDITS == {"fast-heart-fill": "snarfblam", "fast-dungeon-scroll": "fiskbit",
                             "recorder-pols-voice": "Stratoform",
-                            "full-health": "ShadowOne333, kalita-kun and gzip"}
+                            "full-health": "ShadowOne333, kalita-kun and gzip", "harder-ganon": "MetalMachine"}
     credits = (REPO / "docs" / "credits.md").read_text()
     for name, author in data.CREDITS.items():
         assert author in (REPO / "asm" / "flags2" / name / "patch.toml").read_text()

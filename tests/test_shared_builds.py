@@ -1,13 +1,14 @@
 """tests/shared_builds.py's rules (docs/design/test-speed.md 3.1): each test loads a stored plan
-at most once, a later request in the same test generates afresh, and a monkeypatched test
-neither loads nor stores. Each check uses its own SharedBuilds, with a counting generator, in
-this session's folder; a plan that no other test makes keeps the checks apart from the suite's
-real builds."""
+at most once, a later request in the same test generates afresh, and a monkeypatched test or a
+generation under a time limit neither loads nor stores. Each check uses its own SharedBuilds, with
+a counting generator, in this session's folder; a plan that no other test makes keeps the checks
+apart from the suite's real builds."""
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
 from tests.shared_builds import SharedBuilds
+from zora.generate.deadline import stop_after
 
 BASE_ROM = b"not a ROM: the key only hashes it"
 
@@ -22,7 +23,7 @@ class CountingGenerator:
     def __init__(self) -> None:
         self.calls = 0
 
-    def __call__(self, chosen: Any, base_rom: bytes) -> Any:
+    def __call__(self, chosen: Any, base_rom: Any) -> Any:
         self.calls += 1
         return (chosen.name, self.calls)
 
@@ -63,4 +64,17 @@ def test_a_monkeypatched_test_neither_loads_nor_stores() -> None:
     builds(plan, BASE_ROM)                        # type: ignore[arg-type]  # nothing stored: generated and stored
     builds.begin_test(True)
     builds(plan, BASE_ROM)                        # type: ignore[arg-type]  # stored, but not loaded
+    assert generator.calls == 3
+
+
+def test_a_time_limited_generation_neither_loads_nor_stores() -> None:
+    builds, generator = shared()
+    plan = FakePlan()
+    with stop_after(600):
+        builds(plan, BASE_ROM)                    # type: ignore[arg-type]  # generated, not stored
+    builds.begin_test(False)
+    builds(plan, BASE_ROM)                        # type: ignore[arg-type]  # nothing stored: generated and stored
+    builds.begin_test(False)
+    with stop_after(600):
+        builds(plan, BASE_ROM)                    # type: ignore[arg-type]  # stored, but not loaded
     assert generator.calls == 3

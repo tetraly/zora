@@ -172,7 +172,7 @@ def test_the_log_fits_80_columns_and_lists_what_the_document_holds(flags: str, z
     doc = document(flags, 1, zora)
     log = spoiler_log(doc)
     assert all(len(line) <= WIDTH for line in log.splitlines())
-    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 10"
+    assert log.startswith(f"ZORA {player_version(doc['producer']['version'])} spoiler log\n")   # "2.0 beta 11"
     words = " ".join(log.split())          # wrapping may break a line anywhere between words
     assert f"Seed: {doc['seed']['number']}" in log and doc["seed"]["flags"] in log
     for cave in doc["caves"]:

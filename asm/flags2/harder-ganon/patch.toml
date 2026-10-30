@@ -1,0 +1,134 @@
+# ZORA Harder Ganon (the ZORA flag harder_ganon, Level 1 to 3; docs/zora-extras.md section 21). From
+# Z1M1 (MetalMachine; asm 843932c, src/zelda/patches.asm:1901-2074 and tables/fireball_rooms.asm,
+# launcher 72cf4c5a; docs/z1m1/harder-bosses.md section 2), ported to ZORA's layout: the routines and
+# tables live in bank 4's free space, and one data byte, GanonLevel (the segment's first byte, 1 here),
+# holds the level the seed writes (zora/rom/harder_bosses.py), where Z1M1 assembles one build per
+# level. Ganon's fight (Ganon_ScenePhase2) then:
+#   - heals: every 32 frames, with its HP under $E0, Ganon gains GanonLevel HP;
+#   - the window he stays visible and unhurt after a sword hit (PRG0: $40 frames) is random, with the
+#     same average and a spread that grows with the level;
+#   - while he is brown (silver-arrow phase), every 16 frames he may jump to a random spot, with a
+#     chance of GanonLevel / 8;
+#   - the room Ganon stands in, whatever its layout (Z1M1 keys this to layout $28, the Ganon room's, which
+#     ZORA's dungeons give Ganon in about a quarter of seeds), shoots fireballs from the four-statue
+#     room's spots, with a chance of GanonLevel * $50 per check (PRG0's statue rooms use $F0).
+# The statue code's tables are moved to this segment (six operands and two counts re-pointed), as Z1M1
+# does, because the room list and the patterns grow by one entry. asm/README.md and asm/flags2/build.py
+# describe this file.
+
+[[segment]]
+name = "ZORA_F2_HARDER_GANON"
+bank = 4
+start = 0xBB00              # bank 4 free space, after z1rr-coop's $BA40-$BAFF (docs/rom-map.md)
+
+[[hook]]
+name = "ganon-fight"
+offset = 0x12CF9
+length = 3
+note = "Ganon_ScenePhase2's call to Ganon_CheckCollisions goes through GanonRegenerates, which makes the call."
+code = """
+    JSR GanonRegenerates
+"""
+
+[[hook]]
+name = "ganon-visible-time"
+offset = 0x12F38
+length = 4
+note = "Ganon_CheckCollisions: the $40-frame timer set when a sword hit shows him (LDA #$40 / STA ObjTimer,X) is a drawn one."
+code = """
+    JSR GanonVisibleTime
+    NOP
+"""
+
+[[hook]]
+name = "ganon-arrow-phase"
+offset = 0x12F43
+length = 5
+note = "Ganon_CheckCollisions, @CheckArrowCollision's first test (LDA InvArrow / CMP #$02): GanonMayJump runs first and ends with that test."
+code = """
+    JSR GanonMayJump
+    NOP
+    NOP
+"""
+
+[[hook]]
+name = "statue-person-pattern"
+offset = 0x10660
+length = 2
+note = "UpdateStatues: the old man's flames are pattern 3 now (PRG0: 2)."
+code = """
+    LDY #$03
+"""
+
+[[hook]]
+name = "statue-room-id"
+offset = 0x10667
+length = 3
+note = "UpdateStatues: the room's layout id comes from GanonRoomId, which answers $28 (the Ganon room's) in any room that holds Ganon."
+code = """
+    JSR GanonRoomId
+"""
+
+[[hook]]
+name = "statue-room-count"
+offset = 0x1066A
+length = 2
+note = "UpdateStatues: the room list holds three layouts (PRG0: two)."
+code = """
+    LDY #$02
+"""
+
+[[hook]]
+name = "statue-rooms"
+offset = 0x1066C
+length = 3
+note = "UpdateStatues: the room list's layouts."
+code = """
+    CMP GanonStatueRooms,Y
+"""
+
+[[hook]]
+name = "statue-counts"
+offset = 0x10688
+length = 3
+note = "UpdateStatues: the fireball count (less one) of each pattern."
+code = """
+    LDX GanonStatueCounts,Y
+"""
+
+[[hook]]
+name = "statue-chance"
+offset = 0x10696
+length = 4
+note = "UpdateStatues: the per-pattern chance in place of PRG0's LDA Random,X / CMP #$F0."
+code = """
+    JSR GanonStatueChance
+    NOP
+"""
+
+[[hook]]
+name = "statue-base"
+offset = 0x106A9
+length = 3
+note = "UpdateStatues: each pattern's first coordinate."
+code = """
+    ADC GanonStatueBase,Y
+"""
+
+[[hook]]
+name = "statue-x"
+offset = 0x106B6
+length = 3
+note = "UpdateStatues: the fireballs' X coordinates."
+code = """
+    LDA GanonStatueXs,Y
+"""
+
+[[hook]]
+name = "statue-y"
+offset = 0x106BD
+length = 3
+note = "UpdateStatues: the fireballs' Y coordinates."
+code = """
+    LDA GanonStatueYs,Y
+"""

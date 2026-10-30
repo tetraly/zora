@@ -22,6 +22,11 @@ MUSIC DESIGN
 [red]
 SPRITE DESIGN
 ....... IRENEPUNMASTER
+.......... ZEROMEANING
+
+[green]
+WEBSITE LOGO
+.......... GROMFALLOON
 
 [blue]
 BETA TESTERS
@@ -39,6 +44,7 @@ CONTRIBUTIONS
 .............. FISKBIT
 ................. GZIP
 ........... KALITA-KUN
+......... METALMACHINE
 ......... SHADOWONE333
 ............ SNARFBLAM
 ........... STRATOFORM

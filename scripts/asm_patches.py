@@ -282,6 +282,13 @@ def load_patch(folder: Path, placements: Path | None = None) -> Patch:
     source = folder / spec["routines_from"] if "routines_from" in spec else folder
     routines = {int(match[1]): path.read_text() for path in sorted(source.glob("bank_*.s"))
                 if (match := ROUTINES.fullmatch(path.name))}
+    if source != folder:
+        # Its own bank_NN.s go before the borrowed ones, so they can define what those test with
+        # .IFNDEF (asm/fp-stats-01-lozft2: where StatsTick returns to).
+        for path in sorted(folder.glob("bank_*.s")):
+            if match := ROUTINES.fullmatch(path.name):
+                bank = int(match[1])
+                routines[bank] = f"{path.read_text()}\n{routines[bank]}" if bank in routines else path.read_text()
     for bank, text in mirrored_routines(source, spec).items():
         routines[bank] = f"{routines[bank]}\n{text}" if bank in routines else text
     series_changes = spec.get("series", {})

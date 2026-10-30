@@ -46,6 +46,11 @@ CASES = [
     ("start-room swap", START_ROOM_SWAP_FLAGS, ""),
     ("2nd Quest", encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
         options={"C02": DungeonLayoutSource.SECOND_QUEST})), ""),
+    # Mirror Overworld (B06): the model holds the flipped overworld, the writer flips the rest (layout
+    # rows, code bytes, spawn spots), the parser knows a mirrored ROM by its spawn call; with Add Bridges
+    # to the River and Add Lost Woods Shortcut (B87, B88), whose bytes the code patches write and the flip moves
+    ("Mirror Overworld", "8hq4BeR1JXo89c2WXnefpphDg!UJ3A", ""),
+    ("Mirror Overworld with the crossings", "CJzyyHroeqqIUEp0u!pPTjo!6x2MkbC1GRZUJ3A", ""),
 ]
 CASE_NAMES = [name for name, _, _ in CASES]
 SEED = 1

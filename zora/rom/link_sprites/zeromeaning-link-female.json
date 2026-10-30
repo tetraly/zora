@@ -1,0 +1,29 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Link (Female)",
+  "author": "ZeroMeaning",
+  "provenance": "Drawn by ZeroMeaning for Z1M1 (Link (Female), ZeroMeaning.Link_Female_.LinkAsset.asset at Z1M1's assets commit 20b4c27); ZeroMeaning's permission for use in other projects came through MetalMachine (2026-10-28, docs/permissions.md).",
+  "tiles": "AAcfPX1cHB4AAAACAwcPHx8/PTwuAzAcHzw+OyscOBwAgODw+OSkBAAAAPD41PT8BMT0NCT0TDj0JAzE5CQ8OAcfPX1cHB4fAAACAwcPHx8/PTsoAAcAATw+PC8DAAEBgODw+OKiAgIAAPD40vL68sLy8uLicADgJg4C4iKAwOAHDx8fDgoAOQAALz89Px8/JCM/Lw8DAA47PDwrAQQGDuDw+PhwUACcAAD0/Lz8+Pw8zOTk4IBwAMw0PNwYYHAABw8fHx8fHz8AACAgMDwePz8/Py8PAwYAPz8/OwAEBgDg8Pj4+Pj4/AAABAQMPHj8/Pz89PCAEGD8/PzUAGBwYAADDx4ePn5PAAAAAQEDBw8fHz8/N0NgOB8ePzw7fHA4AMDw+PxwUAAAAAB4/Oj4/IDwgPjw+CQe+Ax8APAQHB4bP2/vzkopHRg4c/f9/38zHh8PBwczAAAZGAwLGTAAAPD4+PhwVIyeAADg9Lz8/P4e/u7qyJIPAOYOPto0bm8ADx8/Pz9/f38AQEBAYDg9f39//18fA+AAf3//TyBw4ADA4PDw8PDx+wAAAAg4+fP/9+/e7PCACDz///5cCDg4PAcPHw4aEBEZAAAvHX9/Pz8MPz8vDwMADjM4PCsBBAYOAIDg8P7mpAQAAADw/tb2/gTE9DQk9E4+9iYOxuYmPj6A4PD746ICAgAA8PvT8/vzwvLy4uJzA+AnDwPjI4PD4AcPHx8OCgA5AAAvPz0/Hz98343d3f0ADn/+/v///n4OBw8fHw4KADkAAC8/PT8fPwAAAAAAAAAAAAAAAAAAAAAAAB8fDgr/5wAALz8AAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "recommendedColors": {
+    "tunics": [
+      25,
+      17,
+      22
+    ],
+    "other": [
+      39,
+      24
+    ]
+  },
+  "fromGame": [
+    [
+      592,
+      610
+    ],
+    [
+      620,
+      640
+    ]
+  ]
+}

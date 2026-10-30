@@ -45,6 +45,34 @@ def test_every_release_since_beta_6_is_frozen() -> None:
     assert len(names) >= 82
 
 
+B91_INDEX = 91
+MAP_FIELDS = ("B92", "B93", "B94")
+
+
+def part_after_b91(flag_string: str) -> dict[str, int]:
+    """The one meaning change the spec makes on purpose (FL-ENC-03 rule 4, 7e32c5c export; owner
+    decision 2026-10-28, the spec's CP-9): a string with a part left over after B91, which no
+    earlier release read and no canonical string has, now sets B92 to B94 from that part. Strings
+    without one, every preset, tournament string and canonical string among them, are unchanged."""
+    number = codec._parse_base63(flag_string)
+    for option in OPTION_FIELDS:
+        number //= option.slots
+    number //= codec.THREE_STATE_SLOTS ** B91_INDEX
+    values = {}
+    for field in MAP_FIELDS:
+        number, values[field] = divmod(number, codec.THREE_STATE_SLOTS)
+    return values
+
+
+def test_only_raw_strings_with_a_part_after_b91_change() -> None:
+    """Every frozen string of a release that did not know B92 to B94 (before beta 11) but the raw samples
+    with a part after B91 decodes B92 to B94 off. A release that knows them (its decoding lists B92)
+    sets them in its own canonical strings, which keep that meaning (test_a_frozen_string_keeps_its_meaning)."""
+    changed = {entry["name"] for _release, entry in FROZEN
+               if MAP_FIELDS[0] not in entry["z1r_settings"] and any(part_after_b91(entry["z1r"]).values())}
+    assert changed and all(name.startswith("raw string ") for name in changed), changed
+
+
 @pytest.mark.parametrize(("release", "entry"), FROZEN, ids=[f"{release}: {entry['name']}" for release, entry in FROZEN])
 def test_a_frozen_string_keeps_its_meaning(release: str, entry: dict) -> None:
     """Every field the release knew decodes as it did then, but one removed since (ignored, its place
@@ -55,7 +83,7 @@ def test_a_frozen_string_keeps_its_meaning(release: str, entry: dict) -> None:
     # a setting removed since keeps its place in the string and is ignored (RETIRED_FIELDS)
     kept = {field: value for field, value in entry["zora_flags"].items() if field not in zora_flags.RETIRED_FIELDS}
     assert {field: zora[field] for field in kept} == kept
-    assert {field: value for field, value in z1r.items() if field not in entry["z1r_settings"]} == {
-        field: z1r_default[field] for field in z1r if field not in entry["z1r_settings"]}
+    added = {field: value for field, value in z1r.items() if field not in entry["z1r_settings"]}
+    assert added == {field: part_after_b91(entry["z1r"]).get(field, z1r_default[field]) for field in added}
     assert {field: value for field, value in zora.items() if field not in entry["zora_flags"]} == {
         field: zora_default[field] for field in zora if field not in entry["zora_flags"]}

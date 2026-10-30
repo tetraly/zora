@@ -13,7 +13,10 @@ this wrapper only:
   when that write landed or there was nothing to write, so a refused write is simply decided
   again next tick.
 An exception from client_step is logged and the next tick tries again, so one bad tick never
-stops a session.
+stops a session. So is an ERROR from the connector (a ConnectorError; inside an ExceptionGroup on
+Python 3.11 and later): z1rr-coop's console bridge answers ERROR while the console can't be read
+(an EverDrive between screens or off the play screen), so that tick is skipped like a timeout,
+logged only when its message changes.
 
 receive() (inside client_step) reads two of the original game's tables from the player's own ROM,
 so the client hands ZORA host.yaml's ROM (client_ready) when it recognizes a ZORA ROM: it may run
@@ -105,6 +108,7 @@ class ZoraClient(BizHawkClient):
         self.tables: zora_ap.ClientTables | None = None
         self.tables_of: dict[str, Any] | None = None
         self.last_error = ""
+        self.last_connector_error = ""
 
     async def validate_rom(self, ctx: BizHawkClientContext) -> bool:
         from worlds._bizhawk import RequestFailedError, get_memory_size, read
@@ -152,6 +156,19 @@ class ZoraClient(BizHawkClient):
                              f"install the zora.apworld it was generated with.")
         return self.tables
 
+    def skip_connector_error(self, error: Exception) -> None:
+        """Skip a tick whose request the connector answered with ERROR (logged when its message
+        changes); re-raise anything else."""
+        from worlds._bizhawk import ConnectorError
+
+        errors = getattr(error, "exceptions", (error,))      # an ExceptionGroup on Python 3.11+
+        if not errors or not all(isinstance(each, ConnectorError) for each in errors):
+            raise error
+        message = "; ".join(str(each) for each in errors)
+        if message != self.last_connector_error:
+            self.last_connector_error = message
+            logger.info(f"ZORA: the connector couldn't read the game; trying again: {message}")
+
     async def game_watcher(self, ctx: BizHawkClientContext) -> None:
         from worlds._bizhawk import RequestFailedError, guarded_write, read
 
@@ -163,6 +180,9 @@ class ZoraClient(BizHawkClient):
         try:
             values = await read(ctx.bizhawk_ctx, [(start, length, RAM) for start, length in read_list(tables)])
         except RequestFailedError:
+            return
+        except Exception as error:
+            self.skip_connector_error(error)
             return
         ram, ram_after = snapshot(tables, values)
         try:
@@ -186,6 +206,9 @@ class ZoraClient(BizHawkClient):
                     [(address, [value], RAM) for address, value in decision.writes],
                     [(address, [value], RAM) for address, value in decision.guards])
             except RequestFailedError:
+                return
+            except Exception as error:      # unknown whether it was written: read again next tick
+                self.skip_connector_error(error)
                 return
             if not written:
                 return              # the game moved on since the read: decided again next tick

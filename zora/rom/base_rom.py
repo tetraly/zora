@@ -91,14 +91,28 @@ def verify_prg1_rom(path: Path | None = None) -> Path:
 @dataclass(frozen=True)
 class PlayerRom:
     """The player's base ROM: the file (headered), which release it is, and the same in PRG0's
-    layout, where ZORA reads and writes (revision.in_prg0_layout; the file itself on PRG0)."""
+    layout, where ZORA reads and writes (revision.in_prg0_layout; the file itself on PRG0).
+
+    With a graphics theme (graphics_theme.themed_player_rom) the generation parses and writes a
+    working copy, `themed`, in PRG0's layout; `layout` stays the untouched ROM's, which the original
+    game's bytes (original_bytes) and the finished ROM's return to its release are read from."""
     data: bytes
     identity: IdentifiedRom
     layout: bytes
+    theme: str = ""                 # graphics_theme.GraphicsTheme's value, "" without one
+    themed: bytes = b""
 
     @property
     def revision(self) -> Revision:
         return self.identity.revision
+
+    @property
+    def canvas(self) -> bytes:
+        """The image generation parses and the finished ROM is written over (PRG0's layout)."""
+        return self.themed or self.layout
+
+    def with_canvas(self, theme: str, themed: bytes) -> "PlayerRom":
+        return PlayerRom(self.data, self.identity, self.layout, theme, themed)
 
     def finished(self, image: bytes) -> bytes:
         """The ROM ZORA wrote in PRG0's layout (`image`), on the player's own release."""
@@ -111,6 +125,11 @@ def player_rom_of(data: bytes) -> PlayerRom:
     identity = identify_rom(data)
     rom = headered(data)
     return PlayerRom(rom, identity, in_prg0_layout(rom, identity.revision))
+
+
+def as_player_rom(base: bytes | PlayerRom) -> PlayerRom:
+    """A PlayerRom as given (a graphics theme's, graphics_theme.themed_player_rom), else player_rom_of."""
+    return base if isinstance(base, PlayerRom) else player_rom_of(base)
 
 
 def recognized_player_rom(data: bytes) -> PlayerRom | None:

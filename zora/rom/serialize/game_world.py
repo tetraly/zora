@@ -19,10 +19,10 @@ Covers all parsed ROM regions:
 - Bomb upgrade cost, count, and display tiles
 - Quotes (38 hints): pointer table + encoded text
 """
-from ...model.enums import DungeonNothingCode
+from ...model.enums import DungeonNothingCode, Item, RoomType
 from ...model.game_world import GameWorld
 from ...model.levels import LevelBlock
-from ...model.rooms import BOSS_SOUND_MASK, BOSS_SOUND_SHIFT
+from ...model.rooms import BOSS_SOUND_MASK, BOSS_SOUND_SHIFT, ITEM_MASK, TRIGGER_MASK
 from .. import person_code
 from ..base_rom import original_bytes, piece_bytes
 from ..code_patches import (
@@ -46,6 +46,8 @@ from ..layout import (
     BOSS_SET_EXPANSION_SPRITES_ADDRESS,
     BOSS_SPRITE_SET_POINTERS_ADDRESS,
     DUNGEON_COMMON_SPRITES_ADDRESS,
+    ENEMY_DROP_CLASSES_ADDRESS,
+    ENEMY_DROP_CLASSES_SIZE,
     ENEMY_SET_A_SPRITES_ADDRESS,
     ENEMY_SET_B_SPRITES_ADDRESS,
     ENEMY_SET_C_SPRITES_ADDRESS,
@@ -76,9 +78,12 @@ from ..layout import (
     START_SCREEN_ADDRESS,
     TILE_MAPPING_DATA_ADDRESS,
     TILE_MAPPING_POINTERS_ADDRESS,
+    TRIGGER_BYTE_TABLE,
 )
 from ..level_9_entrance import level_9_entrance_writes
 from ..start_items import start_table
+from ..swordlish import swordlish_writes
+from ..vanilla_overworld.tables import ROOM_LAYOUTS_OW
 from .caves import _serialize_bomb_upgrade, _serialize_cave_data, _serialize_mmg_prizes
 from .enemies import _serialize_enemy_hp, _serialize_enemy_tile_data
 from .features import (
@@ -136,16 +141,33 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
     return patch
 
 
-def _patch_boss_sounds(block: LevelBlock, address: int, patch: Patch) -> None:
-    """An unread second-quest block keeps the base ROM's bytes but its rooms' boss sounds, which the
-    end pass resets in all four blocks (PS-MONRD-07): only the item bytes whose boss sound differs
-    are written."""
+def _patch_unread_block(block: LevelBlock, address: int, nothing_code: int, patch: Patch) -> None:
+    """An unread second-quest block keeps the base ROM's bytes but for two passes that write all four
+    blocks: its rooms' boss sounds, which the end pass resets (PS-MONRD-07), and Remove Maps (FP-MAP-01),
+    which takes each map out (its item bits become "no item") and turns a map room's trigger 7 into 1.
+    Only the bytes that differ are written."""
     item_table = address + ITEM_BYTE_TABLE * LEVEL_TABLE_SIZE
-    base = original_bytes(item_table, LEVEL_TABLE_SIZE)
+    trigger_table = address + TRIGGER_BYTE_TABLE * LEVEL_TABLE_SIZE
+    base_items = original_bytes(item_table, LEVEL_TABLE_SIZE)
+    base_triggers = original_bytes(trigger_table, LEVEL_TABLE_SIZE)
+
+    def map_removed(base_item: int, item: Item | None) -> bool:
+        return base_item & ITEM_MASK == Item.MAP.value and item is Item.NOTHING
+
     for room in block.rooms:
-        byte = (base[room.room_num] & ~(BOSS_SOUND_MASK << BOSS_SOUND_SHIFT)) | (room.boss_sound << BOSS_SOUND_SHIFT)
-        if byte != base[room.room_num]:
+        base_item = base_items[room.room_num]
+        byte = (base_item & ~(BOSS_SOUND_MASK << BOSS_SOUND_SHIFT)) | (room.boss_sound << BOSS_SOUND_SHIFT)
+        if map_removed(base_item, room.item):
+            byte = (byte & ~ITEM_MASK) | nothing_code
+            trigger = (base_triggers[room.room_num] & ~TRIGGER_MASK) | room.room_action
+            if trigger != base_triggers[room.room_num]:
+                patch.add(trigger_table + room.room_num, bytes([trigger]))
+        if byte != base_item:
             patch.add(item_table + room.room_num, bytes([byte]))
+    for cellar in block.staircases:
+        base_item = base_items[cellar.room_num]
+        if cellar.room_type is RoomType.ITEM_STAIRCASE and map_removed(base_item, cellar.item):
+            patch.add(item_table + cellar.room_num, bytes([(base_item & ~ITEM_MASK) | nothing_code]))
 
 
 def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, bytes], cfg: GameConfig,
@@ -168,7 +190,7 @@ def _serialize_levels(game_world: GameWorld, original_bins_bytes: dict[str, byte
             continue
         if not any(lvl.block is block for lvl in game_world.levels):
             if cfg.level_encoding is None:
-                _patch_boss_sounds(block, address, patch)
+                _patch_unread_block(block, address, nothing_code, patch)
             continue
         if cfg.level_encoding is not None:
             raise ValueError("level encoding needs each second-quest set stored in its first-quest slot "
@@ -225,7 +247,8 @@ def _serialize_overworld_data(game_world: GameWorld, original_bins_bytes: dict[s
         # FP-START-03: fp-start-02's table, with the start hearts and pieces (the patch's own copy is
         # PRG0's start, so the code patches carry this table too: code_patches.seed_data)
         patch.add(START_ITEMS_TABLE, start_table(game_world.start_items, game_world.new_file_heart_containers,
-                                                 game_world.new_file_full_hearts, game_world.start_triforce_pieces))
+                                                 game_world.new_file_full_hearts, game_world.start_triforce_pieces,
+                                                 game_world.start_all_maps, game_world.start_all_compasses))
     if cfg.features_b10:
         _serialize_b10_constants(game_world, patch)
         _serialize_credits(game_world, patch)
@@ -271,6 +294,12 @@ def _serialize_sprites_and_enemies(game_world: GameWorld, patch: Patch) -> None:
     patch.add(TILE_MAPPING_POINTERS_ADDRESS, ptr_bytes)
     patch.add(TILE_MAPPING_DATA_ADDRESS,     frame_bytes)
     _serialize_enemy_hp(game_world, patch)
+    if game_world.moved_secret_layouts is not None:            # OW-ENTR-01 (B05)
+        patch.add(ROOM_LAYOUTS_OW.file_offset, bytes(code for layout in game_world.moved_secret_layouts
+                                                     for code in layout))
+    if game_world.enemy_drop_classes is not None:              # PS-EDROP-03 (B38)
+        assert len(game_world.enemy_drop_classes) == ENEMY_DROP_CLASSES_SIZE
+        patch.add(ENEMY_DROP_CLASSES_ADDRESS, bytes(game_world.enemy_drop_classes))
     if game_world.enemies.mixed_enemy_data:
         patch.add(MIXED_ENEMY_DATA_ADDRESS,
                   bytes(game_world.enemies.mixed_enemy_data))
@@ -290,6 +319,8 @@ def _serialize_person_code(game_world: GameWorld, cfg: GameConfig, hint_mode: Hi
     if cfg.features_b10 and hint_mode in (HintMode.CONSTERNATION, HintMode.NORMAL):
         _serialize_refusal_text(game_world, patch, normal_hints=hint_mode == HintMode.NORMAL)
     for address, data in level_9_entrance_writes(game_world.level_9_gate):
+        patch.add(address, data)
+    for address, data in swordlish_writes(game_world.swordlish_pieces):     # FP-SWL-01 and FP-SWL-05
         patch.add(address, data)
     for address, data in person_code.person_init_writes(game_world.person_inits):
         patch.add(address, data)

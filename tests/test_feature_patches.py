@@ -547,8 +547,8 @@ def test_boss_sound_room_changes_the_label() -> None:
 @pytest.mark.parametrize("sound", [BossSound.ROAR_DODONGO_GOHMA, BossSound.ROAR_DIGDOGGER_MANHANDLA_PATRA])
 def test_only_ganons_sound_changes_the_label(sound: BossSound) -> None:
     """Owner, 2026-10-24 (seed 555594931's level 4): the label shows only for Ganon's sound 1, which
-    only level 9's rooms beside Ganon have (PS-MONRD-07); a gatekeeper's sound 2 or 3 (Gatekeeper
-    Bosses) still plays, with the usual label."""
+    only level 9's rooms beside Ganon have (PS-MONRD-07); another boss's sound 2 or 3 still plays, with
+    the usual label. (Gatekeeper Bosses, retired since, gave such sounds to rooms of levels 1-8.)"""
     assert _room_labels(features_b10=True, sound=sound)[:3] == (USUAL_LABEL, USUAL_LABEL, USUAL_LABEL)
 
 

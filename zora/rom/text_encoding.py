@@ -31,3 +31,18 @@ QUOTE_BLANK     = 0xFF   # an empty quote as the spec writes it (HT-HINT-07): th
 # An empty text as ZORA writes it: one space with the end mark, so the text box shows nothing (a lone
 # $FF draws tile $3F, a stray mark, at the start of the box; seen in the emulator, beta 8)
 QUOTE_EMPTY     = CHAR_TO_BYTE[" "] | QUOTE_END_BITS
+
+# The person text drawer (Z_01.asm @WriteChar: AND #$3F / CMP #$25 / BEQ @WriteChar) skips the pad
+# tile before it reads a tile's line or end bits, so a line ending on one runs on past the box's
+# right edge, and a text whose end bits fall on one never ends (aa19038). A space looks the same.
+PAD_TILE = CHAR_TO_BYTE["~"]
+LINE_END_TILE = CHAR_TO_BYTE[" "]
+
+
+def closed_line(tiles: list[int]) -> list[int]:
+    """A text line's tiles (before its bits) whose last tile is never the pad tile: a last pad tile
+    becomes a space, keeping the line's length and centering. Every writer of person text encodes
+    each line through this; player_settings.end_padded_hint_line does the same on a line's text."""
+    if tiles and tiles[-1] == PAD_TILE:
+        return [*tiles[:-1], LINE_END_TILE]
+    return tiles

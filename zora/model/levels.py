@@ -128,7 +128,7 @@ class Level:
     # None to re-derive on serialization (serializer.derive_triforce_room_ptr).
     triforce_room_ptr: int | None = None
     # SH-SRC: a second-quest level (Dungeon Quest, C02), read from its block's
-    # pointer; the walk's level-9 goriya cell is fixed then (VA-WALK-08)
+    # pointer
     is_second_quest: bool = field(default=False, compare=False)
     # PS-START-03 (B26): a moved start room's arrival code (level information +$3D: 1 up, 2 down,
     # 3 left, 4 right, the side of the start room that is open) and the room a move through that
@@ -138,9 +138,6 @@ class Level:
     # the count (exit_room_count).
     arrival_code: int | None = None
     exit_room: int | None = None
-    # Gatekeeper Bosses (ZORA extra; generate/late_gate/gatekeeper.py): the room whose boss alone leads
-    # to the triforce, set by generation only (a parsed ROM does not record it).
-    gatekeeper_room: int | None = field(default=None, compare=False)
 
     def __post_init__(self) -> None:
         self.block.levels.append(self)

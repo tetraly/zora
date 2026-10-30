@@ -102,7 +102,11 @@ class _CellarPosition(_PoolPosition):
     def put(self, item_byte: int) -> None:
         # A cellar holds an item only: the whole byte cannot land here with
         # boss-sound or dark bits, and they are never dropped silently (none
-        # has been seen: ItemShuffleResult.pool_high_bits counts them).
+        # has been seen: ItemShuffleResult.pool_high_bits counts them), but for
+        # a minor item's (PS-ITEM-14, B17), whose room's bits ZORA drops here as
+        # a cave slot does (PS-ITEM-06; docs/deviations.md)
+        if item_byte & ITEM_MASK in MINOR_ITEMS:
+            item_byte &= ITEM_MASK
         if item_byte & ~ITEM_MASK:
             raise ValueError(f"item cellar ${self.cellar.room_num:02X}: the pool byte ${item_byte:02X} "
                              "carries boss-sound or dark bits, which a cellar cannot hold")
@@ -243,14 +247,26 @@ def heart_rooms(levels: list[Level], pooled: list[_PoolPosition]) -> list[_PoolP
     recorded as level 3, 5 or 8, and the other way round; the recorded level
     is what the within-dungeon deal (C06 = 2) groups by. The room's owner and
     the scan's order are unchanged."""
+    return scanned_rooms(levels, pooled, frozenset({Item.HEART_CONTAINER}))
+
+
+# PS-ITEM-14 (B17): the minor items whose level rooms join the deal
+MINOR_ITEMS = frozenset({Item.BOMBS, Item.FIVE_RUPEES, Item.KEY})
+
+
+def scanned_rooms(levels: list[Level], pooled: list[_PoolPosition], codes: frozenset[int]) -> list[_PoolPosition]:
+    """The scan of PS-ITEM-02: every room of a level, in block scan order, whose item byte's low
+    five bits are one of `codes` and that is not already a pool place, recorded as heart_rooms
+    says. With the heart rooms and the minor items both (PS-ITEM-14 under C06 = 3) they come from
+    this one scan, in room order."""
     taken = {id(place.room) for place in pooled if isinstance(place, _RoomPosition)}
-    hearts: list[_PoolPosition] = []
+    found: list[_PoolPosition] = []
     for level_room in _level_rooms(levels):
         room, level = level_room.room, level_room.level
-        if id(room) not in taken and room.item_info.item_code == Item.HEART_CONTAINER:
+        if id(room) not in taken and room.item_info.item_code in codes:
             recorded = PAIRED_LEVELS.get(level.level_num) if level.is_second_quest else None
-            hearts.append(_RoomPosition(room, level, recorded))
-    return hearts
+            found.append(_RoomPosition(room, level, recorded))
+    return found
 
 
 def shuffle_items(levels: list[Level], state: ItemShuffleResult, rng: IntRng,
@@ -272,7 +288,7 @@ def keep_items_in_place(levels: list[Level], state: ItemShuffleResult, opts: Ite
     only inside the walk, so they force nothing; the fifteen records are kept
     as for a deal (VA-REJ-07, PS-BOSS-05)."""
     state.heart_rooms_pooled = False
-    _deal_pool(levels, state, None, replace(opts, dungeon_hearts=False))
+    _deal_pool(levels, state, None, replace(opts, dungeon_hearts=False, minor_items=False))
 
 
 def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None,
@@ -285,11 +301,12 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None
     for slot in CAVE_SLOTS:
         cave_position[slot] = len(places)
         places.append(_CavePosition(slot, state))
-    if opts.dungeon_hearts:
-        # PS-ITEM-02: low five bits $1A, a room of a level, not yet pooled.
-        places += heart_rooms(levels, places)
-    # Minor items (bombs, rupees, keys) join only in minor-items mode: off
-    # for the preset and not modeled.
+    # PS-ITEM-02: low five bits $1A, a room of a level, not yet pooled; PS-ITEM-14 (B17): and bombs,
+    # five rupees and keys, from the same scan
+    scanned = ((frozenset({Item.HEART_CONTAINER}) if opts.dungeon_hearts else frozenset())
+               | (MINOR_ITEMS if opts.minor_items else frozenset()))
+    if scanned:
+        places += scanned_rooms(levels, places, scanned)
 
     count = len(places)
     pool_items = [place.get() for place in places]
@@ -353,6 +370,11 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None
         if target in non_heart and pool_items[other] == Item.HEART_CONTAINER:
             continue
         if target == white_sword_position and pool_items[other] & KEY_TEST_MASK == Item.KEY:
+            continue
+        if (opts.minor_items and destination[other] == white_sword_position
+                and pool_items[position] & KEY_TEST_MASK == Item.KEY):
+            # ZORA keeps keys out of the white-sword cave entirely (PS-ITEM-14's MAY, owner ruling
+            # 2026-10-27): PS-ITEM-05's test alone lets a key reach it untested as the partner of an earlier position
             continue
         destination[position], destination[other] = destination[other], destination[position]
         position += 1

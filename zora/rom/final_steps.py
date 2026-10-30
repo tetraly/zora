@@ -6,7 +6,9 @@ included); these steps then change the ROM image in FINAL_STEPS order, each
 switched by its own setting:
 
   code_patches           ZORA's 6502 patches, with the per-seed bytes inside them
-                         (B10's feature switch; Book is an Atlas, B49, inside it)
+                         (B10's feature switch; Book is an Atlas, B49, inside it), and for
+                         a mirrored world (B06) the flip's part the model does not hold,
+                         last (zora/rom/mirror_overworld.py mirror_image)
   encode_level_data      Encode level data (B82; zora/rom/level_encoding.py)
   slot_identity          Archipelago's slot name (External mode only; zora/rom/slot_identity.py)
   stamp_seed_code        the seed's code (FP-HASH-01), from the world and its configuration
@@ -29,8 +31,10 @@ from . import (
     code_patches,
     credits_staff,
     fairy_refill,
+    harder_bosses,
     hidden_tiles,
     item_sprites,
+    mirror_overworld,
     opening_story,
     overworld_crossings,
     owner_patches,
@@ -78,12 +82,16 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     story is ZORA's, naming level 9's requirement (opening_story), and the ending credits hold the
     Randomizer Staff box (fp-credits-01's tables, credits_staff)."""
     config = settings.config
+    if mirror_overworld.is_mirrored(rom):
+        # a mirrored ROM written again: the patches below go over PRG0's layout rows and code bytes
+        mirror_overworld.unmirror_image(rom)
     left_out = code_patches.left_out_patches(config.book_is_an_atlas, config.progressive_items,
                                              config.shop_items_in_pool, config.potion_shop_in_pool,
                                              start_items=world.uses_start_table,
                                              start_rooms_moved=any(level.arrival_code in code_patches.SIDE_ARRIVAL_CODES
                                                                    for level in world.levels),
-                                             book_to_understand_npcs=config.book_to_understand_npcs)
+                                             book_to_understand_npcs=config.book_to_understand_npcs,
+                                             blank_hints=config.blank_hints)
     for address, data in code_patches.code_patch_writes(world, left_out, config.progressive_items,
                                                         config.one_time_places, config.bait_in_pool):
         rom[address:address + len(data)] = data
@@ -93,6 +101,8 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
         rom[address:address + len(data)] = data
     for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword,
                                                           config.archipelago_rom):
+        rom[address:address + len(data)] = data
+    for address, data in harder_bosses.harder_writes(config.harder_bosses, config.harder_ganon):
         rom[address:address + len(data)] = data
     for address, data in opening_story.story_writes(rom, world.level_9_gate, config.level_9_entrance_sword):
         rom[address:address + len(data)] = data
@@ -137,6 +147,10 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
                                                              Rng(config.item_sprites_key),
                                                              logo=config.foreign_logo):
             rom[address:address + len(data)] = data
+    if world.overworld_mirrored:
+        # Mirror Overworld (B06): the flip's part the model does not hold, after every write to the
+        # overworld (the crossings, the hidden tiles: OW-MIR-06) and before the level encoding
+        mirror_overworld.mirror_image(rom)
 
 
 def uphill_battle_writes(config: GameConfig, rom: bytes | bytearray) -> list[tuple[int, bytes]]:

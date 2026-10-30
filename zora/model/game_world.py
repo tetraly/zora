@@ -6,7 +6,7 @@ from .canonical import OMITTED_AT_DEFAULT
 from .enums import VANILLA_PERSON_INITS, DungeonNothingCode, Item, UnderworldPersonInit
 from .level_9_gate import EIGHT_PIECES, Level9Gate
 from .levels import ARRIVAL_DUNGEON, ARRIVAL_OVERWORLD, Level, LevelBlock
-from .overworld import Overworld, Quote
+from .overworld import Overworld, OverworldLayouts, Quote
 from .rooms import LifeOrMoneyToll
 from .sprites import EnemyData, SpriteData
 
@@ -83,6 +83,15 @@ class GameWorld:
     # bit per level 1-8 (InvTriforce); any writes fp-start-02's table. 0 leaves the seed's code as
     # it was (canonical.OMITTED_AT_DEFAULT)
     start_triforce_pieces: int = field(default=0, metadata=OMITTED_AT_DEFAULT)
+    # FP-MAP-02 (B93, B94): a new save file holds every level's map, or every level's compass; either
+    # writes fp-start-02's table
+    start_all_maps: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    start_all_compasses: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Mirror Overworld (B06): the overworld above is flipped left to right, as FINISH writes it
+    # (pipeline.written_world) and the parser reads it back (the flip's spawn call); the writer then
+    # flips the rest, which the model does not hold: the layout rows, PRG0's code bytes, the spawn spots
+    # (zora/rom/mirror_overworld.py mirror_image). A built world is never flipped
+    overworld_mirrored: bool = field(default=False, compare=False, repr=False)
     # FP-START-01: the hearts a Continue restores (operand at 0x14B83)
     continue_hearts_operand: int = 0x02
     # FL-ALT-07: FormatHeartsInTextBuf's BEQ @EmitSpace operand (0x06731), PRG0's $04 draws the meter
@@ -129,14 +138,26 @@ class GameWorld:
     # FP-TRIF-01 to FP-TRIF-06 (C08): what level 9's entrance asks for. PRG0's eight pieces write
     # nothing and leave the seed's code as it was (canonical.OMITTED_AT_DEFAULT).
     level_9_gate: Level9Gate = field(default=EIGHT_PIECES, metadata=OMITTED_AT_DEFAULT)
+    # Swordlish (features FP-SWL-01; from BogieSmalls): the triforce pieces the wooden-sword cave's
+    # sword needs, shown in the cave's own text (FP-SWL-05); 0, PRG0's cave, asks for none
+    swordlish_pieces: int = field(default=0, metadata=OMITTED_AT_DEFAULT)
     # FP-PERSON-01: the 17 cave-person animation bytes for object types $6B-$7B.
     cave_person_animations: tuple[int, ...] = ()
+    # PS-EDROP-03 (B38): the 31 object types of the drop-class lists (no-drop, A, B, C), set by
+    # generation when the shuffle runs; None leaves the ROM's lists as they are (PRG0's, and what a
+    # parsed ROM holds: they are written, never read back), with the seed's code as it was
+    enemy_drop_classes: tuple[int, ...] | None = field(default=None, metadata=OMITTED_AT_DEFAULT)
+    # OW-ENTR-01 (B05): the screen layouts as the ROM read holds them (what the secret-spot pass reads;
+    # not part of the world's equality, so not of the seed's code), and the 124 layouts' column codes
+    # and the cave layouts after it, once the pass has moved the secret columns (None: they stay as they are)
+    overworld_layouts: OverworldLayouts | None = field(default=None, compare=False, repr=False)
+    moved_secret_layouts: tuple[tuple[int, ...], ...] | None = field(default=None, metadata=OMITTED_AT_DEFAULT)
 
     @property
     def uses_start_table(self) -> bool:
-        """FP-START-03: fp-start-02's starting table is written, for start items or start pieces
-        (FL-ALT-06); otherwise PRG0's starting routines stay."""
-        return bool(self.start_items or self.start_triforce_pieces)
+        """FP-START-03: fp-start-02's starting table is written, for start items, start pieces
+        (FL-ALT-06) or All Maps and All Compasses (FP-MAP-02); otherwise PRG0's starting routines stay."""
+        return bool(self.start_items or self.start_triforce_pieces or self.start_all_maps or self.start_all_compasses)
 
     @property
     def level_blocks(self) -> list[LevelBlock]:

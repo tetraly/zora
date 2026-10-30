@@ -9,6 +9,10 @@ from .heart_values import heart_values
 
 HEART_VALUES_INDEX = 0x18            # HeartValues, RAM $066F
 TRIFORCE_INDEX = 0x1A                # InvTriforce, RAM $0671 (FL-ALT-06)
+# FP-MAP-02: All Compasses (B94) and All Maps (B93), outside the start-item limit: InvCompass and
+# InvMap hold one bit per level 1 to 8, InvCompass9 and InvMap9 level 9's
+COMPASS_INDEX, MAP_INDEX, COMPASS_9_INDEX, MAP_9_INDEX = 0x10, 0x11, 0x12, 0x13
+EVERY_LEVEL_1_TO_8, LEVEL_9 = 0xFF, 0x01
 
 # FP-START-03's table: each start item's slot in Items and its value. A slot keeps the larger of
 # its value and the item's, so two swords keep the better one and two candles the red.
@@ -36,17 +40,32 @@ ITEM_AT_SLOT_VALUE = {slot_value: item for item, slot_value in START_ITEM_SLOTS.
 ITEM_SLOTS = sorted({slot for slot, _ in START_ITEM_SLOTS.values()})
 
 
-def start_table(items: Iterable[Item], heart_containers: int, full_hearts: int, triforce_pieces: int = 0) -> bytes:
+def start_table(items: Iterable[Item], heart_containers: int, full_hearts: int, triforce_pieces: int = 0,
+                all_maps: bool = False, all_compasses: bool = False) -> bytes:
     """FP-START-03: FP-START-01's table with each item's slot raised to its value, the hearts
-    byte from the start hearts (FL-ALT-02, FL-ALT-07) and the Triforce byte from the start pieces
-    (FL-ALT-06)."""
+    byte from the start hearts (FL-ALT-02, FL-ALT-07), the Triforce byte from the start pieces
+    (FL-ALT-06), and every level's map and compass with All Maps and All Compasses (FP-MAP-02)."""
     table = bytearray(PRG0_START_ITEMS)
     for item in items:
         slot, value = START_ITEM_SLOTS[item]
         table[slot] = max(table[slot], value)
     table[HEART_VALUES_INDEX] = heart_values(heart_containers, full_hearts)
     table[TRIFORCE_INDEX] = triforce_pieces
+    if all_maps:
+        table[MAP_INDEX], table[MAP_9_INDEX] = EVERY_LEVEL_1_TO_8, LEVEL_9
+    if all_compasses:
+        table[COMPASS_INDEX], table[COMPASS_9_INDEX] = EVERY_LEVEL_1_TO_8, LEVEL_9
     return bytes(table)
+
+
+def holds_every_map(table: bytes) -> bool:
+    """FP-MAP-02: the table gives every level's map (All Maps)."""
+    return (table[MAP_INDEX], table[MAP_9_INDEX]) == (EVERY_LEVEL_1_TO_8, LEVEL_9)
+
+
+def holds_every_compass(table: bytes) -> bool:
+    """FP-MAP-02: the table gives every level's compass (All Compasses)."""
+    return (table[COMPASS_INDEX], table[COMPASS_9_INDEX]) == (EVERY_LEVEL_1_TO_8, LEVEL_9)
 
 
 def items_in_table(table: bytes) -> tuple[Item, ...]:

@@ -68,6 +68,17 @@ class AlternativeValues:
     ganon_hit_points_zero: bool = False                  # B41 on (or "?" come up on), PS-HP-06
     maximum_boss_health: bool = False                    # B46 on (or "?" come up on), PS-HP-07
     maximum_enemy_health: bool = False                   # B45 on (or "?" come up on), PS-HP-08
+    # The 2026-10-28 export's settings, each on (or "?" come up on)
+    shuffle_enemy_drop_groups: bool = False              # B38, PS-EDROP-03
+    blackout: bool = False                               # B50, PS-COLOR-04
+    extra_bosses: bool = False                           # B79, PS-BOSS-07
+    minor_dungeon_drops: bool = False                    # B17, PS-ITEM-14
+    change_secret_spots: bool = False                    # B05, OW-ENTR-01
+    # The 7e32c5c export's settings, each on (or "?" come up on)
+    remove_maps: bool = False                            # B92, FP-MAP-01
+    start_all_maps: bool = False                         # B93, FP-MAP-02
+    start_all_compasses: bool = False                    # B94, FP-MAP-02
+    mirror_overworld: bool = False                       # B06, HT-MIR-01 (the flip: pipeline.written_world)
     # The Uphill Battle set's off values (2026-10-22 export, review 68), each on in the MVP baseline
     # (or "?" come up so): Shuffle Level 9 Monsters (B35, PS-MONLV-07), Shuffle Ganon and Zelda (B33,
     # PS-MONRD-04), Force Ganon Fight (B18, PS-MONRD-05 and VA-REJ-03 step 8), Shuffle Dungeon

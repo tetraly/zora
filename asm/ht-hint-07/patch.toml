@@ -1,0 +1,35 @@
+# ZORA HT-HINT-07: Blank hints (C03 = 5) show no text at all. The game draws every text's last
+# character, so ZORA's empty text (one space with the end mark) put a space tile on the floor where
+# the text starts: a black square in every dungeon person's room. asm/README.md describes this file.
+# Written only with Blank hints (code_patches.left_out_patches).
+
+[[hook]]
+name = "store-char"
+offset = 0x04860
+length = 3
+note = "UpdatePersonState_Textbox's store of the character into the transfer record calls StoreTextboxChar, which stores it and then empties the record when the text is ZORA's empty text."
+code = """
+    JSR StoreTextboxChar
+"""
+
+[[hook]]
+name = "routine"
+offset = 0x05F54
+length = 16
+note = "PRG0's unused $FF block after DemoBackgroundPatterns, after ht-book-01's: StoreTextboxChar at $9F44 (HT-HINT-07), the block's last byte kept."
+code = """
+; The textbox's character, stored as the game stores it; then, when the byte just read ([00:01] at
+; Y) is ZORA's empty text, a lone space with the end mark, the transfer record is ended before its
+; first byte, so no tile is written and the floor stays as it was.
+StoreTextboxChar:
+    STA DynTileBuf+3
+    LDA ($00), Y
+    CMP #EMPTY_TEXT
+    BNE :+
+    LDA #$FF                    ; the end of the transfer buffer
+    STA DynTileBuf
+:
+    RTS
+    .BYTE $FF
+EMPTY_TEXT = $E4                ; zora/rom/text_encoding.py QUOTE_EMPTY
+"""

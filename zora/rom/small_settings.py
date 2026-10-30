@@ -10,7 +10,8 @@ Every site is checked against PRG0's bytes when it is written, so writing a fini
 the same bytes. Where the spec's bytes repeat a run of the original game's own code (the weapon tests'
 calls, the step routines' tails), the run is read from the player's ROM (an OriginalRun), never stored
 here. The bytes are the spec's except where ZORA's own code holds the spec's site
-(docs/deviations.md "Beta 9 small settings"):
+(docs/deviations.md "Hidden Numbers keeps the boss-sound label" and "Rupees Affect Speed with
+Pegasus Boots and Slow Speed"):
   - B83's status-bar routine ends by calling CopyTripletToTextBuf and then jumping into fp-roar-01's
     FormatBombCountAndRoomLabel after its count (the spec's routine ends in that call's jump, which
     skips the label hook), so the boss-sound label keeps showing;

@@ -5,7 +5,10 @@ from __future__ import annotations
 from enum import Enum
 
 from .fields import (
+    ALL_COMPASSES,
+    ALL_MAPS,
     ARMOS_PIN,
+    BLACKOUT,
     BOMB_CAPACITY_UPGRADE,
     BOOK_EXPLOSION,
     BOOK_TO_UNDERSTAND_NPCS,
@@ -16,7 +19,9 @@ from .fields import (
     DUNGEON_LAYOUT_SOURCE,
     DUNGEON_ROOM_SHUFFLE,
     ENCODE_LEVEL_DATA,
+    ENEMY_DROP_GROUPS,
     ENEMY_HIT_POINTS,
+    EXTRA_BOSSES,
     FORCE_OVERWORLD_BLOCK,
     GANON_HIT_POINTS_ZERO,
     HIDDEN_HEALTH,
@@ -36,9 +41,8 @@ from .fields import (
     MAGICAL_SWORD_LOWEST,
     MAXIMUM_BOSS_HEALTH,
     MAXIMUM_ENEMY_HEALTH,
+    MINOR_DUNGEON_DROPS,
     MIRROR_OVERWORLD,
-    MONEY_OR_LIFE_ROOMS,
-    MONEY_OR_LIFE_TOLL,
     MOST_OPEN_STAIRS_REMOVED,
     ONE_HIT_KNOCK_OUT,
     OPTION_FIELDS,
@@ -51,8 +55,10 @@ from .fields import (
     RANDOM_DROP_RATE,
     RECORDER_TO_UNBEATEN,
     RED_BUBBLE,
+    REMOVE_MAPS,
     RIVER_BRIDGES,
     RUPEES_AFFECT_SPEED,
+    SECRET_SPOTS_MOVE,
     START_ITEM_LIMIT,
     START_ROOM_MAY_MOVE,
     START_SCREEN,
@@ -112,7 +118,7 @@ MVP_BASELINE_OPTIONS: dict[str, int] = {
     STARTING_HEARTS.id: MVP_BASELINE_STARTING_HEARTS,
     START_ITEM_LIMIT.id: 1,                # at most 0 start items
 }
-# FL-SUP-03: the three-state fields on in the MVP baseline (32 of 91); every other field is off.
+# FL-SUP-03: the three-state fields on in the MVP baseline (32 of 94); every other field is off.
 MVP_BASELINE_ON: tuple[str, ...] = (
     "B01", "B02", "B04", "B08", "B09", "B10", "B11", "B12", "B13", "B14", "B15", "B16", "B18", "B19", "B20",
     "B22", "B23", "B27", "B28", "B29", "B31", "B32", "B33", "B34", "B35", "B36", "B40", "B42", "B43", "B49",
@@ -141,9 +147,9 @@ SPEC_TURN_OFF_TOGGLES: tuple[str, ...] = ("B02", "B18", "B20", "B32", "B33", "B3
 # rule 4; owner, beta 5, had held it). Shuffle Wood Sword Cave (B02)'s "?" is supported since the
 # beta 8 export (OW-CAVE-12: resolved before FL-DEP-02 rule 1, whose coin then applies).
 TURN_OFF_TOGGLES_NOT_RANDOM: tuple[str, ...] = ()
-# ZORA's own off values for fields the spec gives none (owner rulings), beside FL-OFF-07's:
+# Off values ZORA supported before the spec gave them (owner rulings), beside FL-OFF-07's:
 #   B04 (2026-10-07): the four take-any-road caves keep their PRG0 screens, so that Extra Power
-#   Bracelet Blocks, which conflicts with B04 on, can be used.
+#   Bracelet Blocks, which conflicts with B04 on, can be used. The spec now specifies it (OW-CAVE-12).
 OWNER_TURN_OFF_TOGGLES: tuple[str, ...] = ("B04",)
 # FL-OFF-07: the option fields with turn-off values, and those values (5 fields, 26 values).
 TURN_OFF_OPTIONS: dict[str, frozenset[int]] = {
@@ -217,6 +223,16 @@ ALTERNATIVE_TOGGLES: dict[str, frozenset[ThreeState]] = {
     **{toggle.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE})
        for toggle in (MAXIMUM_ENEMY_HEALTH, BOMB_CAPACITY_UPGRADE, KILLABLE_DROP_ITEMS, HIDDEN_NUMBERS,
                       RUPEES_AFFECT_SPEED, PREVENT_CLIPPING)},
+    # The 2026-10-28 export's settings, on and "?" (a coin per seed, FL-DEP-04): Shuffle Enemy Drop
+    # Groups (B38, PS-EDROP-03), Blackout (B50, PS-COLOR-04), Add Extra Bosses (B79, PS-BOSS-07; no effect
+    # with Shuffle Bosses off, B34) and Shuffle Minor Dungeon Drops (B17, PS-ITEM-14; no effect under Item
+    # Shuffle None outside Mixed Quest) and Change Secret Spots (B05, OW-ENTR-01)
+    **{toggle.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE})
+       for toggle in (ENEMY_DROP_GROUPS, BLACKOUT, EXTRA_BOSSES, MINOR_DUNGEON_DROPS, SECRET_SPOTS_MOVE)},
+    # The 7e32c5c export's: Remove Maps (B92, FP-MAP-01), All Maps and All Compasses (B93, B94, FP-MAP-02)
+    **{toggle.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}) for toggle in (REMOVE_MAPS, ALL_MAPS, ALL_COMPASSES)},
+    # and Mirror Overworld (B06, OW-MIR-01 to OW-MIR-06, HT-MIR-01)
+    MIRROR_OVERWORLD.id: frozenset({ThreeState.ON, ThreeState.POSSIBLE}),
 }
 # FL-DEP-02 item 4: the dungeon quests that turn the hungry-goriya and bomb-upgrade moves off
 # (dependencies.LAYOUT_SOURCES_WITHOUT_PERSON_SHUFFLES applies the rule)
@@ -302,8 +318,7 @@ def support(settings: Settings) -> dict[str, Support]:
     (FL-OFF-07) and at its alternative values (FL-ALT-02 to FL-ALT-04, owner ruling); level
     encoding (B82) at on and off, never "?" (owner ruling, 2026-10-06: a plain on/off setting).
 
-    B23's off value is supported only with B22 off or "?" (FL-DEP-04's rule then turns B22 off);
-    B22's off with B23 at any value, which is kept as given (FL-DEP-06).
+    B22's and B23's off values are supported with the other at any value (FL-DEP-06, PS-MERCH-05).
 
     "?" (possible) values, owner ruling (2026-10-04, in place of FL-SUP-03's "Possible is not
     supported for any field"): a "?" is supported where both of its outcomes are, that is on a
@@ -342,10 +357,6 @@ def _toggle_supported(settings: Settings, toggle: ToggleField, baseline: ThreeSt
         return False
     if toggle.id not in (*TURN_OFF_TOGGLES, *SPEC_TURN_OFF_TOGGLES, *OWNER_TURN_OFF_TOGGLES):
         return False
-    if toggle == MONEY_OR_LIFE_TOLL and value is ThreeState.OFF:
-        # FL-DEP-06: B23 off only with B22 off, or B22 at "?", which FL-DEP-04's rule then resolves
-        # off (dependencies.with_the_toll_beside_merchants; a "?" B23 resolves on beside merchants)
-        return settings.toggle(MONEY_OR_LIFE_ROOMS) is not ThreeState.ON
     return True                         # off, or a "?" whose off is supported
 
 
@@ -371,11 +382,10 @@ def with_random_level_encoding_off(settings: Settings) -> Settings:
     return settings
 
 
-# Owner ruling (2026-10-22): Mirrored Overworld (B06) is postponed. A pasted string with it on or "?"
-# is accepted and generates unmirrored (nothing in generation reads B06), with this notice on the
-# page and in the spoiler log; the page still offers only off.
-MIRRORED_OVERWORLD_NOTICE = "Mirrored overworld isn't supported yet; this seed is not mirrored"
-POSTPONED_TOGGLES: dict[str, str] = {MIRROR_OVERWORLD.id: MIRRORED_OVERWORLD_NOTICE}
+# A postponed field (field id -> its notice): a pasted string with it on or "?" is accepted and
+# generates as with it off, with the notice on the page and in the seed document. None since Mirror
+# Overworld (B06) was built (7e32c5c export; postponed by the owner ruling of 2026-10-22 until then).
+POSTPONED_TOGGLES: dict[str, str] = {}
 
 
 def is_postponed(settings: Settings, field_id: str) -> bool:

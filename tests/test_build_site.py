@@ -2,6 +2,7 @@
 private module, carries none of its readable strings, and the build only
 writes into a git-ignored folder. No wheel is built here (see
 docs/site-build.md for the full build and its checks)."""
+import base64
 import importlib.util
 import json
 import random
@@ -118,6 +119,7 @@ def _fake_site(root: Path, worker: str = "const GLUE = `\n`;\n") -> Path:
         (root / "fonts" / path.name).write_bytes(b"woff2 " + path.name.encode())
     (root / build_site.FONT_LICENSE).write_text("SIL OPEN FONT LICENSE Version 1.1\n")
     (root / build_site.FLAG_TABS).write_text((REPO / "web" / build_site.FLAG_TABS).read_text())
+    (root / "zora-logo.png").write_bytes(b"png zora-logo")
     with zipfile.ZipFile(root / build_site.WHEEL_PATH, "w") as wheel:
         wheel.writestr("zora/__init__.py", "MARKER = 'in the wheel'\n")
     return root
@@ -131,6 +133,8 @@ def test_single_file_inlines_everything(tmp_path: Path) -> None:
     assert "/* zora.css */" in page and "// zora-web.js" in page
     assert "SIL OPEN FONT LICENSE" in page
     assert '{"label": "beta test"}' in page
+    # the hero graphic, as a data: URI
+    assert 'src="data:image/png;base64,' + base64.b64encode(b"png zora-logo").decode() + '"' in page
     # web/flag-tabs.json, so the tabs work opened from disk
     tabs = re.search(f'<script type="application/json" id="{build_site.EMBEDDED_FLAG_TABS_ID}">([^<]*)</script>', page)
     assert tabs and json.loads(tabs.group(1)) == json.loads((REPO / "web" / build_site.FLAG_TABS).read_text())

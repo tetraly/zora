@@ -1,0 +1,41 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Wizzrobe",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Wizzrobe art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      2,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockUWSP469", "tile": "$B4"},
+    "$02": {"block": "PatternBlockUWSP469", "tile": "$B6"},
+    "$04": {"block": "PatternBlockUWSP469", "tile": "$B8"},
+    "$06": {"block": "PatternBlockUWSP469", "tile": "$BA"},
+    "$08": {"block": "PatternBlockUWSP469", "tile": "$BA", "mirror": true},
+    "$0A": {"block": "PatternBlockUWSP469", "tile": "$B6"},
+    "$0C": {"block": "PatternBlockUWSP469", "tile": "$BC"},
+    "$0E": {"block": "PatternBlockUWSP469", "tile": "$BC", "mirror": true},
+    "$10": {"block": "PatternBlockUWSP469", "tile": "$B4"},
+    "$12": {"block": "PatternBlockUWSP469", "tile": "$B6"},
+    "$14": {"block": "PatternBlockUWSP469", "tile": "$B4"},
+    "$16": {"block": "PatternBlockUWSP469", "tile": "$B6"},
+    "$18": {"block": "PatternBlockUWSP469", "tile": "$BC"},
+    "$1A": {"block": "PatternBlockUWSP469", "tile": "$BC", "mirror": true},
+    "$78": {"block": "PatternBlockUWSP469", "tile": "$B8"},
+    "$80": {"block": "PatternBlockUWSP469", "tile": "$B6"},
+    "$54": {"block": "PatternBlockUWSP469", "tile": "$BA"},
+    "$58": {"block": "PatternBlockUWSP469", "tile": "$B4"},
+    "$5A": {"block": "PatternBlockUWSP469", "tile": "$B8"},
+    "$60": {"block": "PatternBlockUWSP469", "tile": "$B4"}
+  }
+}

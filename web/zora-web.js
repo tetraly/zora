@@ -42,6 +42,17 @@ const FLAG_TABS_EMBEDDED_ID = "zora-embedded-flag-tabs";
 // zora.generate.NOT_PRODUCED_PREFIX: the generator's refusal of values ZORA
 // does not produce yet. The page words those per field instead.
 const NOT_PRODUCED_REFUSAL = "not produced: ";
+// Generate's time limit (owner decision, 2026-10-28): most seeds take 2-3 s, and players will not wait
+// much longer. A seed the page chose (the player typed none) is replaced quietly while time is left;
+// a typed or linked seed is reported. Generation stops between attempts (zora/generate/deadline.py),
+// so a seed that finishes in time is the same ROM with or without the limit.
+const GENERATION_LIMIT_MS = 15000;
+// A page-chosen seed's share: a seed that has not finished by then is replaced, so three get a try.
+// (The browser is about 1.7 times slower than native Python; 5 s here is about 3 s there.)
+const CHOSEN_SEED_MS = 5000;
+const RETRY_MIN_MS = 1000;            // too little left for another seed: stop
+const STOPPED = /GenerationStopped/;
+const GENERATION_FAILED = /generation failed after/;
 const NOT_IMPLEMENTED = "Not yet implemented";
 // A music problem (zora.rom.music's MusicError: a library, playlist or size problem) as Python names it.
 const MUSIC_PROBLEM = /^zora\.rom\.music\.(?:library|importer|playlist)\.\w+: /;
@@ -117,6 +128,7 @@ let startState = null;
 let startName = "";
 // The start-item fields and Max Start Items, from web/flag-tabs.json (startItemRules); null without it.
 let startRules = null;
+let flagTabsMap = {};           // web/flag-tabs.json, once loaded (buildForm)
 // field id -> {kind: "select" | "segments", input (a select), buttons (value ->
 // button), row, reason, value, field, supported (a Set of the values ZORA
 // produces), shown (one of Consternation's fields), tab}
@@ -366,6 +378,7 @@ function buildForm(flagTabs) {
   // Each flag tab: its option fields, then its three-state fields (metadata
   // order). Encode level data is a two-state field of the Misc tab (owner).
   const grids = new Map();
+  flagTabsMap = flagTabs;
   startRules = startItemRules(flagTabs);
   for (const name of FLAG_TABS) {
     const grid = settingGrid();
@@ -385,6 +398,7 @@ function buildForm(flagTabs) {
   buildZoraPanel(addTab(ZORA_TAB));
   buildLookPanel(addTab(LOOK_TAB));
   initTabs($("tabs"));
+  initFlagSummary();
   $("flags").disabled = false;
   $("zora-flags").disabled = false;
   $("form").hidden = false;
@@ -424,6 +438,105 @@ function startItemNotes() {
 }
 
 // ---------------------------------------------------------------------------
+// The flag summary: the settings in words, one section per tab (a player request, 2026-10-26)
+// ---------------------------------------------------------------------------
+
+const SUMMARY_KEY = "zora-flag-summary";      // whether the summary is open, this browser only
+// The sections' order: the tabs', but Starting Items just before Misc (owner, 2026-10-26), ZORA extras last.
+const SUMMARY_ORDER = ["Overworld", "Dungeons", "Items", "Monsters", START_TAB, "Misc", ZORA_TAB];
+// ZORA extras' one line when every one is Off.
+const SUMMARY_NO_EXTRAS = "None";
+
+// Each (min, max) pair (flag-tabs.json's summaryRange on the min field: its max field, and the switch it
+// needs) reads as one line, "White Sword Hearts (min)" and "(max)" as "White Sword Hearts: 4 to 6". A
+// pair is left out while it has no effect: the sword hearts with Change Sword Hearts Off (the caves ask
+// for the usual number), the Triforce Range while the form locks it (Level 9 Entry reads no range).
+// The summary's sections: [{tab, lines}], in SUMMARY_ORDER; ZORA extras always, the other tabs when not empty.
+// fields: metadata.fields; flagTabs: web/flag-tabs.json; values: a form state's fields (id -> {value,
+// disabled}); zora: {fields: metadata.zora.fields, values (name -> value, or null), forced}. Every
+// choice field is listed; a switch only when it is On or Random; a field the page never shows only
+// when it is not at its first value; a ZORA extra only when it is not Off.
+function flagSummary(fields, flagTabs, values, zora) {
+  const value = new Map(fields.map((field) => [field.id, values[field.id].value]));
+  for (const forced of zora.forced || []) if (value.has(forced.field)) value.set(forced.field, forced.value);
+  const byId = new Map(fields.map((field) => [field.id, field]));
+  const name = (field) => plainText(field.label).trim();
+  const ranges = new Map(fields.filter((field) => flagTabs[field.id] && flagTabs[field.id].summaryRange)
+    .map((field) => [field.id, flagTabs[field.id].summaryRange]));
+  const paired = new Set([...ranges.values()].map((range) => range.max));
+  const lines = new Map(SUMMARY_ORDER.map((tab) => [tab, []]));
+  for (const field of fields) {
+    const current = value.get(field.id);
+    const shown = field.id === metadata.encodeLevelData || field.supportedValues.some((v) => v !== 0);
+    if (paired.has(field.id) || (flagTabs[field.id] && flagTabs[field.id].hidden)) continue;
+    if (!shown && current === 0) continue;
+    const tab = lines.get(tabOf(flagTabs, field.id));
+    const range = ranges.get(field.id);
+    if (range) {
+      const max = byId.get(range.max);
+      const unused = values[field.id].disabled || values[range.max].disabled
+        || (range.needs && value.get(range.needs) === TOGGLE_OFF);
+      if (unused) continue;
+      const [low, high] = [labelIn(field.values, current), labelIn(max.values, value.get(range.max))];
+      tab.push(`${name(field).replace(/ \(min\)$/, "")}: ${low === high ? low : `${low} to ${high}`}`);
+    } else if (field.kind === "option") {
+      tab.push(`${name(field)}: ${labelIn(field.values, current)}`);
+    } else if (current !== TOGGLE_OFF) {
+      tab.push(current === TOGGLE_ON ? name(field) : `${name(field)}: ${labelIn(field.values, current)}`);
+    }
+  }
+  // A ZORA (min, max) pair (its min field's summaryRange) is one line too, left out while the extra it
+  // needs is Off: Swordlish's pieces, whose max control stands at 8 with Swordlish Off.
+  const zoraByName = new Map((zora.values ? zora.fields : []).map((field) => [field.name, field]));
+  const zoraPaired = new Set([...zoraByName.values()].filter((field) => field.summaryRange)
+    .map((field) => field.summaryRange.max));
+  for (const field of zora.values ? zora.fields : []) {
+    const current = Number(zora.values[field.name]);
+    if (field.summaryRange) {
+      const range = field.summaryRange;
+      if (Number(zora.values[range.needs]) === 0) continue;
+      const max = zoraByName.get(range.max);
+      const [low, high] = [labelIn(field.values, current), labelIn(max.values, Number(zora.values[range.max]))];
+      lines.get(ZORA_TAB).push(`${field.label.replace(/ \(min\)$/, "")}: ${low === high ? low : `${low} to ${high}`}`);
+      continue;
+    }
+    if (current === 0 || field.hidden || zoraPaired.has(field.name)) continue;  // a hidden field's line is its own tab's
+    const label = labelIn(field.values, current);
+    lines.get(ZORA_TAB).push(field.kind !== "option" && current === TOGGLE_ON ? field.label : `${field.label}: ${label}`);
+  }
+  if (!lines.get(ZORA_TAB).length) lines.get(ZORA_TAB).push(SUMMARY_NO_EXTRAS);
+  return [...lines].filter(([, tabLines]) => tabLines.length).map(([tab, tabLines]) => ({ tab, lines: tabLines }));
+}
+
+// The summary as text to paste (Discord, a race room): the strings, then each section.
+function flagSummaryText(sections, flags, zoraFlags) {
+  return [`Flags: ${flags}`, ...(zoraFlags ? [`ZORA flags: ${zoraFlags}`] : []),
+          ...sections.flatMap(({ tab, lines }) => ["", tab, ...lines.map((line) => `- ${line}`)])].join("\n");
+}
+
+let summarySections = [];
+function showFlagSummary(state) {
+  const zora = { fields: metadata.zora.fields, values: state.zora.ok ? state.zora.values : null,
+                 forced: state.zora.ok ? state.zora.forced : [] };
+  summarySections = flagSummary(metadata.fields, flagTabsMap, state.fields, zora);
+  $("flag-summary-sections").replaceChildren(...summarySections.map(({ tab, lines }) =>
+    element("section", { className: "summary-section" }, element("h3", { textContent: tab }),
+            element("ul", {}, ...lines.map((line) => element("li", { textContent: line }))))));
+}
+
+function initFlagSummary() {
+  const details = $("flag-summary");
+  details.open = getSetting(SUMMARY_KEY) === "open";
+  details.addEventListener("toggle", () => setSetting(SUMMARY_KEY, details.open ? "open" : "closed"));
+  $("flag-summary-copy").addEventListener("click", async () => {
+    if (!form) return;
+    const zoraFlags = form.zora.ok ? form.zora.flags : currentZoraFlags();
+    const copied = await copyText(flagSummaryText(summarySections, form.flags, zoraFlags));
+    $("flag-summary-note").textContent = copied ? "Copied." : "Your browser did not allow copying.";
+  });
+}
+
+// ---------------------------------------------------------------------------
 // ZORA extras (the ZORA flag string)
 // ---------------------------------------------------------------------------
 
@@ -450,6 +563,8 @@ function buildZoraPanel(panel) {
       controlNode.id = `zora-${field.name}`;
     }
     const { row, reason, changed } = settingRow(field.label, field.help, controlNode);
+    // A hidden field is set from another tab (Item Shuffle's Random (No Vanilla)); its control only carries the value.
+    row.hidden = Boolean(field.hidden);
     grid.append(row);
     zoraControls.set(field.name, { kind: field.kind === "option" ? "select" : "segments", input, buttons, row,
                                    reason, changed, value: 0 });
@@ -517,6 +632,7 @@ function showZoraState(zora, { rewrite }) {
     control.reason.textContent = refusedHere !== undefined ? `${refusedHere} Choose another value to export.` : "";
     markChanged(control, startState !== null && startState.zora[name] !== control.value);
   }
+  showUnavailable(zora.unavailable || []);
   const messages = new Map();      // setting -> the conflicts that name it
   for (const { message, fields } of zora.conflicts) {
     for (const name of fields) messages.set(name, [...(messages.get(name) || []), plainText(message)]);
@@ -545,6 +661,20 @@ function showForced(forced) {
     paintSegments(control.buttons, value);
     for (const button of control.buttons.values()) button.disabled = true;
     control.row.hidden = false;
+    control.row.classList.add("setting--locked");
+    control.reason.textContent = plainText(message);
+  }
+}
+
+// ZORA settings that do nothing under the Z1R settings now chosen (Recorder Warping without both of the
+// recorder's warps): greyed out, with the note, until the settings they need are on. The value stays.
+function showUnavailable(unavailable) {
+  for (const control of zoraControls.values()) control.row.classList.remove("setting--locked");
+  for (const { field, message } of unavailable) {
+    const control = zoraControls.get(field);
+    if (!control) continue;
+    const choices = control.kind === "select" ? [control.input] : [...control.buttons.values()];
+    for (const choice of choices) choice.disabled = true;
     control.row.classList.add("setting--locked");
     control.reason.textContent = plainText(message);
   }
@@ -650,6 +780,9 @@ const LINK_SPRITE_LINK = "link";
 const LINK_SPRITE_SET = "set";
 const LINK_SPRITE_RANDOM = "random";
 const LINK_SPRITES = [LINK_SPRITE_LINK, LINK_SPRITE_SET, LINK_SPRITE_RANDOM];
+// A built-in set's choice: this, then its id (metadata.linkSpriteSet.builtIn; the page sends it as "set"
+// with the set itself, as a loaded one).
+const LINK_SPRITE_BUILT_IN = "built-in:";
 const LINK_SPRITE_SET_KEY = "zora-link-sprite-set";
 
 // The choices, in the order the tab shows them: [value, label] pairs, and the help text.
@@ -659,9 +792,10 @@ const PLAYER_CHOICES = [
     help: "What Select does in play. Off: it pauses the game, as in the original. Swap only: it moves the " +
           "B button to your next item and never pauses. Toggle: you switch between the two on the item screen." },
   { key: "lowHealthBeep", label: "Low-health beep", default: "removed",
-    choices: [["removed", "Removed"], ["kept", "Kept"], ["half-speed", "Half speed"], ["random", "Random"]],
+    choices: [["removed", "Removed"], ["kept", "Kept"], ["half-speed", "Half speed"],
+              ["quarter-speed", "Quarter speed"], ["random", "Random"]],
     help: "Whether the warning beep sounds while your hearts are low, and how often. Half speed: it beeps " +
-          "half as often as in the original game. Random: removed or kept, picked by the seed number (the " +
+          "half as often as in the original game. Quarter speed: a quarter as often. Random: removed or kept, picked by the seed number (the " +
           "same seed always gives the same)." },
   { key: "deathWarp", label: "Death-warp", default: "p1-up-a",
     choices: [["p2-up-a", "Controller 2 Up+A"], ["p1-up-a", "Controller 1 Up+A"],
@@ -670,6 +804,9 @@ const PLAYER_CHOICES = [
           "The original game uses controller 2's Up and A." },
   { key: "reduceFlashing", label: "Reduce flashing", default: "off", choices: [["off", "Off"], ["on", "On"]],
     help: "Tones down the screen flashes, for players sensitive to flashing light." },
+  { key: "graphicsTheme", label: "Graphics theme", default: "off", choices: [["off", "Off"], ["halloween", "Halloween"]],
+    help: "Halloween: ZeroMeaning's Halloween art from Z1M1 for the overworld, the dungeons, the bosses and " +
+          "Ganon, with Ganon's own colors. It changes only how the game looks: the same seed plays the same." },
   { key: "music", label: "Music", default: "on", choices: [["on", "On"], ["off", "Off"]],
     help: "Turns the game's music on or off. Sound effects stay." },
 ];
@@ -705,6 +842,18 @@ const PLAYER_COLORS = [
       help: "The color of Link's tunic with the blue ring. " + RANDOM_TUNIC_HELP },
     { key: "redRingTunic", label: "Red ring", default: 0x16,
       help: "The color of Link's tunic with the red ring. " + RANDOM_TUNIC_HELP },
+  ] },
+  // Link's colors 2 and 3 (zora/rom/player_settings.py link_other_colors): for sprite sets drawn in other
+  // colors. Advanced (folded away), no Random, single player only.
+  { heading: "Playable character's other colors", advanced: true, noRandom: true, slots: [
+    { key: "linkColor2", label: "Color 2", default: 0x27,
+      help: "The playable character's second color: Link's skin in the original art ($27; level 3 uses the " +
+            "lighter $37). Changing it sets it everywhere the character is drawn, and it also changes the items " +
+            "and people the game draws in the character's colors." },
+    { key: "linkColor3", label: "Color 3", default: 0x17,
+      help: "The playable character's third color: Link's hair, belt and shield in the original art ($17; the " +
+            "file-select screen uses $07). Changing it sets it everywhere the character is drawn, and it also " +
+            "changes the items and people the game draws in the character's colors." },
   ] },
   { heading: "Heart color", slots: [{ key: "heart", label: "Hearts", default: 0x16,
                                        help: "The color of the hearts in the life meter. Random: one of seven " +
@@ -751,6 +900,14 @@ function copyRegularChannelSettings(storage = localStorage, channel = PAGE_CHANN
   return copied;
 }
 
+// Playable character's colors (zora/rom/player_settings.py CharacterColors, shown_link_colors): a set's own, the
+// default, or the player's. Picking a tunic or other color switches it to My own.
+const CHARACTER_COLORS_SET = "set";
+const CHARACTER_COLORS_MINE = "mine";
+// The tunic and other color slots of the player's settings (defined before the settings load below).
+const TUNIC_SLOTS = ["greenTunic", "blueRingTunic", "redRingTunic"];
+const LINK_COLOR_SLOTS = ["linkColor2", "linkColor3"];
+
 function defaultPlayerSettings() {
   const settings = {};
   for (const choice of ALL_CHOICES) settings[choice.key] = choice.default;
@@ -758,6 +915,8 @@ function defaultPlayerSettings() {
   settings.levelWord = "LEVEL";        // metadata.levelWord.default
   settings.bossSoundWord = "ROAR";     // metadata.bossSoundWord.default
   settings.linkSprite = LINK_SPRITE_LINK;
+  settings.linkSpriteSwap = "off";
+  settings.characterColors = CHARACTER_COLORS_SET;
   return settings;
 }
 
@@ -782,15 +941,28 @@ function checkedPlayerSettings(saved) {
     if (choice.choices.some(([value]) => value === saved[choice.key])) settings[choice.key] = saved[choice.key];
   }
   if (RANDOM_MUSIC.includes(saved.music)) settings.music = saved.music;
-  for (const slot of COLOR_SLOTS) {
-    if (isPickableColor(saved[slot.key])) settings[slot.key] = saved[slot.key];
+  for (const group of PLAYER_COLORS) {
+    for (const slot of group.slots) {
+      const allowed = isPickableColor(saved[slot.key]) && !(group.noRandom && saved[slot.key] === RANDOM_COLOR);
+      if (allowed) settings[slot.key] = saved[slot.key];
+    }
   }
   // Checked against metadata.levelWord when the panel is built (the worker sends the rule).
   if (typeof saved.levelWord === "string") settings.levelWord = saved.levelWord;
   if (typeof saved.bossSoundWord === "string") settings.bossSoundWord = saved.bossSoundWord;
-  // A set or Random needs the set this browser keeps (a settings file from another browser may not)
-  if (LINK_SPRITES.includes(saved.linkSprite) && (saved.linkSprite === LINK_SPRITE_LINK || loadLinkSpriteSet())) {
+  // The loaded set's choice needs the set this browser keeps (a settings file from another browser may
+  // not); a built-in set's is checked against the metadata when the row is built (linkSpriteRow).
+  if ((LINK_SPRITES.includes(saved.linkSprite) && (saved.linkSprite !== LINK_SPRITE_SET || loadLinkSpriteSet()))
+      || (typeof saved.linkSprite === "string" && saved.linkSprite.startsWith(LINK_SPRITE_BUILT_IN))) {
     settings.linkSprite = saved.linkSprite;
+  }
+  if (saved.linkSpriteSwap === "on" || saved.linkSpriteSwap === "off") settings.linkSpriteSwap = saved.linkSpriteSwap;
+  // A page saved before the choice: its own Link colors, if any, mean My own (player_settings.own_colors_picked).
+  if (saved.characterColors === CHARACTER_COLORS_SET || saved.characterColors === CHARACTER_COLORS_MINE) {
+    settings.characterColors = saved.characterColors;
+  } else if ([...TUNIC_SLOTS, ...LINK_COLOR_SLOTS].some((key) =>
+    settings[key] !== COLOR_SLOTS.find((slot) => slot.key === key).default)) {
+    settings.characterColors = CHARACTER_COLORS_MINE;
   }
   return settings;
 }
@@ -809,8 +981,17 @@ function savePlayerSettings() {
 function currentPlayerSettings(withSet = true) {
   const settings = { ...playerSettings };
   if (mode !== MULTIWORLD) for (const choice of MULTIWORLD_CHOICES) delete settings[choice.key];
+  // The swap only with a person set that has one (zora/rom/link_art.py has_swap); Random never swaps.
+  if (!linkSpriteHasSwap(settings.linkSprite)) settings.linkSpriteSwap = "off";
   if (mode === MULTIWORLD) {
     delete settings.linkSprite;
+    delete settings.linkSpriteSwap;
+    delete settings.characterColors;
+    for (const key of LINK_COLOR_SLOTS) delete settings[key];
+  } else if (settings.linkSprite.startsWith(LINK_SPRITE_BUILT_IN)) {
+    const builtIn = builtInLinkSpriteSet(settings.linkSprite);
+    settings.linkSprite = builtIn ? LINK_SPRITE_SET : LINK_SPRITE_LINK;
+    if (withSet && builtIn) settings.linkSpriteSet = builtIn;
   } else if (withSet && settings.linkSprite !== LINK_SPRITE_LINK) {
     settings.linkSpriteSet = loadLinkSpriteSet();
   }
@@ -837,7 +1018,6 @@ function buildLookPanel(panel) {
   for (const choice of PLAYER_CHOICES) if (choice.key !== "music") grid.append(choiceRow(choice));
   grid.append(levelWordRow());
   grid.append(bossSoundWordRow());
-  grid.append(linkSpriteRow());
   grid.append(element("h3", { className: "setting-heading", textContent: "Music" }));
   grid.append(musicRow(PLAYER_CHOICES.find((choice) => choice.key === "music")));
   for (const choice of MUSIC_CHOICES) {
@@ -848,22 +1028,42 @@ function buildLookPanel(panel) {
     grid.append(row);
   }
   grid.append(musicLibraryRow(), musicPlaylistRow());
-  grid.append(element("h3", { className: "setting-heading", textContent: "Colors" }));
+  // The playable character's sprite and its colors together: the sprite, then the tunic colors, the
+  // character's other colors (advanced, folded away), and the hearts.
+  grid.append(element("h3", { className: "setting-heading", textContent: "Playable character and colors" }));
+  grid.append(linkSpriteRow());
   const markerNote = element("p", { id: "marker-note", className: "panel-note color-note", textContent: MARKER_NOTE });
   for (const group of PLAYER_COLORS) {
-    for (const slot of group.slots) {
+    const rows = group.slots.map((slot) => {
       const host = element("span", { className: "setting-control" });
-      initColorPicker(host, {
+      const show = initColorPicker(host, {
         palette: NES_PALETTE, excluded: EXCLUDED_COLORS, value: playerSettings[slot.key],
-        label: `${group.heading}: ${slot.label}`, random: metadata.randomColor,
+        label: `${group.heading}: ${slot.label}`, random: group.noRandom ? null : metadata.randomColor,
         onChange: (index) => {
           playerSettings[slot.key] = index;
+          // A Link color picked is the player's own: the set's colors no longer apply.
+          if (TUNIC_SLOTS.includes(slot.key) || LINK_COLOR_SLOTS.includes(slot.key)) {
+            playerSettings.characterColors = CHARACTER_COLORS_MINE;
+          }
           savePlayerSettings();
-          showMarkerNote(markerNote);
+          showLinkSpriteInfo();
+          showColorChange(markerNote);
         },
       });
+      colorPickers.set(slot.key, show);
       host.querySelector(".color-picker-toggle").id = `player-${slot.key}`;
-      grid.append(settingRow(slot.label, slot.help, host).row);
+      return settingRow(slot.label, slot.help, host).row;
+    });
+    if (group.advanced) {
+      const advanced = element("details", { id: "link-colors-advanced", className: "advanced-colors single-only" },
+        element("summary", { textContent: `Advanced: ${group.heading}` }),
+        element("p", { className: "panel-note", textContent: "For sprite sets drawn in other colors. These " +
+          "also change the items and people the game draws in the playable character's colors." }),
+        element("div", { className: "setting-grid" }, ...rows));
+      advanced.open = LINK_COLOR_SLOTS.some((key, index) => playerSettings[key] !== metadata.linkSpriteSet.fixedColors[index]);
+      grid.append(advanced);
+    } else {
+      grid.append(...rows);
     }
     if (group.slots.some((slot) => TUNIC_SLOTS.includes(slot.key))) grid.append(markerNote);
   }
@@ -890,12 +1090,14 @@ function showMultiworldSettings() {
 // ---------------------------------------------------------------------------
 
 const MUSIC_PLAYLIST_KEY = "zora-music-playlist";
+const MUSIC_TAGGED_ONLY_KEY = "zora-music-playlist-tagged-only";   // the editor's Only show tagged tracks
 const MUSIC_LIBRARY_DB = "zora-music-library";     // IndexedDB: the local library's files, this browser only
 let musicSelect = null;
 let musicLibraryFiles = [];                         // [{name, bytes}], read from the files the player chose
 let musicPlaylist = loadMusicPlaylist();            // area key -> a song's title or "original"
 let musicPlaylistEditor = null;                     // the Playlist row's editor (hidden until opened)
 let musicPlaylistFills = 0;                         // the editor's fills so far: only the latest one shows
+let musicTaggedOnly = loadMusicTaggedOnly();        // the editor lists only the songs tagged for each area
 let musicLocked = false;                            // the ZORA flag Disable Custom Music is on
 let musicPlaylistSummary = null;                    // the Playlist row's "n areas pinned"
 let musicLibraryShown = null;                       // the Library row's list of files
@@ -962,7 +1164,7 @@ function musicLibraryRow() {
                           musicLibraryNotes);
   const { row } = settingRow("Library", "FtRandoLib library files (.json5), the format of Quantam's standard " +
     "library: FamiTracker modules with each song's title and the areas it fits (Title for the title screen; a " +
-    "library with no Title track plays an overworld one there). Zelda II Randomizer's libraries " +
+    "library with no Title track leaves the game's own title song there). Zelda II Randomizer's libraries " +
     "work too: their towns play on the overworld, palaces, caves and battles in levels 1-8, the great palace and " +
     "bosses in level 9, the credits at the ending. Recorded audio (MP3, WAV) and plain .ftm files cannot be used. " +
     "The files stay in this browser.", control);
@@ -1071,6 +1273,24 @@ function loadMusicPlaylist() {
   return {};
 }
 
+function loadMusicTaggedOnly() {
+  try { return pageStorage.getItem(MUSIC_TAGGED_ONLY_KEY) === "on"; } catch { return false; }
+}
+
+function saveMusicTaggedOnly() {
+  try { pageStorage.setItem(MUSIC_TAGGED_ONLY_KEY, musicTaggedOnly ? "on" : "off"); } catch { /* not remembered */ }
+}
+
+// The songs an area's select lists, each with its notes: every song, or under Only show tagged tracks
+// (TheGobOne's request, 2026-10-25) only those tagged for the area, and the pinned one whatever it is,
+// so a pin never disappears from its select.
+function playlistChoices(area, songs, taggedOnly, pinned) {
+  return songs.map((song) => ({ song, tagged: area.uses.some((use) => song.uses.includes(use)) }))
+    .filter(({ song, tagged }) => tagged || !taggedOnly || song.title === pinned)
+    .map(({ song, tagged }) => ({ song, notes: [tagged ? "" : "not tagged for this area",
+                                                song.safe ? "" : "unsafe for streaming"].filter(Boolean) }));
+}
+
 function saveMusicPlaylist() {
   try { pageStorage.setItem(MUSIC_PLAYLIST_KEY, JSON.stringify(musicPlaylist)); } catch { /* not remembered */ }
 }
@@ -1130,8 +1350,9 @@ function refreshMusicPlaylistEditor() {
   if (musicPlaylistEditor && !musicPlaylistEditor.hidden && randomMusicChosen()) fillMusicPlaylistEditor(musicPlaylistEditor);
 }
 
-// One select per area: Random, Original, then the chosen library's songs (a song unsafe for streaming
-// disabled while Streaming-safe tracks only is on; one not tagged for the area marked so).
+// Only show tagged tracks, then one select per area: Random, Original, then the chosen library's songs
+// (playlistChoices: a song unsafe for streaming disabled while Streaming-safe tracks only is on; one
+// not tagged for the area marked so, or left out under Only show tagged tracks).
 async function fillMusicPlaylistEditor(editor) {
   const source = playerSettings.music === "random-local" ? "local" : "standard";
   const fill = ++musicPlaylistFills;
@@ -1149,17 +1370,21 @@ async function fillMusicPlaylistEditor(editor) {
   }
   if (fill !== musicPlaylistFills) return;      // a newer fill (another library or switch) replaces this one
   const safeOnly = playerSettings.musicStreamingSafeOnly !== "off";
+  const taggedOnly = element("input", { type: "checkbox", id: "music-tagged-only", checked: musicTaggedOnly });
+  taggedOnly.addEventListener("change", () => {
+    musicTaggedOnly = taggedOnly.checked;
+    saveMusicTaggedOnly();
+    fillMusicPlaylistEditor(editor);
+  });
   const rows = areas.map((area) => {
     const select = element("select", { className: "select", ariaLabel: `Playlist: ${area.label}` });
     select.append(element("option", { value: "random", textContent: "Random" }),
                   element("option", { value: "original", textContent: "Original" }));
-    for (const song of songs) {
-      const notes = [area.uses.some((use) => song.uses.includes(use)) ? "" : "not tagged for this area", song.safe ? "" : "unsafe for streaming"]
-        .filter(Boolean);
+    const pinned = musicPlaylist[area.key];
+    for (const { song, notes } of playlistChoices(area, songs, musicTaggedOnly, pinned)) {
       select.append(element("option", { value: song.title, disabled: safeOnly && !song.safe,
                                         textContent: notes.length ? `${song.title} (${notes.join("; ")})` : song.title }));
     }
-    const pinned = musicPlaylist[area.key];
     // A pin the chosen library does not have stays visible (generating would refuse it), not shown as Random.
     if (pinned && pinned !== "original" && !songs.some((song) => song.title === pinned)) {
       select.append(element("option", { value: pinned, textContent: `${pinned} (not in this library)` }));
@@ -1173,7 +1398,8 @@ async function fillMusicPlaylistEditor(editor) {
     });
     return element("label", { className: "music-playlist-area" }, element("span", { textContent: area.label }), select);
   });
-  editor.replaceChildren(...rows);
+  editor.replaceChildren(element("label", { className: "music-tagged-only" }, taggedOnly, " Only show tagged tracks"),
+                         ...rows);
 }
 
 async function importMusicPlaylist(input, editor) {
@@ -1314,16 +1540,23 @@ function wordChoiceRow({ key, name, help, maxLength, defaultWord, options, probl
   return row;
 }
 
-// The Link sprite (FP-LINK-02; zora/rom/link_sprite.py): PRG0's Link, a set the player loads (a JSON
-// file, docs/link-sprite-sets.md), or Random, offered only with a set: Link or the set, picked by the
-// seed number. ZORA ships no sets yet. The set is kept in this browser (not in the settings file,
-// which keeps the choice); Python checks it again when a seed is made. Single player only.
-const LINK_SPRITE_HELP = "Who Link looks like: the original Link, or a sprite set you load (a .json sprite-set " +
-  "file with a name, an author and 640 bytes of tile art). Random: the original Link or your set, picked by the " +
-  "seed number. A set changes only how Link is drawn, in play, on the title story and on the file-select " +
-  "screen; his tunic keeps the tunic color.";
+// The Link sprite (FP-LINK-02; zora/rom/link_sprite.py): PRG0's Link, one of ZORA's built-in sets
+// (metadata.linkSpriteSet.builtIn), a set the player loads (a JSON file, docs/link-sprite-sets.md), or
+// Random: Link, a built-in set or the loaded one, picked by the seed number. The loaded set is kept in
+// this browser (not in the settings file, which keeps the choice); Python checks it again when a seed
+// is made. Single player only.
+const PLAYABLE_CHARACTER = "Playable character";
+const LINK_SPRITE_HELP = "Who you play as: Link, one of ZORA's sprite sets, or a sprite set you load (a .json " +
+  "sprite-set file with a name, an author and 640 bytes of tile art). Random: Link, one of ZORA's sets or yours, " +
+  "picked by the seed number. A set changes only how the character is drawn, in play, on the title story and on " +
+  "the file-select screen. A set drawn for its own colors gets them unless you pick your own (Playable " +
+  "character's colors, under the sprite): its other two colors, and its tunic colors too when its first color " +
+  "draws the character rather than clothing.";
 
 class LinkSpriteSetError extends Error {}
+
+const COLOR_ONE_CLOTHING = "clothing";
+const COLOR_ONE_ART = "art";
 
 // A sprite-set file's object, checked as Python checks it (zora/rom/link_sprite.py sprite_set_from_object):
 // the format and version, a name and an author, and exactly metadata.linkSpriteSet.size bytes of tiles.
@@ -1349,8 +1582,37 @@ function checkedLinkSpriteSet(data, rule) {
   if (size !== rule.size) {
     throw new LinkSpriteSetError(`a Link sprite set holds exactly ${rule.size} bytes of tile data, not ${size}`);
   }
+  const colors = data.recommendedColors;
+  const color = (value) => Number.isInteger(value) && value >= 0 && value < NES_PALETTE.length && value !== BLACKER_THAN_BLACK;
+  const recommended = colors && Array.isArray(colors.tunics) && colors.tunics.length === 3 && Array.isArray(colors.other)
+    && colors.other.length === 2 && [...colors.tunics, ...colors.other].every(color)
+    ? { tunics: colors.tunics, other: colors.other } : undefined;
+  if (recommended && colors.colorOne !== undefined) {
+    if (colors.colorOne !== COLOR_ONE_CLOTHING && colors.colorOne !== COLOR_ONE_ART) {
+      throw new LinkSpriteSetError(`a Link sprite set's color 1 ("colorOne") is "${COLOR_ONE_CLOTHING}" or ` +
+                                   `"${COLOR_ONE_ART}", not ${String(colors.colorOne)}`);
+    }
+    if (colors.colorOne === COLOR_ONE_ART) recommended.colorOne = COLOR_ONE_ART;
+  }
+  const fromGame = data.fromGame === undefined ? [] : data.fromGame;
+  const tiles = Uint8Array.from(atob(data.tiles), (character) => character.charCodeAt(0));
+  if (!Array.isArray(fromGame) || !fromGame.every((pair) => Array.isArray(pair) && pair.length === 2)) {
+    throw new LinkSpriteSetError('a Link sprite set\'s "fromGame" is a list of [start, end] pairs');
+  }
+  let previousEnd = 0;
+  for (const [start, end] of fromGame) {
+    if (!(Number.isInteger(start) && Number.isInteger(end) && previousEnd <= start && start < end && end <= rule.size)) {
+      throw new LinkSpriteSetError(`a Link sprite set's "fromGame" ranges lie in order inside its ${rule.size} bytes, ` +
+                                   `apart: not [${start}, ${end}]`);
+    }
+    if (tiles.subarray(start, end).some((byte) => byte)) {
+      throw new LinkSpriteSetError(`a Link sprite set holds zeros where "fromGame" takes the game's bytes (${start} to ${end})`);
+    }
+    previousEnd = end;
+  }
   return { format: data.format, version: data.version, name: data.name, author: data.author,
-           provenance: typeof data.provenance === "string" ? data.provenance : "", tiles: data.tiles };
+           provenance: typeof data.provenance === "string" ? data.provenance : "", tiles: data.tiles,
+           ...(recommended ? { recommendedColors: recommended } : {}), ...(fromGame.length ? { fromGame } : {}) };
 }
 
 function loadLinkSpriteSet() {
@@ -1360,28 +1622,40 @@ function loadLinkSpriteSet() {
   } catch { return null; }
 }
 
+// A built-in set by its choice (LINK_SPRITE_BUILT_IN and its id), or null.
+function builtInLinkSpriteSet(choice) {
+  const id = choice.slice(LINK_SPRITE_BUILT_IN.length);
+  return (metadata ? metadata.linkSpriteSet.builtIn : []).find((set) => set.id === id) || null;
+}
+
 function linkSpriteRow() {
   const set = loadLinkSpriteSet();
-  const options = [{ value: LINK_SPRITE_LINK, label: "Link" }];
-  if (set) {
-    options.push({ value: LINK_SPRITE_SET, label: `${set.name}, by ${set.author}` },
-                 { value: LINK_SPRITE_RANDOM, label: "Random" });
-  }
+  const options = [{ value: LINK_SPRITE_LINK, label: "Link (original)" },
+                   ...metadata.linkSpriteSet.builtIn.map((builtIn) => ({
+                     value: LINK_SPRITE_BUILT_IN + builtIn.id, label: builtIn.name }))];
+  if (set) options.push({ value: LINK_SPRITE_SET, label: `${set.name} (yours)` });
+  options.push({ value: LINK_SPRITE_RANDOM, label: "Random" });
   if (!options.some((option) => option.value === playerSettings.linkSprite)) playerSettings.linkSprite = LINK_SPRITE_LINK;
-  const select = selectControl("player-linkSprite", "Link sprite", options, () => {
+  const select = selectControl("player-linkSprite", PLAYABLE_CHARACTER, options, () => {
     playerSettings.linkSprite = select.value;
     savePlayerSettings();
+    showLinkSpriteInfo();
+    refreshLinkSpritePreview();
+    refreshLinkSpriteSwap();
   });
   select.value = playerSettings.linkSprite;
   const file = element("input", { type: "file", id: "player-linkSprite-file", hidden: true, accept: ".json,application/json" });
   const load = element("button", { type: "button", id: "player-linkSprite-load", className: "btn btn-tint btn-small",
                                    textContent: "Load a set…" });
   load.addEventListener("click", () => file.click());
-  const shown = element("span", { id: "player-linkSprite-set", className: "panel-note link-sprite-set",
-    textContent: set ? `Loaded: ${set.name}, by ${set.author}.${set.provenance ? ` ${set.provenance}` : ""}` : "" });
-  const control = element("span", { className: "link-sprite-control" }, select, load, file, shown);
-  const { row, reason } = settingRow("Link sprite", LINK_SPRITE_HELP, control);
+  const control = element("span", { className: "link-sprite-control" }, select, load, file);
+  const { row, reason } = settingRow(PLAYABLE_CHARACTER, LINK_SPRITE_HELP, control);
   row.classList.add("single-only");
+  // Under the row: who drew the sprite and the colors it was drawn for (left), the preview (right).
+  row.append(element("div", { className: "link-sprite-details" },
+                     element("div", { id: "link-sprite-info", className: "link-sprite-info" }), linkSpritePreview()),
+             linkSpriteSwapControl());
+  showLinkSpriteInfo(row.querySelector("#link-sprite-info"));
   file.addEventListener("change", async () => {
     const chosen = file.files[0];
     file.value = "";
@@ -1407,11 +1681,249 @@ function linkSpriteRow() {
   return row;
 }
 
+// A person set that can also draw the person as Link (its "swap").
+function linkSpriteHasSwap(choice) {
+  const set = chosenLinkSpriteSet(choice);
+  return Boolean(set && Array.isArray(set.swap) && set.swap.length);
+}
+
+// Under the sprite: the swap's checkbox, shown only for a person set that has one.
+function linkSpriteSwapControl() {
+  const box = element("input", { type: "checkbox", id: "player-linkSpriteSwap" });
+  const text = element("span");
+  const label = element("label", { id: "link-sprite-swap", className: "link-sprite-swap" }, box, text);
+  box.addEventListener("change", () => {
+    playerSettings.linkSpriteSwap = box.checked ? "on" : "off";
+    savePlayerSettings();
+  });
+  refreshLinkSpriteSwap(label);
+  return label;
+}
+
+function refreshLinkSpriteSwap(label = $("link-sprite-swap")) {
+  if (!label) return;
+  const set = chosenLinkSpriteSet(playerSettings.linkSprite);
+  label.hidden = !linkSpriteHasSwap(playerSettings.linkSprite);
+  label.querySelector("input").checked = !label.hidden && playerSettings.linkSpriteSwap === "on";
+  label.querySelector("span").textContent = set ? ` Swap: ${set.name} also looks like Link` : "";
+  label.title = "The person you play as also takes Link's place where the game draws them. " +
+                "Off by default; Random never swaps.";
+}
+
+// The chosen sprite's set (built-in or loaded), or null (Link, Random).
+function chosenLinkSpriteSet(choice) {
+  if (choice.startsWith(LINK_SPRITE_BUILT_IN)) return builtInLinkSpriteSet(choice);
+  return choice === LINK_SPRITE_SET ? loadLinkSpriteSet() : null;
+}
+
+function colorSwatch(color) {
+  const swatch = element("span", { className: "link-sprite-swatch", title: `$${color.toString(16).toUpperCase().padStart(2, "0")}` });
+  swatch.style.background = NES_PALETTE[color];
+  return swatch;
+}
+
+// Who drew the chosen sprite, and the colors it was drawn for with a button that applies them.
+function showLinkSpriteInfo(info = $("link-sprite-info")) {
+  if (!info) return;
+  const choice = playerSettings.linkSprite;
+  const set = chosenLinkSpriteSet(choice);
+  if (!set) {
+    info.replaceChildren(element("p", { className: "panel-note", textContent: choice === LINK_SPRITE_RANDOM
+      ? "The original Link, one of ZORA's sets or yours, picked by the seed number." : "The original Link." }),
+      ...(choice === LINK_SPRITE_RANDOM ? [characterColorsControl(null)] : []));
+    return;
+  }
+  const lines = [element("p", { className: "link-sprite-artist" }, "By ", element("strong", { textContent: set.author }),
+                         choice === LINK_SPRITE_SET ? " (your set)" : "")];
+  if (choice === LINK_SPRITE_SET && set.provenance) lines.push(element("p", { className: "panel-note", textContent: set.provenance }));
+  const recommended = set.recommendedColors;
+  if (recommended) {
+    lines.push(element("div", { className: "link-sprite-colors" },
+      element("span", { className: "panel-note", textContent: "Drawn for: tunics" }),
+      ...recommended.tunics.map(colorSwatch),
+      element("span", { className: "panel-note", textContent: "other colors" }),
+      ...recommended.other.map(colorSwatch)));
+    lines.push(characterColorsControl(recommended));
+  }
+  info.replaceChildren(...lines);
+}
+
+// Playable character's colors: the set's own (the default) or the player's tunic and other colors.
+function characterColorsControl(recommended) {
+  const label = "Playable character's colors";
+  const select = selectControl("player-characterColors", label, [
+    { value: CHARACTER_COLORS_SET, label: "The set's own" }, { value: CHARACTER_COLORS_MINE, label: "My own" }], () => {
+    playerSettings.characterColors = select.value;
+    savePlayerSettings();
+    showColorChange($("marker-note"));
+  });
+  select.value = playerSettings.characterColors;
+  select.title = !recommended
+    ? "The set's own: the colors the seed's set was drawn for, if it has any. My own: your tunic and other colors."
+    : recommended.colorOne === COLOR_ONE_ART
+    ? "The set's own: all five colors above, its first color drawing the character, not clothing. My own: your tunic and other colors."
+    : "The set's own: its other two colors, with your tunic colors. My own: your tunic and other colors.";
+  return element("label", { className: "link-sprite-colors" }, `${label}: `, select);
+}
+
+// The tunic colors and other colors the ROM gets (zora/rom/player_settings.py shown_link_colors): the
+// player's, or a chosen set's own (its other colors, and its tunics when its color 1 is art).
+function shownLinkColors(set) {
+  const mine = { tunics: TUNIC_SLOTS.map((key) => playerSettings[key]), other: LINK_COLOR_SLOTS.map((key) => playerSettings[key]) };
+  const recommended = set && set.recommendedColors;
+  if (playerSettings.characterColors === CHARACTER_COLORS_MINE || !recommended) return mine;
+  return { tunics: recommended.colorOne === COLOR_ONE_ART ? recommended.tunics : mine.tunics, other: recommended.other };
+}
+
+// A color changed: the map-marker note and the sprite preview.
+function showColorChange(markerNote) {
+  if (markerNote) showMarkerNote(markerNote);
+  refreshLinkSpritePreview();
+}
+
+// The Link sprite's preview: the main pose (walking down, with the small shield) in each tunic color, as the
+// game draws it: color 1 the tunic, colors 2 and 3 Link's other colors (the game's unless changed).
+// The original Link is read from the player's ROM (its Link groups), so it shows once a ROM is chosen.
+const PREVIEW_HALVES = [17, 5];         // the set's 8x16 halves: tile $58 (left, the shield) and $0A (right)
+const PREVIEW_SCALE = 4;
+const TUNIC_NAMES = { greenTunic: "Green tunic", blueRingTunic: "Blue ring", redRingTunic: "Red ring" };
+
+function base64Bytes(text) {
+  return Uint8Array.from(atob(text), (character) => character.charCodeAt(0));
+}
+
+// The file offsets in metadata count the 16-byte iNES header; a ROM file without one sits 16 bytes earlier.
+function headerShift(rom) {
+  return rom[0] === 0x4E && rom[1] === 0x45 && rom[2] === 0x53 && rom[3] === 0x1A ? 0 : -16;
+}
+
+// A built-in-art set's 640 bytes, assembled from the player's ROM as Python assembles them
+// (zora/rom/link_art.py art_tiles): each of Link's halves is a source half's two tiles, mirrored if
+// asked, its colors 1-3 becoming the set's colors; color 0 stays transparent.
+function artSetTiles(set, rom) {
+  const art = metadata.linkSpriteSet.art;
+  const header = headerShift(rom);
+  const colors = set.colors || [1, 2, 3];
+  const tiles = new Uint8Array(art.halves.length * 32);
+  art.halves.forEach((name, index) => {
+    const half = set.halves[name];
+    const [offset, firstTile] = art.blocks[half.block];
+    const source = offset + header + (parseInt(half.tile.slice(1), 16) - firstTile) * 16;
+    for (let tile = 0; tile < 2; tile++) {
+      for (let row = 0; row < 8; row++) {
+        const low = rom[source + tile * 16 + row];
+        const high = rom[source + tile * 16 + 8 + row];
+        for (let column = 0; column < 8; column++) {
+          const bit = 7 - column;
+          let color = ((low >> bit) & 1) | (((high >> bit) & 1) << 1);
+          if (color) color = colors[color - 1];
+          const to = half.mirror ? column : bit;
+          tiles[index * 32 + tile * 16 + row] |= (color & 1) << to;
+          tiles[index * 32 + tile * 16 + 8 + row] |= (color >> 1) << to;
+        }
+      }
+    }
+  });
+  return tiles;
+}
+
+// The 640 bytes the current choice draws Link from, or null (Random, or the original or a built-in-art
+// set without a ROM).
+function linkSpritePreviewTiles(choice) {
+  if (choice.startsWith(LINK_SPRITE_BUILT_IN)) {
+    const builtIn = builtInLinkSpriteSet(choice);
+    if (builtIn && builtIn.format === metadata.linkSpriteSet.art.format) {
+      return baseRom ? artSetTiles(builtIn, baseRom) : null;
+    }
+    return builtIn ? setTiles(builtIn) : null;
+  }
+  if (choice === LINK_SPRITE_SET) {
+    const set = loadLinkSpriteSet();
+    return set ? setTiles(set) : null;
+  }
+  if (choice === LINK_SPRITE_LINK && baseRom) {
+    const header = headerShift(baseRom);
+    return Uint8Array.from(metadata.linkSpriteSet.groups.flatMap(([offset, tiles]) =>
+      [...baseRom.subarray(offset + header, offset + header + tiles * 16)]));
+  }
+  return null;
+}
+
+// A 640-byte set's tiles, its fromGame ranges read from the player's ROM's own Link (zora/rom/link_art.py
+// sprite_set_tiles), or null when it has some and no ROM is chosen.
+function setTiles(set) {
+  const tiles = base64Bytes(set.tiles);
+  if (!set.fromGame || !set.fromGame.length) return tiles;
+  if (!baseRom) return null;
+  const original = linkSpritePreviewTiles(LINK_SPRITE_LINK);
+  for (const [start, end] of set.fromGame) tiles.set(original.subarray(start, end), start);
+  return tiles;
+}
+
+// One 16x16 frame of a set's tiles as rows of color indexes (0-3).
+function previewFrame(tiles) {
+  const rows = Array.from({ length: 16 }, () => []);
+  for (const half of PREVIEW_HALVES) {
+    for (let y = 0; y < 16; y++) {
+      const tile = (2 * half + (y >> 3)) * 16;
+      const low = tiles[tile + (y & 7)];
+      const high = tiles[tile + 8 + (y & 7)];
+      for (let x = 0; x < 8; x++) rows[y].push(((low >> (7 - x)) & 1) | (((high >> (7 - x)) & 1) << 1));
+    }
+  }
+  return rows;
+}
+
+function drawPreview(canvas, frame, tunic, other) {
+  const context = canvas.getContext("2d");
+  const colors = [null, NES_PALETTE[tunic], ...other.map((color) => NES_PALETTE[color])];
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  frame.forEach((row, y) => row.forEach((index, x) => {
+    if (!index) return;
+    context.fillStyle = colors[index];
+    context.fillRect(x * PREVIEW_SCALE, y * PREVIEW_SCALE, PREVIEW_SCALE, PREVIEW_SCALE);
+  }));
+}
+
+function linkSpritePreview() {
+  const figures = TUNIC_SLOTS.map((key) => element("figure", { className: "link-preview-figure" },
+    element("canvas", { width: 16 * PREVIEW_SCALE, height: 16 * PREVIEW_SCALE, ariaLabel: TUNIC_NAMES[key] }),
+    element("figcaption", { textContent: TUNIC_NAMES[key] })));
+  const note = element("p", { className: "panel-note link-preview-note" });
+  const preview = element("div", { id: "link-sprite-preview", className: "link-preview" },
+                          element("div", { className: "link-preview-figures" }, ...figures), note);
+  refreshLinkSpritePreview(preview);
+  return preview;
+}
+
+// Redraws the preview (the choice, a tunic color or the ROM changed).
+function refreshLinkSpritePreview(preview = $("link-sprite-preview")) {
+  if (!preview) return;
+  const tiles = linkSpritePreviewTiles(playerSettings.linkSprite);
+  const figures = preview.querySelector(".link-preview-figures");
+  const note = preview.querySelector(".link-preview-note");
+  figures.hidden = tiles === null;
+  note.textContent = tiles !== null ? ""
+    : playerSettings.linkSprite === LINK_SPRITE_RANDOM ? "Random: the seed number picks the sprite, so there is no preview."
+    : playerSettings.linkSprite === LINK_SPRITE_LINK ? "Choose your ROM to preview the original Link."
+    : "Choose your ROM to preview this sprite: it is drawn from your ROM's own art.";
+  if (tiles === null) return;
+  const frame = previewFrame(tiles);
+  const shown = shownLinkColors(chosenLinkSpriteSet(playerSettings.linkSprite));
+  const randomTunic = shown.tunics.some((color) => color === RANDOM_COLOR);
+  if (randomTunic) note.textContent = "A Random tunic color shows here in its default color.";
+  TUNIC_SLOTS.forEach((key, index) => {
+    const color = shown.tunics[index] === RANDOM_COLOR ? COLOR_SLOTS.find((slot) => slot.key === key).default
+      : shown.tunics[index];
+    drawPreview(figures.children[index].querySelector("canvas"), frame, color, shown.other);
+  });
+}
+
 // The map marker note (docs/reports/minimap-marker.md): shown while any tunic color is one
 // zora/ draws the marker in Link's skin color for (metadata.markerHidingColors, the same set).
 const MARKER_NOTE = "Note: Because one of the selected tunic colors is dark, the player's minimap color " +
                     "will be lighter to ensure it stays visible.";
-const TUNIC_SLOTS = ["greenTunic", "blueRingTunic", "redRingTunic"];
+const colorPickers = new Map();         // color slot key -> its picker's show(value) (initColorPicker)
 
 function showMarkerNote(note) {
   note.hidden = !TUNIC_SLOTS.some((key) => metadata.markerHidingColors.includes(playerSettings[key]));
@@ -1892,6 +2404,7 @@ function showState(state, { rewrite, start = false, name = "" }) {
   for (const [id, control] of controls) showField(id, control, state.fields[id]);
   $("start-limit-note").hidden = !startItemsAllDropped(startRules, state.fields);
   showZoraState(state.zora, { rewrite });
+  showFlagSummary(state);
 
   showProblems();
   updateLink();
@@ -2026,6 +2539,7 @@ function updateLink() {
 
 let mode = sharedLink.mode;
 let linkSeed = sharedLink.seed;     // the seed the address names: the link's, then each generation's
+let seedTyped = false;              // the player typed the seed (or a link named it): never replaced
 let multiworldVerdict = null;   // zora_web.multiworld.check() for the current settings, in multiworld mode
 let multiworldRequest = 0;
 let playerNameProblem = "type a player name";
@@ -2139,6 +2653,7 @@ async function onExport() {
 function randomSeed() {
   const [value] = crypto.getRandomValues(new Uint32Array(1));
   $("seed").value = String(value || 1);
+  seedTyped = false;
   updateButton();
 }
 
@@ -2212,6 +2727,7 @@ async function useRom(name, read) {
     status(shown.status, "error");
   }
   updateButton();
+  refreshLinkSpritePreview();
   return identity.recognized ? data : null;
 }
 
@@ -2272,6 +2788,7 @@ async function onForgetRom() {
 
 function resetRomStep() {
   baseRom = null;
+  refreshLinkSpritePreview();
   romIdentity = null;
   $("rom").value = "";
   $("rom-label").textContent = ROM_LABEL;
@@ -2285,10 +2802,12 @@ function resetRomStep() {
 
 // Generate one seed in the worker; resolves to the finished ROM bytes.
 // Also used by the measurement run described in docs/packaging.md.
-async function generateSeed(seed, flags = form.flags, zoraFlags = form.zora.flags) {
+// limitMs: stop generating after this long (GenerationStopped); none for the measurement run.
+async function generateSeed(seed, flags = form.flags, zoraFlags = form.zora.flags, limitMs = null) {
   const settings = currentPlayerSettings();
   const random = RANDOM_MUSIC.includes(settings.music);
   const result = await ask("generate", { bytes: baseRom, seed: String(seed), flags, zoraFlags, playerSettings: settings,
+                                         limit: limitMs === null ? null : limitMs / 1000,
                                          musicLibraries: random && settings.music === "random-local" ? musicLibraryFiles : null,
                                          musicPlaylist: random ? musicPlaylistText() : null });
   window.zoraTimings.seeds.push({ seed: String(seed), ms: result.ms });
@@ -2427,7 +2946,7 @@ function seedCodeItem(name, pixels) {
   return item;
 }
 
-// "Copy bug-report info" (owner's triage, 2026-10-17): one block a player pastes into a bug report,
+// "Copy bug report info" (owner's triage, 2026-10-17): one block a player pastes into a bug report,
 // enough to make the same game again: the page's version, the seed, both flag strings as asked for
 // (the page never shows what Random resolved to), the ROM and the seed code as its item names.
 function bugReportText(info) {
@@ -2481,10 +3000,10 @@ function copyButton(id, label, text, copied) {
   return button;
 }
 
-// "Copy bug-report info", "Copy race info", then "Copy seed code" when the seed has one.
+// "Copy bug report info", "Copy race info", then "Copy seed code" when the seed has one.
 function addCopyButtons(info) {
-  $("download").append(copyButton("copy-bug-report", "Copy bug-report info", bugReportText(info),
-                                  "Bug-report info copied. Paste it into your report."),
+  $("download").append(copyButton("copy-bug-report", "Copy bug report info", bugReportText(info),
+                                  "Bug report info copied. Paste it into your report."),
                        copyButton("copy-race-info", "Copy race info", raceInfoText(info),
                                   "Race info copied. Paste it into your race channel."));
   if (info.code.length) {
@@ -2520,6 +3039,30 @@ function musicResult(result, hidden) {
   return music;
 }
 
+// One seed within GENERATION_LIMIT_MS: a page-chosen seed that runs out of time or fails is replaced
+// by a new one while time is left (the seed box shows each); a typed seed is tried once.
+async function generateWithinLimit() {
+  const started = performance.now();
+  for (;;) {
+    const seed = $("seed").value.trim();
+    const left = GENERATION_LIMIT_MS - (performance.now() - started);
+    try {
+      return await generateSeed(seed, form.flags, form.zora.flags, seedTyped ? left : Math.min(left, CHOSEN_SEED_MS));
+    } catch (err) {
+      const replaceable = !seedTyped && (STOPPED.test(err.message) || GENERATION_FAILED.test(err.message));
+      if (!replaceable || GENERATION_LIMIT_MS - (performance.now() - started) < RETRY_MIN_MS) {
+        if (!STOPPED.test(err.message)) throw err;
+        throw new Error(seedTyped
+          ? `Seed ${seed} took longer than ${GENERATION_LIMIT_MS / 1000} s to generate. Try another seed.`
+          : `No seed was ready within ${GENERATION_LIMIT_MS / 1000} s with these settings. Press Generate to `
+            + "try again, or change the settings.");
+      }
+      randomSeed();
+      status(`Generating seed ${$("seed").value}…`);
+    }
+  }
+}
+
 async function onGenerate() {
   const seed = $("seed").value.trim();
   // What the player asked for. Owner ruling: the page never shows what a
@@ -2540,7 +3083,7 @@ async function onGenerate() {
   markStepDone("step-generate-num", 3, false);
   status(`Generating seed ${seed}…`);
   try {
-    const result = await generateSeed(seed);
+    const result = await generateWithinLimit();
     const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/octet-stream" }));
     const name = `zora-seed-${result.seed}${requested.encoded ? "-encoded" : ""}${result.tracks ? "-music" : ""}.nes`;
     $("download").append(element("a", { id: "download-link", className: "btn btn-teal", href: url,
@@ -2602,7 +3145,7 @@ $("presets").addEventListener("click", (event) => {
   const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
   if (event.target === $("presets") && outside) closePresets();
 });
-$("seed").addEventListener("input", onSeedChanged);
+$("seed").addEventListener("input", () => { seedTyped = true; onSeedChanged(); });
 $("new-seed").addEventListener("click", () => { randomSeed(); onSeedChanged(); });
 $("flags").addEventListener("input", onFlagsTyped);
 $("flags").addEventListener("change", onFlagsCommitted);
@@ -2615,10 +3158,41 @@ $("player-name").value = savedPlayerName();
 $("player-name").addEventListener("input", checkPlayerName);
 $("player-name").addEventListener("blur", () => { nameTouched = true; checkPlayerName(); });
 $("export").addEventListener("click", onExport);
+// The hero graphic comes up out of the water (owner, 2026-10-30): the masthead's waves stretch with the
+// window and the hero is centred, so the water's height under the logo changes with the width. Read the front
+// wave's surface under the logo from its own shape (isPointInFill, in the waves' viewBox) and move the logo
+// so the wave's lowest point under it covers HERO_LOGO_DIP of its height; a transform, so the layout never moves.
+const HERO_LOGO_DIP = 0.05;
+const HERO_LOGO_SAMPLES = [0.3, 0.5, 0.7];          // across the logo's width, where its foot is
+
+function tuckHeroLogo() {
+  const logo = document.querySelector(".hero-logo");
+  const waves = document.querySelector(".masthead .waves");
+  const front = waves && waves.querySelector(".wave-1");
+  if (!logo || !front || !logo.complete || !logo.naturalWidth) return;
+  logo.style.transform = "";
+  const box = waves.getBoundingClientRect(), logoBox = logo.getBoundingClientRect(), view = waves.viewBox.baseVal;
+  const surfaceAt = (fraction) => {
+    const x = (logoBox.left + logoBox.width * fraction - box.left) * view.width / box.width;
+    let y = 0;
+    while (y < view.height && !front.isPointInFill(new DOMPoint(x, y))) y += 0.5;
+    return box.top + y * box.height / view.height;
+  };
+  const lowestSurface = Math.max(...HERO_LOGO_SAMPLES.map(surfaceAt));
+  logo.style.transform = `translateY(${lowestSurface + logoBox.height * HERO_LOGO_DIP - logoBox.bottom}px)`;
+}
+
 showWorldLinks();
 if (mode === MULTIWORLD) setMode(MULTIWORLD);
+document.querySelector(".hero-logo")?.addEventListener("load", tuckHeroLogo);
+window.addEventListener("resize", tuckHeroLogo);
+document.fonts?.ready.then(tuckHeroLogo);
+tuckHeroLogo();
 randomSeed();
-if (linkSeed) $("seed").value = linkSeed;            // a shared link's seed (single player)
+if (linkSeed) {                                      // a shared link's seed (single player)
+  $("seed").value = linkSeed;
+  seedTyped = true;
+}
 const bootStart = performance.now();
 if (EMBEDDED_INFO) {
   worker.postMessage({ type: "init", version: PYODIDE_VERSION, wheelBytes: embeddedWheel(), classic: true });

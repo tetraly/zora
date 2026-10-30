@@ -13,7 +13,12 @@
 
 # --- Free space in PRG0 --------------------------------------------------------------------------
 # The linker gaps each bank's code leaves before its ISR copy at $BF50 ($FF-filled), and PRG0's
-# unused $FF runs. Each row is $FF in PRG0 (checked).
+# unused $FF runs. Each row is $FF in PRG0 and in PRG1 (checked: PRG1's title-screen data runs to
+# $AD53, so bank 6's gap starts at $AD54). A run inside the disassembly's own segments
+# (`inside_code = true`) takes Python sites and in-place hooks; the linker cannot put a segment
+# there, so the builders never place one in it. Each such row was checked against ld65's map of the
+# pinned disassembly (2026-10-26): it lies within a segment's load extent (BANK_nn_00, or bank 1's
+# BANK_01_CODE copied to RAM); every other row is a gap between segments.
 
 [[free]]
 bank = 0
@@ -32,18 +37,21 @@ bank = 1
 first = 0x9ED4
 last = 0x9FFF
 what = "PRG0's $FF block after DemoBackgroundPatterns"
+inside_code = true
 
 [[free]]
 bank = 1
 first = 0xA423
 last = 0xA4FF
 what = "PRG0's $FF block before CommonCodeBlock_Bank1"
+inside_code = true
 
 [[free]]
 bank = 1
 first = 0xB751
 last = 0xB76F
 what = "$FF in the part of bank 1 copied to RAM ($7EE1-$7EFF there)"
+inside_code = true
 
 [[free]]
 bank = 1
@@ -57,6 +65,37 @@ first = 0xAF90
 last = 0xBF4F
 what = "bank 2's linker gap"
 
+# Bank 2's three "Unknown block"s of $FF (nothing references them; the same bytes in PRG0 and PRG1).
+# Verified 2026-10-26 by filling all three with $02 (JAM: cynes stops if one is ever executed) and
+# comparing every step with the ROM as built (console and cartridge RAM, the PPU's pattern tables
+# and nametables, the frame; every 30 frames in the title demo and the ending): the title demo,
+# registering, elimination, a level, Up + A save and reload, the whole ending with both credits rolls
+# and the Randomizer Staff box, the statistics screen and the save after the ending, each with the
+# quest number 0 and 1, on PRG0 and PRG1, with the original music and Music: Random, for the MVP
+# baseline and 2nd Quest dungeons (C02 = 1): no difference in 16 runs. The same check flags
+# $89E7-$89FE, also $FF in PRG0, which is tile data inside CommonBackgroundPatterns (not free).
+
+[[free]]
+bank = 2
+first = 0x8F5F
+last = 0x8FFF
+what = "PRG0's $FF block after CommonMiscPatterns"
+inside_code = true
+
+[[free]]
+bank = 2
+first = 0x9BD7
+last = 0x9CFF
+what = "PRG0's $FF block after AnimateDemoPhase0Subphase1"
+inside_code = true
+
+[[free]]
+bank = 2
+first = 0xA830
+last = 0xA8FF
+what = "PRG0's $FF block after StoreSaveSlotHearts"
+inside_code = true
+
 [[free]]
 bank = 3
 first = 0xABDB
@@ -68,6 +107,7 @@ bank = 4
 first = 0xAFD0
 last = 0xAFDE
 what = "PRG0's $FF run"
+inside_code = true
 
 [[free]]
 bank = 4
@@ -86,24 +126,28 @@ bank = 6
 first = 0x9D66
 last = 0x9FFF
 what = "PRG0's $FF block"
+# Not inside_code: BANK_06_00 ends at $9CD7 and BANK_06_DATA (loaded after it) at $9D65; the next
+# segment, BANK_06_DLIST, starts at $A000 (Z.cfg), so this is a linker gap.
 
 [[free]]
 bank = 6
-first = 0xACCA
+first = 0xAD54
 last = 0xBF4F
-what = "bank 6's linker gap"
+what = "bank 6's linker gap, from PRG1's end of the title-screen data"
 
 [[free]]
 bank = 7
 first = 0xED94
 last = 0xED9F
 what = "PRG0's unused $FF run after UpdateHeartsAndRupees"
+inside_code = true
 
 [[free]]
 bank = 7
 first = 0xFAE4
 last = 0xFAEE
 what = "PRG0's unused $FF run before ObjectTypeToAttributes"
+inside_code = true
 
 [[free]]
 bank = 7
@@ -487,6 +531,13 @@ first = 0xB920
 last = 0xB93F
 
 [[slot]]
+segment = "ZORA_F2_HARDER_GANON"
+owner = "flags2:harder-ganon"
+bank = 4
+first = 0xBB00
+last = 0xBBFF
+
+[[slot]]
 segment = "ZORA_ASNB_LOOK_B7"
 owner = "asnb:l4-sword-look"
 bank = 7
@@ -597,8 +648,8 @@ last = 0xBFF9
 segment = "ZORA_SET_MUSIC_OFF"
 owner = "setting:music"
 bank = 0
-first = 0xA000
-last = 0xA03F
+first = 0xA200
+last = 0xA23F
 
 [[slot]]
 segment = "ZORA_SET_MUSIC_OFF_STATS"
@@ -611,8 +662,15 @@ last = 0xB7A0
 segment = "ZORA_SET_HALF_SPEED_BEEP"
 owner = "setting:low_health_beep"
 bank = 0
-first = 0xA040
-last = 0xA07F
+first = 0xA240
+last = 0xA27F
+
+[[slot]]
+segment = "ZORA_SET_QUARTER_SPEED_BEEP"
+owner = "setting:low_health_beep"
+bank = 0
+first = 0xA240
+last = 0xA27F
 
 [[slot]]
 segment = "ZORA_FP_STATS_TICK"
@@ -637,6 +695,13 @@ first = 0xB100
 last = 0xB6FF
 
 [[slot]]
+segment = "ZORA_FP_STATS_LEVELS"
+owner = "setting:statistics_screen"
+bank = 2
+first = 0xB7B0
+last = 0xB7C1
+
+[[slot]]
 segment = "ZORA_FP_STATS_STAB"
 owner = "setting:statistics_screen"
 bank = 5
@@ -657,6 +722,13 @@ owner = "series:ht-book-01"
 bank = 1
 first = 0x9F30
 last = 0x9F3E
+
+[[slot]]
+hook = "ht-hint-07.routine"
+owner = "series:ht-hint-07"
+bank = 1
+first = 0x9F44
+last = 0x9F52
 
 [[slot]]
 hook = "fp-fix-04.take-power-triforce"
@@ -685,6 +757,30 @@ first = 0x9FF0
 last = 0x9FF5
 source = "zora.rom.uphill_battle:RECORDER_COMPLEMENT_ROUTINE"
 what = "OW-WARP-02's complement of InvTriforce (B07)"
+
+[[site]]
+name = "swordlish-take"
+bank = 1
+first = 0x9F60
+last = 0x9F90
+source = "zora.rom.swordlish:TAKE_CHECK"
+what = "Swordlish's take check: the wooden-sword cave's sword needs N triforce pieces (FP-SWL-01)"
+
+[[site]]
+name = "swordlish-text-address"
+bank = 1
+first = 0x9FA0
+last = 0x9FB8
+source = "zora.rom.swordlish:TEXT_ADDRESS"
+what = "Swordlish's text address: the wooden-sword cave's person shows its own text (FP-SWL-05)"
+
+[[site]]
+name = "swordlish-text"
+bank = 1
+first = 0xA480
+last = 0xA4AF
+source = "zora.rom.swordlish:TEXT"
+what = "Swordlish's text, naming N (FP-SWL-05; 43 bytes)"
 
 [[site]]
 name = "fairy-refill"
@@ -820,6 +916,22 @@ first = 0xFFCB
 last = 0xFFD2
 source = "zora.rom.sword_states:BOMB_COUNT_TAIL"
 what = "the bomb upgrade's bomb-count tail (C07 = 1 and 3)"
+
+[[site]]
+name = "mirror-spawn-spots"
+bank = 5
+first = 0xBF00
+last = 0xBF4B
+source = "zora.rom.mirror_overworld:SPAWN_ROUTINE"
+what = "Mirror Overworld's spawn-list routine, flipped copies and their pointers (B06, OW-MIR-05)"
+
+[[site]]
+name = "mirror-triforce-caption"
+bank = 6
+first = 0xAD70
+last = 0xAD7B
+source = "zora.rom.mirror_overworld:CAPTION_RECORD"
+what = "Mirror Overworld's own copy of the TRIFORCE caption record (B06, OW-MIR-05)"
 
 # --- Shared bytes ---------------------------------------------------------------------------------
 # Two owners write the same byte only where a [[shared]] row names both and the range. `together`

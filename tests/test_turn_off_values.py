@@ -422,11 +422,11 @@ def test_ps_boss_05_bars_the_picks_with_b40_off(seed: int, monkeypatch: pytest.M
     seen: list[tuple[int, frozenset[int], set[int]]] = []
 
     def watched(blocks: list[LevelBlock], lists: RoomLists, state: MonsterShuffleResult, rng: IntRng,
-                beaten: dict[int, frozenset[int]] | None = None) -> None:
+                beaten: dict[int, frozenset[int]] | None = None, extra_bosses: bool = False) -> None:
         rebossed = {level: [place for place in lists.rooms.get(level, [])
                             if _boss_code(lists.values[place]) in BOSS_TIERS[VANILLA_BOSS_TIER[level]]]
                     for level in (1, 2)}
-        shuffle_bosses(blocks, lists, state, rng, beaten)
+        shuffle_bosses(blocks, lists, state, rng, beaten, extra_bosses)
         for level, places in rebossed.items():
             seen.append((level, (beaten or {}).get(level, frozenset()),
                          {_boss_code(lists.values[place]) for place in places}))

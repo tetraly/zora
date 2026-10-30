@@ -339,6 +339,10 @@ def oops_all_bosses(gw: GameWorld, levels: list[Level], boss_sets: dict[int, Bos
     homes = boss_homes(deal)
     # The tiles each kept boss needs in its level's block after the move, and their data there.
     needed: dict[int, dict[int, bytes]] = {block: {} for block in DODONGO_BLOCKS}
+    # Each needed tile's home block. Two kept bosses share a tile only when it is the same tile of
+    # the same block, never because two tiles' bytes happen to match, so the player's graphics (a
+    # graphics hack, Halloween Mode's art) can never change a seed's game.
+    homes_of: dict[int, dict[int, int]] = {block: {} for block in DODONGO_BLOCKS}
     for level, room in kept:
         if room.enemy in DODONGOS:         # a Dodongo kept by a barring layout draws from the run
             continue
@@ -347,9 +351,9 @@ def oops_all_bosses(gw: GameWorld, levels: list[Level], boss_sets: dict[int, Bos
             continue
         target = BLOCK_OF_SET[staged.boss_sprite_sets.get(level.level_num, boss_sets[level.level_num])]
         for tile in tiles:
-            data = _shipped_boss_tile(gw, staged, home, tile)
-            if needed[target].setdefault(tile, data) != data:
+            if homes_of[target].setdefault(tile, home) != home:
                 raise GenerationFailure("Oops All Bosses: two kept bosses need one tile")
+            needed[target][tile] = _shipped_boss_tile(gw, staged, home, tile)
     run = dodongo_run(needed)
     dodongo_data = gw.sprites.read_tiles(*DODONGO.source, DODONGO.tiles)
     for block in DODONGO_BLOCKS:

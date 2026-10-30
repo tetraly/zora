@@ -1,0 +1,45 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Old Man",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Old Man art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      50,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$02": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$04": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$06": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$08": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$0A": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$0C": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$0E": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$10": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$12": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$14": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$16": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$18": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$1A": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$78": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$80": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$54": {"block": "PatternBlockOWSP", "tile": "$98", "mirror": true},
+    "$58": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$5A": {"block": "PatternBlockOWSP", "tile": "$98"},
+    "$60": {"block": "PatternBlockOWSP", "tile": "$98"}
+  },
+  "swap": [
+    {"block": "PatternBlockOWSP", "tile": "$98", "link": "$0A", "mirror": true},
+    {"block": "PatternBlockUWSP", "tile": "$98", "link": "$0A", "mirror": true}
+  ]
+}

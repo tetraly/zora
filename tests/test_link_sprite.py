@@ -1,7 +1,8 @@
 """Link sprite sets (features-behavior.md FP-LINK-01, FP-LINK-02; zora/rom/link_sprite.py): the
 file format and its refusals, the page's check against Python's, and FP-LINK-02's Check: a set's
 640 bytes land on Link's six groups, every other byte is the output with PRG0's Link, the seed's
-code is the same, and Random picks PRG0's Link or the set by the seed. Generation and every patch
+code is the same, and Random picks PRG0's Link, a built-in set or the player's set by the
+seed. Generation and every patch
 leave the groups alone; so does randomized music (lozft)."""
 import base64
 import json
@@ -17,12 +18,14 @@ from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
 from zora.rom.base_rom import PRG1_ROM_PATH, remember_repo_base_rom
 from zora.rom.code_patches import seed_code
+from zora.rom.link_art import LinkSpriteSet, offered_sprite_sets
 from zora.rom.link_sprite import (
     LINK_TILE_GROUPS,
     SPRITE_SET_SIZE,
     TILE_SIZE,
     SpriteSet,
     SpriteSetError,
+    built_in_sprite_sets,
     link_tile_offsets,
     link_tiles,
     sprite_set_file,
@@ -44,6 +47,10 @@ CP5 = MVP_BASELINE_LEVEL_ENCODING_OFF          # the spec's CP-5 string
 # FP-LINK-02's test set: 640 bytes of any content
 TEST_SET = SpriteSet("Test set", "ZORA tests", "Made for this test; anyone may use it.",
                      bytes((i * 7 + 3) % 256 for i in range(SPRITE_SET_SIZE)))
+
+
+# A built-in set with color 1 as art and bytes from the game (fromGame)
+KRAID = built_in_sprite_sets()["zeromeaning-kraid"]
 
 
 def with_set(choice: LinkSprite = LinkSprite.SET) -> PlayerSettings:
@@ -79,6 +86,14 @@ REFUSED = {
     "a later version": set_file(version=2),
     "not an object": "[]",
     "not JSON": "{",
+    "color 1 neither clothing nor art": set_file(recommendedColors={"tunics": [41, 50, 22], "other": [39, 23],
+                                                                    "colorOne": "skin"}),
+    "fromGame not pairs": set_file(fromGame=[[0, 8, 16]]),
+    "fromGame out of order": set_file(tiles=base64.b64encode(bytes(SPRITE_SET_SIZE)).decode(),
+                                      fromGame=[[16, 32], [0, 8]]),
+    "fromGame past the end": set_file(tiles=base64.b64encode(bytes(SPRITE_SET_SIZE)).decode(),
+                                      fromGame=[[632, 648]]),
+    "fromGame over art": set_file(fromGame=[[0, 8]]),         # the test set's bytes there are not zeros
 }
 
 
@@ -98,7 +113,8 @@ def test_the_page_refuses_what_python_refuses() -> None:
     start = PAGE_SCRIPT.index("class LinkSpriteSetError")
     end = PAGE_SCRIPT.index("function loadLinkSpriteSet")
     cases = {case: text for case, text in REFUSED.items() if case != "not JSON"}
-    script = PAGE_SCRIPT[start:end] + f"""
+    # the palette's size and the color it never offers, which the set's colors are checked against
+    script = "const NES_PALETTE = new Array(64), BLACKER_THAN_BLACK = 13;\n" + PAGE_SCRIPT[start:end] + f"""
 const rule = {json.dumps(metadata()["linkSpriteSet"])};
 const out = {{}};
 for (const [name, text] of Object.entries({json.dumps(cases)})) {{
@@ -106,6 +122,7 @@ for (const [name, text] of Object.entries({json.dumps(cases)})) {{
   catch (err) {{ out[name] = err.message; }}
 }}
 out.good = checkedLinkSpriteSet(JSON.parse({json.dumps(sprite_set_file(TEST_SET))}), rule);
+out.kraid = checkedLinkSpriteSet(JSON.parse({json.dumps(sprite_set_file(KRAID))}), rule);
 console.log(JSON.stringify(out));"""
     found = json.loads(subprocess.run([node, "-e", script], capture_output=True, text=True, check=True).stdout)
     for case, text in cases.items():
@@ -113,24 +130,36 @@ console.log(JSON.stringify(out));"""
             sprite_set_from_file(text)
         assert found[case] == str(refused.value), case
     assert sprite_set_from_file(json.dumps(found["good"])) == TEST_SET
+    assert sprite_set_from_file(json.dumps(found["kraid"])) == KRAID      # colorOne and fromGame kept
 
 
 def test_the_page_sends_the_set_with_the_choice() -> None:
     page = {"linkSprite": "set", "linkSpriteSet": sprite_set_object(TEST_SET)}
     assert player_settings_from_page(page) == with_set()
     with pytest.raises(PlayerSettingError, match="needs a sprite set"):
-        player_settings_from_page({"linkSprite": "random"})
+        player_settings_from_page({"linkSprite": "set"})
+    assert player_settings_from_page({"linkSprite": "random"}).link_sprite is LinkSprite.RANDOM     # the built-ins
     with pytest.raises(PlayerSettingError, match="exactly 640 bytes"):
         player_settings_from_page({**page, "linkSpriteSet": {**sprite_set_object(TEST_SET), "tiles": ""}})
 
 
-def test_random_picks_link_or_the_set_by_the_seed() -> None:
-    """FP-LINK-02's Random over seeds 1 to 100 with one set offered: both choices occur, and a seed
-    gives the same twice."""
-    random = with_set(LinkSprite.RANDOM)
-    chosen = [resolved_player_settings(random, seed).link_sprite for seed in range(1, 101)]
-    assert set(chosen) == {LinkSprite.LINK, LinkSprite.SET}
-    assert chosen == [resolved_player_settings(random, seed).link_sprite for seed in range(1, 101)]
+def random_choices(settings: PlayerSettings) -> list[LinkSpriteSet | None]:
+    """Random resolved for seeds 1 to 300 (27 choices): each seed's set, None for PRG0's Link."""
+    resolved = [resolved_player_settings(settings, seed) for seed in range(1, 301)]
+    assert all((choice.link_sprite is LinkSprite.LINK) == (choice.sprite_set is None) for choice in resolved)
+    return [choice.sprite_set for choice in resolved]
+
+
+def test_random_picks_link_a_built_in_set_or_the_players_by_the_seed() -> None:
+    """FP-LINK-02's Random over seeds 1 to 300: PRG0's Link, each built-in set (built-in art included,
+    link_art.offered_sprite_sets) and the player's set
+    all occur, and a seed gives the same twice; without a set of the player's, Link and the built-ins."""
+    built_in = list(offered_sprite_sets().values())
+    chosen = random_choices(with_set(LinkSprite.RANDOM))
+    assert set(map(id, chosen)) == set(map(id, [None, *built_in, TEST_SET]))
+    assert chosen == random_choices(with_set(LinkSprite.RANDOM))
+    without = random_choices(PlayerSettings(link_sprite=LinkSprite.RANDOM))
+    assert set(map(id, without)) == set(map(id, [None, *built_in]))
 
 
 def check_set_on(rom: bytes) -> None:

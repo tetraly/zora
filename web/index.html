@@ -10,15 +10,14 @@
 <body>
 
 <aside class="beta-banner" role="note" aria-label="Beta notice">
-  <p><strong>Beta.</strong> ZORA 2.0 has been tested by automated checks but not yet
-    tested by hand. Expect there to be bugs and unbeatable seeds. Please
-    don't use it for races yet. If something looks wrong, report it with
-    the seed, flags and version in the <a href="https://discord.gg/zescSjDtme" target="_blank" rel="noopener">ZORA Discord</a>.</p>
+  <p>ZORA 2.0 is still in beta. New features are being frequently added before being fully-tested, so some
+    bugs are to be expected.<br>
+    If you encounter a bug or issue, report it in the <a href="https://discord.gg/zescSjDtme" target="_blank" rel="noopener">ZORA Discord</a>
+    with the text from the "Copy bug report info" button.</p>
 </aside>
 
 <header class="masthead">
   <div class="masthead-bar">
-    <span class="wordmark">ZORA</span>
     <nav class="masthead-nav">
       <a href="https://github.com/tetraly/zora/blob/main/docs/flag-names.md">Flag guide</a>
       <a href="https://github.com/tetraly/zora/blob/main/docs/CHANGELOG.md">What's new</a>
@@ -27,8 +26,14 @@
     </nav>
   </div>
   <div class="masthead-hero">
-    <h1>A new Hyrule, in three steps.</h1>
-    <p>The Legend of Zelda randomizer. Your ROM is read in this page only and is never uploaded.</p>
+    <!-- The hero graphic: web/zora-logo.png, a transparent placeholder until the artist's web version
+         replaces it (the same file name; any size, drawn at HERO_LOGO's width in zora.css). -->
+    <img class="hero-logo" src="zora-logo.png" alt="ZORA">
+    <div class="hero-text">
+      <h1>Zelda One Randomizer App</h1>
+      <p>A newly re-imagined randomizer for The Legend of Zelda<br>
+        Your ROM is read in this page only and is never uploaded</p>
+    </div>
   </div>
   <svg class="waves" viewBox="0 0 1440 120" preserveAspectRatio="none" aria-hidden="true">
     <path class="wave wave-1" d="M0 60 C 240 20, 480 100, 720 60 S 1200 20, 1440 56 L1440 120 L0 120 Z"></path>
@@ -111,6 +116,14 @@
       </div>
 
       <div id="form" hidden>
+        <!-- The settings in words, one section per tab (showFlagSummary) -->
+        <details id="flag-summary" class="flag-summary">
+          <summary>Flag summary</summary>
+          <div id="flag-summary-sections" class="summary-sections"></div>
+          <p class="summary-actions">
+            <button id="flag-summary-copy" class="btn btn-tint btn-small" type="button">Copy summary</button>
+            <span id="flag-summary-note" class="message" role="status"></span></p>
+        </details>
         <!-- The flag tabs (web/flag-tabs.json), ZORA extras (the ZORA flag
              string) and Look and feel (player settings). -->
         <div class="tabs" role="tablist" aria-label="Setting groups" id="tabs"></div>

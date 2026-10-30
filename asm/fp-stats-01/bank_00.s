@@ -2,7 +2,7 @@
 
 ; ZORA FP-STATS-01 (player setting "Statistics screen"): the clock and the stamps. StatsTick runs
 ; once per NMI in place of the JSR DriveAudio in IsrNmi, with bank 0 switched in, and ends by
-; jumping to DriveAudio, so the audio call is unchanged. Every store goes to the stats block in
+; jumping to DriveAudio (StatsTickExit), so the audio call is unchanged. Every store goes to the stats block in
 ; battery-backed SRAM at $7F00 (docs/rom-map.md "RAM"), which PRG0 never reads or writes (of that
 ; page it writes only $7FFF). The page is z1rr-coop's: by owner ruling the screen and co-op are
 ; incompatible for now, and a co-op ROM has the Statistics screen Off.
@@ -49,12 +49,18 @@ StampItemSlots:
 StampItemThresholds:
     .BYTE $01, $01, $01, $01, $01, $02, $01
 
+.IFNDEF StatsTickExit
+; Where StatsTick returns to: DriveAudio, whose call in IsrNmi it takes over. A build that calls
+; StatsTick from DriveAudio's own end defines its own (asm/fp-stats-01-lozft2).
+StatsTickExit = DriveAudio
+.ENDIF
+
 StatsTick:
     LDA StatsMagic
     CMP #STATS_MAGIC
     BEQ @Initialized
     JSR ClearStatsBlock
-    JMP DriveAudio
+    JMP StatsTickExit
 
 @Initialized:
     LDA GameMode
@@ -74,7 +80,7 @@ StatsTick:
 @NotCounted:
     ; Menus, the demo, saving and registering: a newly loaded file's bombs are never counted.
     JSR RememberBombs
-    JMP DriveAudio
+    JMP StatsTickExit
 
 @Win:
     ; The first frame of the win mode completes level 9 and freezes the clock.
@@ -85,7 +91,7 @@ StatsTick:
     LDA StatsFlags
     ORA #STATS_FINISHED
     STA StatsFlags
-    JMP DriveAudio
+    JMP StatsTickExit
 
 @Counted:
     BIT StatsFlags
@@ -95,14 +101,14 @@ StatsTick:
     CMP #MODE_PLAY
     BCS :+
     JSR RememberBombs               ; the file is still loading
-    JMP DriveAudio
+    JMP StatsTickExit
 :
     JSR StampLevels
     JSR StampItems
     JSR CountBombs
 
 @Done:
-    JMP DriveAudio
+    JMP StatsTickExit
 
 ClearStatsBlock:
     LDA #$00

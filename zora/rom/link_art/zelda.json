@@ -1,0 +1,33 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Zelda",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Zelda art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "halves": {
+    "$00": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$02": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$04": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$06": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$08": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$0A": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$0C": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$0E": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$10": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$12": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$14": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$16": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$18": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$1A": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$78": {"block": "PatternBlockUWSPBoss9", "tile": "$F0"},
+    "$80": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$54": {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "mirror": true},
+    "$58": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$5A": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"},
+    "$60": {"block": "PatternBlockUWSPBoss9", "tile": "$F6"}
+  },
+  "swap": [
+    {"block": "PatternBlockUWSPBoss9", "tile": "$F6", "link": "$0A", "mirror": true},
+    {"block": "PatternBlockUWSPBoss9", "tile": "$F0", "link": "$78"}
+  ]
+}

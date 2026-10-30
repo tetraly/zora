@@ -1,0 +1,45 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Merchant",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Merchant art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      50,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$02": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$04": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$06": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$08": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$0A": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$0C": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$0E": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$10": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$12": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$14": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$16": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$18": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$1A": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$78": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$80": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$54": {"block": "PatternBlockOWSP", "tile": "$9C", "mirror": true},
+    "$58": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$5A": {"block": "PatternBlockOWSP", "tile": "$9C"},
+    "$60": {"block": "PatternBlockOWSP", "tile": "$9C"}
+  },
+  "swap": [
+    {"block": "PatternBlockOWSP", "tile": "$9C", "link": "$0A", "mirror": true},
+    {"block": "PatternBlockUWSP", "tile": "$9C", "link": "$0A", "mirror": true}
+  ]
+}

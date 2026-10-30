@@ -26,7 +26,8 @@ from ..layout import (
     TITLE_VERSION_ROW_ADDRESS,
 )
 from ..level_9_entrance import parsed_gate
-from ..start_items import TRIFORCE_INDEX, items_in_table
+from ..start_items import TRIFORCE_INDEX, holds_every_compass, holds_every_map, items_in_table
+from ..swordlish import parsed_pieces
 from ..text_encoding import BYTE_TO_CHAR as _BYTE_TO_CHAR
 
 ITEMS_BLOCK_SIZE = 40                # Items, RAM $0657-$067E
@@ -82,6 +83,7 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
             "cave_person_animations": (),
             "level9_refusal_text": "",
             "level_9_gate": EIGHT_PIECES,
+            "swordlish_pieces": 0,
             "starting_items_new_file": None,
             "new_file_heart_containers": 3,
             "new_file_full_hearts": 3,
@@ -146,6 +148,8 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
         "level9_refusal_text": refusal,
         # FP-TRIF-01 to FP-TRIF-06: what the entrance check asks for (C08)
         "level_9_gate": parsed_gate(rom_bytes),
+        # FP-SWL-01: the pieces the wooden-sword cave's sword asks for (Swordlish; PRG0's cave: none)
+        "swordlish_pieces": parsed_pieces(rom_bytes),
         "starting_items_new_file": new_file_items,
         "new_file_heart_containers": new_file_hearts[0],
         "new_file_full_hearts": new_file_hearts[1],
@@ -153,6 +157,9 @@ def _parse_b10_data(rom_bytes: bytes | None, tile_mapping_pointers: bytes,
         "start_items": () if new_file_items is None else items_in_table(new_file_items),
         # FL-ALT-06: the start pieces the table holds (PRG0's routine: none)
         "start_triforce_pieces": 0 if new_file_items is None else new_file_items[TRIFORCE_INDEX],
+        # FP-MAP-02: every level's map, or compass, in the new-file table (PRG0's routine: neither)
+        "start_all_maps": new_file_items is not None and holds_every_map(new_file_items),
+        "start_all_compasses": new_file_items is not None and holds_every_compass(new_file_items),
         "starting_items_second_quest": _starting_items(
             rom_bytes, SECOND_QUEST_START_STATE_ADDRESS, SECOND_QUEST_STORES, SECOND_QUEST_OPERANDS
         ),

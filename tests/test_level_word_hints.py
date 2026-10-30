@@ -4,7 +4,7 @@ relabel_hint_text).
 Hint text is written at generation, before the player settings, so the setting rewrites it in
 place. Each hint line holding a level label ("LEVEL-3") gets the word's label ("LAIR-3",
 "CASTLE-3", "DUNGEON3"), is centered again on the box's width and padded at its end to its old
-length. FP-LEVEL-02's labels are one character longer than LEVEL-n: a line with no centering pad
+length, the padding closing with a space (the drawer skips a pad tile's line bits). FP-LEVEL-02's labels are one character longer than LEVEL-n: a line with no centering pad
 to give up has its whole text wrapped again in the text's length, or, with no tile to spare
 there either (234 of the templates), at its own length in the hint regions' free space, its
 pointer following it. A text never takes more lines than the box holds.
@@ -58,6 +58,8 @@ from zora.rom.player_settings import (
 from zora.rom.text_encoding import BYTE_TO_CHAR, QUOTE_CHAR_MASK, QUOTE_END_BITS
 
 PAD = "~"
+# A line padded at its end closes with a space (player_settings.HINT_LINE_END_CHARACTER)
+BLANKS = PAD + " "
 LEVELS = range(1, 10)
 FOREIGN_CODE = 0x22               # any code: Archipelago's FINISH writes another player's item as one
 WORDS = (*LEVEL_WORD_CHOICES[1:], "OH NO", "R2-D2", "A.B,C", "X", "DUNGEON", "AB CDEF", "ABCDEF")
@@ -116,7 +118,7 @@ def test_the_texts_cover_every_item_region_level_and_opener() -> None:
 
 def centered(line: str, slack: int = 0) -> bool:
     """The line's text after its centering pad, or (slack 1) at most one pad tile short of it."""
-    shown = line.strip(PAD)
+    shown = line.strip(BLANKS)
     pad = len(line) - len(line.lstrip(PAD))
     return line[pad:].startswith(shown) and (LINE_WIDTH - len(shown)) // 2 - slack <= pad <= (LINE_WIDTH - len(shown)) // 2
 
@@ -133,8 +135,10 @@ def test_every_hint_takes_the_word_and_still_fits(word: str) -> None:
         new_lines = decoded_lines(relabeled)
         assert len(new_lines) <= MAX_LINES
         assert all(len(line) <= LINE_WIDTH for line in new_lines), (word, new_lines)
-        assert " ".join(line.strip(PAD) for line in new_lines) == with_word(text, word)
+        assert " ".join(line.strip(BLANKS) for line in new_lines) == with_word(text, word)
         assert relabeled[-1] & QUOTE_END_BITS == QUOTE_END_BITS
+        # the drawer skips a pad tile before reading its line or end bits
+        assert not any(line.endswith(PAD) for line in new_lines), (word, new_lines)
         if len(relabeled) > len(body):
             grown += 1
             assert all(centered(line) for line in new_lines), (word, new_lines)
@@ -190,9 +194,10 @@ def test_generated_hints_take_the_word(seed: int, zora_flag_string: str) -> None
             body = text_body(new, after)
             assert after == before or len(body) > len(text_body(rom, before))
             texts_after.append((after, len(body)))
-            text = " ".join(line.strip(PAD) for line in decoded_lines(body))
+            assert not any(line.endswith(PAD) for line in decoded_lines(body)), decoded_lines(body)
+            text = " ".join(line.strip(BLANKS) for line in decoded_lines(body))
             assert not HINT_LEVEL_LABEL.search(text)
-            assert text == with_word(" ".join(line.strip(PAD) for line in decoded_lines(text_body(rom, before))), word)
+            assert text == with_word(" ".join(line.strip(BLANKS) for line in decoded_lines(text_body(rom, before))), word)
         spans = sorted(set(texts_after))
         assert all(end <= start for (_, end), (start, _) in
                    zip([(o, o + n) for o, n in spans], spans[1:])), "two texts overlap"

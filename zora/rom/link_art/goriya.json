@@ -1,0 +1,41 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Goriya",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Goriya art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      2,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockUWSP127", "tile": "$B8"},
+    "$02": {"block": "PatternBlockUWSP127", "tile": "$BA"},
+    "$04": {"block": "PatternBlockUWSP127", "tile": "$BC"},
+    "$06": {"block": "PatternBlockUWSP127", "tile": "$BE"},
+    "$08": {"block": "PatternBlockUWSP127", "tile": "$B0"},
+    "$0A": {"block": "PatternBlockUWSP127", "tile": "$B2"},
+    "$0C": {"block": "PatternBlockUWSP127", "tile": "$B4"},
+    "$0E": {"block": "PatternBlockUWSP127", "tile": "$B6"},
+    "$10": {"block": "PatternBlockUWSP127", "tile": "$B8"},
+    "$12": {"block": "PatternBlockUWSP127", "tile": "$BA"},
+    "$14": {"block": "PatternBlockUWSP127", "tile": "$B0"},
+    "$16": {"block": "PatternBlockUWSP127", "tile": "$B2"},
+    "$18": {"block": "PatternBlockUWSP127", "tile": "$B4"},
+    "$1A": {"block": "PatternBlockUWSP127", "tile": "$B6"},
+    "$78": {"block": "PatternBlockUWSP127", "tile": "$B0"},
+    "$80": {"block": "PatternBlockUWSP127", "tile": "$BA"},
+    "$54": {"block": "PatternBlockUWSP127", "tile": "$BE"},
+    "$58": {"block": "PatternBlockUWSP127", "tile": "$B0"},
+    "$5A": {"block": "PatternBlockUWSP127", "tile": "$B2", "mirror": true},
+    "$60": {"block": "PatternBlockUWSP127", "tile": "$B0"}
+  }
+}

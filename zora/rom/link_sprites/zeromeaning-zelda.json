@@ -1,0 +1,19 @@
+{
+  "format": "zora-link-sprite-set",
+  "version": 1,
+  "name": "Zelda",
+  "author": "ZeroMeaning",
+  "provenance": "Drawn by ZeroMeaning for Z1M1 (Zelda, ZeroMeaning.Zelda.LinkAsset.asset at Z1M1's assets commit 20b4c27); ZeroMeaning's permission for use in other projects came through MetalMachine (2026-10-28, docs/permissions.md).",
+  "tiles": "AAMHAxEZHB8AAw8PHx8fHx8+Pj4/Px8/Hj8/Pz88EAAA4OD4oCAEBADg8PjQ8Pz0hPR05DT8/PxkBIx0xAQEAAMHAxEZHB8fAw8PHx8fHx4+Pj09Ph8PHz8/Pz8/HAgA4OD4oCACAoLg8PjQ8PryYvJy4vLy+vj8Ao5yAgICAAAHBgceGhgdHgcPDx0fHx8ZNzM2Ly8/Pz84PDs4ODAwIOBg4HhYGLh44PDwuPj4+JjszOz0+Pz8/hw83AwMBARwBwcHHx8fHx8HDw8fHx8fHz8/Pz8fPz9/Pz8/Pz8fDwPg4OD4+Pj4+ODw8Pj4+Pj4/Pz8/Pz8+Pz8/Pz8/Pz44AABAwEIDA4PAAEHBw8PDw8PHx8fHx8PPw8fHx8fHAAAAPDw/NCQAIAA8Pj86Pj8+ODA+PD4/Pz+ED4AuAAAAAAYK27Pzmo5HRg/f//9/38/Dg8PBgcPPwAdDA4HBAAMAADwePhwVJycAPD4/Lz8/Pw+/t7e3Ly/AP4OLr4sQE4ABwcHHx8fHx8HDw8fHx8fHz8/Pz8/fx8APz8/Px8PAwDg4OD4+Pj69uDw8Pj4+v7+7t683Oz8/P7+/vz8/Pz44AcGBx4KCS0mZ28vPT8/Pzk3Pz4/Pz8/Pzg8OzAwICAAAODg+KYmBAQA4PD41vb+9oT0dOQ0/P7+ZgaOdsYGBgLg4PijIwICguDw+NPz+/Nj8nLi8vL7+/wDj3MDAwMDAAcGBx4aGB0eBw8PHR8fHxl/34zd3f0DP3z+//7+/nwgBwYHHhoYHR4HDw8dHx8fGT9vRm5ufgF/Pn9/f39/Pg4HBgceGhj/5wcPDx0fH///54GB5+fnfz////////9+PA==",
+  "recommendedColors": {
+    "tunics": [
+      4,
+      1,
+      6
+    ],
+    "other": [
+      54,
+      23
+    ]
+  }
+}

@@ -135,4 +135,15 @@ FLAG_CASES: dict[str, tuple[str, str]] = {
     "recorder to unbeaten dungeons and important drops": (
         z1r_with(toggles={"B07": ThreeState.ON, "B39": ThreeState.ON}), ""),
     "second quest doors and monsters": (z1r_with(toggles={"B21": ThreeState.ON, "B37": ThreeState.ON}), ""),
+    # Released from archipelago.HELD_BACK after the 2026-10-27 scan (docs/reports/archipelago-coverage.md;
+    # random settings for every other offered option, every place, event and the goal reached): Coast
+    # Item: Non-Heart (98 of 100 seeds built; the other two failed to generate, none unreachable), Level 9
+    # Item 1 and 2 at the Bow (97 of 100 built, with Allow Important Items in 9 on, which it requires) and
+    # Replace Book Fire with Explosion on (98 of 100 each way, On and Random), then 400 of 400 together
+    "coast item non-heart": (z1r_with(options={"C12": PinnedItem.ANY_ITEM_EXCEPT_HEART_CONTAINER}), ""),
+    "level 9 item 1 at the bow": (z1r_with(toggles={"B25": ThreeState.ON}, options={"C26": PinnedItem.BOW}), ""),
+    "level 9 item 2 at the bow": (z1r_with(toggles={"B25": ThreeState.ON}, options={"C27": PinnedItem.BOW}), ""),
+    "level 9 item 1 at the wand": (z1r_with(toggles={"B25": ThreeState.ON}, options={"C26": PinnedItem.WAND}), ""),
+    "level 9 item 2 at the wand": (z1r_with(toggles={"B25": ThreeState.ON}, options={"C27": PinnedItem.WAND}), ""),
+    "book fire replaced by explosion": (z1r_with(toggles={"B47": ThreeState.ON}), ""),
 }

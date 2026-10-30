@@ -43,10 +43,11 @@ def _format_base63(number: int) -> str:
 
 
 def decode(flag_string: str) -> Settings:
-    """FL-ENC-02: C01 is the least significant field and B91 the most significant.
+    """FL-ENC-02: C01 is the least significant field and B94 the most significant.
 
-    FL-ENC-03: a slot value at or above the field's Count decodes as its last option (rule 3) and
-    whatever is left of the number after B91 is ignored (rule 4).
+    FL-ENC-03: a slot value at or above the field's Count decodes as its last option (rule 3);
+    B92 to B94 are read like the others after B91, and whatever is left of the number after B94 is
+    ignored (rule 4). A string with B92 to B94 off keeps the number it had before they were read.
     """
     number = _parse_base63(flag_string)
     options: dict[str, int] = {}
@@ -76,7 +77,7 @@ def canonicalize(flag_string: str) -> str:
 
 
 def distinct_string_count() -> int:
-    """FL-ENC-04 Check: the product of the 27 slot counts times 3 to the power 91."""
+    """FL-ENC-04 Check: the product of the 27 slot counts times 3 to the power 94."""
     product: int = THREE_STATE_SLOTS ** len(TOGGLE_FIELDS)
     for option in OPTION_FIELDS:
         product *= option.slots

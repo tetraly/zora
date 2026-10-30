@@ -1,0 +1,41 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Moblin",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Moblin art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      12,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockOWSP", "tile": "$F0"},
+    "$02": {"block": "PatternBlockOWSP", "tile": "$F2"},
+    "$04": {"block": "PatternBlockOWSP", "tile": "$F4"},
+    "$06": {"block": "PatternBlockOWSP", "tile": "$F6"},
+    "$08": {"block": "PatternBlockOWSP", "tile": "$F8"},
+    "$0A": {"block": "PatternBlockOWSP", "tile": "$FA"},
+    "$0C": {"block": "PatternBlockOWSP", "tile": "$FC"},
+    "$0E": {"block": "PatternBlockOWSP", "tile": "$FE"},
+    "$10": {"block": "PatternBlockOWSP", "tile": "$F0"},
+    "$12": {"block": "PatternBlockOWSP", "tile": "$F2"},
+    "$14": {"block": "PatternBlockOWSP", "tile": "$F8"},
+    "$16": {"block": "PatternBlockOWSP", "tile": "$FA"},
+    "$18": {"block": "PatternBlockOWSP", "tile": "$FC"},
+    "$1A": {"block": "PatternBlockOWSP", "tile": "$FE"},
+    "$78": {"block": "PatternBlockOWSP", "tile": "$F8"},
+    "$80": {"block": "PatternBlockOWSP", "tile": "$F2"},
+    "$54": {"block": "PatternBlockOWSP", "tile": "$F6"},
+    "$58": {"block": "PatternBlockOWSP", "tile": "$F8"},
+    "$5A": {"block": "PatternBlockOWSP", "tile": "$FA", "mirror": true},
+    "$60": {"block": "PatternBlockOWSP", "tile": "$F8"}
+  }
+}

@@ -45,7 +45,7 @@ from zora.flags.fields import (
     Level9Requirement,
     WoodenSwordState,
 )
-from zora.flags.zora_flags import GatekeeperBosses, OopsAllBosses, OopsAllEnemies
+from zora.flags.zora_flags import HarderLevel, OopsAllBosses, OopsAllEnemies, Pacing
 from zora.generate.alternative_values import AlternativeValues
 from zora.generate.extra_options import ExtraOptions
 from zora.generate.flag_steps import FlagSteps
@@ -129,8 +129,13 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     # Oops All Enemies and Oops All Bosses (docs/design/oops-all.md)
     "oops_all_enemies": tuple(OopsAllEnemies),
     "oops_all_bosses": tuple(OopsAllBosses),
-    # Gatekeeper Bosses (docs/zora-extras.md section 19): levels 1-8, every layout
-    "gatekeeper_bosses": tuple(GatekeeperBosses),
+    # Harder Bosses and Harder Ganon (docs/zora-extras.md section 21): data and bank 4 patches
+    "harder_bosses": tuple(HarderLevel),
+    "harder_ganon": tuple(HarderLevel),
+    # Offense and Defense Item Pacing and Recorder Warping (docs/zora-extras.md section 22)
+    "offense_pacing": tuple(Pacing),
+    "defense_pacing": tuple(Pacing),
+    "recorder_warps": (False, True),
     # The ZORA 1.0 flags (docs/zora-extras.md section 13)
     "allow_triforces_in_stairways": (False, True),
     "shuffle_wood_sword": (False, True),
@@ -190,6 +195,18 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "hidden_numbers": (False, True),
     "rupees_affect_speed": (False, True),
     "prevent_clipping": (False, True),
+    # The 2026-10-28 export: PS-EDROP-03 (B38)
+    "shuffle_enemy_drop_groups": (False, True),
+    "blackout": (False, True),                       # PS-COLOR-04 (B50)
+    "extra_bosses": (False, True),                   # PS-BOSS-07 (B79)
+    "minor_dungeon_drops": (False, True),            # PS-ITEM-14 (B17)
+    "change_secret_spots": (False, True),            # OW-ENTR-01 (B05)
+    # The 7e32c5c export: FP-MAP-01 (B92) and FP-MAP-02 (B93, B94)
+    "remove_maps": (False, True),
+    "start_all_maps": (False, True),
+    "start_all_compasses": (False, True),
+    # and HT-MIR-01 (B06; the flip itself is a final step, GameConfig.mirror_overworld)
+    "mirror_overworld": (False, True),
     # FP-WOOD-01 to FP-WOOD-04: the four wooden-sword states
     "wooden_sword_state": tuple(state for state in WoodenSwordState if state is not WoodenSwordState.RANDOM),
 }
@@ -314,7 +331,12 @@ def producible(flags: Flags) -> bool:
     entrances, so the swap changes nothing there and those combinations stay.
 
     Nor does a flag string make Expanded Dungeon Locations with a Mixed overworld quest or a Cave
-    Shuffle but Dungeons Only or All Caves (refused, zora_flags.expanded_dungeon_locations_conflicts)."""
+    Shuffle but Dungeons Only or All Caves (refused, zora_flags.expanded_dungeon_locations_conflicts),
+    or Defense Item Pacing: Earlier with Item Shuffle: None (refused, zora_flags.defense_pacing_conflicts:
+    the Red Ring stays in level 9, which asks for both rings)."""
+    if (flags.extras.defense_pacing is Pacing.EARLIER
+            and flags.alternatives.item_shuffle is ItemShuffleScope.NONE):
+        return False
     if flags.extras.expanded_dungeon_locations and (
             flags.alternatives.mix_overworld_quest or flags.alternatives.mix_overworld_quest_second_variant
             or flags.alternatives.cave_shuffle not in (CaveShuffle.DUNGEON_DOORS_ONLY, CaveShuffle.ALL_CAVES)):
@@ -391,7 +413,8 @@ def level_checks(flags: Flags) -> tuple[Check, ...]:
     without B1; the shape stage's rules only for shaped dungeons)."""
     return finished_rom_checks(sort_shapes=flags.shapes.sort_shapes, post_shapes=flags.post_shapes,
                                shaped=flags.alternatives.dungeon_quest is DungeonLayoutSource.GENERATED_SHAPES,
-                               start_rooms_moved=flags.shapes.start_room_swap)
+                               start_rooms_moved=flags.shapes.start_room_swap,
+                               maps_removed=flags.alternatives.remove_maps)
 
 
 def run_level_checks(world: GameWorld, flags: Flags) -> list[CheckResult]:

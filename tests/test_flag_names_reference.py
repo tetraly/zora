@@ -11,7 +11,14 @@ import pytest
 from zora.flags import codec
 from zora.flags import form as flag_form
 from zora.flags import presets as flags_presets
-from zora.flags.fields import ENCODE_LEVEL_DATA, INERT_TOGGLES, THREE_STATE_LABELS, OptionField, ThreeState
+from zora.flags.fields import (
+    ENCODE_LEVEL_DATA,
+    INERT_TOGGLES,
+    ITEM_SHUFFLE_SCOPE,
+    THREE_STATE_LABELS,
+    OptionField,
+    ThreeState,
+)
 
 REPO = Path(__file__).resolve().parent.parent
 REFERENCE = REPO / "docs" / "spec" / "flag-names-reference.csv"
@@ -35,9 +42,24 @@ def page_fields() -> dict[str, dict[str, Any]]:
     return {field["id"]: field for field in flag_form.metadata()["fields"]}
 
 
+# Item Shuffle's Random (No Vanilla): a page choice for Random with a ZORA flag (form.ITEM_SHUFFLE_NO_VANILLA_CHOICE),
+# no Z1R value, so neither in the community's table nor written by flags_from_values (form_change writes both strings;
+# tests/test_item_shuffle_no_vanilla.py)
+PAGE_ONLY_VALUES = {ITEM_SHUFFLE_SCOPE.id: flag_form.ITEM_SHUFFLE_NO_VANILLA_CHOICE}
+
+
+def z1r_values(code: str, field: dict[str, Any]) -> list[dict[str, Any]]:
+    return [value for value in field["values"] if PAGE_ONLY_VALUES.get(code) != value["value"]]
+
+
+# The fields the community names table predates (the 7e32c5c export's B92 to B94): the page names them
+# as the spec does (FP-MAP-01, FP-MAP-02: Remove Maps, All Maps, All Compasses)
+NOT_IN_THE_REFERENCE = {"B92": "Remove Maps", "B93": "All Maps", "B94": "All Compasses"}
+
+
 @needs_reference
 def test_the_reference_names_every_z1r_field() -> None:
-    assert set(reference()) == set(page_fields())
+    assert set(reference()) == set(page_fields()) - set(NOT_IN_THE_REFERENCE)
 
 
 @needs_reference
@@ -45,7 +67,8 @@ def test_option_values_are_the_reference_names() -> None:
     table = reference()
     for code, field in page_fields().items():
         if field["kind"] == "option":
-            assert [value["label"] for value in field["values"]] == [row["value_name"] for row in table[code]], code
+            labels = [value["label"] for value in z1r_values(code, field)]
+            assert labels == [row["value_name"] for row in table[code]], code
 
 
 def test_option_fields_keep_their_names() -> None:
@@ -66,7 +89,8 @@ def test_switches_are_named_as_the_reference_names_them() -> None:
     for code, field in page_fields().items():
         if field["kind"] == "toggle" and code != ENCODE_LEVEL_DATA.id:
             suffix = " (no effect in ZORA)" if code in inert else ""
-            name = flag_form.OWN_SWITCH_NAMES.get(code, table[code][0]["field_name"])
+            name = (flag_form.OWN_SWITCH_NAMES.get(code) or NOT_IN_THE_REFERENCE.get(code)
+                    or table[code][0]["field_name"])
             assert field["label"] == name + suffix, code
     assert page_fields()[ENCODE_LEVEL_DATA.id]["label"] == "Encode level data"
     assert page_fields()["B14"]["label"] == "Shuffle Dungeon Items (no effect in ZORA)"
@@ -133,7 +157,7 @@ def test_each_offered_value_encodes_as_itself() -> None:
     start = {code: int(field["value"]) for code, field in baseline["fields"].items()}
     fields = {field.id: field for field in flag_form.ALL_FIELDS}
     for code, field in page_fields().items():
-        for value in field["values"]:
+        for value in z1r_values(code, field):
             settings = codec.decode(flag_form.flags_from_values({**start, code: int(value["value"])}))
             field_def = fields[code]
             held = settings.option(field_def) if isinstance(field_def, OptionField) else settings.toggle(field_def)

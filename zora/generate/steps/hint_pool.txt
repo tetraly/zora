@@ -19,8 +19,9 @@
 #   quote   "|" breaks a line; spaces are kept as written
 #   note    empty, or one of: "white sword N hearts" / "magical sword N
 #           hearts" (shown only when that cave asks for N hearts),
-#           "reserved" (slots 27 and 34: kept for a future toll-room option,
-#           never drawn), "placeholder" (padding; see the end of the file)
+#           "reserved" (slots 27 and 34: drawn only for slot 27 with Change
+#           "Leave your..." Rooms off, whose merchants show it, PS-MERCH-05;
+#           never for slot 34), "placeholder" (padding; see the end of the file)
 #   contributor   optional fourth column: who sent a community text, kept here
 #           and never shown in the game (docs/credits.md lists them)
 # Lines starting with "#" are comments.
@@ -34,11 +35,9 @@ slot 0 (owner ruling)	TAKE THE CANDLE|YOU COWARD!
 slot 16	RED, RED, WINE
 slot 16	AH YES, THE|TWO GENDERS ...
 slot 16	PERRIER OR CHOCOLATES?
-slot 16	EVERYWHERE YOU LOOK|EVERYWHERE YOU GO|THERE'S A HEART
 slot 16	YOU GOTTA HAVE HEART
 slot 16	TAKE NEITHER ITEM.|JUST LEAVE.
 slot 16	CAKE OR DEATH?
-slot 16	EENIE, MEENIE,|MINEY, MO
 slot 16	LIMIT ONE|PER CUSTOMER
 slot 16	DA NA NA NA|NAAAAAAAAA
 slot 17	BANANA. TAKE A BUCK!|BANANA. TAKE A BUCK!
@@ -69,7 +68,6 @@ slot 8	WE ONLY SERVE|BEPIS PRODUCTS|SORRY
 slot 5	PLEASE LEAVE A TIP|FOR YOUR DOOR REPAIRER
 slot 5	THANK YOU FOR USING|CASHLESS TOLLING
 slot 5	EZ|PASS|PAID
-slot 5	DON'T AWOO.|350 RUPEE PENALTY.
 slot 5	STAND CLEAR OF|THE CLOSING DOORS|PLEASE
 slot 5	HELP TEMMIE PAY|FOR COOL LEG
 slot 5	QUICK, PRESS UP|AND A BEFORE I|TAKE YOUR MONEY!
@@ -280,7 +278,9 @@ slot 5	THIS IS THE FEE FEE		Whyforce89887
 slot 5	YOU BOMBED IT,|YOU BOUGHT IT.		ZORA
 slot 5	THE DOOR WAS LIKE|THAT WHEN I GOT HERE.		ZORA
 slot 5	I ACCEPT EXACT CHANGE|OR YOUR DIGNITY.		ZORA
+slot 5	WOULD YOU KINDLY|GIVE ME SOME RUPEES		ultralavos
 slot 25	NOW WITH 20 PERCENT|MORE KABOOM.		ZORA
+slot 25	YOU'RE GONNA NEED A|BIGGER BOMB BAG		ultralavos
 slot 14 or 15	THIS BAD BOY CAN FIT|SO MANY RUPEES IN IT!		GrandpaSzabo
 slot 14 or 15	I WASN'T EVEN SUPPOSED|TO BE HERE TODAY.		Crump
 slot 14 or 15	NO REFUNDS. NO|EXCHANGES. NO HEARTS.		ZORA

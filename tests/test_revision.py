@@ -45,6 +45,7 @@ from zora.rom.revision import (
     DMC_LEVEL_OPERAND,
     GRAPHICS_BLOCKS,
     MOVED_POINTERS,
+    MUSIC_OFF_AUDIO_CALL,
     NES_HEADER_SIZE,
     NOT_RECOGNIZED,
     PRG1_CHANGED,
@@ -395,6 +396,7 @@ COSMETIC_SETTINGS = {
     "music off, select pauses, beep kept": PlayerSettings(
         music=Music.OFF, select_swap=SelectSwap.OFF, low_health_beep=LowHealthBeep.KEPT),
     "beep at half speed": PlayerSettings(low_health_beep=LowHealthBeep.HALF_SPEED),
+    "beep at quarter speed": PlayerSettings(low_health_beep=LowHealthBeep.QUARTER_SPEED),
     "swap only, other warp, colors, words, flashing": PlayerSettings(
         select_swap=SelectSwap.SWAP_ONLY, death_warp=DeathWarp.CONTROLLER2_UP_A, reduce_flashing=True,
         tunic_colors=(0x1A, 0x21, 0x06), heart_color=0x2A, level_word="ZONE", boss_sound_word="RANDOM"),
@@ -414,7 +416,8 @@ def test_player_settings_land_on_prg1s_code(settings: str) -> None:
     plain1 = pipeline.finish(pipeline.build(chosen, prg1()), prg1())
     assert apply_player_settings(plain1, player) == out1        # a finished PRG1 ROM styled again
     if player.music is Music.OFF:
-        assert out1[0x02027:0x0202A] == bytes([0x20, 0x42, 0x9D]) and out0[0x02027:0x0202A] == bytes([0x20, 0x46, 0x9D])
+        call = slice(MUSIC_OFF_AUDIO_CALL - 1, MUSIC_OFF_AUDIO_CALL + 2)    # JSR $9D46, $9D42 on PRG1
+        assert out1[call] == bytes([0x20, 0x42, 0x9D]) and out0[call] == bytes([0x20, 0x46, 0x9D])
     if player.select_swap is SelectSwap.OFF:
         site = TRANSFER_BUF_ADDRS_SELECT_SWAP
         assert out1[site:site + 2] == prg1()[site:site + 2] and out0[site:site + 2] == prg0()[site:site + 2]

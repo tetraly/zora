@@ -43,6 +43,15 @@ BOSSES_BEATEN_BY = {
 }
 ITEM_BEATS_BOSS_LEVELS = (1, 2)
 
+# PS-BOSS-07 (B79): each listed room first takes a coin that comes up one time in EXTRA_BOSS_ODDS
+EXTRA_BOSS_ODDS = 4
+MONSTER_BIT_VALUE = 0x100                       # the nine-bit value's monster bit (PS-MONLV-02)
+MONSTER_LIST_MASK = 0x3F
+# The monster values an extra boss never replaces: Zelda, Ganon and the hungry goriya, and (with the
+# monster bit) the person codes 12 to 18; an empty room (value 0 without the monster bit) neither
+NEVER_EXTRA_BOSS = frozenset({Enemy.THE_KIDNAPPED, Enemy.THE_BEAST, Enemy.HUNGRY_GORIYA})
+PERSON_CODES = range(0x0C, 0x13)
+
 
 def bosses_beaten_by_planted_items(records: list[TrackedPlace]) -> dict[int, frozenset[int]]:
     """PS-BOSS-05: in levels 1 and 2, the bosses a pick may not be because the
@@ -64,14 +73,31 @@ def bosses_beaten_by_planted_items(records: list[TrackedPlace]) -> dict[int, fro
     return barred
 
 
+def may_take_an_extra_boss(value: int) -> bool:
+    """PS-BOSS-07: a room an extra boss may replace: not empty, Zelda, Ganon, the hungry goriya or a
+    person."""
+    if value & ~MONSTER_BIT_VALUE == 0 or value in NEVER_EXTRA_BOSS:
+        return False
+    return not (value & MONSTER_BIT_VALUE and value & MONSTER_LIST_MASK in PERSON_CODES)
+
+
 def shuffle_bosses(blocks: list[LevelBlock], lists: RoomLists, state: MonsterShuffleResult,
-                   rng: IntRng, beaten_by_planted_items: Mapping[int, frozenset[int]] | None = None) -> None:
+                   rng: IntRng, beaten_by_planted_items: Mapping[int, frozenset[int]] | None = None,
+                   extra_bosses: bool = False) -> None:
     """PS-BOSS-01..04: levels 1-8 in order draw a tier (the level's boss
     bank); a room whose boss is on the level's VANILLA tier (PS-BOSS-03)
     gets a boss drawn uniformly from the new tier, redrawn while its layout
     bars it (PS-BOSS-04), or, given beaten_by_planted_items, while the item
     that beats it is planted at an end of the level (PS-BOSS-05). Level 9
-    is never touched (PS-BOSS-06)."""
+    is never touched (PS-BOSS-06). The lists walked are each level's own: a
+    second-quest level's (C02 = 1, 2, 4), whose redraws are its bosses
+    (PS-BOSS-06's MUST); the item rule bars by level number, so it applies to a
+    second-quest level 1 or 2 too (PS-BOSS-05's MAY; owner ruling 2026-10-27).
+
+    With extra_bosses (B79, PS-BOSS-07) every listed room first takes a coin; when it comes up, a
+    room that may take an extra boss is re-bossed as a boss room is. Quirk: a pick the bars reject
+    starts the room again with a new coin, so an ordinary room whose coin then fails keeps its
+    monster; a vanilla-tier boss room is re-bossed whatever its coins say."""
     beaten_by_planted_items = beaten_by_planted_items or {}
     discard(rng, LEADING_DISCARDS)
     for level, vanilla_tier in sorted(VANILLA_BOSS_TIER.items()):
@@ -79,13 +105,16 @@ def shuffle_bosses(blocks: list[LevelBlock], lists: RoomLists, state: MonsterShu
         state.boss_tiers[level] = tier
         planted_bars = beaten_by_planted_items.get(level, frozenset())
         for place in lists.rooms.get(level, []):
-            if _boss_code(lists.values[place]) not in BOSS_TIERS[vanilla_tier]:
-                continue
+            value = lists.values[place]
+            vanilla_boss = _boss_code(value) in BOSS_TIERS[vanilla_tier]
             room = _room_at(blocks, place)
             bosses = BOSS_TIERS[tier]
             while True:                  # no cap: every tier has an unbarred boss
+                extra = extra_bosses and rng.below(EXTRA_BOSS_ODDS) == 0 and may_take_an_extra_boss(value)
+                if not (vanilla_boss or extra):
+                    break
                 boss = bosses[rng.below(len(bosses))]
                 if not boss_barred(room.room_type, room.movable_block, boss) and boss not in planted_bars:
+                    lists.values[place] = _boss_value(boss)
+                    state.rebossed += 1
                     break
-            lists.values[place] = _boss_value(boss)
-            state.rebossed += 1

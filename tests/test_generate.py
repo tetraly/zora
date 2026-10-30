@@ -13,6 +13,7 @@ from zora.flags.dependencies import RESOLVED_TOGGLES
 from zora.flags.fields import TOGGLE_FIELDS, ThreeState
 from zora.flags.support import ENCODE_LEVEL_DATA_RANDOM_NOTICE
 from zora.rom.game_config import GameConfig, HintMode
+from zora.generate import pipeline
 from zora.generate.pipeline import SEED_LIMIT, FlagsRefused, SeedRefused, build, finish, generate_rom, plan
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.player_settings import PlayerSettings, apply_player_settings
@@ -61,14 +62,15 @@ def test_canonical_string_in_the_result() -> None:
     assert plan("0" + MVP_BASELINE_LEVEL_ENCODING_OFF, 0).flag_string == MVP_BASELINE_LEVEL_ENCODING_OFF
 
 
-def test_unsupported_fields_are_refused_by_name() -> None:
-    """Shuffle Enemy Drop Groups (B38) is still not produced, on or "?". (Since the beta 8 export every
-    field of the all-zero string "0" is.)"""
-    for state in (ThreeState.ON, ThreeState.POSSIBLE):
-        unproduced = decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={"B38": state})
-        with pytest.raises(FlagsRefused) as refused:
-            plan(encode(unproduced), 0)
-        assert "not produced" in str(refused.value) and "B38 (" in str(refused.value)
+def test_the_last_unproduced_fields_now_plan() -> None:
+    """Shuffle Enemy Drop Groups (B38, since 1e5fe2a) and Change Secret Spots (B05, since f7a1f7e) were
+    the last Z1R fields not produced; on and "?" each now plan to their own canonical string. (Since
+    the beta 8 export every field of the all-zero string "0" is produced too.)"""
+    for field_id in ("B38", "B05"):
+        for state in (ThreeState.ON, ThreeState.POSSIBLE):
+            flags = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(toggles={field_id: state}))
+            chosen = plan(flags, 0)
+            assert chosen.flag_string == flags and not chosen.notices
     assert plan("0", 0).flag_string == "0"
 
 
@@ -146,12 +148,10 @@ def _cp5_with(**toggles: ThreeState) -> str:
 
 
 def test_a_question_mark_whose_off_is_not_supported_is_refused_up_front() -> None:
-    """B23 off with B22 on (FL-DEP-06) is refused up front; B23's and B29's "?" are produced since the
-    beta 9 export (FL-DEP-04's B22 and B23 rule, FL-DEP-02 rule 4), B32's and C14 = 3 since the
-    2026-10-22 and beta 8 exports."""
-    with pytest.raises(FlagsRefused) as refused:
-        plan(_cp5_with(B23=ThreeState.OFF), 1)
-    assert refused.value.reasons == ["not produced: B23 (Re-draw the merchants' toll)"]
+    """B23's and B29's "?" are produced since the beta 9 export (FL-DEP-02 rule 4), B32's and
+    C14 = 3 since the 2026-10-22 and beta 8 exports, and B23 off with B22 on since the 2026-10-28
+    export (FL-DEP-06, PS-MERCH-05)."""
+    assert plan(_cp5_with(B23=ThreeState.OFF), 1)
     for field_id in ("B23", "B29", "B32"):
         assert plan(_cp5_with(**{field_id: ThreeState.POSSIBLE}), 1)
     assert plan(encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(options={"C14": 3})), 1)
@@ -207,13 +207,24 @@ def test_a_question_mark_on_level_encoding_is_read_as_off(flags: str) -> None:
     assert finish(build(chosen, base), base) == finish(build(plan(off, 1), base), base)
 
 
-def test_level_encoding_question_mark_beside_another_reason() -> None:
-    """With another unsupported field, only that field's reason is given."""
-    question = _cp5_with(B82=ThreeState.POSSIBLE, B05=ThreeState.ON)        # Change Secret Spots: not produced
+def test_level_encoding_question_mark_beside_change_secret_spots() -> None:
+    """B82 at "?" beside Change Secret Spots on (B05, produced since f7a1f7e): B82 is read as off with
+    its notice, and B05 stays on."""
+    question = _cp5_with(B82=ThreeState.POSSIBLE, B05=ThreeState.ON)
+    off = _cp5_with(B82=ThreeState.OFF, B05=ThreeState.ON)
+    chosen = plan(question, 1)
+    assert chosen.flag_string == off and chosen.settings.is_on("B05")
+    assert list(chosen.notices) == [ENCODE_LEVEL_DATA_RANDOM_NOTICE]
+
+
+def test_level_encoding_question_mark_beside_another_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With another unsupported field, only that field's reason is given. No Z1R field is unproduced
+    any more, so B05 stands in for one."""
+    monkeypatch.setattr(pipeline, "unsupported_fields", lambda _settings: ["B05", "B82"])
     with pytest.raises(FlagsRefused) as refused:
-        plan(question, 1)
+        plan(_cp5_with(B82=ThreeState.POSSIBLE, B05=ThreeState.ON), 1)
     (reason,) = refused.value.reasons
-    assert "B05" in reason and "B82" not in reason
+    assert "not produced" in reason and "B05" in reason and "B82" not in reason
 
 
 def test_resolve_never_draws_for_level_encoding() -> None:

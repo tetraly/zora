@@ -55,6 +55,12 @@ def controls_from(metadata: dict, state: dict) -> dict[str, str]:
     return controls
 
 
+def page_only_values(field_id: str) -> list[int]:
+    """The page's choices no Z1R string holds: Item Shuffle's Random (No Vanilla), Random with a ZORA flag
+    (flag_form.ITEM_SHUFFLE_NO_VANILLA_CHOICE; tests/test_item_shuffle_no_vanilla.py)."""
+    return [flag_form.ITEM_SHUFFLE_NO_VANILLA_CHOICE] if field_id == flags_fields.ITEM_SHUFFLE_SCOPE.id else []
+
+
 def test_metadata_fields_match_flags_module() -> None:
     metadata = worker_metadata()
     fields = metadata["fields"]
@@ -65,8 +71,8 @@ def test_metadata_fields_match_flags_module() -> None:
         if isinstance(field, OptionField):
             assert entry["kind"] == "option"
             assert entry["slots"] == field.slots
-            assert [v["value"] for v in entry["values"]] == list(range(field.count))
-            assert entry["randomValues"] == sorted(field.random_choices)
+            assert [v["value"] for v in entry["values"]] == [*range(field.count), *page_only_values(field.id)]
+            assert entry["randomValues"] == [*sorted(field.random_choices), *page_only_values(field.id)]
         else:
             assert entry["kind"] == "toggle"
             # Encode level data is a two-state switch (owner ruling, 2026-10-06)
@@ -81,8 +87,8 @@ def test_metadata_fields_match_flags_module() -> None:
 
 def test_metadata_support_matrix_matches_flags_module() -> None:
     """The baseline value, the turn-off values (FL-OFF-07), the alternative values (FL-ALT, owner
-    ruling) and, where both values of a three-state field are supported, its "?"; B23's off needs
-    B22 off or "?", so it is not offered on the baseline, and its "?" is (FL-DEP-04's B22 and B23 rule)."""
+    ruling) and, where both values of a three-state field are supported, its "?" (B23's off with B22
+    on too since the 2026-10-28 export: PS-MERCH-05)."""
     baseline = support.mvp_baseline_settings()
     both = [ThreeState.OFF, ThreeState.ON, ThreeState.POSSIBLE]
     for entry in worker_metadata()["fields"]:
@@ -95,15 +101,13 @@ def test_metadata_support_matrix_matches_flags_module() -> None:
             # a random index whose every outcome is produced (C01 = 4, OW-QST-06)
             expected |= {index for index, outcomes in flags_fields.OPTIONS_BY_ID[field_id].random_choices.items()
                          if set(outcomes) <= expected}
-            assert entry["supportedValues"] == sorted(expected)
+            assert entry["supportedValues"] == [*sorted(expected), *page_only_values(field_id)]
         elif field_id in support.TURN_OFF_TOGGLES_NOT_RANDOM:
             assert entry["supportedValues"] == [ThreeState.OFF, ThreeState.ON]     # B29, B02: no "?" (FL-SUP-01)
         elif (field_id in support.TURN_OFF_TOGGLES or field_id in support.OWNER_TURN_OFF_TOGGLES
               or field_id in support.SPEC_TURN_OFF_TOGGLES
-              or field_id in support.ALTERNATIVE_TOGGLES) and field_id != "B23":
+              or field_id in support.ALTERNATIVE_TOGGLES):
             assert entry["supportedValues"] == both
-        elif field_id == "B23":
-            assert entry["supportedValues"] == [ThreeState.ON, ThreeState.POSSIBLE]
         else:
             assert entry["supportedValues"] == [baseline.toggle(field_id)]
 
@@ -196,12 +200,9 @@ def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> N
     assert state["generateRefusals"] == []
     selectable = {*support.TURN_OFF_TOGGLES, *support.SPEC_TURN_OFF_TOGGLES, *support.OWNER_TURN_OFF_TOGGLES,
                   *support.TURN_OFF_OPTIONS,
-                  *support.ALTERNATIVE_OPTIONS, *support.ALTERNATIVE_TOGGLES} - {"B23"}
+                  *support.ALTERNATIVE_OPTIONS, *support.ALTERNATIVE_TOGGLES}
     for field_id, field in state["fields"].items():
-        if field_id == "B23":
-            # with B22 on its off is blocked, its "?" offered (FL-DEP-04's B22 and B23 rule)
-            assert not field["disabled"] and set(field["blocked"]) == {str(int(ThreeState.OFF))}
-        elif field_id == flags_fields.ENCODE_LEVEL_DATA.id:
+        if field_id == flags_fields.ENCODE_LEVEL_DATA.id:
             assert not field["disabled"] or not level_encoding.is_available()
         elif field_id in RANGE_FIELDS:
             # read only by Level 9 Entry's Triforce Range and Specific Triforces: locked, with why
@@ -217,31 +218,37 @@ def test_fields_at_their_only_produced_value_are_disabled_with_the_reason() -> N
             assert field["disabled"] and field["reason"] == "Not produced by ZORA yet", field_id
 
 
-def test_fl_dep_06_b23_can_be_set_while_b22_is_off_and_is_kept_as_given() -> None:
-    """FL-DEP-06: with B22 off the string is kept as pasted, with no note, and B23 can be set to
-    each of its values; with B22 on, B23's off stays blocked, and its "?" is offered (FL-DEP-04's
-    B22 and B23 rule resolves it on)."""
+def test_fl_dep_06_b23_can_be_set_whatever_b22_is_and_is_kept_as_given() -> None:
+    """FL-DEP-06: the string is kept as pasted, with no note, and B23 can be set to each of its
+    values, with B22 off or on (PS-MERCH-05, the 2026-10-28 export)."""
     cp5 = codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF)
-    for toll in ThreeState:
-        pasted = codec.encode(cp5.updated(toggles={"B22": ThreeState.OFF, "B23": toll}))
+    for merchants, toll in ((merchants, toll) for merchants in (ThreeState.OFF, ThreeState.ON) for toll in ThreeState):
+        pasted = codec.encode(cp5.updated(toggles={"B22": merchants, "B23": toll}))
         state = worker_state(pasted)
         assert state["flags"] == pasted and state["adjustments"] == [] and state["generateRefusals"] == []
         b23 = state["fields"]["B23"]
         assert b23["value"] == toll and not b23["disabled"] and not b23["problem"] and b23["blocked"] == {}
-    b23 = worker_state(codec.encode(cp5))["fields"]["B23"]
-    assert set(b23["blocked"]) == {str(int(ThreeState.OFF))}
 
 
-def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused() -> None:
-    """Shuffle Enemy Drop Groups (B38) on, still not produced: the control stays editable, off can be
-    picked, and generation is refused naming it."""
-    pasted = codec.encode(codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
-        toggles={"B38": ThreeState.ON}))
-    state = worker_state(pasted)
-    b38 = state["fields"]["B38"]
-    assert not b38["disabled"] and b38["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
-    assert "0" not in b38["blocked"]                 # a produced value (off) can be picked
-    assert state["generateRefusals"] == ["not produced: B38 (" + flags_fields.TOGGLES_BY_ID["B38"].setting + ")"]
+def test_a_pasted_unproduced_value_stays_editable_and_generation_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A value ZORA does not produce, pasted: the control stays editable, off can be picked, and
+    generation is refused naming it. Since the 2026-10-28 export every toggle value is produced on
+    the baseline (Mirrored Overworld, B06, is accepted and postponed), so Add Bridges to the River
+    (B87) on is made unproduced here."""
+    toggles = {**support.ALTERNATIVE_TOGGLES}
+    del toggles["B87"]
+    monkeypatch.setattr(support, "ALTERNATIVE_TOGGLES", toggles)
+    flag_form.supported_values.cache_clear()
+    try:
+        pasted = codec.encode(codec.decode(flags_presets.MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
+            toggles={"B87": ThreeState.ON}))
+        state = worker_state(pasted)
+        b87 = state["fields"]["B87"]
+        assert not b87["disabled"] and b87["reason"] == flag_form.CURRENT_NOT_PRODUCED_TEXT
+        assert "0" not in b87["blocked"]                 # a produced value (off) can be picked
+        assert state["generateRefusals"] == ["not produced: B87 (" + flags_fields.TOGGLES_BY_ID["B87"].setting + ")"]
+    finally:
+        flag_form.supported_values.cache_clear()
 
 
 @pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")

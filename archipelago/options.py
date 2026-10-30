@@ -11,7 +11,9 @@ Archipelago's own `random` stays available everywhere: it picks one of the liste
 random_per_seed is a value of its own, ZORA's draw for the seed.
 
 A ZORA flag Archipelago never offers (zora.archipelago.never_offered_fields: Shuffle Wood Sword) is a
-hidden option: a YAML may set it to off, and any other value is refused with ZORA's reason.
+hidden option: a YAML may set it to off, and any other value is refused with ZORA's reason. A retired
+flag a released world offered (Gatekeeper Bosses) is a hidden option too: any of its values is accepted
+and ignored.
 """
 from dataclasses import make_dataclass
 from typing import Any
@@ -101,7 +103,7 @@ def never_offered_class(spec: zora_ap.OptionSpec) -> type[Choice]:
     """A ZORA flag Archipelago never offers, as a hidden option (no template, page or spoiler line):
     off passes (ZORA uses it anyway), anything else is refused when the YAML is read, with
     zora.archipelago.never_offered_refusal's reason, which Archipelago shows under its "Error
-    generating option" line naming the player's file."""
+    generating option" line naming the player's file. A retired flag's every value passes, ignored."""
 
     def from_any(cls: type[Choice], data: Any) -> Choice:
         if (refusal := zora_ap.never_offered_refusal(cls.zora_key, data)) is not None:

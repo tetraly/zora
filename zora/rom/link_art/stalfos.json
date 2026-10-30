@@ -1,0 +1,41 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Stalfos",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Stalfos art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      2,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$02": {"block": "PatternBlockUWSP127", "tile": "$AA"},
+    "$04": {"block": "PatternBlockUWSP127", "tile": "$AA", "mirror": true},
+    "$06": {"block": "PatternBlockUWSP127", "tile": "$A8", "mirror": true},
+    "$08": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$0A": {"block": "PatternBlockUWSP127", "tile": "$AA"},
+    "$0C": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$0E": {"block": "PatternBlockUWSP127", "tile": "$AA"},
+    "$10": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$12": {"block": "PatternBlockUWSP127", "tile": "$AA"},
+    "$14": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$16": {"block": "PatternBlockUWSP127", "tile": "$AA"},
+    "$18": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$1A": {"block": "PatternBlockUWSP127", "tile": "$AA"},
+    "$78": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$80": {"block": "PatternBlockUWSP127", "tile": "$AA"},
+    "$54": {"block": "PatternBlockUWSP127", "tile": "$A8", "mirror": true},
+    "$58": {"block": "PatternBlockUWSP127", "tile": "$A8"},
+    "$5A": {"block": "PatternBlockUWSP127", "tile": "$AA", "mirror": true},
+    "$60": {"block": "PatternBlockUWSP127", "tile": "$A8"}
+  }
+}

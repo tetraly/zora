@@ -1,0 +1,41 @@
+{
+  "format": "zora-link-sprite-arrangement",
+  "version": 1,
+  "name": "Darknut",
+  "author": "ZORA",
+  "provenance": "Arranged by ZORA from the game's own Darknut art, read from your ROM when it is made; ZORA ships only the arrangement.",
+  "recommendedColors": {
+    "tunics": [
+      22,
+      2,
+      6
+    ],
+    "other": [
+      39,
+      48
+    ],
+    "colorOne": "art"
+  },
+  "halves": {
+    "$00": {"block": "PatternBlockUWSP358", "tile": "$B8"},
+    "$02": {"block": "PatternBlockUWSP358", "tile": "$BA"},
+    "$04": {"block": "PatternBlockUWSP358", "tile": "$BC"},
+    "$06": {"block": "PatternBlockUWSP358", "tile": "$BE"},
+    "$08": {"block": "PatternBlockUWSP358", "tile": "$B2", "mirror": true},
+    "$0A": {"block": "PatternBlockUWSP358", "tile": "$AE"},
+    "$0C": {"block": "PatternBlockUWSP358", "tile": "$B4"},
+    "$0E": {"block": "PatternBlockUWSP358", "tile": "$B6"},
+    "$10": {"block": "PatternBlockUWSP358", "tile": "$B8"},
+    "$12": {"block": "PatternBlockUWSP358", "tile": "$BA"},
+    "$14": {"block": "PatternBlockUWSP358", "tile": "$AC"},
+    "$16": {"block": "PatternBlockUWSP358", "tile": "$AE"},
+    "$18": {"block": "PatternBlockUWSP358", "tile": "$B4"},
+    "$1A": {"block": "PatternBlockUWSP358", "tile": "$B6"},
+    "$78": {"block": "PatternBlockUWSP358", "tile": "$B0"},
+    "$80": {"block": "PatternBlockUWSP358", "tile": "$BA"},
+    "$54": {"block": "PatternBlockUWSP358", "tile": "$BE"},
+    "$58": {"block": "PatternBlockUWSP358", "tile": "$AC"},
+    "$5A": {"block": "PatternBlockUWSP358", "tile": "$B0"},
+    "$60": {"block": "PatternBlockUWSP358", "tile": "$AC"}
+  }
+}

@@ -321,6 +321,23 @@ def test_no_room_for_dodongo_beside_a_kept_boss_restarts() -> None:
         oops_all_bosses(world, world.levels, _boss_sets(world), None, Rng(3), Staged())
 
 
+def test_kept_bosses_share_a_tile_by_its_home_never_by_its_bytes() -> None:
+    """Levels 1 and 2 (both block A) keep Aquamentus (block A, tiles 192-211) and Gleeok (block B,
+    192-223): both need tiles 192-211 in block A. Equal bytes in both blocks still restart, so the
+    player's graphics (Halloween Mode's art, a graphics hack) never change a seed's game."""
+    world = base_world()
+    for level, boss in ((world.levels[0], E.AQUAMENTUS), (world.levels[1], E.GLEEOK_2)):
+        room = next(room for room in level.rooms if room.enemy in OLD_BOSS_GROUPS)
+        room.enemy_info, room.layout_info = EnemyInfo(boss), LayoutInfo(RoomType.T_ROOM)
+    assert {level.boss_sprite_set for level in world.levels[:2]} == {BossSpriteSet.A}
+    same = bytes(range(TILE_BYTES))
+    for block in (PatternBlock.BOSS1257, PatternBlock.BOSS3468):
+        for tile in range(BOSS_FIRST_TILE, 212):
+            world.sprites.write_tile(block, (tile - BOSS_FIRST_TILE) * TILE_BYTES, same)
+    with pytest.raises(GenerationFailure, match="two kept bosses need one tile"):
+        oops_all_bosses(world, world.levels, _boss_sets(world), None, Rng(3), Staged())
+
+
 # --- a finished ROM ----------------------------------------------------------------------------
 
 @pytest.mark.parametrize("enemies", [OopsAllEnemies.WIZZROBES, OopsAllEnemies.BOUNCERS])

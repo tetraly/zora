@@ -69,7 +69,8 @@ class ZoraWorld(World):
         self.settings_values = player_settings(self.options)
         zora_ap.check_player_settings(self.settings_values)    # refused now, not at output
         seed = self.random.randrange(SEED_LIMIT)
-        self.built = zora_ap.build_from_strings(flag_string, zora_flag_string, seed, base_rom_bytes())
+        self.built = zora_ap.build_from_strings(flag_string, zora_flag_string, seed, base_rom_bytes(),
+                                                 self.settings_values)
         self.places, self.pool = list(self.built.places), list(self.built.pool)
         self.naming = ItemNaming.of(zora_ap.give_rules(self.built))
         unexpected = sorted({name for name in self.pool if name not in ITEM_NAME_TO_ID})
