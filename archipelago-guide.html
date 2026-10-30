@@ -222,7 +222,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .masthead { position: relative; overflow: hidden; background: var(--deep); color: #FFFFFF; }
 .masthead-bar, .masthead-hero { max-width: 1040px; margin: 0 auto; padding-left: 24px; padding-right: 24px; }
 .masthead-bar {
-  display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  display: flex; justify-content: flex-end; align-items: center; gap: 16px; flex-wrap: wrap;
   padding-top: 28px;
 }
 .wordmark { font-weight: 700; font-size: 20px; letter-spacing: 0.08em; }
@@ -239,10 +239,19 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
   font-size: 16px; display: grid; place-items: center;
 }
 .theme-btn:hover { background: rgba(255, 255, 255, .2); }
-.masthead-hero { position: relative; z-index: 1; padding-top: 48px; padding-bottom: 96px; }
+.masthead-hero {
+  position: relative; padding-top: 48px; padding-bottom: 96px;
+  display: flex; align-items: center; gap: 28px;
+}
+/* The hero's text stays above the waves; the hero graphic sits under them, and zora-web.js's tuckHeroLogo
+   moves it down until the front wave just covers its foot (the Zora comes up out of the water). */
+.masthead-hero > :not(.hero-logo) { position: relative; z-index: 2; }
+/* HERO_LOGO: the hero graphic (web/zora-logo.png) on the left of the title, at this width */
+.hero-logo { flex: none; width: 168px; height: auto; position: relative; z-index: 0; align-self: flex-end; }
 .masthead-hero h1 { margin: 0; font-weight: 700; font-size: 48px; line-height: 1.05; letter-spacing: -0.02em; }
 .masthead-hero p { margin: 14px 0 0; font-size: 17px; color: var(--deep-text); max-width: 560px; }
-.waves { position: absolute; left: 0; bottom: 0; width: 100%; height: 120px; }
+/* Above the hero graphic, whose foot they cover */
+.waves { position: absolute; left: 0; bottom: 0; width: 100%; height: 120px; z-index: 1; }
 .wave-1 { fill: #1450A8; }
 .wave-2 { fill: var(--teal); }
 .wave-3 { fill: var(--page); }
@@ -314,6 +323,17 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .message { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .message:empty { display: none; }
 .message--error { color: var(--error); }
+
+/* The flag summary (showFlagSummary): the settings in words, one column per tab where they fit. */
+.flag-summary { margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; background: var(--row); }
+.flag-summary summary { cursor: pointer; font-size: 14px; font-weight: 600; }
+.summary-sections {
+  display: grid; gap: 12px 20px; margin-top: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+}
+.summary-section h3 { margin: 0 0 4px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+.summary-section ul { margin: 0; padding-left: 18px; font-size: 14px; }
+.summary-actions { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; }
 
 .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 14px; }
 .tab {
@@ -427,7 +447,28 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
   color: #FFFFFF; font-weight: 700; text-shadow: 0 0 3px #000000;
 }
 .link-sprite-control { display: inline-flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
-.link-sprite-set { flex-basis: 100%; text-align: right; }
+/* Under the Link sprite row: who drew it and its colors (left), the preview (right). */
+.link-sprite-details { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 10px 16px; justify-content: space-between;
+  align-items: flex-start; padding: 4px 0 4px 20px; }
+.link-sprite-info { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+.link-sprite-info p { margin: 0; }
+/* A person set's swap (the person also looks like Link): under the details. */
+.link-sprite-swap { flex-basis: 100%; padding: 0 0 4px 20px; font-size: 14px; }
+.link-sprite-swap[hidden] { display: none; }
+.link-sprite-colors { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.link-sprite-swatch { width: 18px; height: 18px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .25); }
+/* Link's other colors: folded away, the full width of the settings grid. */
+.advanced-colors { grid-column: 1 / -1; padding: 6px 8px 6px 14px; border-radius: 12px; background: var(--row); }
+.advanced-colors summary { cursor: pointer; font-size: 14px; font-weight: 600; min-height: 36px; display: flex; align-items: center; }
+.advanced-colors .setting { background: var(--track); }
+.link-preview { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; margin-left: auto; }
+.link-preview-figures { display: flex; gap: 14px; }
+.link-preview-figures[hidden] { display: none; }
+.link-preview-figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.link-preview-figure canvas { image-rendering: pixelated; background: var(--track); border-radius: 8px; padding: 4px; }
+.link-preview-figure figcaption { font-size: 12px; color: var(--muted); }
+.link-preview-note { margin: 0; }
+.link-preview-note:empty { display: none; }
 
 /* ---------------------------------------------------------------------------
    Step 3: seed, Generate, status and the result card
@@ -554,7 +595,8 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 
 @media (max-width: 640px) {
   .masthead-bar, .masthead-hero, .steps, .page-footer { padding-left: 16px; padding-right: 16px; }
-  .masthead-hero { padding-top: 32px; padding-bottom: 80px; }
+  .masthead-hero { padding-top: 32px; padding-bottom: 80px; gap: 16px; }
+  .hero-logo { width: 96px; }
   .masthead-hero h1 { font-size: 34px; }
   .masthead-nav { gap: 14px; }
   .step { flex-direction: column; gap: 12px; padding: 20px 16px; border-radius: 24px; }
@@ -568,10 +610,14 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 }
 
 /* The beta banner (owner decision, 2026-10-07): first on the page, full width. */
+/* The beta banner in the hero graphic's own colors (web/zora-logo.png): its orange ball fading to its gold
+   horns, edged in the ball's darker orange, the same in both themes. The dark brown ink reads 8.1:1 on the
+   orange and 10.9:1 on the gold. */
 .beta-banner {
-  background: var(--beta-bg);
-  color: var(--beta-ink);
-  border-bottom: 3px solid var(--beta-line);
+  --logo-orange: #FF9900; --logo-gold: #F8C820; --logo-shade: #C06300; --banner-ink: #2B1600;
+  background: linear-gradient(90deg, var(--logo-orange), var(--logo-gold));
+  color: var(--banner-ink);
+  border-bottom: 3px solid var(--logo-shade);
   padding: 12px 16px;
 }
 .beta-banner p {
@@ -581,12 +627,12 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
   line-height: 1.5;
 }
 .beta-banner a {
-  color: var(--beta-link);
+  color: var(--banner-ink);
   font-weight: 600;
   text-decoration: underline;
 }
 .beta-banner a:focus-visible {
-  outline: 2px solid var(--beta-link);
+  outline: 2px solid var(--banner-ink);
   outline-offset: 2px;
 }
 /* The test channel's banner (docs/releasing.md "Channels"), above the beta banner: written into the
@@ -712,6 +758,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .music-playlist { display: grid; gap: 6px; margin-top: 10px; }
 .music-playlist-area { display: grid; grid-template-columns: minmax(7em, auto) minmax(0, 1fr); align-items: center; gap: 8px; }
 .music-playlist-area .select { min-width: 0; width: 100%; }
+.music-tagged-only { display: flex; align-items: center; gap: 6px; }
 </style>
 </head>
 <body>
