@@ -65,6 +65,9 @@ Crump, ultralavos, TheGobOne, Tetra, PDXRex and heccinhayley.
 - **The playable character sprites** Ganon, Justin Bailey, Kraid, Link (Bunny), Link (Female), Link
   (Invisible), Mother Brain, Samus and Zelda by ZeroMeaning, drawn for Z1M1
   (`zora/rom/link_sprites/zeromeaning-*.json`, `docs/z1m1/sprites.md`).
+- **The playable characters** Darknut, Gibdo, Goriya, Lynel, Moblin, Stalfos and Wizzrobe: Nintendo's
+  own art from The Legend of Zelda, read from the player's ROM and arranged into Link's poses
+  (`zora/rom/link_art/`).
 - **The Halloween graphics theme** ("Hallowe'en" for the overworld, the dungeons and the bosses, and
   "Lord of the Flies" for Ganon) by ZeroMeaning, drawn for Z1M1 (`zora/rom/themes/halloween.json`).
 

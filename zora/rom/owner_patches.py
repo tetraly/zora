@@ -46,6 +46,8 @@ PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
     "pegasus_boots": ("pegasus-boots",),
     # Version 13 (zora_flags.FULL_HEALTH_FIELDS): loading a save and continuing after death fill every heart.
     "full_health": ("full-health",),
+    # Version 18 (zora_flags.COMPASS_CHIME_FIELDS): with the level's compass, a chime where an item still waits.
+    "compass_chime": ("compass-chime",),
 }
 # asm/flags2's patches every ROM gets, whatever the flags: auto-show-letter, Auto Show Letter's, a flag
 # up to 2.0 beta 6 (owner, 2026-10-17; zora_flags.RETIRED_FIELDS).

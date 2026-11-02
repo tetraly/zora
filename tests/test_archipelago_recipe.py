@@ -33,8 +33,10 @@ SEEDS = (1, 2, 3)
 MANY_SEEDS = range(4, 16)
 SHUFFLE_TRIES = 20
 FOREIGN_SHARE = 0.25
+# The oldest and newest Python Archipelago supports (docs/releasing.md "Python versions"): pyenv's 3.11
+# and Homebrew's 3.13, which brew upgrade keeps on the newest 3.13 security release.
 PYTHONS = {"3.11": Path.home() / ".pyenv/versions/3.11.16/bin/python",
-           "3.13": Path.home() / ".pyenv/versions/3.13.3/bin/python"}
+           "3.13": Path("/opt/homebrew/bin/python3.13")}
 SETTINGS: tuple[dict[str, Any], ...] = ({}, {"selectButton": "swap", "music": "off", "greenTunic": 0x2A, "heart": 0x27})
 REBUILD = """
 import hashlib, json, sys

@@ -165,8 +165,14 @@ class Emulator:
         """Step `frames` frames holding `buttons`, then release them."""
         self.untouched = False
         self.nes.controller = int(buttons)
+        frame = None
         for _ in range(frames):
-            self.last_frame = self.nes.step(1)
+            frame = self.nes.step(1)
+        # cynes returns a view of the console's own frame buffer, rewritten each frame and freed with
+        # the console, whose memory the next console may reuse (a saved frame once turned into
+        # another console's, test_blackout_emulator in the beta 12 batch run): keep a copy.
+        if frame is not None:
+            self.last_frame = frame.copy()
         self.frames += frames
         self.nes.controller = 0
 

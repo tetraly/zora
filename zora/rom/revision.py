@@ -39,11 +39,11 @@ ROM_DATA_SHA1 = {
     Revision.PRG0: "a12d74c73a0481599a5d832361d168f4737bbcf6",
     Revision.PRG1: "be2f5dc8c5ba8ec1a344a71f9fb204750af24fe7",
 }
-# The same with every graphics block zeroed (graphics_free): what a ROM with modified graphics
-# hashes to.
+# The same with every graphics block, both tunic-color copies and the look tables zeroed
+# (graphics_free): what a ROM with modified graphics hashes to.
 GRAPHICS_FREE_SHA1 = {
-    Revision.PRG0: "002a3e56f1d3099d7e736a9e643c9d2a954fae89",
-    Revision.PRG1: "90a704ffd450fd71ab4bd94ca2f05e253d13b6e8",
+    Revision.PRG0: "f55347087213d08661c3943494ea18050835ac0b",
+    Revision.PRG1: "bc41d8ddd9d917d3151b64688f8f96492fbaeb45",
 }
 
 # The graphics a ROM may change and still be recognized: the 15 tile-pattern blocks of the
@@ -65,6 +65,23 @@ GRAPHICS_BLOCKS: tuple[tuple[str, int, int], ...] = (
     ("PatternBlockUWSPBoss1257", 57307, 1024),
     ("PatternBlockUWSPBoss3468", 58331, 1024),
     ("PatternBlockUWSPBoss9", 59355, 1024),
+)
+# Link's tunic color per ring state (no ring, blue ring, red ring), which a graphics hack may
+# recolor too (owner ruling, 2026-11-01: Cactus's hack sets the red ring's): both copies the game
+# reads, the file-select screen's (LinkColors) and the pickup's (LinkColors_CommonCode), at the
+# same offsets in PRG1. Every ROM ZORA makes writes all six from the player's settings
+# (player_settings.tunic_colors), so the hack's own colors never reach it.
+TUNIC_COLOR_COPIES: tuple[tuple[str, int, int], ...] = (
+    ("LinkColors", 0xA287, 3),
+    ("LinkColors_CommonCode", 0x6B95, 3),
+)
+# Look-only data a graphics hack may change too (owner ruling, 2026-11-01: the Legend of Marin
+# hack changes both), at the same offsets in PRG1; ZORA writes neither. Zelda's thank-you at the
+# end (38 bytes: a longer text would run into the code after it, which stays refused) and the
+# dungeon door faces, four directions of five faces of 12 tile numbers.
+LOOK_TABLES: tuple[tuple[str, int, int], ...] = (
+    ("ThanksText", 0xA959, 38),
+    ("DoorFaceTilesE..DoorFaceTilesN", 0x15FEE, 4 * 5 * 12),
 )
 
 NOT_RECOGNIZED = "ROM not recognized. If you believe this is in error, please file a bug in the ZORA Discord"
@@ -95,9 +112,9 @@ def rom_data(data: bytes) -> bytes:
 
 
 def graphics_free(data: bytes) -> bytes:
-    """The ROM data with every graphics block zeroed."""
+    """The ROM data with every graphics block, both tunic-color copies and the look tables zeroed."""
     image = bytearray(data)
-    for _name, offset, length in GRAPHICS_BLOCKS:
+    for _name, offset, length in (*GRAPHICS_BLOCKS, *TUNIC_COLOR_COPIES, *LOOK_TABLES):
         image[offset:offset + length] = bytes(length)
     return bytes(image)
 

@@ -1,9 +1,9 @@
-ZORA 2.0 beta 11 spoiler log
+ZORA 2.0 beta 12 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Compass, Bow, Letter, Heart
+Seed code: Boomerang, Blue Candle, Wooden Arrow, Recorder
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -152,6 +152,7 @@ ZORA  Randomize Dead Woods ................................................. off
 ZORA  Disable Custom Music ................................................. off
 ZORA  Start With Full Health ............................................... off
 ZORA  Recorder Warping ..................................................... off
+ZORA  Compass Chime ........................................................ off
 
 ================================================================================
 Major items by place

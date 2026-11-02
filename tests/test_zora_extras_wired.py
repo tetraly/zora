@@ -190,7 +190,8 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
               **dict.fromkeys(FULL_HEALTH_FIELDS, "0"),
               "harder_bosses": "0", "harder_ganon": "0", "offense_pacing": "0", "defense_pacing": "0",
               "recorder_warping": "0", "swap_swords_and_rings": "0", "swordlish": "0",
-              "swordlish_lowest": "0", "swordlish_highest": "7", "item_shuffle_no_vanilla": "0"}
+              "swordlish_lowest": "0", "swordlish_highest": "7", "item_shuffle_no_vanilla": "0",
+              "compass_chime": "0"}
     assert flag_form.zora_form_change(FLAGS, values)["zora"]["flags"] == SWORD
     off = {**dict.fromkeys(values, "0"), "swordlish_highest": "7"}
     assert flag_form.zora_form_change(FLAGS, off)["zora"]["flags"] == ""
@@ -203,7 +204,8 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
         **dict.fromkeys(DO_NOT_SEGMENT_DUNGEONS_FIELDS, 0), "disable_custom_music": 0,
         **dict.fromkeys(FULL_HEALTH_FIELDS, 0), "harder_bosses": 0, "harder_ganon": 0,
         "offense_pacing": 0, "defense_pacing": 0, "recorder_warping": 0, "swap_swords_and_rings": 0, "swordlish": 0,
-        "swordlish_lowest": 0, "swordlish_highest": 7, "item_shuffle_no_vanilla": 0}
+        "swordlish_lowest": 0, "swordlish_highest": 7, "item_shuffle_no_vanilla": 0,
+        "compass_chime": 0}
     assert set(field["name"] for field in flag_form.metadata()["zora"]["fields"]) == set(values)
 
 

@@ -15,15 +15,17 @@
 STATS_BLOCK      = $7F00
 StatsMagic       = STATS_BLOCK + $00
 TotalSeconds     = STATS_BLOCK + $02
+DeathWarps       = STATS_BLOCK + $05
 AreaSeconds      = STATS_BLOCK + $06    ; 16 bits each: the overworld, levels 1-9
 LevelStamps      = STATS_BLOCK + $1A    ; 16 bits each, levels 1-9; the item stamps follow
 Stabs            = STATS_BLOCK + $3A
 BombsUsed        = STATS_BLOCK + $3C
 PrevBombs        = STATS_BLOCK + $3E
-StatsScreenState = STATS_BLOCK + $3F    ; 0: not shown (bank 0 clears it outside the win mode)
+StatsFlags       = STATS_BLOCK + $01
+SelfBurns        = STATS_BLOCK + $3F
 STATS_SIZE       = $40
 STATS_MAGIC      = $A5
-SCREEN_SHOWN     = $01
+STATS_SHOWN      = $40                  ; StatsFlags: shown (bank 0 clears it outside the win mode); BIT puts it in V
 
 BUTTON_START     = $10
 ; UpdateMode13WinGame_Sub4's Start path, from its JSR EndGameMode on (save mode, video off, sound
@@ -44,10 +46,12 @@ SILENCE_SONG     = $80                  ; Tune0Request: DriveTune0 runs SilenceS
 ; the free space's $FF): this patch is built apart from the music choices, so the address is
 ; named in both.
 MUSIC_OFF_MARK   = $B7A0
-; The counters' small x: the screen writes its pattern over background tile $70, the first of the
-; level's own tiles ($1700-$1F1F), which every level and the overworld load again before they are
-; shown (the menus after the ending use only the common tiles).
+; The counters' small x and the death warps' plus (the font has none): the screen writes their
+; patterns over background tiles $70 and $71, the first of the level's own tiles ($1700-$1F1F),
+; which every level and the overworld load again before they are shown (the menus after the ending
+; use only the common tiles).
 SMALL_X_TILE     = $70
+PLUS_TILE        = $71
 SMALL_X_PATTERN  = $1000 + SMALL_X_TILE * 16
 
 ; The status bar's level label record (LevelNumberTransferBuf, which power-on copies to RAM): the
@@ -96,8 +100,8 @@ BlanksAfter  = $0F                      ; PutCount: the columns left after the n
 ; --- entry ------------------------------------------------------------------------------------
 
 StatsFrame:
-    LDA StatsScreenState
-    BNE @Shown
+    BIT StatsFlags
+    BVS @Shown
     LDA ObjTimer
     BNE @AsPrg0
     LDA ButtonsPressed
@@ -109,8 +113,9 @@ StatsFrame:
     BNE :+                          ; music on: the ending's song plays on
     STA Tune0Request
 :
-    LDA #SCREEN_SHOWN
-    STA StatsScreenState
+    LDA StatsFlags
+    ORA #STATS_SHOWN
+    STA StatsFlags
     PLA                             ; return past the rest of the submode
     PLA
     RTS
@@ -125,8 +130,9 @@ StatsFrame:
     AND #BUTTON_START
     BEQ @Wait
     ; The submode's own Start path: the save mode (which keeps the file, FP-SAVE-01).
-    LDA #$00
-    STA StatsScreenState
+    LDA StatsFlags
+    AND #<~STATS_SHOWN
+    STA StatsFlags
     JMP WIN_SUBMODE_START_PATH
 
 @Wait:
@@ -168,7 +174,7 @@ DrawStatsScreen:
     AND #<~NMI_ENABLE
     STA PpuControl_2000
     JSR WritePalettes
-    JSR WriteSmallXPattern
+    JSR WriteGlyphPatterns
     JSR WriteNameTable
     JSR DrawStatsSprites
     LDA #VIDEO_ON
@@ -203,7 +209,8 @@ WritePalettes:
     BNE :-
     RTS
 
-WriteSmallXPattern:
+; The small x and the plus, tiles $70 and $71.
+WriteGlyphPatterns:
     LDA #>SMALL_X_PATTERN
     LDY #<SMALL_X_PATTERN
     JSR SetPpuAddress
@@ -212,7 +219,7 @@ WriteSmallXPattern:
     LDA SmallXPattern, X
     STA PpuData_2007
     INX
-    CPX #16
+    CPX #GLYPH_PATTERNS_SIZE
     BNE :-
     RTS
 
@@ -235,7 +242,7 @@ PutText:
     BNE PutText
     RTS
 
-; The tile of an ASCII character of StatsText: a capital, a digit, the period or a space.
+; The tile of an ASCII character of StatsText: a capital, a digit, the period, the plus or a space.
 CharacterTile:
     CMP #'A'
     BCC @NotLetter
@@ -250,6 +257,11 @@ CharacterTile:
     CMP #'.'
     BNE :+
     LDA #PERIOD
+    RTS
+:
+    CMP #'+'
+    BNE :+
+    LDA #PLUS_TILE
     RTS
 :
     LDA #SPACE
@@ -347,12 +359,34 @@ WriteNameTable:
     LDX #BOX_LEFT_COLUMN - COUNTERS_END_COLUMN
     JSR PutBlanks
     JSR PutBoxSide
-    ; Row 8: the box's bottom.
-    LDX #BOX_LEFT_COLUMN - 2
+    ; Rows 8-9, under the counters (owner's layout, 2026-11-02): two counters, the death warps with
+    ; UP over +A in place of an icon, then the self-burns (its icon, the flame, a sprite over the
+    ; rows' first two columns); the small x and the counts on row 9, as the counters above. Row 8
+    ; ends with the box's bottom.
+    LDX #TextUp - StatsText
+    LDY #TextUpEnd - TextUp
+    JSR PutText
+    LDX #BOX_LEFT_COLUMN - 2 - COUNTER_ICON_COLUMNS
     JSR PutBlanks
     LDX #BoxBottom - BoxTiles
     JSR PutBoxRow
-    ; Row 9: the headings, over the time columns.
+    ; Row 9: +A, the death warps' count, the self-burns count; the rest of the row blank, then
+    ; row 10.
+    LDX #TextPlusA - StatsText
+    LDY #TextPlusAEnd - TextPlusA
+    JSR PutText
+    LDA DeathWarps
+    LDY #$00
+    LDX #SHORT_COUNT_COLUMNS
+    JSR SetCount
+    JSR PutSmallXAndCount
+    LDA SelfBurns
+    LDY #$00
+    LDX #SHORT_COUNT_COLUMNS
+    JSR PutCounterCell
+    LDX #32 - UNDER_COUNTERS_END_COLUMN + 32 + 2
+    JSR PutBlanks
+    ; Row 11: the headings, over the time columns.
     LDX #HEADINGS_COLUMN - 2
     JSR PutBlanks
     LDX #TextHeadings - StatsText
@@ -360,23 +394,23 @@ WriteNameTable:
     JSR PutText
     LDX #32 - HEADINGS_COLUMN - (TextHeadingsEnd - TextHeadings) + 2
     JSR PutBlanks
-    ; Rows 10-26: the list.
+    ; Rows 12-28: the list, then row 29's remaining 30 tiles.
     JSR WriteList
-    ; Row 27: PUSH START BUTTON.
-    LDX #7 - 2
+    LDX #30
     JSR PutBlanks
-    LDX #TextPushStart - StatsText
-    LDY #TextPushStartEnd - TextPushStart
-    JSR PutText
-    LDX #8 + 32 + 32
-    JSR PutBlanks
-    ; The attributes.
+    ; The attributes: StatsAttributes' rows, then palette 0 below them.
     LDX #$00
 :
     LDA StatsAttributes, X
     STA PpuData_2007
     INX
-    CPX #64
+    CPX #STATS_ATTRIBUTES_SIZE
+    BNE :-
+    LDA #$00
+    LDX #ATTRIBUTE_TABLE_SIZE - STATS_ATTRIBUTES_SIZE
+:
+    STA PpuData_2007
+    DEX
     BNE :-
     RTS
 
@@ -403,15 +437,21 @@ PutBoxSide:
 ; One counter cell: blanks under the icon, the small x, then the value (A low, Y high) as PutCount
 ; writes it in X columns (COUNTER_ICON_COLUMNS + 1 + X in all).
 PutCounterCell:
+    JSR SetCount
+    LDX #COUNTER_ICON_COLUMNS
+    JSR PutBlanks
+PutSmallXAndCount:
+    LDA #SMALL_X_TILE
+    STA PpuData_2007
+    JMP PutCount
+
+; The value PutCount writes (A low, Y high), in X columns.
+SetCount:
     STA Number
     STY Number+1
     DEX
     STX BlanksAfter                 ; the columns after the ones, which are always shown
-    LDX #COUNTER_ICON_COLUMNS
-    JSR PutBlanks
-    LDA #SMALL_X_TILE
-    STA PpuData_2007
-    JMP PutCount
+    RTS
 
 ; --- the list -----------------------------------------------------------------------------------
 
@@ -880,6 +920,11 @@ COUNTER_LEFT_X      = 2 * 8
 COUNTER_RIGHT_X     = (2 + COUNTER_ICON_COLUMNS + 1 + SHORT_COUNT_COLUMNS) * 8
 COUNTER_UPPER_Y     = 4 * 8 - 1         ; rows 4-5: deaths, stabs
 COUNTER_LOWER_Y     = 6 * 8 - 1         ; rows 6-7: heart containers, bombs
+COUNTER_BURNS_Y     = 8 * 8 - 1         ; rows 8-9: self-burns (right; the death warps left)
+COUNTER_RIGHT_COLUMN = COUNTER_RIGHT_X / 8
+FIRE_LEFT_TILE      = $5C               ; Link's flame (the candle's fire object, in play), as its two sprites
+FIRE_RIGHT_TILE     = $5E
+FIRE_PALETTE        = $02
 WOOD_SWORD_VALUE    = $01
 BOMB_TILE           = $34
 BOMB_PALETTE        = $01               ; ItemSlotToPaletteOffsetsOrValues' for the bombs
@@ -889,14 +934,16 @@ RED_PALETTE         = $02
 FLIP_HORIZONTALLY   = $40
 SLIM_SEPARATION     = 7                 ; a slim item's sides overlap one pixel (Anim_WriteSpecificItemSprites)
 
-; Sprites 0-4 (Y, tile, attributes, X): Link facing down with his shield, as he stands in play, a
-; heart container, red, and a bomb, as the item screen draws them.
+; Sprites 0-6 (Y, tile, attributes, X): Link facing down with his shield, as he stands in play, a
+; heart container, red, a bomb, as the item screen draws them, and the flame as play draws it.
 CounterSprites:
     .BYTE COUNTER_UPPER_Y, $5A, LINK_PALETTE, COUNTER_LEFT_X
     .BYTE COUNTER_UPPER_Y, $08, LINK_PALETTE | FLIP_HORIZONTALLY, COUNTER_LEFT_X + 8
     .BYTE COUNTER_LOWER_Y, $68, RED_PALETTE, COUNTER_LEFT_X
     .BYTE COUNTER_LOWER_Y, $68, RED_PALETTE | FLIP_HORIZONTALLY, COUNTER_LEFT_X + SLIM_SEPARATION
     .BYTE COUNTER_LOWER_Y, BOMB_TILE, BOMB_PALETTE, COUNTER_RIGHT_X + HALF_WIDTH_CENTER
+    .BYTE COUNTER_BURNS_Y, FIRE_LEFT_TILE, FIRE_PALETTE, COUNTER_RIGHT_X
+    .BYTE COUNTER_BURNS_Y, FIRE_RIGHT_TILE, FIRE_PALETTE, COUNTER_RIGHT_X + 8
 COUNTER_SPRITES_SIZE = * - CounterSprites
 
 ; The small x, background color 1 (white), its strokes on the digits' middle rows.
@@ -910,6 +957,18 @@ SmallXPattern:
     .BYTE %01000100
     .BYTE %00000000
     .RES 8, $00
+; The plus, as the font draws (color 1): the dash's bar crossed by a two-pixel stroke.
+PlusPattern:
+    .BYTE %00000000
+    .BYTE %00110000
+    .BYTE %00110000
+    .BYTE %11111100
+    .BYTE %00110000
+    .BYTE %00110000
+    .BYTE %00000000
+    .BYTE %00000000
+    .RES 8, $00
+GLYPH_PATTERNS_SIZE = * - SmallXPattern
 
 ; The seed number's 20 digit tiles (code_patches.STATS_SEED_DIGITS, written by generation in bank 2's
 ; free space outside every patch): 10 on row 1 after SEED, the rest under them; $FF, none written.
@@ -919,6 +978,10 @@ SEED_DIGITS_PER_ROW = 10
 SEED_DIGITS_COLUMN  = 7
 SEED_DIGITS_END_COLUMN = SEED_DIGITS_COLUMN + SEED_DIGITS_PER_ROW
 HEADINGS_COLUMN     = 13
+; Rows 8-9, under the counters: the death warps' cell (UP over +A in the icon's place, then on the
+; lower row the small x and the count), then the self-burns cell, an icon (the flame sprites) over two
+; columns, then on the lower row the small x and the count, ending at this column.
+UNDER_COUNTERS_END_COLUMN = COUNTER_RIGHT_COLUMN + COUNTER_ICON_COLUMNS + 1 + SHORT_COUNT_COLUMNS
 
 ; Each save slot's name in Names (8 tiles a slot).
 StatsNameOffsets:
@@ -964,20 +1027,25 @@ TextHeadingsEnd:
 TextSeed:
     .BYTE "SEED "
 TextSeedEnd:
-TextPushStart:
-    .BYTE "PUSH START BUTTON"
-TextPushStartEnd:
+TextUp:
+    .BYTE "UP"
+TextUpEnd:
+TextPlusA:
+    .BYTE "+A"
+TextPlusAEnd:
 TextTimeCap:
     .BYTE "9.59.59"
 
 ; Palette 2 under the box (rows 2-7, columns 16-29; row 2's column 16 holds only the seed's last
-; digit, white in either palette), palette 1 under the box's bottom and the headings (rows 8-9,
-; columns 12-29); palette 0 elsewhere.
+; digit, white in either palette), palette 1 under the box's bottom (row 8, columns 16-29) and the
+; headings (row 11, columns 12-29); palette 0 elsewhere (the attribute rows after these, which
+; WriteNameTable writes as zeros).
 StatsAttributes:
     .BYTE $00, $00, $00, $00, $A0, $A0, $A0, $20
     .BYTE $00, $00, $00, $00, $AA, $AA, $AA, $22
-    .BYTE $00, $00, $00, $05, $05, $05, $05, $01
-    .RES 5 * 8, $00
+    .BYTE $00, $00, $00, $50, $55, $55, $55, $11
+STATS_ATTRIBUTES_SIZE = * - StatsAttributes
+ATTRIBUTE_TABLE_SIZE  = 64
 
 ; Each level's number as the status bar shows it (LevelInfo_LevelNumber's tile), and the levels
 ; (0-8) in the order of those numbers: a second-quest or mixed seed's level 4 may be the game's

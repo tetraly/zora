@@ -1,5 +1,5 @@
-"""How long a seed may take (2026-10-28): the web page's 15 s limit, which stops generation between
-attempts without changing what a finished seed is (zora/generate/deadline.py; the page's
+"""How long a seed may take (2026-10-28): the web page's 30 s limit (15 s until 2026-11-02), which stops
+generation between attempts without changing what a finished seed is (zora/generate/deadline.py; the page's
 generateWithinLimit in web/zora-web.js, run here in Node). (Gatekeeper Bosses' restart cap and
 fallback were tested here until its retirement, 2026-10-29.)"""
 import json
@@ -95,13 +95,13 @@ generateWithinLimit().then((result) => console.log(JSON.stringify({ result, trie
 
 def test_a_typed_seed_gets_the_whole_limit_then_a_message() -> None:
     outcome = run_page("7", typed=True, outcomes={})
-    assert outcome["tried"] == [["7", 15000]]
-    assert outcome["error"] == "Seed 7 took longer than 15 s to generate. Try another seed."
+    assert outcome["tried"] == [["7", 30000]]
+    assert outcome["error"] == "Seed 7 took longer than 30 s to generate. Try another seed."
 
 
 def test_a_typed_seed_that_fails_reports_its_own_error() -> None:
     outcome = run_page("7", typed=True, outcomes={"7": ["fail", 300]})
-    assert outcome["tried"] == [["7", 15000]] and "generation failed" in outcome["error"]
+    assert outcome["tried"] == [["7", 30000]] and "generation failed" in outcome["error"]
 
 
 def test_a_chosen_seed_is_replaced_quietly_until_one_finishes() -> None:
@@ -112,6 +112,6 @@ def test_a_chosen_seed_is_replaced_quietly_until_one_finishes() -> None:
 
 def test_chosen_seeds_stop_within_the_limit() -> None:
     outcome = run_page("1", typed=False, outcomes={})
-    assert [limit for _seed, limit in outcome["tried"]] == [5000, 5000, 5000]
-    assert outcome["clock"] == 15000
-    assert outcome["error"].startswith("No seed was ready within 15 s with these settings.")
+    assert [limit for _seed, limit in outcome["tried"]] == [5000] * 6
+    assert outcome["clock"] == 30000
+    assert outcome["error"].startswith("No seed was ready within 30 s with these settings.")

@@ -27,7 +27,7 @@ bytes:
 image, and records what changed as pieces: ZORA's own bytes, or Original pieces for the bytes
 of the original game a patch keeps, read from the player's ROM (never stored). It checks that
 every data edit lies inside a binary include and that every new segment is in FREE_SPACE
-(docs/rom-map.md), blank in the ZORA build.
+(docs/rom-map.md) or placed by asm/rom_space.py (asm/placements.toml), blank in the ZORA build.
 
 This script imports scripts/asm_patches.py for its assembling and patch helpers and does not
 change it; each build works in a scratch folder of its own (scripts/asm_patches.py's scratch()).
@@ -82,6 +82,7 @@ PATCHES = (
     "ring-color",               # Archipelago ROMs only: a ring given through RAM repaints Link
     "full-health",              # Start With Full Health (credit: ShadowOne333, kalita-kun, gzip)
     "harder-ganon",             # Harder Ganon (credit: MetalMachine, Z1M1)
+    "compass-chime",            # Compass Chime (ZORA version 18)
 )
 
 # Community members who wrote a feature (the document's credits; docs/credits.md).
@@ -190,16 +191,24 @@ def build_all() -> tuple[bytes, dict[str, list[tuple[int, Piece]]]]:
     return zora, writes
 
 
+def placed_space() -> dict[str, FreeSpace]:
+    """The flags2 segments asm/rom_space.py placed (asm/placements.toml), by name: their ranges."""
+    return {row.segment: FreeSpace(bank, row.start, row.start + row.size - 1)
+            for row in tool.rom_space().placements() if row.owner.startswith("flags2:") for bank in row.banks}
+
+
 def check_segments(name: str, zora: bytes, patched: bytes, src: Path) -> None:
-    """Every segment the patch adds is one of FREE_SPACE's, at its start and within its range
-    (blank in the ZORA build), and the patch writes no other byte that is blank there."""
+    """Every segment the patch adds is one of FREE_SPACE's or placed (placed_space), at its start
+    and within its range (blank in the ZORA build), and the patch writes no other byte that is
+    blank there."""
     config = (src / "Z.cfg").read_text()
     patch = load_patch(name)
+    ranges = {**FREE_SPACE, **placed_space()}
     spaces = []
     for segment in patch.segments:
-        space = FREE_SPACE.get(segment.name)
+        space = ranges.get(segment.name)
         if space is None or (segment.bank, segment.start) != (space.bank, space.first):
-            raise SystemExit(f"{name}: segment {segment.name} is not one of FREE_SPACE's")
+            raise SystemExit(f"{name}: segment {segment.name} is neither one of FREE_SPACE's nor placed")
         if f"{segment.name}: load = ROM_{segment.bank:02d}" not in config:
             raise SystemExit(f"{name}: {segment.name} is not in Z.cfg")
         if any(zora[offset] != tool.FREE_SPACE_FILL for offset in space.file_range()):
@@ -214,7 +223,7 @@ def check_segments(name: str, zora: bytes, patched: bytes, src: Path) -> None:
 def segment_use(writes: dict[str, list[tuple[int, Piece]]]) -> dict[str, tuple[int, int]]:
     """Per segment: (bytes used, bytes in its range)."""
     use = {}
-    for segment, space in FREE_SPACE.items():
+    for segment, space in {**FREE_SPACE, **placed_space()}.items():
         inside = sorted(offset for runs in writes.values() for start, piece in runs
                         for offset in range(start, start + piece_length(piece)) if offset in space.file_range())
         use[segment] = (inside[-1] - space.file_range().start + 1 if inside else 0, len(space.file_range()))

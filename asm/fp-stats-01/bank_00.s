@@ -9,19 +9,25 @@
 
 STATS_BLOCK      = $7F00
 StatsMagic       = STATS_BLOCK + $00
-StatsFlags       = STATS_BLOCK + $01    ; bit 7: the quest was finished, the clock is frozen
+StatsFlags       = STATS_BLOCK + $01    ; bit 7: the quest was finished, the clock is frozen; bit 6: the
+                                        ; screen is shown (bank 2); bit 5: SelfBurns reached 128; bits
+                                        ; 0-3: the ten-second phase (0-9: the tenth second of ten takes
+                                        ; one frame more)
 TotalSeconds     = STATS_BLOCK + $02    ; 16 bits, from the file's registration
 SubFrame         = STATS_BLOCK + $04    ; frames toward the next second
-TenthPhase       = STATS_BLOCK + $05    ; 0-9: the tenth second of ten takes one frame more
+DeathWarps       = STATS_BLOCK + $05    ; the item screen's death warps (bank 5's CountDeathWarp); stops at 255
 AreaSeconds      = STATS_BLOCK + $06    ; 16 bits each: the overworld, levels 1-9 (CurLevel)
 LevelStamps      = STATS_BLOCK + $1A    ; 16 bits each, levels 1-9: TotalSeconds at completion
 ItemStamps       = STATS_BLOCK + $2C    ; 16 bits each: TotalSeconds when the key item was held
 BombsUsed        = STATS_BLOCK + $3C    ; 16 bits (Stabs, bank 5, is at $3A)
 PrevBombs        = STATS_BLOCK + $3E    ; InvBombs last frame
-StatsScreenState = STATS_BLOCK + $3F    ; the screen's state (bank 2); 0 outside the win mode
+SelfBurns        = STATS_BLOCK + $3F    ; times Link's own flame hurt him (bank 7's hook); stops at 255
 STATS_SIZE       = $40
 STATS_MAGIC      = $A5
 STATS_FINISHED   = $80
+STATS_SHOWN      = $40                  ; the screen is shown; cleared outside the win mode
+SELF_BURNS_HIGH  = $20                  ; SelfBurns has been 128 or more (see CapSelfBurns)
+TENTH_PHASE_MASK = $0F                  ; StatsFlags' ten-second phase
 
 LEVEL_STAMP_OFFSET = LevelStamps - STATS_BLOCK
 ITEM_STAMP_OFFSET  = ItemStamps - STATS_BLOCK
@@ -39,8 +45,7 @@ ITEM_STAMPS        = 7
 ; 601 frames per 10 seconds (NTSC runs at 60.0988 frames a second): 60 frames a second, the
 ; tenth second 61.
 FRAMES_PER_SECOND  = 60
-LONG_SECOND_PHASE  = 9
-PHASES             = 10
+LONG_SECOND_PHASE  = 9                  ; the last of the 10 phases
 
 ; The key items, in the screen's order: the slot (from Items) and the value at which the item is
 ; held. Any sword; ladder; bracelet; raft; recorder; silver arrows; bow (owner, 2026-10-17).
@@ -67,8 +72,9 @@ StatsTick:
     CMP #MODE_WIN
     BEQ @Win
     ; Outside the win mode the screen is never shown (a reset during it leaves the state set).
-    LDA #$00
-    STA StatsScreenState
+    LDA StatsFlags
+    AND #<~STATS_SHOWN
+    STA StatsFlags
     LDA GameMode
     CMP #MODE_LOAD_FIRST
     BCC @NotCounted
@@ -106,6 +112,9 @@ StatsTick:
     JSR StampLevels
     JSR StampItems
     JSR CountBombs
+    LDA ObjInvincibilityTimer       ; non-zero for $18 frames after any damage to Link: the only
+    BEQ @Done                       ; frames CapSelfBurns can have anything to do (7 cycles otherwise)
+    JSR CapSelfBurns
 
 @Done:
     JMP StatsTickExit
@@ -127,7 +136,8 @@ RememberBombs:
 
 TickClock:
     LDX #FRAMES_PER_SECOND
-    LDA TenthPhase
+    LDA StatsFlags
+    AND #TENTH_PHASE_MASK
     CMP #LONG_SECOND_PHASE
     BNE :+
     INX
@@ -139,13 +149,19 @@ TickClock:
 :
     LDA #$00
     STA SubFrame
-    LDX TenthPhase
-    INX
-    CPX #PHASES
-    BCC :+
-    LDX #$00
-:
-    STX TenthPhase
+    ; The next phase, in StatsFlags' low bits (the death warps took its byte): a phase before the
+    ; last goes up by one, which never carries out of them; the last goes back to 0.
+    LDA StatsFlags
+    AND #TENTH_PHASE_MASK
+    CMP #LONG_SECOND_PHASE
+    BCS @FirstPhase
+    INC StatsFlags
+    BNE @NextSecond                 ; always: the phase it now holds is 1-9
+@FirstPhase:
+    LDA StatsFlags
+    AND #<~TENTH_PHASE_MASK
+    STA StatsFlags
+@NextSecond:
     INC TotalSeconds
     BNE :+
     INC TotalSeconds+1
@@ -232,3 +248,26 @@ CountBombs:
     INC BombsUsed+1
 @Remember:
     JMP RememberBombs
+
+; SelfBurns is counted by an INC in bank 7's damage code, which has no room to stop at 255 or to mark
+; the hit. A fire hit sets Link's invincibility timer (BeginShove), so StatsTick runs this only while it
+; is non-zero, $18 frames from each hit, every one of which it sees. Once the count has been 128 or
+; more (a flag, set here the frame after the hit that got it there), a count below 128 means it wrapped
+; from 255, and goes back to 255.
+CapSelfBurns:
+    LDA SelfBurns
+    BMI @High
+    LDA StatsFlags
+    AND #SELF_BURNS_HIGH
+    BEQ @Exit
+    LDA #$FF
+    STA SelfBurns
+    RTS
+
+@High:
+    LDA StatsFlags
+    ORA #SELF_BURNS_HIGH
+    STA StatsFlags
+
+@Exit:
+    RTS

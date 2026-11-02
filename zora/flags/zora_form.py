@@ -159,6 +159,9 @@ FIELDS: tuple[dict[str, Any], ...] = (
         ("full_health", "Start With Full Health",
          ("Loading a save file, and continuing or retrying after death, leave every heart container full. "
           "By ShadowOne333, kalita-kun and gzip.")),
+        ("compass_chime", "Compass Chime",
+         ("With a level's compass, a chime plays when you enter a room that still holds an item you haven't "
+          "collected: one that appears after a fight, or one down the room's stairway.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)

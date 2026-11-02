@@ -42,7 +42,6 @@ from tests.test_stats_screen import (
     LEVEL_RECORD_SIZE,
     NTSC_FPS,
     SAVE_MODE,
-    SCREEN_STATE,
     STABS,
     STATS_BLOCK,
     STATS_SIZE,
@@ -55,6 +54,7 @@ from tests.test_stats_screen import (
     counter_cells,
     expected_rows,
     nametable_rows,
+    screen_is_shown,
     seed_digits_in,
     seed_rom,
     time_text,
@@ -76,8 +76,9 @@ DIRTY = 0x5A                    # what the stats block holds before a file is re
 BOMB_SLOT = 1                   # SelectedItemSlot of the bombs
 STABS_SWUNG, BOMBS_PLACED = 3, 2
 # The hooks the setting writes into the game's own code (asm/fp-stats-01/patch.toml), by file offset:
-# the clock's JSR, the stab's JMP, the win mode's JSR operand and the registration's JSR.
-HOOKS = {0x1E572: 2, 0x14E25: 5, 0x0AB90: 2, 0x09F80: 5}
+# the clock's JSR, the stab's JMP, the win mode's JSR operand, the registration's JSR and the
+# self-burn count in UpdateFire's damage call.
+HOOKS = {0x1E572: 2, 0x14E25: 5, 0x0AB90: 2, 0x09F80: 5, 0x1F909: 20}
 
 
 def clock(emu: Emulator) -> float:
@@ -120,7 +121,7 @@ def finish_and_show(emu: Emulator) -> None:
     emu[GAME_SUBMODE] = LAST_WIN_SUBMODE
     emu.run_until(lambda: emu[OBJ_TIMER] == 0, limit=2000)
     emu.run(5)
-    assert emu[STATS_BLOCK + SCREEN_STATE] == 0
+    assert not screen_is_shown(emu)
     emu.press(Button.START, after=6)
 
 
@@ -128,7 +129,7 @@ def assert_the_screen_shows_the_block(emu: Emulator, rom: bytes) -> None:
     """The screen is up, in the win mode, and its nametable is the rows built from the block, the
     file's name, the status bar's level record, the slot's deaths, the heart containers and the
     ROM's seed number."""
-    assert emu.mode == WIN_MODE and emu[STATS_BLOCK + SCREEN_STATE] == 1 and emu[CUR_PPU_MASK] == VIDEO_ON
+    assert emu.mode == WIN_MODE and screen_is_shown(emu) and emu[CUR_PPU_MASK] == VIDEO_ON
     slot = emu[CUR_SAVE_SLOT]
     name = bytes(emu[NAMES + slot * NAME_LENGTH + i] for i in range(NAME_LENGTH))
     record = bytes(emu[LEVEL_RECORD_RAM + i] for i in range(LEVEL_RECORD_SIZE))
@@ -165,7 +166,7 @@ def test_a_played_session_shows_on_the_screen() -> None:
     emu.run(30)
     assert emu.mode == WIN_MODE                                 # it waits for Start
     emu.press(Button.START, after=1)
-    assert emu.mode == SAVE_MODE and emu[STATS_BLOCK + SCREEN_STATE] == 0
+    assert emu.mode == SAVE_MODE and not screen_is_shown(emu)
 
 
 @cache

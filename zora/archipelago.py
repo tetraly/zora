@@ -316,6 +316,10 @@ HELD_BACK: dict[str, frozenset[int]] = {
     # (the page's controls count from 0: piece count less one)
     SWORDLISH_LOWEST_FIELD: frozenset(range(1, len(SWORDLISH_PIECES))),
     SWORDLISH_HIGHEST_FIELD: frozenset(range(len(SWORDLISH_PIECES) - 1)),
+    # Compass Chime (version 18; docs/zora-extras.md section 25) is offered, On and Random, since 2026-11-02
+    # (owner): its emulator check with randomized music passed (4ceaf48, both lozft builds), and the scan
+    # (temp/ap_chime_scan.py, 15 seeds On and 15 Random) built 30 of 30 with 0 unreachable, the chime's
+    # player in each finished ROM exactly when the seed resolved it on. It changes no item, door or room.
 }
 CHOICE, THREE_STATE, SWITCH = "choice", "three_state", "switch"
 # A switch's two values; every on/off/random value is labeled as on the page (zora/flags/fields.py).
@@ -622,6 +626,8 @@ PLAYER_SETTING_LABELS = {
 # is the page's alone), or Random (the seed number picks).
 LINK_SPRITE_ORIGINAL = LinkSprite.LINK.value
 LINK_SPRITE_ORIGINAL_LABEL = "Link (original)"
+# Built-in sets beta 11 offered and ZORA has since removed (2026-11-02): the original Link
+RETIRED_LINK_SPRITE_KEYS = ("merchant", "old_man", "old_woman", "zelda")
 PLAYER_CHOICE_LABELS = {
     "selectButton": {"off": "Off", "swap": "Swap only", "toggle": "Toggle"},
     "lowHealthBeep": {"removed": "Removed", "kept": "Kept", "half-speed": "Half speed",
@@ -692,6 +698,9 @@ class PlayerSettingSpec:
     # Shown only in the page's Multiworld mode: an Archipelago game's setting, which ZORA's own
     # generation never reads (MULTIWORLD_SETTINGS).
     multiworld_only: bool = False
+    # Value keys a released world offered and ZORA has since removed: a YAML may still give one, and
+    # it reads as the default (no longer listed, so Archipelago's random never picks one)
+    retired_keys: tuple[str, ...] = ()
 
 
 LEVEL_WORD_RULE = TextRule(1, LEVEL_WORD_MAX_LENGTH, LEVEL_WORD_CHARACTERS, dash_max_length=LEVEL_WORD_DASH_MAX_LENGTH)
@@ -744,7 +753,7 @@ def player_setting_fields() -> list[PlayerSettingSpec]:
                  for set_id, sprite_set in offered_sprite_sets().items()),
                (RANDOM_CHOICE, RANDOM_WORD_LABEL))
     specs.append(PlayerSettingSpec(PAGE_LINK_SPRITE, PLAYER_SETTING_LABELS[PAGE_LINK_SPRITE], CHOICE,
-                                   defaults.link_sprite.value, sprites))
+                                   defaults.link_sprite.value, sprites, retired_keys=RETIRED_LINK_SPRITE_KEYS))
     slots = (*zip(PAGE_TUNIC_SLOTS, defaults.tunic_colors, strict=True),)
     specs += [PlayerSettingSpec(key, PLAYER_SETTING_LABELS[key], COLOR, default, colors=ALLOWED_COLORS)
               for key, default in slots]
@@ -809,9 +818,12 @@ def multiworld_setting(values: Mapping[str, Any], key: str) -> str:
 
 def _page_value(spec: PlayerSettingSpec, value: Any) -> Any:
     """A value by its value key as the page has it; any other value unchanged. A word is typed
-    freely (any case), so only random_word is a key there."""
+    freely (any case), so only random_word is a key there. A retired value, by its key or the page's
+    spelling (old-man), reads as the default."""
     if not isinstance(value, str):
         return value
+    if value.replace("-", "_") in spec.retired_keys:
+        return spec.default
     listed = {key: page_value for page_value, key in spec.value_keys}
     if spec.kind == COLOR:
         return {key.lower(): color for key, color in listed.items()}.get(value.lower(), value)

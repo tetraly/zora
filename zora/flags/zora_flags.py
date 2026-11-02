@@ -146,10 +146,17 @@ FULL_HEALTH_FIELDS = (
 SWAP_SWORDS_AND_RINGS_FIELDS = (
     "swap_swords_and_rings",               # FP-SWAP-01: the White Sword and Blue Ring, Magical Sword and Red Ring
 )
+# Version 18: Compass Chime (owner, 2026-11-01; docs/zora-extras.md section 25), On / Off / ? like version
+# 3's, a "?" decided by the same coins after version 16's. Written by its asm/flags2 patch
+# (zora/rom/owner_patches.py).
+COMPASS_CHIME_FIELDS = (
+    "compass_chime",                       # with the level's compass, a chime where an item still waits
+)
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
                       *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
-                      *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS, *SWAP_SWORDS_AND_RINGS_FIELDS)
+                      *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS, *SWAP_SWORDS_AND_RINGS_FIELDS,
+                      *COMPASS_CHIME_FIELDS)
 
 
 
@@ -278,6 +285,9 @@ FIELDS: tuple[ZoraField, ...] = (
     # beside the Z1R string's Item Shuffle: Random (C06 = 4), Off by default, so every older string keeps its
     # meaning and its spelling.
     ZoraField("item_shuffle_no_vanilla", 2, version=17),
+    # Version 18: Compass Chime (COMPASS_CHIME_FIELDS), Off by default, so every older string keeps its meaning
+    # and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=18) for name in COMPASS_CHIME_FIELDS),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -352,6 +362,8 @@ class ZoraFlags:
     # Version 17: with Item Shuffle: Random (C06 = 4), each seed draws Item Only, Intra-Dungeon or Full, never
     # None (docs/zora-extras.md section 24); the page shows the two as Item Shuffle's sixth choice.
     item_shuffle_no_vanilla: bool = False
+    # Version 18: Compass Chime, On / Off / ? (COMPASS_CHIME_FIELDS).
+    compass_chime: ThreeState = ThreeState.OFF
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -1148,8 +1160,9 @@ def forced_z1r_values(flags: ZoraFlags) -> list[tuple[str, ThreeState, str]]:
 
 # The version-3 and version-7 fields whose behavior this build produces; any other one on or "?" is
 # refused (FlagsRefused), never ignored.
-PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset((*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS))
-PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS)
+PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset((*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS,
+                                                   *COMPASS_CHIME_FIELDS))
+PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS, *COMPASS_CHIME_FIELDS)
 
 
 # Fields refused on or "?" until their generation is built (none now: Expanded Dungeon Locations'

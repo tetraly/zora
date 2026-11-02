@@ -234,7 +234,7 @@ def test_the_areas_song_numbers_are_lozfts() -> None:
 
 
 STATS_BLOCK = range(0x7F00, 0x7F40)         # the statistics screen's block (asm/fp-stats-01)
-STATS_CLOCK = range(0x7F02, 0x7F1A)         # TotalSeconds, SubFrame, TenthPhase and AreaSeconds
+STATS_CLOCK = range(0x7F02, 0x7F1A)         # TotalSeconds, SubFrame, DeathWarps and AreaSeconds
 STATS_INPUTS_SEED = 7
 CART_RAM = list(range(0x6000, 0x6C90))      # below the code bank 1 copies to RAM
 MUSIC_RAM = set(range(0x00, 0x10)) | set(range(0x66, 0x70)) | set(range(0x100, 0x200)) | \

@@ -13,7 +13,7 @@
 
 // The Pyodide release; ?pyodide=<version> overrides it (for the
 // cross-version check in docs/packaging.md).
-const PYODIDE_VERSION = new URLSearchParams(location.search).get("pyodide") || "0.28.3";
+const PYODIDE_VERSION = new URLSearchParams(location.search).get("pyodide") || "0.29.5";
 // web/build.sh names the wheel after ZORA's version and writes that name here.
 const WHEEL_INFO_URL = new URL("dist/wheel.json", location.href).href;
 // The single-file beta (scripts/build_site.py --single-file) carries the
@@ -42,12 +42,13 @@ const FLAG_TABS_EMBEDDED_ID = "zora-embedded-flag-tabs";
 // zora.generate.NOT_PRODUCED_PREFIX: the generator's refusal of values ZORA
 // does not produce yet. The page words those per field instead.
 const NOT_PRODUCED_REFUSAL = "not produced: ";
-// Generate's time limit (owner decision, 2026-10-28): most seeds take 2-3 s, and players will not wait
-// much longer. A seed the page chose (the player typed none) is replaced quietly while time is left;
-// a typed or linked seed is reported. Generation stops between attempts (zora/generate/deadline.py),
-// so a seed that finishes in time is the same ROM with or without the limit.
-const GENERATION_LIMIT_MS = 15000;
-// A page-chosen seed's share: a seed that has not finished by then is replaced, so three get a try.
+// Generate's time limit (owner decision, 2026-10-28; 30 s from 15 s, 2026-11-02): most seeds take
+// 2-3 s, and players will not wait much longer. A seed the page chose (the player typed none) is
+// replaced quietly while time is left; a typed or linked seed is reported. Generation stops between
+// attempts (zora/generate/deadline.py), so a seed that finishes in time is the same ROM with or
+// without the limit.
+const GENERATION_LIMIT_MS = 30000;
+// A page-chosen seed's share: a seed that has not finished by then is replaced, so six get a try.
 // (The browser is about 1.7 times slower than native Python; 5 s here is about 3 s there.)
 const CHOSEN_SEED_MS = 5000;
 const RETRY_MIN_MS = 1000;            // too little left for another seed: stop
@@ -1716,13 +1717,71 @@ function chosenLinkSpriteSet(choice) {
   return choice === LINK_SPRITE_SET ? loadLinkSpriteSet() : null;
 }
 
-function colorSwatch(color) {
-  const swatch = element("span", { className: "link-sprite-swatch", title: `$${color.toString(16).toUpperCase().padStart(2, "0")}` });
-  swatch.style.background = NES_PALETTE[color];
-  return swatch;
+// A recommended color's label beside its swatch, text so touch screens show it too (a player who cannot
+// tell the swatches apart reads it): its NES palette value and a name, "$06 dark red", "$27 light orange".
+// The name is the palette's column (the low digit, the hue) shaded by its row (the high digit, the
+// brightness: dark, plain, light, pale); the colors that are not a shade of a plain hue (the grays and
+// whites, browns and olives, navy, teal, pink and the like) have their own names, and the blacks none.
+const NES_HUE_NAMES = [
+  "gray", "blue", "blue", "violet", "purple", "rose", "red", "orange", "yellow", "green", "green", "sea green", "cyan",
+  "black", "black", "black",
+];
+const NES_ROW_SHADES = ["dark ", "", "light ", "pale "];
+const NES_NAMED_COLORS = {
+  0x00: "dark gray", 0x10: "gray", 0x20: "white", 0x30: "white", 0x2D: "charcoal", 0x3D: "light gray",
+  0x01: "navy", 0x22: "periwinkle", 0x32: "lavender", 0x24: "magenta", 0x05: "maroon", 0x25: "pink",
+  0x35: "pale pink", 0x07: "dark brown", 0x17: "brown", 0x08: "dark olive", 0x18: "olive", 0x28: "yellow",
+  0x1C: "teal",
+};
+const NES_HUE_MASK = 0x0F;
+const NES_ROW_SHIFT = 4;
+const NES_FIRST_BLACK_COLUMN = 0x0D;
+
+function nesColorName(color) {
+  if (color in NES_NAMED_COLORS) return NES_NAMED_COLORS[color];
+  const hue = color & NES_HUE_MASK;
+  return hue >= NES_FIRST_BLACK_COLUMN ? NES_HUE_NAMES[hue] : NES_ROW_SHADES[color >> NES_ROW_SHIFT] + NES_HUE_NAMES[hue];
 }
 
-// Who drew the chosen sprite, and the colors it was drawn for with a button that applies them.
+function paletteValue(color) {
+  return `$${color.toString(16).toUpperCase().padStart(2, "0")}`;
+}
+
+function nesColorLabel(color) {
+  return `${paletteValue(color)} ${nesColorName(color)}`;
+}
+
+function colorSwatch(color) {
+  const swatch = element("span", { className: "link-sprite-swatch" });
+  swatch.style.background = NES_PALETTE[color];
+  return element("span", { className: "link-sprite-color" }, swatch,
+                 element("span", { className: "link-sprite-color-label", textContent: nesColorLabel(color) }));
+}
+
+// "Use recommended colors": all five of a set's colors (its three tunic colors and its two other colors,
+// whether its color 1 is clothing or art) as the player's own, the same as picking each by hand.
+function recommendedColorSettings(recommended) {
+  const values = [...recommended.tunics, ...recommended.other];
+  return { ...Object.fromEntries([...TUNIC_SLOTS, ...LINK_COLOR_SLOTS].map((key, index) => [key, values[index]])),
+           characterColors: CHARACTER_COLORS_MINE };
+}
+
+function applyRecommendedColors(recommended) {
+  Object.assign(playerSettings, recommendedColorSettings(recommended));
+  for (const key of [...TUNIC_SLOTS, ...LINK_COLOR_SLOTS]) {
+    const show = colorPickers.get(key);
+    if (show) show(playerSettings[key]);
+  }
+  savePlayerSettings();
+  const advanced = $("link-colors-advanced");
+  if (advanced && LINK_COLOR_SLOTS.some((key, index) => playerSettings[key] !== metadata.linkSpriteSet.fixedColors[index])) {
+    advanced.open = true;
+  }
+  showLinkSpriteInfo();
+  showColorChange($("marker-note"));
+}
+
+// Who drew the chosen sprite, the colors it was drawn for, labeled, and a button that makes them the player's own.
 function showLinkSpriteInfo(info = $("link-sprite-info")) {
   if (!info) return;
   const choice = playerSettings.linkSprite;
@@ -1743,7 +1802,11 @@ function showLinkSpriteInfo(info = $("link-sprite-info")) {
       ...recommended.tunics.map(colorSwatch),
       element("span", { className: "panel-note", textContent: "other colors" }),
       ...recommended.other.map(colorSwatch)));
-    lines.push(characterColorsControl(recommended));
+    const apply = element("button", { type: "button", id: "link-sprite-use-colors", className: "btn btn-tint btn-small",
+                                      textContent: "Use recommended colors" });
+    apply.title = "Sets your tunic colors and other colors to all five colors above (My own), as if picked by hand.";
+    apply.addEventListener("click", () => applyRecommendedColors(recommended));
+    lines.push(element("div", { className: "link-sprite-colors" }, characterColorsControl(recommended), apply));
   }
   info.replaceChildren(...lines);
 }

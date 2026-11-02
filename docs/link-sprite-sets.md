@@ -38,27 +38,28 @@ sheets with the converter below, ZeroMeaning's from their Z1M1 assets (docs/z1m1
 by its file offset. A new set there is offered on the page, and Random draws from it too (so adding one
 changes which sprite Random gives a seed).
 
-ZORA also offers sets drawn from the game's own art (**built-in art**, below):
+ZORA also offers sets drawn from the game's own art (**built-in art**, below), credited to Nintendo,
+whose art they are:
 
-| Set | Drawn from | Swap |
-|---|---|---|
-| Darknut | the Darknut | |
-| Gibdo | the Gibdo | |
-| Goriya | the Goriya | |
-| Lynel | the overworld's Lynel | |
-| Merchant | the cave Merchant | yes |
-| Moblin | the overworld's Moblin | |
-| Old Man | the cave Old Man | yes |
-| Old Woman | the cave Old Woman | yes |
-| Stalfos | the Stalfos | |
-| Wizzrobe | the Wizzrobe | |
-| Zelda | Zelda, in level 9 | yes |
+| Set | Drawn from |
+|---|---|
+| Darknut | the Darknut |
+| Gibdo | the Gibdo |
+| Goriya | the Goriya |
+| Lynel | the overworld's Lynel |
+| Moblin | the overworld's Moblin |
+| Stalfos | the Stalfos |
+| Wizzrobe | the Wizzrobe |
 
-They follow the ZORA-drawn sets on the page and in Random's draw. A person's set has a **swap**: a
+They follow the ZORA-drawn sets on the page and in Random's draw. Beta 11 also offered the Merchant, the
+Old Man, the Old Woman and Zelda, removed on 2026-11-02; an Archipelago YAML that names one (`merchant`,
+`old_man`, `old_woman`, `zelda`) gets the original Link.
+
+A built-in-art set you load yourself may have a **swap** (a person's set: the `swap` key below): a
 checkbox under the sprite, off by default, that also draws that person as Link (the original Link,
 facing down, from your ROM) wherever the game draws them: in every cave and dungeon room for the Old
 Man, the Old Woman and the Merchant, and in level 9 for Zelda (her raised-arms pose takes Link's raised
-arm). Random never swaps.
+arm). Random never swaps. `tests/link_art_people/` holds those four sets as examples.
 
 ## Built-in art
 
@@ -79,7 +80,7 @@ The file (`zora/rom/link_art/<id>.json`; the page reads the same object):
   "format": "zora-link-sprite-arrangement",
   "version": 1,
   "name": "Moblin",
-  "author": "ZORA",
+  "author": "Nintendo",
   "provenance": "Arranged by ZORA from the game's own Moblin art, read from your ROM when it is made; ...",
   "recommendedColors": {"tunics": [22, 12, 6], "other": [39, 48]},
   "colors": [1, 2, 3],
@@ -190,7 +191,13 @@ transparent.
 - **My own**: the tunic colors and **Advanced: Playable character's other colors** as set.
 
 Without a set (Link, original) or with a set that has no `recommendedColors`, both are the player's.
-On the page, picking any tunic or other color switches the choice to My own. Settings saved before
+On the page, picking any tunic or other color switches the choice to My own. **Use recommended colors**,
+beside the choice whenever the chosen set has `recommendedColors` (never under Random), picks all five of
+them for you, the three tunic colors and the two other colors whatever its `colorOne`, so the choice reads
+My own with the set's colors, every color as drawn. Each of those colors is labeled in text with its NES
+palette value and a name: the hue (the value's low digit) shaded by its row, the high digit ($0x dark,
+$1x plain, $2x light, $3x pale: "$06 dark red", "$27 light orange"), with names of their own for the
+colors that are not a shade of a plain hue ("$18 olive", "$1C teal", "$32 lavender"). Settings saved before
 the choice existed, and a command line without `character_colors=set|mine`, read as My own when they
 hold a Link color of their own, so a player's earlier colors are kept.
 

@@ -44,6 +44,7 @@ from zora.rom.revision import (
     BOSS_SET_EXPANSION_SPRITES_SIZE,
     DMC_LEVEL_OPERAND,
     GRAPHICS_BLOCKS,
+    LOOK_TABLES,
     MOVED_POINTERS,
     MUSIC_OFF_AUDIO_CALL,
     NES_HEADER_SIZE,
@@ -55,6 +56,7 @@ from zora.rom.revision import (
     TITLE_TRADEMARK_CELL,
     TRADEMARK_TILE,
     TRANSFER_BUF_ADDRS_SELECT_SWAP,
+    TUNIC_COLOR_COPIES,
     WRITABLE_CHANGED,
     IdentifiedRom,
     Revision,
@@ -263,6 +265,49 @@ def test_changed_tiles_in_any_pattern_block_are_modified_graphics(revision: Revi
     identity = identify_rom(bytes(rom))
     assert identity == IdentifiedRom(revision, modified_graphics=True)
     assert identity.message == f"This is a {revision.value} ROM with modified graphics"
+
+
+@needs_both
+@pytest.mark.parametrize("revision", list(Revision))
+def test_recolored_tunics_are_modified_graphics(revision: Revision) -> None:
+    """A graphics hack may recolor Link's tunics too (owner ruling, 2026-11-01): Cactus's sets the
+    red ring's, $16 to $0A, in both copies. Both releases hold the copies at the same offsets."""
+    rom = bytearray(release(revision))
+    for _label, offset, length in TUNIC_COLOR_COPIES:
+        assert rom[NES_HEADER_SIZE + offset:NES_HEADER_SIZE + offset + length] == bytes([0x29, 0x32, 0x16])
+        rom[NES_HEADER_SIZE + offset + length - 1] = 0x0A
+    assert identify_rom(bytes(rom)) == IdentifiedRom(revision, modified_graphics=True)
+
+
+@needs_both
+@pytest.mark.parametrize("revision", list(Revision))
+@pytest.mark.parametrize("table", LOOK_TABLES, ids=lambda table: table[0])
+def test_a_changed_look_table_is_modified_graphics(revision: Revision, table: tuple[str, int, int]) -> None:
+    """The ending's thank-you and the door faces (owner ruling, 2026-11-01: the Legend of Marin hack
+    rewrites the one and the shutter's faces in the other)."""
+    _name, offset, length = table
+    rom = bytearray(release(revision))
+    for at in range(NES_HEADER_SIZE + offset, NES_HEADER_SIZE + offset + length, 5):
+        rom[at] ^= 0x01
+    assert identify_rom(bytes(rom)) == IdentifiedRom(revision, modified_graphics=True)
+
+
+@needs_both
+@pytest.mark.parametrize("revision", list(Revision))
+@pytest.mark.parametrize("offset", [0x19D17, 0x07C8F], ids=["the HUD's level word", "bank 1's free space"])
+def test_the_rest_of_the_legend_of_marin_hack_stays_refused(revision: Revision, offset: int) -> None:
+    """The owner left these two out (2026-11-01): ZORA writes the level word (a player setting) and
+    its hint text over bank 1's free space. File offsets, the same in both releases."""
+    rom = bytearray(release(revision))
+    rom[offset] ^= 0x01
+    with pytest.raises(RomNotRecognized):
+        identify_rom(bytes(rom))
+
+
+def test_the_tunic_copies_are_the_ones_the_player_settings_write() -> None:
+    assert [NES_HEADER_SIZE + offset for _label, offset, _length in TUNIC_COLOR_COPIES] == [
+        layout.START_TUNIC_COLOR_OFFSET, layout.BLUE_RING_TUNIC_COLOR_OFFSET - 1]
+    assert layout.RED_RING_TUNIC_COLOR_OFFSET == layout.BLUE_RING_TUNIC_COLOR_OFFSET + 1
 
 
 @needs_both

@@ -7,7 +7,7 @@
 # against it, and tests/test_coop_reserved.py reads z1rr-coop's ranges from it.
 #
 # The 256 KB layout of randomized music (docs/music.md: lozft moves the fixed bank to bank 15 and
-# fills bank 0 $8000-$82A0) has no table yet. It would go here as a second set of [[free]] rows
+# fills bank 0 $8000-$82A0 and $A000-$A1AE, reserved below) has no table yet. It would go here as a second set of [[free]] rows
 # (with a `layout = "music"` key), which asm/rom_space.py would use for a patch built for that
 # layout; until then the one such patch, asm/fp-stats-01-music, keeps its hand-chosen address.
 
@@ -302,6 +302,28 @@ bank = 7
 first = 0xFFFA
 last = 0xFFFB
 what = "NMI vector"
+
+# --- Reserved for randomized music (lozft) ----------------------------------------------------------
+# lozft's bank-0 bytes on a music ROM (docs/music.md; docs/rom-map.md "Reserved for randomized music"):
+# the shipped patch's song table and glue at $8000-$82A0, and the from-source build's (lozft 44b1bb5,
+# scripts/lozft_build.py, its link map) UpdateSoundPart2 at $A000-$A1AE. Reserved so the builders never
+# place a segment where lozft writes; scripts/lozft_build.py leaves these rows out of the claims it
+# keeps lozft clear of. lozft's in-place hook at $9D42-$9D53 is inside the game's code, where nothing
+# is placed. Owner ruling, 2026-11-01.
+
+[[reserved]]
+owner = "lozft"
+bank = 0
+first = 0x8000
+last = 0x82A0
+what = "randomized music (lozft)"
+
+[[reserved]]
+owner = "lozft"
+bank = 0
+first = 0xA000
+last = 0xA1AE
+what = "randomized music (lozft)"
 
 # The co-op hooks replace whole instructions: the PRG0 instructions they touch, which ZORA leaves as
 # they are too. The hook at $ED8A starts on the operand of the instruction at $ED89; the others
@@ -937,7 +959,8 @@ what = "Mirror Overworld's own copy of the TRIFORCE caption record (B06, OW-MIR-
 # Two owners write the same byte only where a [[shared]] row names both and the range. `together`
 # says how: "chained" (both may be on in one ROM: the later writer builds on the earlier's bytes,
 # as a setting choice rewriting ZORA's code does), "exclusive" (the flag rules refuse them together:
-# `refused_by` names the zora_flags check), or "retired" (one of them is never written).
+# `refused_by` names the zora_flags check), "retired" (one of them is never written), or "alternative"
+# (never in one ROM: one of them is a choice made only for ROMs without the other).
 
 [[shared]]
 owners = ["z1rr-coop", "flags2:pegasus-boots", "site:link-speed-hook"]
@@ -948,6 +971,14 @@ why = """InitLinkSpeed's first two instructions. Pegasus Boots (owner spec, 2026
 with more than one on the later routine calls the earlier (zora/rom/small_settings.py). z1rr-coop's
 beta 8 patch hooks them too, so its bridge refuses such a ROM; revision 1 leaves them as PRG0's."""
 flags = { z1r = { C19 = 2, B80 = "on" }, zora = { pegasus_boots = "on" } }
+
+[[shared]]
+owners = ["lozft", "setting:statistics_screen"]
+ranges = [[0, 0x8000, 0x81FF]]
+together = "alternative"
+why = """The statistics screen's MMC1 choice puts StatsTick at $8000, in lozft's song table. A music ROM
+always has the screen's music choice (StatsTick at $B000; player_settings.py), and with_lozft refuses
+a ROM without it."""
 
 [[shared]]
 owners = ["series:fp-entr-01", "series:fp-entr-01-sides"]

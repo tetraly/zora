@@ -81,6 +81,8 @@ def setting_class(spec: zora_ap.PlayerSettingSpec) -> type[Choice]:
     namespace |= {f"alias_{value}": index for index, (value, key) in enumerate(spec.value_keys)
                   if spec.kind == zora_ap.CHOICE and str(value).lower() != key and value != zora_ap.RANDOM_CHOICE}
     namespace["default"] = page_values.index(spec.default)
+    # a retired value (zora.archipelago.RETIRED_LINK_SPRITE_KEYS) still reads, as the default
+    namespace |= {f"alias_{key}": namespace["default"] for key in spec.retired_keys}
     namespace["page_values"] = tuple(page_values)
     if spec.kind == zora_ap.WORD:
         rule = spec.rule

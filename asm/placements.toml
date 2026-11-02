@@ -3,3 +3,17 @@
 # build, so adding a patch never moves an existing one; delete a row only to move that segment on
 # purpose (its ROM bytes change).
 
+
+[[placement]]
+segment = "ZORA_F2_COMPASS_CHIME_B0"
+owner = "flags2:compass-chime"
+banks = [0]
+start = 0x82B0
+size = 0xA0
+
+[[placement]]
+segment = "ZORA_F2_COMPASS_CHIME_B5"
+owner = "flags2:compass-chime"
+banks = [5]
+start = 0xBD20
+size = 0xA0

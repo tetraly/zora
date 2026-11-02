@@ -1,0 +1,40 @@
+# ZORA Compass Chime (the ZORA flag compass_chime; docs/zora-extras.md section 25): with a level's
+# compass, a four-note chime as play starts in a room that still holds an item not yet taken, one that
+# appears for the foes or the last boss (Ganon's Triforce of Power too), or one down the room's stairs
+# to an item cellar. Written from the disassembly's labels and the game's behavior. Both segments are
+# placed by asm/rom_space.py (asm/placements.toml). asm/README.md and asm/flags2/build.py describe
+# this file.
+
+[[segment]]
+name = "ZORA_F2_COMPASS_CHIME_B0"
+bank = 0
+size = 0xA0                 # the player and its script
+
+[[segment]]
+name = "ZORA_F2_COMPASS_CHIME_B5"
+bank = 5
+size = 0xA0                 # the room check
+
+[imports]
+bank_07 = ["CreateRoomObjectsAndChime"]
+
+[exports]
+bank_05 = ["CreateRoomObjectsAndChime"]
+
+[[hook]]
+name = "drive-tune1"
+offset = 0x01AE5
+length = 3
+note = "DriveTune1's first instruction (LDA Tune1Request) asks CheckCompassChime for the request; while the chime plays it returns straight to DriveAudio."
+code = """
+    JSR CheckCompassChime
+"""
+
+[[hook]]
+name = "room-objects"
+offset = 0x1EAF2
+length = 3
+note = "The one call of CreateRoomObjects (bank 7, after LDA #$05 / JSR SwitchBank) goes through CreateRoomObjectsAndChime, which then checks for the chime."
+code = """
+    JSR CreateRoomObjectsAndChime
+"""

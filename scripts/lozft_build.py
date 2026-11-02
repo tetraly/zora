@@ -90,6 +90,7 @@ SOURCE_FILES = ("clearoamopt", "config", "ctlropt", "lozft", "mmc3", "moncollopt
 ASSEMBLE = ("-Wno-jsr-rts-tail-call", "-c", "-g")        # the Makefile's JS65_ASM
 BHOP_DEFINES = ("MMC=1",)
 RESERVE_MODULE = "zora_reserved"
+LOZFT_OWNER = "lozft"             # its reservations' owner in asm/rom_space.toml
 
 BANK_SIZE = 0x4000
 GAME_BANKS = 8
@@ -227,6 +228,8 @@ def zora_claims() -> list[Claim]:
     placed = [area for row in rom_space.placements() for area in row.areas()]
     written = music_rom_bytes()
     space = rom_space.table()
+    # lozft's own reservations (asm/rom_space.toml "Reserved for randomized music") are where it writes.
+    space = dataclasses.replace(space, reserved=tuple(area for area in space.reserved if area.owner != LOZFT_OWNER))
     # A MUSIC_ROM_CHOICES setting's slots: only those its music ROM's choice writes in (the statistics
     # screen's other StatsTick slot is for ROMs without music).
     music_owners = {f"setting:{setting}" for setting in MUSIC_ROM_CHOICES}

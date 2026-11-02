@@ -94,7 +94,7 @@ class Shared:
         return set(owners) <= self.owners and any(offset in area.file_range() for area in self.areas)
 
 
-TOGETHER = ("chained", "exclusive", "retired")
+TOGETHER = ("chained", "exclusive", "retired", "alternative")
 
 
 @dataclass(frozen=True)

@@ -129,7 +129,7 @@ slot 25	SPLOOSH!|KABOOM!
 slot 25	SOMEONE SET UP US|THE BOMB UPGRADE
 slot 25	KEEP TALKING AND|NOBODY EXPLODES
 slot 25	YEAH, YOU AND|EVERYONE ELSE WANTS|TO HOARD BOMBS
-slot 25	COOL GUYS DON'T|LOOK AT EXPLOSIONS
+slot 25	COOL KIDS DON'T|LOOK AT EXPLOSIONS
 slot 25	SELLS FOR 255 RUPEES|ON EBAY
 slot 25	PLEASE DON'T JOKE|ABOUT THESE AT|AIRPORT SECURITY
 slot 4	WHAT HAPPENS IN VEGAS|STAYS IN VEGAS!
@@ -270,9 +270,9 @@ slot 0 with the Book	IF ONLY YOU HAD A|BOOK TO MAKE SENSE|OF THESE WORDS...	stan
 # ---- Community texts (Discord submissions, 2026-10-24; docs/credits.md): the fourth column names
 # ---- the contributor, kept here and never shown in the game. Hint-person texts beyond the placeholders'
 # ---- number go to slots 20-31, the hint people (not "unrouted": more unrouted quotes would change slot 19's hint odds, docs/ui-provenance.md). "ZORA" marks texts the owner approved.
-slot 5	SIR, THIS IS A WENDY'S		GrandpaSzabo
+slot 5	EXCUSE ME,|THIS IS A WENDY'S		GrandpaSzabo
 slot 5	UHHHHH.....PASS|THE TP.....		TheGobOne
-slot 5	15 BUCKS LITTLE MAN....		ultralavos
+slot 5	15 BUCKS LITTLE ONE....		ultralavos
 slot 5	SHHH! THIS IS A LIBRARY		Tetra
 slot 5	THIS IS THE FEE FEE		Whyforce89887
 slot 5	YOU BOMBED IT,|YOU BOUGHT IT.		ZORA

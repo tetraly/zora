@@ -195,6 +195,7 @@ VALUE_KEYS = {
     "highlight_no_drop_rooms": THREE_STATE,
     "do_not_segment_dungeons": THREE_STATE,
     "full_health": THREE_STATE,
+    "compass_chime": THREE_STATE,
 }
 # every NES palette value but $0D, then Random
 COLORS = (*(f"0x{value:02X}" for value in range(0x40) if value != 0x0D), "random_color")
@@ -224,8 +225,7 @@ PLAYER_KEYS = {
         "link", "abobo", "agumon", "jason_voorhees", "mini_ganon", "twilight_sparkle", "zeromeaning_ganon",
         "zeromeaning_justin_bailey", "zeromeaning_kraid", "zeromeaning_link_bunny", "zeromeaning_link_female",
         "zeromeaning_link_invisible", "zeromeaning_mother_brain", "zeromeaning_samus", "zeromeaning_zelda",
-        "darknut", "gibdo", "goriya", "lynel", "merchant", "moblin", "old_man", "old_woman", "stalfos", "wizzrobe",
-        "zelda", "random_choice")),
+        "darknut", "gibdo", "goriya", "lynel", "moblin", "stalfos", "wizzrobe", "random_choice")),
     "linkColor2": ("playable_character_color_2", COLORS[:-1]),
     "linkColor3": ("playable_character_color_3", COLORS[:-1]),
     # Multiworld mode only (owner decision 2026-10-18)
@@ -326,6 +326,18 @@ def test_the_yaml_form_is_the_page_form() -> None:
     mixed = {"select_button": "toggle", "deathWarp": "p2_up_a", "bossSoundWord": "random_word", "heart": 22}
     assert archipelago.page_player_settings(mixed) == {"selectButton": "toggle", "deathWarp": "p2-up-a",
                                                        "bossSoundWord": RANDOM_BOSS_SOUND_WORD, "heart": 22}
+
+
+def test_a_removed_link_sprite_reads_as_the_original_link() -> None:
+    """The built-in people sets beta 11 offered (removed 2026-11-02): a YAML or recipe naming one, by
+    its key or the page's id, gets the original Link; the option no longer lists them."""
+    spec = next(spec for spec in archipelago.player_setting_fields() if spec.yaml_key == "playable_character")
+    for key in archipelago.RETIRED_LINK_SPRITE_KEYS:
+        assert key not in dict((value_key, value) for value, value_key in spec.value_keys)
+        for given in (key, key.replace("_", "-")):
+            assert archipelago.page_player_settings({"playable_character": given}) == {"linkSprite": "link"}
+            assert player_settings_from_page(archipelago.page_player_settings({"linkSprite": given})) == \
+                PlayerSettings()
 
 
 def test_a_setting_by_both_keys_or_a_wrong_value_is_refused() -> None:

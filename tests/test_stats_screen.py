@@ -24,6 +24,8 @@ import pytest
 
 from tests.archipelago_cases import FLAG_CASES
 from tests.emulator import (
+    CONTINUE_MODE,
+    CONTROLLER_2_SHIFT,
     CUR_LEVEL,
     CUR_SAVE_SLOT,
     GAME_MODE,
@@ -60,9 +62,11 @@ from zora.rom.parse.rom_file import parse_rom
 from zora.rom.player_settings import (
     STATS_LEVEL_NUMBERS,
     STATS_LEVEL_ORDER,
+    DeathWarp,
     Music,
     PlayerSettings,
     apply_player_settings,
+    death_warp,
     level_label,
     music,
     statistics_screen,
@@ -75,9 +79,12 @@ from zora.rom.text_encoding import BYTE_TO_CHAR, CHAR_TO_BYTE
 # The stats block (asm/fp-stats-01/bank_00.s).
 STATS_BLOCK = 0x7F00
 STATS_SIZE = 0x40
-MAGIC, FLAGS, TOTAL, SUB_FRAME, TENTH_PHASE = 0x00, 0x01, 0x02, 0x04, 0x05
-AREAS, LEVEL_STAMPS, ITEM_STAMPS, STABS, BOMBS, PREV_BOMBS, SCREEN_STATE = 0x06, 0x1A, 0x2C, 0x3A, 0x3C, 0x3E, 0x3F
+MAGIC, FLAGS, TOTAL, SUB_FRAME, DEATH_WARPS = 0x00, 0x01, 0x02, 0x04, 0x05
+AREAS, LEVEL_STAMPS, ITEM_STAMPS, STABS, BOMBS, PREV_BOMBS, SELF_BURNS = 0x06, 0x1A, 0x2C, 0x3A, 0x3C, 0x3E, 0x3F
 STATS_MAGIC, FINISHED = 0xA5, 0x80
+SCREEN_SHOWN = 0x40                  # StatsFlags' bit 6: the screen is up (0 outside the win mode)
+SELF_BURNS_HIGH = 0x20               # StatsFlags' bit 5: SelfBurns has been 128 or more
+TENTH_PHASE_MASK = 0x0F              # StatsFlags' bits 0-3: the clock's ten-second phase
 NTSC_FPS = 60.0988                   # frames a second the clock's 601-per-10 rule stands for
 
 # RAM (src/Variables.inc).
@@ -95,7 +102,7 @@ WIN_MODE, SAVE_MODE, LAST_WIN_SUBMODE = 0x13, 0x0D, 4
 # The screen (asm/fp-stats-01/bank_02.s).
 NAME_TABLE = 0x2000
 ROWS, COLUMNS = 30, 32
-HEADINGS_ROW, LIST_FIRST_ROW, LIST_ROWS = 9, 10, 17
+HEADINGS_ROW, LIST_FIRST_ROW, LIST_ROWS = 11, 12, 17
 LEVELS = 9
 ATTRIBUTE_TABLE = NAME_TABLE + 0x3C0     # one byte per 4x4 tiles, a 2-bit palette per 2x2 quadrant
 LABEL_LENGTH = 9
@@ -110,14 +117,16 @@ SEED_DIGITS_COLUMN = 7
 NO_SEED_NUMBER = 0xFF
 SMALL_X_TILE = 0x70
 SHORT_COUNT_COLUMNS, COUNT_COLUMNS, MAX_COUNT = 3, 4, 9999
-DEATHS_ROW, HEARTS_ROW, PUSH_START_ROW = 5, 7, 27      # the stabs share the deaths' row, the bombs the hearts'
+DEATHS_ROW, HEARTS_ROW, WARPS_ROW = 5, 7, 9      # the stabs share the deaths' row, the bombs the hearts',
+                                                 # the self-burns the death warps'
 SMALL_X_COLUMNS = (4, 10)
 BOX_ROWS, BOX_COLUMNS = range(3, 9), range(17, 30)
 BOX_TOP, BOX_SIDE, BOX_BOTTOM = bytes([0x69] + [0x6A] * 11 + [0x6B]), bytes([0x6C] + [0x24] * 11 + [0x6C]), \
     bytes([0x6E] + [0x6A] * 11 + [0x6D])
 BOX_PALETTE, HEADINGS_PALETTE = 2, 1
 HEADINGS_COLUMNS = range(12, 30)
-HEADINGS_CELL_ROWS = (8, 9)                # the headings' attribute cell, the box's bottom on row 8
+HEADINGS_CELL_ROWS = (10, 11)              # the headings' attribute cell (row 11 holds them), under the box's bottom
+BOX_BOTTOM_ROW, BOX_BOTTOM_COLUMNS = 8, range(16, 30)   # palette 1 with the box's blue line
 # The bow joined the key items on 2026-10-17 (owner).
 ITEM_LABELS = ("SWORD", "LADDER", "BRACELET", "RAFT", "RECORDER", "S.ARROWS", "BOW")
 KEY_ITEMS = (Item.WOOD_SWORD, Item.LADDER, Item.POWER_BRACELET, Item.RAFT, Item.RECORDER, Item.SILVER_ARROWS,
@@ -151,6 +160,10 @@ def word(emu: Emulator, offset: int) -> int:
 def put_word(emu: Emulator, offset: int, value: int) -> None:
     emu[STATS_BLOCK + offset] = value & 0xFF
     emu[STATS_BLOCK + offset + 1] = value >> 8
+
+
+def screen_is_shown(emu: Emulator) -> bool:
+    return bool(emu[STATS_BLOCK + FLAGS] & SCREEN_SHOWN)
 
 
 def block(emu: Emulator) -> bytes:
@@ -277,6 +290,87 @@ def test_sword_stabs(name: str) -> None:
 
 
 @pytest.mark.parametrize("name", ROMS)
+def test_the_clocks_phase_keeps_the_flags(name: str) -> None:
+    """The ten-second phase lives in StatsFlags' low bits (its byte holds the death warps): three
+    rounds of ten seconds take 3 x 601 frames, end on phase 0 and leave the other bits alone."""
+    emu = playing(name)
+    put_word(emu, TOTAL, 0)
+    emu[STATS_BLOCK + SUB_FRAME] = 0
+    emu[STATS_BLOCK + FLAGS] = SELF_BURNS_HIGH
+    emu[STATS_BLOCK + DEATH_WARPS] = 9
+    emu.run(3 * 601 - 1)
+    assert word(emu, TOTAL) == 29
+    emu.run(1)
+    assert word(emu, TOTAL) == 30
+    assert emu[STATS_BLOCK + FLAGS] == SELF_BURNS_HIGH and emu[STATS_BLOCK + DEATH_WARPS] == 9
+
+
+# The death warp's buttons for each choice of the player setting (FP-RESET-01): the controller
+# state cynes takes, controller 2 in the high byte.
+DEATH_WARP_BUTTONS = {DeathWarp.CONTROLLER2_UP_A: (Button.UP | Button.A) << CONTROLLER_2_SHIFT,
+                      DeathWarp.CONTROLLER1_UP_A: Button.UP | Button.A,
+                      DeathWarp.CONTROLLER1_UP_SELECT: Button.UP | Button.SELECT}
+
+
+@cache
+def death_warp_rom(choice: DeathWarp) -> bytes:
+    rom = bytearray(prg0_with_stats())
+    death_warp(rom, choice)
+    return bytes(rom)
+
+
+@cache
+def death_warp_state(choice: DeathWarp) -> bytes:
+    emu = Emulator(death_warp_rom(choice))
+    emu.new_game()
+    emu.run(10)
+    return emu.save()
+
+
+def warp(emu: Emulator, buttons: int) -> None:
+    """From play: the item screen, the death warp's buttons held 3 frames, the continue screen."""
+    emu.open_item_screen()
+    emu.nes.controller = buttons
+    for _ in range(3):
+        emu.nes.step(1)
+    emu.nes.controller = 0
+    emu.run_until(lambda: emu.mode == CONTINUE_MODE)
+    emu.run(20)
+
+
+@pytest.mark.parametrize("choice", list(DeathWarp), ids=lambda choice: choice.value)
+def test_death_warps_are_counted_apart_from_deaths(choice: DeathWarp) -> None:
+    """Each death warp counts once, whichever buttons the player setting chose, and is not a death;
+    the count is in the stats block, so Continue and a reset keep it."""
+    emu = Emulator(death_warp_rom(choice))
+    emu.load(death_warp_state(choice))
+    slot = emu[CUR_SAVE_SLOT]
+    for count in (1, 2):
+        warp(emu, DEATH_WARP_BUTTONS[choice])
+        assert emu[STATS_BLOCK + DEATH_WARPS] == count and emu[DEATH_COUNTS + slot] == 0
+        emu.press(Button.START)                                           # Continue
+        emu.run_until(lambda: emu.mode == Mode.PLAY, limit=600)
+        emu.run(30)
+    emu.reset()
+    emu.boot_to_file_select()
+    assert emu[STATS_BLOCK + DEATH_WARPS] == 2
+
+
+def test_death_warps_stop_at_255_and_once_the_quest_is_finished() -> None:
+    choice = DeathWarp.CONTROLLER2_UP_A
+    emu = Emulator(death_warp_rom(choice))
+    emu.load(death_warp_state(choice))
+    emu[STATS_BLOCK + DEATH_WARPS] = 0xFF
+    warp(emu, DEATH_WARP_BUTTONS[choice])
+    assert emu[STATS_BLOCK + DEATH_WARPS] == 0xFF
+    emu.load(death_warp_state(choice))
+    emu[STATS_BLOCK + DEATH_WARPS] = 5
+    emu[STATS_BLOCK + FLAGS] = FINISHED
+    warp(emu, DEATH_WARP_BUTTONS[choice])
+    assert emu[STATS_BLOCK + DEATH_WARPS] == 5
+
+
+@pytest.mark.parametrize("name", ROMS)
 def test_the_win_mode_freezes_the_clock(name: str) -> None:
     emu = playing(name)
     emu.run(120)
@@ -315,6 +409,18 @@ def counter_cells(left: int, right: int) -> bytes:
                     for value, columns in ((left, SHORT_COUNT_COLUMNS), (right, COUNT_COLUMNS)))
 
 
+PLUS_TILE = 0x71                     # the screen's plus (its pattern written by the screen, as the small x)
+
+
+def under_counters_cells(death_warps: int, self_burns: int) -> bytes:
+    """Row 9 from column 2: +A (the death warps' label's lower row) with the small x and the death
+    warps, then the self-burns' cell (blanks under the flame, the small x and the count), both counts
+    left-aligned in 3 columns (at most 255)."""
+    return bytes([PLUS_TILE, CHAR_TO_BYTE["A"], SMALL_X_TILE]) \
+        + bytes(CHAR_TO_BYTE[char] for char in f"{death_warps:<3}") \
+        + bytes([CHAR_TO_BYTE[" "]] * 2 + [SMALL_X_TILE]) + bytes(CHAR_TO_BYTE[char] for char in f"{self_burns:<3}")
+
+
 def seed_digits_in(rom: bytes) -> bytes | None:
     """The seed number's digit tiles a PRG0-layout ROM carries (code_patches.STATS_SEED_DIGITS), or
     None without one."""
@@ -328,7 +434,7 @@ def expected_rows(data: bytes, name: bytes, level_record: bytes, deaths: int, he
     ROM's digit tiles; none, blank rows), the file name, the counters (deaths and stabs, heart
     containers and bombs) and the B items' box, the headings, the overworld, the
     stamped levels and items in stamp order, the levels entered and not completed in the order of
-    their shown numbers, and PUSH START BUTTON. A level's label is the status bar's record (its
+    their shown numbers (no PUSH START BUTTON since 2026-11-01). A level's label is the status bar's record (its
     tiles but the number) and the number the status bar shows in that level (`numbers`, levels
     1-9's, the ROM's level information)."""
     def at(offset: int) -> int:
@@ -360,7 +466,10 @@ def expected_rows(data: bytes, name: bytes, level_record: bytes, deaths: int, he
                      (tiles(" " * SEED_DIGITS_COLUMN) + seed_digits[per_row:]).ljust(COLUMNS, tiles(" "))]
     rows = [blank, *seed_rows, boxed(tiles("  ") + name, BOX_TOP), boxed(b"", BOX_SIDE),
             boxed(tiles("  ") + counter_cells(deaths, at(STABS)), BOX_SIDE), boxed(b"", BOX_SIDE),
-            boxed(tiles("  ") + counter_cells(hearts, at(BOMBS)), BOX_SIDE), boxed(b"", BOX_BOTTOM),
+            boxed(tiles("  ") + counter_cells(hearts, at(BOMBS)), BOX_SIDE),
+            boxed(tiles("  UP"), BOX_BOTTOM),
+            (tiles("  ") + under_counters_cells(data[DEATH_WARPS], data[SELF_BURNS])).ljust(COLUMNS, tiles(" ")),
+            blank,
             tiles(" " * 13 + "TIME IN   CLEARED" + " " * 2),
             list_row(tiles("OVERWORLD"), at(AREAS), 0)]
     stamps = [(at(LEVEL_STAMPS + 2 * index), index) for index in range(9 + len(ITEM_LABELS))]
@@ -372,8 +481,7 @@ def expected_rows(data: bytes, name: bytes, level_record: bytes, deaths: int, he
     rows += [list_row(level_tiles(index), at(AREAS + 2 * (index + 1)), 0)
              for index in sorted(range(9), key=lambda index: shown_place(numbers, index))
              if not stamps[index][0] and at(AREAS + 2 * (index + 1))]
-    rows += [blank] * (PUSH_START_ROW - len(rows))
-    rows += [tiles(" " * 7 + "PUSH START BUTTON" + " " * 8), blank, blank]
+    rows += [blank] * (ROWS - len(rows))
     return rows
 
 
@@ -416,6 +524,8 @@ def prepared_block() -> bytes:
         put(ITEM_STAMPS + 2 * item, stamp)                                # sword, ladder, raft, silver, bow
     put(STABS, 1234)
     put(BOMBS, 56)
+    data[SELF_BURNS] = 7
+    data[DEATH_WARPS] = 4
     return bytes(data)
 
 
@@ -452,7 +562,7 @@ def palette_at(emu: Emulator, row: int, column: int) -> int:
 @pytest.mark.parametrize("name", ROMS)
 def test_start_after_the_credits_shows_the_screen_and_start_leaves(name: str) -> None:
     emu = show_screen(name)
-    assert emu[CUR_PPU_MASK] == VIDEO_ON and emu[STATS_BLOCK + SCREEN_STATE] == 1 and emu.mode == WIN_MODE
+    assert emu[CUR_PPU_MASK] == VIDEO_ON and screen_is_shown(emu) and emu.mode == WIN_MODE
     slot = emu[CUR_SAVE_SLOT]
     file_name = bytes(emu[NAMES + slot * NAME_LENGTH + i] for i in range(NAME_LENGTH))
     record = bytes(emu[LEVEL_RECORD_RAM + i] for i in range(LEVEL_RECORD_SIZE))
@@ -465,7 +575,7 @@ def test_start_after_the_credits_shows_the_screen_and_start_leaves(name: str) ->
     emu.run(30)
     assert emu.mode == WIN_MODE                                           # it waits
     emu.press(Button.START, after=1)
-    assert emu.mode == SAVE_MODE and emu[STATS_BLOCK + SCREEN_STATE] == 0
+    assert emu.mode == SAVE_MODE and not screen_is_shown(emu)
 
 
 # The audio driver's RAM (zelda1-disassembly Variables.inc): a request is read at the next NMI.
@@ -520,7 +630,7 @@ def test_the_music_setting_decides_the_screens_song(name: str, choice: Music) ->
     emu.load(music_ending_state(name, choice))
     assert emu[SONG] == ENDING_SONG
     emu.press(Button.START, after=6)
-    assert emu[STATS_BLOCK + SCREEN_STATE] == 1
+    assert screen_is_shown(emu)
     for _ in range(QUIET_FRAMES):
         emu.run(1)
         assert emu[SONG] == (0 if choice is Music.OFF else ENDING_SONG)
@@ -561,7 +671,7 @@ def test_the_screen_takes_a_long_level_word(level_word: str) -> None:
     emu.run_until(lambda: emu[OBJ_TIMER] == 0, limit=2000)
     emu.run(5)
     shown_with_the_prepared_run(emu)
-    assert emu[STATS_BLOCK + SCREEN_STATE] == 1
+    assert screen_is_shown(emu)
     label = nametable_rows(emu)[LIST_FIRST_ROW + 2][2:2 + LABEL_LENGTH]       # level 1, after the sword
     tiles = bytes(DASH_TILE if char == "-" else CHAR_TO_BYTE[char] for char in level_label(level_word))
     assert len(tiles) == 8 and label == tiles.ljust(LABEL_LENGTH, bytes([CHAR_TO_BYTE[" "]]))
@@ -641,7 +751,7 @@ def test_the_screen_labels_levels_as_the_status_bar_does(case: str) -> None:
     for i, value in enumerate(quest_block()):
         emu[STATS_BLOCK + i] = value
     emu.press(Button.START, after=6)
-    assert emu[STATS_BLOCK + SCREEN_STATE] == 1
+    assert screen_is_shown(emu)
     slot = emu[CUR_SAVE_SLOT]
     file_name = bytes(emu[NAMES + slot * NAME_LENGTH + i] for i in range(NAME_LENGTH))
     record = bytes(emu[LEVEL_RECORD_RAM + i] for i in range(LEVEL_RECORD_SIZE))
@@ -661,8 +771,8 @@ FULL_INVENTORY = {0x00: 2, 0x01: 4, 0x02: 2, 0x03: 1, 0x04: 2, 0x05: 1, 0x06: 1,
 ITEM_SLOTS = 0x21
 # asm/fp-stats-01/bank_02.s (sprite Y is the row's top minus 1): the passive row (rows 1-2), then the
 # B items' rows in the box, which the counters' rows share (rows 4-5, 6-7).
-PASSIVE_ROW_Y, UPPER_ROW_Y, LOWER_ROW_Y = 1 * 8 - 1, 4 * 8 - 1, 6 * 8 - 1
-SPRITE_ROWS_Y = (PASSIVE_ROW_Y, UPPER_ROW_Y, LOWER_ROW_Y)
+PASSIVE_ROW_Y, UPPER_ROW_Y, LOWER_ROW_Y, BURNS_ROW_Y = 1 * 8 - 1, 4 * 8 - 1, 6 * 8 - 1, 8 * 8 - 1
+SPRITE_ROWS_Y = (PASSIVE_ROW_Y, UPPER_ROW_Y, LOWER_ROW_Y, BURNS_ROW_Y)
 SPRITE_HEIGHT = 16
 MAX_SPRITES_ON_A_LINE = 8
 LONGEST_SEED = 2 ** 64 - 1                  # 20 digits (pipeline.SEED_LIMIT)
@@ -744,9 +854,9 @@ def test_a_full_inventory_keeps_every_sprite_in_its_row(revision: Revision) -> N
 def test_the_layout(revision: Revision) -> None:
     """The owner's layout (2026-10-19), with the longest seed number, every level and key item
     stamped (17 list rows, the bow last) and a full inventory: the top rows as expected_rows draws
-    them, the list on rows 10-26, PUSH START BUTTON under it, each counter cell's small x in its
-    place, and the palettes: the box's blue around the box, the headings' orange (with the box's
-    bottom line, palette 1 holding both) under the headings, white elsewhere."""
+    them, the list on rows 12-28 (and nothing under it), each counter cell's small x in its
+    place, and the palettes: the box's blue around the box, the headings' orange under the headings (row 11; the box's
+    bottom line, row 8, is palette 1 too), white elsewhere."""
     emu = code_screen(revision, FULL_INVENTORY, full_list=True, seed=LONGEST_SEED)
     rows = nametable_rows(emu)
     slot = emu[CUR_SAVE_SLOT]
@@ -756,13 +866,14 @@ def test_the_layout(revision: Revision) -> None:
     assert rows[:HEADINGS_ROW + 1] == top_rows[:HEADINGS_ROW + 1]
     text = ["".join(BYTE_TO_CHAR.get(tile, "?") for tile in row) for row in rows]
     last_list_row = LIST_FIRST_ROW + LIST_ROWS - 1
-    assert text[last_list_row].startswith("  BOW ") and last_list_row + 1 == PUSH_START_ROW
-    for row in (DEATHS_ROW, HEARTS_ROW):
+    assert text[last_list_row].startswith("  BOW ") and last_list_row + 1 == ROWS - 1
+    for row in (DEATHS_ROW, HEARTS_ROW, WARPS_ROW):
         assert [column for column, tile in enumerate(rows[row]) if tile == SMALL_X_TILE] == list(SMALL_X_COLUMNS)
-    assert text[PUSH_START_ROW].strip() == "PUSH START BUTTON"
+    assert text[ROWS - 1].strip() == ""
     for row in range(ROWS):
         for column in range(2, COLUMNS - 2):
-            expected = (HEADINGS_PALETTE if row in HEADINGS_CELL_ROWS and column in HEADINGS_COLUMNS
+            expected = (HEADINGS_PALETTE if (row in HEADINGS_CELL_ROWS and column in HEADINGS_COLUMNS)
+                        or (row == BOX_BOTTOM_ROW and column in BOX_BOTTOM_COLUMNS)
                         else BOX_PALETTE if row in BOX_ROWS and column in BOX_COLUMNS else None)
             if expected is not None:
                 assert palette_at(emu, row, column) == expected, (row, column)
@@ -801,12 +912,14 @@ def test_a_new_seed_carries_its_number_and_keeps_its_code() -> None:
 # --- the counters' icons ----------------------------------------------------------------------------
 
 # asm/fp-stats-01/bank_02.s: the counters' fixed icons (Y, tile, attributes, X): Link, a red heart
-# container and a bomb; the sword is drawn as the items are, centered in its two columns.
+# container, a bomb and Link's flame (self-burns, rows 8-9); the sword is drawn as the items are,
+# centered in its two columns.
 COUNTER_LEFT_X, COUNTER_RIGHT_X = 0x10, 0x40
 BOMB_TILE = 0x34
 FIXED_COUNTER_ICONS = [(UPPER_ROW_Y, 0x5A, 0x00, COUNTER_LEFT_X), (UPPER_ROW_Y, 0x08, 0x40, COUNTER_LEFT_X + 8),
                        (LOWER_ROW_Y, 0x68, 0x02, COUNTER_LEFT_X), (LOWER_ROW_Y, 0x68, 0x42, COUNTER_LEFT_X + 7),
-                       (LOWER_ROW_Y, BOMB_TILE, 0x01, COUNTER_RIGHT_X + 4)]
+                       (LOWER_ROW_Y, BOMB_TILE, 0x01, COUNTER_RIGHT_X + 4),
+                       (BURNS_ROW_Y, 0x5C, 0x02, COUNTER_RIGHT_X), (BURNS_ROW_Y, 0x5E, 0x02, COUNTER_RIGHT_X + 8)]
 SWORD_X = COUNTER_RIGHT_X + 4
 INVENTORY_BOMB = (UPPER_ROW_Y, 0x98 + 0x10 + 4)    # the item screen's place, one tile right
 SWORD_PALETTES = {0: 0, 1: 0, 2: 1, 3: 2}     # none: the wooden sword's (level 4: test_the_level_4_sword_...)
@@ -958,7 +1071,7 @@ def clock_error(name: str) -> tuple[float, float]:
     emu = playing(name)
     put_word(emu, TOTAL, 0)
     emu[STATS_BLOCK + SUB_FRAME] = 0
-    emu[STATS_BLOCK + TENTH_PHASE] = 0
+    emu[STATS_BLOCK + FLAGS] &= ~TENTH_PHASE_MASK
     start = emu.frames
     session(emu, into_level_1=name == "prg0")
     played = (emu.frames - start) / NTSC_FPS

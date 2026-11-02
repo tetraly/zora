@@ -52,6 +52,15 @@ code = """
 """
 
 [[hook]]
+name = "death-warp"
+offset = 0x140F2
+length = 3
+note = "UpdateMenuActive, once the death-warp buttons are down (their test, 0x140EA-0x140F1, is FP-RESET-01's): JSR EndGameMode becomes JSR CountDeathWarp, which jumps to EndGameMode."
+code = """
+    JSR CountDeathWarp
+"""
+
+[[hook]]
 name = "screen"
 offset = 0x0AB8F
 length = 3
@@ -68,5 +77,23 @@ note = "UpdateModeERegister's @FlagBReady, for a new file: LDA #$01 / STA $0426 
 code = """
     JSR ClearStatsOnRegister
     NOP
+    NOP
+"""
+
+[[hook]]
+name = "self-burn"
+offset = 0x1F909
+length = 20
+note = "UpdateFire, once the player's own flame (the candle's, or the wand's with the Book) touches Link and he is not invincible: LDX $00 / LDY #$00 / STY $00 / JSR BeginShove / LDA #$00 / STA $0D / LDA #$80 / STA $0E / JMP Link_BeHarmed (20 bytes) becomes the same with SelfBurns incremented before the JMP. DoObjectsCollide has left X = 0 and Y = the fire's slot (its [00]), so STX $00 / TYA / TAX is shorter than the reload, and BeginShove leaves Y = 0 (its [00]) for STY $0D; that makes room for the INC, and one NOP. Bank 7, so it works with any bank switched in."
+code = """
+    STX $00
+    TYA
+    TAX
+    JSR BeginShove
+    STY $0D
+    LDA #$80
+    STA $0E
+    INC $7F3F                   ; SelfBurns (asm/fp-stats-01/bank_00.s; capped at 255 by CapSelfBurns)
+    JMP Link_BeHarmed
     NOP
 """

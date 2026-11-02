@@ -173,7 +173,7 @@ same time never collide.
 3. Use `locate` for each hook's offset and length.
 4. Run the builder's `build`. It places each new segment at the lowest address (aligned to `align`,
    default $10) where `size` bytes are free in PRG0 and claimed by nothing in `rom_space.toml`, no
-   other slot, no z1rr-coop reservation, no site, no earlier placement. The builders load their
+   other slot, no reservation (z1rr-coop's, randomized music's), no site, no earlier placement. The builders load their
    patches in a fixed order (series order, then each builder's own), so the result does not depend
    on who builds. It records the placement in `placements.toml`.
 5. Commit `placements.toml` with the patch. Every later build keeps the recorded address, so a patch

@@ -287,8 +287,9 @@ def test_a_mirrored_segment_takes_one_address_free_in_every_bank(lock_file: Path
     claimed = space.claims(space.table(), space.builder_bytes())
     for area in placement.areas():
         assert not set(area.file_range()) & set(claimed), str(area)
-    assert space.problems(placed=placement.areas(), written={**space.builder_bytes(),
-                                                             "series:test-window": set()}) == []
+    committed = tuple(area for row in space.placements() for area in row.areas())
+    assert space.problems(placed=(*committed, *placement.areas()), written={**space.builder_bytes(),
+                                                                          "series:test-window": set()}) == []
 
 
 def test_a_placed_segment_is_built_where_it_was_placed(lock_file: Path) -> None:

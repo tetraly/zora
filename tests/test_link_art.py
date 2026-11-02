@@ -24,6 +24,7 @@ from zora.rom.link_art import (
     ArtSet,
     ArtSwap,
     art_set_file,
+    art_set_from_file,
     art_set_from_object,
     art_set_object,
     art_tiles,
@@ -46,12 +47,18 @@ from zora.rom.player_settings import (
 )
 
 FOLDER = Path(__file__).resolve().parent.parent / "zora" / "rom" / "link_art"
-BUILT_IN_ART = {"darknut": "Darknut", "gibdo": "Gibdo", "goriya": "Goriya", "lynel": "Lynel", "merchant": "Merchant",
-                "moblin": "Moblin", "old-man": "Old Man", "old-woman": "Old Woman", "stalfos": "Stalfos",
-                "wizzrobe": "Wizzrobe", "zelda": "Zelda"}
-PEOPLE = {"merchant", "old-man", "old-woman", "zelda"}         # the sets with a swap
+BUILT_IN_ART = {"darknut": "Darknut", "gibdo": "Gibdo", "goriya": "Goriya", "lynel": "Lynel", "moblin": "Moblin",
+                "stalfos": "Stalfos", "wizzrobe": "Wizzrobe"}
+# Person sets with a swap, as a player would load them (no longer built in, 2026-11-02): the swap's cases
+PEOPLE_FOLDER = Path(__file__).resolve().parent / "link_art_people"
 # Where the playable character's colors go (the tunics, colors 2 and 3), which a set's own colors write
 COLOR_BYTES = written_offsets("tunic_colors") | written_offsets("link_colors")
+
+
+def people_sets() -> dict[str, ArtSet]:
+    """The person sets by id, each read from its file as a player's own set is."""
+    return {path.stem: art_set_from_file(path.read_text(encoding="utf-8"))
+            for path in sorted(PEOPLE_FOLDER.glob("*.json"))}
 
 
 def reader(rom: bytes) -> Callable[[int, int], bytes]:
@@ -207,8 +214,10 @@ def test_the_game_draws_link_from_the_assembled_tiles() -> None:
 
 
 
-def test_the_people_have_a_swap_and_the_monsters_none() -> None:
-    assert {set_id for set_id, art in built_in_art_sets().items() if has_swap(art)} == PEOPLE
+def test_the_people_have_a_swap_and_the_built_in_sets_none() -> None:
+    assert set(people_sets()) == {"merchant", "old-man", "old-woman", "zelda"}
+    assert all(has_swap(art) for art in people_sets().values())
+    assert not any(has_swap(art) for art in built_in_art_sets().values())
 
 
 @needs_base_rom
@@ -218,8 +227,7 @@ def test_the_swap_draws_the_person_as_the_original_link() -> None:
     base = remember_repo_base_rom()
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, base).rom
     groups = link_tile_offsets()
-    for set_id in sorted(PEOPLE):
-        art = built_in_art_sets()[set_id]
+    for art in people_sets().values():
         plain = apply_player_settings(rom, PlayerSettings(link_sprite=LinkSprite.SET, sprite_set=art))
         swapped = apply_player_settings(rom, PlayerSettings(link_sprite=LinkSprite.SET, sprite_set=art,
                                                             link_sprite_swap=True))
@@ -235,7 +243,7 @@ def test_the_swap_draws_the_person_as_the_original_link() -> None:
 @needs_base_rom
 def test_the_swap_leaves_z1rr_coops_ranges() -> None:
     from tests.test_coop_reserved import RESERVED_BYTES
-    for art in built_in_art_sets().values():
+    for art in people_sets().values():
         assert not any(offset + i in RESERVED_BYTES for offset, data in swap_writes(art) for i in range(len(data)))
 
 
@@ -246,7 +254,7 @@ def test_the_swap_needs_a_person_set_and_random_never_swaps() -> None:
                            link_sprite_swap=True)
     asked = PlayerSettings(link_sprite=LinkSprite.RANDOM, link_sprite_swap=True)
     assert not any(resolved_player_settings(asked, seed).link_sprite_swap for seed in range(1, 101))
-    zelda = next(entry for entry in metadata()["linkSpriteSet"]["builtIn"] if entry["id"] == "zelda")
+    zelda = json.loads((PEOPLE_FOLDER / "zelda.json").read_text(encoding="utf-8"))
     page = {"linkSprite": "set", "linkSpriteSet": zelda, "linkSpriteSwap": "on"}
     assert player_settings_from_page(page).link_sprite_swap
     with pytest.raises(PlayerSettingError, match="linkSpriteSwap"):

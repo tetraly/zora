@@ -27,9 +27,8 @@ from tests.test_stats_screen import (
     IS_UPDATING_MODE,
     LAST_WIN_SUBMODE,
     SAVE_MODE,
-    SCREEN_STATE,
-    STATS_BLOCK,
     WIN_MODE,
+    screen_is_shown,
     seed_rom,
 )
 from tests.test_stats_screen_play import finish_and_show
@@ -89,7 +88,7 @@ def test_start_after_the_ending_saves_the_file(coop: bool, boots: bool) -> None:
         finish_and_show_without_screen(emu)
     else:
         finish_and_show(emu)
-        assert emu[STATS_BLOCK + SCREEN_STATE] == 1
+        assert screen_is_shown(emu)
         emu.press(Button.START, after=1)
     leave_to_file_select_and_load(emu)
     assert_the_file_kept(emu, kept)

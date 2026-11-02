@@ -1,14 +1,16 @@
 """The release check for zora.apworld: a fresh Archipelago with only the built .apworld installed.
 
     python3 scripts/check_apworld.py [--rev REV | --uncommitted-world | --apworld PATH]
-                                     [--players N] [--seed S] [--skip-newest] [--archipelago-repo URL]
+                                     [--players N] [--seed S] [--skip-unreleased] [--archipelago-repo URL]
+                                     [--python INTERPRETER]
 
 1. Build zora.apworld (scripts/build_apworld.py; or check the one given with --apworld) and run
    the release's text checks on every file in it (scripts/make_release.py's: no mentions, no
    personal paths, no original-game bytes or text, against PRG0 and PRG1).
-2. For each Archipelago: the required one (REQUIRED_ARCHIPELAGO, 0.6.8; must pass), then as warnings
-   only, so a new Archipelago never blocks a ZORA release, the coming one (UPCOMING_ARCHIPELAGO,
-   0.6.9) and any newer release (--skip-newest checks the required one only):
+2. For each Archipelago: the required one, the newest release (its newest X.Y.Z tag, found when the
+   check runs; must pass), then, as a warning only, the coming version's unreleased commit
+   (UPCOMING_ARCHIPELAGO, 0.6.9) until a release reaches that version (--skip-unreleased checks
+   the required one only):
    - its source, fetched fresh into temp/archipelago-check/ (git archive of the exact commit), in a
      virtual environment with its own requirements (ModuleUpdate.py) and pytest;
    - the .apworld in custom_worlds/, host.yaml naming the PRG0 base ROM;
@@ -65,11 +67,13 @@ class Archipelago:
     required: bool
 
 
-# Owner ruling (2026-10-13): 0.6.8, the release players have, is required; 0.6.9 is a warning until it is
-# released. On 2026-10-13 0.6.9 has no release tag: UPCOMING_ARCHIPELAGO is the commit that set its
-# version to 0.6.9 and the one after it (the main branch then). Once 0.6.9 is released, the owner
-# decides whether it becomes the required one.
-REQUIRED_ARCHIPELAGO = Archipelago("0.6.8", "0.6.8", required=True)
+# Owner ruling (2026-10-31, replacing 2026-10-13's fixed 0.6.8): the required Archipelago is the newest
+# release, the one players have (0.6.8 on 2026-10-31), so a new release is required from the day it is
+# tagged. The coming version's unreleased commit is a warning only, and is left out once a release
+# reaches its version. 0.6.9 has no release tag yet: UPCOMING_ARCHIPELAGO is the commit after the one
+# that set its version to 0.6.9 (the main branch on 2026-10-13); when 0.6.9 is released, point it at
+# the next version's commit, if any.
+UPCOMING_VERSION = (0, 6, 9)
 UPCOMING_ARCHIPELAGO = Archipelago("0.6.9 (not yet released)", "9b64e832874a50d5d14d5bc599d356d2c5194d7a",
                                    required=False)
 RELEASE_TAG = re.compile(r"^refs/tags/(\d+)\.(\d+)\.(\d+)$")
@@ -146,13 +150,14 @@ def text_checks(apworld: Path) -> list[Result]:
 
 # --- 2. a fresh Archipelago --------------------------------------------------------------------
 
-def newest_release(repo: str) -> Archipelago:
-    """The newest X.Y.Z release tag, as a warning."""
+def newest_release(repo: str) -> tuple[tuple[int, ...], Archipelago]:
+    """The newest X.Y.Z release tag, the required Archipelago, and its version."""
     listed = subprocess.run(["git", "ls-remote", "--tags", repo], capture_output=True, text=True, check=True).stdout
     versions = [tuple(int(part) for part in match.groups()) for line in listed.splitlines()
                 if (match := RELEASE_TAG.match(line.split("\t")[-1]))]
-    newest = ".".join(map(str, max(versions)))
-    return Archipelago(f"{newest} (newest release)", newest, required=False)
+    newest = max(versions)
+    tag = ".".join(map(str, newest))
+    return newest, Archipelago(f"{tag} (the newest release)", tag, required=True)
 
 
 def fetch(target: Archipelago, repo: str) -> tuple[Path, str]:
@@ -175,12 +180,19 @@ def fetch(target: Archipelago, repo: str) -> tuple[Path, str]:
     return tree, commit
 
 
-def environment(target: Archipelago, tree: Path) -> Path:
-    """TARGET's virtual environment (kept between runs) with its requirements and pytest; its python."""
-    venv = WORK / target.ref / "venv"
+def python_version(interpreter: str) -> str:
+    """INTERPRETER's full version, X.Y.Z."""
+    return subprocess.run([interpreter, "-c", "import platform; print(platform.python_version())"],
+                          capture_output=True, text=True, check=True).stdout.strip()
+
+
+def environment(target: Archipelago, tree: Path, interpreter: str) -> Path:
+    """TARGET's virtual environment from INTERPRETER (one per Python version, kept between runs) with its
+    requirements and pytest; its python."""
+    venv = WORK / target.ref / f"venv-{python_version(interpreter)}"
     python = venv / "bin" / "python"
     if not python.exists():
-        subprocess.run([sys.executable, "-m", "venv", str(venv)], check=True)
+        subprocess.run([interpreter, "-m", "venv", str(venv)], check=True)
     commands: list[list[str | Path]] = [[python, "ModuleUpdate.py", "--yes"],
                                         [python, "-m", "pip", "install", "-q", *TEST_REQUIREMENTS]]
     for command in commands:
@@ -327,16 +339,17 @@ def general_tests(python: Path, tree: Path) -> Result:
 
 
 def check_archipelago(target: Archipelago, apworld: Path, repo: str, players: list[tuple[str, str]],
-                      seed: int) -> list[Result]:
+                      seed: int, interpreter: str) -> list[Result]:
     progress(f"Archipelago {target.label}: fetching {target.ref[:12]}...")
     tree, commit = fetch(target, repo)
     progress(f"Archipelago {target.label}: its requirements and pytest (the first time takes several minutes)...")
-    python = environment(target, tree)
+    python = environment(target, tree, interpreter)
     (tree / "custom_worlds").mkdir(exist_ok=True)
     shutil.copyfile(apworld, tree / "custom_worlds" / "zora.apworld")
     host_yaml(tree, verify_base_rom())
     version = run([python, "-c", "import Utils; print(Utils.__version__)"], tree).stdout.strip()
-    results = [Result(f"Archipelago {version} from {commit[:9]}, with only {apworld.name} added", True)]
+    results = [Result(f"Archipelago {version} from {commit[:9]} on Python {python_version(str(python))}, "
+                      f"with only {apworld.name} added", True)]
     progress(f"Archipelago {target.label}: generating...")
     generated, patches = generate(python, tree, players, seed)
     results.append(generated)
@@ -374,8 +387,12 @@ def main() -> int:
     parser.add_argument("--players", type=int, default=DEFAULT_PLAYERS,
                         help=f"ZORA players (default {DEFAULT_PLAYERS})")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="the players' settings and Archipelago's seed")
-    parser.add_argument("--skip-newest", action="store_true", help="check the required Archipelago only")
+    parser.add_argument("--skip-unreleased", "--skip-newest", action="store_true",
+                        help="check the required Archipelago (the newest release) only")
     parser.add_argument("--archipelago-repo", default=ARCHIPELAGO_REPO, help="where to fetch Archipelago from")
+    parser.add_argument("--python", default=sys.executable,
+                        help="run Archipelago on this interpreter (default the one running this script); "
+                             "docs/releasing.md checks the oldest and newest Python Archipelago supports")
     args = parser.parse_args()
     for rom in (BASE_ROM_PATH, PRG1_ROM_PATH):
         if not rom.exists():
@@ -403,16 +420,17 @@ def check(args: argparse.Namespace) -> bool:
     progress("the release's text checks on the .apworld...")
     passed = report("zora.apworld", text_checks(apworld), required=True)
     players = exported_players(args.players, args.seed)
-    targets = [REQUIRED_ARCHIPELAGO]
-    if not args.skip_newest:
+    newest_version, required = newest_release(args.archipelago_repo)
+    targets = [required]
+    if newest_version >= UPCOMING_VERSION:
+        print(f"check_apworld: {required.ref} reaches UPCOMING_ARCHIPELAGO's version, so its commit is left out; "
+              "point UPCOMING_ARCHIPELAGO at the next version's commit, if any")
+    elif not args.skip_unreleased:
         targets.append(UPCOMING_ARCHIPELAGO)
-        newest = newest_release(args.archipelago_repo)
-        if newest.ref != REQUIRED_ARCHIPELAGO.ref:
-            targets.append(newest)
     warnings = False
     for target in targets:
         try:
-            results = check_archipelago(target, apworld, args.archipelago_repo, players, args.seed)
+            results = check_archipelago(target, apworld, args.archipelago_repo, players, args.seed, args.python)
         except (RuntimeError, subprocess.SubprocessError) as failed:
             results = [Result(f"Archipelago {target.label}: could not be set up", False, str(failed).splitlines())]
         heading = f"Archipelago {target.label}" + ("" if target.required else " (a warning only)")

@@ -76,7 +76,15 @@ from .link_sprite import (
 from .opening_story import level_word_in_story
 from .parse.text import REFUSAL_SLOT
 from .player_settings_data import SETTINGS
-from .revision import Revision, back_to_revision, layout_of, moved_to_prg0_layout, prg1_offset
+from .revision import (
+    NES_HEADER_SIZE,
+    TUNIC_COLOR_COPIES,
+    Revision,
+    back_to_revision,
+    layout_of,
+    moved_to_prg0_layout,
+    prg1_offset,
+)
 from .serialize.features import encoded_refusal_text
 from .text_encoding import (
     BYTE_TO_CHAR,
@@ -113,8 +121,7 @@ HEART_RANDOM_COLORS = (0x29, 0x22, 0x16, 0x0C, 0x1A, 0x03, 0x17)
 # FP-SET-02: the tunic color of each ring state, in both copies PRG0 reads:
 # the file-select copy (LinkColors) and the pickup copy (LinkColors_CommonCode,
 # whose first entry is never read; the slot's value is written there too).
-TUNIC_FILE_SELECT_COPY = 0xA297
-TUNIC_PICKUP_COPY = 0x6BA5
+TUNIC_FILE_SELECT_COPY, TUNIC_PICKUP_COPY = (NES_HEADER_SIZE + offset for _label, offset, _length in TUNIC_COLOR_COPIES)
 TUNIC_SLOTS = 3                      # no ring, blue ring, red ring
 # The map's position marker (docs/reports/minimap-marker.md): sprite tile $3E, whose 3x3 dot is
 # color 1 of Link's palette, the tunic color. These tunic colors hide it on a map background

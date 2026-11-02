@@ -25,7 +25,8 @@ from zora.rom import level_encoding
 from zora.rom.base_rom import piece_bytes, verify_base_rom
 from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, seed_code
 from zora.rom.layout import LEVEL_LABEL_RECORD, LEVEL_LABEL_RECORD_SIZE, LOW_HEALTH_BEEP_OPERAND_ADDRESS
-from zora.rom.link_art import offered_sprite_sets
+from tests.test_link_art import PEOPLE_FOLDER
+from zora.rom.link_art import art_set_from_file
 from zora.rom.link_sprite import SpriteSet
 from zora.rom.player_settings import (
     CharacterColors, DeathWarp, LinkSprite, LowHealthBeep, Music, PlayerSettingError, PlayerSettings, SelectSwap,
@@ -138,11 +139,12 @@ def test_defaults_leave_finished_roms_byte_identical(seed: int) -> None:
 
 def beside(name: str) -> PlayerSettings:
     """What a setting's case starts from: the defaults, with the test set for the Link sprite's choice,
-    and the Old Man's set chosen for the swap (refused without a person set)."""
+    and the Old Man's set (a person set a player loads) for the swap, refused without one."""
     if name == "link_sprite":
         return replace(PlayerSettings(), sprite_set=TEST_SPRITE_SET)
     if name == "link_sprite_swap":
-        return replace(PlayerSettings(), link_sprite=LinkSprite.SET, sprite_set=offered_sprite_sets()["old-man"])
+        old_man = art_set_from_file((PEOPLE_FOLDER / "old-man.json").read_text(encoding="utf-8"))
+        return replace(PlayerSettings(), link_sprite=LinkSprite.SET, sprite_set=old_man)
     return PlayerSettings()
 
 

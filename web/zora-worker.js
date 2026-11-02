@@ -112,7 +112,7 @@ async function init({ version, wheelUrl, wheelBytes, classic }) {
   const t0 = performance.now();
   const base = `https://cdn.jsdelivr.net/pyodide/v${version}/full/`;
   // classic: the single-file beta's worker (a classic one; zora-web.js says
-  // why). Pyodide 0.28.3 still supports classic workers through pyodide.js.
+  // why). Pyodide 0.29.5 still supports classic workers through pyodide.js.
   let loadPyodide;
   if (classic) {
     importScripts(`${base}pyodide.js`);

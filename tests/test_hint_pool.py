@@ -3,6 +3,7 @@ and padding, where its quotes go (HT-TEXT-02), and where the 45 slot texts
 go (HT-TEXT-03)."""
 import itertools
 import math
+import re
 from pathlib import Path
 
 import pytest
@@ -74,6 +75,34 @@ def test_community_texts_fit_the_game_and_are_credited() -> None:
     credits = (Path(__file__).resolve().parent.parent / "docs" / "credits.md").read_text(encoding="utf-8")
     for name in {entry.contributor for entry in community} - {"ZORA", "unknown"}:
         assert name in credits, name
+
+
+# Words that give someone a gender: a community text holding one either talks about someone else
+# or is listed below, so no text can assume the player's gender unnoticed ("SIR, THIS IS A
+# WENDY'S" became "EXCUSE ME, THIS IS A WENDY'S", "LITTLE MAN" "LITTLE ONE", 2026-10-31).
+GENDERED_WORDS = re.compile(r"\b(" + "|".join((
+    "SIR", "MADAM", "MAAM", "MA'AM", "LAD", "LADDIE", "LASS", "LASSIE", "BOY", "BOYS", "GIRL", "GIRLS",
+    "MAN", "MEN", "WOMAN", "WOMEN", "GUY", "GUYS", "DUDE", "DUDES", "BRO", "BROS", "BROTHER", "SISTER",
+    "SIS", "SON", "DAUGHTER", "KING", "QUEEN", "PRINCE", "PRINCESS", "MISTER", "MR", "MRS", "MISS",
+    "MS", "LADY", "LADIES", "GENTLEMAN", "GENTLEMEN", "FELLA", "FELLAS", "GAL", "GALS", "HEROINE",
+    "HE", "HIM", "HIS", "HIMSELF", "SHE", "HER", "HERS", "HERSELF")) + r")\b")
+# Community texts that hold such a word and are fine, each with why ("|" breaks a line)
+GENDERED_WORDS_ALLOWED = {
+    "A WISE OLD MAN ONCE|SAID - CHECK YOUR CAVES.": "the game's old man, not the player",
+    "THE OLD MAN IS TIRED|OF YOUR NONSENSE.": "the game's old man, not the player",
+    "PATRA? I HARDLY|KNOW HER!": "Patra, not the player",
+    "THIS BAD BOY CAN FIT|SO MANY RUPEES IN IT!": "the wallet, not the player",
+    "WELL EXCUUUUUSE|ME, PRINCESS!": "a quote: Link to Zelda in the 1989 cartoon",
+}
+
+
+def test_no_community_text_assumes_the_players_gender() -> None:
+    """Every community text with a gendered word is on the allowed list, and every listed text is
+    still in the pool."""
+    community = {"|".join(entry.lines) for entry in POOL if entry.contributor}
+    gendered = {text for text in community if GENDERED_WORDS.search(text)}
+    assert gendered - GENDERED_WORDS_ALLOWED.keys() == set()
+    assert GENDERED_WORDS_ALLOWED.keys() - community == set()
 
 
 def test_the_pools_longest_texts_always_fit_the_hint_bank_and_its_overflow() -> None:

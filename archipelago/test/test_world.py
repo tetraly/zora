@@ -285,6 +285,14 @@ class TestColorSettings(unittest.TestCase):
             self.assertEqual(option.from_any(0x29).value, 0x29, key)
             self.assertEqual(option.from_any("0x2a").value, 0x2A, key)
 
+    def test_a_removed_playable_character_reads_as_the_original_link(self) -> None:
+        """A YAML naming a people set beta 11 offered (removed 2026-11-02) still loads: the original Link."""
+        from ..options import SETTING_CLASSES, setting_value
+        option = SETTING_CLASSES["playable_character"]
+        for key in ("merchant", "old_man", "old_woman", "zelda"):
+            self.assertNotIn(key, option.name_lookup.values(), key)       # not listed, so random never picks it
+            self.assertEqual(setting_value(option.from_any(key)), "link", key)
+
     def test_the_boomerangs_line_is_the_boots_upgrade_with_pegasus_boots(self) -> None:
         naming = ItemNaming(progressive=True, pegasus_boots=True)
         for name in ("Boomerang", "Magical Boomerang"):

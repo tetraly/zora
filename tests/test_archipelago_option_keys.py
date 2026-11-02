@@ -71,6 +71,7 @@ KEYS = {
     "recorder_warping": "recorder_warping",
     "swap_swords_and_rings": "swap_swords_and_rings", "swordlish": "swordlish",
     "swordlish_lowest": "swordlish_lowest", "swordlish_highest": "swordlish_highest",
+    "compass_chime": "compass_chime",
     # Shuffle Wood Sword is never offered (archipelago.ZORA_FORCED_OFF, owner ruling 2026-10-17): no key
 }
 CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")

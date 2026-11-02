@@ -150,4 +150,16 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "ae9848ac00bbb901bba8b5184a88d0fcac00bb7905bb952868a860a515290fd01d9848ac00bbb518d9"
                                 "09bb68a8b00fa51a4a69309570a51b4a4a69659584ad5906c90260")),
     ),
+    "compass-chime": (
+        (0x002C0, bytes.fromhex("860900037e09000371090003542d0000ad0206c906f00f0900d00aad0706c906f01fad020660ad0306"
+                                "1008202699a9008d0306a9068d0706a9008d1806a901856f6868c66fd02aac1806b9b182f023856fb9"
+                                "b082f0118d0640a9088d0740a97f8d0540a986d002a9908d0440c8c88c180660a0908c0440a0188c07"
+                                "40a0008c07068c064060")),
+        (0x01AE5, bytes.fromhex("20c082")),
+        (0x17D30, bytes.fromhex("203ab8a512c905d04d20ebb5f048a4eb209abdf00db9fe6a2907c907f004c903d0052077bdd02aa200"
+                                "bdb26bc9fff026a8a5ebd97e68f00bd9fe68f006e8e00a90e760b9fe69293fc93fd00a2077bdf005a9"
+                                "068d020660b97e6a291fcd4fb8d005209abdd011adb06b8501adaf6b8500b1002910491060a90060b9"
+                                "fe692980d007b97e69293fc93e60")),
+        (0x1EAF3, bytes.fromhex("20bd")),
+    ),
 }
