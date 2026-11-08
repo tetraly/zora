@@ -8,7 +8,7 @@
     1 or the three off, with equal chance; never a refusal.
   - VA-REJ-02: under C14 = 0 with only vanilla sets neither the remap nor the gate runs; with a
     shape-stage set they run. C14 = 3 resolves to 0, 1 and 2.
-  - B02 at "?" (OW-CAVE-12) generates; Print Quest Info (B51) changes nothing in the ROM.
+  - B02 at "?" (OW-CAVE-12) generates; Print Quest Info (B51) changes the seed (FL-SUP-04, bd15f51).
   - The spoiler log names each rule after the "?" resolution, like the coins."""
 from functools import cache
 
@@ -131,11 +131,14 @@ def test_b02_possible_generates() -> None:
 
 
 @needs_base_rom
-def test_print_quest_info_changes_no_byte() -> None:
+def test_print_quest_info_changes_the_seed() -> None:
+    """FL-SUP-04 (bd15f51 export): a rebuild MUST NOT ignore B51; on, it writes a log and changes the seed on
+    purpose (FP-SPOIL-01), so the ROM and its icons differ from B51 off (tests/test_spoiler_reseed.py)."""
     base = remember_repo_base_rom()
     assert decode(B51_ON).toggle("B51") is ON
     without = encode(decode(B51_ON).updated(toggles={"B51": OFF}))
-    assert finish(built(B51_ON, 1), base) == finish(built(without, 1), base)
+    assert finish(built(B51_ON, 1), base) != finish(built(without, 1), base)
+    assert built(B51_ON, 1).plan.generation_seed != built(without, 1).plan.generation_seed
 
 
 def spoiler_line(flag_string: str, seed: int, field_id: str) -> str:

@@ -56,7 +56,7 @@ from .layout import (
     TITLE_SEED_ROW_ADDRESS,
     hint_text_regions,
 )
-from .level_9_entrance import chosen_levels, chosen_levels_text, parsed_gate
+from .level_9_entrance import chosen_levels, chosen_levels_text
 from .link_art import (
     ArtSet,
     LinkSpriteSet,
@@ -73,7 +73,6 @@ from .link_sprite import (
     link_tile_offsets,
     write_link_tiles,
 )
-from .opening_story import level_word_in_story
 from .parse.text import REFUSAL_SLOT
 from .player_settings_data import SETTINGS
 from .revision import (
@@ -704,7 +703,6 @@ def level_word(rom: bytearray, word: str) -> None:
         return
     level_word_in_hints(rom, word)
     level_word_in_refusal_text(rom, word)
-    level_word_in_story(rom, parsed_gate(rom), word)
     tiles = [CHAR_TO_BYTE[char] for char in word]
     if len(word) <= LEVEL_WORD_DASH_MAX_LENGTH:
         tiles.append(FP_LEVEL_DASH_TILE)

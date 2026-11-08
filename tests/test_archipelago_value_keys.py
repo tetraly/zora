@@ -117,7 +117,6 @@ VALUE_KEYS = {
     "book_to_understand_old_men": THREE_STATE,
     "book_is_an_atlas": THREE_STATE,
     "blackout": THREE_STATE,
-    "print_quest_info": THREE_STATE,
     "permanent_sword_beam": THREE_STATE,
     "ohko": THREE_STATE,
     "speed_up_text": THREE_STATE,

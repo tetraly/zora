@@ -194,9 +194,9 @@ def mazes_and_gates(document: dict[str, Any]) -> list[str]:
     return lines
 
 
-def level_9_entrance(document: dict[str, Any]) -> str | None:
+def level_9_entrance(document: dict[str, Any], with_setting: bool = True) -> str | None:
     """What level 9's entrance asks for (Level 9 Entry, C08): a number of triforce pieces, the
-    chosen levels' pieces or an item; with what Level 9 Entry: Random resolved to."""
+    chosen levels' pieces or an item; WITH_SETTING, with what Level 9 Entry: Random resolved to."""
     needed = document.get("requirements", {})
     if "level9Item" in needed:
         text = f"Level 9: needs this item: {needed['level9Item']} (no triforce pieces)"
@@ -209,7 +209,7 @@ def level_9_entrance(document: dict[str, Any]) -> str | None:
     else:
         return None
     entry = next((setting for setting in document.get("settings", []) if setting.get("id") == LEVEL_9_ENTRY), None)
-    if entry is not None and entry["chosen"] != entry["resolved"]:
+    if with_setting and entry is not None and entry["chosen"] != entry["resolved"]:
         text += f" (Level 9 Entry: {entry['chosen']} -> {entry['resolved']})"
     return text
 
@@ -229,7 +229,13 @@ def requirements(document: dict[str, Any]) -> list[str]:
 
 
 def spoiler_log(document: dict[str, Any]) -> str:
-    """The log's text, every line at most WIDTH columns, ending in a newline."""
+    """The log's text, every line at most WIDTH columns, ending in a newline. A seed made with a log level
+    (the document's `spoiler` block) gets the player's log at that level (leveled_log); a document without
+    one (a seed at None, which the page never logs) keeps this full developer's log, which the tests and the
+    output matrix read."""
+    if "spoiler" in document:
+        from .leveled_log import leveled_log
+        return leveled_log(document)
     lines = [*header(document), *flag_breakdown(document), *major_items(document), *caves(document),
              *mazes_and_gates(document), *hints(document), *requirements(document)]
     assert all(len(line) <= WIDTH for line in lines)

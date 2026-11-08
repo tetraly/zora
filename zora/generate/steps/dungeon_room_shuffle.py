@@ -16,6 +16,7 @@ would store never survives. ZORA derives the pointer from the rooms when a
 level is written (serialize.levels.derive_triforce_room_ptr; a vanilla set
 drops PRG0's, dungeon_quest.vanilla_set).
 """
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from ...model.enums import Enemy, Item, ItemPosition, RoomAction, RoomType
@@ -215,12 +216,15 @@ class DungeonRoomShuffleResult:
     stair_redraws: int = 0
 
 
-def exchange_rooms(levels: list[Level], rng: IntRng, ganon_and_zelda: bool = True) -> DungeonRoomShuffleResult:
+def exchange_rooms(levels: list[Level], rng: IntRng, ganon_and_zelda: bool = True,
+                   place_empty: Callable[[Level, Room], None] | None = None) -> DungeonRoomShuffleResult:
     """PS-XCHG-01..04: the pool in scan order (block 0 rooms 0-127, then
     block 1); for each position a partner uniform over position..end,
     re-drawn while it pairs stair-type with non-stair-type contents; a swap
     that breaks a rule is skipped (quirk: no re-draw). Contents are written
-    back at the end."""
+    back at the end. With Universal Drops v2.0, `place_empty` then gives
+    each room left without an item a position on its drop squares, in place
+    of PS-XCHG-02's index 0, so an item a later pass moves in stands on one."""
     discard(rng, DISCARDED_DRAWS)
     pool = exchange_pool(levels, ganon_and_zelda)
     contents = [take_contents(level, room) for level, room in pool]
@@ -243,6 +247,8 @@ def exchange_rooms(levels: list[Level], rng: IntRng, ganon_and_zelda: bool = Tru
         stats.swaps += 1
     for (level, room), moved in zip(pool, contents, strict=True):
         put_contents(level, room, moved)
+        if place_empty is not None and not moved.has_item:
+            place_empty(level, room)
     return stats
 
 

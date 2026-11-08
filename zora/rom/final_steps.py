@@ -79,7 +79,7 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     (B53) write their fixed patches (sword_and_harm), Add Bridges to the River (B87) and Add Lost
     Woods Shortcut (B88) their overworld bytes (overworld_crossings), and so do the wooden-sword states (C07,
     sword_states); and in every ROM a bought fairy refills every heart (fairy_refill), the opening
-    story is ZORA's, naming level 9's requirement (opening_story), and the ending credits hold the
+    story is ZORA's, the same on every seed (opening_story), and the ending credits hold the
     Randomizer Staff box (fp-credits-01's tables, credits_staff)."""
     config = settings.config
     if mirror_overworld.is_mirrored(rom):
@@ -104,7 +104,7 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
         rom[address:address + len(data)] = data
     for address, data in harder_bosses.harder_writes(config.harder_bosses, config.harder_ganon):
         rom[address:address + len(data)] = data
-    for address, data in opening_story.story_writes(rom, world.level_9_gate, config.level_9_entrance_sword):
+    for address, data in opening_story.story_writes(rom):
         rom[address:address + len(data)] = data
     if config.foreign_logo:
         for address, data in archipelago_logo.logo_writes():

@@ -1,0 +1,22 @@
+{
+  "about": [
+    "Per-flag settings for the page (docs/beta-flags.md); generation never reads this file. One object per flag:",
+    "a Z1R code (\"C05\") or a ZORA Extra's field name (\"harder_ganon\"). Its \"beta\" is \"all\" (every value but",
+    "the one a fresh page starts with) or a list of values, by the label the page shows or by number, e.g.",
+    "\"C05\": {\"beta\": [\"Dungeons Only\"]} or \"harder_ganon\": {\"beta\": [\"Level 3\"]}. A Random that can",
+    "resolve to a beta value is beta too. Remove \"beta\" to graduate the flag. Marking or graduating a flag",
+    "takes a one-line entry in docs/CHANGELOG.md."
+  ],
+  "flags": {
+    "universal_drops_v2": {
+      "beta": "all"
+    },
+    "B51": {
+      "beta": [
+        "Basic",
+        "Medium",
+        "Full"
+      ]
+    }
+  }
+}

@@ -150,10 +150,12 @@ def _connectivity_verdict(level: Level, transports: bool = True) -> str | None:
 
 
 def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None,
-              force_ganon_fight: bool = True, doors_only_levels: frozenset[int] = frozenset()) -> GateStats:
+              force_ganon_fight: bool = True, doors_only_levels: frozenset[int] = frozenset(),
+              keep_positions: bool = False) -> GateStats:
     """Attempt loop over levels 1..9 sharing one 1,000-attempt budget, on
     the pass's staged levels. The levels in doors_only_levels (Do Not Segment Dungeons' shapes levels)
-    are walked without their transport staircases.
+    are walked without their transport staircases; keep_positions (Universal Drops v2.0) keeps
+    the item positions of the rooms step 8 shutters (_zelda_rewrite).
 
     EVERY attempt counts against the budget, accepted ones included
     (VA-REJ-04). Accepted levels persist; a rejected attempt is rolled
@@ -177,7 +179,8 @@ def late_gate(levels: list[Level], rng: Rng, stats: GateStats | None = None,
                 check_deadline()            # the web page's time limit (deadline.py); never changes output
                 snapshot = _snapshot(gate_block)
                 kind, plain_walk_passed, repair_ran, pairs_opened = _attempt(
-                    gate_block, level, rng, force_ganon_fight, level.level_num not in doors_only_levels)
+                    gate_block, level, rng, force_ganon_fight, level.level_num not in doors_only_levels,
+                    keep_positions)
                 if SURVEY:
                     stats.survey.append(
                         (level.level_num, kind, plain_walk_passed, repair_ran, pairs_opened,
@@ -210,7 +213,7 @@ def _guard_level_3_cellar_list(level: Level) -> None:
 
 
 def _attempt(gate_block: GateBlock, level: Level, rng: Rng, force_ganon_fight: bool = True,
-             transports: bool = True) -> tuple[str, bool | None, bool, int]:
+             transports: bool = True, keep_positions: bool = False) -> tuple[str, bool | None, bool, int]:
     """One attempt (VA-REJ-03 steps 1-9). Returns (kind, plain_walk_ok,
     repair_invoked, pairs_opened); kind is "accept" or the rejection
     kind. Force Ganon Fight (B18) off: step 8 runs only its cleanup, and
@@ -225,7 +228,7 @@ def _attempt(gate_block: GateBlock, level: Level, rng: Rng, force_ganon_fight: b
     if not _placement_check(level, recorded):
         plain_walk_passed = (_connectivity_verdict(level, transports) is None) if SURVEY else None
         return "placement", plain_walk_passed, False, 0
-    if level.level_num == LEVEL_9 and not _zelda_rewrite(gate_block, level, force_ganon_fight):
+    if level.level_num == LEVEL_9 and not _zelda_rewrite(gate_block, level, force_ganon_fight, keep_positions):
         return "l9door", None, False, 0
     # step 9: connectivity (walk, then repair), then level 9's extras
     from .walk import connectivity_walk

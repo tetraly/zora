@@ -39,6 +39,7 @@ from zora.generate.pipeline import (
     overworld_gates,
     resolve_question_marks,
     room_prerequisite_rng,
+    unencoded,
 )
 from zora.generate.rng import Rng
 from zora.generate.steps.add_l4_sword import L4_SWORD_ITEM
@@ -60,7 +61,16 @@ from zora.model.game_world import GameWorld
 from zora.model.item_names import ITEM_NAMES, item_names
 from zora.model.level_9_gate import GateKind, Level9Gate
 from zora.model.levels import LEVEL_9, Level
-from zora.model.overworld import DoorRepairCave, HintShop, ItemCave, OverworldItem, Shop, ShopItem, TakeAnyCave
+from zora.model.overworld import (
+    DoorRepairCave,
+    HintShop,
+    ItemCave,
+    OverworldItem,
+    SecretCave,
+    Shop,
+    ShopItem,
+    TakeAnyCave,
+)
 from zora.model.rooms import Room
 from zora.rom import item_sprites
 from zora.rom.code_patches import (
@@ -575,7 +585,7 @@ LISTED_WHEN_SET = frozenset((*zora_flags.ZORA_1_0_FIELDS, *zora_flags.PEGASUS_BO
                             *zora_flags.EXPANDED_DUNGEON_LOCATIONS_FIELDS,
                             *zora_flags.HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
                             *zora_flags.DO_NOT_SEGMENT_DUNGEONS_FIELDS, *zora_flags.SWAP_SWORDS_AND_RINGS_FIELDS,
-                            zora_flags.ITEM_SHUFFLE_NO_VANILLA_FIELD))
+                            zora_flags.ITEM_SHUFFLE_NO_VANILLA_FIELD, zora_flags.DETAILED_SPOILER_LOG_FIELD))
 # Swordlish's range (version 16): listed only with Swordlish asked for, its resolved value N at both ends
 SWORDLISH_RANGE_FIELDS = (zora_flags.SWORDLISH_LOWEST_FIELD, zora_flags.SWORDLISH_HIGHEST_FIELD)
 
@@ -617,9 +627,13 @@ def zora_value_text(value: bool | int | ThreeState | None) -> str:
 
 
 def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
-    """The finished ROM `rom`, generated from `chosen`, as a seed document."""
+    """The finished ROM `rom`, generated from `chosen`, as a seed document. An encoded seed gets none, unless it
+    was made with a spoiler log: then `rom` is its pre-encoding ROM (GeneratedRom.report_rom), read as written
+    plain, for the log and the tracker file only (rulings of 2026-11-06; the visualizer stays off for it)."""
     if chosen.encode_level_data:
-        raise EncodedSeedRefused
+        if chosen.spoiler_level is zora_flags.SpoilerLevel.NONE:
+            raise EncodedSeedRefused
+        chosen = unencoded(chosen)
     world = parse_rom(rom, chosen.config)
     sells_once = chosen.zora.progressive_items or chosen.zora.shop_items_in_pool or chosen.config.potion_shop_in_pool
     # Pegasus Boots: the boomerangs' items are the boots, the seed code's $1D icon too (as the game draws it)
@@ -644,7 +658,36 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
     extras = zora_extras(world, chosen)
     if extras:
         document["zoraExtras"] = extras
+    if chosen.spoiler_level is not zora_flags.SpoilerLevel.NONE:
+        document["spoiler"] = spoiler_entry(world, chosen.spoiler_level, selling_levels(world))
     return document
+
+
+# --- what only the spoiler log and the tracker file read (a ZORA extra) ---------------------------
+
+def spoiler_entry(world: GameWorld, level: zora_flags.SpoilerLevel, selling: frozenset[int]) -> dict[str, Any]:
+    """The facts the spoiler log's levels and the tracker file need beyond the visualizer's format
+    (docs/design/spoiler-levels.md): the level, the start screen, the money secrets' amounts, and per
+    level its quest, entrance room and side, and each room's layout code, push block and monster. Only
+    a seed with a log carries it, so a document without one is as it was (owner ruling, 2026-11-06)."""
+    secrets = {display_name(cave.destination.name): cave.rupee_value
+               for cave in world.overworld.caves if isinstance(cave, SecretCave)}
+    return {
+        "level": int(level),
+        "startScreen": world.overworld.start_screen,
+        "secrets": dict(sorted(secrets.items())),
+        "levels": [{
+            "number": dungeon.level_num,
+            "quest": 2 if dungeon.is_second_quest else 1,
+            "entranceRoom": dungeon.entrance_room,
+            "entranceSide": dungeon.entrance_direction.name.lower(),
+            "rooms": [{"number": room.room_num, "layout": int(room.layout_info.room_type),
+                       "pushBlock": room.layout_info.movable_block,
+                       "monster": None if room.enemy == Enemy.NOTHING else room.enemy.name,
+                       "talksOnly": room.enemy == Enemy.BOMB_UPGRADER and dungeon.level_num not in selling}
+                      for room in dungeon.rooms],
+        } for dungeon in sorted(world.levels, key=lambda dungeon: dungeon.level_num)],
+    }
 
 
 # --- the owner's 2.0 flags (a ZORA extra; seed format 1.1 has no fields for them) ----------------

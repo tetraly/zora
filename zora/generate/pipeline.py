@@ -92,6 +92,7 @@ from ..flags.fields import (
     OVERWORLD_QUEST,
     PERMANENT_SWORD_BEAM,
     PREVENT_CLIPPING,
+    PRINT_QUEST_INFO,
     RANDOM_DROP_RATE,
     RECORDER_TO_UNBEATEN,
     RED_BUBBLE,
@@ -127,7 +128,7 @@ from ..flags.support import (
     unsupported_fields,
     with_random_level_encoding_off,
 )
-from ..flags.zora_flags import ZoraFlags, ZoraFlagStringError
+from ..flags.zora_flags import SpoilerLevel, ZoraFlags, ZoraFlagStringError, spoiler_level
 from ..model.enums import DungeonNothingCode
 from ..rom import level_encoding
 from ..rom.base_rom import PlayerRom
@@ -183,6 +184,14 @@ ENEMY_DROPS_STREAM = b"zora enemy drops"
 ITEM_SPRITES_STREAM = b"zora sprites"
 # The marker mixed into the generation seed when level encoding is on.
 ENCODED_GENERATION_STREAM = b"zora encoded"
+# The marker mixed into it, with the level, when the spoiler log's level is above None (owner ruling 3,
+# 2026-11-06; FP-SPOIL-01: a log changes the seed on purpose, against cheating).
+SPOILER_GENERATION_STREAM = b"zora spoiler log"
+# Print Quest Info's (B51) "?" picks Basic, Medium or Full, one in three each (2026-11-07; owner ruling 4 picked any
+# of the four): the level is this stream's draw, and B51's own coin, still drawn in the "?" stream so no other "?"
+# moves, is then set to the level's bit.
+SPOILER_LEVEL_STREAM = b"zora spoiler ?"
+RANDOM_SPOILER_LEVELS = (SpoilerLevel.BASIC, SpoilerLevel.MEDIUM, SpoilerLevel.FULL)
 
 
 # FL-SEED-01: the seed number is a decimal whole number; ZORA generates from 0 to 2^64 - 1
@@ -229,6 +238,8 @@ class GenerationPlan:
     # What the seed leaves out of what was asked for, said on the page and in the spoiler log
     # (support.postponed_notices: Mirrored Overworld, B06)
     notices: tuple[str, ...] = ()
+    # The spoiler log's level, its "?" resolved (resolve_spoiler_level): None means no log and no tracker file
+    spoiler_level: SpoilerLevel = SpoilerLevel.NONE
 
     @property
     def encode_level_data(self) -> bool:
@@ -239,15 +250,23 @@ class GenerationPlan:
         """The main random stream's key. With level encoding on, the seed number is mixed with a
         fixed marker, so the whole generation differs from the same seed number with encoding off
         and a plain ROM tells nothing about the encoded one
-        (owner requirement, 2026-10-04). Plain seeds use the seed number itself. A ZORA flag on
-        then mixes in both canonical strings (zora_flags.generation_seed; the empty ZORA string
-        leaves the number as it is)."""
+        (owner requirement, 2026-10-04). With a spoiler log (a level above None), the result is mixed
+        again with another marker and the level, so each of the eight pairs of encoding and level gives
+        its own generation and its own icons (owner ruling 3, 2026-11-06). Plain seeds with no log use
+        the seed number itself. A ZORA flag on then mixes in both canonical strings
+        (zora_flags.generation_seed; the empty ZORA string leaves the number as it is)."""
         seed = self.seed
         if self.encode_level_data:
-            key = hashlib.blake2b(self.seed.to_bytes(SEED_BYTES, "little"), digest_size=SEED_BYTES,
-                                  person=ENCODED_GENERATION_STREAM).digest()
-            seed = int.from_bytes(key, "little")
+            seed = _marked(seed, b"", ENCODED_GENERATION_STREAM)
+        if self.spoiler_level is not SpoilerLevel.NONE:
+            seed = _marked(seed, bytes([self.spoiler_level]), SPOILER_GENERATION_STREAM)
         return zora_flags.generation_seed(seed, self.flag_string, self.zora_game_string)
+
+
+def _marked(seed: int, extra: bytes, marker: bytes) -> int:
+    """SEED mixed with a fixed marker (and EXTRA) into a new number of the same size."""
+    key = hashlib.blake2b(seed.to_bytes(SEED_BYTES, "little") + extra, digest_size=SEED_BYTES, person=marker).digest()
+    return int.from_bytes(key, "little")
 
 
 @dataclass(frozen=True)
@@ -258,6 +277,11 @@ class GeneratedRom:
     encode_level_data: bool
     code: tuple[str, ...] = ()        # the seed's code (FP-HASH-01): four item names, in screen order
     zora_flag_string: str = ""       # canonical
+    # the spoiler log's level as resolved: the page offers the log only above None (owner ruling 6, 2026-11-06)
+    spoiler_level: SpoilerLevel = SpoilerLevel.NONE
+    # An encoded seed with a log: the same world written without the level encoding, which only the spoiler
+    # log and the tracker file read (rulings of 2026-11-06); empty otherwise. The player's ROM is `rom`.
+    report_rom: bytes = b""
 
 
 def _option_name(field_id: str) -> str:
@@ -308,6 +332,23 @@ def after_resolving(asked: Settings, resolved: Settings) -> Settings:
     own spoiler-log stage. B22 and B23 have none: each "?" is its own coin (2026-10-28 export, L113).
     Rule 4 (B47 beside a Book pin) is not applied: docs/deviations.md."""
     return without_both_boss_health_rules(asked, resolved)
+
+
+def resolve_spoiler_level(asked: Settings, resolved: Settings, zora: ZoraFlags, seed: int,
+                          flag_string: str) -> SpoilerLevel:
+    """The spoiler log's level from Print Quest Info (B51) and Detailed Spoiler Log. B51's "?" picks one of the
+    levels with a log, Basic, Medium or Full, one in three each, from its own stream and whatever the ZORA
+    string says (2026-11-07; a departure from the original, where "?" decides B51 alone: docs/deviations.md).
+    with_spoiler_level then sets B51 to the level drawn."""
+    if asked.toggle(PRINT_QUEST_INFO) is ThreeState.POSSIBLE:
+        return _flag_stream(seed, flag_string, SPOILER_LEVEL_STREAM).choice(RANDOM_SPOILER_LEVELS)
+    return spoiler_level(resolved.is_on(PRINT_QUEST_INFO), zora.detailed_spoiler_log)
+
+
+def with_spoiler_level(resolved: Settings, level: SpoilerLevel) -> Settings:
+    """The resolved settings with B51 as the level holds it (its low bit), so a "?" drawn to Medium reads B51 off
+    and one drawn to Basic or Full reads it on, whatever B51's own "?" coin gave."""
+    return resolved.updated(toggles={PRINT_QUEST_INFO: ThreeState.ON if level & SpoilerLevel.BASIC else ThreeState.OFF})
 
 
 def cave_prerequisite_rng(seed: int, flag_string: str) -> Rng:
@@ -370,6 +411,9 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
     resolved = meet_room_prerequisite(resolved, room_prerequisite_rng(seed, canonical))     # rule 2
     resolved = meet_monster_prerequisite(resolved, monster_prerequisite_rng(seed, canonical))   # rule 3
     settings = generation_settings(resolved)
+    spoiler = resolve_spoiler_level(adjusted, settings, zora, seed, canonical)
+    settings = with_spoiler_level(settings, spoiler)
+    zora_resolved = replace(zora_resolved, detailed_spoiler_log=spoiler in (SpoilerLevel.MEDIUM, SpoilerLevel.FULL))
     # FP-START-02 and FL-ALT-06: the kept start items and the start pieces, from their own stream
     start = start_state(settings, seed, canonical)
     encode_level_data = settings.is_on(ENCODE_LEVEL_DATA)
@@ -382,7 +426,8 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
         # ASNB (docs/design/asnb.md section 4): Add L4 Sword = Level 2 adds level 2's item cellar
         shape_options=replace(shape_options(settings),
                               level_2_sword_cellar=zora_resolved.l4_sword is zora_flags.L4Sword.LEVEL_2,
-                              do_not_segment_dungeons=zora_resolved.is_on("do_not_segment_dungeons")),
+                              do_not_segment_dungeons=zora_resolved.is_on("do_not_segment_dungeons"),
+                              universal_drops_v2=zora_resolved.is_on("universal_drops_v2")),
         steps=flag_steps(settings),
         alternatives=replace(alternative_values(settings), start_items=start.items,
                              start_triforce_pieces=start.triforce_pieces),
@@ -443,6 +488,7 @@ def plan(flag_string: str, seed: int, zora_flag_string: str = "") -> GenerationP
         zora_resolved=zora_resolved,
         notices=(*postponed_notices(adjusted),
                  *((ENCODE_LEVEL_DATA_RANDOM_NOTICE,) if level_encoding_read_as_off else ())),
+        spoiler_level=spoiler,
     )
 
 
@@ -742,6 +788,17 @@ def generate_rom(flag_string: str, seed: int, base_rom: bytes,
     chosen = plan(flag_string, seed, zora_flag_string)
     check_music_allowed(player_settings, chosen.zora.disable_custom_music)
     player = themed_player_rom(base_rom, player_settings.graphics_theme)
-    rom = finish(build(chosen, player), player, None, player_settings)
+    built = build(chosen, player)
+    rom = finish(built, player, None, player_settings)
+    report_rom = b""
+    if chosen.encode_level_data and chosen.spoiler_level is not SpoilerLevel.NONE:
+        report_rom = finish(replace(built, plan=unencoded(chosen)), player, None, player_settings)
     return GeneratedRom(rom, seed, chosen.flag_string, chosen.encode_level_data, seed_code(rom),
-                        chosen.zora_flag_string)
+                        chosen.zora_flag_string, chosen.spoiler_level, report_rom)
+
+
+def unencoded(chosen: GenerationPlan) -> GenerationPlan:
+    """The plan with the level encoding left out of its serialization: the same world written plain, for the
+    spoiler log and the tracker file of an encoded seed with a log. Its generation_seed differs, so it never
+    generates; it only finishes or parses."""
+    return replace(chosen, config=replace(chosen.config, level_encoding=None))

@@ -36,7 +36,7 @@ KEYS = {
     "B41": "set_ganon_hp_to_0", "B42": "shuffle_enemy_groups", "B43": "shuffle_overworld_group",
     "B44": "randomize_item_drop_rate", "B45": "maximum_enemy_health", "B46": "maximum_boss_health",
     "B47": "replace_book_fire_with_explosion", "B48": "book_to_understand_old_men", "B49": "book_is_an_atlas",
-    "B50": "blackout", "B51": "print_quest_info", "B52": "permanent_sword_beam", "B53": "ohko",
+    "B50": "blackout", "B52": "permanent_sword_beam", "B53": "ohko",
     "B54": "speed_up_text", "B55": "hidden_health", "B56": "killable_drop_items", "B57": "start_raft",
     "B58": "start_bow", "B59": "start_8_bombs", "B60": "start_recorder", "B61": "start_bait",
     "B62": "start_magical_key", "B63": "start_letter", "B64": "start_power_bracelet", "B65": "start_ladder",
@@ -79,6 +79,15 @@ CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")
 
 def test_every_key_is_pinned() -> None:
     assert archipelago.option_keys() == KEYS
+
+
+def test_print_quest_info_keeps_its_key_as_a_hidden_option() -> None:
+    """Print Quest Info (B51) is no longer offered (owner ruling 9, 2026-11-06): it stays a hidden option under
+    its beta 3 key, so an older YAML naming it still loads, and any value of it is ignored."""
+    hidden = {spec.key: spec.id for spec in archipelago.never_offered_fields()}
+    assert hidden["print_quest_info"] == "B51"
+    assert archipelago.never_offered_refusal("print_quest_info", "on") is None
+    assert archipelago.flag_strings({"print_quest_info": "random_per_seed"}) == archipelago.flag_strings({})
 
 
 def test_the_key_rules() -> None:

@@ -1,13 +1,22 @@
 # The seed document and the spoiler log
 
-Two owner features (2026-10-06), offered only for seeds made with "Encode level data" **off**.
-For an encoded seed the page shows neither button, and `zora_web.api.seed_report` refuses with
-`EncodedSeedRefused`.
+Two features (2026-10-06). The Visualizer's is offered only for seeds made with "Encode level
+data" **off**; an encoded seed made with a spoiler log still gets its log and tracker file, read
+from the seed before encoding (rulings of 2026-11-06). An encoded seed at None gets neither, and
+`zora_web.api.seed_report` refuses with `EncodedSeedRefused`.
 
-- **View in Visualizer** hands the seed to the owner's Z1R Visualizer
-  (https://tetraly.github.io/z1r-visualizer/), in the visualizer's seed format.
-- **Download spoiler log** saves a plain-text log, `zora-<version>-seed-<seed>-spoiler.txt`.
-  `docs/spoiler-log-sample.txt` is a sample for the owner to review.
+- **View in Visualizer** hands the seed to the Z1R Visualizer
+  (https://tetraly.github.io/z1r-visualizer/), in the visualizer's seed format. Encode level data
+  alone decides whether a seed gets it.
+- **Spoiler log** saves a plain-text log, `zora-<version>-seed-<seed>-spoiler.txt`, only for a seed
+  whose Spoiler Log Detail Level is Basic, Medium or Full, all three beta in 2.0.0 (rulings of 2026-11-06;
+  docs/design/spoiler-levels.md). The level is Print Quest Info (B51) and the ZORA flag Detailed
+  Spoiler Log, and with Random the level the seed resolved to. At None the page shows no button,
+  `seed_report` returns the seed document without the log, and `zora_web.api.spoiler_report`
+  refuses with `SpoilerLogOff`. A seed made with no log never gets one afterwards: each level
+  generates a different seed from the same seed number, so a log made later would describe
+  another game.
+  `docs/spoiler-log-sample.txt` is a sample to review.
 
 ## The format
 

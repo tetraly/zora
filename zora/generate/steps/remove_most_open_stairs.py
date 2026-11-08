@@ -2,11 +2,12 @@
 gate, a room whose stairs stand open (the Diamond stair room with a push block, the Narrow and
 Spiral stair rooms) takes a push-block layout instead, and its stairs appear only once the block
 is pushed."""
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
-from ...model.enums import RoomAction, RoomType, WallType
-from ...model.levels import LevelBlock
+from ...model.enums import Item, RoomAction, RoomType, WallType
+from ...model.levels import Level, LevelBlock
 from ...model.rooms import DIAMOND_STAIRS_PUSH, LayoutInfo, Room
+from ..drop_squares import drop_squares
 from ..rng import IntRng
 
 # PS-OSTAIR-01: the open-stairs layouts (layout byte bits 6-0)
@@ -31,17 +32,28 @@ TRAP_MONSTER_LISTS = frozenset({0x2D, 0x2E, 0x36, 0x37})
 REVERSE_C_ITEM_POSITIONS = frozenset({0x89, 0xD6})
 
 
-def remove_most_open_stairs(blocks: Sequence[LevelBlock], rng: IntRng) -> None:
+def remove_most_open_stairs(blocks: Sequence[LevelBlock], rng: IntRng,
+                            place: Callable[[Level, Room], None] | None = None) -> None:
     """PS-OSTAIR-01 and PS-OSTAIR-02: every open-stairs room of the blocks, in block and room
     order, takes a drawn push-block layout and trigger 5 ("a push block reveals the stairs").
 
     The spec scans all four room blocks. ZORA takes the blocks the levels read: a block no level
-    reads keeps PRG0's bytes in ZORA's output (ship._ship_sets), and its rooms are never seen."""
+    reads keeps PRG0's bytes in ZORA's output (ship._ship_sets), and its rooms are never seen.
+
+    With Universal Drops v2.0, `place` then sets the room's item position on the new layout's
+    drop squares; a room holding an item whose drawn layout's squares hold none of its level's four
+    positions takes the double block ($4A) instead, which always seats the center."""
     for block in blocks:
         for room in block.rooms:
             if _has_most_open_stairs(room):
                 room.layout_info = _push_stairs_layout(block, room, rng)
                 room.room_action = RoomAction.BLOCK_STAIRS
+                level = block.owner_of(room.room_num)
+                if place is not None and level is not None:
+                    if room.item != Item.NOTHING \
+                            and not drop_squares(room.layout_code).intersection(level.item_position_table):
+                        room.layout_info = DOUBLE_BLOCK_PUSH
+                    place(level, room)
 
 
 def _has_most_open_stairs(room: Room) -> bool:

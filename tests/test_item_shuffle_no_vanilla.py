@@ -138,7 +138,8 @@ def test_the_page_offers_a_sixth_choice_after_random() -> None:
         "None", "Item Only", "Intra-Dungeon", "Full", "Random", "Random (No Vanilla)"]
     assert form.ITEM_SHUFFLE_NO_VANILLA_CHOICE in entry["supportedValues"]
     hidden = [field for field in form.metadata()["zora"]["fields"] if field.get("hidden")]
-    assert [field["name"] for field in hidden] == [zora_flags.ITEM_SHUFFLE_NO_VANILLA_FIELD]
+    assert [field["name"] for field in hidden] == [zora_flags.ITEM_SHUFFLE_NO_VANILLA_FIELD,
+                                                   zora_flags.DETAILED_SPOILER_LOG_FIELD]
 
 
 def test_the_sixth_choice_writes_both_strings() -> None:

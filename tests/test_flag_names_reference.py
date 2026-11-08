@@ -46,10 +46,15 @@ def page_fields() -> dict[str, dict[str, Any]]:
 # no Z1R value, so neither in the community's table nor written by flags_from_values (form_change writes both strings;
 # tests/test_item_shuffle_no_vanilla.py)
 PAGE_ONLY_VALUES = {ITEM_SHUFFLE_SCOPE.id: flag_form.ITEM_SHUFFLE_NO_VANILLA_CHOICE}
+# Print Quest Info (B51): the page shows it as Spoiler Log Detail Level (owner rulings, 2026-11-06), with two
+# page-only values, Medium and Full, which set the ZORA field Detailed Spoiler Log (tests/test_spoiler_levels.py)
+SPOILER_LEVEL_FIELD = "B51"
+SPOILER_PAGE_ONLY = (flag_form.SPOILER_MEDIUM_CHOICE, flag_form.SPOILER_FULL_CHOICE)
 
 
 def z1r_values(code: str, field: dict[str, Any]) -> list[dict[str, Any]]:
-    return [value for value in field["values"] if PAGE_ONLY_VALUES.get(code) != value["value"]]
+    return [value for value in field["values"] if PAGE_ONLY_VALUES.get(code) != value["value"]
+            and not (code == SPOILER_LEVEL_FIELD and value["value"] in SPOILER_PAGE_ONLY)]
 
 
 # The fields the community names table predates (the 7e32c5c export's B92 to B94): the page names them
@@ -87,12 +92,13 @@ def test_switches_are_named_as_the_reference_names_them() -> None:
     table = reference()
     inert = {field.id for field in INERT_TOGGLES}
     for code, field in page_fields().items():
-        if field["kind"] == "toggle" and code != ENCODE_LEVEL_DATA.id:
+        if field["kind"] == "toggle" and code not in (ENCODE_LEVEL_DATA.id, SPOILER_LEVEL_FIELD):
             suffix = " (no effect in ZORA)" if code in inert else ""
             name = (flag_form.OWN_SWITCH_NAMES.get(code) or NOT_IN_THE_REFERENCE.get(code)
                     or table[code][0]["field_name"])
             assert field["label"] == name + suffix, code
     assert page_fields()[ENCODE_LEVEL_DATA.id]["label"] == "Encode level data"
+    assert page_fields()[SPOILER_LEVEL_FIELD]["label"] == "Spoiler Log Detail Level"
     assert page_fields()["B14"]["label"] == "Shuffle Dungeon Items (no effect in ZORA)"
     assert page_fields()["B16"]["label"] == "Shuffle Dungeon Hearts (no effect in ZORA)"
     assert page_fields()["B29"]["label"] == "Shuffle Bomb Upgraders"
@@ -104,7 +110,6 @@ def test_misleading_values_have_notes() -> None:
     notes = {(code, int(value["value"])): (value["label"], value["note"])
              for code, field in page_fields().items() for value in field["values"] if "note" in value}
     assert notes == {
-        **{(code, 0): ("Random", "No item pinned") for code in ("C11", "C12", "C13", "C26", "C27")},
         ("C06", 1): ("Item Only", "Major items only; Heart Containers stay in place"),  # owner wording, 2026-10-15
         ("C16", 16): ("1-5 Hearts", "One random count from 1 to 5"),
         ("C08", 11): ("Other Item", "Level 9 opens for an item instead of Triforce pieces"),
@@ -120,7 +125,7 @@ def test_switch_states_are_off_on_random() -> None:
     """The original randomizer's third state is "Possible"; the page calls it Random (owner ruling, 2026-10-10)."""
     assert THREE_STATE_LABELS == dict(zip(ThreeState, THREE_WAY_SWITCH, strict=True))
     for code, field in page_fields().items():
-        if field["kind"] == "toggle":
+        if field["kind"] == "toggle" and code != SPOILER_LEVEL_FIELD:
             expected = SWITCH if code == ENCODE_LEVEL_DATA.id else THREE_WAY_SWITCH
             assert [value["label"] for value in field["values"]] == expected, code
             assert [int(value["value"]) for value in field["values"]] == list(range(len(expected))), code

@@ -2,7 +2,10 @@
 "Verification"; docs/releasing.md).
 
     python3 scripts/full_tier.py stamp SECONDS     scripts/verify_full.sh, after every check passed
-    python3 scripts/full_tier.py quick-stamp       scripts/verify.sh, after a quick check passed
+    python3 scripts/full_tier.py quick-stamp [--matrix full|default|skipped]
+                                                   scripts/verify.sh, after a quick check passed: with
+                                                   all four matrix seeds (--full-matrix), seeds 1-2,
+                                                   or no comparison (no output input changed)
     python3 scripts/full_tier.py last-release      the previous release's source commit, if any
     python3 scripts/full_tier.py check             whether HEAD's tree has a passing stamp
     python3 scripts/full_tier.py release-check     whether HEAD may be released (below)
@@ -16,12 +19,18 @@ tree records it the same way, in temp/verify/quick-check/.
 
 The release gate (release-check, which scripts/make_release.py runs; owner decision, 2026-10-16):
 HEAD may be released when its tree has a stamp, or when the newest stamped commit HEAD descends
-from is followed only by low-risk changes and the quick check passed on HEAD's tree. Low-risk:
+from is followed only by low-risk changes and the quick check passed on HEAD's tree with all four
+matrix seeds (`sh scripts/verify.sh --full-matrix`; owner ruling, 2026-11-07: the release check runs
+them all; a plain quick check hashes seeds 1-2, or nothing for a change outside the output's
+inputs, and its record does not count here). Low-risk:
 Markdown files (docs and notes; a test that reads one is in the quick check's selection), and
 zora/version.py when only the ZORA_VERSION string changed, and the page's hero graphic, web/zora-logo.png, when
 it is still a PNG of at most HERO_GRAPHIC_LIMIT bytes (owner decision, 2026-10-30: the artist's logo replaces the
 placeholder after the batch run; nothing the full tier tests reads it, the site-build test uses its own stand-in,
-and the browser check of the staged page covers it). Anything else since the stamp needs a
+and the browser check of the staged page covers it), and the per-flag file, zora/flags/flags.json, when it is
+still a JSON object (owner ruling, 2026-11-06: marking a flag beta or graduating it; generation never reads it,
+tests/test_beta_flags.py proves ROMs do not depend on it, and that test, in the quick check's selection for a
+change to the file, refuses an entry the page does not offer). Anything else since the stamp needs a
 new batch run. (The docs/ folder's other files are data that tests and code read, manifests and
 tables, so they are not low-risk.)
 """
@@ -41,10 +50,13 @@ COPY_REVISION_SETTING = "ZORA_COPY_REVISION"
 COPY_ADDED_SETTING = "ZORA_COPY_ADDED"
 STAMP_FOLDER = Path("temp") / "verify" / "full-tier"
 QUICK_FOLDER = Path("temp") / "verify" / "quick-check"
+MATRIX_MODES = ("full", "default", "skipped")   # the quick check's matrix: all four seeds, seeds 1-2, none
+FULL_MATRIX = "full"
 VERSION_FILE = "zora/version.py"
 HERO_GRAPHIC = "web/zora-logo.png"         # the page's hero graphic (web/index.html)
 HERO_GRAPHIC_LIMIT = 1_000_000             # bytes: it is inlined into the single-file page
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+FLAGS_FILE = "zora/flags/flags.json"      # per-flag settings the page reads: beta status (zora/flags/beta.py)
 VERSION_NAME = "ZORA_VERSION"
 RELEASE_LOG = Path("release") / "published.log"
 
@@ -99,8 +111,9 @@ def stamped(repo: Path, tree: str) -> bool:
     return stamp_path(repo, tree).is_file()
 
 
-def quick_stamp() -> int:
-    """Record that the quick check passed on a tree that is exactly a commit; say why not otherwise."""
+def quick_stamp(matrix: str = FULL_MATRIX) -> int:
+    """Record that the quick check passed on a tree that is exactly a commit, and with which matrix
+    (MATRIX_MODES); say why not otherwise."""
     try:
         commit, tree = verified_commit()
     except ValueError:
@@ -108,9 +121,10 @@ def quick_stamp() -> int:
         return 0
     path = stamp_path(source_repo(), tree, QUICK_FOLDER)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"tree": tree, "commit": commit,
+    path.write_text(json.dumps({"tree": tree, "commit": commit, "matrix": matrix,
                                 "finished": datetime.datetime.now().isoformat(timespec="seconds")}, indent=1))
-    print(f"quick check: passed; recorded for {commit[:12]} (tree {tree[:12]})")
+    gate = "" if matrix == FULL_MATRIX else "; not enough for the release gate: sh scripts/verify.sh --full-matrix"
+    print(f"quick check: passed; recorded for {commit[:12]} (tree {tree[:12]}, matrix: {matrix}{gate})")
     return 0
 
 
@@ -172,7 +186,18 @@ def low_risk_reason(repo: Path, path: str, stamped_commit: str, head: str) -> st
         return "the version bump" if only_version_changed(old, new) else None
     if path == HERO_GRAPHIC:
         return "the hero graphic" if hero_graphic_ok(repo, head) else None
+    if path == FLAGS_FILE:
+        return "the per-flag file" if flags_file_ok(repo, head) else None
     return None
+
+
+def flags_file_ok(repo: Path, head: str) -> bool:
+    """HEAD's zora/flags/flags.json is a JSON object (a removed or malformed one is not)."""
+    try:
+        text = _git(repo, "show", f"{head}:{FLAGS_FILE}")
+        return isinstance(json.loads(text), dict)
+    except (subprocess.CalledProcessError, ValueError):
+        return False
 
 
 def hero_graphic_ok(repo: Path, head: str) -> bool:
@@ -201,9 +226,17 @@ def release_check() -> int:
         print(f"release gate: changed since the stamped {base[:12]}, not low-risk (a new batch run is needed): "
               + ", ".join(risky))
         return 1
-    if not stamp_path(repo, tree, QUICK_FOLDER).is_file():
+    quick = stamp_path(repo, tree, QUICK_FOLDER)
+    if not quick.is_file():
         print(f"release gate: only low-risk changes since the stamped {base[:12]}, but the quick check has not "
-              f"passed on HEAD ({head[:12]}): run sh scripts/verify.sh with nothing uncommitted (or in a clean copy)")
+              f"passed on HEAD ({head[:12]}): run sh scripts/verify.sh --full-matrix with nothing uncommitted (or "
+              "in a clean copy)")
+        return 1
+    # A record from before 2026-11-07 has no matrix field: every quick check then hashed all four seeds
+    if (matrix := json.loads(quick.read_text()).get("matrix", FULL_MATRIX)) != FULL_MATRIX:
+        print(f"release gate: only low-risk changes since the stamped {base[:12]}, but the quick check on HEAD "
+              f"({head[:12]}) compared {'nothing' if matrix == 'skipped' else 'seeds 1-2 of the matrix'}: run sh "
+              "scripts/verify.sh --full-matrix (all four seeds) with nothing uncommitted (or in a clean copy)")
         return 1
     print(f"release gate: the stamped {base[:12]} plus only low-risk changes ("
           + "; ".join(f"{path}: {low_risk_reason(repo, path, base, head)}" for path in changed)
@@ -223,8 +256,10 @@ def main() -> int:
     command = sys.argv[1] if len(sys.argv) > 1 else ""
     if command == "stamp" and len(sys.argv) == 3:
         return stamp(int(sys.argv[2]))
-    if command == "quick-stamp":
+    if command == "quick-stamp" and len(sys.argv) == 2:
         return quick_stamp()
+    if command == "quick-stamp" and len(sys.argv) == 4 and sys.argv[2] == "--matrix" and sys.argv[3] in MATRIX_MODES:
+        return quick_stamp(sys.argv[3])
     if command == "release-check":
         return release_check()
     if command == "last-release":

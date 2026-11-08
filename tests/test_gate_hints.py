@@ -206,8 +206,8 @@ def test_a_door_behind_a_maze_needs_what_its_hint_needs(base: bytes, case: str, 
 
 
 @pytest.mark.parametrize(("case", "seed", "level", "door", "item"), [
-    ("no gate", 5, 1, 0x21, Item.WAND),                       # the emulator's: pushed open, no bracelet
-    ("mixed overworld quest", 17, 3, 0x20, Item.RED_CANDLE),        # (was 77, level 6: the pool's draws moved)
+    ("no gate", 54, 1, 0x21, Item.POWER_BRACELET),            # (was 5, the WAND: the pool's draws moved)
+    ("mixed overworld quest", 14, 1, 0x20, Item.WHITE_SWORD),       # (was 17, then 77: the pool's draws moved)
 ])
 def test_a_door_under_a_gravestone(base: bytes, case: str, seed: int, level: int, door: int, item: Item) -> None:
     """A bracelet door on the graveyard says the path lies beneath a gravestone; the finished ROM

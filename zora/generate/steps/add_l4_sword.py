@@ -29,6 +29,8 @@ wooden sword is never tracked, so the acceptance check's item lookups never meet
 """
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from ...model.enums import Enemy, Item, ItemPosition, RoomAction, RoomType
 from ...model.levels import LEVEL_9, Level
 from ...model.rooms import Room
@@ -37,6 +39,10 @@ from ..errors import GenerationFailure
 from ..item_spots import is_item_spot, item_spot_positions
 from ..late_gate.walk import level9_entry_room
 from ..rng import IntRng
+
+# Whether a screen type may hold an item on a square: item_spots.is_item_spot (not a block, statue or
+# staircase), or with Universal Drops v2.0 drop_squares.is_drop_square
+SquareRule = Callable[[int, int], bool]
 
 L4_SWORD_ITEM = Item.WOOD_SWORD       # $01: one sword upgrade, with Progressive Items
 HIDING_TRIGGERS = frozenset({RoomAction.LAST_BOSS, RoomAction.ALL_DEAD_ITEM})
@@ -82,34 +88,38 @@ def is_top_half(level: Level, position: ItemPosition) -> bool:
     return level.item_position_table[position] & POSITION_Y_MASK < TOP_HALF_Y_BELOW
 
 
-def sword_positions(level9: Level, room: Room) -> list[ItemPosition]:
-    """The positions the sword may take in the room: those on a square that can hold an item, and
-    in the triforce-checker room only those in the top half (R6a)."""
-    positions = item_spot_positions(level9, room)
+def sword_positions(level9: Level, room: Room, allows: SquareRule = is_item_spot) -> list[ItemPosition]:
+    """The positions the sword may take in the room: those on a square that can hold an item (with
+    Universal Drops v2.0, on the room's drop squares), and in the triforce-checker room only those
+    in the top half (R6a)."""
+    positions = [position for position in item_spot_positions(level9, room)
+                 if allows(room.layout_code, level9.item_position_table[position])]
     if room.room_num == level9_entry_room(level9):
         return [position for position in positions if is_top_half(level9, position)]
     return positions
 
 
-def sword_position(level9: Level, room: Room) -> ItemPosition:
+def sword_position(level9: Level, room: Room, allows: SquareRule = is_item_spot) -> ItemPosition:
     """R6a's first top-half position in the triforce-checker room; elsewhere the room's own
     position when its square can hold an item, else the first that can."""
     if room.room_num != level9_entry_room(level9) \
-            and is_item_spot(room.layout_code, level9.item_position_table[room.item_position]):
+            and is_item_spot(room.layout_code, level9.item_position_table[room.item_position]) \
+            and allows(room.layout_code, level9.item_position_table[room.item_position]):
         return room.item_position
-    return sword_positions(level9, room)[0]
+    return sword_positions(level9, room, allows)[0]
 
 
-def add_l4_sword(levels: list[Level], rng: IntRng) -> int:
-    """Put the progressive sword in one qualifying level-9 room; return its room number."""
+def add_l4_sword(levels: list[Level], rng: IntRng, allows: SquareRule = is_item_spot) -> int:
+    """Put the progressive sword in one qualifying level-9 room; return its room number. `allows` is
+    the square rule (Universal Drops v2.0: drop_squares.is_drop_square)."""
     level9 = next(level for level in levels if level.level_num == LEVEL_9)
     rooms = candidate_rooms(level9)
     while True:
         if not rooms:
             raise GenerationFailure(NO_ROOM_FAILURE)
         room = rooms.pop(rng.below(len(rooms)))
-        if sword_positions(level9, room):
+        if sword_positions(level9, room, allows):
             break
     room.item = L4_SWORD_ITEM
-    room.item_position = sword_position(level9, room)
+    room.item_position = sword_position(level9, room, allows)
     return room.room_num

@@ -1,18 +1,21 @@
 """ZORA output hashes: did a change alter generated ROMs? (measurement only)
 
     python3 scripts/output_hash.py [--seeds N] [--code DIR] [--json OUT]
-    python3 scripts/output_hash.py --matrix [--matrix-jobs N] [--code DIR] [--json OUT]
+    python3 scripts/output_hash.py --matrix [--matrix-seeds N] [--matrix-jobs N] [--code DIR] [--json OUT]
     python3 scripts/output_hash.py --compare BASE.json HEAD.json
 
 Generates seeds 0..N-1 with the post-shapes passes on and off, serializes each
 onto the PRG0 base ROM and prints one combined SHA-1 per mode; --json writes
 the per-seed hashes. --matrix hashes the ROM matrix instead: every flag case of
 tests/archipelago_cases.py and zora.flags.presets, and matrix_jobs()'s own cases, seeds
-1-4, with each ROM's seed document and spoiler log. --code DIR imports `zora` from another revision's files
+1-4 (--matrix-seeds N: seeds 1-N; the quick check hashes 2, the batch run all 4), with each ROM's seed
+document and spoiler log; a case needing a ZORA flag the hashed revision
+lacks is recorded as not in that revision, and --compare lists it as new rather than different. --code DIR imports `zora` from another revision's files
 (scripts/compare_revision.py exports them), so that revision is hashed with this
 same script and, for the matrix, this checkout's cases; the run stops if `zora`
 would come from anywhere else. --compare lists the seeds or matrix entries whose
-output differs and exits 1 if any does.
+output differs, with the matrix's count of differing ROMs, seed documents and spoiler logs, and exits 1
+if any does.
 """
 import argparse
 import hashlib
@@ -27,7 +30,9 @@ REPO = Path(__file__).resolve().parent.parent
 BASE_ROM = REPO / "Legend of Zelda, The (USA).nes"
 MODES = {"b1_on": True, "b1_off": False}
 MATRIX = "matrix"
-MATRIX_SEEDS = range(1, 5)
+MATRIX_SEED_COUNT = 4         # seeds 1-4 of each case: the batch run's and --full-matrix's; the quick check's 2
+# A matrix entry's hashed fields, as the comparison names them
+FIELD_NAMES = {"rom": "ROMs", "document": "seed documents", "log": "spoiler logs"}
 CODE_DIR_SETTING = "ZORA_CODE_DIR"
 
 # Workers re-import this module, so the code location travels in the
@@ -93,12 +98,18 @@ def seed_hash(args: tuple[int, bool]) -> str:
     return hashlib.sha1(serialize_to_rom(world, base, config=config)).hexdigest()
 
 
-MatrixJob = tuple[str, str, str, int]
+# (case, flag string, ZORA flag string, seed, the ZORA field it needs: "" for none). A revision whose
+# ZoraFlags lacks that field records NOT_IN_REVISION for each hash, and the comparison lists the entry
+# as new, not as a difference
+MatrixJob = tuple[str, str, str, int, str]
+NOT_IN_REVISION = "not in this revision"
 
 
-def matrix_jobs() -> list[MatrixJob]:
-    """(case, flag string, ZORA flag string, seed) for every matrix ROM, from this checkout's
-    cases: a revision hashed with --code gets the same inputs."""
+def matrix_jobs(seed_count: int = MATRIX_SEED_COUNT) -> list[MatrixJob]:
+    """(case, flag string, ZORA flag string, seed, needed field) for every matrix ROM, seeds 1 to SEED_COUNT
+    of each case, from this checkout's cases: a revision hashed with --code gets the same inputs."""
+    from dataclasses import replace
+
     from tests.archipelago_cases import FLAG_CASES
     from tests.test_coop_reserved import z1r_with
     from zora.flags import zora_flags
@@ -124,7 +135,20 @@ def matrix_jobs() -> list[MatrixJob]:
                  zora_flags.ZoraFlags(defense_pacing=zora_flags.Pacing.LATER))),
              "recorder warping": (z1r_with(toggles={"B07": ThreeState.ON}), zora_flags.encode(
                  zora_flags.ZoraFlags(recorder_warping=True)))}
-    return [(name, flags, zora_flags, seed) for name, (flags, zora_flags) in cases.items() for seed in MATRIX_SEEDS]
+    # Universal Drops v2.0 (ZORA version 19): on the baseline (Shuffle Dungeon Drops, B15, on there); with
+    # Shuffle Minor Dungeon Drops (B17) and Remove Most Open Stairs (B30), which move items or change
+    # layouts after the shape stage; with Add L4 Sword and Highlight No-Drop Rooms, which take its drop squares
+    v2 = zora_flags.ZoraFlags(universal_drops_v2=ThreeState.ON)
+    new_cases = {
+        "universal drops v2.0": (MVP_BASELINE_LEVEL_ENCODING_OFF, v2),
+        "universal drops v2.0, B17 and B30": (z1r_with(toggles={"B17": ThreeState.ON, "B30": ThreeState.ON}),
+                                              v2),
+        "universal drops v2.0, L4 sword and highlight": (MVP_BASELINE_LEVEL_ENCODING_OFF, replace(
+            v2, add_l4_sword=ThreeState.ON, progressive_items=True, highlight_no_drop_rooms=ThreeState.ON))}
+    seeds = range(1, seed_count + 1)
+    jobs = [(name, flags, extras, seed, "") for name, (flags, extras) in cases.items() for seed in seeds]
+    return jobs + [(name, flags, zora_flags.encode(chosen), seed, "universal_drops_v2")
+                   for name, (flags, chosen) in new_cases.items() for seed in seeds]
 
 
 def _outcome(make: Any) -> str:
@@ -138,9 +162,11 @@ def _outcome(make: Any) -> str:
 
 def matrix_hash(job: MatrixJob) -> tuple[str, dict[str, str]]:
     """One matrix ROM's hashes: the ROM, its seed document and its spoiler log."""
-    name, flags, zora_flags, seed = job
+    name, flags, zora_flags, seed, needs = job
     import zora
     check_code_dir(zora)
+    if needs and not _has_zora_field(needs):
+        return f"{name} / seed {seed}", dict.fromkeys(FIELD_NAMES, NOT_IN_REVISION)
     from zora.generate.pipeline import generate_rom
     from zora.rom.base_rom import remember_repo_base_rom
 
@@ -168,8 +194,38 @@ def matrix_hash(job: MatrixJob) -> tuple[str, dict[str, str]]:
     return f"{name} / seed {seed}", out
 
 
+def _has_zora_field(name: str) -> bool:
+    """Whether the revision being hashed has this ZORA flag."""
+    import dataclasses
+    from zora.flags.zora_flags import ZoraFlags
+    return name in {field.name for field in dataclasses.fields(ZoraFlags)}
+
+
+def new_entries(base: dict[str, Any], head: dict[str, Any]) -> list[str]:
+    """Matrix entries the base revision could not make (a flag it lacks) and this one makes."""
+    missing = dict.fromkeys(FIELD_NAMES, NOT_IN_REVISION)
+    return [entry for entry, theirs in head.items() if base[entry] == missing and theirs != missing]
+
+
 def combined(hashes: list[str]) -> str:
     return hashlib.sha1("".join(hashes).encode()).hexdigest()
+
+
+def field_differences(base: dict[str, Any], head: dict[str, Any]) -> dict[str, int]:
+    """How many matrix entries differ in each hashed field: the ROM, the seed document, the spoiler log.
+    An entry stored as one hash (an older run) counts as its ROM."""
+    counts = dict.fromkeys(FIELD_NAMES, 0)
+    new = set(new_entries(base, head))
+    for entry, theirs in head.items():
+        if entry in new:
+            continue
+        ours = base[entry]
+        if not (isinstance(ours, dict) and isinstance(theirs, dict)):
+            counts["rom"] += ours != theirs
+            continue
+        for field in FIELD_NAMES:
+            counts[field] += ours.get(field) != theirs.get(field)
+    return counts
 
 
 def compare(base_path: Path, head_path: Path) -> int:
@@ -185,12 +241,19 @@ def compare(base_path: Path, head_path: Path) -> int:
             print(f"output_hash: {mode}: the two files cover different seeds or entries")
             return 2
         entries = base[mode].keys() if mode == MATRIX else range(len(head[mode]))
-        differing = [entry for entry in entries if base[mode][entry] != head[mode][entry]]
+        new = new_entries(base[mode], head[mode]) if mode == MATRIX else []
+        if new:
+            print(f"{mode}: {len(new)} new, not in the base revision (not compared): {new[:20]}")
+        differing = [entry for entry in entries if base[mode][entry] != head[mode][entry] and entry not in new]
         if differing:
             changed = True
-            print(f"{mode}: {len(differing)} of {len(head[mode])} differ: {differing[:20]}")
+            fields = ""
+            if mode == MATRIX:
+                counts = field_differences(base[mode], head[mode])
+                fields = f" ({', '.join(f'{FIELD_NAMES[field]} {count}' for field, count in counts.items())})"
+            print(f"{mode}: {len(differing)} of {len(head[mode]) - len(new)} differ{fields}: {differing[:20]}")
         else:
-            print(f"{mode}: identical ({len(head[mode])})")
+            print(f"{mode}: identical ({len(head[mode]) - len(new)})")
     return 1 if changed else 0
 
 
@@ -202,13 +265,15 @@ def main() -> int:
     ap.add_argument("--compare", type=Path, nargs=2, metavar=("BASE", "HEAD"))
     ap.add_argument("--matrix", action="store_true", help="hash the ROM matrix instead of the seeds")
     ap.add_argument("--matrix-jobs", type=int, help="only the first N matrix ROMs")
+    ap.add_argument("--matrix-seeds", type=int, default=MATRIX_SEED_COUNT, choices=range(1, MATRIX_SEED_COUNT + 1),
+                    help=f"seeds 1-N of each matrix case (default {MATRIX_SEED_COUNT})")
     ap.add_argument("--workers", type=int, help="processes (default one per core)")
     args = ap.parse_args()
     if args.compare:
         return compare(*args.compare)
     # The matrix's cases are this checkout's, read before --code puts another revision first; and
     # progress (zora_measure/progress.py), imported here, in this process only, never in a worker
-    jobs = matrix_jobs()[:args.matrix_jobs] if args.matrix else []
+    jobs = matrix_jobs(args.matrix_seeds)[:args.matrix_jobs] if args.matrix else []
     from zora_measure.progress import track
     if args.code:
         if problem := code_dir_problem(args.code):

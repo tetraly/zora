@@ -213,6 +213,21 @@ def test_the_banner_and_noindex_are_on_the_test_page_only(tmp_path: Path) -> Non
         build_site.marked_page(source, channel="beta")
 
 
+def test_the_header_links_and_the_hidden_beta_notice_survive_the_build(tmp_path: Path) -> None:
+    """The masthead's links, in order (Discord, FAQ, Flag guide, What's new; 2026-11-07), and the beta notice,
+    hidden until the Beta settings switch is on, reach the single file as written."""
+    page = build_site.marked_page((REPO / "web" / "index.html").read_text())
+    site = _fake_site(tmp_path)
+    (site / "index.html").write_text(page)
+    single = build_site.single_file_html(site, "beta test")
+    nav = re.search(r'<nav class="masthead-nav">(.*?)</nav>', single, re.DOTALL)
+    assert nav
+    assert re.findall(r"<a [^>]*>([^<]+)</a>", nav.group(1)) == ["Discord", "FAQ", "Flag guide", "What's new"]
+    assert '<a href="https://discord.gg/zescSjDtme" target="_blank" rel="noopener">Discord</a>' in nav.group(1)
+    assert '<a href="https://github.com/tetraly/zora/blob/main/docs/faq.md">FAQ</a>' in nav.group(1)
+    assert '<aside class="beta-banner" id="beta-banner" role="note" aria-label="Beta notice" hidden>' in single
+
+
 def test_the_page_reads_the_channel_meta_tag() -> None:
     widgets = (REPO / "web" / "widgets.js").read_text()
     assert "document.querySelector('meta[name=\"zora-channel\"]')" in widgets

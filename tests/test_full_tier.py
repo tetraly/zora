@@ -139,6 +139,18 @@ def test_docs_only_changes_since_the_stamp_pass_with_the_quick_check(stamped_rep
     assert "docs/notes.md: Markdown" in accepted.stdout
 
 
+@pytest.mark.parametrize("matrix", ["default", "skipped"])
+def test_the_gate_needs_the_quick_check_with_all_four_matrix_seeds(stamped_repo: Path, matrix: str) -> None:
+    """Owner ruling, 2026-11-07: the release check runs all four seeds; a plain quick check's record (seeds
+    1-2, or nothing compared) is refused until `verify.sh --full-matrix` records HEAD again."""
+    _commit(stamped_repo, "notes", **{"docs/notes.md": "# Notes\n"})
+    assert "not enough for the release gate" in _full_tier(stamped_repo, "quick-stamp", "--matrix", matrix).stdout
+    refused = _full_tier(stamped_repo, "release-check")
+    assert refused.returncode == 1 and "--full-matrix" in refused.stdout, refused.stdout
+    _full_tier(stamped_repo, "quick-stamp", "--matrix", "full")
+    assert _full_tier(stamped_repo, "release-check").returncode == 0
+
+
 def test_a_version_only_bump_passes(stamped_repo: Path) -> None:
     _commit(stamped_repo, "bump", **{"zora/version.py": VERSION_SOURCE.replace("2.0.0b5", "2.0.0b6")})
     _full_tier(stamped_repo, "quick-stamp")

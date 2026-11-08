@@ -331,7 +331,7 @@ SUPPORT_TOGGLE_ROWS = [
     ["B48", "The Book lets the player understand NPCs", "off", "FL-SUP-04 (not produced)", "on (HT-BOOK-01, HT-BOOK-02); possible (FL-DEP-04)"],
     ["B49", "The Book counts as the map of every level", "on", "FP-BOOK-01", "off (FL-OFF-05); possible (FL-DEP-04)"],
     ["B50", "Blackout", "off", "PS-COLOR-04 (off: the colour pass or PRG0's colours, B27)", "on, possible (PS-COLOR-04; VA-REJ-08; FL-DEP-04)"],
-    ["B51", "Print quest information", "off", "FL-SUP-04 (no effect on the ROM)", "on, possible (FL-SUP-04; FL-DEP-04)"],
+    ["B51", "Print quest information", "off", "FL-SUP-04 (off: no log, seed unchanged; FP-SPOIL-01)", "on, possible (FL-SUP-04; FL-DEP-04)"],
     ["B52", "Permanent sword beam", "off", "FP-BEAM-01; FP-OFF-01", "on (FP-BEAM-01); possible (FL-DEP-04)"],
     ["B53", "One-hit knock-out", "off", "FP-OHKO-01; FP-OFF-01", "on (FP-OHKO-01); possible (FL-DEP-04)"],
     ["B54", "Speed up person text", "on", "FP-TEXT-01", "off (FL-OFF-05); possible (FL-DEP-04)"],

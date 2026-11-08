@@ -152,11 +152,17 @@ SWAP_SWORDS_AND_RINGS_FIELDS = (
 COMPASS_CHIME_FIELDS = (
     "compass_chime",                       # with the level's compass, a chime where an item still waits
 )
+# Version 19: Universal Drops v2.0 (owner rulings, 2026-11-05; docs/zora-extras.md section 26), On / Off / ?
+# like version 3's, a "?" decided by the same coins after version 18's. A beta flag (zora/flags/flags.json),
+# never with Allow Universal Drops In Shapes (B91; universal_drops_v2_conflicts). Acts on shapes levels only.
+UNIVERSAL_DROPS_V2_FIELDS = (
+    "universal_drops_v2",            # drops at pre-B91 counts, on squares the floors allow, near the center
+)
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
                       *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
                       *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS, *SWAP_SWORDS_AND_RINGS_FIELDS,
-                      *COMPASS_CHIME_FIELDS)
+                      *COMPASS_CHIME_FIELDS, *UNIVERSAL_DROPS_V2_FIELDS)
 
 
 
@@ -288,6 +294,12 @@ FIELDS: tuple[ZoraField, ...] = (
     # Version 18: Compass Chime (COMPASS_CHIME_FIELDS), Off by default, so every older string keeps its meaning
     # and its spelling.
     *(ZoraField(name, THREE_STATE_SLOTS, version=18) for name in COMPASS_CHIME_FIELDS),
+    # Version 19: Universal Drops v2.0 (UNIVERSAL_DROPS_V2_FIELDS), Off by default, so every older
+    # string keeps its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=19) for name in UNIVERSAL_DROPS_V2_FIELDS),
+    # Version 20: Detailed Spoiler Log (DETAILED_SPOILER_LOG_FIELD; owner rulings, 2026-11-06), a switch beside the
+    # Z1R string's Print Quest Info (B51), Off by default, so every older string keeps its meaning and its spelling.
+    ZoraField("detailed_spoiler_log", 2, version=20),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -364,6 +376,11 @@ class ZoraFlags:
     item_shuffle_no_vanilla: bool = False
     # Version 18: Compass Chime, On / Off / ? (COMPASS_CHIME_FIELDS).
     compass_chime: ThreeState = ThreeState.OFF
+    # Version 19: Universal Drops v2.0, On / Off / ? (UNIVERSAL_DROPS_V2_FIELDS).
+    universal_drops_v2: ThreeState = ThreeState.OFF
+    # Version 20: Detailed Spoiler Log, with Print Quest Info (B51) the spoiler log's information level
+    # (spoiler_level; docs/design/spoiler-levels.md); the page shows the two as Spoiler Log Detail Level.
+    detailed_spoiler_log: bool = False
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -844,6 +861,21 @@ def expanded_dungeon_locations_conflicts(flags: ZoraFlags, z1r: Settings) -> lis
     return found
 
 
+# Universal Drops v2.0 (owner ruling 2, 2026-11-05): never with Allow Universal Drops In Shapes (B91),
+# which keeps its meaning. Refused when both are on or "?", so a "?" coin can never turn both on.
+UNIVERSAL_DROPS_V2_FIELD = "universal_drops_v2"
+UNIVERSAL_DROPS = TOGGLES_BY_ID["B91"]
+UNIVERSAL_DROPS_V2_CONFLICT = ("Universal Drops v2.0 cannot be used with Allow Universal Drops In Shapes: each "
+                               "places the dungeon drops its own way. Turn one of them off.")
+
+
+def universal_drops_v2_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """Universal Drops v2.0 (on or "?") with Allow Universal Drops In Shapes (on or "?")."""
+    if flags.universal_drops_v2 is ThreeState.OFF or z1r.toggle(UNIVERSAL_DROPS) is ThreeState.OFF:
+        return []
+    return [(UNIVERSAL_DROPS_V2_CONFLICT, (UNIVERSAL_DROPS_V2_FIELD, UNIVERSAL_DROPS.id))]
+
+
 def warnings(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
     """Settings the page warns about but generation accepts, with the fields each names: Expanded
     Dungeon Locations (on or "?") with Dungeons Only and B02 or B04 on or "?"; Randomize Dead Woods
@@ -937,6 +969,28 @@ def swordlish_message(label: str) -> str:
             f"works with. Turn Swordlish or {label} off.")
 
 
+# The spoiler log's information level (owner rulings, 2026-11-06; docs/design/spoiler-levels.md): two one-bit
+# flags, Print Quest Info (B51) in the Z1R string and Detailed Spoiler Log in this one. The page shows the pair as
+# one setting, Spoiler Log Detail Level.
+DETAILED_SPOILER_LOG_FIELD = "detailed_spoiler_log"
+
+
+class SpoilerLevel(IntEnum):
+    """What the spoiler log and the tracker file hold; each level holds everything the one before it does."""
+    NONE = 0        # both off: no log, no tracker file
+    BASIC = 1       # Print Quest Info on: the original randomizer's log (FP-SPOIL-01)
+    MEDIUM = 2      # Detailed Spoiler Log on: Basic, and where each major item stands inside its level
+    FULL = 3        # both on: Medium, and the level layouts
+
+
+DETAILED_SPOILER_BIT = 2
+
+
+def spoiler_level(print_quest_info: bool, detailed_spoiler_log: bool) -> SpoilerLevel:
+    """The level the two bits give: Print Quest Info is its low bit, Detailed Spoiler Log its high bit."""
+    return SpoilerLevel(int(print_quest_info) | (DETAILED_SPOILER_BIT if detailed_spoiler_log else 0))
+
+
 # Item Shuffle: Random (No Vanilla) (owner, 2026-10-29): the ZORA field narrows the Z1R string's Item Shuffle: Random
 # (C06 = 4) to Item Only, Intra-Dungeon and Full; with any other Item Shuffle it means nothing, and is refused (the
 # page never writes it so: it sets both, or neither).
@@ -987,7 +1041,8 @@ def conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...
     return ([(message, names) for message, names in found if message is not None] + asnb_conflicts(flags, z1r)
             + sword_state_conflicts(flags, z1r) + expanded_dungeon_locations_conflicts(flags, z1r)
             + level_9_pin_conflicts(flags, z1r) + swap_and_swordlish_conflicts(flags, z1r)
-            + no_vanilla_conflicts(flags, z1r) + defense_pacing_conflicts(flags, z1r))
+            + no_vanilla_conflicts(flags, z1r) + defense_pacing_conflicts(flags, z1r)
+            + universal_drops_v2_conflicts(flags, z1r))
 
 
 def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
@@ -1008,6 +1063,7 @@ def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
     reasons.extend(message for message, _names in swap_and_swordlish_conflicts(flags, z1r))
     reasons.extend(message for message, _names in no_vanilla_conflicts(flags, z1r))
     reasons.extend(message for message, _names in defense_pacing_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in universal_drops_v2_conflicts(flags, z1r))
     return reasons
 
 

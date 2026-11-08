@@ -126,7 +126,7 @@ def test_a_type_error_fails_before_the_lock(checkout: Path, held_lock: Path) -> 
 
 def test_the_quick_check_runs_the_selection_and_the_comparison_without_the_lock(checkout: Path,
                                                                               held_lock: Path) -> None:
-    """Beside a held lock it never waits: the selected tests at 2 workers, then the output."""
+    """Beside a held lock it never waits: the selected tests at 2 workers, then the output, at 2."""
     touched = checkout / "scripts" / "guide_page.py"
     original = touched.read_text()
     touched.write_text(original + "# touched\n")
@@ -138,6 +138,45 @@ def test_the_quick_check_runs_the_selection_and_the_comparison_without_the_lock(
     assert "tests/test_guide_page.py (" in output and "Quick check: " in output
     assert "verify: static checks passed" in output and WAITING not in output and "suite lock:" not in output
     assert "THE FULL SUITE RUNS IN THE BATCH RUN" in output
+    assert "verify: the suite lock is held (" in output and "2 workers, the selected tests before the output" in output
+    # scripts/ is not an output input (scripts/output_inputs.py): nothing hashed, never "identical"
+    assert output.splitlines()[-1] == "compare_revision: output not compared (no output input changed)"
+    assert "matrix, this checkout" not in output
+
+
+def test_with_the_lock_free_the_tests_run_beside_the_output(checkout: Path, tmp_path: Path) -> None:
+    """Owner ruling, 2026-11-07 (options C and E): nobody holds the lock, so 8 hashing workers and the
+    selected tests beside them; their output follows the comparison's, and a failure still fails it."""
+    touched = checkout / "scripts" / "guide_page.py"
+    original = touched.read_text()
+    touched.write_text(original + "# touched\n")
+    planted = checkout / "tests" / "test_planted_failures.py"
+    try:
+        status, output, _ = _verify(checkout, tmp_path / "free.lock")
+        planted.write_text(PLANTED_TESTS)
+        failed_status, failed_output, _ = _verify(checkout, tmp_path / "free.lock")
+    finally:
+        touched.write_text(original)
+        planted.unlink(missing_ok=True)
+    assert status == 0, output
+    assert "verify: the suite lock is free: the output with 8 workers, the selected tests beside it" in output
+    assert output.index("compare_revision: output not compared") < output.index("== the selected tests (run beside")
+    assert " passed" in output.split("== the selected tests (run beside")[1]
+    assert failed_status == 1 and "verify: FAILED in the tests above" in failed_output, failed_output
+
+
+def test_a_change_to_generation_is_compared(checkout: Path, held_lock: Path) -> None:
+    """A change under zora/ is an output input: the quick check hashes seeds 1-2 of each matrix case
+    (shortened here) and ends on "identical" for a module nothing imports."""
+    planted = checkout / "zora" / "planted_note.py"         # new, so no test is selected for it
+    planted.write_text('"""A planted module nothing imports."""\n')
+    try:
+        status, output, _ = _verify(checkout, held_lock)
+    finally:
+        planted.unlink()
+    assert status == 0, output
+    assert "output inputs changed since" in output and "zora/planted_note.py" in output
+    assert "seeds 1-2 of each matrix case; all four run in the batch run and with --full-matrix" in output
     assert "compare_revision: output identical to" in output.splitlines()[-1]
 
 
@@ -171,5 +210,5 @@ def test_verify_and_the_full_tier_run_the_static_checks_before_the_lock() -> Non
     verify = (REPO / "scripts" / "verify.sh").read_text()
     assert 'python3 -m pytest tests -q -m "$SELECTION" $PYTEST_WORKERS $MAXFAIL' in verify
     # The quick check's part ends before the lock is taken: it never reaches it
-    assert verify.index("compare_output --workers 2 --no-lock") < verify.index("exec python3 tests/suite_lock.py")
+    assert verify.index("compare_output --workers $HASH_WORKERS --no-lock") < verify.index("exec python3 tests/suite_lock.py")
     assert "-m slow -n auto $MAXFAIL" in (REPO / "scripts" / "verify_full.sh").read_text()

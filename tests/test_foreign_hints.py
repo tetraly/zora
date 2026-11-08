@@ -42,7 +42,7 @@ SEEDS = (1, 2, 3)
 # The FINISH test's seeds: in every case at least one of them names a place holding another
 # player's item (seed 4 for second quest dungeons and universal drops in shapes, since the sword
 # caves' own texts speak only of hearts).
-FINISH_SEEDS = (1, 2, 3, 4)
+FINISH_SEEDS = (1, 2, 3, 6)      # 6 for 4 after the hint pool edit of 2026-11-07: do not sort shapes says it
 
 
 @pytest.fixture(scope="module")

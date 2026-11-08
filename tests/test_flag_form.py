@@ -58,6 +58,8 @@ def controls_from(metadata: dict, state: dict) -> dict[str, str]:
 def page_only_values(field_id: str) -> list[int]:
     """The page's choices no Z1R string holds: Item Shuffle's Random (No Vanilla), Random with a ZORA flag
     (flag_form.ITEM_SHUFFLE_NO_VANILLA_CHOICE; tests/test_item_shuffle_no_vanilla.py)."""
+    if field_id == flags_fields.PRINT_QUEST_INFO.id:       # Spoiler Log Detail Level's Medium and Full
+        return [flag_form.SPOILER_MEDIUM_CHOICE, flag_form.SPOILER_FULL_CHOICE]
     return [flag_form.ITEM_SHUFFLE_NO_VANILLA_CHOICE] if field_id == flags_fields.ITEM_SHUFFLE_SCOPE.id else []
 
 
@@ -78,7 +80,10 @@ def test_metadata_fields_match_flags_module() -> None:
             # Encode level data is a two-state switch (owner ruling, 2026-10-06)
             states = ((ThreeState.OFF, ThreeState.ON) if field == flags_fields.ENCODE_LEVEL_DATA
                       else tuple(ThreeState))
-            assert [v["value"] for v in entry["values"]] == [int(state) for state in states]
+            values = [int(state) for state in states]
+            if field == flags_fields.PRINT_QUEST_INFO:        # None, Basic, Medium, Full, Random
+                values = [int(ThreeState.OFF), int(ThreeState.ON), *page_only_values(field.id), int(ThreeState.POSSIBLE)]
+            assert [v["value"] for v in entry["values"]] == values
         assert all(v["label"] for v in entry["values"])
         assert len({v["label"] for v in entry["values"]}) == len(entry["values"]), field.id
     assert metadata["alphabet"] == codec.ALPHABET
@@ -107,7 +112,7 @@ def test_metadata_support_matrix_matches_flags_module() -> None:
         elif (field_id in support.TURN_OFF_TOGGLES or field_id in support.OWNER_TURN_OFF_TOGGLES
               or field_id in support.SPEC_TURN_OFF_TOGGLES
               or field_id in support.ALTERNATIVE_TOGGLES):
-            assert entry["supportedValues"] == both
+            assert entry["supportedValues"] == [*both, *page_only_values(field_id)]
         else:
             assert entry["supportedValues"] == [baseline.toggle(field_id)]
 

@@ -1,5 +1,6 @@
 """The flag summary (web/zora-web.js flagSummary; a player request, 2026-10-26): the settings in words,
-one section per tab, Starting Items just before Misc, ZORA extras last and always
+one section per tab (the quests and Hint Type first, issue #15), Start Items just before Misc and Advanced,
+ZORA extras last and always
 (None when every one is Off). Every choice field is listed, a switch only at
 On or Random, a (min, max) pair as one line and left out while it has no effect. The page's own code,
 run in Node on the form's real metadata and state."""
@@ -55,7 +56,8 @@ def summary(options: dict[str, int], toggles: dict[str, ThreeState],
     assert state["ok"] and state["zora"]["ok"]
     metadata = flag_form.metadata()
     constants = [page_constant(name) for name in (
-        "TOGGLE_ON", "TOGGLE_OFF", "START_TAB", "FLAG_TABS", "FALLBACK_TAB", "ZORA_TAB", "SUMMARY_ORDER",
+        "TOGGLE_ON", "TOGGLE_OFF", "TOP_SECTION", "START_TAB", "ADVANCED_TAB", "FLAG_TABS", "FALLBACK_TAB", "ZORA_TAB",
+        "SUMMARY_ORDER",
         "SUMMARY_NO_EXTRAS",
         "FIELD_ID", "FIELD_ID_WITH_NAME", "FIELD_IDS_IN_BRACKETS", "RULE_ID")]
     functions = [page_function(name) for name in ("plainText", "labelIn", "tabOf", "flagSummary", "flagSummaryText")]
@@ -75,20 +77,23 @@ def summary(options: dict[str, int], toggles: dict[str, ThreeState],
 
 def test_the_example_reads_by_tab() -> None:
     result = summary(EXAMPLE_OPTIONS, EXAMPLE_TOGGLES)
-    assert result["order"] == ["Overworld", "Dungeons", "Items", "Monsters", "Starting Items", "Misc", "ZORA extras"]
+    assert result["order"] == ["Quests and hints", "Shops", "Dungeon Items", "Dungeons", "Monsters", "Overworld",
+                               "Start Items", "Misc", "Advanced", "ZORA extras"]
     assert result["tabs"]["ZORA extras"] == ["None"]
     tabs = result["tabs"]
-    assert tabs["Overworld"][:3] == ["Overworld Quest: Mixed Quest - 1st", "Start Screen: Easy start shuffle",
-                                     "Cave Shuffle: All Caves"]
-    assert {"Dungeon Quest: Shapes", "Level 9 Entry: 8 triforces", "Dungeon Room Shuffle: Full Shuffle",
-            "Add 2nd Quest Rooms"} <= set(tabs["Dungeons"])
-    assert {"Item Shuffle: Intra-Dungeon", "Armos Item: Random", "Shuffle Shop Items", "Extra Candles",
-            "Book is an Atlas", "White Sword Hearts: 5 to 6",
-            "Magical Sword Hearts: 10 to 14"} <= set(tabs["Items"])
-    assert {"Starting Hearts: 4", "Triforce Pieces: 0"} <= set(tabs["Starting Items"])
+    assert tabs["Quests and hints"] == ["Overworld Quest: Mixed Quest - 1st", "Dungeon Quest: Shapes",
+                                        "Hint Type: Community"]
+    assert tabs["Overworld"][:2] == ["Start Screen: Easy start shuffle", "Cave Shuffle: All Caves"]
+    assert {"Level 9 Entry: 8 triforces", "Dungeon Room Shuffle: Full Shuffle", "Add 2nd Quest Rooms",
+            "Force Gannon Fight"} <= set(tabs["Dungeons"])
+    assert {"Item Shuffle: Intra-Dungeon", "Armos Item: Random"} <= set(tabs["Dungeon Items"])
+    assert {"Shuffle Shop Items", "Extra Candles", "White Sword Hearts: 5 to 6",
+            "Magical Sword Hearts: 10 to 14"} <= set(tabs["Shops"])
+    assert {"Starting Hearts: 4", "Triforce Pieces: 0"} <= set(tabs["Start Items"])
     assert {'"Most" Enemy HP: +/- 2', "Boss HP: +/- 2", "Shuffle Enemy Groups", "Shuffle Overworld Group",
             "Randomize Boss Groups", "Red Bubble Curse: Swordless", "Shuffle Bosses: Random"} <= set(tabs["Monsters"])
-    assert {"Hint Type: Community", "Force Gannon Fight"} <= set(tabs["Misc"])
+    assert "Book is an Atlas" in tabs["Misc"]
+    assert tabs["Advanced"] == ["Swords: Normal"]
 
 
 def test_a_switch_at_off_is_left_out() -> None:
@@ -96,11 +101,11 @@ def test_a_switch_at_off_is_left_out() -> None:
     assert "Mirror Overworld" not in " ".join(lines)        # never shown on the page, and Off
     assert not any(line.startswith("Start Raft") for line in lines)
     with_raft = summary(EXAMPLE_OPTIONS, {**EXAMPLE_TOGGLES, "B57": ON})
-    assert "Start Raft" in with_raft["tabs"]["Starting Items"]
+    assert "Start Raft" in with_raft["tabs"]["Start Items"]
 
 
 def test_a_range_without_effect_is_left_out() -> None:
-    no_redraw = summary(EXAMPLE_OPTIONS, {**EXAMPLE_TOGGLES, "B10": OFF})["tabs"]["Items"]
+    no_redraw = summary(EXAMPLE_OPTIONS, {**EXAMPLE_TOGGLES, "B10": OFF})["tabs"]["Shops"]
     assert not any("Sword Hearts" in line for line in no_redraw)
     eight = summary(EXAMPLE_OPTIONS, EXAMPLE_TOGGLES)["tabs"]["Dungeons"]
     assert not any(line.startswith("Triforce Range") for line in eight)

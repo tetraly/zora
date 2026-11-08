@@ -70,7 +70,7 @@ def identity(rom: bytes) -> dict[str, Any]:
 @pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 def test_prg0_with_both_flag_strings_and_the_seed_code() -> None:
     info = {"version": "2.0 beta 6", "seed": "2535214729", "flags": FLAGS, "zoraFlags": "AB",
-            "identity": identity(BASE_ROM_PATH.read_bytes()), "code": CODE}
+            "identity": identity(BASE_ROM_PATH.read_bytes()), "code": CODE, "beta": []}
     assert bug_report(info) == ("ZORA 2.0 beta 6\nSeed: 2535214729\n"
                                 f"Z1R flags: {FLAGS}\nZORA flags: AB\nROM: PRG0\n"
                                 "Seed code: Magical Key, Wooden Arrow, Heart Container, Power Bracelet")
@@ -79,7 +79,7 @@ def test_prg0_with_both_flag_strings_and_the_seed_code() -> None:
 @pytest.mark.skipif(not PRG1_ROM_PATH.exists(), reason="PRG1 ROM not found")
 def test_prg1_with_modified_graphics_no_zora_flags_no_code() -> None:
     info = {"version": "v2.0.0b6", "seed": "7", "flags": FLAGS, "zoraFlags": "",
-            "identity": identity(graphics_inverted(PRG1_ROM_PATH.read_bytes())), "code": []}
+            "identity": identity(graphics_inverted(PRG1_ROM_PATH.read_bytes())), "code": [], "beta": []}
     assert bug_report(info).splitlines()[3:] == ["ZORA flags: (none)", "ROM: PRG1, modified graphics",
                                                  "Seed code: (none)"]
 
@@ -93,19 +93,20 @@ def test_the_buttons_follow_each_generated_seed() -> None:
     """onGenerate adds them with what the result shows: the seed, the flags as asked for, the ROM
     chosen and the seed code; Copy seed code only when the seed has a code."""
     on_generate = page_function("onGenerate")
-    assert "addCopyButtons({ version: $(\"version\").textContent, seed: result.seed, flags: requested.flags," \
+    assert 'addCopyButtons({ version: $("version").textContent, seed: result.seed, flags: requested.flags,' \
            in on_generate
     assert "zoraFlags: requested.zoraFlags, identity: romIdentity, code," in on_generate
-    assert "encoded: requested.encoded, notices: requested.notices });" in on_generate
+    assert "encoded: requested.encoded, spoilerLevel: requested.spoilerLevel, notices: requested.notices," \
+           in on_generate
     buttons = page_function("addCopyButtons")
     assert '"Copy bug report info", bugReportText(info)' in buttons
     assert '"Copy race info", raceInfoText(info)' in buttons
-    assert 'if (info.code.length) {' in buttons and '"Copy seed code", seedCodeText(info.code)' in buttons
+    assert "if (info.code.length) {" in buttons and '"Copy seed code", seedCodeText(info.code)' in buttons
 
 
 def race_info(**changes: Any) -> str:
     info = {"version": "2.0 beta 7", "seed": "2535214729", "flags": FLAGS, "zoraFlags": "", "code": CODE,
-            "encoded": False, "notices": [], **changes}
+            "encoded": False, "spoilerLevel": "None", "notices": [], **changes}
     return run_page(f"raceInfoText({json.dumps(info)})")
 
 
@@ -113,13 +114,13 @@ def test_race_info_is_short_and_plain() -> None:
     assert race_info() == ("ZORA 2.0 beta 7\nSeed: 2535214729\n"
                            f"Flags: {FLAGS}\n"
                            "Seed code: Magical Key, Wooden Arrow, Heart Container, Power Bracelet\n"
-                           "Race ROM: off (spoiler log available)")
+                           "Race ROM: off\nSpoiler log: None")
 
 
 def test_race_info_with_zora_flags_an_encoded_seed_and_a_notice() -> None:
-    lines = race_info(zoraFlags="AB", encoded=True, code=[],
+    lines = race_info(zoraFlags="AB", encoded=True, code=[], spoilerLevel="Random",
                       notices=["Mirrored overworld isn't supported yet; this seed is not mirrored"]).splitlines()
-    assert lines[3:] == ["ZORA flags: AB", "Race ROM: on (level data encoded, no spoiler log)",
+    assert lines[3:] == ["ZORA flags: AB", "Race ROM: on (level data encoded)", "Spoiler log: Random",
                          "Notice: Mirrored overworld isn't supported yet; this seed is not mirrored."]
 
 

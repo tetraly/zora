@@ -94,6 +94,9 @@ def test_a_different_revision_is_reported_as_different(source: Path) -> None:
     assert "b1_on: 1 of 1 differ" in done.stdout
     assert "matrix: 1 of 1 differ" in done.stdout
     assert "output DIFFERS from different" in done.stdout
+    # Each hashed field counted apart (a change to the documents and logs alone shows as ROMs 0)
+    assert re.search(r"output DIFFERS from different: ROMs \d+ of 3 \(seeds \d+ of 2, matrix \d+ of 1\), "
+                     r"seed documents \d+ of 1, spoiler logs \d+ of 1$", done.stdout.strip()), done.stdout
 
 
 def test_an_identical_revision_passes(source: Path) -> None:
@@ -155,6 +158,29 @@ def test_runs_that_cover_different_things_are_not_compared(tmp_path: Path, base:
     assert "identical" not in done.stdout
 
 
+NEW = dict.fromkeys(("rom", "document", "log"), "not in this revision")      # output_hash.NOT_IN_REVISION
+SAME = {"rom": "r", "document": "d", "log": "l"}
+
+
+@pytest.mark.parametrize(("head_new", "status", "expected"), [
+    (SAME, 0, "matrix: identical (1)"),
+    ({**SAME, "log": "changed"}, 1, "matrix: 1 of 1 differ (ROMs 0, seed documents 0, spoiler logs 1)"),
+])
+def test_a_case_the_base_cannot_make_is_new_not_different(tmp_path: Path, head_new: dict, status: int,
+                                                         expected: str) -> None:
+    """A matrix case needing a ZORA flag the base revision lacks (output_hash.matrix_jobs) is listed as
+    new and never compared; the other entries are compared as before."""
+    base = {"matrix": {"old": SAME, "new": NEW}}
+    head = {"matrix": {"old": head_new, "new": {"rom": "x", "document": "y", "log": "z"}}}
+    (tmp_path / "base.json").write_text(json.dumps(base))
+    (tmp_path / "head.json").write_text(json.dumps(head))
+    done = subprocess.run([sys.executable, str(OUTPUT_HASH), "--compare", str(tmp_path / "base.json"),
+                           str(tmp_path / "head.json")], capture_output=True, text=True, check=False)
+    assert done.returncode == status, done.stdout
+    assert "matrix: 1 new, not in the base revision (not compared): ['new']" in done.stdout
+    assert expected in done.stdout
+
+
 # --- the parent and the base-hash cache (docs/design/test-speed.md 3.2) -------------------------
 
 def _commit(source: Path, revision: str) -> str:
@@ -177,6 +203,49 @@ def test_the_parent_comparison_names_the_parent(source: Path) -> None:
         f"compare_revision: output identical to {_commit(source, 'same')[:12]} (the parent)"
 
 
+def test_no_output_input_changed_compares_nothing(source: Path) -> None:
+    """--skip-unchanged (the quick check; owner ruling, 2026-11-07): the copy holds its parent's tree, so no
+    output input changed; nothing is hashed, and the verdict never says "identical"."""
+    done = _in_copy(source, sys.executable, "scripts/compare_revision.py", "parent", "--skip-unchanged", *SMALL)
+    assert done.returncode == 0, done.stdout + done.stderr
+    assert done.stdout.strip().splitlines()[-1] == "compare_revision: output not compared (no output input changed)"
+    assert "== " not in done.stdout and "identical" not in done.stdout
+
+
+def test_an_output_input_changed_since_rev_is_compared(source: Path) -> None:
+    """Against "different", zora/version.py differs: an output input, so the comparison runs."""
+    done = _in_copy(source, sys.executable, "scripts/compare_revision.py", "different", "--skip-unchanged", *SMALL)
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "output inputs changed since different: zora/version.py" in done.stdout
+    assert "output DIFFERS from different" in done.stdout.splitlines()[-1]
+
+
+def test_a_revision_not_cached_is_hashed_beside_this_checkout(source: Path) -> None:
+    """Option D (owner ruling, 2026-11-07): REV's hashing and this checkout's run at the same time, each
+    line marked with its side. Two seeds: a key no other test uses, so REV is not cached."""
+    small = ["--seeds", "2", "--matrix-jobs", "1", "--workers", "2"]
+    done = _in_copy(source, sys.executable, "scripts/compare_revision.py", "different", *small)
+    assert done.returncode == 1, done.stdout + done.stderr
+    assert "is not cached: hashing it and this checkout at the same time" in done.stdout
+    assert "[different] == matrix at different" in done.stdout
+    assert "[this checkout] == matrix, this checkout" in done.stdout
+    assert "b1_on: 2 of 2 differ" in done.stdout
+
+
+def test_the_matrix_seeds_are_a_prefix_of_every_case() -> None:
+    """--matrix-seeds 2 (the quick check): seeds 1-2 of every case, half the matrix, and a cache key of its own."""
+    spec = importlib.util.spec_from_file_location("output_hash_under_test", OUTPUT_HASH)
+    assert spec and spec.loader
+    output_hash = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(output_hash)
+    every, quick = output_hash.matrix_jobs(), output_hash.matrix_jobs(2)
+    assert {job[3] for job in every} == {1, 2, 3, 4} and {job[3] for job in quick} == {1, 2}
+    assert quick == [job for job in every if job[3] <= 2]
+    module = _compare_revision_module()
+    commit = module.resolve(module.PARENT)
+    assert module.base_hash_key_parts(commit, 20, None, 2) != module.base_hash_key_parts(commit, 20, None)
+
+
 def test_a_second_comparison_reuses_the_cached_hashes(source: Path) -> None:
     """The second run of the same comparison hashes only this checkout, with the same verdict."""
     first = _in_copy(source, sys.executable, "scripts/compare_revision.py", "different", *SMALL)
@@ -184,8 +253,8 @@ def test_a_second_comparison_reuses_the_cached_hashes(source: Path) -> None:
     assert (first.returncode, second.returncode) == (1, 1), first.stdout + second.stdout
     assert "different (" in second.stdout and "from the cache" in second.stdout
     assert "== matrix at different" not in second.stdout        # REV was not hashed again
-    assert second.stdout.splitlines()[-1] == first.stdout.splitlines()[-1] == \
-        "compare_revision: output DIFFERS from different"
+    assert second.stdout.splitlines()[-1] == first.stdout.splitlines()[-1]
+    assert second.stdout.splitlines()[-1].startswith("compare_revision: output DIFFERS from different: ROMs ")
 
 
 def _compare_revision_module() -> Any:

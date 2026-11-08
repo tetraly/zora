@@ -1,5 +1,6 @@
 """The release gate's low-risk changes (scripts/full_tier.py low_risk_reason): Markdown, the version string, and
-the page's hero graphic while it is a PNG of at most HERO_GRAPHIC_LIMIT bytes (owner decision, 2026-10-30)."""
+the page's hero graphic while it is a PNG of at most HERO_GRAPHIC_LIMIT bytes (owner decision, 2026-10-30), and the
+per-flag file zora/flags/flags.json while it is a JSON object (owner ruling, 2026-11-06)."""
 import importlib.util
 import os
 import subprocess
@@ -62,3 +63,17 @@ def test_other_site_files_are_not_low_risk(full_tier: ModuleType, repo: Path) ->
     assert full_tier.low_risk_reason(repo, "web/zora.css", stamped, changed) is None
     assert full_tier.low_risk_reason(repo, "web/other.png", stamped, changed) is None
     assert full_tier.low_risk_reason(repo, "README.md", stamped, changed) == "Markdown"
+
+
+def test_the_per_flag_file_is_low_risk_while_a_json_object(full_tier: ModuleType, repo: Path) -> None:
+    stamped = commit(repo, {full_tier.FLAGS_FILE: b'{"flags": {}}'})
+    marked = commit(repo, {full_tier.FLAGS_FILE: b'{"flags": {"universal_drops_v2": {"beta": "all"}}}'})
+    assert full_tier.low_risk_reason(repo, full_tier.FLAGS_FILE, stamped, marked) == "the per-flag file"
+    broken = commit(repo, {full_tier.FLAGS_FILE: b'{"flags": '})
+    assert full_tier.low_risk_reason(repo, full_tier.FLAGS_FILE, stamped, broken) is None
+    not_object = commit(repo, {full_tier.FLAGS_FILE: b"[]"})
+    assert full_tier.low_risk_reason(repo, full_tier.FLAGS_FILE, stamped, not_object) is None
+    removed = commit(repo, {full_tier.FLAGS_FILE: None})
+    assert full_tier.low_risk_reason(repo, full_tier.FLAGS_FILE, stamped, removed) is None
+    other = commit(repo, {"zora/flags/names.json": b"{}"})
+    assert full_tier.low_risk_reason(repo, "zora/flags/names.json", stamped, other) is None

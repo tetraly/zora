@@ -9,16 +9,18 @@
 </head>
 <body>
 
-<aside class="beta-banner" role="note" aria-label="Beta notice">
-  <p>ZORA 2.0 is still in beta. New features are being frequently added before being fully-tested, so some
-    bugs are to be expected.<br>
-    If you encounter a bug or issue, report it in the <a href="https://discord.gg/zescSjDtme" target="_blank" rel="noopener">ZORA Discord</a>
+<!-- Shown only while the Beta settings switch is on (web/zora-web.js showBetaSwitch). -->
+<aside class="beta-banner" id="beta-banner" role="note" aria-label="Beta notice" hidden>
+  <p>Beta settings are on. They're less tested, so some bugs are to be expected. If you encounter a bug,
+    report it in the <a href="https://discord.gg/zescSjDtme" target="_blank" rel="noopener">ZORA Discord</a>
     with the text from the "Copy bug report info" button.</p>
 </aside>
 
 <header class="masthead">
   <div class="masthead-bar">
     <nav class="masthead-nav">
+      <a href="https://discord.gg/zescSjDtme" target="_blank" rel="noopener">Discord</a>
+      <a href="https://github.com/tetraly/zora/blob/main/docs/faq.md">FAQ</a>
       <a href="https://github.com/tetraly/zora/blob/main/docs/flag-names.md">Flag guide</a>
       <a href="https://github.com/tetraly/zora/blob/main/docs/CHANGELOG.md">What's new</a>
       <span class="version-pill" id="version"></span>
@@ -115,6 +117,16 @@
         <p id="zora-flags-note" class="message mono"></p>
       </div>
 
+      <!-- Beta settings (zora/flags/flags.json): shown only while some flag is beta. UI only: never in a
+           flag string. Off locks the beta flags and values; strings that use one turn it on. -->
+      <div class="beta-bar" id="beta-bar" hidden>
+        <span class="beta-bar-title" id="beta-title">Enable Beta Flags</span>
+        <div class="seg" id="beta-switch" role="group" aria-labelledby="beta-title">
+          <button type="button" id="beta-off" data-choice="off" aria-pressed="true">Off</button>
+          <button type="button" id="beta-on" data-choice="on" aria-pressed="false">On</button>
+        </div>
+        <p id="beta-warning" class="beta-warning" role="status" hidden></p>
+      </div>
       <div id="form" hidden>
         <!-- The settings in words, one section per tab (showFlagSummary) -->
         <details id="flag-summary" class="flag-summary">
@@ -124,6 +136,9 @@
             <button id="flag-summary-copy" class="btn btn-tint btn-small" type="button">Copy summary</button>
             <span id="flag-summary-note" class="message" role="status"></span></p>
         </details>
+        <!-- Overworld Quest, Dungeon Quest and Hint Type, above the tabs (issue #15; flag-tabs.json's
+             "Quests and hints") -->
+        <div id="top-flags" class="top-flags"></div>
         <!-- The flag tabs (web/flag-tabs.json), ZORA extras (the ZORA flag
              string) and Look and feel (player settings). -->
         <div class="tabs" role="tablist" aria-label="Setting groups" id="tabs"></div>
@@ -147,7 +162,25 @@
             </button>
           </div>
         </div>
+        <!-- Several seeds at once (issue #16): counting up from the seed above. A page preference,
+             never in a flag string. -->
+        <div class="seed-field count-field">
+          <label class="seed-label" for="seed-count">Number of seeds</label>
+          <input id="seed-count" class="seed-input count-input mono" type="text" inputmode="numeric" spellcheck="false"
+                 autocomplete="off" value="1" aria-describedby="batch-note">
+        </div>
         <button id="generate" class="btn-generate" type="button" disabled>Generate</button>
+        <button id="batch-stop" class="btn-generate btn-stop" type="button" hidden>Stop</button>
+      </div>
+      <div class="batch-options" id="batch-options" hidden>
+        <p class="step-note" id="batch-note"></p>
+        <div class="batch-output" id="batch-output-row" hidden>
+          <span class="seed-label" id="batch-output-title">Save as</span>
+          <div class="seg" id="batch-output" role="group" aria-labelledby="batch-output-title">
+            <button type="button" data-choice="zip" aria-pressed="true">One .zip file</button>
+            <button type="button" data-choice="folder" aria-pressed="false">Files in a folder</button>
+          </div>
+        </div>
       </div>
       <div class="generate-row" id="export-row" hidden>
         <div class="seed-field">
@@ -172,6 +205,16 @@
         <dl id="result" class="result-list"></dl>
         <div class="result-actions" id="download"></div>
         <p class="after-seed" id="after-seed" role="status"></p>
+      </div>
+
+      <div id="batch-result" class="result-card" hidden>
+        <div class="result-head">
+          <span class="result-title" id="batch-title">Your seeds are ready</span>
+          <span id="batch-time" class="result-time"></span>
+        </div>
+        <dl id="batch-summary" class="result-list"></dl>
+        <div class="result-actions" id="batch-download"></div>
+        <ul id="batch-failures" class="batch-failures"></ul>
       </div>
 
       <div id="export-result" class="result-card" hidden>

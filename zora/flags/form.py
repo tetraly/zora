@@ -44,6 +44,7 @@ from ..rom.player_settings import (
     RANDOM_LEVEL_WORD,
 )
 from ..version import PLAYER_VERSION
+from . import beta
 from .codec import ALPHABET, FlagStringError, canonicalize, decode, encode
 from .dependencies import apply_dependencies, check_dependencies
 from .fields import (
@@ -59,7 +60,7 @@ from .fields import (
     OPTION_FIELDS,
     PIECE_RANGE_HIGH,
     PIECE_RANGE_LOW,
-    PIN_FIELDS,
+    PRINT_QUEST_INFO,
     STARTING_HEARTS,
     STARTING_HEARTS_RANDOM,
     THREE_STATE_LABELS,
@@ -85,10 +86,19 @@ from .support import (
     postponed_notices,
     support,
 )
-from .zora_flags import ZoraFlagStringError
+from .zora_flags import (
+    NO_VANILLA_ITEM_SHUFFLES,
+    SWORDLISH_FIELD,
+    SpoilerLevel,
+    Swordlish,
+    ZoraFlags,
+    ZoraFlagStringError,
+    spoiler_level,
+)
 from .zora_flags import decode as decode_zora
 from .zora_flags import encode as encode_zora
-from .zora_form import zora_flags_from_values, zora_metadata, zora_state
+from .zora_form import FIELDS as ZORA_FIELDS
+from .zora_form import THREE_STATE_KIND, control_value, zora_flags_from_values, zora_metadata, zora_state
 
 NOT_PRODUCED_TEXT = "Not produced by ZORA yet"
 NOT_AVAILABLE_TEXT = "Not available in this build"
@@ -206,8 +216,9 @@ NO_EFFECT_SUFFIX = " (no effect in ZORA)"
 
 # A short note the page shows beside a value whose community name could mislead (owner request,
 # 2026-10-10): the original randomizer's labels stay, the note says what the value does.
+# The pinned-item fields' (C11-C13, C26, C27) "No item pinned" beside Random was taken out so Dungeon Items
+# fits (issue #15 review).
 VALUE_NOTES: dict[tuple[str, int], str] = {
-    **{(field.id, PinnedItem.NONE_PINNED): "No item pinned" for field in PIN_FIELDS},
     (ITEM_SHUFFLE_SCOPE.id, ItemShuffleScope.DUNGEON_ITEMS_ONLY): "Major items only; Heart Containers stay in place",
     (STARTING_HEARTS.id, STARTING_HEARTS_RANDOM): "One random count from 1 to 5",
     (LEVEL_9_REQUIREMENT.id, Level9Requirement.ITEM_INSTEAD_OF_PIECES):
@@ -220,6 +231,19 @@ VALUE_NOTES: dict[tuple[str, int], str] = {
 # The page's C06 control holds it like any value; form_change writes both strings.
 ITEM_SHUFFLE_NO_VANILLA_CHOICE = ItemShuffleScope.RANDOM + 1
 ITEM_SHUFFLE_NO_VANILLA_LABEL = "Random (No Vanilla)"
+
+# Spoiler Log Detail Level (owner rulings, 2026-11-06; docs/design/spoiler-levels.md): the page's one setting for
+# Print Quest Info (B51) and the ZORA field Detailed Spoiler Log. Its control is B51's, holding B51's three states
+# for None, Basic and Random, and two page-only values for Medium (B51 off, the ZORA field on) and Full (both on).
+# Random is B51's "?", which resolves to Basic, Medium or Full (pipeline.resolve_spoiler_level). The names stay
+# on the page: the seed document and the log keep B51's own.
+SPOILER_LEVEL_LABEL = "Spoiler Log Detail Level"
+SPOILER_MEDIUM_CHOICE = int(ThreeState.POSSIBLE) + 1
+SPOILER_FULL_CHOICE = SPOILER_MEDIUM_CHOICE + 1
+SPOILER_LEVEL_CHOICES = {int(ThreeState.OFF): SpoilerLevel.NONE, int(ThreeState.ON): SpoilerLevel.BASIC,
+                         SPOILER_MEDIUM_CHOICE: SpoilerLevel.MEDIUM, SPOILER_FULL_CHOICE: SpoilerLevel.FULL}
+SPOILER_LEVEL_LABELS = {int(ThreeState.OFF): "None", int(ThreeState.ON): "Basic", SPOILER_MEDIUM_CHOICE: "Medium",
+                        SPOILER_FULL_CHOICE: "Full", int(ThreeState.POSSIBLE): "Random"}
 
 # The owner's names for the fields and option values (owner-authored; owner
 # decision 2026-10-03), edited in docs/flag-names.csv and imported into
@@ -368,6 +392,11 @@ def _field_metadata(field: FieldDef) -> dict[str, Any]:
         entry["randomValues"].append(ITEM_SHUFFLE_NO_VANILLA_CHOICE)
     if field == ENCODE_LEVEL_DATA:
         entry["help"] = level_encoding.HELP_TEXT
+    if field == PRINT_QUEST_INFO:
+        entry["label"] = SPOILER_LEVEL_LABEL
+        entry["values"] = [{"value": value, "label": label, "specLabel": label}
+                           for value, label in SPOILER_LEVEL_LABELS.items()]
+        entry["supportedValues"] = [*entry["supportedValues"], SPOILER_MEDIUM_CHOICE, SPOILER_FULL_CHOICE]
     return entry
 
 
@@ -376,10 +405,12 @@ def metadata() -> dict[str, Any]:
     return {
         "fields": [_field_metadata(field) for field in ALL_FIELDS],
         "encodeLevelData": ENCODE_LEVEL_DATA.id,
+        "spoilerLevelField": PRINT_QUEST_INFO.id,      # Spoiler Log Detail Level's control (race info)
         "levelEncoding": {"available": level_encoding.is_available(), "label": level_encoding.LABEL,
                           "help": level_encoding.HELP_TEXT, "unavailable": NOT_AVAILABLE_TEXT},
         "dependencyRules": [{"rule": rule, "text": text} for rule, text in DEPENDENCY_RULES],
         "presets": presets(),
+        "beta": beta_metadata(),
         "defaultFlags": MVP_BASELINE_LEVEL_ENCODING_OFF,
         "alphabet": ALPHABET,
         "zora": zora_metadata(),
@@ -411,6 +442,134 @@ def metadata() -> dict[str, Any]:
                           "groups": [list(group) for group in LINK_TILE_GROUPS],
                           "fixedColors": list(LINK_FIXED_COLORS)},
     }
+
+
+# Beta settings (owner rulings, 2026-11-05 and 2026-11-06; zora/flags/beta.py): the page's switch and its warning.
+# The switch lives on the page alone, never in a flag string.
+BETA_SWITCH_LABEL = "Enable Beta Flags"            # the switch's name (issue #15 review)
+BETA_WARNING = "Beta settings are less tested and more likely to have bugs."
+BETA_ON_TEXT = "Note: Beta settings are on"            # the page's warning starts with it (issue #15 review)
+BETA_LOCKED_TEXT = f"A beta setting: turn on {BETA_SWITCH_LABEL} to choose it"
+BETA_IN_USE_TEXT = f"These flags use beta settings, so {BETA_SWITCH_LABEL} is on"
+BETA_CURRENT_TEXT = f"A beta setting: turn on {BETA_SWITCH_LABEL}, or choose another value"
+
+
+def _page_value(settings: Settings, field: FieldDef, zora_flags: ZoraFlags | None) -> int:
+    """A Z1R field's value as the page's control holds it: Item Shuffle at Random with the ZORA string's
+    No Vanilla on is its sixth choice."""
+    value = _value_of(settings, field)
+    if (field == ITEM_SHUFFLE_SCOPE and value == ItemShuffleScope.RANDOM and zora_flags is not None
+            and zora_flags.item_shuffle_no_vanilla):
+        return ITEM_SHUFFLE_NO_VANILLA_CHOICE
+    if field == PRINT_QUEST_INFO and zora_flags is not None:
+        return spoiler_level_choice(ThreeState(value), zora_flags.detailed_spoiler_log)
+    return value
+
+
+def spoiler_level_choice(print_quest_info: ThreeState, detailed_spoiler_log: bool) -> int:
+    """Spoiler Log Detail Level's control value: Random for B51's "?", whatever the ZORA field says (the "?"
+    picks both), else the level the two bits give."""
+    if print_quest_info is ThreeState.POSSIBLE:
+        return int(ThreeState.POSSIBLE)
+    level = spoiler_level(print_quest_info is ThreeState.ON, detailed_spoiler_log)
+    return next(choice for choice, choice_level in SPOILER_LEVEL_CHOICES.items() if choice_level == level)
+
+
+# A switch's "?" is decided per seed, On or Off.
+COIN_FLIP = frozenset({int(ThreeState.OFF), int(ThreeState.ON)})
+
+
+def _z1r_randoms(field: FieldDef) -> dict[int, frozenset[int]]:
+    """Each value of a Z1R field that is decided per seed, with the values it can resolve to (FL-DEP-04);
+    Item Shuffle's Random (No Vanilla) draws from Item Only, Intra-Dungeon and Full."""
+    if isinstance(field, OptionField):
+        randoms = {int(value): frozenset(int(outcome) for outcome in outcomes)
+                   for value, outcomes in field.random_choices.items()}
+        if field == ITEM_SHUFFLE_SCOPE:
+            randoms[ITEM_SHUFFLE_NO_VANILLA_CHOICE] = frozenset(int(scope) for scope in NO_VANILLA_ITEM_SHUFFLES)
+        return randoms
+    if field == PRINT_QUEST_INFO:          # Random draws Basic, Medium or Full, never None
+        return {int(ThreeState.POSSIBLE): frozenset(choice for choice, level in SPOILER_LEVEL_CHOICES.items()
+                                                    if level is not SpoilerLevel.NONE)}
+    return {int(ThreeState.POSSIBLE): COIN_FLIP} if ThreeState.POSSIBLE in field_values(field) else {}
+
+
+def _zora_randoms(zora_field: Mapping[str, Any]) -> dict[int, frozenset[int]]:
+    """A ZORA Extra's values decided per seed: a switch's "?", and Swordlish's Random (On or Off)."""
+    if zora_field["kind"] == THREE_STATE_KIND:
+        return {int(ThreeState.POSSIBLE): COIN_FLIP}
+    if zora_field["name"] == SWORDLISH_FIELD:
+        return {int(Swordlish.RANDOM): frozenset({int(Swordlish.OFF), int(Swordlish.ON)})}
+    return {}
+
+
+@cache
+def beta_offered() -> dict[str, beta.FlagChoices]:
+    """Every flag the page offers, as the flags file names it: a Z1R field by its code, a shown ZORA Extra
+    by its field name, each with its page name, the value a fresh page starts with, its values' labels and
+    its Random values' outcomes."""
+    start = decode(MVP_BASELINE_LEVEL_ENCODING_OFF)
+    offered = {}
+    for field in ALL_FIELDS:
+        labels = {value: value_label(field, value) for value in field_values(field)}
+        if field == ITEM_SHUFFLE_SCOPE:
+            labels[ITEM_SHUFFLE_NO_VANILLA_CHOICE] = ITEM_SHUFFLE_NO_VANILLA_LABEL
+        if field == PRINT_QUEST_INFO:
+            labels = dict(SPOILER_LEVEL_LABELS)
+        name = SPOILER_LEVEL_LABEL if field == PRINT_QUEST_INFO else field_label(field)
+        offered[field.id] = beta.FlagChoices(name, _page_value(start, field, None), labels,
+                                             _z1r_randoms(field))
+    fresh = ZoraFlags()
+    for zora_field in zora_metadata()["fields"]:
+        if zora_field.get("hidden"):          # set from another tab (Item Shuffle's Random (No Vanilla))
+            continue
+        name = zora_field["name"]
+        offered[name] = beta.FlagChoices(zora_field["label"], control_value(fresh, name),
+                                         {entry["value"]: entry["label"] for entry in zora_field["values"]},
+                                         _zora_randoms(zora_field))
+    return offered
+
+
+def beta_values() -> dict[str, frozenset[int]]:
+    """Each beta flag's beta values, by its control's numbers, a Random that can resolve to one included
+    (beta.beta_values of the shipped file)."""
+    return beta.beta_values(beta.flags_config(), beta_offered())
+
+
+def beta_metadata() -> dict[str, Any]:
+    """What the page needs for its Beta settings switch: the beta values of each flag, the flags beta as a
+    whole (every value but a fresh page's), the switch's name, its warning and the reasons it shows."""
+    offered = beta_offered()
+    values = beta_values()
+    whole = [key for key, beta_set in values.items()
+             if beta_set == frozenset(offered[key].labels) - {offered[key].default}]
+    return {"values": {key: sorted(beta_set) for key, beta_set in values.items()}, "flags": whole,
+            "label": BETA_SWITCH_LABEL, "warning": BETA_WARNING, "locked": BETA_LOCKED_TEXT,
+            "inUse": BETA_IN_USE_TEXT, "current": BETA_CURRENT_TEXT, "on": BETA_ON_TEXT}
+
+
+def _beta_in_use(z1r_values: Mapping[str, int], zora_values: Mapping[str, int]) -> list[dict[str, Any]]:
+    offered = beta_offered()
+    used = []
+    for key, values in beta_values().items():
+        value = z1r_values.get(key, zora_values.get(key))
+        if value in values:
+            choices = offered[key]
+            used.append({"field": key, "value": value, "text": f"{choices.name}: {choices.labels[value]}"})
+    return used
+
+
+def beta_settings_used(flag_string: str, zora_flag_string: str = "") -> list[str]:
+    """The beta settings these strings use, each "Name: Value" as the page shows it (for the scripts that
+    take flag strings: they warn, never refuse). Strings that do not decode use none."""
+    try:
+        settings = decode(flag_string)
+        zora_flags = decode_zora(zora_flag_string.strip())
+    except (FlagStringError, ZoraFlagStringError):
+        return []
+    z1r_values = {field.id: _page_value(settings, field, zora_flags) for field in ALL_FIELDS}
+    zora_values = {field["name"]: control_value(zora_flags, field["name"]) for field in ZORA_FIELDS}
+    return [entry["text"] for entry in _beta_in_use(z1r_values, zora_values)]
 
 
 def _refusal_texts(settings: Settings) -> set[str]:
@@ -503,6 +662,27 @@ def with_item_shuffle_no_vanilla(zora_flag_string: str, on: bool) -> str:
     return encode_zora(replace(flags, item_shuffle_no_vanilla=on))
 
 
+def _detailed_spoiler_log(zora_flag_string: str) -> bool:
+    try:
+        return decode_zora(zora_flag_string.strip()).detailed_spoiler_log
+    except ZoraFlagStringError:
+        return False
+
+
+def with_detailed_spoiler_log(zora_flag_string: str, on: bool) -> str:
+    """The ZORA string with Detailed Spoiler Log set; one that does not decode is returned as it is."""
+    try:
+        flags = decode_zora(zora_flag_string.strip())
+    except ZoraFlagStringError:
+        return zora_flag_string
+    return encode_zora(replace(flags, detailed_spoiler_log=on))
+
+
+def _with_spoiler_level(state: dict[str, Any], print_quest_info: ThreeState, zora_flag_string: str) -> dict[str, Any]:
+    """Spoiler Log Detail Level's control: the level the two strings give."""
+    return {**state, "value": spoiler_level_choice(print_quest_info, _detailed_spoiler_log(zora_flag_string))}
+
+
 def _level_9_entrance_sword(zora_flag_string: str) -> bool:
     try:
         return decode_zora(zora_flag_string.strip()).level_9_entrance_sword
@@ -533,14 +713,19 @@ def form_state(flag_string: str, zora_flag_string: str = "") -> dict[str, Any]:
                   and _item_shuffle_no_vanilla(zora_flag_string))
     fields[ITEM_SHUFFLE_SCOPE.id] = (_with_no_vanilla_choice if no_vanilla
                                      else _with_no_vanilla_offered)(fields[ITEM_SHUFFLE_SCOPE.id])
+    fields[PRINT_QUEST_INFO.id] = _with_spoiler_level(fields[PRINT_QUEST_INFO.id],
+                                                      settings.toggle(PRINT_QUEST_INFO), zora_flag_string)
     eight_pieces = settings.option(LEVEL_9_REQUIREMENT) == Level9Requirement.EIGHT_PIECES
     if eight_pieces and _level_9_entrance_sword(zora_flag_string):
         fields[LEVEL_9_REQUIREMENT.id] = _locked(LEVEL_9_REQUIREMENT, fields[LEVEL_9_REQUIREMENT.id],
                                                  LEVEL_9_ENTRY_BY_SWORD_TEXT)
+    zora_values = zora["values"] if zora["ok"] else {}
     return {
         "ok": True,
         "flags": canonical,
         "fields": fields,
+        # the beta settings in use (the page turns its switch on when loaded strings use one)
+        "beta": _beta_in_use({field_id: state["value"] for field_id, state in fields.items()}, zora_values),
         "refusals": sorted(refused),
         "adjustments": adjustments,
         "notices": [*postponed_notices(settings),
@@ -568,17 +753,24 @@ def form_change(previous_flags: str, values: Mapping[str, int | str],
                 zora_flag_string: str = "") -> dict[str, Any]:
     """The player changed a control: the new state, or the change blocked with the rule it breaks. Item
     Shuffle at Random (No Vanilla) writes Random into the Z1R string and the ZORA field on; any other Item
-    Shuffle value writes the field off."""
+    Shuffle value writes the field off. Spoiler Log Detail Level writes Print Quest Info (B51) and Detailed
+    Spoiler Log: Medium and Full set the ZORA field, every other value clears it."""
     previous = decode(previous_flags)
     no_vanilla = int(values[ITEM_SHUFFLE_SCOPE.id]) == ITEM_SHUFFLE_NO_VANILLA_CHOICE
     if no_vanilla:
         values = {**values, ITEM_SHUFFLE_SCOPE.id: int(ItemShuffleScope.RANDOM)}
+    spoiler_choice = int(values[PRINT_QUEST_INFO.id])
+    detailed = spoiler_choice in (SPOILER_MEDIUM_CHOICE, SPOILER_FULL_CHOICE)
+    if detailed:
+        print_quest_info = ThreeState.ON if spoiler_choice == SPOILER_FULL_CHOICE else ThreeState.OFF
+        values = {**values, PRINT_QUEST_INFO.id: int(print_quest_info)}
     new_flags = flags_from_values(values)
     broken = sorted(_refusal_texts(decode(new_flags)) - _refusal_texts(previous))
     if broken:
         state = form_state(previous_flags, zora_flag_string)
         state["blockedChange"] = "; ".join(broken)
         return state
+    zora_flag_string = with_detailed_spoiler_log(zora_flag_string, detailed)
     return form_state(new_flags, with_item_shuffle_no_vanilla(zora_flag_string, no_vanilla))
 
 

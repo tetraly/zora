@@ -100,8 +100,8 @@ def test_heads_interface_is_read(script: ModuleType, tmp_path: Path) -> None:
     found = script.interface("HEAD", tmp_path)
     assert found["options"]["starting_hearts"]["id"] == "C16"
     assert found["player settings"]["green_tunic"]["kind"] == "color"
-    assert found["hidden options"] == ["disable_custom_music", "gatekeeper_bosses", "item_shuffle_no_vanilla",
-                                       "shuffle_wood_sword"]
+    assert found["hidden options"] == ["detailed_spoiler_log", "disable_custom_music", "gatekeeper_bosses",
+                                       "item_shuffle_no_vanilla", "shuffle_wood_sword", "universal_drops_v2"]
     assert found["recipe format"][0] == "zora-ap-recipe"
 
 
@@ -119,7 +119,7 @@ def test_the_beta_rule(script: ModuleType, world: str, zora: str, holds: bool) -
 
 
 def test_this_checkout_keeps_the_beta_rule(script: ModuleType) -> None:
-    """The committed manifest and ZORA_VERSION agree (world 0.12.0 for 2.0 beta 12): a version bump
+    """The committed manifest and ZORA_VERSION agree (world 2.0.0 for ZORA 2.0.0, kept in step): a version bump
     raises both."""
     import json
 

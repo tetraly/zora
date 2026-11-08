@@ -1,4 +1,5 @@
-"""ZORA's opening story and the story's closing note (beta 9, owner prompt 544 and its amendment).
+"""ZORA's opening story and the story's closing note (beta 9, owner prompt 544 and its amendment; lines 10
+and 11 fixed, owner ruling 2026-11-07).
 
 The story's first page is one transfer record list, StoryTileAttrTransferBuf (bank 6, PRG0 file
 0x1A40E, 1,131 bytes; InitDemoSubphaseTransferStoryTiles selects it): 32 rows of 32 tiles for
@@ -14,14 +15,14 @@ the same way on the same rows. Each line is therefore alone in its half of an at
 16x16 block holds rows 2k and 2k+1), and a block is two columns wide. The text's color is color 1
 of its palette (StoryPaletteTransferRecord): palette 0 white ($30), 1 blue ($21, PRG0's TRIFORCE),
 2 red ($16, PRG0's title, GANNON and ZELDA), 3 green ($29, PRG0's LINK; also the frame's). ZORA
-colors NINTENDO red, ZELDA RANDOMIZER green, ZORA blue and what level 9 asks to find red with those
-palettes and changes none of them; every other block inside the frame is white, and the title row
+colors NINTENDO red, ZELDA RANDOMIZER green, ZORA blue and GANON red with those palettes and
+changes none of them; every other block inside the frame is white, and the title row
 and the frame keep PRG0's attributes.
 
-Lines 10 and 11 state level 9's requirement, the Level9Gate the entrance check and its person's text
-are written from (level_9_entry.refusal_text; the spoiler log reads the same world field), or the
-level-4-sword entrance's four swords. A custom level word (FP-LEVEL-01, a player setting) is put in
-on the finished ROM, as for the refusal text, with the red that follows it (level_word_in_story).
+Lines 10 and 11 read "GO DEFEAT GANON" / "TO RESCUE THE KIDNAPPED" on every seed (owner ruling
+2026-11-07, from a community report): the page no longer reveals level 9's entrance requirement, and
+nothing on it depends on the Level9Gate, the level-4-sword entrance or the player's level word. The
+entrance person's refusal text, the spoiler log and the Quest Info output still state the requirement.
 
 The note Link holds at the end of the item scroll (DemoStoryFinalSpriteTiles: 18 sprites of 8x16,
 tiles $DC-$FF of DemoSpritePatterns, loaded at PPU $0700) is drawn art in a font 3 pixels wide:
@@ -32,12 +33,9 @@ colors. A pack whose note does not hold those words keeps its note as drawn.
 """
 import re
 
-from ..model.level_9_gate import ALL_PIECES, GATE_ITEM_WORDS, GateKind, Level9Gate
 from .text_encoding import CHAR_TO_BYTE
 
 LINE_LENGTH = 24
-DEFAULT_LEVEL_WORD = "LEVEL"            # player_settings.DEFAULT_LEVEL_WORD (FP-LEVEL-01)
-LEVEL_9 = 9
 
 # --- the page -------------------------------------------------------------------------------
 
@@ -67,41 +65,13 @@ OPENING_LINES = (
     "NOW ZORA EMBARKS ON AN",
     "EVEN MORE RANDOM QUEST.",
 )
-RESCUE_LINE = "TO RESCUE THE KIDNAPPED"
-FIND = "GO FIND "
-# Each colored phrase, its line (1-based) and its color; the requirement's is requirement_lines'
-COLORED_WORDS = (("NINTENDO", 1, RED), ("ZELDA RANDOMIZER", 3, GREEN), ("ZORA", 8, BLUE))
-REQUIREMENT_COLOR = RED
+# Lines 10 and 11, centered: the same on every seed (owner ruling 2026-11-07)
+CLOSING_LINES = ("GO DEFEAT GANON", "TO RESCUE THE KIDNAPPED")
+GANON_LINE = len(OPENING_LINES) + 1
+# Each colored phrase, its line (1-based) and its color
+COLORED_WORDS = (("NINTENDO", 1, RED), ("ZELDA RANDOMIZER", 3, GREEN), ("ZORA", 8, BLUE), ("GANON", GANON_LINE, RED))
 
 Span = tuple[int, str, int]             # line (1-based), phrase, palette
-
-
-def plural(word: str) -> str:
-    """The level word for several levels, as the refusal text makes it (chosen_levels_text)."""
-    return word if word.endswith("S") else f"{word}S"
-
-
-def requirement_lines(gate: Level9Gate, sword_entrance: bool = False,
-                      word: str = DEFAULT_LEVEL_WORD) -> tuple[tuple[str, str], tuple[str, ...]]:
-    """Lines 10 and 11, what level 9 asks for, and what there is to find in them (red, owner
-    2026-10-24): nothing for an open level 9. PRG0's eight pieces read as the owner wrote them; no
-    count, or no chosen level, is an open level 9."""
-    if sword_entrance:
-        return (f"{FIND}ALL FOUR SWORDS", RESCUE_LINE), ("ALL FOUR SWORDS",)
-    if gate.kind is GateKind.ITEM:
-        assert gate.item is not None
-        item = GATE_ITEM_WORDS[gate.item]
-        find = f"{FIND}{item}"
-        return (find if len(find) <= LINE_LENGTH else find.removeprefix("GO "), RESCUE_LINE), (item,)
-    if gate.kind is GateKind.LEVELS and gate.levels:
-        numbers = " ".join(str(level) for level in sorted(gate.levels))
-        levels = f"{word if len(gate.levels) == 1 else plural(word)} {numbers}"
-        return (f"{FIND}THE TRIFORCE OF", levels), ("THE TRIFORCE OF", levels)
-    if gate.kind is GateKind.OPEN or gate.pieces == 0:
-        return (f"GO STRAIGHT TO {word} {LEVEL_9}", RESCUE_LINE), ()
-    units = f"{gate.pieces} TRIFORCE {'UNIT' if gate.pieces == 1 else 'UNITS'}"
-    assert 1 <= gate.pieces <= ALL_PIECES
-    return (f"{FIND}{units}", RESCUE_LINE), (units,)
 
 
 def justified(line: str) -> str:
@@ -123,26 +93,19 @@ def centered(line: str) -> str:
     return " " * ((LINE_LENGTH - len(line)) // 2) + line
 
 
-def story_lines(gate: Level9Gate, sword_entrance: bool = False, word: str = DEFAULT_LEVEL_WORD) -> tuple[str, ...]:
+def story_lines() -> tuple[str, ...]:
     """The page's eleven lines laid out as PRG0's: the paragraph justified to both edges but its
-    last line, then the requirement's two lines centered."""
+    last line, then the two closing lines centered."""
     *paragraph, last = OPENING_LINES
-    requirement, _found = requirement_lines(gate, sword_entrance, word)
-    lines = (*(justified(line) for line in paragraph), last, *(centered(line) for line in requirement))
+    lines = (*(justified(line) for line in paragraph), last, *(centered(line) for line in CLOSING_LINES))
     assert len(lines) == LINES and all(len(line) <= LINE_LENGTH for line in lines), lines
     return lines
 
 
-def colored_spans(gate: Level9Gate, sword_entrance: bool = False, word: str = DEFAULT_LEVEL_WORD) -> list[Span]:
-    """Every colored phrase: the fixed words, and the requirement's thing to find in red (each
-    phrase on the first of lines 10 and 11 that holds it)."""
-    lines = story_lines(gate, sword_entrance, word)
-    requirement, found = requirement_lines(gate, sword_entrance, word)
+def colored_spans() -> list[Span]:
+    """Every colored phrase, each on its line."""
+    lines = story_lines()
     spans = [(line, phrase, palette) for phrase, line, palette in COLORED_WORDS]
-    for phrase in found:
-        line = next(index for index, text in enumerate(requirement, start=len(OPENING_LINES) + 1)
-                    if phrase in text)
-        spans.append((line, phrase, REQUIREMENT_COLOR))
     assert all(_place(lines[line - 1], phrase) for line, phrase, _palette in spans)
     return spans
 
@@ -210,30 +173,16 @@ def _attribute_writes(rom: bytes | bytearray, lines: tuple[str, ...], spans: lis
     return writes
 
 
-def story_writes(rom: bytes | bytearray, gate: Level9Gate, sword_entrance: bool = False) -> list[tuple[int, bytes]]:
+def story_writes(rom: bytes | bytearray) -> list[tuple[int, bytes]]:
     """The page (every row inside the frame below the title: blank, then the lines), its colors,
     and the note's third line."""
     blank = bytes([BLANK_TILE] * len(INNER_COLUMNS))
     writes = [(_row_offset(row) + INNER_COLUMNS.start, blank) for row in INNER_ROWS]
-    lines = story_lines(gate, sword_entrance)
+    lines = story_lines()
     writes += _line_writes(lines, 1)
-    writes += _attribute_writes(rom, lines, colored_spans(gate, sword_entrance))
+    writes += _attribute_writes(rom, lines, colored_spans())
     writes += note_writes(rom)
     return writes
-
-
-def level_word_in_story(rom: bytearray, gate: Level9Gate, word: str) -> None:
-    """FP-LEVEL-01 on the finished ROM: lines 10 and 11 with the player's level word, and their
-    red, where they are ZORA's own text for `gate` with PRG0's word (an open level 9 or chosen
-    levels name it)."""
-    first_line = len(OPENING_LINES) + 1
-    written = _line_writes(story_lines(gate)[first_line - 1:], first_line)
-    if any(bytes(rom[offset:offset + len(data)]) != data for offset, data in written):
-        return
-    lines = story_lines(gate, word=word)
-    for offset, data in [*_line_writes(lines[first_line - 1:], first_line),
-                         *_attribute_writes(rom, lines, colored_spans(gate, word=word))]:
-        rom[offset:offset + len(data)] = data
 
 
 def story_text(rom: bytes | bytearray) -> tuple[str, ...]:

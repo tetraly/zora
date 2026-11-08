@@ -146,6 +146,9 @@ IMPLEMENTED: dict[str, tuple[Any, ...]] = {
     "highlight_no_drop_rooms": (False, True),
     # Do Not Segment Dungeons (docs/zora-extras.md section 17): shapes levels only
     "do_not_segment_dungeons": (False, True),
+    # Universal Drops v2.0 (docs/zora-extras.md section 26): shapes levels only; its flag strings
+    # are refused with B91 (universal_drops above), which these combinations set directly
+    "universal_drops_v2": (False, True),
     # C05, OW-CAVE-09: the walk's parts
     "cave_shuffle": (CaveShuffle.ALL_CAVES, CaveShuffle.VANILLA, CaveShuffle.DUNGEON_DOORS_ONLY,
                      CaveShuffle.NON_DUNGEON_CAVES_ONLY),
@@ -333,7 +336,10 @@ def producible(flags: Flags) -> bool:
     Nor does a flag string make Expanded Dungeon Locations with a Mixed overworld quest or a Cave
     Shuffle but Dungeons Only or All Caves (refused, zora_flags.expanded_dungeon_locations_conflicts),
     or Defense Item Pacing: Earlier with Item Shuffle: None (refused, zora_flags.defense_pacing_conflicts:
-    the Red Ring stays in level 9, which asks for both rings)."""
+    the Red Ring stays in level 9, which asks for both rings), or Universal Drops v2.0 with Allow
+    Universal Drops In Shapes (refused, zora_flags.universal_drops_v2_conflicts)."""
+    if flags.shapes.universal_drops_v2 and flags.shapes.universal_drops:
+        return False
     if (flags.extras.defense_pacing is Pacing.EARLIER
             and flags.alternatives.item_shuffle is ItemShuffleScope.NONE):
         return False

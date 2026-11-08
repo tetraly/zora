@@ -188,7 +188,11 @@ WHAT_IT_DOES = {
     "B49": "With it on, holding the Book of Magic counts as having every dungeon's map; with it off, each "
            "map has to be found.",
     "B50": "With it on, the game plays in blackout mode; with it off, it doesn't.",
-    "B51": "With it on, the game prints quest information; with it off, it doesn't.",
+    "B51": "How much the spoiler log tells. None: no log. Basic: what the original randomizer's log tells. "
+           "Medium: Basic, and where each major item is inside its level. Full: Medium, and the levels' "
+           "layouts. Random: one of the four, per seed. Each level changes the seed: the same seed number "
+           "gives a different game at each level. Every level but None is beta, with a tracker file to "
+           "download beside the log.",
     "B52": "With it on, the sword always shoots a beam; with it off, the beam works as usual.",
     "B53": "With it on, any hit knocks the player out; with it off, damage is as usual.",
     "B54": "With it on, people's text appears faster; with it off, it appears at the usual speed.",

@@ -69,7 +69,8 @@ def generate(data, seed, flag_string, player_settings, zora_flag_string, library
     with stop_after(limit) if limit is not None else contextlib.nullcontext():
         result = generate_rom(flag_string, int(seed), bytes(data.to_py()), settings, zora_flag_string)
     info = {"flags": result.flag_string, "zoraFlags": result.zora_flag_string, "seed": str(result.seed),
-            "encoded": result.encode_level_data, "code": [str(name) for name in result.code],
+            "encoded": result.encode_level_data, "spoilerLevel": int(result.spoiler_level),
+            "code": [str(name) for name in result.code],
             "codeIcons": code_icons(result.rom), "codeText": code_text(result.rom)}
     rom = result.rom
     REPORT_ROM = b""
@@ -80,6 +81,10 @@ def generate(data, seed, flag_string, player_settings, zora_flag_string, library
                           settings, local_files(names, files), playlist)
         rom = music["rom"]
         info.update(tracks=music["tracks"], musicWarnings=music["warnings"], musicLibraries=music["libraries"])
+    if result.report_rom:
+        # An encoded seed with a spoiler log: its log and tracker file read the ROM before encoding
+        REPORT_ROM = result.report_rom
+        info["hasReportRom"] = True
     LAST_RESULT = json.dumps(info)
     return rom
 
@@ -198,7 +203,7 @@ async function generate({ id, bytes, seed, flags, zoraFlags, playerSettings, mus
   result.destroy();
   const info = JSON.parse(pyodide.globals.get("LAST_RESULT"));
   const transfer = [rom.buffer];
-  if (music) {
+  if (music || info.hasReportRom) {
     const reportProxy = pyodide.globals.get("REPORT_ROM");
     info.reportRom = reportProxy.toJs();
     reportProxy.destroy();

@@ -26,6 +26,7 @@ from zora.model.levels import Level
 
 from dataclasses import replace  # noqa: E402
 
+from zora.flags.form import BETA_IN_USE_TEXT, BETA_WARNING, beta_settings_used  # noqa: E402
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF  # noqa: E402
 from zora.rom import level_encoding
 from zora.rom.base_rom import BASE_ROM_PATH  # noqa: E402
@@ -133,6 +134,11 @@ def main() -> int:
     except PlayerSettingError as exc:
         print(exc, file=sys.stderr)
         return 1
+
+    # Beta settings (zora/flags/flags.json): flag strings that use one are taken, with the page's warning.
+    beta_used = beta_settings_used(args.flags, args.zora_flags)
+    if beta_used:
+        print(f"{BETA_IN_USE_TEXT}: {'; '.join(beta_used)}. {BETA_WARNING}", file=sys.stderr)
 
     vanilla_path = args.base_rom
     if not vanilla_path.exists():

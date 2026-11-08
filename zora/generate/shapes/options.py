@@ -51,6 +51,9 @@ class ShapeOptions:
     # the level's own cells), and the late gate walks the level's doors without its transport
     # staircases, so its repair opens walls until doors alone join every room.
     do_not_segment_dungeons: bool = False
+    # Universal Drops v2.0 (ZORA extra, version 19): the drops dealt and placed at the end of the shape
+    # stage (steps/universal_drops_v2.py); never with universal_drops (B91).
+    universal_drops_v2: bool = False
 
     def __post_init__(self) -> None:
         reject_blocked_options(self, BLOCKED_OPTIONS)

@@ -24,7 +24,9 @@ a fresh GenerationContext, so a failed attempt leaves nothing behind.
 """
 import copy
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import replace
+from functools import partial
 
 from ..flags.fields import ItemShuffleScope, Level9Requirement, WoodenSwordState
 from ..flags.zora_flags import Pacing
@@ -32,11 +34,14 @@ from ..model.enums import Destination, Enemy
 from ..model.game_world import GameWorld
 from ..model.levels import LEVEL_9, LEVEL_BLOCK_ROOMS, Level
 from ..model.overworld import ItemCave, Overworld
+from ..model.rooms import Room
 from .acceptance_check import LogicRules, acceptance_check
 from .alternative_values import MVP_VALUES, AlternativeValues
 from .boss_sounds import boss_sound_end_pass, check_boss_sounds
 from .context import GenerationContext, GenerationResult, GenerationSettings, Step
 from .deadline import check_deadline
+from .drop_square_table import DROP_SQUARES
+from .drop_squares import check_drop_squares, is_drop_square
 from .errors import GenerationFailure
 from .extra_options import NO_EXTRAS, ExtraOptions
 from .flag_steps import ALL_STEPS_ON, FlagSteps
@@ -175,6 +180,7 @@ from .steps.starting_hearts import set_starting_hearts
 from .steps.swap_start_rooms import swap_start_rooms
 from .steps.swap_swords_and_rings import swap_swords_and_rings
 from .steps.sword_states import BOMB_UPGRADE_STATES, change_sword_caves, red_candle_for_maximum_boss_health
+from .steps.universal_drops_v2 import balance_drops, place_on_drop_square
 from .steps.wood_sword_behind_blocks import wood_sword_extra_screens
 
 # The attempt cap: SH-FLOW-03 (revised spec) says a rebuild must retry, then
@@ -334,6 +340,15 @@ def build_levels(context: GenerationContext) -> None:
     context.item_shuffle_result = ItemShuffleResult(caves=cave_item_bytes(context.world),
                                                     goriya_tile=context.pre_shapes_goriya_tile)
     context.sets = build_sets(context.world, context.plans, context.set_sources)
+
+
+def universal_drops_v2_step(context: GenerationContext) -> None:
+    """Universal Drops v2.0 (ZORA extra): the shape stage's last step, on each shaped level (a
+    vanilla set keeps its quest's positions), before the post-shapes passes read the levels
+    (steps/universal_drops_v2.py)."""
+    shaped_numbers = {level for source, levels in zip(context.set_sources, SET_LEVELS, strict=True)
+                      if not source.is_vanilla for level in levels}
+    balance_drops([level for level in context.sets.levels if level.level_num in shaped_numbers], context.rng)
 
 
 def _blank_unowned_plans(worlds: list[SetWorld | None]) -> None:
@@ -646,10 +661,19 @@ def shuffle_enemy_drop_groups_step(context: GenerationContext) -> None:
         context.rng, dungeon_groups(deal), context.hit_points.hp[Enemy.VIRE], context.hit_points.hp[Enemy.ZOL])
 
 
+def _drop_square_placer(context: GenerationContext) -> Callable[[Level, Room], None] | None:
+    """Universal Drops v2.0: how a pass that changes a room's layout, or empties it, sets the room's
+    item position on its drop squares (steps/universal_drops_v2.place_on_drop_square); None off."""
+    if not context.settings.shape_options.universal_drops_v2:
+        return None
+    return partial(place_on_drop_square, rng=context.rng)
+
+
 def exchange_rooms_step(context: GenerationContext) -> None:
     """PS-XCHG: the exchange between dungeons, only with the full room shuffle (C14 = 2)."""
     context.result.room_shuffle = exchange_rooms(context.sets.levels, context.rng,
-                                                 context.settings.alternatives.shuffle_ganon_and_zelda)
+                                                 context.settings.alternatives.shuffle_ganon_and_zelda,
+                                                 _drop_square_placer(context))
 
 
 def second_drop_shuffle_step(context: GenerationContext) -> None:
@@ -804,7 +828,7 @@ def late_gate_step(context: GenerationContext) -> None:
     stats = GateStats()
     try:
         late_gate(context.sets.levels, context.rng, stats, context.settings.alternatives.force_ganon_fight,
-                  unsegmented_levels(context))
+                  unsegmented_levels(context), context.settings.shape_options.universal_drops_v2)
     except GenerationFailure:
         result.gate_attempts += 1
         result.gate_rejections += stats.rejections
@@ -832,7 +856,7 @@ def _l1_census(levels: list[Level]) -> tuple[int, int]:
 def remove_most_open_stairs_step(context: GenerationContext) -> None:
     """PS-OSTAIR (B30): right after the late gate (VA-REJ-01 to VA-REJ-05), before the passes
     after it and the acceptance check, which judges the new layouts and triggers (VA-REJ-17)."""
-    remove_most_open_stairs(context.sets.blocks, context.rng)
+    remove_most_open_stairs(context.sets.blocks, context.rng, _drop_square_placer(context))
 
 
 def level9_records_step(context: GenerationContext) -> None:
@@ -955,7 +979,10 @@ def join_level_2_sword_step(context: GenerationContext) -> None:
 def add_l4_sword_step(context: GenerationContext) -> None:
     """Add L4 Sword (docs/design/l4-sword.md): the progressive sword in a level-9 room, after every
     step that changes level 9's rooms."""
-    add_l4_sword(context.sets.levels, context.rng)
+    if context.settings.shape_options.universal_drops_v2:
+        add_l4_sword(context.sets.levels, context.rng, is_drop_square)
+    else:
+        add_l4_sword(context.sets.levels, context.rng)
 
 
 def swap_swords_and_rings_step(context: GenerationContext) -> None:
@@ -970,6 +997,13 @@ def check_item_spots_step(context: GenerationContext) -> None:
     """ZORA's item-spot check (zora/generate/item_spots.py): after every step that puts an item in a
     room, an attempt with any room's item on a block, statue or staircase restarts."""
     check_item_spots(context.sets.levels)
+
+
+def check_drop_squares_step(context: GenerationContext) -> None:
+    """Universal Drops v2.0' finished-world check (zora/generate/drop_squares.py): after every step
+    that puts an item in a room, an attempt with any room's item off its screen type's drop squares
+    restarts (owner ruling 5, 2026-11-05)."""
+    check_drop_squares(context.sets.levels)
 
 
 def change_sword_hearts_before_check(context: GenerationContext) -> None:
@@ -1091,7 +1125,8 @@ def cap_level_9_vire_hp_step(context: GenerationContext) -> None:
 def highlight_no_drop_rooms_step(context: GenerationContext) -> None:
     """Highlight No-Drop Rooms (ZORA flag): the shipped rooms' inner palette selectors, after
     every pass that moves rooms, items, layouts or palettes, before the level encoding."""
-    highlight_no_drop_rooms(context.world.levels, context.settings.alternatives.remove_most_open_stairs)
+    allowed = DROP_SQUARES if context.settings.shape_options.universal_drops_v2 else None
+    highlight_no_drop_rooms(context.world.levels, context.settings.alternatives.remove_most_open_stairs, allowed)
 
 
 def draw_person_appearances_step(context: GenerationContext) -> None:
@@ -1277,6 +1312,8 @@ STEPS: tuple[Step, ...] = (
     # The shape stage: one step for now (it still works on CellPlan)
     Step("shape_stage", "", shape_stage, restart_label=""),
     Step("build_levels", "", build_levels),
+    Step("universal_drops_v2", "ZORA universal_drops_v2", universal_drops_v2_step,
+         lambda s: s.shape_options.universal_drops_v2),
     # B1
     Step("start_post_shapes", "", start_post_shapes, post_shapes),
     Step("place_triforces", "ZORA allow_triforces_in_stairways", place_triforces_step,
@@ -1380,6 +1417,8 @@ STEPS: tuple[Step, ...] = (
          lambda s: (s.post_shapes and s.extras.checks_magical_sword_hearts and s.feature_data
                     and s.steps.change_sword_hearts)),
     Step("check_item_spots", "", check_item_spots_step, post_shapes, restart_label=""),
+    Step("check_drop_squares", "ZORA universal_drops_v2", check_drop_squares_step,
+         lambda s: s.shape_options.universal_drops_v2, restart_label=""),
     Step("acceptance_check", "", acceptance_check_step, post_shapes, restart_label="acceptance: "),
     Step("check_white_sword_hearts", "", check_white_sword_hearts_step, post_shapes, restart_label="acceptance: "),
     Step("check_magical_sword_hearts", "ZORA randomize_magical_sword or level 9 entrance",

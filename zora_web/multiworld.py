@@ -50,6 +50,7 @@ FIXED_REASONS = {
     archipelago.FORCED_OFF: "Always off in Archipelago.",
     **dict.fromkeys(archipelago.FIXED_OPTIONS, "Always Full in Archipelago: Archipelago places the items itself."),
     **archipelago.ZORA_FORCED_OFF,
+    **archipelago.Z1R_FORCED_OFF,
 }
 
 

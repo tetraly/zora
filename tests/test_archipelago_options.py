@@ -87,7 +87,8 @@ def test_only_supported_values_are_offered() -> None:
     assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} | set(zora_form.FIELD_NAMES)
                                            ) - archipelago.NOT_OFFERED
     assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword", "disable_custom_music",
-                                       "item_shuffle_no_vanilla"}
+                                       "item_shuffle_no_vanilla", "universal_drops_v2", "detailed_spoiler_log",
+                                       "B51"}
 
 
 def test_shuffle_wood_sword_is_never_offered_and_always_off() -> None:

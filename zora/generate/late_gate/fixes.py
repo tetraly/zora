@@ -18,6 +18,7 @@ from ...model.rooms import (
     TURNSTILE_PUSH,
     DoorPair,
     Room,
+    SecretInfo,
     StaircaseRoom,
 )
 from ..shapes.world import (
@@ -436,11 +437,14 @@ def zelda_cell(rooms: list[Room]) -> int | None:
     return found[-1] if found else None
 
 
-def _zelda_rewrite(gate_block: GateBlock, level: Level, force_ganon_fight: bool = True) -> bool:
+def _zelda_rewrite(gate_block: GateBlock, level: Level, force_ganon_fight: bool = True,
+                   keep_positions: bool = False) -> bool:
     """Step 8 (level 9, Ganon must be beaten, B18): the rewrite around Zelda's
     room, then the Zelda-room cleanup and the block push-block clear again.
     False = rejected (a trigger-4/5 neighbor BELOW a $12 Zelda room). With
-    Force Ganon Fight off (A64, PS-MONRD-05) only the cleanup runs."""
+    Force Ganon Fight off (A64, PS-MONRD-05) only the cleanup runs. With
+    keep_positions (Universal Drops v2.0) a shuttered neighbor keeps its
+    item position, which stands on its drop squares, where A33 clears it."""
     room_numbers = set(level.room_nums)
     block = gate_block.block
     zelda_number = zelda_cell(_rooms(level))
@@ -479,7 +483,8 @@ def _zelda_rewrite(gate_block: GateBlock, level: Level, force_ganon_fight: bool 
             # the WHOLE trigger byte becomes $03: item-position bits cleared
             # (A33); the push block is left to the cleanup's block clear
             # (A32)
-            beside.secret_info = LAST_BOSS_SECRET
+            beside.secret_info = (SecretInfo(RoomAction.LAST_BOSS, beside.item_position) if keep_positions
+                                  else LAST_BOSS_SECRET)
             for other_side in Side:
                 if other_side != side.opposite and side_of(beside, other_side) == D_SHUTTER:
                     set_side(beside, other_side, D_OPEN)

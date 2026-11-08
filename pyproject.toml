@@ -35,9 +35,9 @@ include = ["zora", "zora.*", "zora_export*", "zora_measure*", "zora_web*"]
 
 [tool.setuptools.package-data]
 # The hint pool's wording (zora/generate/steps/hint_text.py) and the owner's flag
-# field names (zora/flags/form.py; docs/flag-names.csv).
+# field names (zora/flags/form.py; docs/flag-names.csv) and the per-flag settings (zora/flags/beta.py).
 "zora.generate.steps" = ["hint_pool.txt"]
-"zora.flags" = ["names.json"]
+"zora.flags" = ["names.json", "flags.json"]
 # The ending credits' Randomizer Staff names (zora/rom/credits_staff.py) and the built-in Link
 # sprite sets (zora/rom/link_sprite.py built_in_sprite_sets, zora/rom/link_art.py built_in_art_sets)
 "zora.rom" = ["credits_staff.txt", "link_sprites/*.json", "link_art/*.json", "themes/*.json"]

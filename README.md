@@ -1,9 +1,8 @@
 # ZORA
 
-> **Beta.** ZORA 2.0 has been tested by automated checks but not yet tested by hand. Expect
-> there to be bugs and unbeatable seeds. Please don't use it for races yet. If something looks
-> wrong, report it with the seed, flags and version in the
-> [ZORA Discord](https://discord.gg/zescSjDtme).
+> **Beta settings.** Settings marked "(beta)" on the page are less tested, so expect bugs with
+> them; they stay locked until you turn on Enable Beta Flags. If something looks wrong, report it
+> with the seed, flags and version in the [ZORA Discord](https://discord.gg/zescSjDtme).
 
 **ZORA (Zelda One Randomizer App)** is an open-source randomizer for
 *The Legend of Zelda*.
@@ -56,13 +55,13 @@ you're welcome here.
 
 *It's dangerous to go alone. Take this.*
 
-## Known limitations (2.0 beta 12)
+## Known limitations (2.0.0)
 
 - Some flag values are not made yet: the page shows them grayed out as "Not yet implemented".
-- "Encode level data" is not available in the public build.
-- This beta has not been playtested by hand. Its seeds are checked by automated tests only.
-- To report a bug, give the seed, the flags, the version and the spoiler log (the page's
-  "Download spoiler log" button).
+- Beta settings: Universal Drops v2.0, and Spoiler Log Detail Level's Basic, Medium and Full (with
+  the tracker file that comes with a log). Any Random that can pick one of them is beta too.
+- To report a bug, give the seed, the flags and the version (the page's "Copy bug report info"
+  button copies them).
 
 ## Developer notes
 

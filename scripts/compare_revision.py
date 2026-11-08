@@ -1,8 +1,8 @@
 """Compare this checkout's output with revision REV's: the 20-seed hashes and the ROM matrix
 (scripts/output_hash.py, the same script and inputs for both). scripts/verify.sh REV runs it.
 
-    python3 scripts/compare_revision.py REV [--seeds N] [--matrix-jobs N] [--workers N]
-                                            [--head-hashes FILE] [--no-lock]
+    python3 scripts/compare_revision.py REV [--seeds N] [--matrix-seeds N] [--matrix-jobs N] [--workers N]
+                                            [--head-hashes FILE] [--no-lock] [--skip-unchanged]
     python3 scripts/compare_revision.py REV --resolve-only
 
 REV is resolved in the source checkout: this one, or, in a clean copy (scripts/clean_copy.py),
@@ -25,9 +25,22 @@ while they were made: after a commit of exactly what was checked, the next check
 parent's hashes already made.
 
 It takes the suite lock (its hashing runs use every core) unless --no-lock: the quick check
-(scripts/verify.sh) runs it with --no-lock --workers 2, beside any held lock.
+(scripts/verify.sh) runs it with --no-lock and --workers 8 when the lock is free, 2 when another run holds it.
+--workers is the total: when REV's hashes are not cached, REV and this checkout are hashed at the same time,
+each with half (owner ruling, 2026-11-07; docs/reports/quick-check-speed.md option D).
 
-Exit status: 0 identical, 1 the output differs, 2 no comparison was made (REV unknown, or
+--matrix-seeds N hashes seeds 1-N of each matrix case (output_hash.py --matrix-seeds; the quick check: 2,
+the batch run and --full-matrix: all 4). --skip-unchanged (the quick check) compares nothing when no file
+changed since REV is an output input (scripts/output_inputs.py), and says so: "output not compared (no
+output input changed)", never "identical".
+
+The verdict, the last line: "output identical to REV", or "output DIFFERS from REV: ROMs N of M
+(seeds ..., matrix ...), seed documents N of M, spoiler logs N of M", each field counted apart, so a
+change to the documents and logs alone shows as ROMs 0. A matrix case REV cannot make (it needs a
+ZORA flag REV lacks; output_hash.py's matrix_jobs) is new: listed and counted after REV's name in
+the verdict, never compared or counted as a difference.
+
+Exit status: 0 identical, 1 the output differs (any field), 2 no comparison was made (REV unknown, or
 either side's output could not be produced). Never "identical" without both sides hashed.
 """
 from __future__ import annotations
@@ -42,8 +55,10 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import threading
 from contextlib import nullcontext
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -59,6 +74,8 @@ PARENT = "parent"
 OUTPUT_HASH = REPO / "scripts" / "output_hash.py"
 CACHE_FOLDER = Path("temp") / "verify" / "base-cache"     # in the source checkout
 IDENTICAL, DIFFERENT, NOT_COMPARED = 0, 1, 2
+NOT_NEEDED_VERDICT = "compare_revision: output not compared (no output input changed)"
+SCRIPTS = REPO / "scripts"
 CLEAN_COPY_COMMIT = "Clean copy of "        # scripts/clean_copy.py make_repository's message
 
 
@@ -141,13 +158,20 @@ def _folder_digest(folder: Path) -> str:
     return digest.hexdigest()
 
 
-def _matrix_cases() -> str:
-    """This checkout's matrix inputs, as output_hash.py reads them (its cases, not REV's)."""
+def _output_hash() -> Any:
+    """This checkout's scripts/output_hash.py as a module (a script, not a package)."""
     spec = importlib.util.spec_from_file_location("output_hash_for_key", OUTPUT_HASH)
     assert spec and spec.loader
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return json.dumps(module.matrix_jobs())
+    return module
+
+
+def _matrix_cases(matrix_seeds: int | None = None) -> str:
+    """This checkout's matrix inputs, as output_hash.py reads them (its cases, not REV's), at matrix_seeds
+    seeds a case (default all)."""
+    module = _output_hash()
+    return json.dumps(module.matrix_jobs(matrix_seeds or module.MATRIX_SEED_COUNT))
 
 
 def working_tree() -> str | None:
@@ -172,17 +196,20 @@ def working_tree() -> str | None:
         index.unlink(missing_ok=True)
 
 
-def base_hash_key_parts(commit: str, seeds: int, matrix_jobs: int | None) -> dict[str, str]:
+def base_hash_key_parts(commit: str, seeds: int, matrix_jobs: int | None,
+                        matrix_seeds: int | None = None) -> dict[str, str]:
     """Everything REV's hashes depend on: a cached result is reused only when all of it matches."""
-    return tree_hash_key_parts(_git_output("rev-parse", f"{commit}^{{tree}}"), seeds, matrix_jobs)
+    return tree_hash_key_parts(_git_output("rev-parse", f"{commit}^{{tree}}"), seeds, matrix_jobs, matrix_seeds)
 
 
-def tree_hash_key_parts(tree: str, seeds: int, matrix_jobs: int | None) -> dict[str, str]:
-    """base_hash_key_parts for a tree: a commit's, or this checkout's working tree."""
+def tree_hash_key_parts(tree: str, seeds: int, matrix_jobs: int | None,
+                        matrix_seeds: int | None = None) -> dict[str, str]:
+    """base_hash_key_parts for a tree: a commit's, or this checkout's working tree. The matrix's cases
+    are listed at the seed count asked for, so a 2-seed matrix never meets a 4-seed one."""
     return {
         "revision tree": tree,
         "output_hash.py": _file_digest(OUTPUT_HASH),
-        "matrix cases": hashlib.sha256(_matrix_cases().encode()).hexdigest(),
+        "matrix cases": hashlib.sha256(_matrix_cases(matrix_seeds).encode()).hexdigest(),
         "seeds": str(seeds),
         "matrix jobs": str(matrix_jobs),
         "base ROM": _file_digest(BASE_ROM),
@@ -213,11 +240,49 @@ def store_base(parts: dict[str, str], hashes: dict[str, str]) -> None:
     os.replace(partial, path)                   # concurrent runs: whole files only
 
 
-def hash_run(label: str, json_path: Path, options: list[str]) -> None:
-    print(f"== {label}", flush=True)
-    done = subprocess.run([sys.executable, str(OUTPUT_HASH), *options, "--json", str(json_path)], cwd=REPO, check=False)
-    if done.returncode != 0 or not json_path.is_file():
-        raise NotCompared(f"{label}: output_hash.py failed (exit {done.returncode})")
+HashRun = tuple[str, Path, list[str]]        # (label, the JSON file it writes, output_hash.py's options)
+
+
+def hash_run(label: str, json_path: Path, options: list[str], prefix: str = "") -> None:
+    """One output_hash.py run; with PREFIX, each line it prints carries it (two sides at once)."""
+    print(f"{prefix}== {label}", flush=True)
+    json_path.unlink(missing_ok=True)
+    command = [sys.executable, str(OUTPUT_HASH), *options, "--json", str(json_path)]
+    if prefix:
+        with subprocess.Popen(command, cwd=REPO, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True) as run:
+            assert run.stdout is not None
+            for line in run.stdout:
+                print(f"{prefix}{line}", end="", flush=True)
+        status = run.returncode
+    else:
+        status = subprocess.run(command, cwd=REPO, check=False).returncode
+    if status != 0 or not json_path.is_file():
+        raise NotCompared(f"{label}: output_hash.py failed (exit {status})")
+
+
+def hash_sides(sides: dict[str, list[HashRun]]) -> None:
+    """Each side's runs in order; two sides at the same time, each line marked with its side. The first
+    failure (NotCompared) is raised once both have ended."""
+    if len(sides) == 1:
+        for run in next(iter(sides.values())):
+            hash_run(*run)
+        return
+    failures: list[NotCompared] = []
+
+    def side(name: str, runs: list[HashRun]) -> None:
+        try:
+            for label, json_path, options in runs:
+                hash_run(label, json_path, options, prefix=f"[{name}] ")
+        except NotCompared as failure:
+            failures.append(failure)
+
+    threads = [threading.Thread(target=side, args=item) for item in sides.items()]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+    if failures:
+        raise failures[0]
 
 
 def compare(label: str, base: Path, head: Path) -> bool:
@@ -230,42 +295,110 @@ def compare(label: str, base: Path, head: Path) -> bool:
     return status == IDENTICAL
 
 
+def split_workers(workers: int | None, sides: int) -> list[str]:
+    """output_hash.py's --workers for each of SIDES runs at once: WORKERS in all (default one per core)."""
+    total = workers or os.cpu_count() or 1
+    return ["--workers", str(max(1, total // sides))]
+
+
 def compare_revision(rev: str, seeds: int, matrix_jobs: int | None, workers: int | None,
-                     head_hashes: Path | None) -> bool:
+                     head_hashes: Path | None, matrix_seeds: int | None = None) -> tuple[str | None, int]:
+    """None if the output is identical, else field_tally's count of what differs; and the number of
+    new matrix entries (cases REV cannot make), never counted as differences."""
     commit = resolve(rev)
     worktree_before = working_tree()
-    common = [*(["--workers", str(workers)] if workers else [])]
-    matrix = ["--matrix", *(["--matrix-jobs", str(matrix_jobs)] if matrix_jobs else []), *common]
-    seed_options = ["--seeds", str(seeds), *common]
     base_files = {"seeds": OUT / "base.json", "matrix": OUT / "base-matrix.json"}
-    parts = base_hash_key_parts(commit, seeds, matrix_jobs)
-    if (cached := cached_base(parts)) is not None:
+    parts = base_hash_key_parts(commit, seeds, matrix_jobs, matrix_seeds)
+    cached = cached_base(parts)
+    common = split_workers(workers, 1 if cached is not None else 2)
+    matrix = ["--matrix", *(["--matrix-jobs", str(matrix_jobs)] if matrix_jobs else []),
+              *(["--matrix-seeds", str(matrix_seeds)] if matrix_seeds else []), *common]
+    seed_options = ["--seeds", str(seeds), *common]
+    hashed_here = head_hashes is None       # both of this checkout's hash files made by this run
+    head_runs: list[HashRun] = []
+    if head_hashes is None:
+        head_hashes = OUT / "head.json"
+        head_runs.append(("seeds, this checkout", head_hashes, seed_options))
+    head_runs.append(("matrix, this checkout", OUT / "head-matrix.json", matrix))
+    base_tree = OUT / "base"
+    if cached is not None:
         print(f"== seeds and matrix at {rev} ({commit[:12]}): from the cache ({cache_path(parts).name[:12]})",
               flush=True)
         OUT.mkdir(parents=True, exist_ok=True)
         for name, path in base_files.items():
             path.write_text(cached[name])
+        hash_sides({"this checkout": head_runs})
     else:
-        base_tree = OUT / "base"
+        # Not cached: REV and this checkout at the same time, each with half the workers
         export(commit, base_tree)
+        code = ["--code", str(base_tree)]
+        base_runs: list[HashRun] = [(f"seeds at {rev} ({commit[:12]})", base_files["seeds"], [*seed_options, *code]),
+                                    (f"matrix at {rev} ({commit[:12]})", base_files["matrix"], [*matrix, *code])]
+        print(f"== {rev} ({commit[:12]}) is not cached: hashing it and this checkout at the same time", flush=True)
         try:
-            hash_run(f"seeds at {rev} ({commit[:12]})", base_files["seeds"], [*seed_options, "--code", str(base_tree)])
-            hash_run(f"matrix at {rev} ({commit[:12]})", base_files["matrix"], [*matrix, "--code", str(base_tree)])
+            hash_sides({rev: base_runs, "this checkout": head_runs})
         finally:
             shutil.rmtree(base_tree, ignore_errors=True)
         store_base(parts, {name: path.read_text() for name, path in base_files.items()})
-    hashed_here = head_hashes is None       # both of this checkout's hash files made by this run
-    if head_hashes is None:
-        head_hashes = OUT / "head.json"
-        hash_run("seeds, this checkout", head_hashes, seed_options)
-    hash_run("matrix, this checkout", OUT / "head-matrix.json", matrix)
     if worktree_before and hashed_here and working_tree() == worktree_before:
         # This checkout's hashes, for the check whose parent is a commit of exactly these files
-        store_base(tree_hash_key_parts(worktree_before, seeds, matrix_jobs),
+        store_base(tree_hash_key_parts(worktree_before, seeds, matrix_jobs, matrix_seeds),
                    {"seeds": head_hashes.read_text(), "matrix": (OUT / "head-matrix.json").read_text()})
     seeds_same = compare(f"seeds: {rev} vs this checkout", base_files["seeds"], head_hashes)
     matrix_same = compare(f"matrix: {rev} vs this checkout", base_files["matrix"], OUT / "head-matrix.json")
-    return seeds_same and matrix_same
+    differences = None if seeds_same and matrix_same else \
+        field_tally(base_files["seeds"], head_hashes, base_files["matrix"], OUT / "head-matrix.json")
+    return differences, new_matrix_entries(base_files["matrix"], OUT / "head-matrix.json")
+
+
+def _script_module(name: str) -> Any:
+    """One of this checkout's scripts/ modules (scripts, not a package)."""
+    spec = importlib.util.spec_from_file_location(f"{name}_for_compare", SCRIPTS / f"{name}.py")
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def changed_since(commit: str) -> list[str]:
+    """The files that differ between COMMIT and this checkout: its changes against its parent (in a
+    clean copy, its --add paths), and, for a COMMIT other than the parent, the commits between them."""
+    changed = set(_script_module("affected_tests").changed_files(None))
+    parent = resolve(PARENT)
+    if commit != parent:
+        changed |= set(filter(None, _git_output("diff", "--name-only", commit, parent).splitlines()))
+    return sorted(changed)
+
+
+def output_inputs_changed(commit: str) -> list[str]:
+    """The files changed since COMMIT that are output inputs (scripts/output_inputs.py)."""
+    inputs: list[str] = _script_module("output_inputs").output_inputs_among(changed_since(commit))
+    return inputs
+
+
+def new_matrix_entries(base_matrix: Path, head_matrix: Path) -> int:
+    """How many matrix entries REV could not make (a ZORA flag it lacks): new, not compared."""
+    output_hash = _output_hash()
+    return len(output_hash.new_entries(json.loads(base_matrix.read_text())[output_hash.MATRIX],
+                                       json.loads(head_matrix.read_text())[output_hash.MATRIX]))
+
+
+def field_tally(base_seeds: Path, head_seeds: Path, base_matrix: Path, head_matrix: Path) -> str:
+    """The verdict's count of what differs, each field apart: ROMs (the 20 seeds' in each mode and the
+    matrix's), then the matrix's seed documents and spoiler logs. A changed document or log alone is
+    not a changed ROM (a new flag listed as off changes every document and log, no ROM)."""
+    seeds_base, seeds_head = json.loads(base_seeds.read_text()), json.loads(head_seeds.read_text())
+    output_hash = _output_hash()
+    matrix_base = json.loads(base_matrix.read_text())[output_hash.MATRIX]
+    matrix_head = json.loads(head_matrix.read_text())[output_hash.MATRIX]
+    seed_roms = sum(len(hashes) for hashes in seeds_head.values())
+    seed_changes = sum(ours != theirs for mode, hashes in seeds_head.items()
+                       for ours, theirs in zip(seeds_base[mode], hashes, strict=True))
+    counts = output_hash.field_differences(matrix_base, matrix_head)
+    entries = len(matrix_head) - len(output_hash.new_entries(matrix_base, matrix_head))   # new: not compared
+    return (f"ROMs {seed_changes + counts['rom']} of {seed_roms + entries} "
+            f"(seeds {seed_changes} of {seed_roms}, matrix {counts['rom']} of {entries}), "
+            f"seed documents {counts['document']} of {entries}, spoiler logs {counts['log']} of {entries}")
 
 
 def revision_label(rev: str, commit: str) -> str:
@@ -279,25 +412,41 @@ def main() -> int:
     parser.add_argument("--resolve-only", action="store_true", help="only check that REV resolves")
     parser.add_argument("--seeds", type=int, default=20)
     parser.add_argument("--matrix-jobs", type=int, help="only the first N matrix ROMs")
-    parser.add_argument("--workers", type=int, help="processes per hashing run (default one per core)")
+    parser.add_argument("--matrix-seeds", type=int, help="seeds 1-N of each matrix case (default all 4)")
+    parser.add_argument("--workers", type=int, help="processes in all (default one per core)")
+    parser.add_argument("--skip-unchanged", action="store_true",
+                        help="compare nothing when no output input changed since REV (the quick check)")
     parser.add_argument("--head-hashes", type=Path, help="this checkout's seed hashes, already made")
     parser.add_argument("--no-lock", action="store_true",
-                        help="take no suite lock (the quick check, with --workers 2)")
+                        help="take no suite lock (the quick check: --workers 8, or 2 beside a held lock)")
     args = parser.parse_args()
     try:
         commit = resolve(args.rev)
         if args.resolve_only:
             print(f"compare_revision: {args.rev} is {commit[:12]} in {source_repo()}")
             return IDENTICAL
+        if args.skip_unchanged and not (inputs := output_inputs_changed(commit)):
+            print(f"compare_revision: no file changed since {revision_label(args.rev, commit)} is an output input "
+                  "(scripts/output_inputs.py): nothing to compare")
+            print(NOT_NEEDED_VERDICT)
+            return IDENTICAL
+        if args.skip_unchanged:
+            shown = ", ".join(inputs[:5]) + (f" and {len(inputs) - 5} more" if len(inputs) > 5 else "")
+            print(f"compare_revision: output inputs changed since {revision_label(args.rev, commit)}: {shown}")
         # Up to four hashing runs across every core: one heavy run at a time (inside verify.sh's fast
         # suite, already held); the quick check's runs, at 2 workers, take none
         with nullcontext() if args.no_lock else suite_lock(f"compare_revision.py {args.rev}"):
-            same = compare_revision(args.rev, args.seeds, args.matrix_jobs, args.workers, args.head_hashes)
+            differences, new = compare_revision(args.rev, args.seeds, args.matrix_jobs, args.workers,
+                                                args.head_hashes, args.matrix_seeds)
     except NotCompared as error:
         print(f"compare_revision: FAILED, no comparison made: {error}", file=sys.stderr)
         return NOT_COMPARED
-    print(f"compare_revision: output {'identical to' if same else 'DIFFERS from'} {revision_label(args.rev, commit)}")
-    return IDENTICAL if same else DIFFERENT
+    added = f" ({new} new matrix entries, cases it cannot make, not compared)" if new else ""
+    if differences is None:
+        print(f"compare_revision: output identical to {revision_label(args.rev, commit)}{added}")
+        return IDENTICAL
+    print(f"compare_revision: output DIFFERS from {revision_label(args.rev, commit)}{added}: {differences}")
+    return DIFFERENT
 
 
 if __name__ == "__main__":

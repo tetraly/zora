@@ -48,8 +48,8 @@ SLOW_MARK = "slow"
 TEST_WIDE = ("tests/conftest.py",)
 IGNORED_FOLDERS = ("temp/",)
 # The quick check's test budget, in recorded seconds of test time: at its 2 workers about a minute
-# and a half of tests, which with the static checks and the output comparison keeps it within the
-# owner's 3-5 minutes (measured: docs/design/test-speed.md "The quick check").
+# and a half of tests, which run beside the output comparison while the suite lock is free
+# (docs/design/test-speed.md section 7, "The quick check").
 QUICK_BUDGET_SECONDS = 150.0
 UNRECORDED_TEST_SECONDS = 1.0       # a test's cost while too little is recorded for a median
 RECORDED_FOR_MEDIAN = 200           # fast tests recorded before their median stands in for the others

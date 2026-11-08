@@ -48,16 +48,17 @@ def test_pool_is_the_owners_routed_quotes_with_provenance() -> None:
     text = files("zora.generate.steps").joinpath(POOL_FILE).read_text(encoding="utf-8")
     assert "owner-quotes-routed.tsv" in text and "afb5732" in text and "docs/ui-provenance.md" in text
     owner = [entry for entry in POOL if not entry.placeholder and not entry.stand_in and not entry.contributor]
-    assert len(owner) == 171        # 174 from the crossing, less three removed by hand on 2026-10-30
+    assert len(owner) == 170        # 174 from the crossing, less three removed by hand on 2026-10-30
+                                    # and SIX SEVEN on 2026-11-07
     assert sum(entry.reserved for entry in owner) == 12
-    assert sum(entry.hearts is not None for entry in owner) == 27
+    assert sum(entry.hearts is not None for entry in owner) == 26
     assert len({entry.lines for entry in POOL}) == len(POOL)
     for entry in POOL:
         assert quote_problems(list(entry.lines)) == [], entry
 
 
-COMMUNITY_TEXTS = 87           # the Discord submissions of 2026-10-24: 55 replaced placeholders, 30 appended;
-                               # 2 more on 2026-10-30
+COMMUNITY_TEXTS = 89           # the Discord submissions of 2026-10-24: 55 replaced placeholders, 30 appended;
+                               # 2 more on 2026-10-30; on 2026-11-07 3 removed and 5 ZORA texts added
 
 
 def test_community_texts_fit_the_game_and_are_credited() -> None:
@@ -91,7 +92,6 @@ GENDERED_WORDS_ALLOWED = {
     "A WISE OLD MAN ONCE|SAID - CHECK YOUR CAVES.": "the game's old man, not the player",
     "THE OLD MAN IS TIRED|OF YOUR NONSENSE.": "the game's old man, not the player",
     "PATRA? I HARDLY|KNOW HER!": "Patra, not the player",
-    "THIS BAD BOY CAN FIT|SO MANY RUPEES IN IT!": "the wallet, not the player",
     "WELL EXCUUUUUSE|ME, PRINCESS!": "a quote: Link to Zelda in the 1989 cartoon",
 }
 

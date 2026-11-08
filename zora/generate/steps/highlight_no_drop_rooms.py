@@ -23,7 +23,7 @@ water color.) Rooms on palette 0 (the person rooms) and 1 (sand) keep theirs, un
 rooms are marked like any other. No marking at all when Allow Universal Drops In Shapes (B91)
 resolves on. The pass runs on the shipped world, after every pass that moves rooms, items,
 layouts or palettes, and before the level encoding; it draws no random numbers."""
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 
 from ...model.enums import Enemy, Item
 from ...model.levels import Level
@@ -94,7 +94,7 @@ def allowed_positions(second_quest: bool) -> dict[int, frozenset[int]]:
             for screen_type in screen_types}
 
 
-def is_no_drop_room(level: Level, room: Room, allowed: dict[int, frozenset[int]]) -> bool:
+def is_no_drop_room(level: Level, room: Room, allowed: Mapping[int, frozenset[int]]) -> bool:
     """None of the level's four item positions is on the room's screen type's row."""
     row = allowed.get(room.layout_code, frozenset())
     return not row.intersection(level.item_position_table)
@@ -120,7 +120,7 @@ def is_exception(room: Room, open_stairs_removed: bool) -> bool:
     return is_ganon_room(room) or (open_stairs_removed and room.layout_code in OPEN_STAIRS_SCREEN_TYPES)
 
 
-def is_marked(level: Level, room: Room, allowed: dict[int, frozenset[int]], open_stairs_removed: bool) -> bool:
+def is_marked(level: Level, room: Room, allowed: Mapping[int, frozenset[int]], open_stairs_removed: bool) -> bool:
     return is_no_drop_room(level, room, allowed) and not is_exception(room, open_stairs_removed)
 
 
@@ -142,12 +142,16 @@ def write_no_drop_color(level: Level) -> None:
     level.set_color_sets(bytes(palette), bytes(fade))
 
 
-def highlight_no_drop_rooms(levels: Iterable[Level], open_stairs_removed: bool) -> None:
+def highlight_no_drop_rooms(levels: Iterable[Level], open_stairs_removed: bool,
+                            allowed: Mapping[int, frozenset[int]] | None = None) -> None:
     """Every level's palette 3 takes the no-drop color; every room on palette 2 or 3 gets inner
     palette 3 when it is marked and inner palette 2 otherwise. The caller skips the pass when B91
-    resolves on."""
+    resolves on. `allowed` replaces the doc's list: with Universal Drops v2.0, the drop squares
+    (drop_square_table.DROP_SQUARES), so a room is marked when none of its level's four positions is
+    one of its drop squares."""
     levels = list(levels)
-    allowed = allowed_positions(any(level.is_second_quest for level in levels))
+    if allowed is None:
+        allowed = allowed_positions(any(level.is_second_quest for level in levels))
     for level in levels:
         write_no_drop_color(level)
         for room in level.rooms:

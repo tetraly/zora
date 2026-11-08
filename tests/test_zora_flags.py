@@ -188,7 +188,8 @@ def test_the_module_lists_one_field_per_flag() -> None:
         "do_not_segment_dungeons", "disable_custom_music", "gatekeeper_bosses", *zora_flags.FULL_HEALTH_FIELDS,
         "harder_bosses", "harder_ganon", "offense_pacing", "defense_pacing", "recorder_warping",
         *zora_flags.SWAP_SWORDS_AND_RINGS_FIELDS, "swordlish", "swordlish_lowest", "swordlish_highest",
-        "item_shuffle_no_vanilla", *zora_flags.COMPASS_CHIME_FIELDS]
+        "item_shuffle_no_vanilla", *zora_flags.COMPASS_CHIME_FIELDS, *zora_flags.UNIVERSAL_DROPS_V2_FIELDS,
+        "detailed_spoiler_log"]
 
 
 def field_named(name: str) -> zora_flags.ZoraField:

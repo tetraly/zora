@@ -28,11 +28,16 @@ const SEED_CODE_LENGTH = 4;
 // metadata, in field.values, like an option field's.
 const TOGGLE_ON = 1;
 const TOGGLE_OFF = 0;
-// The flag tabs, in order; web/flag-tabs.json maps each field id to one, and
-// to its help text (docs/flag-names.csv, what_it_does). A field it does not
-// name goes to the fallback tab. ZORA extras and Look and feel follow them.
-const START_TAB = "Starting Items";
-const FLAG_TABS = ["Overworld", "Dungeons", "Items", START_TAB, "Monsters", "Misc"];
+// The flag tabs, in order; web/flag-tabs.json maps each field id to one, with its column and row there
+// (issue #15: the original program's tabs and places, from z1r.wiki/wiki/Flags), and to its help text
+// (docs/flag-names.csv, what_it_does). A field it does not name goes to the fallback tab. TOP_SECTION's
+// fields sit above the tabs. ZORA extras and Look and feel follow the tabs.
+const TOP_SECTION = "Quests and hints";
+const START_TAB = "Start Items";
+const ADVANCED_TAB = "Advanced";
+const FLAG_TABS = ["Shops", "Dungeon Items", "Dungeons", "Monsters", "Misc", "Overworld", START_TAB, ADVANCED_TAB];
+// Flag tabs shown after ZORA extras (and before Look and feel), not with the others.
+const AFTER_ZORA_TABS = [ADVANCED_TAB];
 const FALLBACK_TAB = "Misc";
 const ZORA_TAB = "ZORA extras";
 const LOOK_TAB = "Look and feel";
@@ -55,6 +60,7 @@ const RETRY_MIN_MS = 1000;            // too little left for another seed: stop
 const STOPPED = /GenerationStopped/;
 const GENERATION_FAILED = /generation failed after/;
 const NOT_IMPLEMENTED = "Not yet implemented";
+const BETA_SUFFIX = " (beta)";          // a beta value's label in its control
 // A music problem (zora.rom.music's MusicError: a library, playlist or size problem) as Python names it.
 const MUSIC_PROBLEM = /^zora\.rom\.music\.(?:library|importer|playlist)\.\w+: /;
 const PASTED_FLAGS = "pasted flags";
@@ -156,8 +162,7 @@ worker.onmessage = (event) => {
     restoreBaseRom();
     flagTabsRequest.then((flagTabs) => {
       buildForm(flagTabs);
-      status(`Ready in ${(window.zoraTimings.readyMs / 1000).toFixed(1)} s ` +
-             `(Pyodide ${message.pyodide}, Python ${message.python}). ` +
+      status(`Ready in ${(window.zoraTimings.readyMs / 1000).toFixed(1)} s. ` +
              (mode === MULTIWORLD ? "Choose your settings and player name."
               : baseRom ? "Base ROM remembered from your last visit." : "Choose the base ROM."));
       if (sharedLink.flags !== null || sharedLink.zoraFlags !== null) {
@@ -250,7 +255,14 @@ const flagTabsRequest = loadFlagTabs();
 
 function tabOf(flagTabs, fieldId) {
   const tab = flagTabs[fieldId] && flagTabs[fieldId].tab;
-  return FLAG_TABS.includes(tab) ? tab : FALLBACK_TAB;
+  return FLAG_TABS.includes(tab) || tab === TOP_SECTION ? tab : FALLBACK_TAB;
+}
+
+// A field's place in its tab: [column, row], both from 1 (flag-tabs.json); an unplaced field goes last
+// in the first column.
+function placeOf(flagTabs, fieldId) {
+  const entry = flagTabs[fieldId] || {};
+  return [entry.column || 1, entry.row || Infinity];
 }
 
 function isHiddenField(flagTabs, fieldId) {
@@ -268,11 +280,13 @@ function isConsternationField(field) {
 }
 
 // A setting row: changed-dot, name, "?" help, the control; a reason line under it.
-function settingRow(name, help, control) {
+// A whole flag in beta gets the beta tag beside its name.
+function settingRow(name, help, control, betaFlag = false) {
   const dot = element("span", { className: "setting-dot", ariaHidden: "true" });
   const changed = element("span", { className: "visually-hidden", textContent: " (changed)" });
   const label = element("span", { className: "setting-label", textContent: name });
   const nameBox = element("span", { className: "setting-name" }, label);
+  if (betaFlag) nameBox.append(element("span", { className: "beta-tag", textContent: "beta" }));
   if (help) nameBox.append(helpButton(name, plainText(help)));
   nameBox.append(changed);
   const reason = element("p", { className: "setting-reason" });
@@ -306,11 +320,12 @@ function noteIn(values, value) {
 }
 
 // A segmented control: one button per value, labeled by `labelOf`.
-function segments(name, values, labelOf, onPick) {
+// `textOf` gives the button's text when it differs from the label (a beta value's tag).
+function segments(name, values, labelOf, onPick, textOf = labelOf) {
   const group = element("div", { className: "seg", role: "group", ariaLabel: name });
   const buttons = new Map();
   for (const value of values) {
-    const button = element("button", { type: "button", textContent: labelOf(value) });
+    const button = element("button", { type: "button", textContent: textOf(value) });
     button.dataset.choice = labelOf(value).toLowerCase();
     button.setAttribute("aria-pressed", "false");
     button.addEventListener("click", () => onPick(value));
@@ -335,7 +350,8 @@ function fieldRow(field, help, hidden) {
   let controlNode;
   let note = null;
   if (field.kind === "option") {
-    input = controlNode = selectControl(`field-${field.id}`, fieldName(field), field.values, onControlChanged);
+    input = controlNode = selectControl(`field-${field.id}`, fieldName(field), betaTagged(field.id, field.values),
+                                        onControlChanged);
     if (field.values.some((entry) => entry.note)) {        // the chosen value's note, beside the select
       note = element("span", { className: "value-note" });
       controlNode = element("span", { className: "value-noted" }, note, input);
@@ -346,7 +362,7 @@ function fieldRow(field, help, hidden) {
                                                (value) => onToggled(field.id, value)));
     controlNode.id = `field-${field.id}`;
   }
-  const { row, reason, changed } = settingRow(fieldName(field), help, controlNode);
+  const { row, reason, changed } = settingRow(fieldName(field), help, controlNode, isBetaFlag(field.id));
   return { row, control: { kind: field.kind === "option" ? "select" : "segments", input, buttons, note, row, reason,
                            changed, value: 0, field, supported: new Set(field.supportedValues),
                            shown: !hidden && (field.id === metadata.encodeLevelData || isConsternationField(field)) } };
@@ -376,30 +392,46 @@ function settingGrid() {
 function buildForm(flagTabs) {
   $("version").textContent = EMBEDDED_INFO ? EMBEDDED_INFO.label : `v${metadata.version}`;
   buildPresets();
-  // Each flag tab: its option fields, then its three-state fields (metadata
-  // order). Encode level data is a two-state field of the Misc tab (owner).
-  const grids = new Map();
+  // Each flag tab: its columns, each field in its column and row (flag-tabs.json; issue #15), the
+  // TOP_SECTION's fields above the tabs. Encode level data is a two-state field of the Misc tab (owner).
   flagTabsMap = flagTabs;
   startRules = startItemRules(flagTabs);
-  for (const name of FLAG_TABS) {
-    const grid = settingGrid();
+  const columns = new Map([[TOP_SECTION, $("top-flags")]]);
+  const flagTab = (name) => {
     const panel = addTab(name);
     if (name === START_TAB) panel.append(...startItemNotes());
-    panel.append(grid);
-    grids.set(name, grid);
-  }
+    columns.set(name, panel.appendChild(element("div", { className: "setting-columns" })));
+  };
+  FLAG_TABS.filter((name) => !AFTER_ZORA_TABS.includes(name)).forEach(flagTab);
+  buildZoraPanel(addTab(ZORA_TAB));
+  AFTER_ZORA_TABS.forEach(flagTab);
+  const placed = [];
   for (const field of metadata.fields) {
     const help = field.id === metadata.encodeLevelData ? metadata.levelEncoding.help : helpOf(flagTabs, field);
     const { row, control } = fieldRow(field, help, isHiddenField(flagTabs, field.id));
     control.tab = tabOf(flagTabs, field.id);
     row.hidden = !control.shown;
-    grids.get(control.tab).append(row);
+    placed.push([control.tab, ...placeOf(flagTabs, field.id), row]);
     controls.set(field.id, control);
   }
-  buildZoraPanel(addTab(ZORA_TAB));
+  placed.sort((a, b) => a[1] - b[1] || a[2] - b[2]);
+  for (const [tab, column, , row] of placed) {
+    const holder = columns.get(tab);
+    while (holder.children.length < column) holder.append(element("div", { className: "setting-column" }));
+    holder.children[column - 1].append(row);
+  }
+  // Each (min, max) pair on one line (flag-tabs.json's summaryRange: White Sword Hearts, Triforce Range)
+  for (const field of metadata.fields) {
+    const range = flagTabs[field.id] && flagTabs[field.id].summaryRange;
+    if (range && controls.has(range.max)) pairRows(controls.get(field.id).row, controls.get(range.max).row);
+  }
+  // The Enable Beta Flags switch beside Hint Type, under Dungeon Quest; its warning under the whole section.
+  $("top-flags").firstElementChild.append($("beta-bar"));
+  $("top-flags").after($("beta-warning"));
   buildLookPanel(addTab(LOOK_TAB));
   initTabs($("tabs"));
   initFlagSummary();
+  initBetaSwitch();
   $("flags").disabled = false;
   $("zora-flags").disabled = false;
   $("form").hidden = false;
@@ -443,8 +475,10 @@ function startItemNotes() {
 // ---------------------------------------------------------------------------
 
 const SUMMARY_KEY = "zora-flag-summary";      // whether the summary is open, this browser only
-// The sections' order: the tabs', but Starting Items just before Misc (owner, 2026-10-26), ZORA extras last.
-const SUMMARY_ORDER = ["Overworld", "Dungeons", "Items", "Monsters", START_TAB, "Misc", ZORA_TAB];
+// The sections' order: the tabs', but Start Items just before Misc and Advanced (owner, 2026-10-26),
+// ZORA extras last.
+const SUMMARY_ORDER = [TOP_SECTION, ...FLAG_TABS.filter((tab) => ![START_TAB, "Misc", ADVANCED_TAB].includes(tab)),
+                       START_TAB, "Misc", ADVANCED_TAB, ZORA_TAB];
 // ZORA extras' one line when every one is Off.
 const SUMMARY_NO_EXTRAS = "None";
 
@@ -546,31 +580,92 @@ function initFlagSummary() {
 // switches are on or off (no Random); the owner's 2.0 flags (kind
 // "three_state") are Off, On or Random, like the Z1R toggles; the hearts cap is
 // a choice.
+// The ZORA extras tab's groups (issue #15), each two columns of extras by field name. An extra no group
+// names goes under ZORA_OTHER_GROUP, so none can go missing.
+const ZORA_GROUPS = [
+  ["Items", [["progressive_items", "randomize_magical_sword", "randomize_letter", "add_l4_sword", "shuffle_blue_potion",
+              "magical_boomerang_damage", "swap_swords_and_rings", "offense_pacing", "defense_pacing"],
+             ["shop_items_in_pool", "magical_sword_hearts_highest", "allow_triforces_in_stairways",
+              "shuffle_wood_sword", "four_potion_inventory", "pegasus_boots", "swordlish", "swordlish_lowest",
+              "swordlish_highest"]]],
+  ["Locations", [["extra_raft_blocks", "randomize_lost_hills", "expanded_dungeon_locations", "level_9_entrance_sword",
+                  "recorder_warping"],
+                 ["extra_power_bracelet_blocks", "randomize_dead_woods", "do_not_segment_dungeons",
+                  "universal_drops_v2"]]],
+  ["Enemies", [["recorder_kills_pols_voice", "oops_all_enemies", "harder_bosses"],
+               ["like_like_eats_rupees", "oops_all_bosses", "harder_ganon"]]],
+  ["Miscellaneous", [["speed_up_dungeon_transitions", "highlight_no_drop_rooms", "full_health"],
+                ["speed_up_heart_fill", "disable_custom_music", "compass_chime"]]],
+];
+const ZORA_OTHER_GROUP = "Other";
+
 function buildZoraPanel(panel) {
   panel.append(element("p", { className: "panel-note",
-    textContent: "ZORA's own settings, kept in the ZORA flag string beside the Z1R one. " +
-                 "Any of them on changes the seed and its code." }));
-  const grid = settingGrid();
+    textContent: "ZORA's own settings, kept in the ZORA flag string beside the Z1R one." }));
+  const rows = new Map();
   for (const field of metadata.zora.fields) {
     let input = null;
     let buttons = null;
     let controlNode;
     if (field.kind === "option") {
-      input = controlNode = selectControl(`zora-${field.name}`, field.label, field.values, onZoraControlChanged);
+      input = controlNode = selectControl(`zora-${field.name}`, field.label, betaTagged(field.name, field.values),
+                                          onZoraControlChanged);
     } else {
       const choices = field.values.map((entry) => entry.value);
       ({ group: controlNode, buttons } = segments(field.label, choices, (value) => labelIn(field.values, value),
                                                  (value) => onZoraToggled(field.name, value)));
       controlNode.id = `zora-${field.name}`;
     }
-    const { row, reason, changed } = settingRow(field.label, field.help, controlNode);
+    const { row, reason, changed } = settingRow(field.label, field.help, controlNode, isBetaFlag(field.name));
     // A hidden field is set from another tab (Item Shuffle's Random (No Vanilla)); its control only carries the value.
     row.hidden = Boolean(field.hidden);
-    grid.append(row);
+    rows.set(field.name, row);
     zoraControls.set(field.name, { kind: field.kind === "option" ? "select" : "segments", input, buttons, row,
                                    reason, changed, value: 0 });
   }
-  panel.append(grid);
+  const grouped = new Set(ZORA_GROUPS.flatMap(([, columns]) => columns.flat()));
+  const others = [...rows.keys()].filter((name) => !grouped.has(name));
+  for (const [heading, names] of [...ZORA_GROUPS, [ZORA_OTHER_GROUP, [others]]]) {
+    const shown = names.map((column) => column.filter((name) => rows.has(name)).map((name) => rows.get(name)));
+    if (!shown.flat().some((row) => !row.hidden)) {
+      panel.append(...shown.flat());                       // hidden rows only: no heading
+      continue;
+    }
+    panel.append(element("h3", { className: "setting-heading", textContent: heading }),
+                 element("div", { className: "setting-columns" },
+                         ...shown.map((column) => element("div", { className: "setting-column" }, ...column))));
+  }  // Swordlish pieces (min, max) on one line, as the Z1R pairs
+  for (const field of metadata.zora.fields) {
+    const max = field.summaryRange && rows.get(field.summaryRange.max);
+    if (max) pairRows(rows.get(field.name), max);
+  }
+}
+
+// A (min, max) pair as one line (issue #15): "White Sword Hearts (min/max)  4 … 6". Each keeps its own
+// row, so its changed dot, lock and notes work as before; the max row loses its name (kept for screen
+// readers) and sits beside the min row, whose help then holds both.
+const PAIR_SEPARATOR = "…";
+function pairRows(minRow, maxRow) {
+  const label = minRow.querySelector(".setting-label");
+  const name = label.textContent.replace(/ \(min\)$/, " (min/max)");
+  label.textContent = name;
+  const tips = [minRow, maxRow].map((row) => row.querySelector(".tip")?.textContent || "");
+  const sentences = tips[0].split(/(?<=\.) /);
+  const help = [...sentences, ...tips[1].split(/(?<=\.) /).filter((part) => !sentences.includes(part))].join(" ");
+  minRow.querySelector(".help-wrap")?.replaceWith(helpButton(name, help));
+  maxRow.querySelector(".setting-name").classList.add("visually-hidden");
+  const separator = element("span", { className: "pair-separator", ariaHidden: "true", textContent: PAIR_SEPARATOR });
+  maxRow.querySelector(".setting-control").prepend(separator);
+  const pair = element("div", { className: "setting-pair" });
+  minRow.replaceWith(pair);
+  // Both rows' notes go under the whole line, the max row's only when it says something the min row's
+  // doesn't (both are locked by the same setting, with the same note).
+  const [minReason, maxReason] = [minRow, maxRow].map((row) => row.querySelector(".setting-reason"));
+  const showMaxReason = () => { maxReason.hidden = maxReason.textContent === minReason.textContent; };
+  for (const reason of [minReason, maxReason]) {
+    new MutationObserver(showMaxReason).observe(reason, { childList: true, characterData: true, subtree: true });
+  }
+  pair.append(minRow, maxRow, minReason, maxReason);
 }
 
 function zoraValues() {
@@ -624,13 +719,16 @@ function showZoraState(zora, { rewrite }) {
     const choices = control.kind === "select" ? [...control.input.options] : [...control.buttons.values()];
     const values = control.kind === "select" ? choices.map((option) => Number(option.value)) : [...control.buttons.keys()];
     choices.forEach((choice, index) => {
-      const why = values[index] === control.value ? undefined : multiworldReason(name, values[index]);
+      const why = values[index] === control.value ? undefined
+        : multiworldReason(name, values[index]) ?? betaReason(name, values[index]);
       choice.disabled = why !== undefined;
       choice.title = why || "";
     });
     const refusedHere = multiworldReason(name, control.value);
-    control.row.classList.toggle("setting--problem", refusedHere !== undefined);
-    control.reason.textContent = refusedHere !== undefined ? `${refusedHere} Choose another value to export.` : "";
+    const betaHere = betaReason(name, control.value);
+    control.row.classList.toggle("setting--problem", refusedHere !== undefined || betaHere !== undefined);
+    control.reason.textContent = refusedHere !== undefined ? `${refusedHere} Choose another value to export.`
+      : betaHere !== undefined ? `${metadata.beta.current}.` : "";
     markChanged(control, startState !== null && startState.zora[name] !== control.value);
   }
   showUnavailable(zora.unavailable || []);
@@ -2373,6 +2471,72 @@ function multiworldReason(id, value) {
   return !offered || offered.includes(value) ? undefined : metadata.multiworld.notOffered;
 }
 
+// ---------------------------------------------------------------------------
+// Beta settings (metadata.beta, from zora/flags/flags.json): a flag (a Z1R field's id, a ZORA flag's
+// name) or some of its values still in beta, a Random that can resolve to one included. The switch is the page's alone, never in a flag string: off,
+// they cannot be picked; strings loaded with one turn it on, with the warning; turned off while some are
+// in use, they show as problems and block Generate and Export until changed. The beta notice at the top
+// of the page shows only while the switch is on.
+// ---------------------------------------------------------------------------
+
+let betaOn = false;
+let betaTurnedOnByFlags = false;     // the warning then says why the switch came on
+
+function betaValuesOf(id) {
+  return (metadata.beta && metadata.beta.values[id]) || [];
+}
+
+function isBetaFlag(id) {
+  return Boolean(metadata.beta && metadata.beta.flags.includes(id));
+}
+
+function betaLabel(id, value, label) {
+  return betaValuesOf(id).includes(value) ? label + BETA_SUFFIX : label;
+}
+
+// A value list with each beta value's label tagged, for a select's options.
+function betaTagged(id, values) {
+  return values.map((entry) => ({ ...entry, label: betaLabel(id, entry.value, entry.label) }));
+}
+
+// Why a value cannot be picked while the switch is off, or undefined when it can.
+function betaReason(id, value) {
+  return !betaOn && betaValuesOf(id).includes(value) ? metadata.beta.locked : undefined;
+}
+
+// The beta settings the strings use while the switch is off (each {field, value, text}).
+function betaBlocking() {
+  return !betaOn && form && form.beta ? form.beta : [];
+}
+
+function showBetaSwitch() {
+  $("beta-bar").hidden = Object.keys(metadata.beta.values).length === 0;
+  $("beta-off").setAttribute("aria-pressed", String(!betaOn));
+  $("beta-on").setAttribute("aria-pressed", String(betaOn));
+  $("beta-warning").hidden = !betaOn;
+  $("beta-banner").hidden = !betaOn;     // the notice at the top of the page, only with beta on
+  $("beta-warning").textContent = betaTurnedOnByFlags ? `${metadata.beta.inUse}. ${metadata.beta.warning}`
+    : `${metadata.beta.on}. ${metadata.beta.warning}`;
+}
+
+function setBeta(on, { byFlags = false } = {}) {
+  betaOn = on;
+  betaTurnedOnByFlags = on && byFlags;
+  showBetaSwitch();
+}
+
+function onBetaPicked(on) {
+  if (on === betaOn) return;
+  setBeta(on);
+  if (form) showState(form, { rewrite: false });
+}
+
+function initBetaSwitch() {
+  $("beta-off").addEventListener("click", () => onBetaPicked(false));
+  $("beta-on").addEventListener("click", () => onBetaPicked(true));
+  showBetaSwitch();
+}
+
 // Why a field offers only its value. In multiworld mode Archipelago's reason comes first (each value's
 // own reason lists it first): a field it never offers, or one whose other values it does not take.
 function lockedReason(id, field, reasons) {
@@ -2386,7 +2550,8 @@ function showField(id, control, field) {
   const reasons = [];      // why the other values cannot be picked
   let pickable = 0;
   const offer = (value) => {
-    const why = value === field.value ? undefined : multiworldReason(id, value) ?? blockedReason(id, field, value);
+    const why = value === field.value ? undefined
+      : multiworldReason(id, value) ?? betaReason(id, value) ?? blockedReason(id, field, value);
     if (why !== undefined) reasons.push(why);
     else if (value !== field.value) pickable++;
     return why;
@@ -2411,7 +2576,8 @@ function showField(id, control, field) {
   }
   // Multiworld mode: a value Archipelago does not take needs changing, like a refused one.
   const refusedHere = multiworldReason(id, field.value);
-  const problem = field.problem || refusedHere !== undefined;
+  const betaHere = betaReason(id, field.value);
+  const problem = field.problem || refusedHere !== undefined || betaHere !== undefined;
   const locked = pickable === 0 && !problem;
   control.row.classList.toggle("setting--locked", locked);
   control.row.classList.toggle("setting--problem", problem);
@@ -2420,6 +2586,7 @@ function showField(id, control, field) {
   control.reason.textContent = field.problem
     ? (isNotImplemented(control, field.value) ? NOT_IMPLEMENTED : plainText(field.reason))
     : refusedHere !== undefined ? `${refusedHere} Choose another value to export.`
+    : betaHere !== undefined ? `${metadata.beta.current}.`
     : locked ? plainText(lockedReason(id, field, reasons))
     : field.notice ? `${plainText(field.notice)}.` : "";     // a pasted postponed value (B06)
   markChanged(control, startState !== null && startState.fields[id] !== field.value);
@@ -2455,6 +2622,8 @@ function showState(state, { rewrite, start = false, name = "" }) {
     return;
   }
   form = state;
+  // Loaded strings (pasted, a preset, a link, a settings file) that use a beta setting turn the switch on.
+  if ((start || startState === null) && state.beta.length > 0 && !betaOn) setBeta(true, { byFlags: true });
   if (start || startState === null) setStart(state, name);
   $("flags").classList.remove("flag-bar-input--error");
   $("flags-error").textContent = state.blockedChange ? `Not changed: ${plainText(state.blockedChange)}` : "";
@@ -2481,15 +2650,17 @@ function showProblems() {
   if (!form) return;
   const notes = [...(form.notices || []).map((text) => `Notice: ${plainText(text)}.`),
                  ...form.refusals.map((text) => `Rule: ${plainText(text)}`), ...form.adjustments.map(plainText)];
+  const beta = betaBlocking().map((entry) => `${plainText(entry.text)}. ${metadata.beta.current}.`);
   let lines;
   if (mode === MULTIWORLD) {
     const reasons = multiworldVerdict ? multiworldVerdict.reasons : [];
     lines = [...notes, ...reasons.filter((text) => !form.refusals.some((rule) => text.includes(rule)))
-      .map((text) => `Cannot export: ${plainText(text)}`)];
+      .map((text) => `Cannot export: ${plainText(text)}`), ...beta.map((text) => `Cannot export: ${text}`)];
   } else {
     const refusals = form.generateRefusals.filter((text) => !form.refusals.includes(text)
                                                         && !text.startsWith(NOT_PRODUCED_REFUSAL));
-    lines = [...notImplementedLines(form), ...notes, ...refusals.map((text) => `Cannot generate: ${plainText(text)}`)];
+    lines = [...notImplementedLines(form), ...notes, ...refusals.map((text) => `Cannot generate: ${plainText(text)}`),
+             ...beta.map((text) => `Cannot generate: ${text}`)];
   }
   $("problems").replaceChildren(...lines.map((text) => element("li", { textContent: text })));
 }
@@ -2621,6 +2792,7 @@ function setMode(next) {
   $("step-generate-title").textContent = multiworld ? "Export your Archipelago YAML" : "Generate the game";
   // Each mode keeps its own last result: a generated ROM, an exported YAML.
   $("generate-result").hidden = multiworld || !$("download").hasChildNodes();
+  $("batch-result").hidden = multiworld || !$("batch-summary").hasChildNodes();
   $("export-result").hidden = !multiworld || !$("yaml-download").hasChildNodes();
   markStepDone("step-generate-num", 3, !$(multiworld ? "export-result" : "generate-result").hidden);
   multiworldVerdict = null;
@@ -2683,7 +2855,8 @@ async function checkPlayerName() {
 
 function canExport() {
   return ready && form && !flagsPending && $("flags-error").textContent === "" && form.zora.ok
-    && playerNameProblem === null && multiworldVerdict !== null && multiworldVerdict.ok;
+    && playerNameProblem === null && multiworldVerdict !== null && multiworldVerdict.ok
+    && betaBlocking().length === 0;
 }
 
 async function onExport() {
@@ -2727,15 +2900,15 @@ function onSeedChanged() {
   updateLink();
 }
 
-function canGenerate() {
+function canGenerate(batchProblem = null) {
   return ready && baseRom && form && !flagsPending && $("flags-error").textContent === ""
-    && form.zora.ok && form.generateRefusals.length === 0 && musicReady()
-    && /^\d+$/.test($("seed").value.trim());
+    && form.zora.ok && form.generateRefusals.length === 0 && betaBlocking().length === 0 && musicReady()
+    && /^\d+$/.test($("seed").value.trim()) && batchProblem === null && !batch;
 }
 
 function updateButton() {
   $("export").disabled = !canExport();
-  $("generate").disabled = !canGenerate();
+  $("generate").disabled = !canGenerate(showBatchOptions().problem);
   $("seed").classList.toggle("seed-input--error", !/^\d*$/.test($("seed").value.trim()));
 }
 
@@ -2875,15 +3048,18 @@ async function generateSeed(seed, flags = form.flags, zoraFlags = form.zora.flag
                                          musicPlaylist: random ? musicPlaylistText() : null });
   window.zoraTimings.seeds.push({ seed: String(seed), ms: result.ms });
   return { bytes: result.rom, ms: result.ms, flags: result.flags, zoraFlags: result.zoraFlags, seed: result.seed,
-           encoded: result.encoded, code: result.code, codeIcons: result.codeIcons,
+           encoded: result.encoded, spoilerLevel: result.spoilerLevel || 0, code: result.code,
+           codeIcons: result.codeIcons,
            tracks: result.tracks || null, musicWarnings: result.musicWarnings || [],
            musicLibraries: result.musicLibraries || [], reportBytes: result.reportRom || null };
 }
 window.zoraGenerateSeed = generateSeed;
 
 // ---------------------------------------------------------------------------
-// After a seed: "View in visualizer" and "Spoiler log" (encoding off only).
-// Both come from one report the worker builds from the finished ROM
+// After a seed: "Spoiler log" and "View in visualizer", both with encoding off only;
+// "Spoiler log" also only when the seed's Spoiler Log Detail Level resolved to Basic,
+// Medium or Full (owner rulings, 2026-11-06; the visualizer is ruled by Encode level
+// data alone). Both come from one report the worker builds from the finished ROM
 // (zora_web.api.seed_report): the seed document and the spoiler log, which
 // therefore cannot disagree. Making it changes nothing in the ROM.
 // ---------------------------------------------------------------------------
@@ -2944,17 +3120,35 @@ function viewInVisualizer(result) {
   }, VISUALIZER_WAIT_MS);
 }
 
+function saveText(text, name, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const link = element("a", { href: url, download: name });
+  document.body.append(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 async function downloadSpoiler(result) {
   try {
     const report = await seedReport(result);
-    const url = URL.createObjectURL(new Blob([report.spoiler], { type: "text/plain" }));
-    const link = element("a", { href: url, download: report.spoilerName });
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    saveText(report.spoiler, report.spoilerName, "text/plain");
   } catch (err) {
     showAfterSeed(`No spoiler log: ${err.message}`, "error");
+  }
+}
+
+// The ZoraTracker save file, at the same level as the log. ZTracker opens it too but drops the items
+// numbered 15 and up (ZoraTracker's additions); report.ztrackerNote names what it will miss for this seed
+// (tracker_file.ztracker_note), when it misses anything, and always ZTracker's version warning.
+
+async function downloadTracker(result) {
+  try {
+    const report = await seedReport(result);
+    saveText(report.tracker, report.trackerName, "application/json");
+    showAfterSeed(["Tracker file saved.", report.ztrackerNote].filter(Boolean).join(" "), "ready");
+  } catch (err) {
+    showAfterSeed(`No tracker file: ${err.message}`, "error");
   }
 }
 
@@ -2962,15 +3156,25 @@ const MAP_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" st
   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"></path><path d="M9 4v14M15 6v14"></path></svg>';
 
-function addSeedReportButtons(result) {
-  const spoiler = element("button", { type: "button", id: "download-spoiler", className: "btn btn-outline",
-                                      textContent: "Spoiler log" });
-  spoiler.addEventListener("click", () => downloadSpoiler(result));
+// The report buttons: "Spoiler log" and "Download tracker file" when the seed's level is above None
+// (result.spoilerLevel, the level its "?" resolved to), encoded or not; "View in visualizer" only with
+// Encode level data off.
+function addSeedReportButtons(result, encoded) {
+  if (result.spoilerLevel > 0) {
+    const spoiler = element("button", { type: "button", id: "download-spoiler", className: "btn btn-outline",
+                                        textContent: "Spoiler log" });
+    spoiler.addEventListener("click", () => downloadSpoiler(result));
+    const tracker = element("button", { type: "button", id: "download-tracker", className: "btn btn-outline",
+                                        textContent: "Download tracker file" });
+    tracker.addEventListener("click", () => downloadTracker(result));
+    $("download").append(spoiler, tracker);
+  }
+  if (encoded) return;
   const view = element("button", { type: "button", id: "view-visualizer", className: "btn btn-outline" });
   view.innerHTML = MAP_ICON;
   view.append("View in visualizer");
   view.addEventListener("click", () => viewInVisualizer(result));
-  $("download").append(spoiler, view);
+  $("download").append(view);
 }
 window.zoraViewInVisualizer = viewInVisualizer;
 
@@ -3012,9 +3216,12 @@ function seedCodeItem(name, pixels) {
 // "Copy bug report info" (owner's triage, 2026-10-17): one block a player pastes into a bug report,
 // enough to make the same game again: the page's version, the seed, both flag strings as asked for
 // (the page never shows what Random resolved to), the ROM and the seed code as its item names.
+// The beta settings in use come right after the version (owner ruling, 2026-11-06), so a report of a
+// less-tested setting says so first.
 function bugReportText(info) {
   const graphics = info.identity.modifiedGraphics ? ", modified graphics" : "";
-  return [`ZORA ${info.version}`, `Seed: ${info.seed}`, `Z1R flags: ${info.flags}`,
+  const beta = info.beta.length ? [`BETA SETTINGS IN USE: ${info.beta.join("; ")}`] : [];
+  return [`ZORA ${info.version}`, ...beta, `Seed: ${info.seed}`, `Z1R flags: ${info.flags}`,
           `ZORA flags: ${info.zoraFlags || "(none)"}`, `ROM: ${info.identity.revision}${graphics}`,
           `Seed code: ${info.code.length ? seedCodeText(info.code) : "(none)"}`].join("\n");
 }
@@ -3023,17 +3230,18 @@ function bugReportText(info) {
 // version, the seed, the strings as asked for, the seed code (its item names, or the four
 // characters the screen shows under Item Sprites), the race status and any notice (a postponed
 // setting, B06). The race status is B82, one switch: the original's Race ROM, the spec's tournament
-// mode, this page's "Encode level data". On, the level data is encoded and ZORA makes no spoiler log
-// for the seed; off, anyone with the flags and seed can make one.
-const RACE_ROM_ON = "Race ROM: on (level data encoded, no spoiler log)";
-const RACE_ROM_OFF = "Race ROM: off (spoiler log available)";
+// mode, this page's "Encode level data": on, the level data is encoded and no tool can read it. The
+// spoiler log is Spoiler Log Detail Level as asked (owner rulings, 2026-11-06): a seed made at None never
+// gets a log afterwards, so a race that wants one after the race picks a level and keeps the log private.
+const RACE_ROM_ON = "Race ROM: on (level data encoded)";
+const RACE_ROM_OFF = "Race ROM: off";
 
 function raceInfoText(info) {
-  const spoiler = info.encoded ? RACE_ROM_ON : RACE_ROM_OFF;
+  const race = info.encoded ? RACE_ROM_ON : RACE_ROM_OFF;
   return [`ZORA ${info.version}`, `Seed: ${info.seed}`, `Flags: ${info.flags}`,
           ...(info.zoraFlags ? [`ZORA flags: ${info.zoraFlags}`] : []),
           ...(info.code.length ? [`Seed code: ${seedCodeText(info.code)}`] : []),
-          spoiler, ...info.notices.map((text) => `Notice: ${text}.`)].join("\n");
+          race, `Spoiler log: ${info.spoilerLevel}`, ...info.notices.map((text) => `Notice: ${text}.`)].join("\n");
 }
 
 // The clipboard API, or, where the browser refuses it, a selected text area and the copy command.
@@ -3132,12 +3340,16 @@ async function onGenerate() {
   // Random field resolved to, so the result shows these and not the resolved
   // flags. Encode level data is on or off, never Random, so `encoded` is the switch.
   const requested = { flags: form.flags, zoraFlags: form.zora.flags, notices: form.notices || [],
+                      beta: (form.beta || []).map((entry) => entry.text),
                       encoded: form.fields[metadata.encodeLevelData].value === TOGGLE_ON,
+                      spoilerLevel: labelIn(controls.get(metadata.spoilerLevelField).field.values,
+                                            form.fields[metadata.spoilerLevelField].value),
                       hideTracks: playerSettings.musicHideTrackList === "on" };
   const button = $("generate");
   button.disabled = true;
   button.replaceChildren(element("span", { className: "spinner", ariaHidden: "true" }), "Generating…");
   $("generate-result").hidden = true;
+  $("batch-result").hidden = true;
   $("download").replaceChildren();
   $("result").replaceChildren();
   $("seed-code").replaceChildren();
@@ -3148,11 +3360,12 @@ async function onGenerate() {
   try {
     const result = await generateWithinLimit();
     const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/octet-stream" }));
-    const name = `zora-seed-${result.seed}${requested.encoded ? "-encoded" : ""}${result.tracks ? "-music" : ""}.nes`;
+    const name = romFileName(result, requested.encoded);
     $("download").append(element("a", { id: "download-link", className: "btn btn-teal", href: url,
                                         download: name, title: name, textContent: "Download ROM" }));
-    // A seed made with "Encode level data" stays unreadable: no spoiler, no visualizer.
-    if (!requested.encoded) addSeedReportButtons(result);
+    // A seed made with "Encode level data" never goes to the visualizer; its log and tracker file, when it
+    // has a log level, come from its ROM before encoding.
+    addSeedReportButtons(result, requested.encoded);
     $("result").append(element("dt", { textContent: "Seed" }), element("dd", { textContent: result.seed }),
                        element("dt", { textContent: "Z1R flags" }), element("dd", { textContent: requested.flags }));
     if (requested.zoraFlags) {
@@ -3170,7 +3383,8 @@ async function onGenerate() {
     // The ROM as identified when it was chosen: another chosen later does not change this seed's.
     addCopyButtons({ version: $("version").textContent, seed: result.seed, flags: requested.flags,
                      zoraFlags: requested.zoraFlags, identity: romIdentity, code,
-                     encoded: requested.encoded, notices: requested.notices });
+                     encoded: requested.encoded, spoilerLevel: requested.spoilerLevel, notices: requested.notices,
+                     beta: requested.beta });
     // The seed code (four items, with their icons), once Python reports one.
     if (code.length) {
       const icons = Array.isArray(result.codeIcons) && result.codeIcons.length === code.length ? result.codeIcons : [];   // none for text
@@ -3184,13 +3398,353 @@ async function onGenerate() {
     linkSeed = String(result.seed);
     updateLink();
   } catch (err) {
-    const notProduced = err.message.indexOf(NOT_PRODUCED_REFUSAL);
-    if (MUSIC_PROBLEM.test(err.message)) status(`The music could not be made: ${err.message.replace(MUSIC_PROBLEM, "")}`, "error");
-    else status(notProduced < 0 ? `Generation failed: ${err.message}`
-      : `${NOT_IMPLEMENTED}: ${err.message.slice(notProduced + NOT_PRODUCED_REFUSAL.length)}`, "error");
+    status(generationErrorText(err), "error");
   }
   button.textContent = "Generate";
   updateButton();
+}
+
+// A seed's ROM file name, the same for a single download, a batch's zip and a batch's folder.
+function romFileName(result, encoded) {
+  return `zora-seed-${result.seed}${encoded ? "-encoded" : ""}${result.tracks ? "-music" : ""}.nes`;
+}
+
+// Why a seed was not made, as the status line (or a batch's list of failures) says it.
+function generationErrorText(err) {
+  const notProduced = err.message.indexOf(NOT_PRODUCED_REFUSAL);
+  if (MUSIC_PROBLEM.test(err.message)) return `The music could not be made: ${err.message.replace(MUSIC_PROBLEM, "")}`;
+  return notProduced < 0 ? `Generation failed: ${err.message}`
+    : `${NOT_IMPLEMENTED}: ${err.message.slice(notProduced + NOT_PRODUCED_REFUSAL.length)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Several seeds at once (issue #16): Number of seeds counts up from the seed box (123, 124, ...).
+// Each seed is made exactly as Generate makes that seed alone when it is typed (generateSeed, the same
+// time limit, never replaced by another), so its ROM is the same byte for byte. Single player only; the
+// count is a page preference (this browser), never in a flag string or a link.
+// A .zip (every browser, up to ZIP_SEED_LIMIT seeds) holds each seed's files, built at the end; a folder
+// (only where showDirectoryPicker exists: Chrome, Edge; up to FOLDER_SEED_LIMIT) gets each seed's files
+// as soon as it is made, so nothing builds up in memory.
+// ---------------------------------------------------------------------------
+
+const SEED_COUNT_KEY = "zora-seed-count";
+const BATCH_OUTPUT_KEY = "zora-batch-output";
+const BATCH_ZIP = "zip";
+const BATCH_FOLDER = "folder";
+const ZIP_SEED_LIMIT = 100;
+const FOLDER_SEED_LIMIT = 1000;
+const ZIP_TYPE = "application/zip";
+let batch = null;                  // the batch being made: {stopping}
+
+function canSaveToFolder() {
+  return typeof window.showDirectoryPicker === "function";
+}
+
+function batchOutput() {
+  return canSaveToFolder() && getSetting(BATCH_OUTPUT_KEY) === BATCH_FOLDER ? BATCH_FOLDER : BATCH_ZIP;
+}
+
+function seedCountLimit(output) {
+  return output === BATCH_FOLDER ? FOLDER_SEED_LIMIT : ZIP_SEED_LIMIT;
+}
+
+// The count box's number, or null when it holds anything but a whole number from 1 to the limit.
+function seedCount(text, limit) {
+  if (!/^\d{1,4}$/.test(text)) return null;
+  const count = Number(text);
+  return count >= 1 && count <= limit ? count : null;
+}
+
+// The seeds a batch makes: `count` seeds counting up from `first`, as text; null when the last would
+// pass ZORA's largest seed.
+function batchSeeds(first, count) {
+  const start = BigInt(first);
+  if (start + BigInt(count) > SEED_LIMIT) return null;
+  return Array.from({ length: count }, (_, index) => (start + BigInt(index)).toString());
+}
+
+// "about 3 min left" from the time each seed so far took.
+function timeLeftText(ms) {
+  const seconds = Math.ceil(ms / 1000);
+  if (seconds < 60) return `about ${seconds} s left`;
+  const minutes = Math.round(seconds / 60);
+  return minutes < 60 ? `about ${minutes} min left` : `about ${Math.floor(minutes / 60)} h ${minutes % 60} min left`;
+}
+
+// The batch's line under the boxes, and its problem (null for none), from the boxes as they are.
+function batchState() {
+  const output = batchOutput();
+  const limit = seedCountLimit(output);
+  const countText = $("seed-count").value.trim();
+  const count = seedCount(countText, limit);
+  const seedText = $("seed").value.trim();
+  if (count === null) {
+    const most = canSaveToFolder() && output === BATCH_ZIP
+      ? `${ZIP_SEED_LIMIT} in a .zip, ${FOLDER_SEED_LIMIT} in a folder` : String(limit);
+    return { count: null, problem: `Number of seeds: a whole number from 1 to ${most}.` };
+  }
+  if (count === 1 || !/^\d+$/.test(seedText)) return { count, problem: null, note: "" };
+  const seeds = batchSeeds(seedText, count);
+  if (seeds === null) {
+    return { count, problem: `Seeds would pass ${SEED_LIMIT - 1n}, ZORA's largest: choose a smaller seed.` };
+  }
+  return { count, problem: null, seeds,
+           note: `Seeds ${seeds[0]} to ${seeds[seeds.length - 1]}, counting up from the seed above.` };
+}
+
+function showBatchOptions() {
+  const state = batchState();
+  const several = state.count === null || state.count > 1;
+  $("batch-options").hidden = !several || mode !== SINGLE;
+  $("batch-output-row").hidden = !canSaveToFolder() || state.count === null && $("seed-count").value.trim() === "";
+  const output = batchOutput();
+  for (const button of $("batch-output").querySelectorAll("button")) {
+    button.setAttribute("aria-pressed", String(button.dataset.choice === output));
+  }
+  $("batch-note").textContent = state.problem || state.note || "";
+  $("batch-note").className = state.problem ? "step-error" : "step-note";
+  $("seed-count").classList.toggle("seed-input--error", state.problem !== null);
+  if (!batch) $("generate").textContent = state.count > 1 ? `Generate ${state.count} seeds` : "Generate";
+  return state;
+}
+
+function onSeedCountChanged() {
+  setSetting(SEED_COUNT_KEY, $("seed-count").value.trim());
+  updateButton();
+}
+
+function onBatchOutputPicked(output) {
+  setSetting(BATCH_OUTPUT_KEY, output);
+  updateButton();
+}
+
+// One batch: each seed in turn, made by make(seed) and handed to keep(seed, made). A seed that fails
+// goes to failed(seed, err) and the batch carries on; once stopped() says so, it ends after the seed
+// being made. progress(done, total, seed, msLeft) before each seed (msLeft null until one is done).
+async function runBatch(seeds, { make, keep, failed, progress, stopped }) {
+  const started = performance.now();
+  let done = 0;
+  let made = 0;
+  for (const seed of seeds) {
+    if (stopped()) break;
+    progress(done, seeds.length, seed, done ? (performance.now() - started) / done * (seeds.length - done) : null);
+    try {
+      await keep(seed, await make(seed));
+      made += 1;
+    } catch (err) {
+      failed(seed, err);
+    }
+    done += 1;
+  }
+  return { done, made, ms: performance.now() - started };
+}
+
+// A seed's files, by the names a single download gives them: the ROM, then its spoiler log and tracker
+// file when its Spoiler Log Detail Level is above None. A report that fails leaves the ROM and says why.
+async function seedFiles(result, encoded) {
+  const files = [{ name: romFileName(result, encoded), bytes: result.bytes }];
+  if (result.spoilerLevel > 0) {
+    const report = await seedReport(result);
+    const text = new TextEncoder();
+    files.push({ name: report.spoilerName, bytes: text.encode(report.spoiler) },
+               { name: report.trackerName, bytes: text.encode(report.tracker) });
+  }
+  return files;
+}
+
+async function writeToFolder(folder, files) {
+  for (const { name, bytes } of files) {
+    const file = await folder.getFileHandle(name, { create: true });
+    const writable = await file.createWritable();
+    await writable.write(bytes);
+    await writable.close();
+  }
+}
+
+// The CRC-32 a .zip records (ISO-HDLC: reflected 0xEDB88320), by table.
+const CRC32_TABLE = Array.from({ length: 256 }, (_, byte) => {
+  let crc = byte;
+  for (let bit = 0; bit < 8; bit += 1) crc = crc & 1 ? 0xEDB88320 ^ (crc >>> 1) : crc >>> 1;
+  return crc >>> 0;
+});
+
+function crc32(bytes) {
+  let crc = 0xFFFFFFFF;
+  for (const byte of bytes) crc = CRC32_TABLE[(crc ^ byte) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFFFFFFFF) >>> 0;
+}
+
+// A store-only .zip (no compression; APPNOTE 4.3) of [{name, bytes}], each dated `date`, as the parts of
+// one file (a Blob takes them as they are). Names are UTF-8 (general purpose bit 11). Far below the
+// format's limits without Zip64: at most 65,535 files and 4 GB.
+const ZIP_LOCAL_HEADER = 0x04034B50;
+const ZIP_CENTRAL_HEADER = 0x02014B50;
+const ZIP_END = 0x06054B50;
+const ZIP_VERSION = 20;            // 2.0: what reading these entries needs
+const ZIP_UTF8_NAMES = 0x0800;
+const ZIP_STORED = 0;
+const ZIP_MAX_FILES = 0xFFFF;
+const ZIP_MAX_BYTES = 0xFFFFFFFF;
+
+function dosDateTime(date) {
+  const time = (date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1);
+  const day = ((Math.max(date.getFullYear(), 1980) - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate();
+  return { time, day };
+}
+
+function zipStore(files, date = new Date()) {
+  if (files.length > ZIP_MAX_FILES) throw new Error(`a .zip holds at most ${ZIP_MAX_FILES} files`);
+  const { time, day } = dosDateTime(date);
+  const names = new TextEncoder();
+  const parts = [];
+  const central = [];
+  let offset = 0;
+  const header = (size, fill) => {
+    const bytes = new Uint8Array(size);
+    fill(new DataView(bytes.buffer));
+    return bytes;
+  };
+  // The fields a local header and its central directory entry share, from `at`.
+  const common = (view, at, crc, size, nameLength) => {
+    view.setUint16(at, ZIP_UTF8_NAMES, true);
+    view.setUint16(at + 2, ZIP_STORED, true);
+    view.setUint16(at + 4, time, true);
+    view.setUint16(at + 6, day, true);
+    view.setUint32(at + 8, crc, true);
+    view.setUint32(at + 12, size, true);
+    view.setUint32(at + 16, size, true);
+    view.setUint16(at + 20, nameLength, true);
+  };
+  for (const { name, bytes } of files) {
+    const encodedName = names.encode(name);
+    const crc = crc32(bytes);
+    const local = header(30, (view) => {
+      view.setUint32(0, ZIP_LOCAL_HEADER, true);
+      view.setUint16(4, ZIP_VERSION, true);
+      common(view, 6, crc, bytes.length, encodedName.length);
+    });
+    const entry = header(46, (view) => {
+      view.setUint32(0, ZIP_CENTRAL_HEADER, true);
+      view.setUint16(4, ZIP_VERSION, true);
+      view.setUint16(6, ZIP_VERSION, true);
+      common(view, 8, crc, bytes.length, encodedName.length);
+      view.setUint32(42, offset, true);
+    });
+    parts.push(local, encodedName, bytes);
+    central.push(entry, encodedName);
+    offset += local.length + encodedName.length + bytes.length;
+  }
+  const centralSize = central.reduce((sum, part) => sum + part.length, 0);
+  if (offset + centralSize > ZIP_MAX_BYTES) throw new Error("a .zip without Zip64 holds at most 4 GB");
+  const end = header(22, (view) => {
+    view.setUint32(0, ZIP_END, true);
+    view.setUint16(8, files.length, true);
+    view.setUint16(10, files.length, true);
+    view.setUint32(12, centralSize, true);
+    view.setUint32(16, offset, true);
+  });
+  return [...parts, ...central, end];
+}
+
+function showBatchProgress(done, total, seed, msLeft) {
+  const left = msLeft === null ? "" : ` ${timeLeftText(msLeft)}.`;
+  status(`Generating seed ${done + 1} of ${total} (seed ${seed})…${left}`);
+}
+
+async function onGenerateBatch(state) {
+  const output = batchOutput();
+  let folder = null;
+  if (output === BATCH_FOLDER) {
+    try {
+      folder = await window.showDirectoryPicker({ id: "zora-seeds", mode: "readwrite" });
+    } catch (err) {
+      if (err.name !== "AbortError") status(`No folder chosen: ${err.message}`, "error");
+      return;
+    }
+  }
+  const { seeds } = state;
+  const encoded = form.fields[metadata.encodeLevelData].value === TOGGLE_ON;
+  const flags = form.flags;
+  const zoraFlags = form.zora.flags;
+  batch = { stopping: false };
+  const zipped = [];
+  const failures = [];
+  $("generate").disabled = true;
+  $("generate").replaceChildren(element("span", { className: "spinner", ariaHidden: "true" }), "Generating…");
+  $("batch-stop").hidden = false;
+  $("batch-stop").disabled = false;
+  $("batch-stop").textContent = "Stop";
+  for (const id of ["seed", "seed-count", "new-seed"]) $(id).disabled = true;
+  for (const card of ["generate-result", "batch-result"]) $(card).hidden = true;
+  $("batch-download").replaceChildren();
+  $("batch-summary").replaceChildren();
+  $("batch-failures").replaceChildren();
+  markStepDone("step-generate-num", 3, false);
+  let tally;
+  try {
+    tally = await runBatch(seeds, {
+      make: (seed) => generateSeed(seed, flags, zoraFlags, GENERATION_LIMIT_MS),
+      keep: async (seed, result) => {
+        const files = await seedFiles(result, encoded);
+        if (folder) await writeToFolder(folder, files);
+        else zipped.push(...files);
+      },
+      failed: (seed, err) => failures.push([seed, generationErrorText(err)]),
+      progress: showBatchProgress,
+      stopped: () => batch.stopping,
+    });
+  } finally {
+    batch = null;
+  }
+  showBatchResult({ seeds, tally, failures, folder, zipped, flags, zoraFlags });
+  $("batch-stop").hidden = true;
+  for (const id of ["seed", "seed-count", "new-seed"]) $(id).disabled = false;
+  updateButton();
+}
+
+function showBatchResult({ seeds, tally, failures, folder, zipped, flags, zoraFlags }) {
+  const { done, made, ms } = tally;
+  const stopped = done < seeds.length;
+  const last = seeds[Math.max(done - 1, 0)];
+  const summary = [["Seeds", done ? `${seeds[0]} to ${last}` : "none"],
+                   ["Made", `${made} of ${seeds.length}${stopped ? " (stopped)" : ""}`]];
+  if (failures.length) summary.push(["Failed", String(failures.length)]);
+  summary.push(["Z1R flags", flags]);
+  if (zoraFlags) summary.push(["ZORA flags", zoraFlags]);
+  if (folder) summary.push(["Folder", folder.name]);
+  $("batch-summary").replaceChildren(...summary.flatMap(([term, text]) =>
+    [element("dt", { textContent: term }), element("dd", { textContent: text })]));
+  if (!folder && zipped.length) {
+    const name = `zora-seeds-${seeds[0]}-${last}.zip`;
+    const url = URL.createObjectURL(new Blob(zipStore(zipped), { type: ZIP_TYPE }));
+    $("batch-download").append(element("a", { id: "batch-link", className: "btn btn-teal", href: url, download: name,
+                                              title: name, textContent: "Download .zip" }));
+  }
+  $("batch-failures").replaceChildren(...failures.map(([seed, text]) =>
+    element("li", { textContent: `Seed ${seed}: ${text}` })));
+  $("batch-title").textContent = made ? (stopped ? "Stopped: your seeds so far" : "Your seeds are ready")
+    : "No seeds were made";
+  const each = made ? `, ${(ms / made / 1000).toFixed(1)} s a seed` : "";
+  $("batch-time").textContent = `${(ms / 1000).toFixed(1)} s in all${each}`;
+  $("batch-result").hidden = false;
+  markStepDone("step-generate-num", 3, made > 0);
+  const where = folder ? ` saved to the folder ${folder.name}` : " made";
+  status(`${made} of ${seeds.length} seeds${where}${failures.length ? `, ${failures.length} failed` : ""}` +
+         `${stopped ? " (stopped)" : ""}.`, made ? "ready" : "error");
+}
+
+function onStopBatch() {
+  if (!batch) return;
+  batch.stopping = true;
+  status(`${$("status").textContent} Stopping after this seed.`);
+  $("batch-stop").disabled = true;
+  $("batch-stop").textContent = "Stopping…";
+}
+
+function onGenerateClicked() {
+  const state = batchState();
+  if (mode === SINGLE && state.count > 1 && state.seeds) onGenerateBatch(state);
+  else onGenerate();
 }
 
 initThemeToggle();
@@ -3214,7 +3768,13 @@ $("flags").addEventListener("input", onFlagsTyped);
 $("flags").addEventListener("change", onFlagsCommitted);
 $("zora-flags").addEventListener("input", onFlagsTyped);
 $("zora-flags").addEventListener("change", onFlagsCommitted);
-$("generate").addEventListener("click", onGenerate);
+$("generate").addEventListener("click", onGenerateClicked);
+$("batch-stop").addEventListener("click", onStopBatch);
+$("seed-count").value = getSetting(SEED_COUNT_KEY) || "1";
+$("seed-count").addEventListener("input", onSeedCountChanged);
+for (const button of $("batch-output").querySelectorAll("button")) {
+  button.addEventListener("click", () => onBatchOutputPicked(button.dataset.choice));
+}
 $("mode-single").addEventListener("click", () => { if (mode !== SINGLE) setMode(SINGLE); });
 $("mode-multiworld").addEventListener("click", () => { if (mode !== MULTIWORLD) setMode(MULTIWORLD); });
 $("player-name").value = savedPlayerName();

@@ -32,7 +32,7 @@ slot 0 (owner ruling)	I'LL TAKE|"S WORDS"|FOR 100!
 slot 0 (owner ruling)	FINDING THE WOOD|SWORD FILLS YOU|WITH DETERMINATION
 slot 0 (owner ruling)	GET EQUIPPED|WITH THIS
 slot 0 (owner ruling)	TAKE THE CANDLE|YOU COWARD!
-slot 16	RED, RED, WINE
+slot 16	AS YOU WISH
 slot 16	AH YES, THE|TWO GENDERS ...
 slot 16	PERRIER OR CHOCOLATES?
 slot 16	YOU GOTTA HAVE HEART
@@ -179,7 +179,6 @@ slot 19	GIVE ME FIVE	white sword 5 hearts
 slot 19	HIGH FIVE	white sword 5 hearts
 slot 19	TAKE FIVE	white sword 5 hearts
 slot 19	HOW IT FEELS TO|CHEW FIVE GUM	white sword 5 hearts
-slot 19	SIX SEVEN	white sword 6 hearts
 slot 19	WHY WAS SIX|AFRAID OF SEVEN?	white sword 6 hearts
 slot 19	SIXTH SENSE	white sword 6 hearts
 slot 19	DEEP SIX	white sword 6 hearts
@@ -252,15 +251,14 @@ slot 19	POLS VOICE HATES YOU.|AND YOUR MICROPHONE.		Whyforce89887
 slot 19	WIZZROBES - RUINING|PERFECTLY GOOD|RUNS SINCE 1986.		Whyforce89887
 slot 19	DARKNUTS HAVE MORE|ARMOR THAN YOUR EXCUSES.		Whyforce89887
 slot 19	THIS HINT IS PROBABLY|USELESS. JUST LIKE|YOUR LAST DEATH.		Whyforce89887
-slot 19	YOUR ROUTE IS|LOOKING GREAT. SHAME|ABOUT THE EXECUTION.		Whyforce89887
 slot 19	YOU DIDN'T NEED THAT|ITEM. YOU NEEDED|BETTER DECISIONS.		Whyforce89887
 slot 19	THE SEED GIVETH, AND|THE SEED TAKETH AWAY.		Whyforce89887
 slot 19	RNGESUS HAS|ABANDONED THIS SEED.		Whyforce89887
+slot 19	AS A LARGE LANGUAGE|MODEL, I CANNOT HOLD|THIS SWORD FOR YOU.		ZORA
 # Book to Understand NPCs (B48, HT-BOOK-02): slot 0 shows one of these, and only these, and
 # without the Book every person shows slot 0. The spec's pool has 50 strings in which the
 # speaker cannot be understood; ZORA's pool had none. Owner ruling (2026-10-12): five stand-ins
-# written by Claude, noted "stand-in", until the owner's own wording replaces them. Without B48
-# they are never drawn.
+# written by Claude, noted "stand-in".
 slot 0 with the Book	MUMBLE MUMBLE...|GRUMBLE.	stand-in
 slot 0 with the Book	GLORB FLINDOR|WAKKA ZOOP!	stand-in
 slot 0 with the Book	THE WORDS ARE IN A|TONGUE YOU DO NOT KNOW.	stand-in
@@ -271,7 +269,6 @@ slot 0 with the Book	IF ONLY YOU HAD A|BOOK TO MAKE SENSE|OF THESE WORDS...	stan
 # ---- the contributor, kept here and never shown in the game. Hint-person texts beyond the placeholders'
 # ---- number go to slots 20-31, the hint people (not "unrouted": more unrouted quotes would change slot 19's hint odds, docs/ui-provenance.md). "ZORA" marks texts the owner approved.
 slot 5	EXCUSE ME,|THIS IS A WENDY'S		GrandpaSzabo
-slot 5	UHHHHH.....PASS|THE TP.....		TheGobOne
 slot 5	15 BUCKS LITTLE ONE....		ultralavos
 slot 5	SHHH! THIS IS A LIBRARY		Tetra
 slot 5	THIS IS THE FEE FEE		Whyforce89887
@@ -281,12 +278,11 @@ slot 5	I ACCEPT EXACT CHANGE|OR YOUR DIGNITY.		ZORA
 slot 5	WOULD YOU KINDLY|GIVE ME SOME RUPEES		ultralavos
 slot 25	NOW WITH 20 PERCENT|MORE KABOOM.		ZORA
 slot 25	YOU'RE GONNA NEED A|BIGGER BOMB BAG		ultralavos
-slot 14 or 15	THIS BAD BOY CAN FIT|SO MANY RUPEES IN IT!		GrandpaSzabo
+slot 14 or 15	THIS THING CAN FIT|SO MANY RUPEES IN IT!		GrandpaSzabo
 slot 14 or 15	I WASN'T EVEN SUPPOSED|TO BE HERE TODAY.		Crump
 slot 14 or 15	NO REFUNDS. NO|EXCHANGES. NO HEARTS.		ZORA
 slot 8	SIDE EFFECTS MAY|INCLUDE NOT DYING.		ZORA
 slot 17	I'M IN THE MONEY!		Whyforce89887
-slot 17	YOUR ONLYFANS|FINALLY PAID OFF!		Whyforce89887
 slot 17	FINALLY, A|POSITIVE CASH FLOW.		ZORA
 slot 0 (owner ruling)	IT'S YOUR POKEY STABBY!		Whyforce89887
 slot 0 (owner ruling)	TAKE ONE. JUST ONE.|I'M WATCHING YOU.		ZORA
@@ -302,3 +298,7 @@ slots 20-31	THERE'S A FINE LINE|BETWEEN ROUTING|AND GAMBLING.		Whyforce89887
 slots 20-31	THE ONLY THING|WORSE THAN THIS|HINT IS YOUR LUCK.		Whyforce89887
 slots 20-31	I'D TELL YOU, BUT|THE FLAGS SAID NO.		ZORA
 slots 20-31	THE ITEM IS IN A|LEVEL. YOU'RE WELCOME.		ZORA
+slots 20-31	YOU'RE ABSOLUTELY|RIGHT! THE SWORD WAS|IN THE OTHER CAVE.		ZORA
+slots 20-31	I APOLOGIZE FOR ANY|CONFUSION. THE HINT|IS NOW CORRECT.		ZORA
+slots 20-31	WOULD YOU LIKE ME TO|TURN THIS HINT INTO|A BULLETED LIST?		ZORA
+slots 20-31	MY TRAINING DATA ONLY|GOES UP TO 1986.		ZORA

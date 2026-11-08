@@ -187,6 +187,22 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .message { margin: 0; font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
 .message:empty { display: none; }
 .message--error { color: var(--error); }
+/* The Beta settings switch and, while it is on, its warning (the beta banner's amber) */
+.beta-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 12px; border-radius: 12px;
+  background: var(--beta-bg); color: var(--beta-ink); border: 1px solid var(--beta-line);
+}
+.beta-bar[hidden] { display: none; }
+/* Its name starts where the setting names above start: a row's padding, its changed dot (8px) and gap (12px),
+   less the bar's 1px border. */
+.top-flags .beta-bar { min-height: 48px; padding: 6px 7px 6px 33px; justify-content: space-between; }
+#beta-warning { margin: 0 0 14px; }
+.beta-bar-title { font-weight: 700; font-size: 14px; }
+.beta-warning { flex: 1 1 100%; margin: 0; padding: 8px 12px; font-size: 13px; border-radius: 8px;
+  background: var(--beta-bg); color: var(--beta-ink); border: 1px solid var(--beta-line); }
+.beta-warning[hidden] { display: none; }
+.beta-tag { font-size: 11px; font-weight: 700; color: var(--beta-ink); background: var(--beta-bg);
+  border: 1px solid var(--beta-line); border-radius: 999px; padding: 0 6px; margin-left: 6px; }
 
 /* The flag summary (showFlagSummary): the settings in words, one column per tab where they fit. */
 .flag-summary { margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; background: var(--row); }
@@ -220,6 +236,35 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .setting-grid {
   display: grid; gap: 6px;
   grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr));
+}
+/* Issue #15: a tab's two columns, as the original program places its settings (flag-tabs.json column and
+   row); one under another on a phone. The ZORA extras' groups use them too. */
+.setting-columns {
+  display: grid; gap: 6px 10px; align-items: start;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.setting-column { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.setting-columns + .setting-heading { margin-top: 18px; }
+/* A (min, max) pair on one line (pairRows): the min row, then the max row's "…" and control. */
+.setting-pair {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; border-radius: 12px; background: var(--row);
+}
+.setting-pair > .setting-reason { grid-column: 1 / -1; margin: 0; padding: 0 14px 8px 34px; }
+.setting-pair > .setting-reason[hidden], .setting-pair > .setting-reason:empty { display: none; }
+.setting-pair .setting { background: transparent; flex-wrap: nowrap; }
+.setting-pair .setting:first-child { padding-right: 0; }
+.setting-pair .setting:first-child .setting-control { flex: none; }
+.setting-pair .setting:nth-child(2) { padding-left: 4px; gap: 4px 6px; }
+.setting-pair .setting[hidden] { display: none; }
+.pair-separator { color: var(--muted); padding: 0 6px; }
+/* Every pair's dropdowns the same width, so the pairs above one another line up (Shops' sword hearts). */
+.setting-pair select { width: 5em; }
+/* The section above the tabs: Overworld Quest, Dungeon Quest and Hint Type side by side. */
+.top-flags { margin-bottom: 14px; }
+/* Two columns, so Beta settings sits right of Hint Type and under Dungeon Quest; one on a phone. */
+.top-flags .setting-column { display: grid; gap: 6px 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 640px) {
+  .setting-columns, .top-flags .setting-column { grid-template-columns: minmax(0, 1fr); }
 }
 .setting {
   display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px;
@@ -340,7 +385,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
    Step 3: seed, Generate, status and the result card
    --------------------------------------------------------------------------- */
 .generate-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
-.seed-field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; }
+.seed-field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 220px; min-width: 0; }
 .seed-label { font-size: 13px; font-weight: 600; color: var(--muted); }
 .seed-inputs { display: flex; gap: 8px; }
 .seed-input {
@@ -359,6 +404,17 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 }
 .btn-generate:hover:not(:disabled) { filter: brightness(1.1); }
 .btn-generate:disabled { opacity: .45; }
+/* Several seeds at once (issue #16): the count box, Stop, the zip/folder choice and the failures. */
+.count-field { flex: 0 1 130px; min-width: 0; }
+.count-input { width: 100%; text-align: center; }
+.btn-stop { flex: 0 1 120px; background: var(--error); }
+.btn-stop[hidden], .batch-options[hidden], .batch-output[hidden] { display: none; }
+.batch-options { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.batch-options .step-note, .batch-options .step-error { margin: 0; }
+.batch-output { display: flex; align-items: center; gap: 10px; }
+.batch-output .seg button { min-height: 34px; padding: 0 14px; font-size: 13px; }
+.batch-failures { margin: 0; padding-left: 1.25rem; font-size: 13px; color: var(--deep-text); }
+.batch-failures:empty { display: none; }
 
 .status-line { margin: -4px 0 0; display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
 .status-dot { width: 8px; height: 8px; border-radius: 999px; background: var(--help-ring); flex: none; }
@@ -475,7 +531,8 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
   .preset-row { flex-wrap: wrap; }
 }
 
-/* The beta banner (owner decision, 2026-10-07): first on the page, full width. */
+/* The beta banner (owner decision, 2026-10-07): first on the page, full width; shown only while the
+   Beta settings switch is on (2026-11-07). */
 /* The beta banner in the hero graphic's own colors (web/zora-logo.png): its orange ball fading to its gold
    horns, edged in the ball's darker orange, the same in both themes. The dark brown ink reads 8.1:1 on the
    orange and 10.9:1 on the gold. */

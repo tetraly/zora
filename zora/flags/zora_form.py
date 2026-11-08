@@ -14,6 +14,7 @@ from typing import Any
 
 from .fields import THREE_STATE_LABELS, TOGGLES_BY_ID, Settings, ThreeState
 from .zora_flags import (
+    DETAILED_SPOILER_LOG_FIELD,
     ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
     ITEM_SHUFFLE_NO_VANILLA_FIELD,
@@ -94,6 +95,14 @@ FIELDS: tuple[dict[str, Any], ...] = (
     {"name": "do_not_segment_dungeons", "kind": THREE_STATE_KIND, "label": "Do Not Segment Dungeons",
      "help": ("Shapes dungeons are never split into segments: every room can be reached through "
               "doors, and stairways become shortcuts.")},
+    # Version 19: Universal Drops v2.0 (owner rulings, 2026-11-05; a beta flag), On / Off / ?.
+    {"name": "universal_drops_v2", "kind": THREE_STATE_KIND, "label": "Universal Drops v2.0",
+     "help": ("Universal drops that keep the feel of the dungeons without them: each level holds as many bombs, "
+              "rupees and keys as with Allow Universal Drops In Shapes off, spread over all its rooms that can "
+              "hold one. A room that can hold an item at its center puts it there half the time, and otherwise "
+              "at a random one of its spots. Each level's three other item spots are drawn per seed, among "
+              "squares you can reach from every door. Shapes dungeons only; "
+              "cannot be used with Allow Universal Drops In Shapes.")},
     # Version 14: Harder Bosses and Harder Ganon (docs/zora-extras.md section 21; from Z1M1, MetalMachine).
     {"name": "harder_bosses", "kind": "option", "label": "Harder Bosses",
      "help": ("Digdogger and Manhandla move faster, Gohma fires more often, and Aquamentus fires more "
@@ -263,6 +272,13 @@ ITEM_SHUFFLE_NO_VANILLA_ROW = {
     "hidden": True,
     "help": "Set by Item Shuffle's Random (No Vanilla): each seed draws Item Only, Intra-Dungeon or Full, never None."}
 FIELDS = (*FIELDS, ITEM_SHUFFLE_NO_VANILLA_ROW)
+# Version 20: Detailed Spoiler Log (owner rulings, 2026-11-06). The page offers it through Spoiler Log Detail Level,
+# Print Quest Info's (B51) control on the Misc tab (flag_form.SPOILER_LEVEL_CHOICES), never on this tab: its row is
+# hidden, and its control only carries the value between the two strings.
+DETAILED_SPOILER_LOG_ROW = {
+    "name": DETAILED_SPOILER_LOG_FIELD, "kind": "toggle", "label": "Detailed Spoiler Log", "hidden": True,
+    "help": "Set by Spoiler Log Detail Level: on at Medium and Full."}
+FIELDS = (*FIELDS, DETAILED_SPOILER_LOG_ROW)
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 

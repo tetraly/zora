@@ -26,6 +26,7 @@ from .flags.dependencies import apply_dependencies, check_dependencies
 from .flags.fields import (
     ENCODE_LEVEL_DATA,
     ITEM_SHUFFLE_SCOPE,
+    PRINT_QUEST_INFO,
     THREE_STATE_LABELS,
     ItemShuffleScope,
     OptionField,
@@ -182,8 +183,18 @@ ZORA_FORCED_OFF = {
     # Item Shuffle: Random (No Vanilla) narrows Item Shuffle, which Archipelago never offers (FIXED_OPTIONS)
     "item_shuffle_no_vanilla": "Not offered in Archipelago: it places every item itself, so Item Shuffle is "
                                "always Full.",
+    # Universal Drops v2.0 (owner ruling 8, 2026-11-05): held back until a logic scan passes with it on
+    "universal_drops_v2": "Not offered in Archipelago yet: it waits for a logic scan with it on.",
+    # Detailed Spoiler Log (owner ruling 9, 2026-11-06): Archipelago writes its own spoiler
+    "detailed_spoiler_log": "Not offered in Archipelago: it writes its own spoiler.",
 }
-NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS, *ZORA_FORCED_OFF})
+# Z1R flags a released world offered and Archipelago now keeps off, each with its reason, kept as hidden options
+# so a player's older YAML still loads: any value is accepted and ignored. Print Quest Info (B51; owner ruling 9,
+# 2026-11-06): Archipelago writes its own spoiler, and B51 on would change ZORA's seed.
+Z1R_FORCED_OFF = {
+    PRINT_QUEST_INFO.id: "Always off in Archipelago: it writes its own spoiler, so this option is ignored.",
+}
+NOT_OFFERED = frozenset({FORCED_OFF, *FIXED_OPTIONS, *ZORA_FORCED_OFF, *Z1R_FORCED_OFF})
 # ZORA flags a released world offered and ZORA has since retired (zora_flags.RETIRED_FIELDS), each with
 # its label, its value keys as that world named them (value, key, label) and the hidden option's reason. A
 # YAML may still name one with any of those values: it is accepted and ignored, so a player's file from
@@ -519,7 +530,16 @@ def never_offered_fields() -> list[OptionSpec]:
     retired = [OptionSpec(key, key, label, reason, CHOICE, tuple((value, name) for value, _key, name in values),
                           values[0][0], tuple((value, value_key) for value, value_key, _name in values))
                for key, (label, values, reason) in RETIRED_ZORA_FLAGS.items()]
-    return forced_off + retired
+    z1r_defaults = decode(DEFAULT_FLAGS)
+    z1r_forced_off = [replace(_z1r_spec(flag_form.FIELDS_BY_ID[field_id], z1r_defaults), description=reason)
+                      for field_id, reason in Z1R_FORCED_OFF.items()]
+    return forced_off + retired + z1r_forced_off
+
+
+def _z1r_forced_off_keys() -> frozenset[str]:
+    """Z1R_FORCED_OFF's fields by option key and by id."""
+    return frozenset(key for field_id in Z1R_FORCED_OFF
+                     for key in (field_id, option_key(flag_form.FIELDS_BY_ID[field_id])))
 
 
 def _is_off(given: object) -> bool:
@@ -531,9 +551,9 @@ def _is_off(given: object) -> bool:
 
 def never_offered_refusal(key: str, given: object) -> str | None:
     """Why a YAML's value for a ZORA flag Archipelago never offers (ZORA_FORCED_OFF) is refused, or
-    None for off, which ZORA uses anyway, and for any value of a retired flag (RETIRED_ZORA_FLAGS),
-    which is ignored."""
-    if _is_off(given) or key in RETIRED_ZORA_FLAGS:
+    None for off, which ZORA uses anyway, and for any value of a retired flag (RETIRED_ZORA_FLAGS) or a Z1R
+    flag kept off (Z1R_FORCED_OFF), which is ignored."""
+    if _is_off(given) or key in RETIRED_ZORA_FLAGS or key in _z1r_forced_off_keys():
         return None
     label = next(field["label"] for field in zora_form.FIELDS if field["name"] == key)
     return (f"{label} ({key}): {given!r} is not offered. {ZORA_FORCED_OFF[key]} "
@@ -545,6 +565,7 @@ def _chosen(values: Mapping[str, object]) -> dict[str, int]:
     by its number or its value key, one value the option offers), the rest the defaults."""
     fields = option_fields()
     specs = {spec.id: spec for spec in fields} | {spec.key: spec for spec in fields}
+    values = {name: given for name, given in values.items() if name not in _z1r_forced_off_keys()}   # ignored
     unknown = sorted(set(values) - set(specs))
     if unknown:
         never = [f"{key} is never offered: {ZORA_FORCED_OFF[key]}" for key in unknown if key in ZORA_FORCED_OFF]
@@ -567,11 +588,12 @@ def _chosen(values: Mapping[str, object]) -> dict[str, int]:
 
 def _settings(chosen: Mapping[str, int]) -> Settings:
     toggles = {field.id: ThreeState(chosen[field.id]) for field in flag_form.ALL_FIELDS
-               if not isinstance(field, OptionField) and field.id != FORCED_OFF}
+               if not isinstance(field, OptionField) and field.id != FORCED_OFF and field.id not in Z1R_FORCED_OFF}
     options = {field.id: chosen[field.id] for field in flag_form.ALL_FIELDS
                if isinstance(field, OptionField) and field.id not in FIXED_OPTIONS}
     return decode(DEFAULT_FLAGS).updated(options={**options, **FIXED_OPTIONS},
-                                         toggles={**toggles, FORCED_OFF: ThreeState.OFF})
+                                         toggles={**toggles, FORCED_OFF: ThreeState.OFF,
+                                                  **dict.fromkeys(Z1R_FORCED_OFF, ThreeState.OFF)})
 
 
 def option_corrections(values: Mapping[str, object]) -> list[str]:

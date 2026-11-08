@@ -104,9 +104,10 @@ const status = () => {}, showAfterSeed = () => {}, markStepDone = () => {}, addS
 const updateButton = () => {};
 const NOT_PRODUCED_REFUSAL = "not produced", NOT_IMPLEMENTED = "Not implemented";
 const generateSeed = async (seed) => ({ bytes: new Uint8Array(1), seed, code: [], ms: 1 });
-const metadata = { defaultFlags: "DEFAULT", encodeLevelData: "B82" };
+const metadata = { defaultFlags: "DEFAULT", encodeLevelData: "B82", spoilerLevelField: "B51" };
 const form = { flags: "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A", zora: { ok: true, flags: "4.T9Jvg" },
-               fields: { B82: { value: 0 } } };
+               fields: { B82: { value: 0 }, B51: { value: 0 } } };
+const controls = new Map([["B51", { field: { values: [{ value: 0, label: "None" }] } }]]);
 let mode = SINGLE, linkSeed = null, seedTyped = true;
 const randomSeed = () => {};
 const TOGGLE_ON = 1, SEED_CODE_LENGTH = 4;
@@ -126,7 +127,7 @@ const playerSettings = {};
 
 def test_after_generate_the_address_names_the_seed_used() -> None:
     answers = run(["validSeed", "linkSettings", "linkSearch", "updateLink", "onSeedChanged", "generateWithinLimit",
-                   "onGenerate"], GENERATE_HARNESS)
+                   "onGenerate", "labelIn", "romFileName", "generationErrorText"], GENERATE_HARNESS)
     flags = "flags=8hq4BeR1JXo7yjOOHjbxryVQW%21UJ3A&zora=4.T9Jvg"
     assert answers["before"] == f"?{flags}&mode=single"           # no seed before any generation
     assert answers["after"] == f"?{flags}&seed=12345"

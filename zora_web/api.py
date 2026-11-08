@@ -8,10 +8,12 @@ log) and multiworld mode's Archipelago YAML (zora_web.multiworld). Keep
 them importable from here whenever modules move.
 """
 import json
+from typing import Any
 
 from zora.flags import form as flag_form
+from zora.flags.zora_flags import SpoilerLevel
 from zora.generate.deadline import GenerationStopped, stop_after
-from zora.generate.pipeline import generate_rom
+from zora.generate.pipeline import generate_rom, plan
 from zora.rom import item_sprites, revision
 from zora.rom.base_rom import EXPECTED_CRC32, EXPECTED_MD5, EXPECTED_SHA1
 from zora.rom.music.library import LibraryFile, MusicError, local_library_songs, read_library
@@ -30,8 +32,9 @@ from zora.rom.player_settings import (
 )
 from zora.rom.revision import finished_in_prg0_layout
 from zora.rom.seed_code_icons import seed_code_icons
-from zora_export.seed_document import EncodedSeedRefused, seed_document_for
+from zora_export.seed_document import EncodedSeedRefused, seed_document
 from zora_export.spoiler_log import spoiler_file_name, spoiler_log
+from zora_export.tracker_file import tracker_file, tracker_file_name, ztracker_note
 from zora_web import multiworld
 
 # The page's player-settings names live in zora/ (Archipelago's recipe uses them too); they are
@@ -51,6 +54,7 @@ __all__ = [
     "MusicError",
     "PlayerSettingError",
     "PlayerSettings",
+    "SpoilerLogOff",
     "code_icons",
     "code_text",
     "flag_form",
@@ -63,6 +67,7 @@ __all__ = [
     "music_rom",
     "player_settings_from_page",
     "seed_report",
+    "spoiler_report",
     "stop_after",
 ]
 
@@ -95,13 +100,40 @@ def code_text(rom: bytes) -> str | None:
     return item_sprites.code_text(finished_in_prg0_layout(rom))
 
 
-def seed_report(rom: bytes, flag_string: str, seed: int, zora_flag_string: str = "") -> dict[str, str]:
-    """For a finished ROM made from these strings and seed: the seed document as JSON text (the
-    "View in Visualizer" hand-off), the spoiler log and its file name. Reads the ROM only, after
-    it is made; EncodedSeedRefused for a seed with level encoding on."""
-    document = seed_document_for(rom, flag_string, seed, zora_flag_string)
-    return {"json": json.dumps(document), "spoiler": spoiler_log(document),
-            "spoilerName": spoiler_file_name(document)}
+class SpoilerLogOff(ValueError):
+    """No spoiler log for a seed whose Spoiler Log Detail Level resolved to None (owner ruling 6, 2026-11-06): a
+    seed made without a log never gets one afterwards."""
+
+    def __init__(self) -> None:
+        super().__init__("no spoiler log: the seed was made with Spoiler Log Detail Level at None")
+
+
+def seed_report(rom: bytes, flag_string: str, seed: int, zora_flag_string: str = "") -> dict[str, Any]:
+    """For a finished ROM made from these strings and seed: the spoiler log's level
+    (pipeline.resolve_spoiler_level); the seed document as JSON text (the "View in Visualizer" hand-off,
+    which Encode level data alone rules) for a seed with encoding off; and at Basic, Medium or Full the
+    spoiler log and the ZoraTracker file, each with its file name, and the note on what ZTracker
+    won't show (rulings of 2026-11-06). Reads the ROM only, after it is made: for an encoded seed with a
+    log, its pre-encoding ROM (GeneratedRom.report_rom). EncodedSeedRefused for an encoded seed at None."""
+    chosen = plan(flag_string, seed, zora_flag_string)       # planning draws nothing from the generation
+    document = seed_document(rom, chosen)
+    report: dict[str, Any] = {"spoilerLevel": int(chosen.spoiler_level)}
+    if not chosen.encode_level_data:
+        report["json"] = json.dumps(document)
+    if chosen.spoiler_level is not SpoilerLevel.NONE:
+        tracker = tracker_file(document)
+        report |= {"spoiler": spoiler_log(document), "spoilerName": spoiler_file_name(document),
+                   "tracker": json.dumps(tracker, indent=1), "trackerName": tracker_file_name(document),
+                   "ztrackerNote": ztracker_note(tracker)}
+    return report
+
+
+def spoiler_report(rom: bytes, flag_string: str, seed: int, zora_flag_string: str = "") -> dict[str, str]:
+    """The spoiler log and its file name alone; SpoilerLogOff at Spoiler Log Detail Level None."""
+    report = seed_report(rom, flag_string, seed, zora_flag_string)
+    if "spoiler" not in report:
+        raise SpoilerLogOff
+    return {"spoiler": str(report["spoiler"]), "spoilerName": str(report["spoilerName"])}
 
 
 def music_asset_urls() -> dict[str, list[str]]:

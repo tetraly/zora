@@ -1,4 +1,4 @@
-"""The web page's Starting Items tab (web/flag-tabs.json, web/zora-web.js): every start-item
+"""The web page's Start Items tab (web/flag-tabs.json, web/zora-web.js): every start-item
 setting on one tab, a layout change only, and the note shown while Max Start Items keeps none
 of the chosen items."""
 import json
@@ -26,7 +26,7 @@ from zora.generate.steps.start_items import START_ITEM_ORDER
 REPO = Path(__file__).resolve().parent.parent
 PAGE_SCRIPT = REPO / "web" / "zora-web.js"
 FLAG_TABS = json.loads((REPO / "web" / "flag-tabs.json").read_text())
-START_TAB = "Starting Items"
+START_TAB = "Start Items"
 START_ITEM_IDS = {field.id for field, _ in START_ITEM_ORDER}
 KEEPS_NO_START_ITEMS = min(START_ITEM_LIMIT_RANDOM_CHOICES)      # Max Start Items "0"
 RAFT, RECORDER, BOW = "B57", "B60", "B58"
@@ -48,10 +48,12 @@ def test_the_tab_holds_every_starting_items_setting() -> None:
     assert next(value["label"] for value in limit["values"] if value["value"] == KEEPS_NO_START_ITEMS) == "0"
 
 
-def test_the_page_offers_the_tab_after_items() -> None:
+def test_the_page_offers_the_tab_after_overworld() -> None:
+    """The original program's tabs (issue #15): Start Items after Overworld, Advanced last (after ZORA extras)."""
     page = PAGE_SCRIPT.read_text()
     assert f'const START_TAB = "{START_TAB}";' in page
-    assert 'const FLAG_TABS = ["Overworld", "Dungeons", "Items", START_TAB, "Monsters", "Misc"];' in page
+    assert ('const FLAG_TABS = ["Shops", "Dungeon Items", "Dungeons", "Monsters", "Misc", "Overworld", START_TAB, '
+            'ADVANCED_TAB];') in page
 
 
 def test_every_field_keeps_a_tab_and_help() -> None:
