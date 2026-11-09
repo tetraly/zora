@@ -158,11 +158,19 @@ COMPASS_CHIME_FIELDS = (
 UNIVERSAL_DROPS_V2_FIELDS = (
     "universal_drops_v2",            # drops at pre-B91 counts, on squares the floors allow, near the center
 )
+# Version 21: Wizzrobes Shoot Wallmasters (idea: Ultralavos), On / Off / ? like version 3's, a "?" decided by the
+# same coins after version 19's. Written by its asm/flags2 patch (zora/rom/owner_patches.py); on, it turns
+# Shuffle Enemy Groups (B42) on, whose deal keeps the Wizzrobes in a dungeon group with the Wallmasters
+# (shuffle_enemy_groups.deal_enemies). Shown on the Advanced tab.
+WIZZROBE_HAND_FIELD = "wizzrobes_shoot_wallmasters"
+WIZZROBE_HAND_FIELDS = (
+    WIZZROBE_HAND_FIELD,                   # a Wizzrobe's shot is a Wallmaster's hand that takes Link to the entrance
+)
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
                       *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
                       *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS, *SWAP_SWORDS_AND_RINGS_FIELDS,
-                      *COMPASS_CHIME_FIELDS, *UNIVERSAL_DROPS_V2_FIELDS)
+                      *COMPASS_CHIME_FIELDS, *UNIVERSAL_DROPS_V2_FIELDS, *WIZZROBE_HAND_FIELDS)
 
 
 
@@ -300,6 +308,9 @@ FIELDS: tuple[ZoraField, ...] = (
     # Version 20: Detailed Spoiler Log (DETAILED_SPOILER_LOG_FIELD; owner rulings, 2026-11-06), a switch beside the
     # Z1R string's Print Quest Info (B51), Off by default, so every older string keeps its meaning and its spelling.
     ZoraField("detailed_spoiler_log", 2, version=20),
+    # Version 21: Wizzrobes Shoot Wallmasters (WIZZROBE_HAND_FIELDS), Off by default, so every older string keeps
+    # its meaning and its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=21) for name in WIZZROBE_HAND_FIELDS),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -381,6 +392,8 @@ class ZoraFlags:
     # Version 20: Detailed Spoiler Log, with Print Quest Info (B51) the spoiler log's information level
     # (spoiler_level; docs/design/spoiler-levels.md); the page shows the two as Spoiler Log Detail Level.
     detailed_spoiler_log: bool = False
+    # Version 21: Wizzrobes Shoot Wallmasters, On / Off / ? (WIZZROBE_HAND_FIELDS).
+    wizzrobes_shoot_wallmasters: ThreeState = ThreeState.OFF
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -641,6 +654,11 @@ TAKE_ANY_ROAD_CAVES = TOGGLES_BY_ID["B04"]
 # sequences end with a step south, so the solved maze lets Link out south, never west, and without
 # the shortcut (or the bridges, B87, or the ladder) the river's west side cannot be reached on foot.
 LOST_WOODS_SHORTCUT = TOGGLES_BY_ID["B88"]
+# Wizzrobes Shoot Wallmasters (version 21) needs the enemy-group deal, which keeps the Wizzrobes in a dungeon group
+# with the Wallmasters (shuffle_enemy_groups.deal_enemies, wallmasters_with_wizzrobes)
+SHUFFLE_ENEMY_GROUPS = TOGGLES_BY_ID["B42"]
+WIZZROBE_HAND_FORCED_NOTE = ("On while Wizzrobes Shoot Wallmasters is on: the enemy groups are dealt so the Wizzrobes "
+                             "share a dungeon group with the Wallmasters, whose tiles draw the hand.")
 DEAD_WOODS_FIELD = "randomize_dead_woods"
 SHORTCUT_FORCED_NOTE = ("On while Randomize Dead Woods is on: its maze lets you out to the south, never west, "
                         "so the shortcut is the way west without the ladder.")
@@ -876,6 +894,18 @@ def universal_drops_v2_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[
     return [(UNIVERSAL_DROPS_V2_CONFLICT, (UNIVERSAL_DROPS_V2_FIELD, UNIVERSAL_DROPS.id))]
 
 
+WIZZROBE_HAND_CONFLICT = ("Wizzrobes Shoot Wallmasters cannot be used with Oops All Enemies: Wizzrobes: the hand "
+                          "is drawn with the Wallmaster's tiles, which a level without Wallmasters does not hold.")
+
+
+def wizzrobe_hand_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
+    """Wizzrobes Shoot Wallmasters (on or "?") with Oops All Enemies: Wizzrobes, which puts Wizzrobes in every
+    level, most of them without the Wallmaster's tiles."""
+    if flags.wizzrobes_shoot_wallmasters is ThreeState.OFF or flags.oops_all_enemies is not OopsAllEnemies.WIZZROBES:
+        return []
+    return [(WIZZROBE_HAND_CONFLICT, (WIZZROBE_HAND_FIELD, "oops_all_enemies"))]
+
+
 def warnings(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:
     """Settings the page warns about but generation accepts, with the fields each names: Expanded
     Dungeon Locations (on or "?") with Dungeons Only and B02 or B04 on or "?"; Randomize Dead Woods
@@ -1042,7 +1072,7 @@ def conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...
             + sword_state_conflicts(flags, z1r) + expanded_dungeon_locations_conflicts(flags, z1r)
             + level_9_pin_conflicts(flags, z1r) + swap_and_swordlish_conflicts(flags, z1r)
             + no_vanilla_conflicts(flags, z1r) + defense_pacing_conflicts(flags, z1r)
-            + universal_drops_v2_conflicts(flags, z1r))
+            + universal_drops_v2_conflicts(flags, z1r) + wizzrobe_hand_conflicts(flags, z1r))
 
 
 def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
@@ -1064,6 +1094,7 @@ def validate(flags: ZoraFlags, z1r: Settings) -> list[str]:
     reasons.extend(message for message, _names in no_vanilla_conflicts(flags, z1r))
     reasons.extend(message for message, _names in defense_pacing_conflicts(flags, z1r))
     reasons.extend(message for message, _names in universal_drops_v2_conflicts(flags, z1r))
+    reasons.extend(message for message, _names in wizzrobe_hand_conflicts(flags, z1r))
     return reasons
 
 
@@ -1179,7 +1210,10 @@ def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z
         the raft kept in level 3 (keeps_raft_behind_raft, on the resolved settings): Extra Raft Blocks is off.
     And beta 7's (owner rule):
       - Randomize Dead Woods on: Add Lost Woods Shortcut (B88) is on, whatever the Z1R string asks
-        (shortcut_forced_on)."""
+        (shortcut_forced_on).
+    And version 21's:
+      - Wizzrobes Shoot Wallmasters on (or "?" landing on): Shuffle Enemy Groups (B42) is on, whatever the Z1R
+        string asks, so the deal puts the Wizzrobes with the Wallmasters."""
     if resolved.is_on("pegasus_boots") and resolved.is_on("magical_boomerang_damage"):
         if asked.pegasus_boots is ThreeState.POSSIBLE and asked.magical_boomerang_damage is ThreeState.ON:
             resolved = replace(resolved, pegasus_boots=ThreeState.OFF)
@@ -1198,6 +1232,8 @@ def resolve_owner_dependencies(resolved: ZoraFlags, asked: ZoraFlags, resolved_z
         resolved = replace(resolved, extra_raft_blocks=ThreeState.OFF)
     if shortcut_forced_on(resolved):
         resolved_z1r = resolved_z1r.updated(toggles={LOST_WOODS_SHORTCUT.id: ThreeState.ON})
+    if resolved.is_on(WIZZROBE_HAND_FIELD):
+        resolved_z1r = resolved_z1r.updated(toggles={SHUFFLE_ENEMY_GROUPS.id: ThreeState.ON})
     return resolved, resolved_z1r
 
 
@@ -1209,16 +1245,20 @@ def shortcut_forced_on(flags: ZoraFlags) -> bool:
 def forced_z1r_values(flags: ZoraFlags) -> list[tuple[str, ThreeState, str]]:
     """The Z1R fields the ZORA flags as asked set whatever the Z1R string holds, each with its
     value and the page's note: Add Lost Woods Shortcut on while Randomize Dead Woods is on."""
+    forced = []
     if shortcut_forced_on(flags):
-        return [(LOST_WOODS_SHORTCUT.id, ThreeState.ON, SHORTCUT_FORCED_NOTE)]
-    return []
+        forced.append((LOST_WOODS_SHORTCUT.id, ThreeState.ON, SHORTCUT_FORCED_NOTE))
+    if flags.wizzrobes_shoot_wallmasters is ThreeState.ON:
+        forced.append((SHUFFLE_ENEMY_GROUPS.id, ThreeState.ON, WIZZROBE_HAND_FORCED_NOTE))
+    return forced
 
 
 # The version-3 and version-7 fields whose behavior this build produces; any other one on or "?" is
 # refused (FlagsRefused), never ignored.
 PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset((*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS,
-                                                   *COMPASS_CHIME_FIELDS))
-PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS, *COMPASS_CHIME_FIELDS)
+                                                   *COMPASS_CHIME_FIELDS, *WIZZROBE_HAND_FIELDS))
+PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS, *COMPASS_CHIME_FIELDS,
+                        *WIZZROBE_HAND_FIELDS)
 
 
 # Fields refused on or "?" until their generation is built (none now: Expanded Dungeon Locations'

@@ -22,6 +22,7 @@ from .zora_flags import (
     SWORDLISH_LOWEST_FIELD,
     SWORDLISH_PIECES,
     THREE_STATE_FIELDS,
+    WIZZROBE_HAND_FIELD,
     L4Sword,
     Swordlish,
     ZoraFlags,
@@ -279,6 +280,19 @@ DETAILED_SPOILER_LOG_ROW = {
     "name": DETAILED_SPOILER_LOG_FIELD, "kind": "toggle", "label": "Detailed Spoiler Log", "hidden": True,
     "help": "Set by Spoiler Log Detail Level: on at Medium and Full."}
 FIELDS = (*FIELDS, DETAILED_SPOILER_LOG_ROW)
+# Version 21: Wizzrobes Shoot Wallmasters (idea: Ultralavos). Its control is on the Advanced tab (flagTab, last in the
+# first column), not this one: a ZORA field all the same, carried by the ZORA string.
+WIZZROBE_HAND_ROW = {
+    "name": WIZZROBE_HAND_FIELD, "kind": THREE_STATE_KIND, "label": "Wizzrobes Shoot Wallmasters",
+    "flagTab": "Advanced", "flagColumn": 1,
+    "help": ("A Wizzrobe's magic shot is a Wallmaster's hand. It flies over blocks and vanishes at the walls as the "
+             "magic does. When it hits Link it deals a Wallmaster's damage and takes him back to the level's "
+             "entrance, as a Wallmaster's grab does, keeping his hearts; a hit that empties his hearts kills him. "
+             "The Magical Shield blocks it, and it vanishes. Link's wand is unchanged. The hand is drawn with the "
+             "Wallmaster's tiles, so this turns Shuffle Enemy Groups on, and the deal puts the Wizzrobes in a "
+             "dungeon group (never the overworld's) with the Wallmasters. Not with Oops All Enemies: "
+             "Wizzrobes. Idea by Ultralavos.")}
+FIELDS = (*FIELDS, WIZZROBE_HAND_ROW)
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 

@@ -17,6 +17,9 @@
         "Medium",
         "Full"
       ]
+    },
+    "wizzrobes_shoot_wallmasters": {
+      "beta": "all"
     }
   }
 }
