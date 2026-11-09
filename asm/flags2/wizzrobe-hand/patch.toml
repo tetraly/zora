@@ -1,0 +1,50 @@
+# ZORA Wizzrobes Shoot Wallmasters (the ZORA flag wizzrobes_shoot_wallmasters, on the Advanced tab; idea: Ultralavos): a
+# Wizzrobe's magic shot (types $58 and $59) is drawn as a Wallmaster's open hand. When it hits Link it
+# deals the Wallmaster's damage and then does what a Wallmaster does at the end of a capture: back to the
+# level's entrance, hearts kept (mode 3, not the death menu's Continue). A hit that kills Link is a death.
+# The Magical Shield blocks it and it vanishes, without the shield bounce. Link's wand beam is unchanged.
+# The hand uses the Wallmaster's tiles, read from its open-hand frame in ObjAnimFrameHeap, so the generator
+# deals Wizzrobes and Wallmasters into one dungeon group (Shuffle Enemy Groups, forced on).
+# On the overworld (level 0) the shot stays a plain magic shot. asm/README.md and asm/flags2/build.py
+# describe this file.
+
+[[segment]]
+name = "ZORA_F2_WIZZROBE_HAND"
+bank = 4
+size = 0x80                 # the grab check and the draw choice
+
+[imports]
+bank_04 = ["Anim_WriteSpecificItemSprites", "ObjAnimFrameHeap"]
+bank_07 = ["ChooseMonsterShotSprites"]
+
+[exports]
+bank_01 = ["ObjAnimFrameHeap"]
+bank_04 = ["ChooseMonsterShotSprites"]
+
+[[hook]]
+name = "shot-grab"
+offset = 0x1030E
+length = 3
+note = "UpdateMonsterShot's JSR CheckShotLinkCollision calls CheckShotLinkCollisionOrGrab, which runs the Wallmaster's return after a Wizzrobe shot hurts Link and destroys a blocked one."
+code = """
+    JSR CheckShotLinkCollisionOrGrab
+"""
+
+[[hook]]
+name = "shot-draw"
+offset = 0x1F3D4
+length = 6
+note = "DrawSwordShotOrMagicShot's monster-shot choice (CMP #$57 / BEQ / BNE, reached only from bank 4's UpdateMonsterShot) goes to ChooseMonsterShotSprites in bank 4."
+code = """
+    JMP ChooseMonsterShotSprites
+    .RES 3, $EA
+"""
+
+[[hook]]
+name = "shot-damage"
+offset = 0x07322
+length = 5
+note = "ObjTypeToDamagePoints for types $58 to $5C: the two Wizzrobe shots ($58 blue, $59 red) take the Wallmaster's ($27) half heart; $5A to $5C keep theirs."
+code = """
+    .BYTE $80, $80, $04, $80, $01
+"""

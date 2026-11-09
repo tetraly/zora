@@ -19,6 +19,7 @@ Third-party material keeps its own license, given with it.
 | Harder Bosses | MetalMachine (Z1M1's boss_level) | `zora/rom/harder_bosses.py` |
 | Harder Ganon | MetalMachine (Z1M1's harder_ganon) | `asm/flags2/harder-ganon/` |
 | Offense and Defense Item Pacing, Recorder Warping | MetalMachine (Z1M1's pacing settings) | `zora/generate/acceptance_check.py`, `zora/generate/dungeon_walk.py` |
+| Wizzrobes Shoot Wallmasters | Ultralavos (the idea) | `asm/flags2/wizzrobe-hand/` |
 | Swap Swords and Rings, Swordlish | BogieSmalls | `zora/generate/steps/swap_swords_and_rings.py`, `zora/rom/swordlish.py` |
 | Reduce flashing | Z1R community resource |
 | Statistics screen (the idea: an end-of-game list of times, deaths and counts) | Z2Randomizer | `asm/fp-stats-01/` |
