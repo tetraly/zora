@@ -17,6 +17,7 @@ from .zora_flags import (
     DETAILED_SPOILER_LOG_FIELD,
     ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
+    ITEM_COUNTER_FIELD,
     ITEM_SHUFFLE_NO_VANILLA_FIELD,
     SWORDLISH_HIGHEST_FIELD,
     SWORDLISH_LOWEST_FIELD,
@@ -172,6 +173,12 @@ FIELDS: tuple[dict[str, Any], ...] = (
         ("compass_chime", "Compass Chime",
          ("With a level's compass, a chime plays when you enter a room that still holds an item you haven't "
           "collected: one that appears after a fight, or one down the room's stairway.")),
+        (ITEM_COUNTER_FIELD, "Item Counter",
+         ("The HUD's empty row under the rupees shows a chest and how many of the area's major items you have "
+          "found out of its total: in a level, its rooms and item cellars; on the overworld, the caves, the "
+          "Armos and coast items and the shop wares in the item shuffle. Only the places the item shuffle deals "
+          "count: with Item Only, Within Each Dungeon or None, the bosses' heart containers do not. Totals over "
+          "9 show in hexadecimal (A = 10). Idea by Ultralavos.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)

@@ -58,13 +58,16 @@ def test_the_shipped_file_marks_universal_drops_v2_and_loads() -> None:
     uses no beta value."""
     assert json.loads(FLAGS_FILE.read_text(encoding="utf-8"))[beta.FLAGS_KEY] == {
         "universal_drops_v2": {beta.BETA_KEY: beta.ALL_VALUES}, "B51": {beta.BETA_KEY: ["Basic", "Medium", "Full"]},
-        "wizzrobes_shoot_wallmasters": {beta.BETA_KEY: beta.ALL_VALUES}}
+        "wizzrobes_shoot_wallmasters": {beta.BETA_KEY: beta.ALL_VALUES},
+        "item_counter": {beta.BETA_KEY: beta.ALL_VALUES}}
     # Spoiler Log Detail Level (owner rulings, 2026-11-06, and Prompt 660): every level but None, and Random
     levels = {1, flag_form.SPOILER_MEDIUM_CHOICE, flag_form.SPOILER_FULL_CHOICE, 2}
     assert flag_form.beta_values() == {"universal_drops_v2": frozenset({1, 2}), "B51": frozenset(levels),
-                                       "wizzrobes_shoot_wallmasters": frozenset({1, 2})}
+                                       "wizzrobes_shoot_wallmasters": frozenset({1, 2}),
+                                       "item_counter": frozenset({1, 2})}
     assert flag_form.metadata()["beta"]["values"] == {"universal_drops_v2": [1, 2], "B51": sorted(levels),
-                                                      "wizzrobes_shoot_wallmasters": [1, 2]}
+                                                      "wizzrobes_shoot_wallmasters": [1, 2],
+                                                      "item_counter": [1, 2]}
     assert flag_form.form_state(START)["beta"] == []
 
 

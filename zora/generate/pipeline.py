@@ -745,12 +745,26 @@ def finish(built: Built, base_rom: bytes | PlayerRom, assignment: Assignment | N
     from ..rom.serialize.rom_file import serialize_to_rom
     if assignment is None:
         assert not slot_identity, "a slot identity is External mode's"
-        return serialize_to_rom(written_world(built.world, built.plan.config), base_rom, config=built.plan.config,
+        config = with_item_counter(built)
+        return serialize_to_rom(written_world(built.world, config), base_rom, config=config,
                                 player_settings=player_settings)
     with using_player_rom(as_player_rom(base_rom)):
         world, finished = finish_world(built, assignment, recompute, received, check, look)
     config = replace(finished.config, slot_identity=slot_identity, archipelago_rom=True, seed_number=None)
     return serialize_to_rom(written_world(world, config), base_rom, config=config, player_settings=player_settings)
+
+
+def with_item_counter(built: Built) -> GameConfig:
+    """The built plan's configuration, with Item Counter on (ZORA version 22) the seed's table of counted places
+    (item_counter.py), read from the built world before any mirroring, as the item places are."""
+    config = built.plan.config
+    if not built.plan.zora_resolved.is_on(zora_flags.ITEM_COUNTER_FIELD):
+        return config
+    from .item_counter import counter_table
+    state = built.result.item_shuffle_result
+    assert state is not None
+    table = counter_table(built.world, built.places, built.plan.alternatives.item_deal, state, config.mirror_overworld)
+    return replace(config, item_counter_table=table)
 
 
 def written_world(world: GameWorld, config: GameConfig) -> GameWorld:
