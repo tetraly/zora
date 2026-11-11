@@ -761,9 +761,7 @@ def with_item_counter(built: Built) -> GameConfig:
     if not built.plan.zora_resolved.is_on(zora_flags.ITEM_COUNTER_FIELD):
         return config
     from .item_counter import counter_table
-    state = built.result.item_shuffle_result
-    assert state is not None
-    table = counter_table(built.world, built.places, built.plan.alternatives.item_deal, state, config.mirror_overworld)
+    table = counter_table(built.places, config.mirror_overworld)
     return replace(config, item_counter_table=table)
 
 

@@ -1,9 +1,9 @@
 # ZORA Item Counter (the ZORA flag item_counter; idea: Ultralavos): the status bar's empty row under the
-# rupees (PPU $208B, four tiles) shows a chest and found/total for the area Link is in: the level's places
+# rupees (PPU $208B, four tiles) shows chest, found, chest, total for the area Link is in: the level's places
 # in a level, the overworld's on the overworld (and in its caves). A place is a room's or an item cellar's
 # item bit in its level's room flags, a cave's (and the Armos and coast items') in its overworld screen's,
 # or a once-only shop ware's ShopBoughtFlags bit, as the seed's table at ItemCounterTable lists them
-# (zora/generate/item_counter.py writes it; zora/rom/item_counter.py the chest and slash tiles). Counts and
+# (zora/generate/item_counter.py writes it; zora/rom/item_counter.py the chest tile, $60). Counts and
 # totals of 10 to 15 show as the font's A to F. World_ChangeRupees formats the status bar text every other
 # frame; on the frames between, the dynamic buffer is free and the counter's record goes in it.
 # asm/README.md and asm/flags2/build.py describe this file.
@@ -11,7 +11,7 @@
 [[segment]]
 name = "ZORA_F2_ITEM_COUNTER"
 bank = 5
-size = 0xD0                 # the status bar record and the count
+size = 0xA0                 # the status bar record and the count
 
 [imports]
 bank_01 = ["ItemCounterOnSkippedFrames"]

@@ -51,7 +51,7 @@ PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
     # Version 21 (zora_flags.WIZZROBE_HAND_FIELDS): a Wizzrobe's shot is a Wallmaster's hand.
     "wizzrobes_shoot_wallmasters": ("wizzrobe-hand",),
     # Version 22 (zora_flags.ITEM_COUNTER_FIELDS): the HUD row under the rupees counts the area's places; the seed's
-    # table and the chest and slash tiles are zora/rom/item_counter.py's.
+    # table and the chest tile are zora/rom/item_counter.py's.
     "item_counter": ("item-counter",),
 }
 # asm/flags2's patches every ROM gets, whatever the flags: auto-show-letter, Auto Show Letter's, a flag

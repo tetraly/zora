@@ -168,7 +168,7 @@ WIZZROBE_HAND_FIELDS = (
 )
 # Version 22: Item Counter (idea: Ultralavos), On / Off / ? like version 3's, a "?" decided by the same coins after
 # version 21's. Written by its asm/flags2 patch (zora/rom/owner_patches.py) with the seed's table of counted places
-# (zora/generate/item_counter.py): the HUD row under the rupees shows a chest and found/total for the area.
+# (zora/generate/item_counter.py): the HUD row under the rupees shows chest, found, chest, total for the area.
 ITEM_COUNTER_FIELD = "item_counter"
 ITEM_COUNTER_FIELDS = (
     ITEM_COUNTER_FIELD,                    # the HUD counts the area's major-item places taken out of its total

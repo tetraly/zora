@@ -1,26 +1,26 @@
 """Item Counter (ZORA flag item_counter, version 22; asm/flags2/item-counter/, zora/generate/item_counter.py,
-zora/rom/item_counter.py): the table's encoding, the tiles, which places count under each item shuffle, and the
-table written into finished ROMs. tests/test_item_counter_emulator.py plays it."""
+zora/rom/item_counter.py): the table's encoding, the chest tile, which places count under each item shuffle, and
+the table written into finished ROMs, alone and beside the flags that draw tiles $50-$5F.
+tests/test_item_counter_emulator.py plays it."""
+from dataclasses import replace
 from functools import cache
 
 import pytest
 
 from tests.needs import needs_base_rom
 from zora.flags import codec, zora_flags
-from zora.flags.fields import ITEM_SHUFFLE_SCOPE, ItemShuffleScope, ThreeState
+from zora.flags.fields import CHANGE_HIDDEN_TILES, ITEM_SHUFFLE_SCOPE, ItemShuffleScope, ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.generate.item_counter import counter_areas, dealt_hearts
+from zora.generate.item_counter import counter_areas
 from zora.generate.pipeline import Built, build, generate_rom, plan, with_item_counter
-from zora.generate.places import read_item
-from zora.model.enums import Item
 from zora.rom import inventory
 from zora.rom.base_rom import remember_repo_base_rom
+from zora.rom.graphics_theme import RESERVED_BACKGROUND_TILES
 from zora.rom.item_counter import (
     AREAS,
     CHEST,
     CHEST_TILE,
     COMMON_BACKGROUND,
-    SLASH_TILE,
     TABLE,
     TABLE_SIZE,
     TILE_BYTES,
@@ -32,8 +32,7 @@ from zora.rom.item_counter import (
 
 ON = zora_flags.encode(zora_flags.ZoraFlags(item_counter=ThreeState.ON))
 SEEDS = range(3)
-FIRST_QUEST_SPOTS = (3, 2, 2, 2, 2, 2, 2, 3, 2)       # levels 1-9 under Full: items and hearts
-DEALT_SPOTS = (2, 1, 1, 1, 1, 1, 1, 2, 2)             # under Item Only, Within Each Dungeon and None
+FIRST_QUEST_SPOTS = (3, 2, 2, 2, 2, 2, 2, 3, 2)       # levels 1-9 under every shuffle: items and hearts
 OVERWORLD_SPOTS = 3                                    # the white sword cave, the Armos and coast items
 
 
@@ -54,26 +53,27 @@ def test_the_tiles() -> None:
     assert len(chest) == TILE_BYTES
     assert chest[0] == 0 and chest[TILE_BYTES // 2] == 0          # the top row is black: off the rupee
     assert tile_bytes(["." * 8] * 8) == bytes(TILE_BYTES)
-    assert (CHEST_TILE, SLASH_TILE) == (0x50, 0x51)
+    assert CHEST_TILE == 0x60
 
 
-def test_the_tiles_are_blank_in_prg0() -> None:
+def test_the_chest_tile_is_blank_in_prg0_and_reserved() -> None:
+    """$60 is blank in PRG0, past the tiles other flags draw ($30-$5F), and themes never write it."""
     rom = remember_repo_base_rom()
-    for tile in (CHEST_TILE, SLASH_TILE):
-        start = COMMON_BACKGROUND + tile * TILE_BYTES
-        assert rom[start:start + TILE_BYTES] == bytes(TILE_BYTES)
+    start = COMMON_BACKGROUND + CHEST_TILE * TILE_BYTES
+    assert rom[start:start + TILE_BYTES] == bytes(TILE_BYTES)
+    assert CHEST_TILE in RESERVED_BACKGROUND_TILES and CHEST_TILE not in range(0x30, 0x60)
 
 
 def test_the_table_encoding() -> None:
     areas = [CounterArea(inventory.room_flags(0), (0x5F, ware_place(1, 0)))]
-    areas += [CounterArea(inventory.room_flags(level), (level,), (0x10, 0x20), 1) for level in range(1, AREAS)]
+    areas += [CounterArea(inventory.room_flags(level), (level, 0x10, 0x20)) for level in range(1, AREAS)]
     table = table_bytes(areas)
     assert len(table) <= TABLE_SIZE
     block = table[table[0]:]
-    assert list(block[:7]) == [0x7F, 0x06, 2, 0, 0, 0x5F, 0x88]
+    assert list(block[:5]) == [0x7F, 0x06, 2, 0x5F, 0x88]
     level_9 = table[table[9]:]
-    assert list(level_9[:8]) == [0x7F, 0x07, 1, 2, 1, 9, 0x10, 0x20]
-    assert areas[9].total == 2
+    assert list(level_9[:6]) == [0x7F, 0x07, 3, 9, 0x10, 0x20]
+    assert areas[9].total == 3
 
 
 def test_the_table_refuses_what_it_cannot_show() -> None:
@@ -93,38 +93,17 @@ def built(scope: ItemShuffleScope, seed: int) -> Built:
 @pytest.mark.parametrize("scope", [ItemShuffleScope.FULL, ItemShuffleScope.DUNGEON_ITEMS_ONLY,
                                    ItemShuffleScope.WITHIN_EACH_DUNGEON, ItemShuffleScope.NONE],
                          ids=["full", "item-only", "within-each-dungeon", "none"])
-def test_the_counts_follow_the_deal(scope: ItemShuffleScope) -> None:
-    """Full counts every heart container; the others count only the hearts the deal itself placed (the coast's),
-    so every level keeps its first-quest count of dealt places."""
+def test_every_shuffle_counts_every_level_place(scope: ItemShuffleScope) -> None:
+    """Every shuffle counts each level's item places, heart containers included, so the levels' totals are the
+    first quest's whatever the shuffle (a shuffle rolled at random stays hidden)."""
     for seed in SEEDS:
         made = built(scope, seed)
-        assert made.result.item_shuffle_result is not None
-        areas = counter_areas(made.world, made.places, made.plan.alternatives.item_deal,
-                              dealt_hearts(made.result.item_shuffle_result))
+        areas = counter_areas(made.places)
         assert areas[0].total == OVERWORLD_SPOTS
-        expected = FIRST_QUEST_SPOTS if scope is ItemShuffleScope.FULL else DEALT_SPOTS
-        assert tuple(area.total for area in areas[1:]) == expected, (scope, seed)
+        assert tuple(area.total for area in areas[1:]) == FIRST_QUEST_SPOTS, (scope, seed)
         for level, area in enumerate(areas[1:], start=1):
             assert area.flags_address == inventory.room_flags(level)
-            hearts = [place for place in made.places if place.level == level
-                      and read_item(made.world, place) == Item.HEART_CONTAINER]
-            if scope is not ItemShuffleScope.FULL and area.group:
-                assert len(area.group) == len(hearts) > area.cap
-
-
-@needs_base_rom
-@pytest.mark.slow
-def test_the_coast_heart_counts_where_it_lands() -> None:
-    for seed in SEEDS:
-        made = built(ItemShuffleScope.DUNGEON_ITEMS_ONLY, seed)
-        assert made.result.item_shuffle_result is not None
-        hearts = dealt_hearts(made.result.item_shuffle_result)
-        assert sum(hearts.values()) <= 1
-        areas = counter_areas(made.world, made.places, ItemShuffleScope.DUNGEON_ITEMS_ONLY, hearts)
-        for level, count in hearts.items():
-            assert any(read_item(made.world, place) == Item.HEART_CONTAINER and place.room_num in
-                       areas[level].unique + areas[level].group for place in made.places if place.level == level)
-            assert count == 1
+            assert area.places == tuple(place.room_num for place in made.places if place.level == level)
 
 
 @needs_base_rom
@@ -136,7 +115,24 @@ def test_finished_roms_hold_the_table_only_with_the_flag() -> None:
     assert on[TABLE:TABLE + len(config.item_counter_table)] == config.item_counter_table
     assert set(off[TABLE:TABLE + TABLE_SIZE]) == {0xFF}
     start = COMMON_BACKGROUND + CHEST_TILE * TILE_BYTES
-    assert off[start:start + 2 * TILE_BYTES] == bytes(2 * TILE_BYTES)
+    assert off[start:start + TILE_BYTES] == bytes(TILE_BYTES)
     assert on[start:start + TILE_BYTES] == tile_bytes(CHEST)
     assert not with_item_counter(build(plan(MVP_BASELINE_LEVEL_ENCODING_OFF, 4), remember_repo_base_rom())) \
         .item_counter_table
+
+
+@needs_base_rom
+@pytest.mark.slow
+def test_beside_change_hidden_ow_tiles_and_pegasus_boots() -> None:
+    """Change Hidden OW Tiles draws $50-$5F and Pegasus Boots needs $50/$51 blank: with both on, the counter
+    still generates, their tiles $50-$5F are as without it, and $60 holds the chest."""
+    hidden = codec.encode(codec.decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
+        toggles={CHANGE_HIDDEN_TILES: ThreeState.ON}))
+    boots = zora_flags.ZoraFlags(pegasus_boots=ThreeState.ON)
+    without = generate_rom(hidden, 4, remember_repo_base_rom(), zora_flag_string=zora_flags.encode(boots)).rom
+    with_counter = generate_rom(hidden, 4, remember_repo_base_rom(), zora_flag_string=zora_flags.encode(
+        replace(boots, item_counter=ThreeState.ON))).rom
+    others = slice(COMMON_BACKGROUND + 0x50 * TILE_BYTES, COMMON_BACKGROUND + CHEST_TILE * TILE_BYTES)
+    assert with_counter[others] == without[others] != bytes(0x10 * TILE_BYTES)
+    start = COMMON_BACKGROUND + CHEST_TILE * TILE_BYTES
+    assert with_counter[start:start + TILE_BYTES] == tile_bytes(CHEST)

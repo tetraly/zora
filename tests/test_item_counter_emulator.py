@@ -2,25 +2,29 @@
 or in a level by the level-load and enter-room modes; the status bar row under the rupees (PPU $208B) is read from
 the nametable.
 
-  - Each area shows the chest, 0, the slash and its table total; a total over 9 shows as the font's A-F.
+  - Each area shows the chest, 0, the chest and its table total; a total over 9 shows as the font's A-F.
   - Taking a counted floor item adds one; so do the bits a counted cellar, cave screen and once-only ware set.
   - Bits of places that do not count change nothing (a room or screen not listed, a re-buyable ware).
-  - Under Item Only a level's heart containers count only as many as the deal placed there.
-  - Neither tile shows anywhere else: no overworld screen or level room draws $50 or $51."""
+  - Under Item Only every heart container counts the moment it is taken, the bosses' too.
+  - With Change Hidden OW Tiles and Pegasus Boots on, the counter shows the same, and the chest shows nowhere
+    else: no overworld screen or level room draws $60."""
+from collections.abc import Callable
 from functools import cache
 
 import pytest
 
 from tests.emulator import CUR_LEVEL, GAME_MODE, GAME_SUBMODE, OBJ_X, OBJ_Y, ROOM_ID, Button, Emulator, Mode
 from tests.needs import needs_base_rom
-from tests.test_item_counter import ON, with_scope
-from zora.flags import zora_flags
-from zora.flags.fields import ItemShuffleScope, ThreeState
+from tests.test_item_counter import ON, built, with_scope
+from zora.flags import codec, zora_flags
+from zora.flags.fields import CHANGE_HIDDEN_TILES, ItemShuffleScope, ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
+from zora.generate.places import read_item
+from zora.model.enums import Item
 from zora.rom import inventory
 from zora.rom.base_rom import remember_repo_base_rom
-from zora.rom.item_counter import AREAS, BLOCK_HEADER, CHEST_TILE, SLASH_TILE, TABLE, TABLE_SIZE, WARE_PLACE
+from zora.rom.item_counter import AREAS, BLOCK_HEADER, CHEST_TILE, TABLE, TABLE_SIZE, WARE_PLACE
 from zora.rom.parse.rom_file import parse_rom
 
 pytestmark = [needs_base_rom, pytest.mark.slow]
@@ -48,20 +52,31 @@ WALK_FRAMES = 400
 MOST_SCREENS = 120
 
 
+BESIDE = zora_flags.encode(zora_flags.ZoraFlags(item_counter=ThreeState.ON, pegasus_boots=ThreeState.ON))
+
+
 @cache
-def counter_rom(scope: ItemShuffleScope = ItemShuffleScope.FULL, zora: str = ON) -> bytes:
-    return generate_rom(with_scope(scope), SEED, remember_repo_base_rom(), zora_flag_string=zora).rom
+def counter_rom(scope: ItemShuffleScope = ItemShuffleScope.FULL, zora: str = ON, hidden_tiles: bool = False) -> bytes:
+    flags = with_scope(scope)
+    if hidden_tiles:
+        flags = codec.encode(codec.decode(flags).updated(toggles={CHANGE_HIDDEN_TILES: ThreeState.ON}))
+    return generate_rom(flags, SEED, remember_repo_base_rom(), zora_flag_string=zora).rom
 
 
-def areas(rom: bytes) -> list[tuple[int, list[int], list[int], int]]:
-    """The table as the patch reads it: each area's flags address, unique places, group and cap."""
+def beside_rom() -> bytes:
+    """The counter with Change Hidden OW Tiles and Pegasus Boots on, the flags that draw tiles $50-$5F."""
+    return counter_rom(zora=BESIDE, hidden_tiles=True)
+
+
+def areas(rom: bytes) -> list[tuple[int, list[int]]]:
+    """The table as the patch reads it: each area's flags address and places."""
     table = rom[TABLE:TABLE + TABLE_SIZE]
     out = []
     for area in range(AREAS):
         start = table[area]
-        unique, group, cap = table[start + 2], table[start + 3], table[start + 4]
-        places = list(table[start + BLOCK_HEADER:start + BLOCK_HEADER + unique + group])
-        out.append((table[start] | table[start + 1] << 8, places[:unique], places[unique:], cap))
+        count = table[start + 2]
+        out.append((table[start] | table[start + 1] << 8,
+                    list(table[start + BLOCK_HEADER:start + BLOCK_HEADER + count])))
     return out
 
 
@@ -100,7 +115,7 @@ def shown(emu: Emulator) -> tuple[int, int] | None:
     tiles = emu.nametable(COUNTER, COUNTER_TILES)
     if tiles[0] != CHEST_TILE:
         return None
-    assert tiles[2] == SLASH_TILE
+    assert tiles[2] == CHEST_TILE
     return tiles[1], tiles[3]
 
 
@@ -113,17 +128,18 @@ def set_place(emu: Emulator, flags: int, place: int) -> None:
     settle(emu, UPDATE_FRAMES)
 
 
-def test_every_area_shows_its_total() -> None:
-    rom = counter_rom()
-    for level, (_flags, unique, _group, cap) in enumerate(areas(rom)):
-        assert shown(enter(rom, level)) == (0, len(unique) + cap), level
+@pytest.mark.parametrize("rom", [counter_rom, beside_rom], ids=["alone", "beside-hidden-tiles-and-boots"])
+def test_every_area_shows_its_total(rom: Callable[[], bytes]) -> None:
+    made = rom()
+    for level, (_flags, places) in enumerate(areas(made)):
+        assert shown(enter(made, level)) == (0, len(places)), level
 
 
 def test_taking_a_counted_floor_item_counts() -> None:
     """A counted room whose item lies on the floor: Link walks onto it."""
     rom = counter_rom()
-    for level, (flags, unique, _group, _cap) in enumerate(areas(rom)):
-        for room in unique if level else ():
+    for level, (flags, places) in enumerate(areas(rom)):
+        for room in places if level else ():
             emu = enter(rom, level, room)
             before = shown(emu)
             assert before is not None
@@ -143,15 +159,15 @@ def test_taking_a_counted_floor_item_counts() -> None:
 
 def test_each_counted_bit_counts_and_others_do_not() -> None:
     rom = counter_rom()
-    for level, (flags, unique, _group, _cap) in enumerate(areas(rom)):
+    for level, (flags, places) in enumerate(areas(rom)):
         emu = enter(rom, level)
-        for found, place in enumerate(unique, start=1):
+        for found, place in enumerate(places, start=1):
             set_place(emu, flags, place)
-            assert shown(emu) == (found, len(unique)), (level, hex(place))
-        others = [number for number in range(0x80) if number not in unique][:4]
+            assert shown(emu) == (found, len(places)), (level, hex(place))
+        others = [number for number in range(0x80) if number not in places][:4]
         for place in others:
             set_place(emu, flags, place)
-        assert shown(emu) == (len(unique), len(unique))
+        assert shown(emu) == (len(places), len(places))
 
 
 def test_wares_count_and_totals_over_9_show_in_hex() -> None:
@@ -159,38 +175,44 @@ def test_wares_count_and_totals_over_9_show_in_hex() -> None:
                                                   shuffle_blue_potion=ThreeState.ON,
                                                   shuffle_wood_sword=ThreeState.ON, randomize_letter=True))
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, remember_repo_base_rom(), zora_flag_string=zora).rom
-    flags, unique, _group, _cap = areas(rom)[0]
-    assert len(unique) > 9 and any(place & WARE_PLACE for place in unique)
+    flags, places = areas(rom)[0]
+    assert len(places) > 9 and any(place & WARE_PLACE for place in places)
     emu = enter(rom, 0)
-    assert shown(emu) == (0, len(unique))
+    assert shown(emu) == (0, len(places))
     emu[inventory.SHOP_BOUGHT_FLAGS + REBUYABLE_WARE[1]] |= 1 << REBUYABLE_WARE[0]
     settle(emu, UPDATE_FRAMES)
-    assert shown(emu) == (0, len(unique))
-    wares = [place for place in unique if place & WARE_PLACE]
+    assert shown(emu) == (0, len(places))
+    wares = [place for place in places if place & WARE_PLACE]
     for found, place in enumerate(wares, start=1):
         set_place(emu, flags, place)
-        assert shown(emu) == (found, len(unique))
+        assert shown(emu) == (found, len(places))
 
 
-def test_item_only_counts_only_the_dealt_hearts() -> None:
+def test_item_only_counts_each_heart_container_when_taken() -> None:
+    """Under Item Only the bosses' heart containers count too, each the moment it is taken."""
     rom = counter_rom(ItemShuffleScope.DUNGEON_ITEMS_ONLY)
-    grouped = [(level, area) for level, area in enumerate(areas(rom)) if area[2]]
-    assert grouped, "no level holds the coast's heart beside a boss's"
-    level, (flags, unique, group, cap) = grouped[0]
-    emu = enter(rom, level)
-    assert shown(emu) == (0, len(unique) + cap)
-    for place in group:
-        set_place(emu, flags, place)
-        assert shown(emu) == (cap, len(unique) + cap)
+    made = built(ItemShuffleScope.DUNGEON_ITEMS_ONLY, SEED)
+    for level, (flags, places) in enumerate(areas(rom)):
+        hearts = [place.room_num for place in made.places if level and place.level == level
+                  and place.room_num is not None and read_item(made.world, place) == Item.HEART_CONTAINER]
+        assert all(room in places for room in hearts)
+        if not hearts:
+            continue
+        emu = enter(rom, level)
+        for found, place in enumerate(hearts, start=1):
+            set_place(emu, flags, place)
+            assert shown(emu) == (found, len(places)), (level, hex(place))
+        return
+    pytest.fail("no level holds a heart container")
 
 
-def test_neither_tile_shows_elsewhere() -> None:
-    rom = counter_rom()
+def test_the_chest_shows_nowhere_else() -> None:
+    rom = beside_rom()
 
     def assert_clean(emu: Emulator, where: str) -> None:
         for base in NAMETABLES:
             for index, tile in enumerate(emu.nametable(base, NAMETABLE_SIZE)):
-                if tile in (CHEST_TILE, SLASH_TILE):
+                if tile == CHEST_TILE:
                     assert base + index in (COUNTER, COUNTER + 2), (where, hex(base + index))
 
     # Each overworld screen, scrolled onto from its neighbour (the east one; the west one for the last column).

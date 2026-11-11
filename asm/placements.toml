@@ -30,4 +30,4 @@ segment = "ZORA_F2_ITEM_COUNTER"
 owner = "flags2:item-counter"
 banks = [5]
 start = 0xBDC0
-size = 0xD0
+size = 0xA0
