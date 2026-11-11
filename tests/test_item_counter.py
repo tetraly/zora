@@ -9,7 +9,14 @@ import pytest
 
 from tests.needs import needs_base_rom
 from zora.flags import codec, zora_flags
-from zora.flags.fields import CHANGE_HIDDEN_TILES, ITEM_SHUFFLE_SCOPE, ItemShuffleScope, ThreeState
+from zora.flags.fields import (
+    CHANGE_HIDDEN_TILES,
+    DUNGEON_LAYOUT_SOURCE,
+    ITEM_SHUFFLE_SCOPE,
+    DungeonLayoutSource,
+    ItemShuffleScope,
+    ThreeState,
+)
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.item_counter import counter_areas
 from zora.generate.pipeline import Built, build, generate_rom, plan, with_item_counter
@@ -33,6 +40,8 @@ from zora.rom.item_counter import (
 ON = zora_flags.encode(zora_flags.ZoraFlags(item_counter=ThreeState.ON))
 SEEDS = range(3)
 FIRST_QUEST_SPOTS = (3, 2, 2, 2, 2, 2, 2, 3, 2)       # levels 1-9 under every shuffle: items and hearts
+# The second quest's by CurLevel (the game shows levels 2-3, 4-5 and 7-8 swapped: 2-2-2-3-2-2-2-3-2 as shown)
+SECOND_QUEST_SPOTS = (2, 2, 2, 2, 3, 2, 3, 2, 2)
 OVERWORLD_SPOTS = 3                                    # the white sword cave, the Armos and coast items
 
 
@@ -94,8 +103,8 @@ def built(scope: ItemShuffleScope, seed: int) -> Built:
                                    ItemShuffleScope.WITHIN_EACH_DUNGEON, ItemShuffleScope.NONE],
                          ids=["full", "item-only", "within-each-dungeon", "none"])
 def test_every_shuffle_counts_every_level_place(scope: ItemShuffleScope) -> None:
-    """Every shuffle counts each level's item places, heart containers included, so the levels' totals are the
-    first quest's whatever the shuffle (a shuffle rolled at random stays hidden)."""
+    """Every shuffle counts each level's item places, heart containers included, so the levels' totals follow the
+    dungeon layout alone, the first quest's here, whatever the shuffle (a shuffle rolled at random stays hidden)."""
     for seed in SEEDS:
         made = built(scope, seed)
         areas = counter_areas(made.places)
@@ -104,6 +113,19 @@ def test_every_shuffle_counts_every_level_place(scope: ItemShuffleScope) -> None
         for level, area in enumerate(areas[1:], start=1):
             assert area.flags_address == inventory.room_flags(level)
             assert area.places == tuple(place.room_num for place in made.places if place.level == level)
+
+
+@needs_base_rom
+@pytest.mark.slow
+@pytest.mark.parametrize("scope", [ItemShuffleScope.FULL, ItemShuffleScope.DUNGEON_ITEMS_ONLY],
+                         ids=["full", "item-only"])
+def test_second_quest_dungeons_count_their_own_places(scope: ItemShuffleScope) -> None:
+    """With the second quest's dungeons, each level counts its own places: the second quest's totals."""
+    flags = codec.encode(codec.decode(with_scope(scope)).updated(
+        options={DUNGEON_LAYOUT_SOURCE.id: int(DungeonLayoutSource.SECOND_QUEST)}))
+    for seed in SEEDS:
+        made = build(plan(flags, seed, ON), remember_repo_base_rom())
+        assert tuple(area.total for area in counter_areas(made.places)[1:]) == SECOND_QUEST_SPOTS, (scope, seed)
 
 
 @needs_base_rom

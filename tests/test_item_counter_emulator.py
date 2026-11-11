@@ -17,7 +17,13 @@ from tests.emulator import CUR_LEVEL, GAME_MODE, GAME_SUBMODE, OBJ_X, OBJ_Y, ROO
 from tests.needs import needs_base_rom
 from tests.test_item_counter import ON, built, with_scope
 from zora.flags import codec, zora_flags
-from zora.flags.fields import CHANGE_HIDDEN_TILES, ItemShuffleScope, ThreeState
+from zora.flags.fields import (
+    CHANGE_HIDDEN_TILES,
+    DUNGEON_LAYOUT_SOURCE,
+    DungeonLayoutSource,
+    ItemShuffleScope,
+    ThreeState,
+)
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
 from zora.generate.places import read_item
@@ -204,6 +210,20 @@ def test_item_only_counts_each_heart_container_when_taken() -> None:
             assert shown(emu) == (found, len(places)), (level, hex(place))
         return
     pytest.fail("no level holds a heart container")
+
+
+def test_second_quest_dungeons_count_by_the_level_loaded() -> None:
+    """With the second quest's dungeons the game shows levels 2-3, 4-5 and 7-8 swapped; the table follows CurLevel,
+    so each level shows its own total and counts its own bits."""
+    flags = codec.encode(codec.decode(with_scope(ItemShuffleScope.FULL)).updated(
+        options={DUNGEON_LAYOUT_SOURCE.id: int(DungeonLayoutSource.SECOND_QUEST)}))
+    rom = generate_rom(flags, SEED, remember_repo_base_rom(), zora_flag_string=ON).rom
+    for level, (flags_address, places) in enumerate(areas(rom)):
+        emu = enter(rom, level)
+        assert shown(emu) == (0, len(places)), level
+        for found, place in enumerate(places, start=1):
+            set_place(emu, flags_address, place)
+            assert shown(emu) == (found, len(places)), (level, hex(place))
 
 
 def test_the_chest_shows_nowhere_else() -> None:

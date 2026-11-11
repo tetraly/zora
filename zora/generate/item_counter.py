@@ -6,9 +6,10 @@ is taken, by the bit the game sets (archipelago.pickup_check's: a room's or cell
 bit, a once-only ware's ShopBoughtFlags bit).
 
 Every level counts all its item places, heart containers included, under every item shuffle (owner ruling,
-2026-11-11): the totals are the first quest's 3-2-2-2-2-2-2-3-2 whatever the shuffle, so a seed whose shuffle
-was rolled at random does not show which one it rolled, and a heart container counts the moment it is taken
-wherever the deal put it.
+2026-11-11): a level's total follows its dungeon layout alone (the first quest's 3-2-2-2-2-2-2-3-2, the second
+quest's 2-2-2-3-2-2-2-3-2 by the level numbers the game shows), never the shuffle, so a seed whose shuffle was
+rolled at random does not show which one it rolled, and a heart container counts the moment it is taken wherever
+the deal put it. The table is indexed by CurLevel, the level the game has loaded, whatever number it shows.
 """
 from __future__ import annotations
 
