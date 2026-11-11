@@ -1,12 +1,12 @@
 """Item Counter (the ZORA flag item_counter; idea: Ultralavos): the ROM side of asm/flags2/item-counter.
 
-The patch shows chest, found, chest, total on the status bar row under the rupees. CommonBackgroundPatterns
-tile $60 becomes the chest: blank in PRG0, drawn by no screen, and outside the tiles other ZORA flags draw
-($30-$4F the boss expansion, $50-$5F Change Hidden OW Tiles, $50/$51 Pegasus Boots' blank priority sprites);
-graphics_theme.RESERVED_BACKGROUND_TILES keeps themes off it. The digits and A-F are the font's own tiles
-$00-$0F. The seed's table
-(asm/rom_space.toml site "item-counter-table", bank 5 $BA40-$BABF) lists each area's places as the patch
-reads them (asm/flags2/item-counter/bank_05.s); zora/generate/item_counter.py says which places count.
+The patch shows chest, found, chest, total on the status bar row under the rupees: an orange chest, then the
+same tile in the numbers' colors, gray. CommonBackgroundPatterns tile $60 becomes the chest: blank in PRG0, drawn
+by no screen, and outside the tiles other ZORA flags draw ($30-$4F the boss expansion, $50-$5F Change Hidden OW
+Tiles, $50/$51 Pegasus Boots' blank priority sprites); graphics_theme.RESERVED_BACKGROUND_TILES keeps themes off
+it. The digits and A-F are the font's own tiles $00-$0F. The seed's table (asm/rom_space.toml site
+"item-counter-table", bank 5 $BA40-$BABF) lists each area's places as the patch reads them
+(asm/flags2/item-counter/bank_05.s); zora/generate/item_counter.py says which places count.
 """
 from __future__ import annotations
 
@@ -29,16 +29,18 @@ COMMON_BACKGROUND = BOSS_SET_EXPANSION_SPRITES_ADDRESS - 0x300
 TILE_BYTES = 16
 CHEST_TILE = 0x60
 
-# The status bar's colors in the icons' column: 0 black, 1 white, 2 orange, 3 peach (as the rupee's).
+# The status bar's colors: 0 black, then 1-3 as the 2x2-tile block's palette has them. The first chest sits in the
+# icons' column (1 red, 2 orange, 3 peach), the second among the numbers (1 white, 2 gray, 3 blue): drawn in colors
+# 2 and 1 only, the one tile is an orange chest with a red lock first and a gray chest with a white lock second.
 COLORS = {".": 0, "W": 1, "O": 2, "P": 3}
 CHEST = (
     "........",
-    ".PPPPPP.",
-    "POOOOOOP",
+    ".OOOOOO.",
+    "OOOOOOOO",
     "........",
-    "POOWWOOP",
-    "POOW.OOP",
-    "PPPPPPPP",
+    "OOOWWOOO",
+    "OOOW.OOO",
+    "OOOOOOOO",
     "........",
 )
 
