@@ -73,7 +73,8 @@ def test_every_zora_extra_is_in_one_group() -> None:
     groups = node_value("ZORA_GROUPS")
     named = [name for _heading, columns in groups for column in columns for name in column]
     assert len(named) == len(set(named))
-    shown = {field["name"] for field in METADATA["zora"]["fields"] if not field.get("hidden")}
+    # A field placed on a flag tab (flagTab: Wizzrobes Shoot Wallmasters on Advanced) is in no group
+    shown = {field["name"] for field in METADATA["zora"]["fields"] if not field.get("hidden") and not field.get("flagTab")}
     assert set(named) == shown
 
 

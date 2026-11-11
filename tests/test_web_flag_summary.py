@@ -70,7 +70,8 @@ def summary(options: dict[str, int], toggles: dict[str, ThreeState],
         (f"console.log(JSON.stringify({{sections, text: flagSummaryText(sections, {json.dumps(state['flags'])}, "
          f"{json.dumps(state['zora']['flags'])})}}));"),
     ])
-    out = json.loads(subprocess.run([node, "-e", source], capture_output=True, text=True, check=True).stdout)
+    # On standard input: the metadata, written twice, is longer than one command-line argument may be.
+    out = json.loads(subprocess.run([node, "-"], input=source, capture_output=True, text=True, check=True).stdout)
     return {"tabs": {section["tab"]: section["lines"] for section in out["sections"]},
             "order": [section["tab"] for section in out["sections"]], "text": out["text"]}
 

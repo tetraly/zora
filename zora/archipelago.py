@@ -187,6 +187,10 @@ ZORA_FORCED_OFF = {
     "universal_drops_v2": "Not offered in Archipelago yet: it waits for a logic scan with it on.",
     # Detailed Spoiler Log (owner ruling 9, 2026-11-06): Archipelago writes its own spoiler
     "detailed_spoiler_log": "Not offered in Archipelago: it writes its own spoiler.",
+    # Wizzrobes Shoot Wallmasters (ZORA version 21): beta, so held back as Universal Drops v2.0 is
+    "wizzrobes_shoot_wallmasters": "Not offered in Archipelago yet: it is still in beta.",
+    # Item Counter (ZORA version 22): beta, and its table is read from ZORA mode's world (pipeline.with_item_counter)
+    "item_counter": "Not offered in Archipelago yet: it is still in beta.",
 }
 # Z1R flags a released world offered and Archipelago now keeps off, each with its reason, kept as hidden options
 # so a player's older YAML still loads: any value is accepted and ignored. Print Quest Info (B51; owner ruling 9,

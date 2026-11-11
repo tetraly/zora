@@ -15,6 +15,8 @@ CREDITS: dict[str, str] = {
     "recorder-pols-voice": "Stratoform",
     "full-health": "ShadowOne333, kalita-kun and gzip",
     "harder-ganon": "MetalMachine",
+    "wizzrobe-hand": "Ultralavos",
+    "item-counter": "Ultralavos",
 }
 
 PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
@@ -161,5 +163,20 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "068d020660b97e6a291fcd4fb8d005209abdd011adb06b8501adaf6b8500b1002910491060a90060b9"
                                 "fe692980d007b97e69293fc93e60")),
         (0x1EAF3, bytes.fromhex("20bd")),
+    ),
+    "wizzrobe-hand": (
+        (0x07322, bytes.fromhex("8080")),
+        (0x1030F, bytes.fromhex("00bc")),
+        (0x13C10, bytes.fromhex("207183ad4b03f015a510f011bd4f03c958900ac95ab006a50cd003e60660a512c911f0f9208a82a903"
+                                "8512a90085ac8511851360c957f033a023a510f02da50429fc090185048505a9008552ac4103b9ab77"
+                                "8d4303b9ac778d44038608a9018507a908850aada5764c40794c1579")),
+        (0x1F3D4, bytes.fromhex("4c34bceaeaea")),
+    ),
+    "item-counter": (
+        (0x0655B, bytes.fromhex("20c0bd")),
+        (0x17DD0, bytes.fromhex("a5154a900420cabd3860a9208d0203a98b8d0303a9048d0403a9ff8d0903a203a9249d0503ca10fa20"
+                                "febdf0108d0803a5058d0603a9608d05038d070360a410be40babd40ba8500bd41ba8501bd42ba8504"
+                                "8506a9008505a504f00bc604202abef0f5e605d0f1a50660e8bd42ba300f1865008502a50169008503"
+                                "a910d01b484a4a4a29031869778502a9068503682907a8a9018830030ad0faa000310260")),
     ),
 }

@@ -83,6 +83,8 @@ PATCHES = (
     "full-health",              # Start With Full Health (credit: ShadowOne333, kalita-kun, gzip)
     "harder-ganon",             # Harder Ganon (credit: MetalMachine, Z1M1)
     "compass-chime",            # Compass Chime (ZORA version 18)
+    "wizzrobe-hand",            # Wizzrobes Shoot Wallmasters (ZORA version 21; idea: Ultralavos)
+    "item-counter",             # Item Counter (ZORA version 22; idea: Ultralavos)
 )
 
 # Community members who wrote a feature (the document's credits; docs/credits.md).
@@ -92,6 +94,8 @@ CREDITS = {
     "recorder-pols-voice": "Stratoform",
     "full-health": "ShadowOne333, kalita-kun and gzip",
     "harder-ganon": "MetalMachine",
+    "wizzrobe-hand": "Ultralavos",
+    "item-counter": "Ultralavos",
 }
 
 

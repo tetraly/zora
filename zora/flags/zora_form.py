@@ -17,11 +17,13 @@ from .zora_flags import (
     DETAILED_SPOILER_LOG_FIELD,
     ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
+    ITEM_COUNTER_FIELD,
     ITEM_SHUFFLE_NO_VANILLA_FIELD,
     SWORDLISH_HIGHEST_FIELD,
     SWORDLISH_LOWEST_FIELD,
     SWORDLISH_PIECES,
     THREE_STATE_FIELDS,
+    WIZZROBE_HAND_FIELD,
     L4Sword,
     Swordlish,
     ZoraFlags,
@@ -171,6 +173,11 @@ FIELDS: tuple[dict[str, Any], ...] = (
         ("compass_chime", "Compass Chime",
          ("With a level's compass, a chime plays when you enter a room that still holds an item you haven't "
           "collected: one that appears after a fight, or one down the room's stairway.")),
+        (ITEM_COUNTER_FIELD, "Item Counter",
+         ("The HUD's empty row under the rupees shows a chest, how many of the area's major items you have "
+          "found, a second chest and the area's total: in a level, its rooms and item cellars, heart containers "
+          "included whatever the item shuffle; on the overworld, the caves, the Armos and coast items and the "
+          "shop wares in the item shuffle. Totals over 9 show in hexadecimal (A = 10). Idea by Ultralavos.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
@@ -279,6 +286,19 @@ DETAILED_SPOILER_LOG_ROW = {
     "name": DETAILED_SPOILER_LOG_FIELD, "kind": "toggle", "label": "Detailed Spoiler Log", "hidden": True,
     "help": "Set by Spoiler Log Detail Level: on at Medium and Full."}
 FIELDS = (*FIELDS, DETAILED_SPOILER_LOG_ROW)
+# Version 21: Wizzrobes Shoot Wallmasters (idea: Ultralavos). Its control is on the Advanced tab (flagTab, last in the
+# first column), not this one: a ZORA field all the same, carried by the ZORA string.
+WIZZROBE_HAND_ROW = {
+    "name": WIZZROBE_HAND_FIELD, "kind": THREE_STATE_KIND, "label": "Wizzrobes Shoot Wallmasters",
+    "flagTab": "Advanced", "flagColumn": 1,
+    "help": ("A Wizzrobe's magic shot is a Wallmaster's hand. It flies over blocks and vanishes at the walls as the "
+             "magic does. When it hits Link it deals a Wallmaster's damage and takes him back to the level's "
+             "entrance, as a Wallmaster's grab does, keeping his hearts; a hit that empties his hearts kills him. "
+             "The Magical Shield blocks it, and it vanishes. Link's wand is unchanged. The hand is drawn with the "
+             "Wallmaster's tiles, so this turns Shuffle Enemy Groups on, and the deal puts the Wizzrobes in a "
+             "dungeon group (never the overworld's) with the Wallmasters. Not with Oops All Enemies: "
+             "Wizzrobes. Idea by Ultralavos.")}
+FIELDS = (*FIELDS, WIZZROBE_HAND_ROW)
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 

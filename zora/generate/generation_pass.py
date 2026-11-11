@@ -639,6 +639,7 @@ def shuffle_enemy_groups_step(context: GenerationContext) -> None:
         context.overworld, context.hit_points.hp[Enemy.ZOL], groups.staged,
         overworld_group=context.settings.alternatives.shuffle_overworld_group,
         wizzrobes_in_level_9_group=not context.settings.alternatives.shuffle_level_9_monsters,
+        wallmasters_with_wizzrobes=context.settings.extras.wizzrobes_shoot_wallmasters,
     )
 
 

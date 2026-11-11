@@ -33,6 +33,7 @@ from . import (
     fairy_refill,
     harder_bosses,
     hidden_tiles,
+    item_counter,
     item_sprites,
     mirror_overworld,
     opening_story,
@@ -104,6 +105,9 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
         rom[address:address + len(data)] = data
     for address, data in harder_bosses.harder_writes(config.harder_bosses, config.harder_ganon):
         rom[address:address + len(data)] = data
+    if config.item_counter_table:
+        for address, data in item_counter.item_counter_writes(config.item_counter_table):
+            rom[address:address + len(data)] = data
     for address, data in opening_story.story_writes(rom):
         rom[address:address + len(data)] = data
     if config.foreign_logo:
