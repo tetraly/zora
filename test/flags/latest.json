@@ -4,6 +4,9 @@
  "zora_version": "2.0.1",
  "generated_by": "scripts/flags_api.py from zora/flags/ (docs/flags-api.md); do not edit",
  "alphabet": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!",
+ "alphabet_aliases": {
+  "_": "!"
+ },
  "page_default": {
   "z1r": "8hq4BeR1JXo89BJ2!TFpTP02u8UJ3A",
   "zora": ""
@@ -12,7 +15,7 @@
   "about": "One whole number written in the alphabet, most significant digit first. The fields are read in position order, the first least significant: each field's value is the number modulo its radix, and the number is then divided by the radix (whole division).",
   "rules": {
    "empty_string": "refused",
-   "character_outside_alphabet": "refused",
+   "character_outside_alphabet": "refused; an alphabet_aliases character reads as its digit",
    "leading_zeros": "ignored: '0' is the zero digit, so they change nothing",
    "option_digit_at_or_above_value_count": "read as the field's last value (len(values) - 1)",
    "number_left_after_the_last_field": "ignored"
@@ -3066,7 +3069,7 @@
   "rules": {
    "empty_string": "every field at its default",
    "version_above_current_version": "refused",
-   "character_outside_alphabet": "refused",
+   "character_outside_alphabet": "refused; an alphabet_aliases character reads as its digit",
    "number_left_after_the_last_field": "refused (a mistyped string never turns into other flags)",
    "retired_field": "read and ignored: its place stays, so every older string still decodes",
    "canonical_spelling": "empty when every field is at its default; otherwise the lowest version holding every field away from its default, then the payload without leading zeros"
@@ -4659,8 +4662,7 @@
    {
     "id": "progressive_items",
     "applies_to": [
-     "locations",
-     "start_items"
+     "locations"
     ],
     "applies_when": [
      {
@@ -4685,8 +4687,72 @@
      "Pegasus Boots": "Boots",
      "Magical Boots": "Boots"
     },
-    "about": "Each item of an upgrade line gives the next item of that line the player lacks, whichever item of the line it is named. Each line's items are listed lowest first."
+    "about": "Each item of an upgrade line found in the world gives the next item of that line the player lacks, whichever item of the line it is named. Start items are not changed: a start item is the item itself. Each line's items are listed lowest first."
    }
   ]
+ },
+ "file_name": {
+  "about": "The page names each seed's files <prefix>-<version>-<Z1R flag string>-<ZORA flag string>-<seed>, then the music ending when the seed has randomized music, then the file's extension. The page writes the alphabet's '!' as its alias '_' (alphabet_aliases), so each flag part is a flag string as it stands: decode it as it is. An empty ZORA string (every ZORA field at its default) leaves '--'. Neither flag string holds '-', so a name also reads from the right: past any music ending, the seed, the ZORA string, the Z1R string, then the version, which may hold '-'.",
+  "prefix": "zora",
+  "separator": "-",
+  "parts": [
+   {
+    "part": "version",
+    "about": "The ZORA version the page shows, its spaces as '-' and parentheses dropped: '2.0.1' on the regular channel. On the test channel the build's short commit follows it and '-test' ends it: '2.0.1-a1b2c3d-test'. A version is not a flag; ZoraTracker's ZoraVersion and the spec's zora_version are the release version without these."
+   },
+   {
+    "part": "z1r",
+    "about": "The Z1R flag string."
+   },
+   {
+    "part": "zora",
+    "about": "The ZORA flag string; empty when every ZORA field is at its default."
+   },
+   {
+    "part": "seed",
+    "about": "The seed number, in decimal."
+   },
+   {
+    "part": "music",
+    "about": "'-music' when the seed has randomized music (Music: Random, a player setting in neither flag string); absent otherwise."
+   }
+  ],
+  "test_channel_ending": "-test",
+  "music_ending": "-music",
+  "extensions": {
+   ".nes": "rom",
+   ".spoiler.txt": "spoiler_log",
+   ".tracker.json": "tracker_file"
+  },
+  "pattern": "^zora-([.0-9A-Z_a-z-]+?)-([0-9A-Z_a-z]+)-((?:[1-9][0-9]*\\.[0-9A-Z_a-z]+)?)-([0-9]+)(-music)?(\\.nes|\\.spoiler\\.txt|\\.tracker\\.json)$",
+  "groups": [
+   "version",
+   "z1r",
+   "zora",
+   "seed",
+   "music",
+   "extension"
+  ],
+  "batch_zip": {
+   "about": "Several seeds at once: a .zip named for the first seed's stem, then '-' and the last seed, then the music ending. It holds each seed's files under the names above; a batch saved to a folder writes the same names.",
+   "pattern": "^zora-([.0-9A-Z_a-z-]+?)-([0-9A-Z_a-z]+)-((?:[1-9][0-9]*\\.[0-9A-Z_a-z]+)?)-([0-9]+)-([0-9]+)(-music)?\\.zip$",
+   "groups": [
+    "version",
+    "z1r",
+    "zora",
+    "first_seed",
+    "last_seed",
+    "music"
+   ]
+  },
+  "tolerate": {
+   "duplicate_suffix": {
+    "about": "A browser that saves a name twice adds a number before the extension: ' (1)' (Chrome, Edge) or '(1)' (Firefox). Remove it before matching.",
+    "pattern": " ?\\([0-9]+\\)(?=\\.[a-z.]+$)"
+   },
+   "renamed": "A name that does not match the pattern is not the page's: read nothing from it, and ask for the flag strings to be pasted instead.",
+   "before_2_0_1": "ZORA before 2.0.1 named files zora-seed-<seed>.nes (with '-encoded' or '-music' before the extension) and batches zora-seeds-<first>-<last>.zip: those names hold the seed only, no version or flags, and match neither pattern.",
+   "archipelago": "Archipelago names its files itself (AP_<multiworld seed>_P<player>_<player name>, .apzora for the patch and .nes for the ROM it makes): they hold no ZORA flags, and match neither pattern."
+  }
  }
 }

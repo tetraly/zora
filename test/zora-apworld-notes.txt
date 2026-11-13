@@ -1,4 +1,4 @@
-ZORA 2.0.1 brings two new beta flags from Ultralavos, a crop guide for streamers, clearer file names, a starter tracker file for races, and a few fixes. Flag strings from 2.0.0 mean the same settings. Every seed's code changes, because every ROM now has the crop guide.
+ZORA 2.0.1 brings two new beta flags from Ultralavos, a crop guide for streamers, clearer file names, a starter tracker file for races, flags that paste straight from a file name, and a few fixes, among them three for Archipelago's logo look. Flag strings from 2.0.0 mean the same settings. Every seed's code changes, because every ROM now has the crop guide.
 
 ### New Features
 
@@ -6,8 +6,9 @@ ZORA 2.0.1 brings two new beta flags from Ultralavos, a crop guide for streamers
 - **Item Counter** (ZORA extras, Miscellaneous; beta: On, Off or Random; Off by default; idea, chest icon and pull request by Ultralavos). The HUD's empty row under the rupees shows how many of the area's major items you have found and the area's total: "1 chest 3" in a level, "4 chest 6" on the overworld. A level's total follows its dungeon layout alone, so it never hints at a shuffle rolled at random. The overworld counts the white sword cave, the Armos and coast items, the magical sword, letter and wood sword caves while their shuffles are on, and the shop wares that Shop Items in the Item Pool and Shuffle Blue Potion add. Triforce pieces, take-any caves and re-buyable wares never count. Totals over 9 show in hexadecimal (A = 10). Works with Change Hidden OW Tiles and Pegasus Boots. Not offered in Archipelago while in beta.
 - **A crop guide on the file-select screen.** A white square sits in each corner of the file-select screen and a blue one just inside each. Crop your emulator's or capture setup's overscan until the white squares are gone and the blue ones still show.
 - **Set all start items at once** (issue #22). The Start Items tab has a "Set all to: Off / On / Random" row at the top. Max Start Items stays as it is and still decides how many of the items you get.
-- **A starter tracker file for races.** A seed made with Spoiler Log Detail Level None now has a "Download tracker file" button too. It gives a ZoraTracker file with only what the flags tell every player at the start: the items the flags pin to a place (under the Armos, at the coast, in the White Sword cave, in level 9) and the start items, with Swap Swords and Rings, Pegasus Boots and Progressive Items taken into account. Everything else is blank, so it gives nothing away, and every seed with the same flags gets the same file.
-- **The flags spec, for tracker and tool makers.** Each release publishes a machine-readable description of both flag strings at `https://zora.gg/flags/<version>.json` and `https://zora.gg/flags/latest.json`, and attaches it to the GitHub release as `zora-flags-<version>.json`. It says how to read every flag, what each value is called, and what a player knows from the flags alone.
+- **A starter tracker file for races.** A seed made with Spoiler Log Detail Level None now has a "Download tracker file" button too. It gives a ZoraTracker file with only what the flags tell every player at the start: the items the flags pin to a place (under the Armos, at the coast, in the White Sword cave, in level 9) and the start items, with Swap Swords and Rings, Pegasus Boots and Progressive Items taken into account. With Pegasus Boots on it turns on ZoraTracker's boots, and a starting Magical Sword shows. Everything else is blank, so it gives nothing away, and every seed with the same flags gets the same file.
+- **Flags paste straight from a file name.** A file name writes `!` as `_`, and ZORA now reads `_` as `!` in both flag strings: in the flag boxes (which show `!` as soon as you paste), in shared links and everywhere else. ZORA still shows, copies and stores `!`.
+- **The flags spec, for tracker and tool makers.** Each release publishes a machine-readable description of both flag strings at `https://zora.gg/flags/<version>.json` and `https://zora.gg/flags/latest.json`, and attaches it to the GitHub release as `zora-flags-<version>.json`. It says how to read every flag, what each value is called, what a player knows from the flags alone, and how to read the flags and seed from a seed's file name.
 
 ### Changes
 
@@ -15,12 +16,16 @@ ZORA 2.0.1 brings two new beta flags from Ultralavos, a crop guide for streamers
 - **Generate always makes the seed number in the box.** The page used to swap a seed it had picked itself for a new one after 5 seconds. Now every seed gets the full 30 seconds, and if it runs out, or the seed truly can't be made, the page says so.
 - **Music is built from source.** The music engine inside the ROM is now built from its open source. A seed with Music: Random is the same game with the same music choices as before. A track in a local library must now fit in 8 KB (10 KB before); a larger one is left out, and a warning names it.
 - **The version label.** zora.gg shows the plain version, "v2.0.1". zora.gg/test shows the build's commit beside it, "v2.0.1 (a1b2c3d)", in its label, its banner and its file names. "Copy bug report info" still includes the build's date and commit.
+- **The spoiler log lists your start items, and the full tracker file marks them.** At every spoiler level above None the log has a "Start items" line under the start screen: the items the seed actually gave you, after Random start settings and Max Start Items are drawn. The full tracker file marks exactly those, shows the Pegasus Boots when they are on, and records ZORA's version and the ZORA flag string.
+- **Archipelago: Randomize Boss Groups keeps four tiles for the logo.** In an Archipelago game the shared boss tiles are 28 instead of 32, so the logo has tiles of its own. Most Archipelago games with Randomize Boss Groups on change. Seeds made on the page are unchanged.
 - **A patch release's beta keeps its patch digit**: a beta of 2.0.2 would read "2.0.2 beta 1".
 
 ### Fixes
 
 - **Pegasus Boots with Change Hidden OW Tiles: no more mark in the dungeons' top-left corner.** With both on, a small two-line mark showed at the top-left corner of every dungeon room, just above the wall. It is gone. Seed codes and spoiler logs for those seeds are unchanged.
 - **Randomized music works on ROMs with modified graphics.** A ROM with custom sprites or other redrawn tiles used to be refused with Music: Random. Now it gets music and keeps its own graphics.
+- **Archipelago: the logo is whole.** With "Other players' items look like: The Archipelago logo", another player's item showed only half the logo. It now shows the full logo.
+- **Archipelago: other players' items show in caves and shops with Progressive Items on.** With the logo look and Progressive Items both on, another player's item in a cave or shop showed as an empty spot and couldn't be taken or bought. It now shows the logo and sends the item as anywhere else.
 
 ## Music engine
 
@@ -32,5 +37,5 @@ zora.apworld, ZORA's Archipelago world, is published beside the test page:
 
 - world version: 2.0.1
 - ZORA version: 2.0.1
-- source hash: sha256:cc1ec8cc952ee1f88114a4a881142a99b16dbac313bfe588362fe988f851697b
-- SHA-256 of zora.apworld: e51cc88c5ee4d281ddcd06f34eba1cafad047974e0573e80f669642b738701d4
+- source hash: sha256:fbdafa612b6b1fab6060e4eec61d594c24926f2f582116920bc16cfad01ff7b5
+- SHA-256 of zora.apworld: ba8b3debd903c3022a882c9f3a04beaf1aac369c3b5c67d9cbecde6ac2163005
