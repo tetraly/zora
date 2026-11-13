@@ -1,14 +1,26 @@
+ZORA 2.0.1 brings two new beta flags from Ultralavos, a crop guide for streamers, clearer file names, a starter tracker file for races, and a few fixes. Flag strings from 2.0.0 mean the same settings. Every seed's code changes, because every ROM now has the crop guide.
+
 ### New Features
-- **Compass Chime** (ZORA Extras: On, Off or Random; Off by default): with a level's compass, a four-note chime plays when you enter a room that still holds an item you haven't collected, one that appears after a fight (Ganon's Triforce of Power too) or one down the room's stairway. With it off, ROMs are unchanged; the seed document and spoiler log list it among the ZORA flags.
-- **Statistics screen: Self-burns.** A new counter under the heart containers (a flame, then the count): how many times your own fire hurt you, the candle's flame and the wand's with the Book (a hit that kills you counts; cave fires and enemy fireballs do not). It stops at 255. The times move down two rows to make room, and the PUSH START BUTTON line is gone (Start still leaves the screen). Requested by a player. Seeds are unchanged; the statistics screen's bytes change.
-- **Statistics screen: Death warps.** A new counter beside Self-burns: how many times you ended the game from the item screen with the death warp (the buttons chosen under Death-warp, Up+A by default). It counts the warp whether you then pick Continue, Save or Retry, and it is not a death: Deaths still counts only real game overs. It stops at 255. Self-burns moves one place right, under the bombs. Seeds are unchanged; the statistics screen's bytes change.
+
+- **Wizzrobes Shoot Wallmasters** (Advanced tab, beta: On, Off or Random; Off by default; idea and pull request by Ultralavos; not with Oops All Enemies: Wizzrobes). A Wizzrobe's magic shot is a Wallmaster's hand. It flies over blocks and vanishes at the walls as the magic does. When it hits Link it deals half a heart and takes him back to the level's entrance, as a Wallmaster's grab does; a hit that empties his hearts kills him. The Magical Shield blocks it. On the overworld the shot stays magic. It turns Shuffle Enemy Groups on and puts the Wizzrobes in a dungeon group with the Wallmasters. Not offered in Archipelago while in beta.
+- **Item Counter** (ZORA extras, Miscellaneous; beta: On, Off or Random; Off by default; idea, chest icon and pull request by Ultralavos). The HUD's empty row under the rupees shows how many of the area's major items you have found and the area's total: "1 chest 3" in a level, "4 chest 6" on the overworld. A level's total follows its dungeon layout alone, so it never hints at a shuffle rolled at random. The overworld counts the white sword cave, the Armos and coast items, the magical sword, letter and wood sword caves while their shuffles are on, and the shop wares that Shop Items in the Item Pool and Shuffle Blue Potion add. Triforce pieces, take-any caves and re-buyable wares never count. Totals over 9 show in hexadecimal (A = 10). Works with Change Hidden OW Tiles and Pegasus Boots. Not offered in Archipelago while in beta.
+- **A crop guide on the file-select screen.** A white square sits in each corner of the file-select screen and a blue one just inside each. Crop your emulator's or capture setup's overscan until the white squares are gone and the blue ones still show.
+- **Set all start items at once** (issue #22). The Start Items tab has a "Set all to: Off / On / Random" row at the top. Max Start Items stays as it is and still decides how many of the items you get.
+- **A starter tracker file for races.** A seed made with Spoiler Log Detail Level None now has a "Download tracker file" button too. It gives a ZoraTracker file with only what the flags tell every player at the start: the items the flags pin to a place (under the Armos, at the coast, in the White Sword cave, in level 9) and the start items, with Swap Swords and Rings, Pegasus Boots and Progressive Items taken into account. Everything else is blank, so it gives nothing away, and every seed with the same flags gets the same file.
+- **The flags spec, for tracker and tool makers.** Each release publishes a machine-readable description of both flag strings at `https://zora.gg/flags/<version>.json` and `https://zora.gg/flags/latest.json`, and attaches it to the GitHub release as `zora-flags-<version>.json`. It says how to read every flag, what each value is called, and what a player knows from the flags alone.
 
 ### Changes
-- **More graphics hacks are accepted:** a hack may now also recolor Link's tunics (Cactus's hack sets the red ring's color), rewrite Zelda's thank-you at the end, and rearrange the dungeon door pictures (both done by the Legend of Marin hack). Your tunic colors still come from Look and feel, so pick the hack's colors there to keep them. Seeds are unchanged.
-- **Use recommended colors** (Look and feel, under Playable character): a button shown with any set that has colors it was drawn for (not under Random) sets your three tunic colors and two other colors to all five of them, so Playable character's colors becomes My own holding the set's colors and every color looks as drawn, even where The set's own keeps your tunic colors. Each of those colors is now labeled with its NES palette value and a name with its brightness ("$06 dark red", "$27 light orange", "$18 olive"), readable on touch screens. Player settings only: seeds are unchanged.
-- **Playable character:** the Merchant, the Old Man, the Old Woman and Zelda are no longer offered (an Archipelago YAML naming one gets the original Link), and the Darknut, Gibdo, Goriya, Lynel, Moblin, Stalfos and Wizzrobe, drawn from the game's own art, are credited to Nintendo. Random now draws from the sets left, so a seed with Random may show a different character. Player settings only: seeds are unchanged.
-- **Playable character: Agumon** has Irenepunmaster's fixes: a redrawn one-handed lift pose and small touch-ups to walking down and up, attacking down and the small shield. Player settings only: seeds are unchanged.
-- **Generating a seed may take up to 30 seconds** on the page (it was 15). With no seed typed, the page still tries a new seed after 5 seconds, so up to six get a try.
+
+- **File names say what the seed is** (issue #18). A seed's files are named `zora-<version>-<flag string>-<ZORA flag string>-<seed>`: the ROM `.nes`, its spoiler log `.spoiler.txt` and its tracker file `.tracker.json`. A `!` in a flag string becomes `_` in the name only. A seed with randomized music ends its names in `-music`, and a batch's zip adds its last seed.
+- **Generate always makes the seed number in the box.** The page used to swap a seed it had picked itself for a new one after 5 seconds. Now every seed gets the full 30 seconds, and if it runs out, or the seed truly can't be made, the page says so.
+- **Music is built from source.** The music engine inside the ROM is now built from its open source. A seed with Music: Random is the same game with the same music choices as before. A track in a local library must now fit in 8 KB (10 KB before); a larger one is left out, and a warning names it.
+- **The version label.** zora.gg shows the plain version, "v2.0.1". zora.gg/test shows the build's commit beside it, "v2.0.1 (a1b2c3d)", in its label, its banner and its file names. "Copy bug report info" still includes the build's date and commit.
+- **A patch release's beta keeps its patch digit**: a beta of 2.0.2 would read "2.0.2 beta 1".
+
+### Fixes
+
+- **Pegasus Boots with Change Hidden OW Tiles: no more mark in the dungeons' top-left corner.** With both on, a small two-line mark showed at the top-left corner of every dungeon room, just above the wall. It is gone. Seed codes and spoiler logs for those seeds are unchanged.
+- **Randomized music works on ROMs with modified graphics.** A ROM with custom sprites or other redrawn tiles used to be refused with Music: Random. Now it gets music and keeps its own graphics.
 
 ## Music engine
 
@@ -18,7 +30,7 @@ Music engine: lozft by TheRealQuantam (MPL 2.0), using bhop by zeta0134 (MIT-0).
 
 zora.apworld, ZORA's Archipelago world, is published beside the test page:
 
-- world version: 0.12.0
-- ZORA version: 2.0.0b12
-- source hash: sha256:fb7b6f4bbe996b09ea03fc5d02c06cfbada98cb6c0dc4a4d1ffa83a10c584eba
-- SHA-256 of zora.apworld: 0024f98c480edbf046eeb34f66bc70280a2c4c033dbca6a5bca9541569e7d381
+- world version: 2.0.1
+- ZORA version: 2.0.1
+- source hash: sha256:cc1ec8cc952ee1f88114a4a881142a99b16dbac313bfe588362fe988f851697b
+- SHA-256 of zora.apworld: e51cc88c5ee4d281ddcd06f34eba1cafad047974e0573e80f669642b738701d4

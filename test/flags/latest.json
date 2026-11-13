@@ -1,0 +1,4692 @@
+{
+ "$schema": "https://zora.gg/flags/zora-flags.schema.json",
+ "spec_version": "1.0",
+ "zora_version": "2.0.1",
+ "generated_by": "scripts/flags_api.py from zora/flags/ (docs/flags-api.md); do not edit",
+ "alphabet": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!",
+ "page_default": {
+  "z1r": "8hq4BeR1JXo89BJ2!TFpTP02u8UJ3A",
+  "zora": ""
+ },
+ "z1r": {
+  "about": "One whole number written in the alphabet, most significant digit first. The fields are read in position order, the first least significant: each field's value is the number modulo its radix, and the number is then divided by the radix (whole division).",
+  "rules": {
+   "empty_string": "refused",
+   "character_outside_alphabet": "refused",
+   "leading_zeros": "ignored: '0' is the zero digit, so they change nothing",
+   "option_digit_at_or_above_value_count": "read as the field's last value (len(values) - 1)",
+   "number_left_after_the_last_field": "ignored"
+  },
+  "fields": [
+   {
+    "key": "C01",
+    "position": 0,
+    "kind": "option",
+    "radix": 8,
+    "name": "Overworld Quest",
+    "description": "Overworld quest",
+    "values": [
+     "1st Quest",
+     "2nd Quest",
+     "Mixed Quest - 1st",
+     "Mixed Quest - 2nd",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 4,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C02",
+    "position": 1,
+    "kind": "option",
+    "radix": 10,
+    "name": "Dungeon Quest",
+    "description": "Dungeon layout source",
+    "values": [
+     "1st Quest",
+     "2nd Quest",
+     "Mixed Quest",
+     "Shapes",
+     "Mixed + Shapes",
+     "Random No Shapes",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 5,
+      "resolves_to": [
+       0,
+       1,
+       2
+      ]
+     },
+     {
+      "value": 6,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    ],
+    "default": 3,
+    "beta_values": []
+   },
+   {
+    "key": "C03",
+    "position": 2,
+    "kind": "option",
+    "radix": 10,
+    "name": "Hint Type",
+    "description": "Hint style",
+    "values": [
+     "Normal",
+     "Helpful",
+     "Community",
+     "Deception",
+     "Mixed",
+     "Blank",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 6,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     }
+    ],
+    "default": 4,
+    "beta_values": []
+   },
+   {
+    "key": "C04",
+    "position": 3,
+    "kind": "option",
+    "radix": 7,
+    "name": "Start Screen",
+    "description": "Start screen",
+    "values": [
+     "Normal",
+     "Easy start shuffle",
+     "Full start shuffle",
+     "Wood Sword Screen"
+    ],
+    "random_values": [],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "C05",
+    "position": 4,
+    "kind": "option",
+    "radix": 8,
+    "name": "Cave Shuffle",
+    "description": "Cave shuffle",
+    "values": [
+     "Vanilla",
+     "Dungeons Only",
+     "Non-dungeons Only",
+     "All Caves",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 4,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3
+      ]
+     }
+    ],
+    "default": 3,
+    "beta_values": []
+   },
+   {
+    "key": "C06",
+    "position": 5,
+    "kind": "option",
+    "radix": 8,
+    "name": "Item Shuffle",
+    "description": "Item shuffle scope",
+    "values": [
+     "None",
+     "Item Only",
+     "Intra-Dungeon",
+     "Full",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 4,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3
+      ]
+     }
+    ],
+    "default": 3,
+    "beta_values": [],
+    "page_control": "Item Shuffle"
+   },
+   {
+    "key": "C07",
+    "position": 6,
+    "kind": "option",
+    "radix": 8,
+    "name": "Swords",
+    "description": "Wooden-sword state",
+    "values": [
+     "Normal",
+     "Wood Sword Only",
+     "No Wood Sword",
+     "Swordless",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 4,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C08",
+    "position": 7,
+    "kind": "option",
+    "radix": 15,
+    "name": "Level 9 Entry",
+    "description": "Triforce pieces needed for level 9",
+    "values": [
+     "8 triforces",
+     "7 triforces",
+     "6 triforces",
+     "5 triforces",
+     "4 triforces",
+     "3 triforces",
+     "2 triforces",
+     "1 triforce",
+     "Open Level 9",
+     "Triforce Range",
+     "Specific Triforces",
+     "Other Item",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 12,
+      "resolves_to": [
+       0,
+       8,
+       9,
+       10,
+       11
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C09",
+    "position": 8,
+    "kind": "option",
+    "radix": 8,
+    "name": "\"Most\" Enemy HP",
+    "description": "Enemy hit-point change",
+    "values": [
+     "Normal",
+     "+/- 2",
+     "+/- 4",
+     "0 HP",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 4,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "C10",
+    "position": 9,
+    "kind": "option",
+    "radix": 8,
+    "name": "Boss HP",
+    "description": "Boss hit-point change",
+    "values": [
+     "Normal",
+     "+/- 2",
+     "+/- 4",
+     "0 HP",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 4,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "C11",
+    "position": 10,
+    "kind": "option",
+    "radix": 20,
+    "name": "Armos Item",
+    "description": "Item pinned to the secret Armos spot",
+    "values": [
+     "Random",
+     "Book",
+     "Boomerang",
+     "Bow",
+     "Heart Container",
+     "Ladder",
+     "Magical Boomerang",
+     "Magical Key",
+     "Power Bracelet",
+     "Raft",
+     "Recorder",
+     "Red Candle",
+     "Red Ring",
+     "Silver Arrow",
+     "Wand",
+     "White Sword",
+     "Non-Heart"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C12",
+    "position": 11,
+    "kind": "option",
+    "radix": 20,
+    "name": "Coast Item",
+    "description": "Item pinned to the coast cave",
+    "values": [
+     "Random",
+     "Book",
+     "Boomerang",
+     "Bow",
+     "Heart Container",
+     "Ladder",
+     "Magical Boomerang",
+     "Magical Key",
+     "Power Bracelet",
+     "Raft",
+     "Recorder",
+     "Red Candle",
+     "Red Ring",
+     "Silver Arrow",
+     "Wand",
+     "White Sword",
+     "Non-Heart"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C13",
+    "position": 12,
+    "kind": "option",
+    "radix": 20,
+    "name": "White Sword Item",
+    "description": "Item pinned to the white-sword cave",
+    "values": [
+     "Random",
+     "Book",
+     "Boomerang",
+     "Bow",
+     "Heart Container",
+     "Ladder",
+     "Magical Boomerang",
+     "Magical Key",
+     "Power Bracelet",
+     "Raft",
+     "Recorder",
+     "Red Candle",
+     "Red Ring",
+     "Silver Arrow",
+     "Wand",
+     "White Sword",
+     "Non-Heart"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C14",
+    "position": 13,
+    "kind": "option",
+    "radix": 7,
+    "name": "Dungeon Room Shuffle",
+    "description": "Dungeon room shuffle",
+    "values": [
+     "Vanilla",
+     "In-Dungeon Shuffle",
+     "Full Shuffle",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 3,
+      "resolves_to": [
+       0,
+       1,
+       2
+      ]
+     }
+    ],
+    "default": 2,
+    "beta_values": []
+   },
+   {
+    "key": "C15",
+    "position": 14,
+    "kind": "option",
+    "radix": 7,
+    "name": "Item Sprites",
+    "description": "Item and sprite appearance",
+    "values": [
+     "Normal",
+     "Fun %",
+     "Sprite Shuffle",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 3,
+      "resolves_to": [
+       0,
+       1,
+       2
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C16",
+    "position": 15,
+    "kind": "option",
+    "radix": 20,
+    "name": "Starting Hearts",
+    "description": "Starting hearts",
+    "values": [
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15",
+     "16",
+     "1-5 Hearts"
+    ],
+    "random_values": [
+     {
+      "value": 16,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3,
+       4
+      ]
+     }
+    ],
+    "default": 2,
+    "beta_values": []
+   },
+   {
+    "key": "C17",
+    "position": 16,
+    "kind": "option",
+    "radix": 26,
+    "name": "Max Start Items",
+    "description": "Limit on starting items",
+    "values": [
+     "All",
+     "0",
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15",
+     "16",
+     "17",
+     "18",
+     "19",
+     "20",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 22,
+      "resolves_to": [
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8,
+       9,
+       10,
+       11,
+       12,
+       13,
+       14,
+       15,
+       16,
+       17,
+       18,
+       19,
+       20,
+       21
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "C18",
+    "position": 17,
+    "kind": "option",
+    "radix": 13,
+    "name": "Triforce Pieces",
+    "description": "Starting triforce pieces",
+    "values": [
+     "0",
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 9,
+      "resolves_to": [
+       0,
+       1,
+       2,
+       3,
+       4,
+       5,
+       6,
+       7,
+       8
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C19",
+    "position": 18,
+    "kind": "option",
+    "radix": 7,
+    "name": "Red Bubble Curse",
+    "description": "Red bubble behavior",
+    "values": [
+     "Swordless",
+     "Inverted Control",
+     "Slow Speed",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 3,
+      "resolves_to": [
+       0,
+       1,
+       2
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C20",
+    "position": 19,
+    "kind": "option",
+    "radix": 6,
+    "name": "White Sword Hearts (min)",
+    "description": "White-sword hearts, lowest",
+    "values": [
+     "4",
+     "5",
+     "6"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C21",
+    "position": 20,
+    "kind": "option",
+    "radix": 6,
+    "name": "White Sword Hearts (max)",
+    "description": "White-sword hearts, highest",
+    "values": [
+     "6",
+     "5",
+     "4"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C22",
+    "position": 21,
+    "kind": "option",
+    "radix": 8,
+    "name": "Magical Sword Hearts (min)",
+    "description": "Magical-sword hearts, lowest",
+    "values": [
+     "10",
+     "11",
+     "12",
+     "13",
+     "14"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C23",
+    "position": 22,
+    "kind": "option",
+    "radix": 8,
+    "name": "Magical Sword Hearts (max)",
+    "description": "Magical-sword hearts, highest",
+    "values": [
+     "14",
+     "13",
+     "12",
+     "11",
+     "10"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C24",
+    "position": 23,
+    "kind": "option",
+    "radix": 12,
+    "name": "Triforce Range (min)",
+    "description": "Piece-count range, low end",
+    "values": [
+     "0",
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C25",
+    "position": 24,
+    "kind": "option",
+    "radix": 12,
+    "name": "Triforce Range (max)",
+    "description": "Piece-count range, high end",
+    "values": [
+     "8",
+     "7",
+     "6",
+     "5",
+     "4",
+     "3",
+     "2",
+     "1",
+     "0"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C26",
+    "position": 25,
+    "kind": "option",
+    "radix": 20,
+    "name": "Level 9 Item 1",
+    "description": "First item pinned inside level 9",
+    "values": [
+     "Random",
+     "Book",
+     "Boomerang",
+     "Bow",
+     "Heart Container",
+     "Ladder",
+     "Magical Boomerang",
+     "Magical Key",
+     "Power Bracelet",
+     "Raft",
+     "Recorder",
+     "Red Candle",
+     "Red Ring",
+     "Silver Arrow",
+     "Wand",
+     "White Sword",
+     "Non-Heart"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "C27",
+    "position": 26,
+    "kind": "option",
+    "radix": 20,
+    "name": "Level 9 Item 2",
+    "description": "Second item pinned inside level 9",
+    "values": [
+     "Random",
+     "Book",
+     "Boomerang",
+     "Bow",
+     "Heart Container",
+     "Ladder",
+     "Magical Boomerang",
+     "Magical Key",
+     "Power Bracelet",
+     "Raft",
+     "Recorder",
+     "Red Candle",
+     "Red Ring",
+     "Silver Arrow",
+     "Wand",
+     "White Sword",
+     "Non-Heart"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B01",
+    "position": 27,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Recorder To New Dungeons",
+    "description": "Recorder warps to the new dungeon entrances",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B02",
+    "position": 28,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Wood Sword Cave",
+    "description": "The wooden-sword cave may move to any hidden cave position",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B03",
+    "position": 29,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Allow OW Blocks of Wood Sword",
+    "description": "Allow the wooden-sword cave behind blocks",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B04",
+    "position": 30,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Take Any Road Caves",
+    "description": "Shuffle the take-any-road caves",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B05",
+    "position": 31,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Change Secret Spots",
+    "description": "Move the secret-entrance tiles",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B06",
+    "position": 32,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Mirror Overworld",
+    "description": "Mirror the overworld",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B07",
+    "position": 33,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Recorder to Unbeaten Dungeons",
+    "description": "Recorder warps to unbeaten dungeons",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B08",
+    "position": 34,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Shop Items",
+    "description": "Shuffle shop wares",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B09",
+    "position": 35,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Extra Candles",
+    "description": "Add extra candle wares",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B10",
+    "position": 36,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Change Sword Hearts",
+    "description": "Re-draw the sword heart requirements",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B11",
+    "position": 37,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Change MMG",
+    "description": "Re-draw the money-making game amounts",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B12",
+    "position": 38,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Change Bomb Upgrades",
+    "description": "Re-draw the bomb-upgrade person",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B13",
+    "position": 39,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Armos",
+    "description": "Shuffle the secret Armos item",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B14",
+    "position": 40,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Dungeon Items (no effect in ZORA)",
+    "description": "(No effect; FL-DEP-05)",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": [],
+    "no_effect": true
+   },
+   {
+    "key": "B15",
+    "position": 41,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Dungeon Drops",
+    "description": "Shuffle dungeon room items within each level",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B16",
+    "position": 42,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Dungeon Hearts (no effect in ZORA)",
+    "description": "(No effect; FL-DEP-05)",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": [],
+    "no_effect": true
+   },
+   {
+    "key": "B17",
+    "position": 43,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Minor Dungeon Drops",
+    "description": "Let bombs, rupees and keys join the item pool",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B18",
+    "position": 44,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Force Gannon Fight",
+    "description": "Ganon must be beaten to finish",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B19",
+    "position": 45,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Dungeon Text",
+    "description": "Shuffle the dungeon hint texts",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B20",
+    "position": 46,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Add 2nd Quest Rooms",
+    "description": "Add second-quest rooms to the shape tables",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B21",
+    "position": 47,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Add 2nd Quest Doors",
+    "description": "Add second-quest door weights",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B22",
+    "position": 48,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Add Money or Life Rooms",
+    "description": "Turn person rooms into life-or-money merchants",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B23",
+    "position": 49,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Change Leave Your Rooms",
+    "description": "Re-draw the merchants' toll",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B24",
+    "position": 50,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Hide Dungeon Numbers",
+    "description": "Hide the dungeon numbers",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B25",
+    "position": 51,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Allow Important Items in 9",
+    "description": "Allow important items inside level 9",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B26",
+    "position": 52,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Dungeon Start Room",
+    "description": "Allow the dungeon start room to move",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B27",
+    "position": 53,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Dungeon Palettes",
+    "description": "Shuffle dungeon colors",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B28",
+    "position": 54,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Hungry Goriya",
+    "description": "Shuffle the hungry goriya",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B29",
+    "position": 55,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Bomb Upgraders",
+    "description": "Shuffle the bomb-upgrade persons",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B30",
+    "position": 56,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Remove Most Open Stairs",
+    "description": "Remove most open stairs",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B31",
+    "position": 57,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Overworld Monsters",
+    "description": "Shuffle the overworld monsters",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B32",
+    "position": 58,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Dungeon Monsters",
+    "description": "Shuffle dungeon monsters within each level",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B33",
+    "position": 59,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Gannon and Zelda",
+    "description": "Let Ganon and Zelda take part in the shuffles",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B34",
+    "position": 60,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Bosses",
+    "description": "Shuffle the bosses",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B35",
+    "position": 61,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Level 9 Monsters",
+    "description": "Include level 9 in the monster moves",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B36",
+    "position": 62,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Monsters Between Levels",
+    "description": "Move monsters between levels",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B37",
+    "position": 63,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Add 2nd Quest Monsters",
+    "description": "Add second-quest monsters",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B38",
+    "position": 64,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Enemy Drop Groups",
+    "description": "Shuffle the enemy drop groups",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B39",
+    "position": 65,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Make Important Items Drops",
+    "description": "Make important items enemy drops",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B40",
+    "position": 66,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Randomize Boss Groups",
+    "description": "Randomize the boss groups",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B41",
+    "position": 67,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Set Gannon HP to 0",
+    "description": "Set Ganon's hit points to zero",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B42",
+    "position": 68,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Enemy Groups",
+    "description": "Shuffle the enemy groups",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B43",
+    "position": 69,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Shuffle Overworld Group",
+    "description": "Redraw overworld screens from the overworld group",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B44",
+    "position": 70,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Randomize Item Drop Rate",
+    "description": "Randomize the item drop rate",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B45",
+    "position": 71,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Maximum Enemy Health",
+    "description": "Maximum enemy health",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B46",
+    "position": 72,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Maximum Boss Health",
+    "description": "Maximum boss health",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B47",
+    "position": 73,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Replace Book Fire with Explosion",
+    "description": "Replace the Book's fire with an explosion",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B48",
+    "position": 74,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Book to Understand NPCs",
+    "description": "The Book lets the player understand NPCs",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B49",
+    "position": 75,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Book is an Atlas",
+    "description": "The Book counts as the map of every level",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B50",
+    "position": 76,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Blackout",
+    "description": "Blackout",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B51",
+    "position": 77,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Print Quest Info",
+    "description": "Print quest information",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": [
+     1,
+     2
+    ],
+    "page_control": "Spoiler Log Detail Level"
+   },
+   {
+    "key": "B52",
+    "position": 78,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Permanent Sword Beam",
+    "description": "Permanent sword beam",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B53",
+    "position": 79,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "OHKO",
+    "description": "One-hit knock-out",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B54",
+    "position": 80,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Speed Up Text",
+    "description": "Speed up person text",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 1,
+    "beta_values": []
+   },
+   {
+    "key": "B55",
+    "position": 81,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Hidden Health",
+    "description": "Hide health",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B56",
+    "position": 82,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Killable Drop Items",
+    "description": "Killable drop items",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B57",
+    "position": 83,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Raft",
+    "description": "Start with the Raft",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B58",
+    "position": 84,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Bow",
+    "description": "Start with the Bow",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B59",
+    "position": 85,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start 8 Bombs",
+    "description": "Start with 8 bombs",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B60",
+    "position": 86,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Recorder",
+    "description": "Start with the Recorder",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B61",
+    "position": 87,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Bait",
+    "description": "Start with the Bait",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B62",
+    "position": 88,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Magical Key",
+    "description": "Start with the Magical Key",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B63",
+    "position": 89,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Letter",
+    "description": "Start with the Letter",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B64",
+    "position": 90,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Power Bracelet",
+    "description": "Start with the Power Bracelet",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B65",
+    "position": 91,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Ladder",
+    "description": "Start with the Ladder",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B66",
+    "position": 92,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Wand",
+    "description": "Start with the Wand",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B67",
+    "position": 93,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Book",
+    "description": "Start with the Book of Magic",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B68",
+    "position": 94,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Wood Sword",
+    "description": "Start with the wooden sword",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B69",
+    "position": 95,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start White Sword",
+    "description": "Start with the white sword",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B70",
+    "position": 96,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Magical Sword",
+    "description": "Start with the magical sword",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B71",
+    "position": 97,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Wood Arrow",
+    "description": "Start with the wooden arrow",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B72",
+    "position": 98,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Silver Arrow",
+    "description": "Start with the Silver Arrow",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B73",
+    "position": 99,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Blue Candle",
+    "description": "Start with the blue candle",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B74",
+    "position": 100,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Red Candle",
+    "description": "Start with the red candle",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B75",
+    "position": 101,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Blue Ring",
+    "description": "Start with the blue ring",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B76",
+    "position": 102,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Red Ring",
+    "description": "Start with the red ring",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B77",
+    "position": 103,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Wood Boomerang",
+    "description": "Start with the wooden Boomerang",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B78",
+    "position": 104,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Magical Boomerang",
+    "description": "Start with the Magical Boomerang",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B79",
+    "position": 105,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Add Extra Bosses",
+    "description": "Add extra bosses",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B80",
+    "position": 106,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Rupees Affect Speed",
+    "description": "Rupees affect speed",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B81",
+    "position": 107,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Force Overworld Block",
+    "description": "Force an overworld block for an item",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B82",
+    "position": 108,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Encode level data",
+    "description": "Encode level data",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B83",
+    "position": 109,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Hidden Numbers",
+    "description": "Hide numbers",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B84",
+    "position": 110,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Prevent Clipping",
+    "description": "Prevent screen-scroll clipping",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B85",
+    "position": 111,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Start Magical Shield",
+    "description": "Start with the magical shield",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B86",
+    "position": 112,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Do Not Sort Shapes",
+    "description": "Do not sort the shapes by size",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B87",
+    "position": 113,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Add Bridges to the River",
+    "description": "Add bridges over the river",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B88",
+    "position": 114,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Add Lost Woods Shortcut",
+    "description": "Add a Lost Woods shortcut",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B89",
+    "position": 115,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Change Hidden OW Tiles",
+    "description": "Change hidden overworld tiles",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B90",
+    "position": 116,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Increase Bomb Capacity Upgrade",
+    "description": "Increase the bomb capacity upgrade",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B91",
+    "position": 117,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Allow Universal Drops in Shapes",
+    "description": "Allow universal drops in shapes",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B92",
+    "position": 118,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "Remove Maps",
+    "description": "Remove the dungeon maps",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B93",
+    "position": 119,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "All Maps",
+    "description": "Start with every level's map",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "B94",
+    "position": 120,
+    "kind": "three_state",
+    "radix": 3,
+    "name": "All Compasses",
+    "description": "Start with every level's compass",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   }
+  ]
+ },
+ "zora": {
+  "about": "'<version>.<payload>': a decimal version, a dot, then one whole number in the alphabet. The fields whose added_in_version is at most the string's version are read in position order, the first least significant, as in the Z1R string. A field added after the string's version is at its default.",
+  "separator": ".",
+  "pattern": "^([1-9][0-9]*)\\.(.+)$",
+  "current_version": 22,
+  "rules": {
+   "empty_string": "every field at its default",
+   "version_above_current_version": "refused",
+   "character_outside_alphabet": "refused",
+   "number_left_after_the_last_field": "refused (a mistyped string never turns into other flags)",
+   "retired_field": "read and ignored: its place stays, so every older string still decodes",
+   "canonical_spelling": "empty when every field is at its default; otherwise the lowest version holding every field away from its default, then the payload without leading zeros"
+  },
+  "fields": [
+   {
+    "key": "randomize_magical_sword",
+    "position": 0,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 1,
+    "name": "Randomize Magical Sword",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "randomize_letter",
+    "position": 1,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 1,
+    "name": "Randomize Letter",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "magical_sword_hearts_highest",
+    "position": 2,
+    "kind": "option",
+    "radix": 6,
+    "added_in_version": 1,
+    "name": "Magical-sword hearts, highest",
+    "values": [
+     "Follow the Z1R flags",
+     "At most 10 hearts",
+     "At most 11 hearts",
+     "At most 12 hearts",
+     "At most 13 hearts",
+     "At most 14 hearts"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "progressive_items",
+    "position": 3,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 2,
+    "name": "Progressive Items",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "shop_items_in_pool",
+    "position": 4,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 2,
+    "name": "Shop Items in the Item Pool",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "shuffle_blue_potion",
+    "position": 5,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Shuffle Blue Potion",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "add_l4_sword",
+    "position": 6,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Add L4 Sword",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": [],
+    "page_control": "Add L4 Sword"
+   },
+   {
+    "key": "extra_raft_blocks",
+    "position": 7,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Extra Raft Blocks",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "extra_power_bracelet_blocks",
+    "position": 8,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Extra Power Bracelet Blocks",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "speed_up_dungeon_transitions",
+    "position": 9,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Speed Up Dungeon Transitions",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "speed_up_heart_fill",
+    "position": 10,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Speed Up Heart Fill",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "recorder_kills_pols_voice",
+    "position": 11,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Recorder Kills Dungeon Pols Voice",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "four_potion_inventory",
+    "position": 12,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Four Potion Inventory",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "auto_show_letter",
+    "position": 13,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": null,
+    "values": [
+     null,
+     null,
+     null
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [],
+    "retired": true
+   },
+   {
+    "key": "like_like_eats_rupees",
+    "position": 14,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Like-Like Eats Rupees",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "magical_boomerang_damage",
+    "position": 15,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Magical Boomerang Does 1 HP Damage",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "randomize_lost_hills",
+    "position": 16,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Randomize Lost Hills",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "randomize_dead_woods",
+    "position": 17,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 3,
+    "name": "Randomize Dead Woods",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "l4_sword_in_level_2",
+    "position": 18,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 4,
+    "name": "Add L4 Sword: Level 2",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [],
+    "page_control": "Add L4 Sword"
+   },
+   {
+    "key": "level_9_entrance_sword",
+    "position": 19,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 4,
+    "name": "Level 9 Entrance",
+    "values": [
+     "Triforce pieces",
+     "Level 4 sword"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "oops_all_enemies",
+    "position": 20,
+    "kind": "option",
+    "radix": 4,
+    "added_in_version": 5,
+    "name": "Oops All Enemies",
+    "values": [
+     "Off",
+     "Wizzrobes",
+     "Keese",
+     "Bouncers"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "oops_all_bosses",
+    "position": 21,
+    "kind": "option",
+    "radix": 2,
+    "added_in_version": 5,
+    "name": "Oops All Bosses",
+    "values": [
+     "Off",
+     "Dodongos"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "allow_triforces_in_stairways",
+    "position": 22,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 6,
+    "name": "Allow Triforces in Stairways",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "shuffle_wood_sword",
+    "position": 23,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 6,
+    "name": "Shuffle Wood Sword",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "pegasus_boots",
+    "position": 24,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 7,
+    "name": "Pegasus Boots",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "expanded_dungeon_locations",
+    "position": 25,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 8,
+    "name": "Expanded Dungeon Locations",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "highlight_no_drop_rooms",
+    "position": 26,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 9,
+    "name": "Highlight No-Drop Rooms",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "do_not_segment_dungeons",
+    "position": 27,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 10,
+    "name": "Do Not Segment Dungeons",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "disable_custom_music",
+    "position": 28,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 11,
+    "name": "Disable Custom Music",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "gatekeeper_bosses",
+    "position": 29,
+    "kind": "option",
+    "radix": 4,
+    "added_in_version": 12,
+    "name": null,
+    "values": [
+     null,
+     null,
+     null,
+     null
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [],
+    "retired": true
+   },
+   {
+    "key": "full_health",
+    "position": 30,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 13,
+    "name": "Start With Full Health",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "harder_bosses",
+    "position": 31,
+    "kind": "option",
+    "radix": 4,
+    "added_in_version": 14,
+    "name": "Harder Bosses",
+    "values": [
+     "Off",
+     "Level 1",
+     "Level 2",
+     "Level 3"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "harder_ganon",
+    "position": 32,
+    "kind": "option",
+    "radix": 4,
+    "added_in_version": 14,
+    "name": "Harder Ganon",
+    "values": [
+     "Off",
+     "Level 1",
+     "Level 2",
+     "Level 3"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "offense_pacing",
+    "position": 33,
+    "kind": "option",
+    "radix": 4,
+    "added_in_version": 15,
+    "name": "Offense Item Pacing",
+    "values": [
+     "Off",
+     "Earlier",
+     "Normal",
+     "Later"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "defense_pacing",
+    "position": 34,
+    "kind": "option",
+    "radix": 4,
+    "added_in_version": 15,
+    "name": "Defense Item Pacing",
+    "values": [
+     "Off",
+     "Earlier",
+     "Normal",
+     "Later"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "recorder_warping",
+    "position": 35,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 15,
+    "name": "Recorder Warping",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "swap_swords_and_rings",
+    "position": 36,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 16,
+    "name": "Swap Swords and Rings",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "swordlish",
+    "position": 37,
+    "kind": "option",
+    "radix": 3,
+    "added_in_version": 16,
+    "name": "Swordlish",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "swordlish_lowest",
+    "position": 38,
+    "kind": "option",
+    "radix": 8,
+    "added_in_version": 16,
+    "name": "Swordlish pieces (min)",
+    "values": [
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "swordlish_highest",
+    "position": 39,
+    "kind": "option",
+    "radix": 8,
+    "added_in_version": 16,
+    "name": "Swordlish pieces (max)",
+    "values": [
+     "8",
+     "7",
+     "6",
+     "5",
+     "4",
+     "3",
+     "2",
+     "1"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "item_shuffle_no_vanilla",
+    "position": 40,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 17,
+    "name": "Item Shuffle: Random (No Vanilla)",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [],
+    "hidden": true,
+    "page_control": "Item Shuffle"
+   },
+   {
+    "key": "compass_chime",
+    "position": 41,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 18,
+    "name": "Compass Chime",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": []
+   },
+   {
+    "key": "universal_drops_v2",
+    "position": 42,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 19,
+    "name": "Universal Drops v2.0",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": [
+     1,
+     2
+    ]
+   },
+   {
+    "key": "detailed_spoiler_log",
+    "position": 43,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 20,
+    "name": "Detailed Spoiler Log",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [
+     1
+    ],
+    "hidden": true,
+    "page_control": "Spoiler Log Detail Level"
+   },
+   {
+    "key": "wizzrobes_shoot_wallmasters",
+    "position": 44,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 21,
+    "name": "Wizzrobes Shoot Wallmasters",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": [
+     1,
+     2
+    ]
+   },
+   {
+    "key": "item_counter",
+    "position": 45,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 22,
+    "name": "Item Counter",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": [
+     1,
+     2
+    ]
+   }
+  ]
+ },
+ "combined_controls": [
+  {
+   "name": "Item Shuffle",
+   "fields": [
+    "C06",
+    "item_shuffle_no_vanilla"
+   ],
+   "values": [
+    {
+     "name": "None",
+     "fields": {
+      "C06": 0,
+      "item_shuffle_no_vanilla": 0
+     },
+     "beta": false
+    },
+    {
+     "name": "Item Only",
+     "fields": {
+      "C06": 1,
+      "item_shuffle_no_vanilla": 0
+     },
+     "beta": false
+    },
+    {
+     "name": "Intra-Dungeon",
+     "fields": {
+      "C06": 2,
+      "item_shuffle_no_vanilla": 0
+     },
+     "beta": false
+    },
+    {
+     "name": "Full",
+     "fields": {
+      "C06": 3,
+      "item_shuffle_no_vanilla": 0
+     },
+     "beta": false
+    },
+    {
+     "name": "Random",
+     "fields": {
+      "C06": 4,
+      "item_shuffle_no_vanilla": 0
+     },
+     "beta": false
+    },
+    {
+     "name": "Random (No Vanilla)",
+     "fields": {
+      "C06": 4,
+      "item_shuffle_no_vanilla": 1
+     },
+     "beta": false
+    }
+   ]
+  },
+  {
+   "name": "Spoiler Log Detail Level",
+   "fields": [
+    "B51",
+    "detailed_spoiler_log"
+   ],
+   "values": [
+    {
+     "name": "None",
+     "fields": {
+      "B51": 0,
+      "detailed_spoiler_log": 0
+     },
+     "beta": false
+    },
+    {
+     "name": "Basic",
+     "fields": {
+      "B51": 1,
+      "detailed_spoiler_log": 0
+     },
+     "beta": true
+    },
+    {
+     "name": "Random",
+     "fields": {
+      "B51": 2,
+      "detailed_spoiler_log": 0
+     },
+     "beta": true
+    },
+    {
+     "name": "Medium",
+     "fields": {
+      "B51": 0,
+      "detailed_spoiler_log": 1
+     },
+     "beta": true
+    },
+    {
+     "name": "Full",
+     "fields": {
+      "B51": 1,
+      "detailed_spoiler_log": 1
+     },
+     "beta": true
+    }
+   ]
+  },
+  {
+   "name": "Add L4 Sword",
+   "fields": [
+    "add_l4_sword",
+    "l4_sword_in_level_2"
+   ],
+   "values": [
+    {
+     "name": "Off",
+     "fields": {
+      "add_l4_sword": 0,
+      "l4_sword_in_level_2": 0
+     },
+     "beta": false
+    },
+    {
+     "name": "Level 2",
+     "fields": {
+      "add_l4_sword": 1,
+      "l4_sword_in_level_2": 1
+     },
+     "beta": false
+    },
+    {
+     "name": "Level 9",
+     "fields": {
+      "add_l4_sword": 1,
+      "l4_sword_in_level_2": 0
+     },
+     "beta": false
+    }
+   ]
+  }
+ ],
+ "tracker_hints": {
+  "about": "What a player can know at the start from the flags alone: items pinned to a place, and start items. A condition list matches when any of its conditions does; a condition matches when every field it names (a Z1R key or a ZORA key) holds one of the listed values. Nothing here depends on the seed: where a seed's draw decides, the hint is unknown.",
+  "pins": {
+   "about": "A pin value names the item at its place when the pins apply (applies_when); when unknown_when matches it may or may not be there; otherwise the pins do nothing and the place's item is not known from the flags. A level 9 pin names the item at the first (or second) of level 9's item places; it does nothing if level 9 has no such place.",
+   "applies_when": [
+    {
+     "C06": [
+      1,
+      2,
+      3
+     ]
+    },
+    {
+     "C06": [
+      0
+     ],
+     "C02": [
+      2
+     ]
+    },
+    {
+     "C06": [
+      4
+     ],
+     "item_shuffle_no_vanilla": [
+      1
+     ]
+    }
+   ],
+   "unknown_when": [
+    {
+     "C06": [
+      4
+     ],
+     "item_shuffle_no_vanilla": [
+      0
+     ]
+    },
+    {
+     "C06": [
+      0
+     ],
+     "C02": [
+      5,
+      6
+     ]
+    }
+   ],
+   "locations": [
+    {
+     "location": "armos",
+     "field": "C11",
+     "name": "Armos Item"
+    },
+    {
+     "location": "coast",
+     "field": "C12",
+     "name": "Coast Item"
+    },
+    {
+     "location": "white_sword_cave",
+     "field": "C13",
+     "name": "White Sword Item"
+    },
+    {
+     "location": "level_9_first_item",
+     "field": "C26",
+     "name": "Level 9 Item 1"
+    },
+    {
+     "location": "level_9_second_item",
+     "field": "C27",
+     "name": "Level 9 Item 2"
+    }
+   ],
+   "values": [
+    {
+     "value": 0,
+     "status": "not_pinned"
+    },
+    {
+     "value": 1,
+     "status": "item",
+     "item": "Book"
+    },
+    {
+     "value": 2,
+     "status": "item",
+     "item": "Boomerang"
+    },
+    {
+     "value": 3,
+     "status": "item",
+     "item": "Bow"
+    },
+    {
+     "value": 4,
+     "status": "item",
+     "item": "Heart Container"
+    },
+    {
+     "value": 5,
+     "status": "item",
+     "item": "Ladder"
+    },
+    {
+     "value": 6,
+     "status": "item",
+     "item": "Magical Boomerang"
+    },
+    {
+     "value": 7,
+     "status": "item",
+     "item": "Magical Key"
+    },
+    {
+     "value": 8,
+     "status": "item",
+     "item": "Power Bracelet"
+    },
+    {
+     "value": 9,
+     "status": "item",
+     "item": "Raft"
+    },
+    {
+     "value": 10,
+     "status": "item",
+     "item": "Recorder"
+    },
+    {
+     "value": 11,
+     "status": "item",
+     "item": "Red Candle"
+    },
+    {
+     "value": 12,
+     "status": "item",
+     "item": "Red Ring"
+    },
+    {
+     "value": 13,
+     "status": "item",
+     "item": "Silver Arrow"
+    },
+    {
+     "value": 14,
+     "status": "item",
+     "item": "Wand"
+    },
+    {
+     "value": 15,
+     "status": "item",
+     "item": "White Sword"
+    },
+    {
+     "value": 16,
+     "status": "unknown",
+     "not_item": "Heart Container"
+    }
+   ]
+  },
+  "start_items": {
+   "about": "A start item's field at On gives the item at the start when the limit keeps every chosen item: its limit is null, or the count of start-item fields that are not Off is at most the limit. Otherwise, and for a field at Random, the item is unknown (the seed draws it).",
+   "fields": [
+    {
+     "field": "B68",
+     "item": "Wood Sword"
+    },
+    {
+     "field": "B69",
+     "item": "White Sword"
+    },
+    {
+     "field": "B70",
+     "item": "Magical Sword"
+    },
+    {
+     "field": "B59",
+     "item": "Bombs"
+    },
+    {
+     "field": "B71",
+     "item": "Wooden Arrow"
+    },
+    {
+     "field": "B72",
+     "item": "Silver Arrow"
+    },
+    {
+     "field": "B58",
+     "item": "Bow"
+    },
+    {
+     "field": "B73",
+     "item": "Blue Candle"
+    },
+    {
+     "field": "B74",
+     "item": "Red Candle"
+    },
+    {
+     "field": "B60",
+     "item": "Recorder"
+    },
+    {
+     "field": "B61",
+     "item": "Bait"
+    },
+    {
+     "field": "B66",
+     "item": "Wand"
+    },
+    {
+     "field": "B57",
+     "item": "Raft"
+    },
+    {
+     "field": "B67",
+     "item": "Book"
+    },
+    {
+     "field": "B75",
+     "item": "Blue Ring"
+    },
+    {
+     "field": "B76",
+     "item": "Red Ring"
+    },
+    {
+     "field": "B65",
+     "item": "Ladder"
+    },
+    {
+     "field": "B62",
+     "item": "Magical Key"
+    },
+    {
+     "field": "B64",
+     "item": "Power Bracelet"
+    },
+    {
+     "field": "B63",
+     "item": "Letter"
+    },
+    {
+     "field": "B77",
+     "item": "Boomerang"
+    },
+    {
+     "field": "B78",
+     "item": "Magical Boomerang"
+    },
+    {
+     "field": "B85",
+     "item": "Shield"
+    }
+   ],
+   "limit_field": "C17",
+   "limits": [
+    {
+     "value": 0,
+     "limit": null
+    },
+    {
+     "value": 1,
+     "limit": 0
+    },
+    {
+     "value": 2,
+     "limit": 1
+    },
+    {
+     "value": 3,
+     "limit": 2
+    },
+    {
+     "value": 4,
+     "limit": 3
+    },
+    {
+     "value": 5,
+     "limit": 4
+    },
+    {
+     "value": 6,
+     "limit": 5
+    },
+    {
+     "value": 7,
+     "limit": 6
+    },
+    {
+     "value": 8,
+     "limit": 7
+    },
+    {
+     "value": 9,
+     "limit": 8
+    },
+    {
+     "value": 10,
+     "limit": 9
+    },
+    {
+     "value": 11,
+     "limit": 10
+    },
+    {
+     "value": 12,
+     "limit": 11
+    },
+    {
+     "value": 13,
+     "limit": 12
+    },
+    {
+     "value": 14,
+     "limit": 13
+    },
+    {
+     "value": 15,
+     "limit": 14
+    },
+    {
+     "value": 16,
+     "limit": 15
+    },
+    {
+     "value": 17,
+     "limit": 16
+    },
+    {
+     "value": 18,
+     "limit": 17
+    },
+    {
+     "value": 19,
+     "limit": 18
+    },
+    {
+     "value": 20,
+     "limit": 19
+    },
+    {
+     "value": 21,
+     "limit": 20
+    },
+    {
+     "value": 22,
+     "random": true
+    }
+   ]
+  },
+  "modifiers": [
+   {
+    "id": "swap_swords_and_rings",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "swap_swords_and_rings": [
+       1
+      ],
+      "C07": [
+       0,
+       2
+      ],
+      "swordlish": [
+       0,
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "swap_swords_and_rings": [
+       2
+      ]
+     },
+     {
+      "swap_swords_and_rings": [
+       1
+      ],
+      "C07": [
+       4
+      ]
+     },
+     {
+      "swap_swords_and_rings": [
+       1
+      ],
+      "swordlish": [
+       2
+      ]
+     }
+    ],
+    "pairs": [
+     {
+      "items": [
+       "White Sword",
+       "Blue Ring"
+      ],
+      "start_item_fields": [
+       "B69",
+       "B75"
+      ]
+     },
+     {
+      "items": [
+       "Magical Sword",
+       "Red Ring"
+      ],
+      "start_item_fields": [
+       "B70",
+       "B76"
+      ]
+     }
+    ],
+    "about": "Each pair's two items trade places. A pair is not swapped when the seed starts with either of its items: when one of its start_item_fields is not Off, the pair's items are swapped only if both are certainly not start items, kept as they are if one certainly is, and unknown otherwise."
+   },
+   {
+    "id": "pegasus_boots",
+    "applies_to": [
+     "locations",
+     "start_items"
+    ],
+    "applies_when": [
+     {
+      "pegasus_boots": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "pegasus_boots": [
+       2
+      ]
+     }
+    ],
+    "rename": {
+     "Boomerang": "Pegasus Boots",
+     "Magical Boomerang": "Magical Boots"
+    },
+    "about": "The boomerangs' items are the boots (the seed format's names)."
+   },
+   {
+    "id": "bomb_upgrade",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "C07": [
+       1,
+       3
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "C07": [
+       4
+      ]
+     },
+     {
+      "swordlish": [
+       2
+      ]
+     }
+    ],
+    "acts_as": {
+     "White Sword": "bomb upgrade"
+    },
+    "about": "Wood Sword Only and Swordless: the White Sword item is still named so, but taking it adds two bombs to the bomb capacity instead of giving a sword."
+   },
+   {
+    "id": "progressive_items",
+    "applies_to": [
+     "locations",
+     "start_items"
+    ],
+    "applies_when": [
+     {
+      "progressive_items": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [],
+    "upgrade_lines": {
+     "Wood Sword": "Sword",
+     "White Sword": "Sword",
+     "Magical Sword": "Sword",
+     "Blue Candle": "Candle",
+     "Red Candle": "Candle",
+     "Wooden Arrow": "Arrow",
+     "Silver Arrow": "Arrow",
+     "Blue Ring": "Ring",
+     "Red Ring": "Ring",
+     "Boomerang": "Boomerang",
+     "Magical Boomerang": "Boomerang",
+     "Pegasus Boots": "Boots",
+     "Magical Boots": "Boots"
+    },
+    "about": "Each item of an upgrade line gives the next item of that line the player lacks, whichever item of the line it is named. Each line's items are listed lowest first."
+   }
+  ]
+ }
+}
