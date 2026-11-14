@@ -421,6 +421,15 @@ function buildForm(flagTabs) {
     holder.children[column - 1].append(row);
   }
   // Each (min, max) pair on one line (flag-tabs.json's summaryRange: White Sword Hearts, Triforce Range)
+  // A ZORA field whose row names a flag tab (flagTab, flagColumn: Wizzrobes Shoot Wallmasters on Advanced) sits
+  // last in that tab's column; it stays a ZORA field, carried by the ZORA string.
+  for (const field of metadata.zora.fields) {
+    const holder = field.flagTab && columns.get(field.flagTab);
+    if (!holder) continue;
+    const column = field.flagColumn || 1;
+    while (holder.children.length < column) holder.append(element("div", { className: "setting-column" }));
+    holder.children[column - 1].append(zoraControls.get(field.name).row);
+  }
   for (const field of metadata.fields) {
     const range = flagTabs[field.id] && flagTabs[field.id].summaryRange;
     if (range && controls.has(range.max)) pairRows(controls.get(field.id).row, controls.get(range.max).row);
@@ -537,7 +546,8 @@ function flagSummary(fields, flagTabs, values, zora) {
     }
     if (current === 0 || field.hidden || zoraPaired.has(field.name)) continue;  // a hidden field's line is its own tab's
     const label = labelIn(field.values, current);
-    lines.get(ZORA_TAB).push(field.kind !== "option" && current === TOGGLE_ON ? field.label : `${field.label}: ${label}`);
+    lines.get(field.flagTab || ZORA_TAB).push(field.kind !== "option" && current === TOGGLE_ON ? field.label
+      : `${field.label}: ${label}`);
   }
   if (!lines.get(ZORA_TAB).length) lines.get(ZORA_TAB).push(SUMMARY_NO_EXTRAS);
   return [...lines].filter(([, tabLines]) => tabLines.length).map(([tab, tabLines]) => ({ tab, lines: tabLines }));
@@ -620,11 +630,13 @@ function buildZoraPanel(panel) {
     // A hidden field is set from another tab (Item Shuffle's Random (No Vanilla)); its control only carries the value.
     row.hidden = Boolean(field.hidden);
     rows.set(field.name, row);
+    // tab: where the row shows, ZORA extras or the flag tab it names (flagTab; buildForm moves it there)
     zoraControls.set(field.name, { kind: field.kind === "option" ? "select" : "segments", input, buttons, row,
-                                   reason, changed, value: 0 });
+                                   reason, changed, value: 0, tab: field.flagTab || ZORA_TAB });
   }
   const grouped = new Set(ZORA_GROUPS.flatMap(([, columns]) => columns.flat()));
-  const others = [...rows.keys()].filter((name) => !grouped.has(name));
+  const flagTabbed = new Set(metadata.zora.fields.filter((field) => field.flagTab).map((field) => field.name));
+  const others = [...rows.keys()].filter((name) => !grouped.has(name) && !flagTabbed.has(name));
   for (const [heading, names] of [...ZORA_GROUPS, [ZORA_OTHER_GROUP, [others]]]) {
     const shown = names.map((column) => column.filter((name) => rows.has(name)).map((name) => rows.get(name)));
     if (!shown.flat().some((row) => !row.hidden)) {
@@ -798,7 +810,7 @@ function conflictTabs(conflicts) {
   const tabs = new Set();
   for (const { fields } of conflicts) {
     for (const name of fields) {
-      if (zoraControls.has(name)) tabs.add(ZORA_TAB);
+      if (zoraControls.has(name)) tabs.add(zoraControls.get(name).tab || ZORA_TAB);
       else if (controls.has(name)) tabs.add(controls.get(name).tab);
     }
   }

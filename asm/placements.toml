@@ -17,3 +17,10 @@ owner = "flags2:compass-chime"
 banks = [5]
 start = 0xBD20
 size = 0xA0
+
+[[placement]]
+segment = "ZORA_F2_WIZZROBE_HAND"
+owner = "flags2:wizzrobe-hand"
+banks = [4]
+start = 0xBC00
+size = 0x80

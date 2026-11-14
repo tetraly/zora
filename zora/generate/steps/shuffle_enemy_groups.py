@@ -1,6 +1,7 @@
 """Shuffle Enemy Groups (B42; PS-EGRP-01 to -06, PS-SPR-03). Its two switches: Shuffle Overworld
 Group (B43; off: PS-EGRP-07, three dungeon groups and no overworld redraw) and Shuffle Level 9
-Monsters (B35; off: PS-MONLV-07, blue Wizzrobe forced into group 2, level 9's)."""
+Monsters (B35; off: PS-MONLV-07, blue Wizzrobe forced into group 2, level 9's). With the ZORA flag
+Wizzrobes Shoot Wallmasters (which turns this on) the Wizzrobes and the Wallmaster share a dungeon group."""
 
 from collections.abc import Collection
 from dataclasses import dataclass
@@ -40,6 +41,8 @@ DUNGEON_GROUPS = (0, 1, 2)
 # PS-MONLV-07: with B35 off blue Wizzrobe goes to group 2 (the tier-2 bank, level 9's) before the deal
 WIZZROBE_GROUP = 2
 WALLMASTER_COUNTED_COST = 6                      # its 4 tiles count as 6
+# Wizzrobes Shoot Wallmasters: the two enemies dealt into one group
+WIZZROBE_PAIR = (E.BLUE_WIZZROBE, E.WALLMASTER)
 
 
 def counted_cost(enemy: Enemy) -> int:
@@ -109,14 +112,26 @@ def _is_covered(groups: dict[int, list[Enemy]], zol_hp: int) -> bool:
     return all(cover & set(members) for members in groups.values())
 
 
+def _pair_allows(members: list[Enemy], total: int, group: int, pair: tuple[Enemy, Enemy]) -> bool:
+    """Whether the group takes both of the pair, the first and then the second."""
+    first, second = pair
+    return (_group_allows(members, total, group, first)
+            and _group_allows([*members, first], total + counted_cost(first), group, second))
+
+
 def deal_enemies(rng: IntRng, zol_hp: int, overworld_group: bool = True,
-                 wizzrobes_in_level_9_group: bool = False) -> EnemyDeal:
+                 wizzrobes_in_level_9_group: bool = False, wallmasters_with_wizzrobes: bool = False) -> EnemyDeal:
     """PS-EGRP-01: sort, seed enemy into groups 1 and 2, then one uniform
     group per enemy, redrawn while barred; 1,000 failures or a group
     without a coverage enemy redo the group draws (order and seed kept).
     PS-EGRP-07 (B43 off): the twelve dungeon enemies into groups 0-2.
     PS-MONLV-07 (B35 off): blue Wizzrobe joins group 2 after the seed, with
-    its tiles counted, and the deal skips it."""
+    its tiles counted, and the deal skips it.
+    Wizzrobes Shoot Wallmasters (`wallmasters_with_wizzrobes`): the blue
+    Wizzrobe and the Wallmaster are dealt together, at the first of the two
+    in the order, into a group that takes both (never the overworld group,
+    which bars the Wallmaster); with B35 off the Wallmaster follows the
+    Wizzrobe into group 2. Off, the draws are unchanged."""
     roster, seeds = (ROSTER, SEED_CANDIDATES) if overworld_group else (DUNGEON_ROSTER, DUNGEON_SEED_CANDIDATES)
     groups_dealt = GROUPS if overworld_group else DUNGEON_GROUPS
     discard(rng, DISCARDED_DRAWS)
@@ -130,15 +145,24 @@ def deal_enemies(rng: IntRng, zol_hp: int, overworld_group: bool = True,
             groups[group].append(seed)
             totals[group] += counted_cost(seed)
         if wizzrobes_in_level_9_group:
-            groups[WIZZROBE_GROUP].append(E.BLUE_WIZZROBE)
-            totals[WIZZROBE_GROUP] += counted_cost(E.BLUE_WIZZROBE)
+            for forced in (E.BLUE_WIZZROBE, *((E.WALLMASTER,) if wallmasters_with_wizzrobes else ())):
+                groups[WIZZROBE_GROUP].append(forced)
+                totals[WIZZROBE_GROUP] += counted_cost(forced)
         is_dealt = True
         for enemy in order:
             if enemy == seed or (wizzrobes_in_level_9_group and enemy == E.BLUE_WIZZROBE):
                 continue
+            pair = WIZZROBE_PAIR if enemy == E.BLUE_WIZZROBE else WIZZROBE_PAIR[::-1]
+            paired = wallmasters_with_wizzrobes and enemy in WIZZROBE_PAIR
+            if paired and any(enemy in members for members in groups.values()):
+                continue                         # dealt with its partner
             for _ in range(DEAL_ATTEMPTS):
                 group = groups_dealt[rng.below(len(groups_dealt))]
-                if _group_allows(groups[group], totals[group], group, enemy):
+                if paired and _pair_allows(groups[group], totals[group], group, pair):
+                    groups[group].extend(pair)
+                    totals[group] += sum(counted_cost(member) for member in pair)
+                    break
+                if not paired and _group_allows(groups[group], totals[group], group, enemy):
                     groups[group].append(enemy)
                     totals[group] += counted_cost(enemy)
                     break
@@ -448,12 +472,13 @@ def pick_goriya_tile(deal: EnemyDeal, placed: dict[int, dict[Enemy, list[int]]],
 
 def shuffle_enemy_groups(blocks: list[LevelBlock], gw: GameWorld, goriya_tier: int, rng: IntRng,
                          overworld: Overworld, zol_hp: int, staged: Staged, overworld_group: bool = True,
-                         wizzrobes_in_level_9_group: bool = False) -> tuple[EnemyDeal, int, int]:
+                         wizzrobes_in_level_9_group: bool = False,
+                         wallmasters_with_wizzrobes: bool = False) -> tuple[EnemyDeal, int, int]:
     """PS-EGRP-01..06: deal the enemies into groups, pack their tiles, and
     redraw the rooms, the mixed lists and the overworld from them; then the
     goriya's tile from its level's group. Returns the deal, the goriya tile
     and the number of rooms redrawn."""
-    enemy_deal = deal_enemies(rng, zol_hp, overworld_group, wizzrobes_in_level_9_group)
+    enemy_deal = deal_enemies(rng, zol_hp, overworld_group, wizzrobes_in_level_9_group, wallmasters_with_wizzrobes)
     placed = pack_enemies(gw, enemy_deal, staged)
     rooms_redrawn = redraw_rooms(blocks, enemy_deal, rng)
     redraw_mixed_lists(gw, enemy_deal, rng, staged)

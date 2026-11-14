@@ -3,6 +3,11 @@
 What changed in each release of ZORA. The same version, flags and seed always make the same game,
 apart from the Cosmetic settings.
 
+## Unreleased
+
+### New Features
+- **Wizzrobes Shoot Wallmasters** (Advanced tab, beta: On, Off or Random; Off by default; idea by Ultralavos; not with Oops All Enemies: Wizzrobes): a Wizzrobe's magic shot is a Wallmaster's hand. It flies over blocks and vanishes at the walls as the magic does. When it hits Link it deals a Wallmaster's damage (half a heart) and takes him back to the level's entrance, as a Wallmaster's grab does, keeping his hearts; a hit that empties his hearts kills him. The Magical Shield blocks it and it vanishes. Link's wand is unchanged, and on the overworld the shot stays magic. The hand is drawn with the Wallmaster's tiles, so it turns Shuffle Enemy Groups on, and the deal puts the Wizzrobes in a dungeon group (never the overworld's) with the Wallmasters. Not offered in Archipelago while in beta. With it off, ROMs are unchanged; the seed document and spoiler log list it among the ZORA flags.
+
 ## 2.0.0 (2026-11-08)
 
 ZORA 2.0.0 is the first full release. A few settings are still in beta: they read "(beta)" on the page and stay locked until Enable Beta Flags is on. In 2.0.0 they are Universal Drops v2.0 and Spoiler Log Detail Level's Basic, Medium and Full, with the tracker file that comes with a log, and any Random that can pick one of them.

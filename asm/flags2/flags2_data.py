@@ -15,6 +15,7 @@ CREDITS: dict[str, str] = {
     "recorder-pols-voice": "Stratoform",
     "full-health": "ShadowOne333, kalita-kun and gzip",
     "harder-ganon": "MetalMachine",
+    "wizzrobe-hand": "Ultralavos",
 }
 
 PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
@@ -161,5 +162,13 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "068d020660b97e6a291fcd4fb8d005209abdd011adb06b8501adaf6b8500b1002910491060a90060b9"
                                 "fe692980d007b97e69293fc93e60")),
         (0x1EAF3, bytes.fromhex("20bd")),
+    ),
+    "wizzrobe-hand": (
+        (0x07322, bytes.fromhex("8080")),
+        (0x1030F, bytes.fromhex("00bc")),
+        (0x13C10, bytes.fromhex("207183ad4b03f015a510f011bd4f03c958900ac95ab006a50cd003e60660a512c911f0f9208a82a903"
+                                "8512a90085ac8511851360c957f033a023a510f02da50429fc090185048505a9008552ac4103b9ab77"
+                                "8d4303b9ac778d44038608a9018507a908850aada5764c40794c1579")),
+        (0x1F3D4, bytes.fromhex("4c34bceaeaea")),
     ),
 }
