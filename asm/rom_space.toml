@@ -765,6 +765,14 @@ last = 0xED9F
 # writes. Owners are "site:NAME".
 
 [[site]]
+name = "item-counter-table"
+bank = 5
+first = 0xBA40
+last = 0xBABF
+source = "zora.rom.item_counter:TABLE"
+what = "Item Counter's table of each area's places (ZORA flag item_counter; asm/flags2/item-counter)"
+
+[[site]]
 name = "level-9-entrance"
 bank = 1
 first = 0x9F00

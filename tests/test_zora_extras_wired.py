@@ -192,7 +192,7 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
               "recorder_warping": "0", "swap_swords_and_rings": "0", "swordlish": "0",
               "swordlish_lowest": "0", "swordlish_highest": "7", "item_shuffle_no_vanilla": "0",
               "compass_chime": "0", "universal_drops_v2": "0", "detailed_spoiler_log": "0",
-              "wizzrobes_shoot_wallmasters": "0"}
+              "wizzrobes_shoot_wallmasters": "0", "item_counter": "0"}
     assert flag_form.zora_form_change(FLAGS, values)["zora"]["flags"] == SWORD
     off = {**dict.fromkeys(values, "0"), "swordlish_highest": "7"}
     assert flag_form.zora_form_change(FLAGS, off)["zora"]["flags"] == ""
@@ -207,7 +207,7 @@ def test_the_tab_controls_spell_the_zora_string() -> None:
         "offense_pacing": 0, "defense_pacing": 0, "recorder_warping": 0, "swap_swords_and_rings": 0, "swordlish": 0,
         "swordlish_lowest": 0, "swordlish_highest": 7, "item_shuffle_no_vanilla": 0,
         "compass_chime": 0, "universal_drops_v2": 0, "detailed_spoiler_log": 0,
-        "wizzrobes_shoot_wallmasters": 0}
+        "wizzrobes_shoot_wallmasters": 0, "item_counter": 0}
     assert set(field["name"] for field in flag_form.metadata()["zora"]["fields"]) == set(values)
 
 

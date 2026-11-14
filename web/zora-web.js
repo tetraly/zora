@@ -605,7 +605,7 @@ const ZORA_GROUPS = [
   ["Enemies", [["recorder_kills_pols_voice", "oops_all_enemies", "harder_bosses"],
                ["like_like_eats_rupees", "oops_all_bosses", "harder_ganon"]]],
   ["Miscellaneous", [["speed_up_dungeon_transitions", "highlight_no_drop_rooms", "full_health"],
-                ["speed_up_heart_fill", "disable_custom_music", "compass_chime"]]],
+                ["speed_up_heart_fill", "disable_custom_music", "compass_chime", "item_counter"]]],
 ];
 const ZORA_OTHER_GROUP = "Other";
 

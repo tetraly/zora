@@ -11,7 +11,7 @@ flag and every read of the original game (base_rom.original_bytes) use it. After
 fireball's tiles again, since Item and Sprite Appearance (C15) may have drawn an item there.
 
 A theme is purely cosmetic: tiles and palettes only, never a layout, door or collision table, and
-never CommonBackgroundPatterns $30-$5F (RESERVED_BACKGROUND_TILES). A ROM generated with a theme
+never CommonBackgroundPatterns $30-$60 (RESERVED_BACKGROUND_TILES). A ROM generated with a theme
 differs from one without only in pattern-tile and palette bytes (tests/test_graphics_theme.py), and
 a finished ROM cannot take one afterwards (player_settings.apply_player_settings refuses it).
 
@@ -45,8 +45,8 @@ THEMES_FOLDER = "themes"                    # zora/rom/themes/<theme>.json, pack
 TILE_BYTES = 16
 # CommonBackgroundPatterns tiles a theme never writes: $30-$4F is the common boss block (Randomize
 # Boss Groups' special boss, PS-BGRP-01), $50-$5F Change Hidden OW Tiles' secret squares (B89) and
-# Pegasus Boots' blank priority sprites ($50/$51, which must stay blank).
-RESERVED_BACKGROUND_TILES = range(0x30, 0x60)
+# Pegasus Boots' blank priority sprites ($50/$51, which must stay blank), $60 Item Counter's chest.
+RESERVED_BACKGROUND_TILES = range(0x30, 0x61)
 COMMON_BACKGROUND = "CommonBackgroundPatterns"
 COMMON_SPRITES = "CommonSpritePatterns"
 # The fireball (Z_04 "Fireball tile" $44, an 8x16 pair): one of Item and Sprite Appearance's 34
