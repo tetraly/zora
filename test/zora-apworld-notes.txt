@@ -18,6 +18,7 @@ ZORA 2.0.1 brings two new beta flags from Ultralavos, a crop guide for streamers
 - **The version label.** zora.gg shows the plain version, "v2.0.1". zora.gg/test shows the build's commit beside it, "v2.0.1 (a1b2c3d)", in its label, its banner and its file names. "Copy bug report info" still includes the build's date and commit.
 - **The spoiler log lists your start items, and the full tracker file marks them.** At every spoiler level above None the log has a "Start items" line under the start screen: the items the seed actually gave you, after Random start settings and Max Start Items are drawn. The full tracker file marks exactly those, shows the Pegasus Boots when they are on, and records ZORA's version and the ZORA flag string.
 - **Archipelago: Randomize Boss Groups keeps four tiles for the logo.** In an Archipelago game the shared boss tiles are 28 instead of 32, so the logo has tiles of its own. Most Archipelago games with Randomize Boss Groups on change. Seeds made on the page are unchanged.
+- **The ending says what comes next.** The last screen of the ending showed nothing above the copyright line, since the original's "ANOTHER QUEST WILL START FROM HERE." was untrue. It now reads "A STATISTICS SCREEN WILL NOW APPEAR. PRESS THE START BUTTON.": Start shows the statistics screen, and Start again saves your file and returns to the file-select screen, where the file goes on in the first quest.
 - **A patch release's beta keeps its patch digit**: a beta of 2.0.2 would read "2.0.2 beta 1".
 
 ### Fixes
@@ -37,5 +38,5 @@ zora.apworld, ZORA's Archipelago world, is published beside the test page:
 
 - world version: 2.0.1
 - ZORA version: 2.0.1
-- source hash: sha256:fbdafa612b6b1fab6060e4eec61d594c24926f2f582116920bc16cfad01ff7b5
-- SHA-256 of zora.apworld: ba8b3debd903c3022a882c9f3a04beaf1aac369c3b5c67d9cbecde6ac2163005
+- source hash: sha256:1ee571d90128d3a2a4fc3c6251d22b516823486e526fd7e73e42198acd201d4f
+- SHA-256 of zora.apworld: 80de853aec26e1b61344693d19552927047ba3ef9dbe006d306f4d457d33f6e4
