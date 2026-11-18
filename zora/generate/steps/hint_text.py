@@ -77,6 +77,11 @@ def toll_slot_shown(item_shuffle_result: ItemShuffleResult) -> bool:
 SHOWN_CHARACTERS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .!'?-" + ',"')
 
 
+def has_shown_character(text: str) -> bool:
+    """Whether the encoder emits at least one tile for `text`."""
+    return any(character.upper() in SHOWN_CHARACTERS and character != " " for character in text)
+
+
 def _encode_line(line: str) -> list[int]:
     cleaned = "".join(
         character.upper() if character.isalpha() else character

@@ -260,23 +260,39 @@ def shields_to_fairies(world: GameWorld, foreign_wares: Collection[tuple[Destina
 
 # --- the hint text --------------------------------------------------------------------------
 
-def foreign_level_labels(world: GameWorld, places, assignment, owners: dict) -> tuple:
-    """(player level, owner, item) for each level that holds exactly one other player's item
-    (owners: place name -> (owner name, item name)). Levels with more than one stay unnamed."""
-    by_level: dict[int, list[tuple[str, str]]] = {}
+def hinted_foreign_places(places, assignment, owners: dict) -> dict:
+    """The other-player places a hint can name, as place name -> key: the player level for a level
+    holding exactly one other player's item, "coast" for the Coast and "white sword" for the White
+    Sword Cave. A place whose owner or item name has no character the font shows is left out (the
+    encoder drops those, so the hint would read "'S ... AWAITS"); it keeps the generic wording.
+    owners: place name -> (owner name, item name)."""
+    from .steps.hint_text import has_shown_character
+    def nameable(place_name: str) -> bool:
+        return (isinstance(assignment.get(place_name), Foreign) and place_name in owners
+                and all(has_shown_character(text) for text in owners[place_name]))
+    by_level: dict[int, list[str]] = {}
     for place in places:
-        if place.level is None or not isinstance(assignment.get(place.name), Foreign):
-            continue
-        level = next((lvl for lvl in world.levels if lvl.level_num == place.level), None)
-        if level is None or place.name not in owners:
-            continue
-        by_level.setdefault(level.rom_level_num, []).append(owners[place.name])
-    labels = [(num, owner, item.upper()) for num, [(owner, item)] in
-              ((num, found) for num, found in by_level.items() if len(found) == 1)]
+        if place.level is not None and nameable(place.name):
+            by_level.setdefault(place.level, []).append(place.name)
+    hinted: dict = {found[0]: level for level, found in by_level.items() if len(found) == 1}
     for place_name, key in (("Coast", "coast"), ("White Sword Cave", "white sword")):
-        if place_name in owners and isinstance(assignment.get(place_name), Foreign):
-            owner, item = owners[place_name]
-            labels.append((key, owner, item.upper()))
+        if nameable(place_name):
+            hinted[place_name] = key
+    return hinted
+
+
+def foreign_level_labels(world: GameWorld, places, assignment, owners: dict) -> tuple:
+    """(level, owner, item) for each place hinted_foreign_places names: a level is given as the
+    ROM's level number, the Coast and the White Sword Cave by key."""
+    labels = []
+    for place_name, key in hinted_foreign_places(places, assignment, owners).items():
+        if isinstance(key, int):
+            level = next((lvl for lvl in world.levels if lvl.level_num == key), None)
+            if level is None:
+                continue
+            key = level.rom_level_num
+        owner, item = owners[place_name]
+        labels.append((key, owner, item.upper()))
     return tuple(labels)
 
 

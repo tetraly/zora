@@ -141,7 +141,7 @@ class ZoraWorld(World):
             assignment |= dict(zip(own, zora_items, strict=False))
             received = zora_items[len(own):]
             ap_name = self.ap_name()
-            # Owner labels for hints: each other-player place's owner and item name (not in the recipe)
+            # Owner and item name of each other-player place; the recipe keeps only the ones a hint can name
             owners: dict[str, tuple[str, str]] = {}
             for place in self.places:
                 item = self.multiworld.get_location(place.name, self.player).item

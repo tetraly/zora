@@ -37,7 +37,9 @@ from .flags.fields import (
 )
 from .flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from .flags.zora_flags import SWORDLISH_HIGHEST_FIELD, SWORDLISH_LOWEST_FIELD, SWORDLISH_PIECES, HarderLevel, Swordlish
-from .generate.finish import FOREIGN, AssignmentRefused, AssignmentUnbeatable, Foreign, ForeignLook
+from .generate.finish import (
+    FOREIGN, AssignmentRefused, AssignmentUnbeatable, Foreign, ForeignLook, hinted_foreign_places,
+)
 from .generate.logic import LogicModel, logic_model, triforce_event
 from .generate.pipeline import Built, FlagsRefused, GenerationPlan, plan
 from .generate.pipeline import build as build_seed
@@ -1051,6 +1053,7 @@ def recipe(result: BuildResult, assignment: Mapping[str, str | Foreign], receive
     if ap_name is not None:
         slot_identity.slot_identity_record(ap_name, FORMAT_VERSION_NUMBERS)
     chosen = result.state.plan
+    hinted = hinted_foreign_places(result.state.places, assignment, dict(foreign_owners or {}))
     return {
         "format": RECIPE_FORMAT,
         "formatVersion": RECIPE_FORMAT_VERSION,
@@ -1058,10 +1061,12 @@ def recipe(result: BuildResult, assignment: Mapping[str, str | Foreign], receive
         "seed": {"number": str(chosen.seed), "flags": chosen.flag_string, "zoraFlags": chosen.zora_flag_string},
         "playerSettings": page_player_settings(player_settings or {}),
         "assignment": _assignment_json(assignment),
-        # optional (owner approval, 2026-11-18): each other player's place with its owner and item name,
-        # for the hint text only; a recipe without it rebuilds the generic hint wording
+        # optional (approved by Tetra, the project owner, 2026-11-18, at Gob's request; this departs from
+        # docs/archipelago.md decision 4, "no player or item names"): the owner and item name of each other
+        # player's place a hint can name (finish.hinted_foreign_places), for the hint text only; a recipe
+        # without it rebuilds the generic hint wording
         "foreignOwners": {place: list(owned) for place, owned in (foreign_owners or {}).items()
-                            if isinstance(assignment.get(place), Foreign)},
+                          if place in hinted},
         "received": list(received),
         "apName": None if ap_name is None else ap_name.hex(),
     }
