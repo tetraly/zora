@@ -1,0 +1,105 @@
+{
+ "schemaVersion": 1,
+ "revision": 1,
+ "updatedAt": "2026-11-17T14:00:39Z",
+ "flagsets": [
+  {
+   "name": "All Swords No Boards",
+   "description": null,
+   "shortcuts": [
+    "asnb"
+   ],
+   "strings": [
+    {
+     "flags": "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A",
+     "zora": "4.T9Jvg",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Zora The Explorer Week 1",
+   "description": null,
+   "shortcuts": [
+    "zte1"
+   ],
+   "strings": [
+    {
+     "flags": "143oNtDD4PAvB!U8nSk4yS8L09lgT10vRVe7sx",
+     "zora": "10.J2EGOED",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Zora The Explorer Week 2",
+   "description": null,
+   "shortcuts": [
+    "zte2"
+   ],
+   "strings": [
+    {
+     "flags": "143oNtDD4PAvB!U8nSk4yS8L09lgT10vRVe7sx",
+     "zora": "10.J2EkcYg",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Zora The Explorer Week 3",
+   "description": null,
+   "shortcuts": [
+    "zte3"
+   ],
+   "strings": [
+    {
+     "flags": "143oNtDD4PAvB!U8nSk4m!DgIQ6oraWI4Me7sx",
+     "zora": "10.JpkCdvd",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Zora The Explorer Week 4",
+   "description": null,
+   "shortcuts": [
+    "zte4"
+   ],
+   "strings": [
+    {
+     "flags": "143oNtDD4PAvB!U8nSk4mxFW0br2w5YUspe7sx",
+     "zora": "10.JpaUYAv",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Zora The Explorer Week 5",
+   "description": null,
+   "shortcuts": [
+    "zte5"
+   ],
+   "strings": [
+    {
+     "flags": "143oNtDD4PAvB!U8nSk4mxFW0br2w5YUspe7sx",
+     "zora": "13.7Zg4ZxiL",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Consternation Plus",
+   "description": null,
+   "shortcuts": [
+    "consternationplus"
+   ],
+   "strings": [
+    {
+     "flags": "oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUULH",
+     "zora": "18.1DzN7gO9LZ4p",
+     "isLatest": true
+    }
+   ]
+  }
+ ]
+}
