@@ -2920,7 +2920,7 @@
     "position": 115,
     "kind": "three_state",
     "radix": 3,
-    "name": "Change Hidden OW Tiles",
+    "name": "Show Hidden OW Tiles",
     "description": "Change hidden overworld tiles",
     "values": [
      "Off",
