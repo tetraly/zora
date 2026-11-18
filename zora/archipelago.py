@@ -968,7 +968,8 @@ def received_items(received: Iterable[str]) -> list[Item]:
 
 
 def finish(result: BuildResult, assignment: Mapping[str, str | Foreign], received: Iterable[str] = (),
-           player_settings: Mapping[str, Any] | None = None, ap_name: bytes | None = None) -> bytes:
+           player_settings: Mapping[str, Any] | None = None, ap_name: bytes | None = None,
+           foreign_owners: Mapping[str, tuple[str, str]] | None = None) -> bytes:
     """FINISH: the ROM with Archipelago's items in their places. `received`: this player's items
     that other worlds hold, which the sanity check grants (R4). `player_settings`: the page's
     names (selectButton, greenTunic, ...) or the YAML keys (page_player_settings). `ap_name`: the
@@ -981,7 +982,8 @@ def finish(result: BuildResult, assignment: Mapping[str, str | Foreign], receive
     look = ForeignLook(multiworld_setting(settings, PAGE_FOREIGN_ITEM_LOOK))
     return finish_seed(result.state, result.state.base_rom, assigned_items(assignment),
                        player_settings_from_page(page_player_settings(settings)),
-                       received=received_items(received), check=True, slot_identity=record, look=look)
+                       received=received_items(received), check=True, slot_identity=record, look=look,
+                       foreign_owners=dict(foreign_owners or {}))
 
 
 # --- the slot identity (Phase 4c) ------------------------------------------------------------------
@@ -1036,7 +1038,8 @@ def _assignment_json(assignment: Mapping[str, str | Foreign]) -> dict[str, Any]:
 
 
 def recipe(result: BuildResult, assignment: Mapping[str, str | Foreign], received: Iterable[str] = (),
-           player_settings: Mapping[str, Any] | None = None, ap_name: bytes | None = None) -> dict[str, Any]:
+           player_settings: Mapping[str, Any] | None = None, ap_name: bytes | None = None,
+           foreign_owners: Mapping[str, tuple[str, str]] | None = None) -> dict[str, Any]:
     """The recipe a player's machine rebuilds this ROM from with its own ROM (PRG0 or PRG1)
     (rom_from_recipe): plain JSON data, no ROM bytes. The producer and seed blocks are the seed
     document's (docs/seed-format/), with this copy's source hash; items by the seed format's
@@ -1055,6 +1058,10 @@ def recipe(result: BuildResult, assignment: Mapping[str, str | Foreign], receive
         "seed": {"number": str(chosen.seed), "flags": chosen.flag_string, "zoraFlags": chosen.zora_flag_string},
         "playerSettings": page_player_settings(player_settings or {}),
         "assignment": _assignment_json(assignment),
+        # optional (owner approval, 2026-11-18): each other player's place with its owner and item name,
+        # for the hint text only; a recipe without it rebuilds the generic hint wording
+        "foreignOwners": {place: list(owned) for place, owned in (foreign_owners or {}).items()
+                            if isinstance(assignment.get(place), Foreign)},
         "received": list(received),
         "apName": None if ap_name is None else ap_name.hex(),
     }
@@ -1096,7 +1103,8 @@ def rom_from_recipe(data: Mapping[str, Any], rom: bytes) -> bytes:
     try:
         ap_name = None if data["apName"] is None else bytes.fromhex(data["apName"])
         return finish(result, _recipe_assignment(data["assignment"]), data["received"], data["playerSettings"],
-                      ap_name)
+                      ap_name, foreign_owners={place: tuple(owned) for place, owned
+                                               in data.get("foreignOwners", {}).items()})
     except (AssignmentRefused, AssignmentUnbeatable) as failure:
         raise RecipeNotReproduced(f"the rebuilt seed fails where generation passed ({failure}): a determinism "
                                   f"bug in ZORA {ZORA_VERSION}; please report it with the recipe") from failure

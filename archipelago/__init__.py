@@ -141,10 +141,18 @@ class ZoraWorld(World):
             assignment |= dict(zip(own, zora_items, strict=False))
             received = zora_items[len(own):]
             ap_name = self.ap_name()
+            # Owner labels for hints: each other-player place's owner and item name (not in the recipe)
+            owners: dict[str, tuple[str, str]] = {}
+            for place in self.places:
+                item = self.multiworld.get_location(place.name, self.player).item
+                if item is not None and item.player != self.player:
+                    owners[place.name] = (self.multiworld.get_player_name(item.player), item.name)
             # ZORA's sanity check (R4)
-            zora_ap.finish(self.built, assignment, received, self.settings_values, ap_name=ap_name)
+            zora_ap.finish(self.built, assignment, received, self.settings_values, ap_name=ap_name,
+                           foreign_owners=owners)
             patch = ZoraProcedurePatch(player=self.player, player_name=self.player_name)
-            patch.write_recipe(zora_ap.recipe(self.built, assignment, received, self.settings_values, ap_name=ap_name))
+            patch.write_recipe(zora_ap.recipe(self.built, assignment, received, self.settings_values, ap_name=ap_name,
+                                              foreign_owners=owners))
             self.rom_name = ap_name
             out_base = self.multiworld.get_out_file_name_base(self.player)
             patch.write(f"{output_directory}/{out_base}{patch.patch_file_ending}")

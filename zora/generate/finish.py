@@ -260,8 +260,29 @@ def shields_to_fairies(world: GameWorld, foreign_wares: Collection[tuple[Destina
 
 # --- the hint text --------------------------------------------------------------------------
 
+def foreign_level_labels(world: GameWorld, places, assignment, owners: dict) -> tuple:
+    """(player level, owner, item) for each level that holds exactly one other player's item
+    (owners: place name -> (owner name, item name)). Levels with more than one stay unnamed."""
+    by_level: dict[int, list[tuple[str, str]]] = {}
+    for place in places:
+        if place.level is None or not isinstance(assignment.get(place.name), Foreign):
+            continue
+        level = next((lvl for lvl in world.levels if lvl.level_num == place.level), None)
+        if level is None or place.name not in owners:
+            continue
+        by_level.setdefault(level.rom_level_num, []).append(owners[place.name])
+    labels = [(num, owner, item.upper()) for num, [(owner, item)] in
+              ((num, found) for num, found in by_level.items() if len(found) == 1)]
+    for place_name, key in (("Coast", "coast"), ("White Sword Cave", "white sword")):
+        if place_name in owners and isinstance(assignment.get(place_name), Foreign):
+            owner, item = owners[place_name]
+            labels.append((key, owner, item.upper()))
+    return tuple(labels)
+
+
 def recompose_hint_text(world: GameWorld, built: Built, item_shuffle_result: ItemShuffleResult, rng: Rng,
-                        foreign: bool = False, foreign_item: Item = FOREIGN_ITEM) -> None:
+                        foreign: bool = False, foreign_item: Item = FOREIGN_ITEM,
+                        foreign_labels: tuple = ()) -> None:
     """The hint text again on the assigned world: the hint text step (compose_hint_text), B19's
     pointer exchange when it ran, and ship_hint_text. foreign: the assignment holds another
     player's item; a hint naming a place that holds one says it is an item for another player
@@ -276,7 +297,8 @@ def recompose_hint_text(world: GameWorld, built: Built, item_shuffle_result: Ite
         return
     chosen = built.plan
     hint_text = compose_hint_text(world, item_shuffle_result, result.hint_assignment, rng, extra_options(chosen),
-                                  chosen.alternatives, result.maze_offers, foreign_item if foreign else None)
+                                  chosen.alternatives, result.maze_offers, foreign_item if foreign else None,
+                                  foreign_labels)
     if chosen.steps.shuffle_dungeon_text:
         hint_text = shuffle_dungeon_text(hint_text, rng)
     ship_hint_text(world, hint_text)
@@ -338,7 +360,7 @@ class Finished:
 
 def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng: Rng, recompute: bool = True,
                      received: Collection[Item] = (), check: bool = True,
-                     look: ForeignLook = ForeignLook.RUPEE) -> Finished:
+                     look: ForeignLook = ForeignLook.RUPEE, foreign_owners: dict | None = None) -> Finished:
     """Write the assignment into `world` (a copy of the built world), refusing it whole if any
     part breaks a rule (AssignmentRefused); then redo every output that depends on which item
     sits where (docs/archipelago.md, R3): the tracked items, the joined wares' prices and the hint
@@ -371,7 +393,8 @@ def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng
         reprice_wares(world, built, rng)
         recompose_hint_text(world, built, item_shuffle_result, rng,
                             foreign=any(isinstance(value, Foreign) for value in assignment.values()),
-                            foreign_item=FOREIGN_ITEMS[look])
+                            foreign_item=FOREIGN_ITEMS[look],
+                            foreign_labels=foreign_level_labels(world, places, assignment, foreign_owners or {}))
     if look is ForeignLook.LOGO:
         foreign_wares = {(place.destination, place.position) for place in places
                          if place.destination is not None and place.position is not None

@@ -1172,7 +1172,8 @@ def generate_hint_text_step(context: GenerationContext) -> None:
 
 def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
                       rng: Rng, extras: ExtraOptions, alternatives: AlternativeValues,
-                      maze_offers: dict[int, MazeOffer], foreign_code: int | None = None) -> HintTextResult:
+                      maze_offers: dict[int, MazeOffer], foreign_code: int | None = None,
+                      foreign_labels: tuple = ()) -> HintTextResult:
     """The hint text step's work on a shipped world: also FINISH's, on an assigned world
     (Archipelago Phase 2), which passes foreign_code, the code another player's item is written
     as, so that a hint naming such a place says so (ItemNames.foreign_code)."""
@@ -1181,7 +1182,7 @@ def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hin
     if alternatives.wooden_sword_state in BOMB_UPGRADE_STATES:
         names = replace(names, bomb_upgrade=True)       # FP-WOOD-02: item $02 is a bomb upgrade
     if foreign_code is not None:
-        names = replace(names, foreign_code=foreign_code)
+        names = replace(names, foreign_code=foreign_code, foreign_labels=foreign_labels)
     if extras.pegasus_boots:
         names = replace(names, pegasus_boots=True)      # the boomerangs' items are the boots
     if alternatives.normal_hints:
