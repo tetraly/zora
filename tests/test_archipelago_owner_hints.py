@@ -75,21 +75,25 @@ class HintedPlacesTest(unittest.TestCase):
         self.assertFalse(has_shown_character("   "))
 
 
-@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
+@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the PRG0 base ROM")
 def test_recipe_rebuild_matches_generation() -> None:
-    """The ROM rebuilt from the filtered recipe is the one generation wrote."""
-    from tests.test_archipelago_client_ram import CASE, SEED
+    """The ROM rebuilt from the filtered recipe is the one generation wrote. The assignment is the
+    seed's own pool with two places swapped for other players' items, so it passes ZORA's walk."""
     from tests.test_archipelago_beta_smoke import FLAG_CASES
+    from tests.test_archipelago_client_ram import CASE, SEED
     from zora.rom.base_rom import remember_repo_base_rom
 
     rom = remember_repo_base_rom()
     result = archipelago.build_from_strings(*FLAG_CASES[CASE], SEED, rom)
-    names = [p.name for p in result.state.places]
-    assignment = {name: archipelago.FOREIGN for name in names}
-    owners = {name: ("Gob-Z2", "HAMMER") for name in names}
-    generated = archipelago.finish(result, assignment, (), None, ap_name=b"ZORA1_test", foreign_owners=owners)
-    recipe = archipelago.recipe(result, assignment, (), None, ap_name=b"ZORA1_test", foreign_owners=owners)
-    hinted = hinted_foreign_places(result.state.places, assignment, owners)
-    assert set(recipe["foreignOwners"]) == set(hinted)
-    assert set(recipe["foreignOwners"]) <= set(names)
+    places = [p.name for p in result.state.places]
+    assert len(places) == len(result.pool)
+    assignment: dict = dict(zip(places, result.pool))
+    received: list[str] = []
+    for name in places[:2]:
+        received.append(assignment[name])
+        assignment[name] = archipelago.FOREIGN
+    owners = {name: ("Gob-Z2", "HAMMER") for name in places[:2]}
+    generated = archipelago.finish(result, assignment, received, None, ap_name=b"ZORA1_test", foreign_owners=owners)
+    recipe = archipelago.recipe(result, assignment, received, None, ap_name=b"ZORA1_test", foreign_owners=owners)
+    assert set(recipe["foreignOwners"]) <= set(places[:2])
     assert archipelago.rom_from_recipe(recipe, rom) == generated
