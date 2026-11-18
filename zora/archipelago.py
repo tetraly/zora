@@ -187,6 +187,10 @@ ZORA_FORCED_OFF = {
     "universal_drops_v2": "Not offered in Archipelago yet: it waits for a logic scan with it on.",
     # Detailed Spoiler Log (owner ruling 9, 2026-11-06): Archipelago writes its own spoiler
     "detailed_spoiler_log": "Not offered in Archipelago: it writes its own spoiler.",
+    # Wizzrobes Shoot Wallmasters (ZORA version 21): beta, so held back as Universal Drops v2.0 is
+    "wizzrobes_shoot_wallmasters": "Not offered in Archipelago yet: it is still in beta.",
+    # Item Counter (ZORA version 22): beta, and its table is read from ZORA mode's world (pipeline.with_item_counter)
+    "item_counter": "Not offered in Archipelago yet: it is still in beta.",
 }
 # Z1R flags a released world offered and Archipelago now keeps off, each with its reason, kept as hidden options
 # so a player's older YAML still loads: any value is accepted and ignored. Print Quest Info (B51; owner ruling 9,
@@ -382,7 +386,8 @@ class OptionsConflict(ValueError):
 KEY_SPELLINGS = {"gannon": "ganon"}
 # Fields the owner renamed on the page after beta 3 froze the keys (owner decision, 2026-10-12:
 # neutral wording): each keeps its beta-3 key, so a player's YAML still works.
-KEPT_KEYS = {"B29": "shuffle_bomb_upgrade_men", "B48": "book_to_understand_old_men"}
+KEPT_KEYS = {"B29": "shuffle_bomb_upgrade_men", "B48": "book_to_understand_old_men",
+             "B89": "change_hidden_ow_tiles"}            # Show Hidden OW Tiles since 2026-11-17
 
 
 def key_of(name: str) -> str:
@@ -637,7 +642,7 @@ COLOR, WORD = "color", "word"
 # Keys, values, defaults and rules come from zora/rom/player_settings.py, which finish() reads.
 PLAYER_SETTING_LABELS = {
     "selectButton": "Select button", "lowHealthBeep": "Low-health beep", "deathWarp": "Death-warp",
-    "reduceFlashing": "Reduce flashing", "music": "Music", "graphicsTheme": "Graphics theme",
+    "reduceFlashing": "Reduce flashing", "cropGuide": "Crop guide", "music": "Music", "graphicsTheme": "Graphics theme",
     "greenTunic": "Green tunic", "blueRingTunic": "Blue ring", "redRingTunic": "Red ring", PAGE_HEART_SLOT: "Hearts",
     PAGE_LEVEL_WORD: "Level name", PAGE_BOSS_SOUND_WORD: "Boss-sound label",
     PAGE_LINK_SPRITE: "Playable character", PAGE_LINK_COLORS[0]: "Playable character's color 2",
@@ -657,6 +662,7 @@ PLAYER_CHOICE_LABELS = {
     "deathWarp": {"p2-up-a": "Controller 2 Up+A", "p1-up-a": "Controller 1 Up+A",
                   "p1-up-select": "Controller 1 Up+Select"},
     "reduceFlashing": {"off": "Off", "on": "On"},
+    "cropGuide": {"on": "On", "off": "Off"},
     "music": {"on": "On", "off": "Off"},
     "graphicsTheme": {"off": "Off", "halloween": "Halloween"},
 }
@@ -733,7 +739,7 @@ BOSS_SOUND_WORD_RULE = TextRule(BOSS_SOUND_WORD_LENGTH, BOSS_SOUND_WORD_LENGTH, 
 # Each player setting's YAML key, by its page key (stable from beta 3 on).
 PLAYER_SETTING_KEYS = {
     "selectButton": "select_button", "lowHealthBeep": "low_health_beep", "deathWarp": "death_warp",
-    "reduceFlashing": "reduce_flashing", "music": "music", "graphicsTheme": "graphics_theme",
+    "reduceFlashing": "reduce_flashing", "cropGuide": "crop_guide", "music": "music", "graphicsTheme": "graphics_theme",
     "greenTunic": "green_tunic", "blueRingTunic": "blue_ring_tunic", "redRingTunic": "red_ring_tunic",
     PAGE_HEART_SLOT: "hearts", PAGE_LEVEL_WORD: "level_word", PAGE_BOSS_SOUND_WORD: "boss_sound_word",
     PAGE_LINK_SPRITE: "playable_character", PAGE_LINK_COLORS[0]: "playable_character_color_2",

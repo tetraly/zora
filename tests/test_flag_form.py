@@ -131,8 +131,8 @@ def test_metadata_presets_are_the_spec_presets(build: str) -> None:
     Consternation Remastered and Hopla, each with level encoding on as published; then CP-5
     (Consternation without level encoding), All Swords No Boards and Vanilla (2026-10-17), then
     OHK0HPla Remastered, TTP5: Muffle Rug and TTP5: Pick 5 (2026-10-18), then TTP5: Uphill Battle and
-    SGLive Onsite 2026 (beta 8). Random% (variant B) and variant A without level encoding stay in
-    presets.py, off the menu."""
+    SGLive Onsite 2026 (beta 8), then Zora The Explorer weeks 1 to 5 and Consternation Plus (2026-11-17).
+    Random% (variant B) and variant A without level encoding stay in presets.py, off the menu."""
     presets = worker_metadata()["presets"]
     assert [(p["name"], p["label"]) for p in presets] == [
         ("MVP baseline", "Consternation"), ("Published variant A", "Consternation Remastered"),
@@ -140,7 +140,9 @@ def test_metadata_presets_are_the_spec_presets(build: str) -> None:
         ("All Swords No Boards", "All Swords No Boards"), ("Vanilla", "Vanilla"),
         ("OHK0HPla Remastered", "OHK0HPla Remastered"), ("TTP5: Muffle Rug", "TTP5: Muffle Rug"),
         ("TTP5: Pick 5", "TTP5: Pick 5"), ("TTP5: Uphill Battle", "TTP5: Uphill Battle"),
-        ("SGLive Onsite 2026", "SGLive Onsite 2026")]
+        ("SGLive Onsite 2026", "SGLive Onsite 2026"),
+        *((f"Zora The Explorer Week {week}", f"Zora The Explorer Week {week}") for week in range(1, 6)),
+        ("Consternation Plus", "Consternation Plus")]
     encoded = presets[:3]
     assert [p["flags"] for p in encoded] == [codec.canonicalize(flags_presets.PRESETS[p["name"]]) for p in encoded]
     assert all(codec.decode(p["flags"]).toggle(flags_fields.ENCODE_LEVEL_DATA) is ThreeState.ON for p in encoded)

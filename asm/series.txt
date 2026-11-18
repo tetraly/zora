@@ -19,3 +19,4 @@ fp-entr-01-sides
 ht-book-01
 fp-credits-01
 ht-hint-07
+crop-guide

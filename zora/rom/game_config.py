@@ -109,6 +109,9 @@ class GameConfig:
     # Sword Only and Swordless), and Ganon harmed by the wand alone (Swordless). Omitted from the
     # seed's code while off.
     bomb_upgrade_item: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Item Counter (ZORA version 22): the seed's table of each area's counted places (zora/generate/item_counter.py),
+    # written with the flag's patch (zora/rom/item_counter.py). Empty, and omitted from the seed's code, while off.
+    item_counter_table: bytes = field(default=b"", metadata=OMITTED_AT_DEFAULT)
     wand_fights_ganon: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     # The beta 8 export's fixed patches (zora/rom/uphill_battle.py), omitted from the seed's code
     # while off: Recorder to Unbeaten Dungeons (B07, OW-WARP-02), Hide Dungeon Numbers (B24,

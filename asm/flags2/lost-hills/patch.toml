@@ -7,16 +7,45 @@
 # (tests/test_flags2_emulator.py walks all 27). These edits change the screens around it. Read
 # through the layouts' squares (walkable or not by their lower tiles), they join $0B to $0C,
 # close the paths up from $1C and $1D and down from $0C and $0D, and open a square near the top
-# of $0D: $0B-$0D become reachable through the maze only. Layout 10 also serves screen $3C,
-# whose right edge opens with $0B's. No emulator test walks these screens yet.
+# of $0D: $0B-$0D become reachable through the maze only.
+#
+# $0B shares its layout with $3C: layout 10 (the 1Q5 and 1Q2 doorways) in the first quest's look,
+# layout 123 (the fairy fountain and the pond) in the second's. So that $0B's right edge opens
+# without $3C's, $0B gets layouts of its own: the routine below lets a screen name layouts $7C-$7F,
+# which the game's table does not hold, from a table of four more at bank 5 $BBC0, and
+# zora/rom/extra_layouts.py writes there $7C, the fountain with layout 10's open right edge, and
+# $7D, layout 10 with it, for $0B to show (2.0.0's bug: a fountain on $0B cut $0C and $0D off;
+# tests/test_overworld_gates.py). The idea of redirecting the unused layout numbers to a second
+# table is gzip's; this routine is ZORA's own.
 #
 # Column descriptors in RoomLayoutsOW (a binary include in the pinned disassembly): data edits,
 # as in raft-blocks. asm/README.md and asm/flags2/build.py describe the rest of this file.
 
+[[segment]]
+name = "ZORA_F2_LOST_HILLS"
+bank = 5
+start = 0xBBA0              # the end of fp-prog-02's old room slot, before the layouts at $BBC0
+
+[[hook]]
+name = "layout-table"
+offset = 0x16A04
+length = 10
+note = "LayoutRoomOW's first four lines, which load RoomLayoutsOW's address into [$02:03], are JSR ExtraLayoutsBase, which loads there the base the screen's layout number indexes: RoomLayoutsOW's, or for $7C-$7F the extra table's less $7C0. The code after it loads RoomId and the layout byte again."
+code = """
+    JSR ExtraLayoutsBase
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+    NOP
+"""
+
 [[data]]
-offset = 0x154D7
-bytes = "01 01 01 01 01 01 01"
-note = "Layout 10 (screens $0B and $3C), column 15, and layout 11 (screen $0C), columns 0 to 5."
+offset = 0x154D8
+bytes = "01 01 01 01 01 01"
+note = "Layout 11 (screen $0C), columns 0 to 5."
 
 [[data]]
 offset = 0x154F1

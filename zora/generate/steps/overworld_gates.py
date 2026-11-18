@@ -16,6 +16,7 @@ screens the raft and bracelet edits wall in (start_barred).
 from dataclasses import dataclass
 
 from ...model.enums import Destination, Item
+from ...model.overworld import Overworld
 
 # Extra Raft Blocks (§3): open to raft, and $1E bomb to raft-and-bomb (the wooden sword is always
 # held, so raft-and-bomb needs the raft alone).
@@ -27,6 +28,11 @@ BRACELET_BLOCK_SCREENS = frozenset({0x00, 0x01, 0x02, 0x03, 0x10, 0x12, 0x13})
 # Mountain's pocket (with $11, and $23's west part, its cave's and Link's start spot's, which
 # opens only north into the pocket; both entrances already need the bracelet).
 RAFT_ENCLOSED_SCREENS = RAFT_BLOCK_SCREENS | {0x2F, 0x45}
+# Extra Raft Blocks' bridge: the dock its edit draws across $44 (layout 64, columns 7-15; west of the first
+# quest's level 4 at $45, south of $34) is drawn in the screen's inner palette, PRG0's 2, the green one.
+# The screen takes 3, the brown one, so the bridge looks like wood (CustomShield's report on 2.0.1).
+RAFT_BRIDGE_SCREEN = 0x44
+BROWN_INNER_PALETTE = 3
 BRACELET_ENCLOSED_SCREENS = BRACELET_BLOCK_SCREENS | {0x11, 0x23}
 
 LOST_HILLS_SCREEN = 0x1B              # MountainMazeDirs' maze (CheckMazes)
@@ -133,3 +139,9 @@ class OverworldGates:
 
 
 NO_GATES = OverworldGates()
+
+
+def brown_raft_bridge(overworld: Overworld) -> None:
+    """Extra Raft Blocks: the bridge's screen in the brown inner palette (RAFT_BRIDGE_SCREEN). After every
+    pass that moves cave entries, which carry their screen's inner palette with them (shuffle_caves)."""
+    overworld.screens[RAFT_BRIDGE_SCREEN].inner_palette = BROWN_INNER_PALETTE

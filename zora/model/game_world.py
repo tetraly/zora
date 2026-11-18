@@ -62,7 +62,7 @@ class GameWorld:
     # PS-EGRP-06's fixed operand at 0x0474D (CPU $873D bank 1, a CPY #
     # operand; vanilla $7B, written $7E). Purpose not established.
     object_type_operand_873d: int = 0x7B
-    # PS-EGRP-05's red-Wizzrobe overworld patch: four fixed byte runs
+    # PS-EGRP-05's overworld blue-Wizzrobe ($23; the spec's "red Wizzrobe") patch: four fixed byte runs
     # (rom_layout.OVERWORLD_WIZZROBE_PATCH), written when True.
     overworld_wizzrobe_patch: bool = False
     # The byte at 0x0A868 (PRG0 $FF, free space), read only and no longer used: the life toll's

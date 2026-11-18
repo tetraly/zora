@@ -1,14 +1,13 @@
-"""The music assets from the local music folder: the library from the clone of Quantam's
-ZeldaMusicRandomizer at the pinned commit, and his newer lozft.bps beside it.
+"""The music asset from the local music folder: the library from the clone of Quantam's
+ZeldaMusicRandomizer at the pinned commit.
 
     from scripts.music_assets import pinned_assets, assets_available
-    python3 scripts/music_assets.py          check the folder: the clone at the pinned commit, the patch, checksums
+    python3 scripts/music_assets.py          check the folder: the clone at the pinned commit, its checksum
 
-The folder is music/ (git-ignored; ZORA_MUSIC names another): music/ZeldaMusicRandomizer, the
-clone, whose library is read from the pinned commit with `git show` (zora/rom/music/pin.py), never
-its working tree, so other work in the clone cannot change a build, and music/lozft.bps, the patch
-(Quantam's file of 2026-10-22, not yet in his repository). The bytes are then checked against the pin's checksums
-(MusicAssets). docs/music.md says how to make the folder.
+The folder is music/ (git-ignored; ZORA_MUSIC names another): music/ZeldaMusicRandomizer, the clone, whose
+library is read from the pinned commit with `git show` (zora/rom/music/pin.py), never its working tree, so other
+work in the clone cannot change a build. The bytes are then checked against the pin's checksum (MusicAssets).
+docs/music.md says how to make the folder.
 """
 import os
 import subprocess
@@ -18,7 +17,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from zora.rom.music.pin import COMMIT, LIBRARY_PATH, PATCH_FILE, REPOSITORY, MusicAssets  # noqa: E402
+from zora.rom.music.pin import COMMIT, LIBRARY_PATH, REPOSITORY, MusicAssets  # noqa: E402
 
 DEFAULT_FOLDER = REPO / "music"
 CLONE = "ZeldaMusicRandomizer"
@@ -27,7 +26,7 @@ CLONE_COMMAND = (f"git clone https://github.com/{REPOSITORY}.git music/ZeldaMusi
 
 
 class MusicAssetsMissing(RuntimeError):
-    """No clone, the pinned commit not in it, or no patch."""
+    """No clone, or the pinned commit not in it."""
 
 
 def music_folder() -> Path:
@@ -43,13 +42,10 @@ def _pinned_file(clone: Path, path: str) -> bytes:
 
 
 def pinned_assets() -> MusicAssets:
-    folder = music_folder()
-    clone, patch = folder / CLONE, folder / PATCH_FILE
+    clone = music_folder() / CLONE
     if not (clone / ".git").exists():
         raise MusicAssetsMissing(f"no music clone at {clone}: {CLONE_COMMAND}")
-    if not patch.is_file():
-        raise MusicAssetsMissing(f"no {patch}: Quantam's lozft.bps of 2026-10-22 (docs/music.md)")
-    return MusicAssets(_pinned_file(clone, LIBRARY_PATH), patch.read_bytes())
+    return MusicAssets(_pinned_file(clone, LIBRARY_PATH))
 
 
 def assets_available() -> bool:
@@ -66,5 +62,5 @@ if __name__ == "__main__":
     except MusicAssetsMissing as missing:
         print(missing, file=sys.stderr)
         sys.exit(1)
-    print(f"music assets: the library at {COMMIT[:7]}, {len(assets.library)} bytes; the patch, {len(assets.patch)} bytes; "
+    print(f"music assets: the library at {COMMIT[:7]}, {len(assets.library)} bytes; "
           "checksums match")

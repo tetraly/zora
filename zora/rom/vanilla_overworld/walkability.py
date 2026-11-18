@@ -7,7 +7,8 @@ A screen is its layout's squares (layouts.py) as 22 rows of 32 tiles. The engine
 ObjectFirstUnwalkableTile, $89 on the overworld, or when it is one of WalkableTiles; water
 ($8F-$98) is not. Link stands on two tiles side by side (his feet): a step up or down needs
 both, a step sideways only the tile he moves onto. The engine's one special case is screen
-$1F's false wall (at X = $80 going up), which opens its top.
+$1F's false wall (at X = $80 going up), which opens its top; Mirror the overworld (B06) moves it
+to screen $10 at X = $70 (zora/rom/mirror_overworld.py), and the walk reads a mirrored image so.
 
 With the ladder, Link also steps over exactly one square of water (two tiles) in a straight
 line onto land. Raft docks, the recorder, bombable walls and the boulders are not modeled:
@@ -26,7 +27,8 @@ from collections import deque
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from .layouts import read_layout, square_tiles
+from ..mirror_overworld import is_mirrored, mirror_screen
+from .layouts import read_screen_layout, square_tiles
 from .tables import ATTRIBUTE_TABLE_SIZE, LEVEL_BLOCK_OW, SCREEN_COUNT
 
 FIRST_UNWALKABLE_TILE = 0x89          # ObjectFirstUnwalkableTile on the overworld
@@ -54,18 +56,28 @@ def is_walkable(tile: int) -> bool:
     return tile < FIRST_UNWALKABLE_TILE or tile in WALKABLE_TILES
 
 
+def false_wall(rom: bytes) -> tuple[int, tuple[int, ...]]:
+    """The false wall's screen and tile columns: $1F's at X = $80, or mirrored."""
+    if is_mirrored(rom):
+        return mirror_screen(FALSE_WALL_SCREEN), tuple(sorted(COLUMNS - 1 - column for column in FALSE_WALL_COLUMNS))
+    return FALSE_WALL_SCREEN, FALSE_WALL_COLUMNS
+
+
 def screen_tiles(rom: bytes, screen: int) -> Tiles:
-    """A screen's play area as tiles, from its layout's squares."""
-    layout = read_layout(rom, LEVEL_BLOCK_OW.read(rom)[LAYOUT_TABLE * ATTRIBUTE_TABLE_SIZE + screen] & LAYOUT_MASK)
+    """A screen's play area as tiles, from its layout's squares (any layout a screen can name,
+    the fountain's $7B and Randomize Lost Hills' $7C-$7F included)."""
+    layout_number = LEVEL_BLOCK_OW.read(rom)[LAYOUT_TABLE * ATTRIBUTE_TABLE_SIZE + screen] & LAYOUT_MASK
+    layout = read_screen_layout(rom, layout_number)
     tiles = [[0] * COLUMNS for _ in range(ROWS)]
     for column, squares in enumerate(layout):
         for row, square in enumerate(squares):
             top_left, bottom_left, top_right, bottom_right = square_tiles(rom, square)
             tiles[2 * row][2 * column], tiles[2 * row + 1][2 * column] = top_left, bottom_left
             tiles[2 * row][2 * column + 1], tiles[2 * row + 1][2 * column + 1] = top_right, bottom_right
-    if screen == FALSE_WALL_SCREEN:
+    wall_screen, wall_columns = false_wall(rom)
+    if screen == wall_screen:
         for row in FALSE_WALL_ROWS:
-            for column in FALSE_WALL_COLUMNS:
+            for column in wall_columns:
                 tiles[row][column] = OPEN_TILE
     return tiles
 
@@ -197,7 +209,8 @@ class ScreenGraph:
 
 
 def screen_graph(rom: bytes, ladder: bool = False) -> ScreenGraph:
-    """The overworld's screen graph for a headered ROM image (PRG0, or with layout edits)."""
+    """The overworld's screen graph for a headered ROM image (PRG0, or with layout edits, or a
+    finished ROM, mirrored or not)."""
     graph = ScreenGraph({screen: screen_regions(screen_tiles(rom, screen), ladder) for screen in range(SCREEN_COUNT)})
     for screen, regions in graph.screens.items():
         for side, (_, _, opposite) in SIDES.items():

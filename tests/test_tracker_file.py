@@ -14,12 +14,20 @@ from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.zora_flags import ZoraFlags
 from zora.flags.zora_flags import encode as encode_zora
 from zora.generate.pipeline import generate_rom
+from zora.model.item_names import ITEM_NAMES
 from zora.rom.base_rom import remember_repo_base_rom
+from zora.rom.parse.rom_file import parse_rom
+from zora.rom.start_items import items_in_table, start_table
+from zora.version import ZORA_VERSION
 from zora_export.seed_document import seed_document_for
+from zora_export.spoiler_log import has_pegasus_boots, spoiler_log
 from zora_export.tracker_file import (
+    ITEM_IDS,
+    START_ITEM_FIELDS,
     ZTRACKER_WARNING,
     ExportProblem,
     Writer,
+    starter_file,
     tracker_file,
     ztracker_misses,
     ztracker_note,
@@ -218,3 +226,79 @@ def test_the_exporter_refuses_what_the_format_cannot_hold() -> None:
     doc["levels"][0]["rooms"][0]["column"] = 9
     with pytest.raises(ExportProblem, match="off the 8 by 8 map"):
         Writer(doc).write()
+
+
+@cache
+def boots_document(boots: ThreeState, seed: int) -> dict[str, Any]:
+    zora = encode_zora(ZoraFlags(detailed_spoiler_log=True, pegasus_boots=boots))
+    rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, seed, remember_repo_base_rom(), zora_flag_string=zora).rom
+    return seed_document_for(rom, MVP_BASELINE_LEVEL_ENCODING_OFF, seed, zora)
+
+
+@needs_base_rom
+@pytest.mark.parametrize("boots", [ThreeState.OFF, ThreeState.ON, ThreeState.POSSIBLE])
+def test_pegasus_boots_is_the_seeds_boots_replace_boomerangs(boots: ThreeState) -> None:
+    """The full file writes BootsReplaceBoomerangs as the seed resolved Pegasus Boots, 0 or 1 (the spoiler knows
+    it, Random included), and boxes the boots as the boomerangs, never listing them as missing."""
+    for seed in SEEDS:
+        doc = boots_document(boots, seed)
+        save = json.loads(json.dumps(tracker_file(doc)))
+        check_format(save)
+        resolved = has_pegasus_boots(doc)
+        assert resolved is {ThreeState.OFF: False, ThreeState.ON: True}.get(boots, resolved)
+        assert save["Overworld"]["BootsReplaceBoomerangs"] == int(resolved)
+        assert "no tracker item" not in save["Notes"]
+        writer = Writer(doc)
+        for level, dungeon in zip(sorted(doc["levels"], key=lambda level: level["shownNumber"]),
+                                  save["Items"]["Dungeons"], strict=True):
+            expected = [ITEM_IDS[name] for name in writer.level_items(level)[:len(dungeon["Boxes"])]]
+            assert [entry["CellCurrent"] for entry in dungeon["Boxes"]][:len(expected)] == expected
+    assert (ITEM_IDS["Pegasus Boots"], ITEM_IDS["Magical Boots"]) == (ITEM_IDS["Boomerang"],
+                                                                      ITEM_IDS["Magical Boomerang"])
+
+
+@needs_base_rom
+def test_the_full_file_names_zoras_version_and_a_start_magical_sword() -> None:
+    """The full file writes ZoraVersion (ZORA_VERSION, never the flag string's prefix) and ZoraFlags as the starter
+    file does, and a start Magical Sword in both blocks the tracker reads it from."""
+    flags = encode(BASELINE.updated(options={"C17": 0}, toggles={"B70": ThreeState.ON}))   # no limit
+    zora = encode_zora(ZoraFlags(detailed_spoiler_log=True, pegasus_boots=ThreeState.ON))
+    rom = generate_rom(flags, 1, remember_repo_base_rom(), zora_flag_string=zora).rom
+    save = json.loads(json.dumps(tracker_file(seed_document_for(rom, flags, 1, zora))))
+    check_format(save)
+    assert save["ZoraVersion"] == ZORA_VERSION and save["ZoraFlags"] == zora
+    assert save["StartingItemsAndExtras"]["PlayerHasMagicalSword"] is True
+    assert save["PlayerProgressAndTakeAnyHearts"]["PlayerHasMagicalSword"] is True
+    plain = loaded(1, 1)
+    assert plain["ZoraVersion"] == ZORA_VERSION and plain["ZoraFlags"] == document(1, 1)["seed"]["zoraFlags"]
+    assert not plain["StartingItemsAndExtras"]["PlayerHasMagicalSword"]
+
+
+# Max Start Items at most 2 (C17 = 3) over Raft and Bow On, and Magical Sword, Magical Key and Bombs Random
+DRAWN_START_TOGGLES = {"B57": ThreeState.ON, "B58": ThreeState.ON, "B70": ThreeState.POSSIBLE,
+                       "B62": ThreeState.POSSIBLE, "B59": ThreeState.POSSIBLE}
+LIMIT_TWO = 3
+
+
+@needs_base_rom
+@pytest.mark.parametrize("seed", (1, 3, 4))
+def test_the_full_file_sets_the_start_items_the_seed_drew(seed: int) -> None:
+    """The start items after the Random fields and the Max Start Items draw: the document's spoiler block and the
+    log list them, they are the items the ROM's starting table holds, and the full file sets exactly those, each
+    wherever ZoraTracker reads it (the Magical Sword in both blocks). The starter file keeps to the flags."""
+    flags = encode(BASELINE.updated(options={"C17": LIMIT_TWO}, toggles=DRAWN_START_TOGGLES))
+    zora = encode_zora(ZoraFlags(detailed_spoiler_log=True))
+    rom = generate_rom(flags, seed, remember_repo_base_rom(), zora_flag_string=zora).rom
+    doc = seed_document_for(rom, flags, seed, zora)
+    drawn = doc["spoiler"]["startItems"]
+    by_name = {name: item for item, name in ITEM_NAMES.items()}
+    assert len(drawn) == 2
+    assert parse_rom(rom).start_items == items_in_table(start_table([by_name[name] for name in drawn], 3, 3))
+    assert f"Start items: {', '.join(drawn)}" in spoiler_log(doc)
+    save = json.loads(json.dumps(tracker_file(doc)))
+    found = {(block, name) for block in ("StartingItemsAndExtras", "PlayerProgressAndTakeAnyHearts")
+             for name, value in save[block].items() if value is True}
+    assert found == {place for name in drawn for place in START_ITEM_FIELDS[name]}
+    starter = starter_file(flags, zora, seed)
+    assert not any(value is True for block in ("StartingItemsAndExtras", "PlayerProgressAndTakeAnyHearts")
+                   for value in starter[block].values())          # the limit may drop any of them

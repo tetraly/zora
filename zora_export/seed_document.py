@@ -659,15 +659,19 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
     if extras:
         document["zoraExtras"] = extras
     if chosen.spoiler_level is not zora_flags.SpoilerLevel.NONE:
-        document["spoiler"] = spoiler_entry(world, chosen.spoiler_level, selling_levels(world))
+        document["spoiler"] = spoiler_entry(world, chosen.spoiler_level, selling_levels(world),
+                                            [names[item] for item in chosen.alternatives.start_items])
     return document
 
 
 # --- what only the spoiler log and the tracker file read (a ZORA extra) ---------------------------
 
-def spoiler_entry(world: GameWorld, level: zora_flags.SpoilerLevel, selling: frozenset[int]) -> dict[str, Any]:
+def spoiler_entry(world: GameWorld, level: zora_flags.SpoilerLevel, selling: frozenset[int],
+                  start_items: list[str]) -> dict[str, Any]:
     """The facts the spoiler log's levels and the tracker file need beyond the visualizer's format
-    (docs/design/spoiler-levels.md): the level, the start screen, the money secrets' amounts, and per
+    (docs/design/spoiler-levels.md): the level, the start screen, the start items the seed drew (FP-START-02:
+    after the Random start fields and the Max Start Items draw, as the starting table gets them; on screen at
+    the start, so they spoil nothing), the money secrets' amounts, and per
     level its quest, entrance room and side, and each room's layout code, push block and monster. Only
     a seed with a log carries it, so a document without one is as it was (owner ruling, 2026-11-06)."""
     secrets = {display_name(cave.destination.name): cave.rupee_value
@@ -675,6 +679,7 @@ def spoiler_entry(world: GameWorld, level: zora_flags.SpoilerLevel, selling: fro
     return {
         "level": int(level),
         "startScreen": world.overworld.start_screen,
+        "startItems": start_items,
         "secrets": dict(sorted(secrets.items())),
         "levels": [{
             "number": dungeon.level_num,

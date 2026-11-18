@@ -3,6 +3,7 @@ Quantam's importer against his own output, lozft on finished ROMs, the settings,
 playlists, the race flag Disable Custom Music, and the game in the emulator. Skipped without the
 music folder (scripts/music_assets.py) or the base ROMs. The local libraries and playlists are cut
 from the standard library at test time, never committed."""
+import dataclasses
 import hashlib
 import json
 from pathlib import Path
@@ -10,22 +11,23 @@ from typing import TYPE_CHECKING, Any
 
 import pytest
 
-from scripts.music_assets import assets_available, pinned_assets
+from scripts.music_assets import assets_available, music_folder, pinned_assets
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
 from zora.rom.base_rom import BASE_ROM_PATH, PRG1_ROM_PATH, remember_repo_base_rom
 from zora.flags import zora_flags
 from zora.flags.fields import ThreeState
-from zora.rom.music import json5
-from zora.rom.music.importer import AREA_SONGS, MODULE_ADDRESSES, Placed, RomFull, pack_songs
+from zora.rom.music import json5, randomize
+from zora.rom.music.importer import AREA_SONGS, LOZFT2, MODULE_ADDRESSES, BankLayout, Placed, RomFull, pack_songs
 from zora.rom.music.library import (DUNGEON, ENDING, LAST_DUNGEON, ORIGINAL_SONGS, OVERWORLD, TITLE, LibraryError,
                                     USES, LibraryFile, MusicError,
                                     library_songs, module_data, read_library)
-from zora.rom.music.lozft import LOZFT_ROM_SIZE, LozftUnavailable, apply_bps, lozft_bytes, lozft_bytes_sha256, with_lozft
+from zora.rom.music.lozft import LOZFT_ROM_SIZE, LozftUnavailable, with_lozft_from_source
 from zora.rom.music.pin import MusicAssets, MusicAssetsInvalid
 from zora.rom.music.playlist import AREA_KEYS, ORIGINAL_TITLES, PlaylistError, parse_playlist
 from zora.rom.music.randomize import MusicOptions, MusicSource, options_for, randomize_music
 from zora_web.api import music_library_songs, music_playlist_areas
+from zora.rom.revision import identify_rom
 from zora.rom.player_settings import (
     Music,
     PlayerSettingError,
@@ -70,8 +72,6 @@ TOTAL_SECONDS = STATS_BLOCK + 2              # 16 bits
 DRIVER_SRAM = range(0x7F40, 0x7FFE)          # lozft's driver's own SRAM
 BATTERY_RAM = range(0x6000, 0x8000)          # what a cartridge's battery keeps through a power-off
 HEADER = 0x10
-BLANK_TILES = HEADER + 0x4000 + 0x0FF9       # bank 1 $8FF9: blank tile space the patch takes zeros from
-GAME_BANKS_1_TO_6 = range(HEADER + 0x4000, HEADER + 7 * 0x4000)
 BASE = BASE_ROM_PATH.read_bytes() if BASE_ROM_PATH.exists() else b""
 
 
@@ -95,41 +95,78 @@ def test_the_library_reads_as_ftrandolib_reads_it(assets: MusicAssets) -> None:
 
 def test_a_changed_asset_is_refused(assets: MusicAssets) -> None:
     with pytest.raises(MusicAssetsInvalid):
-        MusicAssets(assets.library + b" ", assets.patch)
+        MusicAssets(assets.library + b" ")
+
+
+# Quantam's lozft of 2026-10-22 (LOZFT_PRG1_SHA1): 16 KB banks 7-14 at $8000, each with the driver's $1800 bytes
+REFERENCE_LAYOUT = BankLayout(bank_size=0x4000, banks=tuple(range(7, 15)), base=0x8000, driver_bank=7, driver_size=0x1800)
 
 
 @pytest.mark.skipif(not PRG1_ROM_PATH.exists(), reason="needs the PRG1 ROM")
-def test_lozft_and_the_importer_give_quantams_bytes(assets: MusicAssets) -> None:
-    """The same songs in the same song numbers give the same ROM as his importer: relocation, square
-    swaps, packing, the driver copies and the song table."""
-    lozft = apply_bps(assets.patch, PRG1_ROM_PATH.read_bytes())
+def test_the_importer_gives_quantams_bytes(assets: MusicAssets) -> None:
+    """The same songs in the same song numbers give the same ROM as his importer: relocation, square swaps,
+    packing, the driver copies and the song table. His references were made on the prebuilt lozft.bps of
+    2026-10-22, which players no longer get, so this one test needs that file beside the clone, and only as the ROM
+    his importer ran on; the packing it checks is the same for every layout."""
+    from tests.test_lozft_build import build_script
+    prebuilt = music_folder() / "lozft.bps"
+    if not prebuilt.is_file():
+        pytest.skip("needs Quantam's lozft.bps of 2026-10-22 in the music folder")
+    lozft = build_script().apply_bps(prebuilt.read_bytes(), PRG1_ROM_PATH.read_bytes())
     assert hashlib.sha1(lozft).hexdigest() == LOZFT_PRG1_SHA1
     songs = library_songs(assets.library) + list(ORIGINAL_SONGS)
     by_title = {song.title: song for song in reversed(songs)}
     for expected, titles in REFERENCE.items():
         rom = bytearray(lozft)
         pack_songs(rom, [Placed(number, by_title[title])
-                         for number, title in zip(REFERENCE_SONG_NUMBERS, titles, strict=True)])
+                         for number, title in zip(REFERENCE_SONG_NUMBERS, titles, strict=True)], REFERENCE_LAYOUT)
         assert hashlib.sha1(rom).hexdigest() == expected
 
 
+# Where Quantam's prebuilt lozft.bps copied zeros from graphics tiles, so a ROM with them redrawn was refused
+# (2.0.0's "LozftUnavailable"): file offsets of the player's ROM and lengths, measured from that patch
+FORMERLY_REFUSED_TILES = ((0x5009, 91), (0x876F, 16), (0x89F8, 22))
+REDRAWN_TILE_BYTE = 0x55
+PAGE_MUSIC_SETTINGS = json.dumps({"music": "random-standard"})
+
+
+def with_redrawn_tiles(rom: bytes) -> bytes:
+    drawn = bytearray(rom)
+    for offset, length in FORMERLY_REFUSED_TILES:
+        drawn[offset:offset + length] = bytes([REDRAWN_TILE_BYTE]) * length
+    return bytes(drawn)
+
+
+def page_seed(rom: bytes, assets: MusicAssets) -> bytes:
+    """Music: Random from the page's own worker glue (web/zora-worker.js), the player's ROM handed in."""
+    from tests.test_web_rom_step import JsBytes, glue
+    return bytes(glue()["generate"](JsBytes(rom), str(SEED), MVP_BASELINE_LEVEL_ENCODING_OFF, PAGE_MUSIC_SETTINGS, "",
+                                    JsBytes(assets.library)))
+
+
 @pytest.mark.skipif(not PRG1_ROM_PATH.exists(), reason="needs the PRG1 ROM")
-def test_lozft_comes_from_the_players_rom(assets: MusicAssets) -> None:
-    """lozft's own bytes are the same made from PRG0 as from PRG1 (the patch's copies from elsewhere
-    read PRG1's bytes from PRG0's moved code); a ROM whose blank tiles the patch takes zeros from
-    are drawn on (modified graphics) is refused, and the finished ROM keeps its own bytes elsewhere."""
-    made = {path.name: lozft_bytes(assets.patch, path.read_bytes()) for path in (BASE_ROM_PATH, PRG1_ROM_PATH)}
-    assert len({lozft_bytes_sha256(*pair) for pair in made.values()}) == 1
-    prg0 = BASE_ROM_PATH.read_bytes()
-    rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, remember_repo_base_rom(), MUSIC_SETTINGS).rom
-    out = with_lozft(rom, assets.patch, prg0)
-    own = made[BASE_ROM_PATH.name][1]
-    # banks 1-6 (bank 0 has the two changes after lozft: the PRG0 site and the StatsTick call)
-    assert all(out[offset] == rom[offset] for offset in GAME_BANKS_1_TO_6 if not own[offset])
-    drawn = bytearray(prg0)
-    drawn[BLANK_TILES:BLANK_TILES + 4] = b"\x55" * 4
-    with pytest.raises(LozftUnavailable, match="graphics"):
-        with_lozft(rom, assets.patch, bytes(drawn))
+@pytest.mark.parametrize("path", [BASE_ROM_PATH, PRG1_ROM_PATH], ids=["PRG0", "PRG1"])
+def test_a_rom_with_those_tiles_redrawn_gets_the_same_seed_and_keeps_them(path: Path, assets: MusicAssets) -> None:
+    """A 2.0.0 player's ROM with tiles the prebuilt patch copied from redrawn generates with Music: Random, through
+    the page's path, keeps the player's tiles, and is the same seed as the unmodified ROM's everywhere else."""
+    remember_repo_base_rom()
+    plain, drawn = path.read_bytes(), with_redrawn_tiles(path.read_bytes())
+    assert identify_rom(drawn).modified_graphics and not identify_rom(plain).modified_graphics
+    from_plain, from_drawn = page_seed(plain, assets), page_seed(drawn, assets)
+    redrawn = {offset + index for offset, length in FORMERLY_REFUSED_TILES for index in range(length)}
+    assert len(from_drawn) == LOZFT_ROM_SIZE
+    assert all(from_drawn[offset] == REDRAWN_TILE_BYTE for offset in redrawn)
+    assert {offset for offset, (a, b) in enumerate(zip(from_plain, from_drawn, strict=True)) if a != b} == redrawn
+
+
+@pytest.mark.skipif(not PRG1_ROM_PATH.exists(), reason="needs the PRG1 ROM")
+@pytest.mark.parametrize("path", [BASE_ROM_PATH, PRG1_ROM_PATH], ids=["PRG0", "PRG1"])
+def test_a_rom_with_every_tile_redrawn_differs_only_in_its_tiles(path: Path, assets: MusicAssets) -> None:
+    from tests.test_revision import graphics_inverted, in_graphics
+    remember_repo_base_rom()
+    from_plain = page_seed(path.read_bytes(), assets)
+    from_drawn = page_seed(graphics_inverted(path.read_bytes()), assets)
+    assert all(in_graphics(offset) for offset, (a, b) in enumerate(zip(from_plain, from_drawn, strict=True)) if a != b)
 
 
 def test_randomized_music_gives_every_area_its_own_track(music_zora_rom: bytes, assets: MusicAssets) -> None:
@@ -151,7 +188,7 @@ def test_randomized_music_gives_every_area_its_own_track(music_zora_rom: bytes, 
 def test_lozft_needs_the_music_statistics_choice(assets: MusicAssets) -> None:
     plain = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, remember_repo_base_rom()).rom
     with pytest.raises(LozftUnavailable, match="music choice"):
-        with_lozft(plain, assets.patch, BASE)
+        with_lozft_from_source(plain, BASE)
 
 
 def test_the_settings_read_from_the_page_and_the_command_line() -> None:
@@ -277,6 +314,60 @@ def test_a_local_library_is_merged_and_drawn_from(music_zora_rom: bytes, assets:
         randomize_music(music_zora_rom, BASE, assets, SEED, options, [])
 
 
+def padded(item: dict[str, Any], size: int) -> dict[str, Any]:
+    """A library entry with its module padded to `size` bytes."""
+    data = module_data(item["data"])
+    return {**item, "data": "hex:" + (data + bytes(size - len(data))).hex()}
+
+
+LARGE_TRACK = "Battlemaniacs.ftm"
+OVER_A_BANK = LOZFT2.bank_size + 1
+
+
+def library_with_a_large_track(assets: MusicAssets, name: str = "mine.json5") -> LibraryFile:
+    entries = standard_entries(assets)
+    usable = ("Blue Water Blue Sky", "Castlevania 2 - Bloody Tears", "Undertale - Megalovania Somari Style", "bossy.ftm",
+              "Dark Castle.ftm", "Moskau.ftm", "Nether's Lament")
+    return library_file(name, [*(entry(entries, title) for title in usable), padded(entry(entries, LARGE_TRACK), OVER_A_BANK)])
+
+
+def test_a_track_over_a_bank_is_left_out_with_a_warning(music_zora_rom: bytes, assets: MusicAssets) -> None:
+    """A local track too large for a music bank never fails the seed: it is left out, and the warning names it."""
+    message = f"mine.json5: {LARGE_TRACK}: left out, it is {OVER_A_BANK:,} bytes and a track can be at most {LOZFT2.bank_size:,}"
+    file = library_with_a_large_track(assets)
+    for seed in range(SEED, SEED + 8):
+        result = randomize_music(music_zora_rom, BASE, assets, seed, MusicOptions(source=MusicSource.LOCAL), [file])
+        assert message in result.warnings and LARGE_TRACK not in {place.song.title for place in result.placed}
+
+
+def test_a_track_at_exactly_a_bank_is_used(music_zora_rom: bytes, assets: MusicAssets) -> None:
+    entries = standard_entries(assets)
+    file = library_file("mine.json5", [padded(entry(entries, LARGE_TRACK), LOZFT2.bank_size)])
+    result = randomize_music(music_zora_rom, BASE, assets, SEED, MusicOptions(source=MusicSource.LOCAL), [file])
+    assert not result.warnings and LARGE_TRACK in {place.song.title for place in result.placed}
+
+
+def test_a_playlist_that_names_a_track_over_a_bank_gets_a_random_one(music_zora_rom: bytes, assets: MusicAssets) -> None:
+    playlist = parse_playlist(json.dumps({"tracks": {"level1": LARGE_TRACK}}))
+    result = randomize_music(music_zora_rom, BASE, assets, SEED,
+                             MusicOptions(source=MusicSource.LOCAL, playlist=playlist), [library_with_a_large_track(assets)])
+    assert f"Level 1: {LARGE_TRACK} is too large to use, so this area gets a random track" in result.warnings
+    assert LARGE_TRACK not in {place.song.title for place in result.placed}
+
+
+def test_a_library_of_only_tracks_over_a_bank_keeps_the_games_own_songs(music_zora_rom: bytes, assets: MusicAssets) -> None:
+    file = library_file("big.json5", [padded(entry(standard_entries(assets), LARGE_TRACK), OVER_A_BANK)])
+    result = randomize_music(music_zora_rom, BASE, assets, SEED, MusicOptions(source=MusicSource.LOCAL), [file])
+    assert all(place.song.is_original for place in result.placed) and any(LARGE_TRACK in line for line in result.warnings)
+
+
+def test_the_playlist_editor_does_not_offer_a_track_over_a_bank(assets: MusicAssets) -> None:
+    file = library_with_a_large_track(assets)
+    listed = music_library_songs(None, [(file.name, file.data)])
+    assert LARGE_TRACK not in {song["title"] for song in listed["songs"]}             # type: ignore[attr-defined]
+    assert any(LARGE_TRACK in warning for warning in listed["warnings"])               # type: ignore[attr-defined]
+
+
 def test_a_bad_local_library_is_refused_naming_the_file(music_zora_rom: bytes, assets: MusicAssets) -> None:
     good = entry(standard_entries(assets), "Moskau.ftm")
     cases = {
@@ -315,13 +406,14 @@ def test_a_playlist_pins_its_songs_and_the_rest_is_drawn(music_zora_rom: bytes, 
     drawn = [song.title for number, song in by_number.items()
              if number not in {AREA_KEYS[key].song_number for key in ("title", "level1", "level2", "ending")}]
     assert len(drawn) == len(set(drawn)) and not pinned & set(drawn)
-    lozft = with_lozft(music_zora_rom, assets.patch, BASE)
+    lozft = with_lozft_from_source(music_zora_rom, BASE)
     level1 = SONG_TABLE + 2 * AREA_KEYS["level1"].song_number
     original_dungeon = SONG_TABLE + 2 * AREA_KEYS["level1"].original_number
     assert result.rom[level1:level1 + 2] == lozft[original_dungeon:original_dungeon + 2]
 
 
-def test_a_playlist_that_cannot_be_used_is_refused(music_zora_rom: bytes, assets: MusicAssets) -> None:
+def test_a_playlist_that_cannot_be_used_is_refused(music_zora_rom: bytes, assets: MusicAssets,
+                                                   monkeypatch: pytest.MonkeyPatch) -> None:
     unsafe = next(song.title for song in library_songs(assets.library, safe_only=False) if not song.streaming_safe)
     refusals = {
         '{ tracks: { overworld: "No Such Song" } }': "no song",
@@ -340,6 +432,8 @@ def test_a_playlist_that_cannot_be_used_is_refused(music_zora_rom: bytes, assets
                      key=lambda song: -len(song.module.data) if song.module else 0)
     every_area = {key: song.title for key, song in zip(AREA_KEYS, biggest, strict=False)}
     too_big = parse_playlist(json.dumps({"tracks": every_area}))
+    # The largest songs of the standard library fill less than lozft's 15 music banks, so three stand in for them
+    monkeypatch.setattr(randomize, "LOZFT2", dataclasses.replace(LOZFT2, banks=LOZFT2.banks[:3]))
     with pytest.raises(RomFull, match="bytes of modules"):
         randomize_music(music_zora_rom, BASE, assets, SEED, MusicOptions(safe_only=False, playlist=too_big))
 
@@ -407,7 +501,7 @@ def test_a_library_with_no_track_to_place_is_refused_in_plain_words(music_zora_r
 
 # lozft's driver: the address of the module it plays (its state in the stack page; found by probing
 # the title screen and play, it follows the song table's module address for the song playing).
-DRIVER_MODULE_ADDRESS = 0x159
+DRIVER_MODULE_ADDRESS = 0x18A            # bhop's music_header_ptr (lozft.dbg)
 DRIVER_STATE = range(0x150, 0x1BA)       # lozft's driver's variables in the stack page
 NO_MODULE = 0
 TITLE_SCREEN_FRAMES = 40
@@ -454,7 +548,7 @@ def test_the_title_screen_draws_from_title_tracks_else_keeps_the_games_own(music
     standard = randomize_music(music_zora_rom, BASE, assets, SEED)
     assert placed_title(standard).is_original
     assert ("Title screen", ORIGINAL_TITLES[TITLE]) in standard.track_list()
-    lozft = with_lozft(music_zora_rom, assets.patch, BASE)
+    lozft = with_lozft_from_source(music_zora_rom, BASE)
     title_entry = SONG_TABLE + 2 * TITLE_SONG
     assert standard.rom[title_entry:title_entry + 2] == lozft[title_entry:title_entry + 2]
     only_title = randomize_music(music_zora_rom, BASE, assets, SEED, local,
@@ -507,7 +601,7 @@ def test_the_title_screen_plays_the_title_track_in_the_emulator(music_zora_rom: 
         emulator = Emulator(result.rom)
         emulator.run(TITLE_SCREEN_FRAMES)
         if uses is None:
-            alone = Emulator(bytes(with_lozft(music_zora_rom, assets.patch, BASE)))
+            alone = Emulator(bytes(with_lozft_from_source(music_zora_rom, BASE)))
             alone.run(TITLE_SCREEN_FRAMES)
             assert playing(emulator) == NO_MODULE
             assert [emulator[address] for address in DRIVER_STATE] == [alone[address] for address in DRIVER_STATE]

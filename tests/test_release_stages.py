@@ -6,6 +6,7 @@ choices. Each stage stops at its commands; neither runs one."""
 import importlib.util
 import json
 import sys
+import threading
 from pathlib import Path
 from types import ModuleType
 
@@ -90,9 +91,10 @@ def test_a_stage_or_dry_run_is_required(make_release: ModuleType, monkeypatch: p
 @pytest.mark.parametrize(("argv", "call"), [
     (["--dry-run"], (True, False, None, False)),             # the batch run's release-tree step (verify_full.sh)
     (["--dry-run", "--whole-suite"], (True, True, None, False)),
-    (["--stage", "test"], (False, True, "test", False)),
+    (["--stage", "test"], (False, False, "test", False)),     # the encoder tests and the changed test files
+    (["--stage", "test", "--whole-suite"], (False, True, "test", False)),     # a major release
     (["--stage", "test", "--without-batch-stamp"], (False, True, "test", True)),
-    (["--stage", "promote"], (False, True, "promote", False))])
+    (["--stage", "promote"], (False, False, "promote", False))])
 def test_each_way_in_reaches_the_release(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch,
                                          argv: list[str], call: tuple[bool, bool, str | None, bool]) -> None:
     calls: list[tuple[bool, bool, str | None, bool]] = []
@@ -104,6 +106,80 @@ def test_each_way_in_reaches_the_release(make_release: ModuleType, monkeypatch: 
     monkeypatch.setattr(sys, "argv", ["make_release.py", *argv])
     assert make_release.main() == 0 and calls == [call]
     assert 'python3 scripts/make_release.py --dry-run || failed' in (SCRIPTS / "verify_full.sh").read_text()
+
+
+def _stage_run(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch,
+               stage: object) -> list[list[str]]:
+    """The commands release_tree_tests runs for STAGE (none really runs); the release tree holds three test files."""
+    commands: list[list[str]] = []
+
+    def run_in(tree: Path, command: list[str], timeout: int = 0, output_lines: int | None = 12) -> tuple[bool, str]:
+        commands.append(command)
+        return True, "tests/test_a.py::test_one\ntests/test_b.py::test_two\ntests/test_c.py::test_three\n"
+    monkeypatch.setattr(make_release, "run_in", run_in)
+    make_release.release_tree_tests(Path("tree"), False, stage)
+    return commands
+
+
+def test_a_stage_runs_the_encoder_tests_and_the_changed_test_files(make_release: ModuleType,
+                                                                   monkeypatch: pytest.MonkeyPatch) -> None:
+    """Recommendation 5 of docs/reports/release-process-review.md: every test still collects, and only these run."""
+    stage = make_release.StageTests(["tests/test_a.py::test_one", "tests/test_b.py::test_two",
+                                     "tests/test_private.py::test_gone"],
+                                    ["tests/test_b.py", "tests/test_unreleased.py"])
+    collect, run = _stage_run(make_release, monkeypatch, stage)
+    assert "--collect-only" in collect and "tests" in collect
+    assert run[-2:] == ["tests/test_a.py::test_one", "tests/test_b.py"]       # test_two runs with its file
+    assert "tests" not in run and "tests/test_c.py" not in run and "tests/test_unreleased.py" not in run
+
+
+def _stage_selection(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch, stamped: str | None,
+                     encoder: list[str] | None, changed: str) -> object:
+    import full_tier
+    monkeypatch.setattr(full_tier, "newest_stamped_ancestor", lambda repo, head: stamped)
+    monkeypatch.setattr(full_tier, "stamped_encoder_tests", lambda repo, commit: encoder)
+    monkeypatch.setattr(make_release, "git", lambda *args, **kwargs: changed)
+    return make_release.stage_tests("a" * 40)
+
+
+def test_the_stage_takes_the_stamps_encoder_tests_and_the_test_files_since(make_release: ModuleType,
+                                                                           monkeypatch: pytest.MonkeyPatch) -> None:
+    changed = "tests/test_a.py\ntests/helper.py\ntests/frozen_flag_strings/beta7.json\n"
+    assert _stage_selection(make_release, monkeypatch, "b" * 40, ["tests/test_e.py::test_e"], changed) == (
+        make_release.StageTests(["tests/test_e.py::test_e"], ["tests/test_a.py"]))
+
+
+@pytest.mark.parametrize(("stamped", "encoder"), [(None, None), ("b" * 40, None)],
+                         ids=["no stamped commit", "a stamp that recorded no encoder tests"])
+def test_without_the_stamps_record_a_stage_has_no_short_list(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch,
+                                                             stamped: str | None, encoder: list[str] | None) -> None:
+    """release() then runs the whole suite."""
+    assert _stage_selection(make_release, monkeypatch, stamped, encoder, "tests/test_a.py\n") is None
+
+
+def test_the_archipelago_check_runs_beside_the_release_tree_checks(make_release: ModuleType, tmp_path: Path,
+                                                                    monkeypatch: pytest.MonkeyPatch) -> None:
+    """The release-tree checks wait until the Archipelago check has started; run one after the other they would
+    time out here. A failed Archipelago check still fails the release."""
+    started = threading.Event()
+
+    def check_world(apworld: Path) -> object:
+        started.set()
+        return make_release.Check("the world", ["check_apworld: FAILED"])
+
+    def run_checks(*args: object) -> list[object]:
+        assert started.wait(30), "the Archipelago check did not start beside the release-tree checks"
+        return []
+
+    monkeypatch.setattr(make_release, "tested_commit", lambda record=None: None)
+    monkeypatch.setattr(make_release, "build_tree", lambda tree, today: ({}, "a" * 40))
+    monkeypatch.setattr(make_release, "check_world_version", lambda head: make_release.Check("the world version", []))
+    monkeypatch.setattr(make_release, "frozen_strings_problems", lambda head: ("beta7", []))
+    monkeypatch.setattr(make_release, "build_world", lambda head: {})
+    monkeypatch.setattr(make_release, "check_world", check_world)
+    monkeypatch.setattr(make_release, "run_checks", run_checks)
+    monkeypatch.setattr(make_release, "write_release_notes", lambda *args, **kwargs: tmp_path / "notes.md")
+    assert make_release.release(True) == 1
 
 
 def _up_to_the_frozen_strings(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch, problems: list[str]) -> None:
@@ -244,6 +320,8 @@ def test_promote_without_a_result_checks_everything(make_release: ModuleType, tm
     monkeypatch.setattr(make_release, "check_world_version",
                         lambda head: make_release.Check("the world version", []))
     monkeypatch.setattr(make_release, "frozen_strings_problems", lambda head: ("beta7", []))
+    monkeypatch.setattr(make_release, "build_world", lambda head: {})
+    monkeypatch.setattr(make_release, "check_world", lambda apworld: make_release.Check("the world", []))
 
     class ChecksRan(Exception):
         pass
@@ -254,3 +332,10 @@ def test_promote_without_a_result_checks_everything(make_release: ModuleType, tm
     monkeypatch.setattr(make_release, "run_checks", run_checks)
     with pytest.raises(ChecksRan):
         make_release.release(False, stage="promote")
+
+
+def test_the_github_release_carries_the_flags_spec(make_release: ModuleType, tmp_path: Path) -> None:
+    """docs/flags-api.md: each release attaches the spec's copy, zora_version set to its version, beside the world."""
+    command = make_release.promote_commands("v2.0.1", tmp_path / "notes.md", tmp_path / "zora")["release"][2]
+    assert make_release.FLAGS_ASSET == f"zora-flags-{make_release.ZORA_VERSION}.json"
+    assert str(make_release.ASSETS / make_release.FLAGS_ASSET) in command and "zora.apworld" in command

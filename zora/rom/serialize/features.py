@@ -5,11 +5,14 @@ from ...version import PLAYER_NAME
 from ..heart_values import PRG0_START_HEART_VALUES, heart_values
 from ..layout import (
     CONTINUE_HEARTS_OPERAND_ADDRESS,
+    CREDITS_BANK_2_CPU_TO_FILE,
     CREDITS_BLANK_TILE,
-    CREDITS_FREE_SPACE_ADDRESS,
     CREDITS_LINE_12_INDEX,
     CREDITS_POINTERS_HI_ADDRESS,
     CREDITS_POINTERS_LO_ADDRESS,
+    CREDITS_RECORD_CPU_ADDRESSES,
+    CREDITS_RECORD_SLOT_SIZE,
+    CREDITS_ROW_TILES,
     DMC_LEVEL_OPERAND_ADDRESS,
     HEART_METER_BLANK_BRANCH_ADDRESS,
     LEVEL_NAME_DASH_OFFSET,
@@ -24,6 +27,7 @@ from ..layout import (
     REFUSAL_TEXT_SIZE,
     RESET_BUTTON_OPERAND_ADDRESS,
     SECOND_QUEST_HEART_VALUES_OPERAND_ADDRESS,
+    STATS_ANNOUNCEMENT_LINES,
     TEXT_SPEED_OPERAND_ADDRESS,
     TITLE_ROW_LENGTH,
     TITLE_SEED_DIGITS,
@@ -72,8 +76,17 @@ def _serialize_new_file_hearts(game_world: GameWorld, patch: Patch, start_table_
     patch.add(SECOND_QUEST_HEART_VALUES_OPERAND_ADDRESS, bytes([value]))
 
 
+def stats_announcement_records(lines: tuple[str, ...] = STATS_ANNOUNCEMENT_LINES) -> tuple[bytes, ...]:
+    """The credits records (length, first column, tiles) for the first quest's closing lines 12 and 13,
+    each centered in the row as PRG0 centers its own (an odd leftover puts the extra column on the left)."""
+    return tuple(bytes([len(line), (CREDITS_ROW_TILES - len(line) + 1) // 2, *(_CHAR_TO_BYTE[char] for char in line)])
+                 for line in lines)
+
+
 def _serialize_credits(game_world: GameWorld, patch: Patch) -> None:
-    """FP-LOCK-02: replace lines 12-14 with blank records; keep line 15."""
+    """FP-LOCK-02, as ZORA rewrites it: lines 12 and 13 announce the statistics screen (ZORA's records,
+    STATS_ANNOUNCEMENT_LINES); lines 14 and 15 (PRESS THE START BUTTON. and the copyright line) keep
+    PRG0's records (GameWorld.credits_pointers)."""
     pointers = game_world.credits_pointers
     lo = bytearray(4)
     hi = bytearray(4)
@@ -83,19 +96,10 @@ def _serialize_credits(game_world: GameWorld, patch: Patch) -> None:
     patch.add(CREDITS_POINTERS_LO_ADDRESS + CREDITS_LINE_12_INDEX, bytes(lo))
     patch.add(CREDITS_POINTERS_HI_ADDRESS + CREDITS_LINE_12_INDEX, bytes(hi))
 
-    # Write the three replacement records in bank-2 free space.
-    base = CREDITS_FREE_SPACE_ADDRESS
-    records = (
-        # line 12: one blank tile at column 0, inside the 32-tile row (30 tiles from column 36
-        # overran DynTileBuf; docs/reports/ending-text.md); the slot keeps its 32 bytes
-        bytes([0x01, 0x00]) + bytes([CREDITS_BLANK_TILE] * 30),
-        bytes([0x06, 0x0D]) + bytes([CREDITS_BLANK_TILE] * 6),   # line 13: col 13, length 6
-        bytes([0x17, 0x04]) + bytes([CREDITS_BLANK_TILE] * 23),  # line 14: col 4, length 23
-    )
-    offset = base
-    for record in records:
-        patch.add(offset, record)
-        offset += len(record)
+    for address, record in zip(CREDITS_RECORD_CPU_ADDRESSES, stats_announcement_records(), strict=True):
+        # each record stays in its slot and inside the 32-tile row (DynTileBuf; docs/reports/ending-text.md)
+        assert len(record) <= CREDITS_RECORD_SLOT_SIZE and record[1] + record[0] <= CREDITS_ROW_TILES
+        patch.add(CREDITS_BANK_2_CPU_TO_FILE + address, record)
 
 
 def encoded_refusal_text(refusal_text: str) -> bytes:

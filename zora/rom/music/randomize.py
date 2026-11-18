@@ -16,7 +16,6 @@ from ...generate.rng import Rng
 from .importer import (
     AREA_SONGS,
     LOZFT2,
-    LOZFT_2026_10_22,
     Placed,
     RomFull,
     check_modules,
@@ -31,10 +30,11 @@ from .library import (
     MusicError,
     Song,
     library_songs,
-    local_library_songs,
+    local_library_contents,
     read_library,
+    too_large,
 )
-from .lozft import with_lozft, with_lozft_from_source
+from .lozft import with_lozft_from_source
 from .pin import MusicAssets
 from .playlist import AREA_KEYS, Playlist, original_song, resolve_playlist
 
@@ -103,19 +103,19 @@ DEFAULT_OPTIONS = MusicOptions()
 
 
 def _library(assets: MusicAssets, options: MusicOptions,
-             local_libraries: Sequence[LibraryFile]) -> tuple[list[Song], list[str]]:
-    """Every song of the chosen library, unsafe ones included, and its warnings."""
+             local_libraries: Sequence[LibraryFile]) -> tuple[list[Song], list[str], frozenset[str]]:
+    """Every song of the chosen library, unsafe ones included, its warnings, and the titles left out for size."""
     if options.source is MusicSource.STANDARD:
-        return read_library(assets.library, safe_only=False)
+        return *read_library(assets.library, safe_only=False), frozenset()
     if not local_libraries:
         raise MusicError("Random (local library) needs a library: choose your library files")
-    songs, warnings = local_library_songs(local_libraries)
+    songs, warnings, left_out = local_library_contents(local_libraries)
     for file in local_libraries:            # every module placed as a test (Z2R's TestSongs), by file
         try:
-            check_modules(library_songs(file.data, safe_only=False))
+            check_modules([song for song in library_songs(file.data, safe_only=False) if not too_large(song)])
         except LibraryError as exc:
             raise LibraryError(f"{file.name}: {exc}") from exc
-    return songs, warnings
+    return songs, warnings, left_out
 
 
 def drawable_songs(library: list[Song], safe_only: bool) -> list[Song]:
@@ -126,31 +126,29 @@ def drawable_songs(library: list[Song], safe_only: bool) -> list[Song]:
 
 def randomize_music(rom: bytes, base: bytes, assets: MusicAssets, seed: int,
                     options: MusicOptions = DEFAULT_OPTIONS,
-                    local_libraries: Sequence[LibraryFile] = (), from_source: bool = False) -> MusicResult:
-    """rom: the finished ROM; base: the player's ROM it was made from (lozft is made from it).
-    from_source: lozft built from its source (lozft2) instead of the pinned lozft.bps; tests only
-    until it is ready (lozft.with_lozft_from_source). MusicError (LibraryError, PlaylistError,
-    RomFull) when it cannot be made as asked."""
-    layout = LOZFT2 if from_source else LOZFT_2026_10_22
-    library, warnings = _library(assets, options, local_libraries)
+                    local_libraries: Sequence[LibraryFile] = ()) -> MusicResult:
+    """rom: the finished ROM; base: the player's ROM it was made from (the game's code lozft moves is
+    read from it, never its tiles). MusicError (LibraryError, PlaylistError, RomFull) when it cannot be
+    made as asked."""
+    library, warnings, left_out = _library(assets, options, local_libraries)
     pool = drawable_songs(library, options.safe_only)
     fixed: dict[int, Song] = {}
     if options.playlist is not None:
-        fixed, playlist_warnings = resolve_playlist(options.playlist, library, options.safe_only)
+        fixed, playlist_warnings = resolve_playlist(options.playlist, library, options.safe_only, left_out)
         warnings += playlist_warnings
     areas = tuple(AREA_SONGS)
     drawn_numbers = {number for area in areas for number in AREA_SONGS[area]} - set(fixed)
     rng = music_rng(seed)
     for draw in range(DRAWS):
         placed = with_title_song(draw_songs(pool, rng, options.distinct, areas, fixed))
-        out = with_lozft_from_source(rom, base) if from_source else with_lozft(rom, assets.patch, base)
+        out = with_lozft_from_source(rom, base)
         try:
-            pack_songs(out, placed, layout)
+            pack_songs(out, placed, LOZFT2)
         except RomFull:
             if draw + 1 < DRAWS and drawn_numbers:
                 continue
             raise RomFull(f"the songs need {modules_size(placed):,} bytes of modules; the music banks hold "
-                          f"{layout.room:,}") from None
+                          f"{LOZFT2.room:,}") from None
         libraries = tuple((file.name, file.library_id) for file in local_libraries) \
             if options.source is MusicSource.LOCAL else ()
         return MusicResult(bytes(out), tuple(placed), tuple(warnings), libraries)

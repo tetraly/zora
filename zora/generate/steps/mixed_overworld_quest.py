@@ -16,6 +16,7 @@ from ...model.overworld import Overworld
 from ...model.rooms import EnemySpec
 from ..rng import IntRng
 from .cave_entries import ENROLLED_SCREENS, POND_RECORDER_ENTRY, RECORDER_ENTRY_OFF, Entry
+from .lost_hills_layouts import shared_layout
 
 # OW-APP-A7: the first-quest secret positions (PRG0 quest field 1), in OW-MIX-02's order, then the
 # second-quest positions (field 2 with a nonzero code; screen 57 has code 0 and is none).
@@ -242,11 +243,12 @@ def second_quest_leftovers(overworld: Overworld) -> frozenset[int]:
     """The shown screens that keep a dungeon code but are not doors: under 2nd Quest, screens 11 and
     66 (OW-QST-05). Expanded Dungeon Locations clears both codes unless the spot is chosen, and a
     chosen 1Q5 keeps its first-quest doorway, so screen 11 is a leftover only while it shows the
-    fountain (a chosen 1Q7 turns entry 0 on, so its world never reads as 2nd Quest)."""
+    fountain, under Randomize Lost Hills its own copy of it in a finished ROM (lost_hills_layouts; a
+    chosen 1Q7 turns entry 0 on, so its world never reads as 2nd Quest)."""
     if not is_second_quest_overworld(overworld):
         return frozenset()
-    return frozenset(screen for screen in SECOND_QUEST_LEFTOVER_SCREENS
-                     if screen != SCREEN_11 or overworld.screens[SCREEN_11].screen_code == SCREEN_11_LAYOUT)
+    fountain = shared_layout(overworld.screens[SCREEN_11].screen_code) == SCREEN_11_LAYOUT
+    return frozenset(screen for screen in SECOND_QUEST_LEFTOVER_SCREENS if screen != SCREEN_11 or fountain)
 
 
 def door_screen(overworld: Overworld, level: int) -> int | None:

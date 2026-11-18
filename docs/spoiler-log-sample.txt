@@ -1,9 +1,9 @@
-ZORA 2.0.0 spoiler log
+ZORA 2.0.1 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Magical Sword, Blue Ring, Shield, Bow
+Seed code: Wooden Arrow, Shield, Wood Sword, Shield
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -126,7 +126,7 @@ B85   Start Magical Shield ................................................. Off
 B86   Do Not Sort Shapes ................................................... Off
 B87   Add Bridges to the River ............................................. Off
 B88   Add Lost Woods Shortcut .............................................. Off
-B89   Change Hidden OW Tiles ............................................... Off
+B89   Show Hidden OW Tiles ................................................. Off
 B90   Increase Bomb Capacity Upgrade ....................................... Off
 B91   Allow Universal Drops in Shapes ...................................... Off
 B92   Remove Maps .......................................................... Off
@@ -154,6 +154,8 @@ ZORA  Start With Full Health ............................................... off
 ZORA  Recorder Warping ..................................................... off
 ZORA  Compass Chime ........................................................ off
 ZORA  Universal Drops v2.0 ................................................. off
+ZORA  Wizzrobes Shoot Wallmasters .......................................... off
+ZORA  Item Counter ......................................................... off
 
 ================================================================================
 Major items by place
@@ -252,7 +254,7 @@ Texts: the game's texts in its order, with who says them
      said by Money Making Game
  5.  EZ PASS PAID
      said by Door Repair
- 6.  SHOW THE MERCHANT SOMETHING
+ 6.  SHOW THIS TO THE MERCHANT
      said by Letter Cave
  7.  DON'T FORGET TO CHECK THE VANILLA LOCATIONS.
      said by Dead Woods Hint

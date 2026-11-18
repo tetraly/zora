@@ -51,6 +51,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypeVar
 
+from .corpora import local_setting
+
 REPO = Path(__file__).resolve().parent.parent
 SOURCE_REPO_SETTING = "ZORA_SOURCE_REPO"         # scripts/clean_copy.py
 JOB_ID_ENV = "ZORA_JOB_ID"                       # the running job, for its children
@@ -70,8 +72,9 @@ T = TypeVar("T")
 
 def jobs_folder() -> Path:
     """temp/jobs/ in the source checkout: a clean copy's jobs show beside its checkout's, and a job
-    started inside another, even in another tree (make_release's release tree), uses its parent's."""
-    if folder := os.environ.get(JOBS_FOLDER_ENV):
+    started inside another, even in another tree (make_release's release tree), uses its parent's. A release
+    worktree's verify.env names main's (scripts/release_branch.py), so its jobs show in main's list."""
+    if folder := os.environ.get(JOBS_FOLDER_ENV) or local_setting(JOBS_FOLDER_ENV):
         return Path(folder)
     return Path(os.environ.get(SOURCE_REPO_SETTING) or REPO) / "temp" / "jobs"
 

@@ -84,6 +84,8 @@ def test_the_github_release_command_attaches_the_world() -> None:
     make_release = _script("make_release")
     tag = multiworld.release_tag()
     command = make_release.github_release_command(tag, make_release.ASSETS / "release-notes.md")
-    assert command.startswith(f"gh release create {tag} {make_release.ASSETS / 'zora.apworld'} --repo tetraly/zora")
+    # the world, then the flags spec's release copy (docs/flags-api.md)
+    assert command.startswith(f"gh release create {tag} {make_release.ASSETS / 'zora.apworld'} "
+                              f"{make_release.ASSETS / make_release.FLAGS_ASSET} --repo tetraly/zora")
     assert f'--title "ZORA {PLAYER_VERSION}"' in command
     assert ("--prerelease" in command) == (PLAYER_VERSION != ZORA_VERSION)

@@ -26,9 +26,9 @@ def _generated_world(base_rom: bytes, seed: int = 12345) -> "GameWorld":
 @needs_base_rom
 def test_fp_lock_02_credits_pointers_differ_from_vanilla(base_rom):
     gw = _generated_world(base_rom)
-    assert gw.credits_pointers[:3] != (0xAD33, 0xAD4D, 0xAD59)
-    # Line 15 still points to PRG0's copyright record (docs/reports/ending-text.md).
-    assert gw.credits_pointers[3] == 0xAD72
+    assert gw.credits_pointers[:2] != (0xAD33, 0xAD4D)          # the statistics screen's announcement
+    # Lines 14 and 15 keep PRG0's PRESS THE START BUTTON. and copyright (docs/reports/ending-text.md).
+    assert gw.credits_pointers[2:] == (0xAD59, 0xAD72)
 
 
 @needs_base_rom

@@ -89,7 +89,7 @@ class FreeSpace:
 FREE_SPACE = {
     "ZORA_FP_PROG_01_SHOP": FreeSpace(1, 0xBE40, 0xBEBF),      # up to fp-fix-02's slot at $BEC0
     "ZORA_FP_PROG_01_RESOLVE": FreeSpace(1, 0xBEE0, 0xBF4F),   # fp-fix-02's slot ends at $BEDF
-    "ZORA_FP_PROG_02_ROOM": FreeSpace(5, 0xBB00, 0xBBFF),      # fp-entr-01's slot ends at $BAFF
+    "ZORA_FP_PROG_02_ROOM": FreeSpace(5, 0xBB00, 0xBB9F),      # fp-entr-01's slot ends at $BAFF; Lost Hills' at $BBA0
     "ZORA_FP_PROG_02_ARMOS": FreeSpace(4, 0xB900, 0xB9FF),     # z1rr-coop reserves $B46F-$B882; Pols Voice's slot is at $BA00
 }
 

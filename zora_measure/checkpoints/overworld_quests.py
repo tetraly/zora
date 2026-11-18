@@ -5,6 +5,7 @@ figures are the original randomizer's quest2, mixed2 and quest-random corpora
 from collections import Counter
 
 from zora.generate.steps.cave_entries import WOOD_SWORD_SCREENS
+from zora.generate.steps.lost_hills_layouts import shared_layout
 from zora.generate.steps.mixed_overworld_quest import (
     FIRST_QUEST_SECRET_POSITIONS,
     NO_SCREEN,
@@ -132,7 +133,9 @@ def second_quest_screens(gw: GameWorld) -> dict[str, bool]:
     return {"list": overworld.recorder_secret_screens == [NO_SCREEN, *prg0_recorder_list()[1:]],
             "branch $D0": overworld.recorder_reveals_listed_secrets_in_first_quest,
             "60": s60.screen_code == SCREEN_60_LAYOUT and s60.exit_y_position == SCREEN_60_EXIT_ROW,
-            "11": s11.screen_code == SCREEN_11_LAYOUT and s11.enemy_spec.enemy.value == SCREEN_11_MONSTERS,
+            # Randomize Lost Hills' $0B shows its own copy of the fountain (lost_hills_layouts)
+            "11": (shared_layout(s11.screen_code) == SCREEN_11_LAYOUT
+                   and s11.enemy_spec.enemy.value == SCREEN_11_MONSTERS),
             "116": (s116.exit_x_position == SCREEN_116_EXIT_X and s116.outer_palette == SCREEN_116_OUTER_PALETTE
                     and s116.screen_code == SCREEN_116_LAYOUT and s116.exit_y_position == 0
                     and s116.quest_visibility is QuestVisibility.BOTH_QUESTS)}

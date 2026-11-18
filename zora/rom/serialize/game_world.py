@@ -108,7 +108,8 @@ from .text import _serialize_hints
 
 def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, bytes],
                          hint_mode: HintMode = HintMode.VANILLA,
-                         config: GameConfig | None = None, start_y_in_patch: bool | None = None) -> Patch:
+                         config: GameConfig | None = None, start_y_in_patch: bool | None = None,
+                         start_table_in_rom: bool = False) -> Patch:
     """
     Produce a Patch from a GameWorld.
 
@@ -125,6 +126,10 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
     start_y_in_patch: where the overworld start Y goes (FP-ENTR-01): the
     code patches' own byte, or LevelInfo_StartY. Default: the patch byte
     exactly when the code patches are written (GameConfig.features_b10).
+
+    start_table_in_rom: the ROM written over already jumps to fp-start-02's start table (a finished
+    ROM parsed again: code_patches.carries_start_table_jump), so the new-file hearts stay the
+    table's and PRG0's immediates, which the jumps replace, are not written.
     """
     patch = Patch()
     cfg = config or GameConfig()
@@ -134,7 +139,7 @@ def serialize_game_world(game_world: GameWorld, original_bins_bytes: dict[str, b
     if game_world.dungeon_nothing_code is DungeonNothingCode.ZORA_REMAP:
         # the engine's sentinel comparison reads $0E, so $03 can be the magical sword in dungeons
         patch.add(ASM_NOTHING_CODE_PATCH_OFFSET, bytes([ASM_NOTHING_CODE_PATCH_VALUE]))
-    _serialize_overworld_data(game_world, original_bins_bytes, cfg, start_y_in_patch, patch)
+    _serialize_overworld_data(game_world, original_bins_bytes, cfg, start_y_in_patch, start_table_in_rom, patch)
     _serialize_sprites_and_enemies(game_world, patch)
     _serialize_hints(game_world, patch, hint_mode)
     _serialize_person_code(game_world, cfg, hint_mode, patch)
@@ -232,7 +237,7 @@ def _serialize_level_entry_codes(game_world: GameWorld, level_info: bytearray) -
 
 
 def _serialize_overworld_data(game_world: GameWorld, original_bins_bytes: dict[str, bytes], cfg: GameConfig,
-                              start_y_in_patch: bool, patch: Patch) -> None:
+                              start_y_in_patch: bool, start_table_in_rom: bool, patch: Patch) -> None:
     """The overworld screens, the caves, the money-making game and bomb upgrade,
     B10's DATA items and the overworld's own tables."""
     grid_ow = bytearray(original_bins_bytes["overworld_data.bin"])
@@ -242,7 +247,8 @@ def _serialize_overworld_data(game_world: GameWorld, original_bins_bytes: dict[s
     _serialize_cave_data(game_world.overworld, patch)
     _serialize_mmg_prizes(game_world.overworld, patch)
     _serialize_bomb_upgrade(game_world.overworld, patch)
-    _serialize_new_file_hearts(game_world, patch, start_table_written=cfg.features_b10 and game_world.uses_start_table)
+    _serialize_new_file_hearts(game_world, patch, start_table_written=start_table_in_rom
+                               or (cfg.features_b10 and game_world.uses_start_table))
     if cfg.features_b10 and game_world.uses_start_table:
         # FP-START-03: fp-start-02's table, with the start hearts and pieces (the patch's own copy is
         # PRG0's start, so the code patches carry this table too: code_patches.seed_data)

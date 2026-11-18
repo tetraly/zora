@@ -20,7 +20,13 @@ from zora.generate.pipeline import generate_rom
 from zora.rom import credits_staff as credits
 from zora.rom.base_rom import PRG1_ROM_PATH, remember_repo_base_rom
 from zora.rom.code_patch_data import PATCHES
-from zora.rom.layout import CREDITS_POINTERS_HI_ADDRESS, CREDITS_POINTERS_LO_ADDRESS, CREDITS_RECORD_CPU_ADDRESSES
+from zora.rom.layout import (
+    CREDITS_COPYRIGHT_POINTER,
+    CREDITS_POINTERS_HI_ADDRESS,
+    CREDITS_POINTERS_LO_ADDRESS,
+    CREDITS_RECORD_CPU_ADDRESSES,
+    CREDITS_START_BUTTON_POINTER,
+)
 from zora.rom.player_settings import PlayerSettings
 from zora.rom.text_encoding import BYTE_TO_CHAR
 
@@ -32,7 +38,8 @@ ENDING_FRAMES = 4000
 FIRST_QUEST, SECOND_QUEST = 0, 1
 TILE_CHARACTERS = {**BYTE_TO_CHAR, credits.CREDITS_DOT: "."}
 WALL = 0xFA
-LOCKED = (*CREDITS_RECORD_CPU_ADDRESSES, 0xAD72)          # FP-LOCK-02's lines 12-15 (copyright kept)
+# FP-LOCK-02's lines 12-15: the statistics screen's announcement, then PRG0's PRESS THE START BUTTON. and ©
+LOCKED = (*CREDITS_RECORD_CPU_ADDRESSES, CREDITS_START_BUTTON_POINTER, CREDITS_COPYRIGHT_POINTER)
 
 
 # --- the file ---------------------------------------------------------------------------------------
@@ -176,6 +183,7 @@ def test_the_credits_draw_the_box_between_prg0s(base_name: str, quest: int) -> N
     assert original[1:3] == ["EXECUTIVE", "PRODUCER... H.YAMAUCHI"] and original[-1] == "COMPOSER...... KONCHAN"
     after = shown[title + len(box):]
     if quest == FIRST_QUEST:
-        assert after[-1].endswith("1986 NINTENDO") and len(after) == 1      # FP-LOCK-02 blanks lines 12-14
+        assert after[:3] == ["A STATISTICS SCREEN", "WILL NOW APPEAR.", "PRESS THE START BUTTON."]
+        assert after[-1].endswith("1986 NINTENDO") and len(after) == 4
     else:
         assert after[0] == "YOU ARE GREAT." and after[-2:] == ['"THE LEGEND OF ZELDA 1"', after[-1]]

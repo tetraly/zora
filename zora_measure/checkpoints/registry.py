@@ -696,7 +696,7 @@ CHECKPOINTS: tuple[Checkpoint, ...] = (
     Checkpoint("PS-L9REC-01", "level-9 records name the $37/$3E rooms / L9 boss record off vanilla / "
                "L1-8 boss records vanilla", "1000 / 988 / 1000", SPEC_B8, level9_records_match,
                FLAG_COUNTS),
-    Checkpoint("PS-EGRP-05", "red-Wizzrobe overworld byte runs written", "240/1000", SPEC_B4,
+    Checkpoint("PS-EGRP-05", "blue-Wizzrobe ($23) overworld byte runs written", "240/1000", SPEC_B4,
                wizzrobe_overworld_patch, count_true),
     Checkpoint("VA-REJ-08", "none of the five long items in a level-9 room or item cellar",
                "1000/1000 (post-shapes-b3.md R6)", SPEC_B6, long_items_outside_level9, count_true),

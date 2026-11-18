@@ -14,7 +14,7 @@ import pytest
 from tests.needs import needs_base_rom
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import Built, build, finish, plan
-from zora.generate.steps.change_enemy_hp import BOMB_DROPPERS, VIRE_MOST_HP, cap_level_9_vire_hp, level_monsters
+from zora.generate.steps.change_enemy_hp import VIRE_MOST_HP, bomb_droppers, cap_level_9_vire_hp, level_monsters
 from zora.model.enums import Enemy
 from zora.rom.base_rom import remember_repo_base_rom
 from zora.rom.player_settings import DEFAULT_PLAYER_SETTINGS
@@ -76,16 +76,17 @@ def test_the_level_9_vire_cap_still_lowers_maximum_health_vires() -> None:
     world = built(B45_ON, 1).world
     level_9 = next(level for level in world.levels if level.level_num == 9)
     assert world.enemies.hp[Enemy.VIRE] == 15
+    droppers = bomb_droppers(world.enemy_drop_classes)
     lists, starts = world.enemies.mixed_enemy_data, world.enemies.mixed_group_offsets
     for room in level_9.rooms:
         if room.enemy in starts:                        # a mixed list's members (level_monsters)
             start = starts[room.enemy]
             for place in range(start, start + level_9.enemy_quantity(room)):
-                if lists[place] in BOMB_DROPPERS:
+                if lists[place] in droppers:
                     lists[place] = Enemy.VIRE
-        elif room.enemy in BOMB_DROPPERS:
+        elif room.enemy in droppers:
             room.enemy = Enemy.VIRE
-    assert level_monsters(world, level_9) & BOMB_DROPPERS == {Enemy.VIRE}
+    assert level_monsters(world, level_9) & droppers == {Enemy.VIRE}
     assert cap_level_9_vire_hp(world) and world.enemies.hp[Enemy.VIRE] == VIRE_MOST_HP
 
 

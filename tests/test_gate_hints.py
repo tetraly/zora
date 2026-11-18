@@ -162,7 +162,8 @@ def test_the_reported_seed(base: bytes) -> None:
 
 
 @pytest.mark.parametrize(("seed", "level", "door", "fallback", "means"), [
-    (92, 2, 0x1F, Form.NO_RAFT, Form.RAFT),             # the report's level 2, on raft block $1F (was 30, 163)
+    (92, 2, 0x1F, Form.NO_RAFT, Form.RAFT),             # the report's level 2, on raft block $1F (was 30, 163; 10 while
+                                                        # Archipelago kept the logo's tiles)
     (190, 7, 0x12, Form.NO_BRACELET, None),             # the report's level 7, on bracelet block $12 (was 146, 11)
 ])
 def test_a_door_on_a_gate_block(base: bytes, seed: int, level: int, door: int, fallback: str,
@@ -189,10 +190,11 @@ def test_the_reported_seeds_hints(base: bytes) -> None:
 
 
 @pytest.mark.parametrize(("case", "seed", "level", "door", "fallback"), [
-    ("randomize_dead_woods", 10, 2, 0x70, Form.NO_RAFT),     # Hint Shop 2 behind the raft
-    ("the report's flags", 134, 3, 0x0B, Form.NO_BRACELET),   # Lost Hills -> Hint Shop 1 behind (was 104, 28, 120)
-    ("the report's flags", 256, 1, 0x71, Form.NO_RAFT),       # Dead Woods (was 206, 22, 76), Hint Shop 2 behind Lost
-])                                                            # Hills, Hint Shop 1 behind the raft
+    ("randomize_dead_woods", 85, 2, 0x70, Form.NO_RAFT),     # Hint Shop 2 behind the raft (was 10)
+    ("the report's flags", 25, 4, 0x0B, Form.NO_BRACELET),    # Lost Hills -> Hint Shop 1 behind (was 134, 104, 28,
+                                                              # 120)
+    ("the report's flags", 372, 1, 0x71, Form.NO_RAFT),       # Dead Woods (was 206, 22, 76, 256), Hint Shop 2
+])                                                            # behind Lost Hills, Hint Shop 1 behind the raft
 def test_a_door_behind_a_maze_needs_what_its_hint_needs(base: bytes, case: str, seed: int, level: int, door: int,
                                                         fallback: str) -> None:
     """A level behind a randomized maze needs the maze's hint, so what every door of the maze's
@@ -205,19 +207,29 @@ def test_a_door_behind_a_maze_needs_what_its_hint_needs(base: bytes, case: str, 
     assert false_requirements(built, result.logic) == []
 
 
+# The build's door and the finished ROM's text take a seed each: they parted while Archipelago games kept
+# the logo's tiles free (28416f5e) and meet again since the logo moved out of the boss tiles (d3997a4).
 @pytest.mark.parametrize(("case", "seed", "level", "door", "item"), [
-    ("no gate", 54, 1, 0x21, Item.POWER_BRACELET),            # (was 5, the WAND: the pool's draws moved)
-    ("mixed overworld quest", 14, 1, 0x20, Item.WHITE_SWORD),       # (was 17, then 77: the pool's draws moved)
+    ("no gate", 54, 1, 0x21, Item.POWER_BRACELET),            # (was 5, the WAND: the pool's draws moved; 4 for a while)
+    ("mixed overworld quest", 14, 1, 0x20, Item.WHITE_SWORD),       # (was 17, 77; 620 for a while)
 ])
 def test_a_door_under_a_gravestone(base: bytes, case: str, seed: int, level: int, door: int, item: Item) -> None:
-    """A bracelet door on the graveyard says the path lies beneath a gravestone; the finished ROM
-    shows that text, and no text says the item needs the bracelet."""
-    flags, zora_flag_string = CASES[case]
+    """A bracelet door on the graveyard says the path lies beneath a gravestone, and no candidate says
+    the item needs the bracelet."""
     built = built_case(case, seed, base).state
     assert built.result.overworld is not None and built.result.overworld.entry_door(level) == door
     _, found = candidates(built)
     assert Requirement(Form.BRACELET, item, gravestone=True) in found
     assert Requirement(Form.BRACELET, item) not in found
+
+
+@pytest.mark.parametrize(("case", "seed", "item"), [
+    ("no gate", 54, Item.POWER_BRACELET),                     # level 1's door on $21
+    ("mixed overworld quest", 14, Item.WHITE_SWORD),          # level 1's door on $20
+])
+def test_the_finished_rom_shows_the_gravestone_text(base: bytes, case: str, seed: int, item: Item) -> None:
+    """The page's ROM shows the gravestone text, and no text says the item needs the bracelet."""
+    flags, zora_flag_string = CASES[case]
     made = generate_rom(flags, seed, base, zora_flag_string=zora_flag_string)
     texts = [hint["text"] for hint in json.loads(seed_report(made.rom, flags, seed, zora_flag_string)["json"])["hints"]
              if hint.get("speaker")]

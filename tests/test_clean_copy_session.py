@@ -29,3 +29,19 @@ def test_run_takes_its_own_copy_and_a_foreign_one_on_request(tmp_path: Path, mon
     (tmp_path / "x-copy" / clean_copy.SETTINGS_FILE).write_text(
         f"{clean_copy.COPY_SESSION_SETTING}=theirs\n", encoding="utf-8")
     assert clean_copy.run(tmp_path / "x-copy", ["true"], foreign=True) == 0
+
+
+def test_only_a_copy_built_with_music_runs_the_music_tests(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The batch run's copies (scripts/batch_run.py); the setting reaches a command run in the copy."""
+    monkeypatch.setattr(clean_copy, "copy_settings", dict)
+    with_music, without = tmp_path / "with-copy", tmp_path / "without-copy"
+    for tree, music in ((with_music, True), (without, False)):
+        tree.mkdir()
+        clean_copy.write_settings(tree, "a" * 40, [], music)
+    assert clean_copy.copy_identity(with_music)[clean_copy.MUSIC_SETTING] == str(clean_copy.MUSIC_FOLDER)
+    assert clean_copy.MUSIC_SETTING not in clean_copy.copy_identity(without)
+
+
+def test_the_batch_runs_copies_have_music() -> None:
+    source = (Path(clean_copy.__file__).parent / "batch_run.py").read_text()
+    assert '"build", folder, "--rev", commit, "--replace", "--music"]' in source

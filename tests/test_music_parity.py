@@ -5,7 +5,7 @@ lozft2 playing custom music, comparing the game's state after every frame the ga
 Three ROM kinds of one seed, on PRG0 and PRG1:
   mmc1      today's ROM (Music: On, no lozft);
   original  lozft2 from source with no song placed (every song table entry the game's own);
-  custom    Music: Random (the standard library) through lozft2 (randomize_music(from_source=True)).
+  custom    Music: Random (the standard library) through lozft2 (randomize_music).
 
 Each segment is set up on each kind (a new file, then the segment's own setup: a room entered, a ware
 in reach, the win mode), then the MMC1 ROM's game state is copied into the others (CPU RAM and cartridge
@@ -105,7 +105,7 @@ def roms(revision: Revision) -> dict[str, bytes]:
     plain = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, base, PlayerSettings()).rom
     music = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, base, PlayerSettings(music=Music.RANDOM_STANDARD)).rom
     return {"mmc1": plain, "original": bytes(with_lozft_from_source(music, base)),
-            "custom": randomize_music(music, base, _music_assets(), SEED, from_source=True).rom}
+            "custom": randomize_music(music, base, _music_assets(), SEED).rom}
 
 
 @cache

@@ -19,6 +19,14 @@ NO_DROP_SIZE, CLASS_A_SIZE, CLASS_B_SIZE, CLASS_C_SIZE = 7, 6, 9, 9
 CLASS_A_START = NO_DROP_SIZE
 CLASS_C_START = NO_DROP_SIZE + CLASS_A_SIZE + CLASS_B_SIZE
 LIST_SLOTS = CLASS_C_START + CLASS_C_SIZE                 # 31
+# PRG0's lists (NoDropMonsterTypes, DropItemMonsterTypes0 to 2), the 31 types in the world's order
+# (GameWorld.enemy_drop_classes): what the ROM holds when this pass does not run
+PRG0_DROP_CLASSES: tuple[int, ...] = (
+    0x5D, 0x14, 0x15, 0x1B, 0x1C, 0x1D, 0x17,                   # no drop
+    0x07, 0x08, 0x0E, 0x04, 0x0F, 0x23,                         # class A
+    0x21, 0x22, 0x0D, 0x10, 0x13, 0x28, 0x2A, 0x27, 0x16,       # class B
+    0x09, 0x0A, 0x03, 0x01, 0x12, 0x06, 0x0B, 0x24, 0x30,       # class C: DropItemTable's row with bombs
+)
 # The no-drop list's first slot keeps PRG0's type, $5D, which no pass writes
 KEPT_NO_DROP_TYPE = 0x5D
 DEALT_FROM_SLOT = 2                                      # the no-drop list's slots 2 to 6 and every class's
@@ -27,7 +35,7 @@ DEALT_FROM_SLOT = 2                                      # the no-drop list's sl
 # nine are in no list (class D).
 DEALT_TYPES: tuple[int, ...] = (
     *range(Enemy.BLUE_LYNEL, Enemy.DIGDOGGER_SPAWN + 1), Enemy.PEAHAT, Enemy.RED_KEESE, Enemy.DARK_KEESE,
-    *range(Enemy.GHINI_1, Enemy.BLUE_WIZZROBE + 1), Enemy.WALLMASTER, Enemy.ROPE, Enemy.STALFOS, Enemy.GIBDO,
+    *range(Enemy.GHINI_1, Enemy.RED_WIZZROBE + 1), Enemy.WALLMASTER, Enemy.ROPE, Enemy.STALFOS, Enemy.GIBDO,
     Enemy.RED_LANMOLA, Enemy.BLUE_LANMOLA, Enemy.MOLDORM,
 )
 # Step 3: the twelve Lynels, Moblins, Octoroks, Tektites and Leevers; three different ones go to class
@@ -41,7 +49,7 @@ DUNGEON_GROUPS = (0, 1, 2)
 PRG0_DUNGEON_GROUPS: tuple[tuple[int, ...], ...] = (
     (Enemy.BLUE_GORIYA, Enemy.RED_GORIYA, Enemy.WALLMASTER, Enemy.ROPE, Enemy.STALFOS),
     (Enemy.RED_DARKNUT, Enemy.BLUE_DARKNUT, Enemy.POLS_VOICE, Enemy.GIBDO),
-    (Enemy.VIRE, Enemy.LIKE_LIKE, Enemy.RED_WIZZROBE, Enemy.BLUE_WIZZROBE),
+    (Enemy.VIRE, Enemy.LIKE_LIKE, Enemy.BLUE_WIZZROBE, Enemy.RED_WIZZROBE),
 )
 # A drawn Vire or Zol is drawn again while the other monster's hit points (the nibble the pair shares
 # in ObjectTypeToHpPairs) are above this

@@ -79,6 +79,9 @@ class ExtraOptions:
     swap_swords_and_rings: bool = False
     swordlish_pieces: int = 0
     start_triforce_pieces: int = 0
+    # Wizzrobes Shoot Wallmasters, resolved: the deal puts the Wizzrobes in the Wallmasters' dungeon group
+    # (steps/shuffle_enemy_groups.py)
+    wizzrobes_shoot_wallmasters: bool = False
 
     @property
     def oops_all(self) -> bool:

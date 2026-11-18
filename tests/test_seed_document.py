@@ -104,8 +104,11 @@ def test_an_encoded_seed_gets_no_document_and_no_log() -> None:
     with pytest.raises(EncodedSeedRefused):
         seed_document(b"", chosen)
     rom = generate_rom(MVP_BASELINE, 1, base()).rom
-    with pytest.raises(EncodedSeedRefused):
-        seed_report(rom, MVP_BASELINE, 1)
+    # The page's report at None gives no document and no log, only the starter tracker file, from the flags
+    # alone (zora_export/tracker_file.py starter_file; it reads nothing of the encoded ROM)
+    report = seed_report(rom, MVP_BASELINE, 1)
+    assert "json" not in report and "spoiler" not in report
+    assert json.loads(report["tracker"])["Seed"] == "1" and report["trackerName"].endswith("-tracker.json")
 
 
 # --- what the document says ----------------------------------------------------------------------

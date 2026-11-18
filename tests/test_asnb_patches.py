@@ -352,7 +352,7 @@ def test_no_two_patches_write_the_same_byte() -> None:
     """Between these patches, and between each of them and the series, the flag patches (but the
     retired l4-sword-take, which no flag writes: l4-sword-look reuses its bank 7 and bank 1
     bytes), every player setting's choices and
-    the overworld red Wizzrobe routine. sword-cap rewrites fp-prog-01's and fp-prog-02's own code
+    the overworld blue Wizzrobe routine. sword-cap rewrites fp-prog-01's and fp-prog-02's own code
     and lengthens it inside its slots, and writes no other series byte."""
     others = {f"series {name}": written(pieces) for name, pieces in SERIES_PATCHES.items()}
     others.update({f"flags2 {name}": written(pieces) for name, pieces in flags2.PATCHES.items()

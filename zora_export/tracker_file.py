@@ -14,13 +14,15 @@ the writer checks the limits itself (ExportProblem) and lists what the file can'
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Iterable
 from typing import Any
 
-from zora.model.item_names import PEGASUS_BOOTS_NAMES
-from zora.version import player_version
+from zora.model.item_names import ITEM_NAMES, PEGASUS_BOOTS_NAMES
+from zora.version import ZORA_VERSION, player_version
 
 from .leveled_log import FULL, LEVEL_NAMES, LEVEL_OWN_ITEMS, SCREEN_COLUMNS, level_facts, spoiler_level
-from .spoiler_log import L4_SWORD_LABEL, MAJOR_ITEMS
+from .spoiler_log import L4_SWORD_LABEL, MAJOR_ITEMS, has_pegasus_boots
+from .tracker_hints import PEGASUS_BOOTS, Status, pegasus_boots, start_knowledge
 
 TRACKER_VERSION = "2.2.0"          # ZoraTracker's GlobalAssemblyInfo.fs version the format was read from
 # ZoraTracker's own format number (new in its build b20; ZTracker ignores it): kept with Version 2.2.0, so a later
@@ -41,6 +43,13 @@ ITEM_IDS = {
     "Wood Sword": 19, "Magical Sword": 20, L4_SWORD_LABEL: 21, "Blue Ring": 22, "Wooden Arrow": 23,
     "Blue Candle": 24, "Shield": 25, "Bait": 26, "Key": 27, "Triforce": 29,
 }
+# Pegasus Boots: the boots take the boomerangs' boxes. ZoraTracker's BootsReplaceBoomerangs (Overworld) at 1 draws
+# those boxes as the boots; the boots' names appear only then (ZTracker shows them as the boomerangs).
+BOOTS_IDS = {boots: ITEM_IDS[ITEM_NAMES[item]] for item, boots in PEGASUS_BOOTS_NAMES.items()}
+ITEM_IDS |= BOOTS_IDS
+# BootsReplaceBoomerangs from the flags spec's Pegasus Boots modifier: 0 Off, 1 On, 2 Random (ZoraTracker: Off
+# until the player confirms it)
+BOOTS_REPLACE_BOOMERANGS = {Status.OFF: 0, Status.APPLIES: 1, Status.UNKNOWN: 2}
 ZTRACKER_LAST_ID = 14
 HEART_CONTAINER, TRIFORCE = 14, 29
 # How often the tracker takes one id across all boxes; every other id once (section 2.3)
@@ -107,6 +116,11 @@ def tracker_file_name(document: dict[str, Any]) -> str:
     return f"zora-{document['producer']['version']}-seed-{document['seed']['number']}-tracker.json"
 
 
+def starter_file_name(seed: int | str, version: str = ZORA_VERSION) -> str:
+    """The starter file's own name (the page names every file after the seed, seedFileStem)."""
+    return f"zora-{version}-seed-{seed}-tracker.json"
+
+
 def setting(document: dict[str, Any], field_id: str) -> str:
     """A Z1R setting as this seed resolved it (after any rule that changed it)."""
     entry = next(entry for entry in document["settings"] if entry.get("id") == field_id)
@@ -115,6 +129,91 @@ def setting(document: dict[str, Any], field_id: str) -> str:
 
 def box(item_id: int = -1) -> dict[str, int]:
     return {"CellCurrent": item_id, "PlayerHas": 0}
+
+
+# Where the save holds each start item (section 2.4 and 2.5): the items the player starts with, then the
+# Wood Sword, Wooden Arrow, Blue Ring, Blue Candle and Bombs, which only the run-progress block has, and the
+# Magical Sword, which both blocks hold: ZoraTracker reads the starting block's as a start item and the progress
+# block's as the run's, so a start Magical Sword is set in both. The boots take the boomerangs' places (BOOTS_IDS).
+# The Shield has no place.
+STARTING_ITEMS = "StartingItemsAndExtras"
+PROGRESS = "PlayerProgressAndTakeAnyHearts"
+MAGICAL_SWORD_FIELD = "PlayerHasMagicalSword"
+START_ITEM_PLACES = {
+    "White Sword": (STARTING_ITEMS, "PlayerHasWhiteSword"),
+    "Silver Arrow": (STARTING_ITEMS, "PlayerHasSilverArrow"), "Bow": (STARTING_ITEMS, "PlayerHasBow"),
+    "Wand": (STARTING_ITEMS, "PlayerHasWand"), "Red Candle": (STARTING_ITEMS, "PlayerHasRedCandle"),
+    "Boomerang": (STARTING_ITEMS, "PlayerHasBoomerang"),
+    "Magical Boomerang": (STARTING_ITEMS, "PlayerHasMagicBoomerang"), "Red Ring": (STARTING_ITEMS, "PlayerHasRedRing"),
+    "Power Bracelet": (STARTING_ITEMS, "PlayerHasPowerBracelet"), "Ladder": (STARTING_ITEMS, "PlayerHasLadder"),
+    "Raft": (STARTING_ITEMS, "PlayerHasRaft"), "Recorder": (STARTING_ITEMS, "PlayerHasRecorder"),
+    "Magical Key": (STARTING_ITEMS, "PlayerHasAnyKey"), "Book": (STARTING_ITEMS, "PlayerHasBook"),
+    "Bait": (STARTING_ITEMS, "PlayerHasMeat"), "Letter": (STARTING_ITEMS, "PlayerHasLetter"),
+    "Wood Sword": (PROGRESS, "PlayerHasWoodSword"), "Wooden Arrow": (PROGRESS, "PlayerHasWoodArrow"),
+    "Blue Ring": (PROGRESS, "PlayerHasBlueRing"), "Blue Candle": (PROGRESS, "PlayerHasBlueCandle"),
+    "Bombs": (PROGRESS, "PlayerHasBombs"),
+}
+START_ITEM_PLACES |= {boots: START_ITEM_PLACES[ITEM_NAMES[item]] for item, boots in PEGASUS_BOOTS_NAMES.items()}
+# Every place the tracker reads each start item from
+START_ITEM_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
+    **{item: (place,) for item, place in START_ITEM_PLACES.items()},
+    "Magical Sword": ((STARTING_ITEMS, MAGICAL_SWORD_FIELD), (PROGRESS, MAGICAL_SWORD_FIELD)),
+}
+
+
+def save_file(*, seed: str, flags: str, zora_flags: str, overworld: dict[str, Any], items: dict[str, Any],
+              maps: list[dict[str, Any]], notes: str = "", atlas: bool = False, bomb_upgrade: bool = False,
+              start_items: Iterable[str] = (), boots: Status = Status.OFF,
+              version: str = ZORA_VERSION) -> dict[str, Any]:
+    """A whole ZoraTracker save (section 2's skeleton, every required block): these overworld tiles, item boxes and
+    maps, every run-progress value blank but START_ITEMS (the flags spec's item names), which the player has, set
+    wherever the tracker reads them, and BOOTS, the Pegasus Boots modifier's status, as BootsReplaceBoomerangs.
+    ZoraVersion (ZORA's release version, VERSION) and ZoraFlags (the ZORA flag string) are ours; the trackers
+    ignore them."""
+    no_blocker = {"Kind": "Blocker_Nothing", "AppliesTo": [False] * 6}
+    progress: dict[str, Any] = {"TakeAnyHearts": [0, 0, 0, 0], **dict.fromkeys((
+        "PlayerHasBoomBook", "PlayerHasWoodSword", "PlayerHasWoodArrow", "PlayerHasBlueRing", "PlayerHasBlueCandle",
+        "PlayerHasMagicalSword", "PlayerHasDefeatedGanon", "PlayerHasRescuedZelda", "PlayerHasBombs"), False)}
+    starting: dict[str, Any] = {"HDNStartingTriforcePieces": [False] * 8, **dict.fromkeys((
+        "PlayerHasWhiteSword", "PlayerHasMagicalSword", "PlayerHasSilverArrow", "PlayerHasBow", "PlayerHasWand",
+        "PlayerHasRedCandle", "PlayerHasBoomerang", "PlayerHasMagicBoomerang", "PlayerHasRedRing",
+        "PlayerHasPowerBracelet", "PlayerHasLadder", "PlayerHasRaft", "PlayerHasRecorder", "PlayerHasAnyKey",
+        "PlayerHasBook", "PlayerHasMeat", "PlayerHasLetter"), False), "MaxHeartsDifferential": 0}
+    blocks = {PROGRESS: progress, STARTING_ITEMS: starting}
+    for item in start_items:
+        for block, name in START_ITEM_FIELDS.get(item, ()):
+            blocks[block][name] = True
+    return {
+        "Version": TRACKER_VERSION,
+        "SaveFormatVersion": SAVE_FORMAT_VERSION,
+        "TimeInSeconds": 0,
+        "Overworld": overworld | {"BootsReplaceBoomerangs": BOOTS_REPLACE_BOOMERANGS[boots]},
+        "Items": items,
+        PROGRESS: progress,
+        STARTING_ITEMS: starting,
+        "Blockers": [[dict(no_blocker) for _ in range(3)] for _ in range(8)],
+        "Hints": {"LocationHints": [0] * 11, **dict.fromkeys((
+            "NoFeatOfStrengthHint", "SailNotHint", "SailToHint", "PlayMelodyHint", "StepOverWaterHint",
+            "FireArrowsHint"), False)},
+        "Notes": notes,
+        "CurrentRecorderDestinationIndex": 0,
+        "RecorderToNewDungeons": False,
+        "RecorderToUnbeatenDungeons": False,
+        "IsBoomstickSeed": True,           # the book/shield box means the Book: ZORA places the Book
+        "IsAtlasSeed": atlas,
+        "IsWSMSReplacedByBUSeed": bomb_upgrade,
+        "DungeonTabSelected": DUNGEON_SUMMARY_TAB,
+        "DungeonMaps": maps,
+        "DrawingLayerIcons": [],
+        "AlternativeOverworldMapFilename": "",
+        "ShouldInitiallyHideOverworldMap": False,
+        "Seed": seed,
+        "Flags": flags,
+        "OverworldSpotsRemainingOverTime": [],
+        "Timeline": [],
+        "ZoraVersion": version,
+        "ZoraFlags": zora_flags,
+    }
 
 
 class Writer:
@@ -362,52 +461,76 @@ class Writer:
         notes = [f"ZORA {version}, seed {document['seed']['number']}, spoiler log {LEVEL_NAMES[self.level]}."]
         if self.lost:
             notes.append("Not in this file: " + "; ".join(self.lost) + ".")
-        no_blocker = {"Kind": "Blocker_Nothing", "AppliesTo": [False] * 6}
-        return {
-            "Version": TRACKER_VERSION,
-            "SaveFormatVersion": SAVE_FORMAT_VERSION,
-            "TimeInSeconds": 0,
-            "Overworld": overworld,
-            "Items": items,
-            "PlayerProgressAndTakeAnyHearts": {
-                "TakeAnyHearts": [0, 0, 0, 0], **dict.fromkeys((
-                    "PlayerHasBoomBook", "PlayerHasWoodSword", "PlayerHasWoodArrow", "PlayerHasBlueRing",
-                    "PlayerHasBlueCandle", "PlayerHasMagicalSword", "PlayerHasDefeatedGanon",
-                    "PlayerHasRescuedZelda", "PlayerHasBombs"), False)},
-            "StartingItemsAndExtras": {
-                "HDNStartingTriforcePieces": [False] * 8, **dict.fromkeys((
-                    "PlayerHasWhiteSword", "PlayerHasMagicalSword", "PlayerHasSilverArrow", "PlayerHasBow",
-                    "PlayerHasWand", "PlayerHasRedCandle", "PlayerHasBoomerang", "PlayerHasMagicBoomerang",
-                    "PlayerHasRedRing", "PlayerHasPowerBracelet", "PlayerHasLadder", "PlayerHasRaft",
-                    "PlayerHasRecorder", "PlayerHasAnyKey", "PlayerHasBook", "PlayerHasMeat", "PlayerHasLetter"),
-                    False),
-                "MaxHeartsDifferential": 0},
-            "Blockers": [[dict(no_blocker) for _ in range(3)] for _ in range(8)],
-            "Hints": {"LocationHints": [0] * 11, **dict.fromkeys((
-                "NoFeatOfStrengthHint", "SailNotHint", "SailToHint", "PlayMelodyHint", "StepOverWaterHint",
-                "FireArrowsHint"), False)},
-            "Notes": " ".join(notes),
-            "CurrentRecorderDestinationIndex": 0,
-            "RecorderToNewDungeons": False,
-            "RecorderToUnbeatenDungeons": False,
-            "IsBoomstickSeed": True,           # the book/shield box means the Book: ZORA places the Book
-            "IsAtlasSeed": setting(document, "B49") == "On",
-            "IsWSMSReplacedByBUSeed": False,
-            "DungeonTabSelected": DUNGEON_SUMMARY_TAB,
-            "DungeonMaps": maps,
-            "DrawingLayerIcons": [],
-            "AlternativeOverworldMapFilename": "",
-            "ShouldInitiallyHideOverworldMap": False,
-            "Seed": document["seed"]["number"],
-            "Flags": document["seed"]["flags"],
-            "OverworldSpotsRemainingOverTime": [],
-            "Timeline": [],
-        }
+        # the seed's resolved Pegasus Boots (On or Off) through the spec's rule
+        boots = pegasus_boots({PEGASUS_BOOTS: int(has_pegasus_boots(document))})
+        seed = document["seed"]
+        # the start items the seed drew, as its starting table holds them (named with the boots under Pegasus Boots)
+        return save_file(seed=seed["number"], flags=seed["flags"], zora_flags=seed["zoraFlags"], overworld=overworld,
+                         items=items, maps=maps, notes=" ".join(notes), atlas=setting(document, "B49") == "On",
+                         start_items=document["spoiler"]["startItems"], boots=boots,
+                         version=document["producer"]["version"])
 
 
 def tracker_file(document: dict[str, Any]) -> dict[str, Any]:
     """The ZoraTracker save of a seed made with a log level: the document must carry the `spoiler` block."""
     return Writer(document).write()
+
+
+# The starter save (spoiler log None): the box of each place the flags spec can pin, and level 9's two boxes
+STARTER_BOXES = {"armos": "ArmosBox", "coast": "LadderBox", "white_sword_cave": "WhiteSwordBox"}
+LEVEL_9_BOXES = {"level_9_first_item": 0, "level_9_second_item": 1}
+UNKNOWN_DOOR = 0
+BLANK_ROOM = {"IsCompleted": False, "RoomType": "RoomType_Unmarked", "MonsterDetail": "MonsterDetail_Unmarked",
+              "FloorDropDetail": "FloorDropDetail_Unmarked", "FloorDropShouldAppearBright": True}
+
+
+def blank_map() -> dict[str, Any]:
+    """A dungeon map with nothing marked: every door unknown, every room unmarked and not completed (a null room
+    loads as completed in ZoraTracker, so each is written out)."""
+    return {
+        "HorizontalDoors": [[UNKNOWN_DOOR] * (MAP_SIZE - 1) for _ in range(MAP_SIZE)],
+        "VerticalDoors": [[UNKNOWN_DOOR] * MAP_SIZE for _ in range(MAP_SIZE - 1)],
+        "RoomIsCircled": [[False] * MAP_SIZE for _ in range(MAP_SIZE)],
+        "RoomStates": [[dict(BLANK_ROOM) for _ in range(MAP_SIZE)] for _ in range(MAP_SIZE)],
+        "VanillaMapOverlay": 0,
+    }
+
+
+def starter_file(flag_string: str, zora_flag_string: str, seed: int | str,
+                 version: str = ZORA_VERSION) -> dict[str, Any]:
+    """The tracker file of a seed made with Spoiler Log Detail Level None, for races: only what the flags spec's
+    tracker hints say a player knows at the start (zora_export.tracker_hints.start_knowledge, the same rules the
+    spec publishes), the item at each pinned place and the start items, modifiers applied, whether the White
+    Sword is a bomb upgrade, and Pegasus Boots as BootsReplaceBoomerangs (Off 0, On 1, Random 2). Nothing
+    depends on the seed but the Seed field. The save's own fields hold the seed and the Z1R flag string;
+    ZoraVersion and ZoraFlags, which the trackers ignore, add ZORA's version (the flags spec's zora_version) and
+    the ZORA flag string."""
+    known = start_knowledge(flag_string, zora_flag_string)
+
+    def pinned(location: str) -> dict[str, int]:
+        return box(ITEM_IDS.get(known.places.get(location, ""), -1))
+
+    dungeons = []
+    for shown in range(1, LEVEL_9 + 1):
+        count = THREE_BOXES if shown in THREE_BOX_LEVELS or shown == SHARED_THIRD_BOX[False] else TWO_BOXES
+        boxes = [box() for _ in range(count)]
+        if shown == LEVEL_9:
+            boxes = [pinned(location) for location in LEVEL_9_BOXES]
+        dungeons.append({"Triforce": False, "Color": 0, "LabelChar": "?" if shown == LEVEL_9 else str(shown),
+                         "PlayerHasMap": False, "Boxes": boxes, "ExtraBox": box()})
+    items = {
+        "HiddenDungeonNumbers": False, "SecondQuestDungeons": False,
+        **{name: pinned(location) for location, name in STARTER_BOXES.items()},
+        "MagicalSwordBox": box(), "LetterBox": box(), "WoodSwordBox": box(),
+        "ShuffledWoodSwordTiles": "", "HintShopColors": "", "CustomLevelName": "",
+        "Level2StairBoxEnabled": False, "Level2StairBox": box(), "Level9FloorBoxEnabled": False,
+        "Dungeons": dungeons,
+    }
+    overworld = {"Quest": 0, "MirrorOverworld": False, "StartIconX": -1, "StartIconY": -1, "CustomWaypointX": -1,
+                 "CustomWaypointY": -1, "Map": [value for _ in range(MAP_TILES) for value in NO_MARK]}
+    return save_file(seed=str(seed), flags=flag_string, zora_flags=zora_flag_string, overworld=overworld, items=items,
+                     maps=[blank_map() for _ in range(LEVEL_9)], bomb_upgrade=known.bomb_upgrade is True,
+                     start_items=known.start_items, boots=known.pegasus_boots, version=version)
 
 
 # The overworld boxes as the note names them: each place's words after "the items"
@@ -448,6 +571,3 @@ def ztracker_note(tracker: dict[str, Any]) -> str:
     return (f"ZTracker won't show the item{'s' if count > 1 else ''} {listed(places)}; open this file in "
             f"ZoraTracker to see everything. {ZTRACKER_WARNING}")
 
-
-# Pegasus Boots' names, kept out of ITEM_IDS on purpose: the tracker has no boots
-assert not set(PEGASUS_BOOTS_NAMES.values()) & set(ITEM_IDS)

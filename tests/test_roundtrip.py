@@ -253,3 +253,24 @@ def test_finished_rom_round_trips_with_its_start_y_in_the_patch(vanilla_rom: byt
     assert overworld_start_y(rom) == 0x7D
     assert rom[START_POSITION_Y_ADDRESS] == vanilla_rom[START_POSITION_Y_ADDRESS] == 0x8D
     assert serialize_to_rom(parse_rom(rom), rom) == rom
+
+
+def test_finished_rom_round_trips_with_its_start_table_jump(vanilla_rom: bytes) -> None:
+    """A finished ROM with start items jumps from the new file's and the second quest's routines
+    to fp-start-02's table, over PRG0's HeartValues immediates; serializing the parsed world again
+    keeps the jumps, even without the code patches in the config (scripts/qa_sweep.py found it:
+    random 7, 17 and 24 wrote the hearts at file $9F51 and $AF8C)."""
+    from zora.flags.codec import decode, encode
+    from zora.flags.fields import ThreeState
+    from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
+    from zora.generate.pipeline import generate_rom
+    from zora.rom.code_patches import carries_start_table_jump
+    # Starting Hearts 4 (C16 = 3) with the Raft to start (B57): hearts other than PRG0's three,
+    # which the immediates would carry
+    flags = encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(options={"C16": 3, "C17": 0},
+                                                                  toggles={"B57": ThreeState.ON}))
+    rom = generate_rom(flags, 1, vanilla_rom).rom
+    assert carries_start_table_jump(rom) and not carries_start_table_jump(vanilla_rom)
+    world = parse_rom(rom)
+    assert world.uses_start_table and (world.new_file_heart_containers, world.new_file_full_hearts) == (4, 3)
+    assert serialize_to_rom(world, rom) == rom

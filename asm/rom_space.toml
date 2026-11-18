@@ -308,8 +308,17 @@ what = "NMI vector"
 # the shipped patch's song table and glue at $8000-$82A0, and the from-source build's (lozft 44b1bb5,
 # scripts/lozft_build.py, its link map) UpdateSoundPart2 at $A000-$A1AE. Reserved so the builders never
 # place a segment where lozft writes; scripts/lozft_build.py leaves these rows out of the claims it
-# keeps lozft clear of. lozft's in-place hook at $9D42-$9D53 is inside the game's code, where nothing
-# is placed. Owner ruling, 2026-11-01.
+# keeps lozft clear of. Owner ruling, 2026-11-01.
+#
+# Then every other range lozft's build writes in banks 0-7 (zora/rom/music/lozft_patch_data.py, PRG0's
+# and PRG1's together in PRG0's places; 2026-11-12), and ZORA's $FFC0-$FFD2 code where a music ROM
+# moves it. They apply only with Music: Random on; the table has no such condition, so they are
+# reserved on every ROM: nothing is placed in them, and any ZORA write there is flagged
+# (tests/test_rom_space.py test_lozft_writes_are_reserved checks the build's bytes against these rows).
+# What a seed's tracks change stays inside them: the song table in bank 0 $8000-$80FF, the songs in
+# lozft's banks 7-14, which only a music ROM has. PRG1 writes the same ranges but two, in code it moves:
+# the song-stop hook at its own $9D42-$9D4F (PRG0's $9D46-$9D53), and bank 5's run at $935C-$939A,
+# which in PRG0's places is $9352 and $935D-$939A.
 
 [[reserved]]
 owner = "lozft"
@@ -324,6 +333,167 @@ bank = 0
 first = 0xA000
 last = 0xA1AE
 what = "randomized music (lozft)"
+
+[[reserved]]
+owner = "lozft"
+bank = 0
+first = 0x9D46
+last = 0x9D53
+what = "Music: Random only: lozft's song-stop hook (PRG1: $9D42-$9D4F, the same code PRG1 moves)"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0x8D00
+last = 0x8D35
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0x9F1A
+last = 0x9F2C
+what = "Music: Random only: lozft's code in bank 1's free space"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0x9FB9
+last = 0x9FD9
+what = "Music: Random only: lozft's code in bank 1's free space"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0xA68D
+last = 0xA6A3
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0xAAB6
+last = 0xAAB7
+what = "Music: Random only: an operand lozft changes in the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0xAAC9
+last = 0xAACA
+what = "Music: Random only: an operand lozft changes in the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0xAACE
+last = 0xAACF
+what = "Music: Random only: an operand lozft changes in the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0xACEF
+last = 0xACF0
+what = "Music: Random only: an operand lozft changes in the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 1
+first = 0xB240
+last = 0xB298
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 5
+first = 0x859D
+last = 0x85F6
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 5
+first = 0x9352
+last = 0x9352
+what = "Music: Random only: PRG1 only: lozft's byte at PRG1 $935C, in code PRG1 moves (PRG0's $9352)"
+
+[[reserved]]
+owner = "lozft"
+bank = 5
+first = 0x935C
+last = 0x939A
+what = "Music: Random only: lozft's hook over the game's code (PRG1: the same bytes but this first one, and $9352)"
+
+[[reserved]]
+owner = "lozft"
+bank = 5
+first = 0xBA40
+last = 0xBAB9
+what = "Music: Random only: lozft's code in bank 5's free space"
+
+[[reserved]]
+owner = "lozft"
+bank = 5
+first = 0xBEE0
+last = 0xBEF6
+what = "Music: Random only: lozft's code in bank 5's free space"
+
+[[reserved]]
+owner = "lozft"
+bank = 6
+first = 0x935F
+last = 0x93B4
+what = "Music: Random only: lozft's copy of IsrNmi's code (docs/rom-map.md)"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
+first = 0xE484
+last = 0xE4B2
+what = "Music: Random only: lozft's rewrite of IsrNmi (docs/rom-map.md)"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
+first = 0xE62D
+last = 0xE656
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
+first = 0xE65E
+last = 0xE676
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
+first = 0xFF50
+last = 0xFF71
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
+first = 0xFF98
+last = 0xFFA5
+what = "Music: Random only: lozft's hook over the game's code"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
+first = 0xFFAC
+last = 0xFFC2
+what = "Music: Random only: lozft's bank switch, from the game's SwitchBank into bank 7's last gap"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
+first = 0xFFC3
+last = 0xFFD5
+what = "Music: Random only: ZORA's $FFC0-$FFD2 code, moved 3 bytes on past lozft's bank switch (lozft.SET_ITEM_ROUTINES)"
 
 # The co-op hooks replace whole instructions: the PRG0 instructions they touch, which ZORA leaves as
 # they are too. The hook at $ED8A starts on the operand of the instruction at $ED89; the others
@@ -473,7 +643,9 @@ segment = "ZORA_FP_PROG_02_ROOM"
 owner = "series:fp-prog-02"
 bank = 5
 first = 0xBB00
-last = 0xBBFF
+last = 0xBB9F
+# 256 bytes until 2026-11-16, which it never filled (145 written, Add L4 Sword's growth included): its
+# last 96, $BBA0-$BBFF, went to Randomize Lost Hills' screen layouts $7C-$7F (asm/flags2/lost-hills).
 
 [[slot]]
 segment = "ZORA_FP_START_02"
@@ -551,6 +723,13 @@ owner = "flags2:full-health"
 bank = 5
 first = 0xB920
 last = 0xB93F
+
+[[slot]]
+segment = "ZORA_F2_LOST_HILLS"
+owner = "flags2:lost-hills"
+bank = 5
+first = 0xBBA0
+last = 0xBBBF
 
 [[slot]]
 segment = "ZORA_F2_HARDER_GANON"
@@ -765,6 +944,22 @@ last = 0xED9F
 # writes. Owners are "site:NAME".
 
 [[site]]
+name = "item-counter-table"
+bank = 5
+first = 0xBE60
+last = 0xBEDF
+source = "zora.rom.item_counter:TABLE"
+what = "Item Counter's table of each area's places (ZORA flag item_counter; asm/flags2/item-counter); clear of lozft's $BA40-$BAB9 on a music ROM"
+
+[[site]]
+name = "extra-screen-layouts"
+bank = 5
+first = 0xBBC0
+last = 0xBBFF
+source = "zora.rom.vanilla_overworld.tables:EXTRA_LAYOUTS_ADDRESS"
+what = "Screen layouts $7C-$7F, which asm/flags2/lost-hills' routine points the renderer at: $0B's own copies of layouts $7B and $0A with the east edge open (zora/rom/extra_layouts.py; Randomize Lost Hills)"
+
+[[site]]
 name = "level-9-entrance"
 bank = 1
 first = 0x9F00
@@ -850,7 +1045,7 @@ bank = 2
 first = 0xB080
 last = 0xB0DF
 source = "zora.rom.layout:CREDITS_FREE_SPACE_ADDRESS"
-what = "FP-LOCK-02's blank credits records"
+what = "FP-LOCK-02's credits records: lines 12 and 13, the statistics screen's announcement"
 
 [[site]]
 name = "statistics-seed-digits"
@@ -881,7 +1076,7 @@ name = "overworld-wizzrobe"
 bank = 4
 first = 0xBF00
 last = 0xBF28
-what = "the overworld red Wizzrobe routine (layout.OVERWORLD_WIZZROBE_PATCH, PS-EGRP-05)"
+what = "the overworld blue Wizzrobe routine (layout.OVERWORLD_WIZZROBE_PATCH, PS-EGRP-05)"
 
 [[site]]
 name = "killable-drop-items"
@@ -914,6 +1109,14 @@ first = 0xBD00
 last = 0xBD1A
 source = "zora.rom.uphill_battle:SLOW_SPEED_ROUTINE"
 what = "FP-BUBL-01's slow speed (C19 = 2), with Rupees Affect Speed's branch (B80) and the boots' call"
+
+[[site]]
+name = "hidden-tiles-swap"
+bank = 3
+first = 0xAC00
+last = 0xAE3F
+source = "zora.rom.hidden_tiles:SWAP_ROUTINE"
+what = "Change Hidden OW Tiles' swap of background tiles $30-$3F at each level load, and its two 256-byte copies (B89; FP-VIS-01 step 4)"
 
 [[site]]
 name = "archipelago-slot-identity"
@@ -977,8 +1180,8 @@ owners = ["lozft", "setting:statistics_screen"]
 ranges = [[0, 0x8000, 0x81FF]]
 together = "alternative"
 why = """The statistics screen's MMC1 choice puts StatsTick at $8000, in lozft's song table. A music ROM
-always has the screen's music choice (StatsTick at $B000; player_settings.py), and with_lozft refuses
-a ROM without it."""
+always has the screen's music choice (StatsTick at $B000; player_settings.py), and with_lozft_from_source
+refuses a ROM without it."""
 
 [[shared]]
 owners = ["series:fp-entr-01", "series:fp-entr-01-sides"]
@@ -1012,7 +1215,7 @@ why = "sword-cap grows fp-prog-01's ResolveProgressive copy (Add L4 Sword; docs/
 
 [[shared]]
 owners = ["series:fp-prog-02", "asnb:sword-cap"]
-ranges = [[4, 0x8CF6, 0x8CFA], [4, 0xB900, 0xB9FF], [5, 0xB854, 0xB858], [5, 0xB88B, 0xB88E], [5, 0xBB00, 0xBBFF]]
+ranges = [[4, 0x8CF6, 0x8CFA], [4, 0xB900, 0xB9FF], [5, 0xB854, 0xB858], [5, 0xB88B, 0xB88E], [5, 0xBB00, 0xBB9F]]
 together = "chained"
 why = """sword-cap grows fp-prog-02's two ResolveProgressive copies, which moves the code after them
 and the hooks' call operands (Add L4 Sword; docs/design/asnb.md)."""
@@ -1030,3 +1233,26 @@ together = "chained"
 why = """Under Swords: Wood sword only and Swordless (C07 = 1 and 3) fp-book-01's last byte becomes a NOP,
 and with Book is an Atlas off (B49) the bomb upgrade's STA Items,Y takes its place (zora/rom/sword_states.py)."""
 flags = { z1r = { C07 = 3 } }
+
+[[shared]]
+owners = ["lozft", "series:fp-book-01"]
+ranges = [[7, 0xFFC0, 0xFFC2]]
+together = "chained"
+why = """lozft's bank switch runs from the game's SwitchBank ($FFAC) to $FFC2, over fp-book-01's first three
+bytes. On a music ROM with_lozft_from_source moves ZORA's $FFC0-$FFD2 code 3 bytes on, to $FFC3-$FFD5, and
+re-points SetItemValue's JMP into it (MOVED in scripts/lozft_build.py, SET_ITEM_ROUTINES in
+zora/rom/music/lozft.py), so the two never write the same byte in one ROM."""
+
+[[shared]]
+owners = ["lozft", "series:fp-book-01", "site:bomb-upgrade-store", "site:bomb-count-tail"]
+ranges = [[7, 0xFFC3, 0xFFD2]]
+together = "chained"
+why = """The moved code's place on a music ROM ($FFC3-$FFD5, the row above's move) over where that same code
+is on any other ROM: the code a music ROM writes there is fp-book-01's and the bomb upgrade's own, 3 bytes on."""
+
+[[shared]]
+owners = ["lozft", "z1rr-coop"]
+ranges = [[7, 0xFFD4, 0xFFD5]]
+together = "alternative"
+why = """The moved code's last two bytes on a music ROM, in z1rr-coop's $FFD4-$FFDB. Harmless: a co-op ROM never
+has custom music, so the two are never in one ROM (zora/rom/music/lozft.py SET_ITEM_ROUTINES)."""

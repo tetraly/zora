@@ -35,6 +35,9 @@ CAVE_TABLE = 4                       # table E, indexed by cave, not by screen (
 ROOM_LAYOUTS_OW = 0x15428            # 124 rows of 16 column codes
 LAYOUT_ROWS, LAYOUT_WIDTH = 124, 16
 CAVE_ROOM_ROWS = frozenset({121, 122})   # RoomLayoutOWCave0 and RoomLayoutOWCave1: every cave keeps PRG0's look
+# ZORA's layouts $7C-$7F (vanilla_overworld/tables.EXTRA_LAYOUTS: Randomize Lost Hills' own rows for $0B),
+# flipped as the game's rows are; blank ($FF) rows, as every other ROM has, are left as they are by the flip
+EXTRA_LAYOUTS, EXTRA_LAYOUT_ROWS = 0x17BD0, 4
 # Column codes drawn as each other's mirror image
 EXCHANGED_COLUMN_CODES = ((0x64, 0x66), (0xF2, 0xD8), (0xF3, 0xE5))
 # ColumnHeapOW0 to ColumnHeapOWF, but for the last heap byte ($1B), which no pair names
@@ -152,11 +155,11 @@ def _exchange(value: int, pairs: Iterable[tuple[int, int]]) -> int:
 
 
 def _flip_layouts(rom: bytearray) -> None:
-    """OW-MIR-02 step 2: every layout row but the two cave rooms reversed, the mirror codes exchanged."""
-    for row in range(LAYOUT_ROWS):
-        if row in CAVE_ROOM_ROWS:
-            continue
-        start = ROOM_LAYOUTS_OW + row * LAYOUT_WIDTH
+    """OW-MIR-02 step 2: every layout row but the two cave rooms reversed, the mirror codes exchanged;
+    ZORA's extra rows $7C-$7F with them."""
+    starts = [ROOM_LAYOUTS_OW + row * LAYOUT_WIDTH for row in range(LAYOUT_ROWS) if row not in CAVE_ROOM_ROWS]
+    starts += [EXTRA_LAYOUTS + row * LAYOUT_WIDTH for row in range(EXTRA_LAYOUT_ROWS)]
+    for start in starts:
         codes = rom[start:start + LAYOUT_WIDTH]
         rom[start:start + LAYOUT_WIDTH] = bytes(_exchange(code, EXCHANGED_COLUMN_CODES) for code in reversed(codes))
 

@@ -30,9 +30,11 @@ from . import (
     bait_count,
     code_patches,
     credits_staff,
+    extra_layouts,
     fairy_refill,
     harder_bosses,
     hidden_tiles,
+    item_counter,
     item_sprites,
     mirror_overworld,
     opening_story,
@@ -102,8 +104,15 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword,
                                                           config.archipelago_rom):
         rom[address:address + len(data)] = data
+    if LOST_HILLS in config.owner_flags:
+        # the layouts $7C-$7F its routine reads: $0B's own copies of $7B and $0A (extra_layouts)
+        for address, data in extra_layouts.extra_layout_writes(rom):
+            rom[address:address + len(data)] = data
     for address, data in harder_bosses.harder_writes(config.harder_bosses, config.harder_ganon):
         rom[address:address + len(data)] = data
+    if config.item_counter_table:
+        for address, data in item_counter.item_counter_writes(config.item_counter_table):
+            rom[address:address + len(data)] = data
     for address, data in opening_story.story_writes(rom):
         rom[address:address + len(data)] = data
     if config.foreign_logo:
@@ -173,6 +182,7 @@ def uphill_battle_writes(config: GameConfig, rom: bytes | bytearray) -> list[tup
 
 
 PEGASUS_BOOTS = "pegasus_boots"       # its ZORA flag's name in GameConfig.owner_flags
+LOST_HILLS = "randomize_lost_hills"    # the same
 
 
 def small_settings_writes(config: GameConfig) -> list[tuple[int, bytes]]:

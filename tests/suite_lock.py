@@ -42,12 +42,23 @@ INTERVAL_ENV = "ZORA_PROGRESS_SECONDS"     # as zora_measure/progress.py; tests 
 REPORT_SECONDS = 60.0
 
 
+def _local_setting(name: str) -> str | None:
+    """A VAR=value line of this checkout's verify.env, or None."""
+    path = REPO / "verify.env"
+    for line in path.read_text(encoding="utf-8").splitlines() if path.is_file() else ():
+        key, separator, value = line.strip().partition("=")
+        if separator and not key.startswith("#") and key.strip() == name:
+            return value.strip().strip("\"'")
+    return None
+
+
 def lock_path() -> Path:
-    """ZORA_SUITE_LOCK when set (scripts/clean_copy.py sets it for a copy's runs). Otherwise, in a
+    """ZORA_SUITE_LOCK when set, in the environment or in this checkout's verify.env (scripts/clean_copy.py
+    sets it for a copy's runs, scripts/release_branch.py in a release worktree's file). Otherwise, in a
     clean copy (temp/NAME-copy inside a checkout) the checkout's own lock, so a copy run without
     its settings still waits for the checkout's suites, not a lock of its own nobody else takes;
     otherwise this checkout's."""
-    if setting := os.environ.get(LOCK_SETTING):
+    if setting := os.environ.get(LOCK_SETTING) or _local_setting(LOCK_SETTING):
         return Path(setting)
     if REPO.parent.name == "temp" and (REPO.parent.parent / "tests" / "suite_lock.py").is_file():
         return REPO.parent / LOCK_NAME

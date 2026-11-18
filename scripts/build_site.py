@@ -24,7 +24,7 @@ already contain, and fails on any hit.
         Also writes the staged site as ONE page, temp/beta/zora-<version>-<date>-<commit>.html
         (with -public before .html without --with-private), for testers to
         open from disk: stylesheets, scripts, fonts (data: URIs), the wheel
-        and the worker inlined (docs/beta-testers.md). With --with-private the
+        and the worker inlined. With --with-private the
         grep check runs on that file too, the embedded wheel's members included.
         The Archipelago guide (archipelago-guide.html, scripts/guide_page.py) is
         written the same way beside it, as archipelago-guide-<label>.html;
@@ -104,8 +104,10 @@ REGULAR_SITE = "https://zora.gg/"
 BODY_TAG = "<body>\n"
 
 
-def channel_banner(version: str = PLAYER_VERSION) -> str:
-    """The test page's banner, first in <body>: what it tries, and where to play for real."""
+def channel_banner(version: str | None = None) -> str:
+    """The test page's banner, first in <body>: what it tries (the version with its build's commit,
+    channel_version), and where to play for real."""
+    version = version or channel_version(TEST_CHANNEL)
     return ('<aside class="channel-banner" role="note" aria-label="Test channel">\n'
             f'  <p>Test channel: trying ZORA {version}. For races and normal play, use '
             f'<a href="{REGULAR_SITE}">zora.gg</a>.</p>\n</aside>\n')
@@ -300,10 +302,21 @@ def _git(*args: str) -> str:
                           check=True).stdout.strip()
 
 
+def channel_version(channel: str) -> str:
+    """The version as the page shows it (its version pill, the test banner and the download names): plain
+    "2.0.1" on the regular channel; on the test channel with the build's short commit, "2.0.1 (a1b2c3d)",
+    since a version may be cut to test more than once before it is promoted (docs/releasing.md "Channels")."""
+    if channel != TEST_CHANNEL:
+        return PLAYER_VERSION
+    modified = bool(_git("status", "--porcelain", "--untracked-files=no"))
+    return f"{PLAYER_VERSION} ({_git('rev-parse', '--short', 'HEAD')})" + (" modified" if modified else "")
+
+
 def version_label() -> tuple[str, str]:
     """The beta's label for the page and its file-name form: ZORA's version
     (zora/version.py), HEAD's commit date and short hash, marked when tracked
-    files differ from HEAD. Only the page shows it; ROM output does not change."""
+    files differ from HEAD. "Copy bug report info" and the dated single file's name carry it; the page shows
+    channel_version. ROM output does not change."""
     date, commit = _git("log", "-1", "--format=%cs"), _git("rev-parse", "--short", "HEAD")
     modified = bool(_git("status", "--porcelain", "--untracked-files=no"))
     label = f"v{PLAYER_VERSION} {date} {commit}" + (" modified" if modified else "")
@@ -330,15 +343,16 @@ def _stylesheet(site: Path, name: str) -> str:
     return f"<style>\n{_inline(css, '</style', name)}</style>"
 
 
-def single_file_html(site: Path, label: str) -> str:
+def single_file_html(site: Path, label: str, build: str | None = None) -> str:
     """The staged site as one page that works opened from disk (file://):
     stylesheets, fonts and scripts inline, and the worker, the wheel and the
-    flag tabs in non-running script elements that web/zora-web.js reads."""
+    flag tabs in non-running script elements that web/zora-web.js reads. LABEL is the version the page
+    shows, BUILD the full build label (version_label) for "Copy bug report info"."""
     page = (site / "index.html").read_text()
     page, sheets = STYLESHEET_TAG.subn(lambda match: _stylesheet(site, match.group(1)), page)
     worker = _inline((site / WORKER).read_text(), "</script", WORKER)
     wheel = base64.b64encode((site / WHEEL_PATH).read_bytes()).decode("ascii")
-    info = _inline(json.dumps({"label": label}), "</script", "the label")
+    info = _inline(json.dumps({"label": label} | ({"build": build} if build else {})), "</script", "the label")
     flag_tabs = _inline(json.dumps(json.loads((site / FLAG_TABS).read_text())), "</script", FLAG_TABS)
     embedded = (f'<script type="application/json" id="{EMBEDDED_INFO_ID}">{info}</script>\n'
                 f'<script type="application/json" id="{EMBEDDED_FLAG_TABS_ID}">{flag_tabs}</script>\n'
@@ -404,7 +418,7 @@ def build_single_file(site: Path, with_private: bool, public: dict[str, str] | N
     out = check_output_folder(BETA_OUT)
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"zora-{slug}{'' if with_private else '-public'}.html"
-    page = single_file_html(site, label)
+    page = single_file_html(site, f"v{channel_version(channel)}", label)
     if with_private:
         assert public is not None
         distinctive, hits = grep_check(single_file_texts(path.name, page), public, private_strings())

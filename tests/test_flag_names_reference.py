@@ -87,8 +87,8 @@ def test_option_fields_keep_their_names() -> None:
 @needs_reference
 def test_switches_are_named_as_the_reference_names_them() -> None:
     """Every B field's name, but Encode level data's: ZORA's B82 is not the original randomizer's (Race ROM).
-    FL-DEP-05's two fields, which change nothing in ZORA, say so after the name. Two switches have
-    ZORA's own neutral names (owner decision, 2026-10-12; form.OWN_SWITCH_NAMES)."""
+    FL-DEP-05's two fields, which change nothing in ZORA, say so after the name. Three switches have
+    ZORA's own names (owner decisions, 2026-10-12 and 2026-11-17; form.OWN_SWITCH_NAMES)."""
     table = reference()
     inert = {field.id for field in INERT_TOGGLES}
     for code, field in page_fields().items():
@@ -101,6 +101,7 @@ def test_switches_are_named_as_the_reference_names_them() -> None:
     assert page_fields()[SPOILER_LEVEL_FIELD]["label"] == "Spoiler Log Detail Level"
     assert page_fields()["B14"]["label"] == "Shuffle Dungeon Items (no effect in ZORA)"
     assert page_fields()["B16"]["label"] == "Shuffle Dungeon Hearts (no effect in ZORA)"
+    assert page_fields()["B89"]["label"] == "Show Hidden OW Tiles"
     assert page_fields()["B29"]["label"] == "Shuffle Bomb Upgraders"
     assert page_fields()["B48"]["label"] == "Book to Understand NPCs"
 

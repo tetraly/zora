@@ -15,6 +15,8 @@ CREDITS: dict[str, str] = {
     "recorder-pols-voice": "Stratoform",
     "full-health": "ShadowOne333, kalita-kun and gzip",
     "harder-ganon": "MetalMachine",
+    "wizzrobe-hand": "Ultralavos",
+    "item-counter": "Ultralavos",
 }
 
 PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
@@ -81,12 +83,14 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x07478, bytes.fromhex("a95099ac00a5093db204f00420c57d60a910953dad75060a0a0a0a8507ea")),
     ),
     "lost-hills": (
-        (0x154D7, bytes.fromhex("01010101010101")),
+        (0x154D8, bytes.fromhex("010101010101")),
         (0x154F1, bytes.fromhex("09")),
         (0x154F2, Original(0x154F2, 3)),
         (0x154F5, bytes.fromhex("06")),
         (0x155DD, bytes.fromhex("02")),
         (0x155F5, bytes.fromhex("51")),
+        (0x16A04, bytes.fromhex("20a0bbeaeaeaeaeaeaea")),
+        (0x17BB0, bytes.fromhex("a6ebbdfe69297fc97ca918a2949004a900a2b48502860360")),
     ),
     "dead-woods": (
         (0x15B08, bytes.fromhex("29")),
@@ -161,5 +165,20 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "068d020660b97e6a291fcd4fb8d005209abdd011adb06b8501adaf6b8500b1002910491060a90060b9"
                                 "fe692980d007b97e69293fc93e60")),
         (0x1EAF3, bytes.fromhex("20bd")),
+    ),
+    "wizzrobe-hand": (
+        (0x07322, bytes.fromhex("8080")),
+        (0x1030F, bytes.fromhex("00bc")),
+        (0x13C10, bytes.fromhex("207183ad4b03f015a510f011bd4f03c958900ac95ab006a50cd003e60660a512c911f0f9208a82a900"
+                                "85ac85138511a903851260c957f033a023a510f02da50429fc090185048505a908850aa90185078608"
+                                "ac4103b9ac778d4403b9ab778d4303a9008552ada5764c40794c1579")),
+        (0x1F3D4, bytes.fromhex("4c34bceaeaea")),
+    ),
+    "item-counter": (
+        (0x0655B, bytes.fromhex("20c0bd")),
+        (0x17DD0, bytes.fromhex("a5154a900420cabd3860a9208d0203a98b8d0303a9048d0403a9ff8d0903a203a9249d0503ca10fa20"
+                                "00bef0128d0803a5058d0603a9528d0503a9538d070360a410be60bebd60be8500bd61be8501bd62be"
+                                "85048506a9008505c6043009202abef0f7e605d0f3a50660e8bd62be300f1865008502a50169008503"
+                                "a910d01b484a4a4a29031869778502a9068503682907a8a9018830030ad0faa000310260")),
     ),
 }

@@ -19,6 +19,9 @@ Third-party material keeps its own license, given with it.
 | Harder Bosses | MetalMachine (Z1M1's boss_level) | `zora/rom/harder_bosses.py` |
 | Harder Ganon | MetalMachine (Z1M1's harder_ganon) | `asm/flags2/harder-ganon/` |
 | Offense and Defense Item Pacing, Recorder Warping | MetalMachine (Z1M1's pacing settings) | `zora/generate/acceptance_check.py`, `zora/generate/dungeon_walk.py` |
+| Wizzrobes Shoot Wallmasters | Ultralavos (the idea) | `asm/flags2/wizzrobe-hand/` |
+| Item Counter | Ultralavos (the idea and the chest icon) | `asm/flags2/item-counter/`, `zora/generate/item_counter.py` |
+| Randomize Lost Hills: screen $0B's own layouts | gzip (the idea: the unused layout numbers $7C-$7F read from a second table) | `asm/flags2/lost-hills/`, `zora/rom/extra_layouts.py` |
 | Swap Swords and Rings, Swordlish | BogieSmalls | `zora/generate/steps/swap_swords_and_rings.py`, `zora/rom/swordlish.py` |
 | Reduce flashing | Z1R community resource |
 | Statistics screen (the idea: an end-of-game list of times, deaths and counts) | Z2Randomizer | `asm/fp-stats-01/` |
@@ -79,8 +82,7 @@ Crump, ultralavos, TheGobOne, Tetra, PDXRex and heccinhayley.
   commit 44b1bb5, which includes the PRG0 build option ZORA contributed (pull request
   TheRealQuantam/lozft#1). `scripts/lozft_build.py` builds it, and
   `zora/rom/music/lozft_patch_data.py` holds the result, lozft's executable form under MPL 2.0.
-  Its source is that commit. The pinned `lozft.bps` that ZORA downloads today is
-  Quantam's own build, as he sent it.
+  Its source is that commit.
 - **The importer** (`zora/rom/music/`) is a port of Quantam's FtRandoLib and MusicImporter, with his
   permission. **The standard library** of songs is Quantam's ZeldaMusicRandomizer's, fetched from
   his repository and never hosted by ZORA (`docs/music.md`).
@@ -100,8 +102,10 @@ Crump, ultralavos, TheGobOne, Tetra, PDXRex and heccinhayley.
   the logo sprite below aside.
 - **The Archipelago logo sprite** by binarybrain11 (Zachary Gorman), from their Archipelago fork's
   Legend of Zelda world (github.com/binarybrain11/Archipelago, commit c478ba8; MIT license): the
-  32 bytes of tile data an Archipelago game draws another player's item with when its player
-  chooses "Other players' items look like: The Archipelago logo" (`zora/rom/archipelago_logo.py`).
+  32 bytes of tile data (half a logo, which their world drew mirrored) from which ZORA makes the
+  16x16 logo an Archipelago game draws another player's item with when its player chooses "Other
+  players' items look like: The Archipelago logo": their half, and its mirror with white and light
+  blue traded (`zora/rom/archipelago_logo.py`).
 - **Archipelago's The Legend of Zelda world**, for research: how it handles the player's ROM and
   the patch file informed the world's ROM handling. Nothing was copied from it.
 

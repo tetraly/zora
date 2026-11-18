@@ -193,12 +193,12 @@ def test_the_family_draws_from_the_same_tiles_in_every_enemy_bank(choice: OopsAl
         assert min(frames) == tiles[0] and max(frames) <= tiles[-1]
 
 
-def test_red_wizzrobe_draws_as_blue_and_the_goriya_takes_its_tile() -> None:
+def test_blue_wizzrobe_draws_as_red_and_the_goriya_takes_its_tile() -> None:
     world = base_world()
     staged = Staged()
     oops_all_enemies(world, world.levels, world.overworld, None, OopsAllEnemies.WIZZROBES, Rng(1), staged)
     assert [staged.frames[140 + step] for step in range(4)] == [staged.frames[136 + step] for step in range(4)]
-    assert staged.frames[GORIYA_TILE_OFFSET] == family_slots(OopsAllEnemies.WIZZROBES)[E.BLUE_WIZZROBE][0]
+    assert staged.frames[GORIYA_TILE_OFFSET] == family_slots(OopsAllEnemies.WIZZROBES)[E.RED_WIZZROBE][0]
     staged = Staged()
     oops_all_enemies(world, world.levels, world.overworld, None, OopsAllEnemies.BOUNCERS, Rng(1), staged)
     assert staged.frames[GORIYA_TILE_OFFSET] == GORIYA_FALLBACK_TILE     # neither is a goriya candidate
@@ -218,16 +218,16 @@ def test_the_family_leaves_the_overworld_group() -> None:
     get the group's other members, never a blue Moblin on a bracelet screen."""
     world = base_world()
     deal = EnemyDeal(order=[], seed=E.ZOL, groups={0: [], 1: [], 2: [],
-                                                   OVERWORLD: [E.BLUE_WIZZROBE, E.BLUE_MOBLIN, E.STALFOS]})
-    staged = Staged(red_wizzrobe_overworld=True)
+                                                   OVERWORLD: [E.RED_WIZZROBE, E.BLUE_MOBLIN, E.STALFOS]})
+    staged = Staged(blue_wizzrobe_overworld=True)
     bracelet = min(BRACELET_SCREENS)
-    staged.overworld_monsters = {bracelet: E.RED_WIZZROBE, 0x40: E.BLUE_WIZZROBE, 0x41: E.STALFOS}
+    staged.overworld_monsters = {bracelet: E.BLUE_WIZZROBE, 0x40: E.RED_WIZZROBE, 0x41: E.STALFOS}
     staged.mixed_lists = bytearray(world.enemies.mixed_enemy_data)
     starts = list_starts(world)
     overworld = _read_positions(overworld_list_codes(world.overworld, staged), starts, len(staged.mixed_lists))
     for position in sorted(overworld)[:6]:
         if staged.mixed_lists[position] not in RESERVED_LIST_BYTES:
-            staged.mixed_lists[position] = E.RED_WIZZROBE.value
+            staged.mixed_lists[position] = E.BLUE_WIZZROBE.value
     family = FAMILIES[OopsAllEnemies.WIZZROBES]
     for seed in range(20):
         result = copy.deepcopy(staged)
@@ -238,7 +238,7 @@ def test_the_family_leaves_the_overworld_group() -> None:
         assert result.overworld_monsters[0x41] == E.STALFOS
         assert result.mixed_lists is not None
         assert not {value.value for value in family} & {result.mixed_lists[p] for p in overworld}
-        assert not result.red_wizzrobe_overworld
+        assert not result.blue_wizzrobe_overworld
 
 
 def test_no_other_overworld_enemy_restarts() -> None:

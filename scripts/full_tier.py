@@ -15,7 +15,8 @@ checkout (this one, or the one a clean copy was made from: ZORA_SOURCE_REPO), so
 clean copy stamps for the checkout that releases. Only a tree that is exactly a commit is
 stamped: a clean copy without --add paths (scripts/clean_copy.py checks that it holds exactly
 its commit's tree), or a checkout with nothing uncommitted. A quick check that passes on such a
-tree records it the same way, in temp/verify/quick-check/.
+tree records it the same way, in temp/verify/quick-check/. A batch run's stamp also lists the tests that reached
+the private encoder, which a release's test stage reruns in the release tree (scripts/make_release.py).
 
 The release gate (release-check, which scripts/make_release.py runs; owner decision, 2026-10-16):
 HEAD may be released when its tree has a stamp, or when the newest stamped commit HEAD descends
@@ -30,7 +31,11 @@ placeholder after the batch run; nothing the full tier tests reads it, the site-
 and the browser check of the staged page covers it), and the per-flag file, zora/flags/flags.json, when it is
 still a JSON object (owner ruling, 2026-11-06: marking a flag beta or graduating it; generation never reads it,
 tests/test_beta_flags.py proves ROMs do not depend on it, and that test, in the quick check's selection for a
-change to the file, refuses an entry the page does not offer). Anything else since the stamp needs a
+change to the file, refuses an entry the page does not offer), and every file under tests/ that is not an
+output input (scripts/output_inputs.py; owner decision, 2026-11-07, docs/reports/release-process-review.md
+recommendation 2: a test file cannot change a ROM, spoiler log or seed document, a changed test runs in the
+quick check, and the test stage runs the released tests again in the release tree; the matrix's case modules
+are output inputs, so they still need a batch run). Anything else since the stamp needs a
 new batch run. (The docs/ folder's other files are data that tests and code read, manifests and
 tables, so they are not low-risk.)
 """
@@ -38,6 +43,7 @@ from __future__ import annotations
 
 import ast
 import datetime
+import importlib.util
 import json
 import os
 import subprocess
@@ -49,6 +55,8 @@ SOURCE_REPO_SETTING = "ZORA_SOURCE_REPO"            # scripts/clean_copy.py
 COPY_REVISION_SETTING = "ZORA_COPY_REVISION"
 COPY_ADDED_SETTING = "ZORA_COPY_ADDED"
 STAMP_FOLDER = Path("temp") / "verify" / "full-tier"
+ENCODER_RECORD = Path("temp") / "verify" / "encoder-record"        # scripts/verify.sh
+ENCODER_TESTS = "encoder tests"                                    # the stamp's field
 QUICK_FOLDER = Path("temp") / "verify" / "quick-check"
 MATRIX_MODES = ("full", "default", "skipped")   # the quick check's matrix: all four seeds, seeds 1-2, none
 FULL_MATRIX = "full"
@@ -57,6 +65,8 @@ HERO_GRAPHIC = "web/zora-logo.png"         # the page's hero graphic (web/index.
 HERO_GRAPHIC_LIMIT = 1_000_000             # bytes: it is inlined into the single-file page
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 FLAGS_FILE = "zora/flags/flags.json"      # per-flag settings the page reads: beta status (zora/flags/beta.py)
+TESTS_FOLDER = "tests/"
+OUTPUT_INPUTS = Path("scripts") / "output_inputs.py"
 VERSION_NAME = "ZORA_VERSION"
 RELEASE_LOG = Path("release") / "published.log"
 
@@ -101,9 +111,29 @@ def stamp(seconds: int) -> int:
     path = stamp_path(source_repo(), tree)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"tree": tree, "commit": commit, "seconds": seconds,
-                                "finished": datetime.datetime.now().isoformat(timespec="seconds")}, indent=1))
+                                "finished": datetime.datetime.now().isoformat(timespec="seconds"),
+                                ENCODER_TESTS: recorded_encoder_tests()}, indent=1))
     print(f"full tier: passed in {seconds} s; stamped {commit[:12]} (tree {tree[:12]})")
     return 0
+
+
+def recorded_encoder_tests() -> list[str]:
+    """The tests this run's fast suite saw reach the private encoder (scripts/verify.sh), [] without a record."""
+    if str(REPO) not in sys.path:
+        sys.path.insert(0, str(REPO))
+    try:
+        from tests.encoder_check import read_records
+    except ImportError:                 # a stand-in repository, as in tests/test_full_tier.py
+        return []
+    return sorted({test for ids in read_records(REPO / ENCODER_RECORD).values() for test in ids})
+
+
+def stamped_encoder_tests(repo: Path, commit: str) -> list[str] | None:
+    """The encoder tests COMMIT's stamp lists, or None for a stamp without any (an older one, or a fix-up stamp)."""
+    try:
+        return json.loads(stamp_path(repo, _git(repo, "rev-parse", f"{commit}^{{tree}}")).read_text())[ENCODER_TESTS] or None
+    except (OSError, ValueError, KeyError, subprocess.CalledProcessError):
+        return None
 
 
 def stamped(repo: Path, tree: str) -> bool:
@@ -188,7 +218,22 @@ def low_risk_reason(repo: Path, path: str, stamped_commit: str, head: str) -> st
         return "the hero graphic" if hero_graphic_ok(repo, head) else None
     if path == FLAGS_FILE:
         return "the per-flag file" if flags_file_ok(repo, head) else None
+    if path.startswith(TESTS_FOLDER):
+        return "a test file, not an output input" if not_an_output_input(path) else None
     return None
+
+
+def not_an_output_input(path: str) -> bool:
+    """Whether PATH is outside this checkout's output inputs (scripts/output_inputs.py). Without that script
+    nothing can be shown, so the answer is no."""
+    script = REPO / OUTPUT_INPUTS
+    if not script.is_file():
+        return False
+    specification = importlib.util.spec_from_file_location("output_inputs", script)
+    assert specification and specification.loader
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return not module.output_inputs_among([path])
 
 
 def flags_file_ok(repo: Path, head: str) -> bool:

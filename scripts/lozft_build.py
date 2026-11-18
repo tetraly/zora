@@ -60,7 +60,7 @@ from music_assets import music_folder  # noqa: E402
 from zora.rom import base_rom  # noqa: E402
 from zora.rom.base_rom import Original, Piece  # noqa: E402
 from zora.rom.music import json5  # noqa: E402
-from zora.rom.music.lozft import SET_ITEM_ROUTINES, SET_ITEM_ROUTINES_SHIFT, apply_bps  # noqa: E402
+from zora.rom.music.lozft import SET_ITEM_ROUTINES, SET_ITEM_ROUTINES_SHIFT  # noqa: E402
 from zora.rom.player_settings_data import SETTINGS  # noqa: E402
 from zora.rom.revision import (  # noqa: E402
     GRAPHICS_BLOCKS,
@@ -478,7 +478,7 @@ def scan_hits(patch: list[tuple[int, Piece]], releases: list[bytes]) -> list[str
 
 
 def zero_banks() -> set[int]:
-    """lozft's banks 7-14, which its config fills with $00 (ZORA's with_lozft zeroes them itself)."""
+    """lozft's banks 7-14, which its config fills with $00 (ZORA's with_lozft_from_source zeroes them itself)."""
     start = NES_HEADER_SIZE + FIXED_BANK * BANK_SIZE
     return set(range(start, start + (LOZFT_BANKS - GAME_BANKS) * BANK_SIZE))
 
@@ -528,7 +528,7 @@ def build(revision: Revision, source: Path, claims: list[Claim]) -> Build:
 
 
 def check_round_trip(result: Build) -> None:
-    """The pieces, written as with_lozft writes them on the release, give the build's own bytes."""
+    """The pieces, written as with_lozft_from_source writes them on the release, give the build's own bytes."""
     player = base_rom.player_rom_of(release(result.revision))
     with base_rom.using_player_rom(player):
         for offset, piece in result.patch:
@@ -607,6 +607,61 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {{
 
 
 # --- the upstream check ------------------------------------------------------------------------------------
+
+BPS_MAGIC = b"BPS1"
+BPS_FOOTER = 12                      # source, target and patch CRC-32s
+SOURCE_READ, TARGET_READ, SOURCE_COPY, TARGET_COPY = range(4)
+
+
+def _bps_number(patch: bytes, offset: int) -> tuple[int, int]:
+    """A BPS variable-length number at offset, and the offset after it."""
+    value, shift = 0, 1
+    while True:
+        byte = patch[offset]
+        offset += 1
+        value += (byte & 0x7F) * shift
+        if byte & 0x80:
+            return value, offset
+        shift <<= 7
+        value += shift
+
+
+def apply_bps(patch: bytes, source: bytes) -> bytearray:
+    """A BPS1 patch applied (Quantam's BpsFile.Apply; the source checksum is not checked). Only to compare a
+    build with the lozft.bps its source commits: ZORA's ROMs never go through a BPS patch."""
+    if patch[:4] != BPS_MAGIC:
+        raise ValueError("not a BPS patch")
+    source_size, offset = _bps_number(patch, len(BPS_MAGIC))
+    target_size, offset = _bps_number(patch, offset)
+    metadata, offset = _bps_number(patch, offset)
+    offset += metadata
+    if len(source) != source_size:
+        raise ValueError(f"the patch needs a {source_size}-byte ROM, not {len(source)}")
+    target = bytearray(target_size)
+    footer, out, source_at, target_at = len(patch) - BPS_FOOTER, 0, 0, 0
+    while offset < footer:
+        command, offset = _bps_number(patch, offset)
+        action, length = command & 3, (command >> 2) + 1
+        if action == SOURCE_READ:
+            target[out:out + length] = source[out:out + length]
+        elif action == TARGET_READ:
+            target[out:out + length] = patch[offset:offset + length]
+            offset += length
+        else:
+            delta, offset = _bps_number(patch, offset)
+            delta = -(delta >> 1) if delta & 1 else delta >> 1
+            if action == SOURCE_COPY:
+                source_at += delta
+                target[out:out + length] = source[source_at:source_at + length]
+                source_at += length
+            else:                                         # TARGET_COPY may overlap: byte by byte
+                target_at += delta
+                for index in range(length):
+                    target[out + index] = target[target_at + index]
+                target_at += length
+        out += length
+    return target
+
 
 def upstream_check(source: Path) -> list[str]:
     """The source built as published (no defines but ROM_256KB, no reservations) onto PRG1, against the

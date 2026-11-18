@@ -114,11 +114,13 @@ def test_ganon_is_spelled_as_the_game_does_and_the_label_keeps_the_communitys() 
 
 def test_renamed_fields_keep_their_beta_3_keys() -> None:
     """Owner decision (2026-10-12): Book to Understand NPCs (B48) and Shuffle Bomb Upgraders (B29)
-    are new page names; their keys stay as beta 3 froze them."""
+    are new page names; their keys stay as beta 3 froze them. Show Hidden OW Tiles (B89) was Change
+    Hidden OW Tiles until 2026-11-17 and keeps its key the same way."""
     names = {spec.id: spec.name for spec in archipelago.option_fields()}
     assert names["B48"] == "Book to Understand NPCs" and KEYS["B48"] == "book_to_understand_old_men"
     assert names["B29"] == "Shuffle Bomb Upgraders" and KEYS["B29"] == "shuffle_bomb_upgrade_men"
-    assert archipelago.KEPT_KEYS == {field_id: KEYS[field_id] for field_id in ("B29", "B48")}
+    assert names["B89"] == "Show Hidden OW Tiles" and KEYS["B89"] == "change_hidden_ow_tiles"
+    assert archipelago.KEPT_KEYS == {field_id: KEYS[field_id] for field_id in ("B29", "B48", "B89")}
 
 
 @pytest.mark.parametrize(("name", "key"), [("Level 9 Entry", "level_9_entry"), ('"Most" Enemy HP', "most_enemy_hp"),

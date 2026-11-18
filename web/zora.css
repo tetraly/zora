@@ -245,6 +245,8 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 }
 .setting-column { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .setting-columns + .setting-heading { margin-top: 18px; }
+/* Start Items' "Set all to" (issue #22): a row above the tab's columns, set off from them. */
+.setting.start-all { margin-bottom: 10px; }
 /* A (min, max) pair on one line (pairRows): the min row, then the max row's "…" and control. */
 .setting-pair {
   display: grid; grid-template-columns: minmax(0, 1fr) auto; border-radius: 12px; background: var(--row);

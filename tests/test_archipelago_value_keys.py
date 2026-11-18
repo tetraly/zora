@@ -204,6 +204,7 @@ PLAYER_KEYS = {
     "lowHealthBeep": ("low_health_beep", ("removed", "kept", "half_speed", "quarter_speed", "random_choice")),
     "deathWarp": ("death_warp", ("p2_up_a", "p1_up_a", "p1_up_select")),
     "reduceFlashing": ("reduce_flashing", ("off", "on")),
+    "cropGuide": ("crop_guide", ("on", "off")),
     "music": ("music", ("on", "off")),
     "graphicsTheme": ("graphics_theme", ("off", "halloween")),
     "greenTunic": ("green_tunic", COLORS),

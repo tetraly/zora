@@ -104,3 +104,28 @@ def test_a_wrong_edge_is_reported_against_the_seed_document(tmp_path: Path) -> N
     dump = run(tmp_path, wrong)
     assert not compare.kept(wrong, dump)
     assert any("edge" in line for line in compare.facts(document, dump))
+
+
+# The starter file (Spoiler Log Detail Level None; tracker_file.starter_file): the flags' pins and start items,
+# with every start-item place the save has, loads as the full files do. Its ZoraVersion and ZoraFlags are ZORA's
+# own fields, which the tracker reads past and does not save.
+STARTER_ONLY = {"ZoraVersion", "ZoraFlags"}
+
+
+def test_the_tracker_loads_a_starter_file(tmp_path: Path) -> None:
+    from zora.flags import codec
+    from zora.flags.fields import ThreeState
+    from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
+    from zora_export.tracker_file import BLANK_ROOM, START_ITEM_PLACES, starter_file
+    from zora_export.tracker_hints import tracker_hints
+    every_start = {entry["field"]: ThreeState.ON for entry in tracker_hints()["start_items"]["fields"]}
+    settings = codec.decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
+        options={"C06": 3, "C17": 0, "C11": 1, "C12": 2, "C13": 15, "C26": 5, "C27": 4, "C07": 1}, toggles=every_start)
+    written = json.loads(json.dumps(starter_file(codec.encode(settings), "", 7)))
+    assert sum(written[block][name] for block, name in START_ITEM_PLACES.values()) == len(START_ITEM_PLACES)
+    dump = run(tmp_path, written)
+    # the tracker saves an untouched room as null: the starter's blank rooms are exactly that
+    for level in dump["save"]["DungeonMaps"] if dump.get("save") else []:
+        level["RoomStates"] = [[room or dict(BLANK_ROOM) for room in row] for row in level["RoomStates"]]
+    problems = compare.kept({key: value for key, value in written.items() if key not in STARTER_ONLY}, dump)
+    assert not problems, "\n".join(problems[:40])

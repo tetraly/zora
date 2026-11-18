@@ -118,12 +118,13 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x145DF, bytes.fromhex("60000204050607a9008d53018d5401a90e8d5501a9008d50018d51018d5201")),
         (0x145FE, Original(0x01D5B, 9)),
         (0x1536C, bytes.fromhex(
-            "a9018d164085024a8d1640bd16402903c901260290f560205c93a402205c93c4"
-            "02d0f79855fa250295f894fa60a200207393a5e1f004e84c739386f986fb60"
+            "20e0bea40220e0bec402d0f79855fa250295f894fa60a200205c93a5e1f004e8"
+            "4c5c9386f986fb60"
         )),
         (0x17A50, bytes.fromhex("a5e3f003")),
         (0x17A54, Original(0x1E4F7, 117)),
         (0x17AC9, bytes.fromhex("60")),
+        (0x17EF0, bytes.fromhex("a9018d164085024a8d1640bd16402903c901260290f560")),
         (0x1936F, Original(0x1E494, 56)),
         (0x193A7, Original(0x1E4D1, 29)),
         (0x193C4, bytes.fromhex("60")),
@@ -656,7 +657,7 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x3E4A7, Original(0x1E574, 10)),
         (0x3E4B1, bytes.fromhex("a6e4")),
         (0x3E4B3, Original(0x1E580, 16)),
-        (0x3E63D, bytes.fromhex("4c8993")),
+        (0x3E63D, bytes.fromhex("4c7293")),
         (0x3E640, Original(0x07286, 39)),
         (0x3E66E, Original(0x1E90C, 6)),
         (0x3E674, bytes.fromhex("229f")),
@@ -740,12 +741,13 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x145DF, bytes.fromhex("60000204050607a9008d53018d5401a90e8d5501a9008d50018d51018d5201")),
         (0x145FE, Original(0x01D5B, 9)),
         (0x1536C, bytes.fromhex(
-            "a9018d164085024a8d1640bd16402903c901260290f560205c93a402205c93c4"
-            "02d0f79855fa250295f894fa60a200207393a5e1f004e84c739386f986fb60"
+            "20e0bea40220e0bec402d0f79855fa250295f894fa60a200205c93a5e1f004e8"
+            "4c5c9386f986fb60"
         )),
         (0x17A50, bytes.fromhex("a5e3f003")),
         (0x17A54, Original(0x1E4F7, 117)),
         (0x17AC9, bytes.fromhex("60")),
+        (0x17EF0, bytes.fromhex("a9018d164085024a8d1640bd16402903c901260290f560")),
         (0x1936F, Original(0x1E494, 56)),
         (0x193A7, Original(0x1E4D1, 29)),
         (0x193C4, bytes.fromhex("60")),
@@ -1278,7 +1280,7 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x3E4A7, Original(0x1E574, 10)),
         (0x3E4B1, bytes.fromhex("a6e4")),
         (0x3E4B3, Original(0x1E580, 16)),
-        (0x3E63D, bytes.fromhex("4c8993")),
+        (0x3E63D, bytes.fromhex("4c7293")),
         (0x3E640, Original(0x07286, 39)),
         (0x3E66E, Original(0x1E90C, 6)),
         (0x3E674, bytes.fromhex("229f")),

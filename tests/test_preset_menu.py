@@ -3,10 +3,12 @@ Consternation Remastered and Hopla, each with Encode level data on as published 
 no variant A without level encoding, and no Random% (published variant B, form.HIDDEN_PRESETS), both
 kept in presets.py. Three community flagsets (owner, 2026-10-18), each its published string:
 OHK0HPla Remastered, TTP5: Muffle Rug (B22 off with B23 on, kept as given: FL-DEP-06) and TTP5: Pick
-5; and the 2026 tournament presets TTP5: Uphill Battle and SGLive Onsite 2026 (owner, beta 8). The
-other presets are unchanged. The browser half (Pyodide gives the same bytes as
-Python) is the manual check in docs/packaging.md; here the worker's own call (zora-worker.js:
-generate_rom with the page's player settings) is checked to give the Python build's bytes."""
+5; and the 2026 tournament presets TTP5: Uphill Battle and SGLive Onsite 2026 (owner, beta 8); then
+Zora The Explorer weeks 1 to 5 and Consternation Plus (2026-11-17), each with its ZORA string. The
+other presets are unchanged. The menu is presets.PRESET_LIST in its order, hidden entries aside. The
+browser half (Pyodide gives the same bytes as Python) is the manual check in docs/packaging.md; here the
+worker's own call (zora-worker.js: generate_rom with the page's player settings) is checked to give the
+Python build's bytes."""
 import json
 
 import pytest
@@ -17,6 +19,7 @@ from zora.flags.fields import ENCODE_LEVEL_DATA, ThreeState
 from zora.flags.presets import (
     CONSTERNATION_REMASTERED,
     HOPLA,
+    PRESET_LIST,
     PRESETS,
     PUBLISHED_VARIANT_A,
     PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF,
@@ -50,6 +53,15 @@ COMMUNITY_PRESETS = {
     "TTP5: Uphill Battle": "143oNtDD4Pw3Yw6SRryTCXlqTsRz2fxg4s4pJW",
     "SGLive Onsite 2026": "12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA",
 }
+# The race presets (2026-11-17), last: each label and its two strings
+RACE_PRESETS = {
+    "Zora The Explorer Week 1": ("143oNtDD4PAvB!U8nSk4yS8L09lgT10vRVe7sx", "10.J2EGOED"),
+    "Zora The Explorer Week 2": ("143oNtDD4PAvB!U8nSk4yS8L09lgT10vRVe7sx", "10.J2EkcYg"),
+    "Zora The Explorer Week 3": ("143oNtDD4PAvB!U8nSk4m!DgIQ6oraWI4Me7sx", "10.JpkCdvd"),
+    "Zora The Explorer Week 4": ("143oNtDD4PAvB!U8nSk4mxFW0br2w5YUspe7sx", "10.JpaUYAv"),
+    "Zora The Explorer Week 5": ("143oNtDD4PAvB!U8nSk4mxFW0br2w5YUspe7sx", "13.7Zg4ZxiL"),
+    "Consternation Plus": ("oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUULH", "18.1DzN7gO9LZ4p"),
+}
 SEED = 1
 ENCODED_ONLY = pytest.mark.skipif(not level_encoding.is_available(), reason="needs the encoder")
 
@@ -78,7 +90,8 @@ def test_the_menu_has_no_unencoded_variant_a_and_no_random_percent() -> None:
 
 def test_the_other_presets_are_unchanged() -> None:
     others = [(preset["name"], preset["label"], preset["flags"], preset["zoraFlags"])
-              for preset in form.presets() if preset["label"] not in {*ENCODED_PRESETS, *COMMUNITY_PRESETS}]
+              for preset in form.presets() if preset["label"] not in {*ENCODED_PRESETS, *COMMUNITY_PRESETS,
+                                                                      *RACE_PRESETS}]
     assert others == OTHER_PRESETS
 
 
@@ -98,13 +111,30 @@ def test_the_encoded_preset_generates_and_the_workers_call_gives_the_same_bytes(
 
 @pytest.mark.parametrize("label", COMMUNITY_PRESETS)
 def test_the_menu_loads_the_community_preset_exactly(label: str) -> None:
-    """Listed last, by its own name, loading exactly its string with no ZORA string; loading it
-    gives back the same string (the page's form state), and ZORA can produce it."""
+    """Listed before the race presets, by its own name, loading exactly its string with no ZORA string;
+    loading it gives back the same string (the page's form state), and ZORA can produce it."""
     preset = _menu()[label]
     assert (preset["name"], preset["flags"], preset["zoraFlags"]) == (label, COMMUNITY_PRESETS[label], "")
     assert form.form_state(preset["flags"])["flags"] == preset["flags"]
     assert preset["available"] or not level_encoding.is_available()
-    assert [p["label"] for p in form.presets()][-len(COMMUNITY_PRESETS):] == list(COMMUNITY_PRESETS)
+    labels = [p["label"] for p in form.presets()]
+    assert labels[-len(COMMUNITY_PRESETS) - len(RACE_PRESETS):-len(RACE_PRESETS)] == list(COMMUNITY_PRESETS)
+
+
+@pytest.mark.parametrize("label", RACE_PRESETS)
+def test_the_menu_loads_the_race_preset_exactly(label: str) -> None:
+    """Listed last, by its own name, loading exactly its two strings, and ZORA can produce it."""
+    preset = _menu()[label]
+    assert (preset["name"], (preset["flags"], preset["zoraFlags"])) == (label, RACE_PRESETS[label])
+    assert form.form_state(preset["flags"])["flags"] == preset["flags"]
+    assert preset["available"] or not level_encoding.is_available()
+    assert [p["label"] for p in form.presets()][-len(RACE_PRESETS):] == list(RACE_PRESETS)
+
+
+def test_the_menu_is_the_canonical_list() -> None:
+    """form.presets is presets.PRESET_LIST in its order, the hidden entries (Random%) left out."""
+    assert [(p["name"], p["label"], p["flags"], p["zoraFlags"]) for p in form.presets()] == [
+        (preset.id, preset.name, preset.flags, preset.zora) for preset in PRESET_LIST if not preset.hidden]
 
 
 def test_muffle_rug_is_its_published_string_kept_as_given() -> None:

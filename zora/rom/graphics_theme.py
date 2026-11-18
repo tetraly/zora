@@ -44,8 +44,9 @@ FILE_VERSION = 1
 THEMES_FOLDER = "themes"                    # zora/rom/themes/<theme>.json, package data
 TILE_BYTES = 16
 # CommonBackgroundPatterns tiles a theme never writes: $30-$4F is the common boss block (Randomize
-# Boss Groups' special boss, PS-BGRP-01), $50-$5F Change Hidden OW Tiles' secret squares (B89) and
-# Pegasus Boots' blank priority sprites ($50/$51, which must stay blank).
+# Boss Groups' special boss, PS-BGRP-01), whose $30-$3F Change Hidden OW Tiles' secret squares (B89)
+# share; $50-$5F the tiles loaded everywhere: Pegasus Boots' blank priority sprites ($50/$51, which
+# must stay blank), the Item Counter's chest and slash ($52/$53) and the Archipelago logo ($5C-$5F).
 RESERVED_BACKGROUND_TILES = range(0x30, 0x60)
 COMMON_BACKGROUND = "CommonBackgroundPatterns"
 COMMON_SPRITES = "CommonSpritePatterns"

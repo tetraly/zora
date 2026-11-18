@@ -17,7 +17,8 @@ from zora.generate.pipeline import SEED_LIMIT
 REPO = Path(__file__).resolve().parent.parent
 PAGE_SCRIPT = (REPO / "web" / "zora-web.js").read_text()
 CONSTANTS = ("SINGLE", "MULTIWORLD", "LINK_FLAGS", "LINK_ZORA_FLAGS", "LINK_MODE", "LINK_SEED", "SEED_LIMIT",
-             "GENERATION_LIMIT_MS", "CHOSEN_SEED_MS", "RETRY_MIN_MS", "STOPPED", "GENERATION_FAILED", "MUSIC_PROBLEM")
+             "GENERATION_LIMIT_MS", "STOPPED", "GENERATION_FAILED", "MUSIC_PROBLEM", "FILE_NAME_STAND_INS",
+             "FILE_NAME_UNSAFE")
 
 
 def page_function(name: str) -> str:
@@ -78,14 +79,13 @@ def test_the_address_names_the_seed_in_single_player_only() -> None:
 
 def test_the_page_starts_from_the_links_seed() -> None:
     """The address's seed starts as the link's (null in multiworld or when invalid), and the seed
-    field takes it after the random one is drawn, so an invalid link keeps the random seed. A linked
-    seed counts as typed: Generate never replaces it with another (the time limit, e1e18c4)."""
+    field takes it after the random one is drawn, so an invalid link keeps the random seed."""
     assert "let linkSeed = sharedLink.seed;" in PAGE_SCRIPT
     assert re.search(r'^randomSeed\(\);\nif \(linkSeed\) \{.*\n'
-                     r'  \$\("seed"\)\.value = linkSeed;\n  seedTyped = true;\n\}\n', PAGE_SCRIPT, re.MULTILINE)
+                     r'  \$\("seed"\)\.value = linkSeed;\n\}\n', PAGE_SCRIPT, re.MULTILINE)
 
 
-# onGenerate (through generateWithinLimit, a typed seed tried once) and the seed field's handler on a
+# onGenerate and the seed field's handler on a
 # stubbed page: elements that take anything, a worker that generates seed 12345, and
 # history.replaceState recording each address.
 GENERATE_HARNESS = """
@@ -93,8 +93,9 @@ const element = (tag, props = {}) => ({ tag, ...props });
 const stub = () => new Proxy({ classList: { toggle() {} } }, { get: (target, key) =>
   key in target ? target[key] : (key === "hasChildNodes" ? () => false : () => {}), set: (target, key, value) => {
     target[key] = value; return true; } });
-const nodes = {};
+const nodes = { version: { textContent: "v2.0.1" } };
 const $ = (id) => (nodes[id] ||= stub());
+const PAGE_CHANNEL = "regular", TEST_CHANNEL = "test", EMBEDDED_INFO = null;
 const addresses = [];
 const location = { pathname: "/", search: "", hash: "" };
 const history = { state: null, replaceState(state, title, url) { addresses.push(url); location.search = url.includes("?") ? url.slice(url.indexOf("?")) : ""; } };
@@ -108,8 +109,8 @@ const metadata = { defaultFlags: "DEFAULT", encodeLevelData: "B82", spoilerLevel
 const form = { flags: "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A", zora: { ok: true, flags: "4.T9Jvg" },
                fields: { B82: { value: 0 }, B51: { value: 0 } } };
 const controls = new Map([["B51", { field: { values: [{ value: 0, label: "None" }] } }]]);
-let mode = SINGLE, linkSeed = null, seedTyped = true;
-const randomSeed = () => {};
+let mode = SINGLE, linkSeed = null, tabWentBehind = false;
+const document = { hidden: false };
 const TOGGLE_ON = 1, SEED_CODE_LENGTH = 4;
 const playerSettings = {};
 (async () => {
@@ -126,8 +127,9 @@ const playerSettings = {};
 
 
 def test_after_generate_the_address_names_the_seed_used() -> None:
-    answers = run(["validSeed", "linkSettings", "linkSearch", "updateLink", "onSeedChanged", "generateWithinLimit",
-                   "onGenerate", "labelIn", "romFileName", "generationErrorText"], GENERATE_HARNESS)
+    answers = run(["validSeed", "linkSettings", "linkSearch", "updateLink", "onSeedChanged",
+                   "onGenerate", "labelIn", "fileNameSafe", "fileNameVersion", "seedFileStem", "romFileName",
+                   "seedProblem", "generationErrorText", "buildLabel"], GENERATE_HARNESS)
     flags = "flags=8hq4BeR1JXo7yjOOHjbxryVQW%21UJ3A&zora=4.T9Jvg"
     assert answers["before"] == f"?{flags}&mode=single"           # no seed before any generation
     assert answers["after"] == f"?{flags}&seed=12345"

@@ -12,8 +12,11 @@ from zora.rom.serialize.rom_file import serialize_to_rom
 from zora.generate.rng import Rng
 from zora.generate.generation_pass import generate_shapes
 from zora.generate.steps.randomize_boss_groups import (
-    BLOCK_FREE_TILES, BOSSES, is_boss_pick_barred, deal_bosses,
+    BLOCK_FREE_TILES, BOSS_ORDER, BOSSES, COMMON_BLOCK_TILES, SPECIAL_CANDIDATES,
+    deal_bosses, is_boss_pick_barred, packed_slots,
 )
+from zora.generate.steps.group_banks import GROUPS
+from zora.rom.archipelago_logo import LOGO_BACKGROUND_TILES
 from zora.generate.steps.shuffle_enemy_groups import (
     GROUP_START_TOTALS, GROUP_TILE_LIMIT, OVERWORLD_BARRED, SEED_GROUPS, counted_cost, deal_enemies,
     pack_enemies, redraw_excess_zols,
@@ -53,11 +56,45 @@ def test_boss_deal_fits_and_splits_the_big_two() -> None:
         deal = deal_bosses(Rng(seed))
         assert deal.blocks[OVERWORLD][0] == deal.special
         for block, bosses in deal.blocks.items():
-            assert sum(BOSSES[b].cost for b in bosses) <= BLOCK_FREE_TILES[block]
+            assert sum(BOSSES[b].cost for b in bosses) <= len(deal.block_tiles(block))
         homes = {b: block for block, bosses in deal.blocks.items() for b in bosses}
         assert homes[E.TRIPLE_DODONGO] in (0, 1) and homes[E.GLEEOK_2] in (0, 1)
         assert homes[E.TRIPLE_DODONGO] != homes[E.GLEEOK_2]
         assert set(deal.blocks[2]) <= {E.SINGLE_DIGDOGGER, E.PATRA_1}
+
+
+def test_every_game_deals_the_common_block_s_32_tiles() -> None:
+    """Every game deals the spec's 32 common tiles ($30-$4F), Archipelago games too since the logo moved to
+    $5C-$5F (2026-11-14), which no boss tile reaches."""
+    assert COMMON_BLOCK_TILES == range(48, 80) and BLOCK_FREE_TILES == (64, 64, 8, 32)
+    assert set(COMMON_BLOCK_TILES).isdisjoint(LOGO_BACKGROUND_TILES)
+    for seed in range(200):
+        for block, _boss, _sprite, slots in packed_slots(deal_bosses(Rng(seed))):
+            if block == OVERWORLD:
+                assert set(slots) <= set(COMMON_BLOCK_TILES), seed
+
+
+def test_every_boss_deal_finishes() -> None:
+    """deal_bosses redraws a block until the boss fits, so a boss that fits no block would loop for
+    ever. Walk every special boss and every block each later boss could draw: none is left without a
+    block at the blocks' sizes."""
+    def walk(index: int, free: list[int], special: Enemy) -> None:
+        if index == len(BOSS_ORDER):
+            return
+        boss = BOSS_ORDER[index]
+        if boss == special:
+            walk(index + 1, free, special)
+            return
+        fits = [block for block in GROUPS if BOSSES[boss].cost <= free[block]]
+        assert fits, (special, boss, free)
+        for block in fits:
+            after = list(free)
+            after[block] -= BOSSES[boss].cost
+            walk(index + 1, after, special)
+    for special in SPECIAL_CANDIDATES:
+        free = list(BLOCK_FREE_TILES)
+        free[OVERWORLD] -= BOSSES[special].cost
+        walk(0, free, special)
 
 
 def test_boss_layout_bars() -> None:

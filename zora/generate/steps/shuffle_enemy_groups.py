@@ -1,6 +1,7 @@
 """Shuffle Enemy Groups (B42; PS-EGRP-01 to -06, PS-SPR-03). Its two switches: Shuffle Overworld
 Group (B43; off: PS-EGRP-07, three dungeon groups and no overworld redraw) and Shuffle Level 9
-Monsters (B35; off: PS-MONLV-07, blue Wizzrobe forced into group 2, level 9's)."""
+Monsters (B35; off: PS-MONLV-07, the red Wizzrobe forced into group 2, level 9's). With the ZORA flag
+Wizzrobes Shoot Wallmasters (which turns this on) the Wizzrobes and the Wallmaster share a dungeon group."""
 
 from collections.abc import Collection
 from dataclasses import dataclass
@@ -22,7 +23,7 @@ ENEMY_OBJECTS: dict[Enemy, SpriteObject] = {
     E.VIRE: SpriteObject(8, (PatternBlock.UWSP469, 224), (112, 4)),
     E.POLS_VOICE: SpriteObject(4, (PatternBlock.UWSP358, 32), (120, 2)),
     E.LIKE_LIKE: SpriteObject(6, (PatternBlock.UWSP469, 64), (122, 4)),
-    E.BLUE_WIZZROBE: SpriteObject(12, (PatternBlock.UWSP469, 352), (136, 4)),
+    E.RED_WIZZROBE: SpriteObject(12, (PatternBlock.UWSP469, 352), (136, 4)),
     E.WALLMASTER: SpriteObject(4, (PatternBlock.UWSP127, 224), (146, 0)),
     E.ROPE: SpriteObject(8, (PatternBlock.UWSP127, 32), (148, 2)),
     E.STALFOS: SpriteObject(4, (PatternBlock.UWSP127, 160), (152, 1)),
@@ -37,9 +38,12 @@ OVERWORLD_PRIMARIES = (E.BLUE_TEKTITE, E.BLUE_LYNEL, E.BLUE_MOBLIN)
 # PS-EGRP-07: with B43 off the twelve dungeon enemies are dealt into the three dungeon groups
 DUNGEON_ROSTER = tuple(enemy for enemy in ROSTER if enemy not in OVERWORLD_PRIMARIES)
 DUNGEON_GROUPS = (0, 1, 2)
-# PS-MONLV-07: with B35 off blue Wizzrobe goes to group 2 (the tier-2 bank, level 9's) before the deal
+# PS-MONLV-07: with B35 off the red Wizzrobe ($24; the spec's "blue Wizzrobe") goes to group 2
+# (the tier-2 bank, level 9's) before the deal
 WIZZROBE_GROUP = 2
 WALLMASTER_COUNTED_COST = 6                      # its 4 tiles count as 6
+# Wizzrobes Shoot Wallmasters: the two enemies dealt into one group
+WIZZROBE_PAIR = (E.RED_WIZZROBE, E.WALLMASTER)
 
 
 def counted_cost(enemy: Enemy) -> int:
@@ -55,13 +59,13 @@ GROUP_TILE_LIMIT = 34
 GROUP_START_TOTALS = (0, 0, 0, -2)
 OVERWORLD_BARRED = frozenset({E.RED_LANMOLA, E.WALLMASTER, E.VIRE, E.ZOL, E.LIKE_LIKE})
 DEAL_ATTEMPTS = 1_000
-COVERAGE = frozenset({E.RED_GORIYA, E.RED_DARKNUT, E.GIBDO, E.BLUE_WIZZROBE,
+COVERAGE = frozenset({E.RED_GORIYA, E.RED_DARKNUT, E.GIBDO, E.RED_WIZZROBE,
                       E.BLUE_LYNEL, E.BLUE_MOBLIN})
 VIRE_COVERS_AT_ZOL_HP = 4                        # Vire covers when Zol's HP nibble <= 4
 
 # PS-EGRP-02: partners join their primary's group (no tile cost)
 PARTNERS = {E.RED_GORIYA: E.BLUE_GORIYA, E.RED_DARKNUT: E.BLUE_DARKNUT,
-            E.BLUE_WIZZROBE: E.RED_WIZZROBE, E.RED_LANMOLA: E.BLUE_LANMOLA,
+            E.RED_WIZZROBE: E.BLUE_WIZZROBE, E.RED_LANMOLA: E.BLUE_LANMOLA,
             E.BLUE_LYNEL: E.RED_LYNEL, E.BLUE_MOBLIN: E.RED_MOBLIN,
             E.BLUE_TEKTITE: E.RED_TEKTITE}
 
@@ -109,14 +113,26 @@ def _is_covered(groups: dict[int, list[Enemy]], zol_hp: int) -> bool:
     return all(cover & set(members) for members in groups.values())
 
 
+def _pair_allows(members: list[Enemy], total: int, group: int, pair: tuple[Enemy, Enemy]) -> bool:
+    """Whether the group takes both of the pair, the first and then the second."""
+    first, second = pair
+    return (_group_allows(members, total, group, first)
+            and _group_allows([*members, first], total + counted_cost(first), group, second))
+
+
 def deal_enemies(rng: IntRng, zol_hp: int, overworld_group: bool = True,
-                 wizzrobes_in_level_9_group: bool = False) -> EnemyDeal:
+                 wizzrobes_in_level_9_group: bool = False, wallmasters_with_wizzrobes: bool = False) -> EnemyDeal:
     """PS-EGRP-01: sort, seed enemy into groups 1 and 2, then one uniform
     group per enemy, redrawn while barred; 1,000 failures or a group
     without a coverage enemy redo the group draws (order and seed kept).
     PS-EGRP-07 (B43 off): the twelve dungeon enemies into groups 0-2.
-    PS-MONLV-07 (B35 off): blue Wizzrobe joins group 2 after the seed, with
-    its tiles counted, and the deal skips it."""
+    PS-MONLV-07 (B35 off): the red Wizzrobe joins group 2 after the seed, with
+    its tiles counted, and the deal skips it.
+    Wizzrobes Shoot Wallmasters (`wallmasters_with_wizzrobes`): the red
+    Wizzrobe and the Wallmaster are dealt together, at the first of the two
+    in the order, into a group that takes both (never the overworld group,
+    which bars the Wallmaster); with B35 off the Wallmaster follows the
+    Wizzrobe into group 2. Off, the draws are unchanged."""
     roster, seeds = (ROSTER, SEED_CANDIDATES) if overworld_group else (DUNGEON_ROSTER, DUNGEON_SEED_CANDIDATES)
     groups_dealt = GROUPS if overworld_group else DUNGEON_GROUPS
     discard(rng, DISCARDED_DRAWS)
@@ -130,15 +146,24 @@ def deal_enemies(rng: IntRng, zol_hp: int, overworld_group: bool = True,
             groups[group].append(seed)
             totals[group] += counted_cost(seed)
         if wizzrobes_in_level_9_group:
-            groups[WIZZROBE_GROUP].append(E.BLUE_WIZZROBE)
-            totals[WIZZROBE_GROUP] += counted_cost(E.BLUE_WIZZROBE)
+            for forced in (E.RED_WIZZROBE, *((E.WALLMASTER,) if wallmasters_with_wizzrobes else ())):
+                groups[WIZZROBE_GROUP].append(forced)
+                totals[WIZZROBE_GROUP] += counted_cost(forced)
         is_dealt = True
         for enemy in order:
-            if enemy == seed or (wizzrobes_in_level_9_group and enemy == E.BLUE_WIZZROBE):
+            if enemy == seed or (wizzrobes_in_level_9_group and enemy == E.RED_WIZZROBE):
                 continue
+            pair = WIZZROBE_PAIR if enemy == E.RED_WIZZROBE else WIZZROBE_PAIR[::-1]
+            paired = wallmasters_with_wizzrobes and enemy in WIZZROBE_PAIR
+            if paired and any(enemy in members for members in groups.values()):
+                continue                         # dealt with its partner
             for _ in range(DEAL_ATTEMPTS):
                 group = groups_dealt[rng.below(len(groups_dealt))]
-                if _group_allows(groups[group], totals[group], group, enemy):
+                if paired and _pair_allows(groups[group], totals[group], group, pair):
+                    groups[group].extend(pair)
+                    totals[group] += sum(counted_cost(member) for member in pair)
+                    break
+                if not paired and _group_allows(groups[group], totals[group], group, enemy):
                     groups[group].append(enemy)
                     totals[group] += counted_cost(enemy)
                     break
@@ -237,7 +262,7 @@ def _copy_partner_frames(gw: GameWorld, staged: Staged) -> None:
 OLD_ENEMY_GROUPS: dict[Enemy, int] = {
     **dict.fromkeys((E.BLUE_GORIYA, E.RED_GORIYA, E.WALLMASTER, E.ROPE, E.STALFOS), 0),
     **dict.fromkeys((E.RED_DARKNUT, E.BLUE_DARKNUT, E.POLS_VOICE, E.GIBDO), 1),
-    **dict.fromkeys((E.VIRE, E.LIKE_LIKE, E.RED_WIZZROBE, E.BLUE_WIZZROBE,
+    **dict.fromkeys((E.VIRE, E.LIKE_LIKE, E.BLUE_WIZZROBE, E.RED_WIZZROBE,
                      E.RED_LANMOLA, E.BLUE_LANMOLA), 2),
     **dict.fromkeys((E.BLUE_LYNEL, E.RED_LYNEL, E.BLUE_MOBLIN, E.RED_MOBLIN,
                      E.BLUE_TEKTITE, E.RED_TEKTITE), OVERWORLD),
@@ -356,7 +381,7 @@ BRACELET_SCREENS = frozenset({9, 17, 27, 29, 35, 73, 121})
 WIZZROBE_BARRED_SCREENS = frozenset({2, 5, 6, 7, 8, 23, 26, 29, 30, 56, 63, 68, 85, 114})
 OVERWORLD_MONSTERS = frozenset({E.BLUE_LYNEL, E.RED_LYNEL, E.BLUE_MOBLIN, E.RED_MOBLIN,
                                 E.BLUE_TEKTITE, E.RED_TEKTITE})
-WIZZROBES = (E.RED_WIZZROBE, E.BLUE_WIZZROBE)
+WIZZROBES = (E.BLUE_WIZZROBE, E.RED_WIZZROBE)
 # MoveAndDrawRoomItem's three object-type operands, in order; disabled ($FF)
 # when their type joins the overworld group
 ITEM_CARRIERS = (E.LIKE_LIKE, E.STALFOS, E.GIBDO)
@@ -389,7 +414,7 @@ def redraw_overworld(gw: GameWorld, overworld: Overworld, deal: EnemyDeal, rng: 
     blue Moblin (quantity kept); then every unflagged Lynel/Moblin/Tektite
     screen gets a pick from the overworld group, redrawn while barred.
     PS-EGRP-07 (B43 off, no overworld group): only the unsafe-screen part;
-    the item-carrier operands and the red-Wizzrobe runs are not written."""
+    the item-carrier operands and the blue-Wizzrobe runs are not written."""
     members = deal.members(OVERWORLD)
     assert staged.mixed_lists is not None, "PS-EGRP-04 runs first"
     lists = {code: bytes(staged.mixed_lists[start:end])
@@ -417,13 +442,13 @@ def redraw_overworld(gw: GameWorld, overworld: Overworld, deal: EnemyDeal, rng: 
         CARRIER_OFF if ITEM_CARRIERS[1] in members else operands[1],
         CARRIER_OFF if ITEM_CARRIERS[2] in members else operands[2]
     )
-    staged.red_wizzrobe_overworld = E.RED_WIZZROBE in members
+    staged.blue_wizzrobe_overworld = E.BLUE_WIZZROBE in members
 
 
 # --- PS-EGRP-06: the hungry goriya's tile ---------------------------------------
 
 GORIYA_CANDIDATES = (E.RED_GORIYA, E.ROPE, E.STALFOS, E.RED_DARKNUT, E.GIBDO,
-                     E.BLUE_WIZZROBE, E.BLUE_LYNEL, E.BLUE_MOBLIN)
+                     E.RED_WIZZROBE, E.BLUE_LYNEL, E.BLUE_MOBLIN)
 WALLMASTER_GORIYA_TILE = 0xAC
 GORIYA_FALLBACK_TILE = 0x8E
 GORIYA_TILE_OFFSET = 171                         # ObjAnimFrameHeap + 171
@@ -448,12 +473,13 @@ def pick_goriya_tile(deal: EnemyDeal, placed: dict[int, dict[Enemy, list[int]]],
 
 def shuffle_enemy_groups(blocks: list[LevelBlock], gw: GameWorld, goriya_tier: int, rng: IntRng,
                          overworld: Overworld, zol_hp: int, staged: Staged, overworld_group: bool = True,
-                         wizzrobes_in_level_9_group: bool = False) -> tuple[EnemyDeal, int, int]:
+                         wizzrobes_in_level_9_group: bool = False,
+                         wallmasters_with_wizzrobes: bool = False) -> tuple[EnemyDeal, int, int]:
     """PS-EGRP-01..06: deal the enemies into groups, pack their tiles, and
     redraw the rooms, the mixed lists and the overworld from them; then the
     goriya's tile from its level's group. Returns the deal, the goriya tile
     and the number of rooms redrawn."""
-    enemy_deal = deal_enemies(rng, zol_hp, overworld_group, wizzrobes_in_level_9_group)
+    enemy_deal = deal_enemies(rng, zol_hp, overworld_group, wizzrobes_in_level_9_group, wallmasters_with_wizzrobes)
     placed = pack_enemies(gw, enemy_deal, staged)
     rooms_redrawn = redraw_rooms(blocks, enemy_deal, rng)
     redraw_mixed_lists(gw, enemy_deal, rng, staged)

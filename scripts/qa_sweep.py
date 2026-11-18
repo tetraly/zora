@@ -13,7 +13,9 @@ a supported alternative value or a supported "?" (FL-SUP-01 to -03,
 FL-OFF-07, FL-ALT-02 to -04; level encoding off or on), a ZORA string
 (empty, 1.2, or the magical sword: 1.D, 1.F; then Progressive Items and Shop
 Items in the Item Pool each on by a coin), random player settings in the
-page's own form, and one seed. `fixed` runs the
+page's own form, and one seed. A flag string the dependency rules refuse, or a
+ZORA string zora_flags.validate refuses beside it, is drawn again, so every
+configuration generates; the summary counts the draws skipped. `fixed` runs the
 baseline and the all-turn-offs strings under every ZORA string and level
 encoding choice, N seeds each. `alternatives` runs FL-ALT's Checks: CP-5, each
 alternative value alone on CP-5 and the three together, with the ZORA extras
@@ -23,11 +25,14 @@ each, and judges each batch's FL-ALT figures against the spec's; --start and
 
 Each seed must: generate without error; pass the acceptance check
 (acceptance.md, re-run on the shipped world) and Randomize Magical Sword's
-heart check; pass the finished-ROM checks; survive parse and re-serialize
+heart check; survive parse and re-serialize
 byte for byte (an encoded ROM: its plain build does, and its level data
-decodes to that build's); carry the seed code (FP-HASH-01) that hashes the
-ROM before player settings; differ from that ROM only by the player
-settings; and return the page no resolved "?" value and no changed flag.
+decodes to that build's); pass the finished-ROM checks its options call for
+and the owner's flags' invariants on the parsed ROM; carry the seed code
+(FP-HASH-01) of the generated game; differ from the ROM before player
+settings only by the player settings (a graphics theme also by its tiles and
+palettes); and return the page no resolved "?" value and no changed flag
+beyond FL-DEP-02's turn-offs.
 
 `emulator` boots the first N random configurations' ROMs (cynes, through
 tests/emulator.py): file select, register a file, start, walk one screen.
@@ -39,7 +44,6 @@ Prints a summary and every failure; exit status 1 on any failure.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import random
 import sys
 from collections import Counter
@@ -59,10 +63,10 @@ from zora_web.api import (  # noqa: E402
 from zora_measure.progress import track  # noqa: E402
 from zora.flags import zora_flags  # noqa: E402
 from zora.flags.codec import decode, encode  # noqa: E402
-from zora.flags.dependencies import check_dependencies  # noqa: E402
+from zora.flags.dependencies import apply_dependencies, check_dependencies  # noqa: E402
 from zora.flags.fields import (  # noqa: E402
     ENCODE_LEVEL_DATA, OPTION_FIELDS, OPTIONS_BY_ID, TOGGLE_FIELDS,
-    Settings, ThreeState, WoodenSwordState,
+    DungeonLayoutSource, Settings, ThreeState, WoodenSwordState,
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF  # noqa: E402
 from zora.flags.zora_flags import L4Sword  # noqa: E402
@@ -73,18 +77,20 @@ from zora.generate.acceptance_check import acceptance_check  # noqa: E402
 from zora.generate.generation_pass import has_magical_sword_hearts  # noqa: E402
 from zora.generate.context import GenerationResult  # noqa: E402
 from zora.generate.pipeline import (  # noqa: E402
-    FlagsRefused, GeneratedRom, GenerationPlan, SeedRefused, extra_options, generate_rom, generate_world,
-    overworld_gates, plan, shipped_logic_rules,
+    Built, FlagsRefused, GeneratedRom, GenerationPlan, SeedRefused, build, extra_options, generate_rom,
+    overworld_gates, plan, shipped_logic_rules, with_item_counter, written_world,
 )
 from zora.generate.steps.cave_entries import OverworldResult  # noqa: E402
 from zora_measure.alternative_values import HELPFUL_TEXT_SLOTS, alternative_value_figures  # noqa: E402
-from zora_measure.checks import finished_rom_checks, run_checks  # noqa: E402
+from zora_measure.checks import Check, finished_rom_checks, run_checks  # noqa: E402
+from zora_measure.overworld_walk import unreached_caves  # noqa: E402
 from zora_measure.owner_flags import owner_flag_problems  # noqa: E402
 from zora.model.game_world import GameWorld  # noqa: E402
 from zora.rom import level_encoding  # noqa: E402
 from zora.rom.base_rom import verify_base_rom  # noqa: E402
-from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_ITEMS, SEED_CODE_LENGTH, seed_code  # noqa: E402
+from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, seed_code, seed_code_items  # noqa: E402
 from zora.rom.game_config import GameConfig  # noqa: E402
+from zora.rom.graphics_theme import GraphicsTheme, theme_offsets  # noqa: E402
 from zora.rom.parse.rom_file import parse_rom  # noqa: E402
 from zora.rom.player_settings import (  # noqa: E402
     BLACKER_THAN_BLACK, BOSS_SOUND_WORDS, LEVEL_WORD_CHOICES, PALETTE_SIZE, RANDOM_BOSS_SOUND_WORD,
@@ -103,6 +109,8 @@ PALETTE_COLORS = tuple(color for color in range(PALETTE_SIZE) if color != BLACKE
 SEED_LIMIT = 1 << 64
 # The exceptions that refuse input with a message for the player.
 REFUSALS = (FlagsRefused, PlayerSettingError, SeedRefused)
+# Draws of one random configuration's flag or ZORA string before the sweep gives up on it.
+DRAW_ATTEMPTS = 1000
 T = TypeVar("T")
 
 
@@ -145,7 +153,23 @@ def supported_choices(field_id: str, settings: Settings) -> dict[str, list[Any]]
 def draw_settings(rng: random.Random) -> Settings:
     """Every selectable field (FL-OFF-07, FL-ALT-02 to -04 and B82) at its baseline, a turn-off
     value, an alternative value or a "?", the group drawn first so C17's many turn-off values do
-    not crowd out the rest; B82 on or off (never "?")."""
+    not crowd out the rest; B82 on or off (never "?"). A draw that FL-DEP-01 or an FL-DEP-02
+    prerequisite refuses (for example rule 5: a level-9 pin at the Raft with B25 off) is drawn
+    again: each field is supported alone, the combination is not."""
+    return draw_accepted_settings(rng)[0]
+
+
+def draw_accepted_settings(rng: random.Random) -> tuple[Settings, int]:
+    """draw_settings, and how many draws the dependency rules refused before it."""
+    for skipped in range(DRAW_ATTEMPTS):
+        settings = draw_fields(rng)
+        if not check_dependencies(settings):
+            return settings, skipped
+    raise RuntimeError(f"no flag draw the dependency rules accept in {DRAW_ATTEMPTS} attempts")
+
+
+def draw_fields(rng: random.Random) -> Settings:
+    """One draw of draw_settings' fields, whatever the dependency rules say of the combination."""
     settings = mvp_baseline_settings()
     selectable = [*TURN_OFF_OPTIONS, *ALTERNATIVE_OPTIONS, *TURN_OFF_TOGGLES]
     for field_id in selectable:
@@ -173,6 +197,8 @@ class Config:
     zora_flag_string: str
     page_settings: dict[str, Any]
     seed: int
+    skipped_flag_draws: int = 0     # flag strings drawn and refused by FL-DEP-01/-02 before this one
+    skipped_zora_draws: int = 0     # ZORA strings drawn and refused by zora_flags.validate before this one
 
 
 def draw_zora_string(rng: random.Random, settings: Settings | None = None) -> str:
@@ -197,6 +223,17 @@ def draw_zora_string(rng: random.Random, settings: Settings | None = None) -> st
     return zora_flags.encode(replace(flags, **owner, **asnb))  # type: ignore[arg-type]
 
 
+def draw_accepted_zora_string(rng: random.Random, settings: Settings) -> tuple[str, int]:
+    """draw_zora_string, drawn again while zora_flags.validate refuses it beside SETTINGS (as given,
+    "?" unresolved, as generation validates them), so every random configuration generates; and
+    how many draws it skipped."""
+    for skipped in range(DRAW_ATTEMPTS):
+        zora = draw_zora_string(rng, settings)
+        if not zora_flags.validate(zora_flags.decode(zora), settings):
+            return zora, skipped
+    raise RuntimeError(f"no ZORA string validate accepts beside {encode(settings)!r} in {DRAW_ATTEMPTS} attempts")
+
+
 def draw_l4_sword_place(rng: random.Random, settings: Settings | None) -> dict[str, bool]:
     """Add L4 Sword drawn on (ASNB, docs/design/asnb.md section 1): Level 9 or Level 2 by a coin
     (Level 9 without generated shapes), and Level 2 takes the level-4-sword entrance by a coin when
@@ -213,10 +250,14 @@ def draw_l4_sword_place(rng: random.Random, settings: Settings | None) -> dict[s
 
 
 def random_config(index: int) -> Config:
+    """Configuration INDEX: flags the dependency rules accept, a ZORA string validate accepts beside
+    them, page settings and a seed, each from the index's own stream."""
     rng = random.Random(f"{SWEEP_KEY}:{index}")
-    settings = draw_settings(rng)
-    return Config(f"random {index}", encode(settings), draw_zora_string(rng, settings),
-                  draw_page_settings(rng), rng.randrange(SEED_LIMIT) if rng.random() < 0.5 else rng.randrange(1, 1001))
+    settings, skipped_flags = draw_accepted_settings(rng)
+    zora, skipped_zora = draw_accepted_zora_string(rng, settings)
+    return Config(f"random {index}", encode(settings), zora, draw_page_settings(rng),
+                  rng.randrange(SEED_LIMIT) if rng.random() < 0.5 else rng.randrange(1, 1001),
+                  skipped_flags, skipped_zora)
 
 
 def all_turn_offs() -> Settings:
@@ -295,12 +336,19 @@ class Outcome:
     rom: bytes | None = None
 
 
-def expected_seed_code(rom: bytes) -> bytes:
-    """FP-HASH-01, recomputed: SHA-256 of the ROM with the code bytes zeroed."""
-    image = bytearray(rom)
-    image[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = bytes(SEED_CODE_LENGTH)
-    digest = hashlib.sha256(image).digest()
-    return bytes(SEED_CODE_ITEMS[byte % len(SEED_CODE_ITEMS)] for byte in digest[:SEED_CODE_LENGTH])
+def before_player_settings(built: Built) -> bytes:
+    """The seed's ROM before player settings: FINISH's serialization (zora.generate.pipeline.finish,
+    ZORA mode: the Item Counter's configuration and, with Mirror Overworld, the flipped world)
+    with no player settings written."""
+    config = with_item_counter(built)
+    return serialize_to_rom(written_world(built.world, config), base_rom(), config=config)
+
+
+def expected_seed_code(built: Built) -> bytes:
+    """FP-HASH-01 since beta 5: the code comes from the generated game (the written world and its
+    configuration, code_patches.seed_code_items), not from the ROM's bytes."""
+    config = with_item_counter(built)
+    return seed_code_items(written_world(built.world, config), config)
 
 
 def reading_config(config: GameConfig) -> GameConfig:
@@ -337,18 +385,15 @@ def _check(config: Config, outcome: Outcome, keep_rom: bool) -> None:
     if zora_reasons:
         fail(f"accepted a ZORA string the settings forbid: {zora_reasons}")
     outcome.encoded = chosen.encode_level_data
-    world, result = generate_world(chosen, base_rom())
-    check_acceptance(chosen, world, result, fail)
-    for problem in owner_flag_problems(world, overworld_gates(chosen.zora_resolved, chosen.settings),
-                                       chosen.zora_resolved.l4_sword is L4Sword.LEVEL_9,
-                                       chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2):
-        fail(f"owner flags: {problem}")
-    before_settings = serialize_to_rom(world, base_rom(), config=chosen.config)
+    built = build(chosen, base_rom())
+    world = built.world
+    check_acceptance(chosen, world, built.result, fail)
+    check_owner_flags(chosen, world, fail)
     finished = generate_rom(config.flag_string, config.seed, base_rom(),
                             player_settings_from_page(config.page_settings), config.zora_flag_string)
-    check_seed_code(config, before_settings, finished, fail)
+    check_seed_code(config, built, finished, fail)
     check_returned_to_page(config, asked, outcome.encoded, finished, fail)
-    check_round_trip(chosen, world, finished.rom, fail)
+    check_round_trip(chosen, built, finished.rom, fail)
     if keep_rom:
         outcome.rom = finished.rom
 
@@ -370,24 +415,46 @@ def check_acceptance(chosen: GenerationPlan, world: GameWorld, result: Generatio
             fail("acceptance: magical-sword hearts")
 
 
-def check_seed_code(config: Config, before_settings: bytes, finished: GeneratedRom,
-                    fail: Callable[[str], None]) -> None:
-    """FP-HASH-01 and FP-SET-01: the code hashes the ROM before player settings, and the
-    finished ROM is that ROM with the player settings written, nothing else."""
-    if finished.rom != apply_player_settings(before_settings, player_settings_from_page(config.page_settings)):
+def check_owner_flags(chosen: GenerationPlan, world: GameWorld, fail: Callable[[str], None]) -> None:
+    """The owner's 2.0 flags' invariants on the shipped world written plain and parsed back, as
+    tests/owner_flags_replay.py checks them: the hint shop's maze text is the one the ROM shows
+    (with Normal hints, C03 = 0, the model keeps PRG0's quotes and the offer's pointer moves to
+    the maze's text outside the block, which only the parsed ROM holds)."""
+    plain = replace(chosen.config, level_encoding=None)
+    shown = parse_rom(serialize_to_rom(world, base_rom(), config=plain), reading_config(plain))
+    for problem in owner_flag_problems(shown, overworld_gates(chosen.zora_resolved, chosen.settings),
+                                       chosen.zora_resolved.l4_sword is L4Sword.LEVEL_9,
+                                       chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2):
+        fail(f"owner flags: {problem}")
+
+
+def check_seed_code(config: Config, built: Built, finished: GeneratedRom, fail: Callable[[str], None]) -> None:
+    """FP-HASH-01 and FP-SET-01: the code is the generated game's, and the finished ROM is the
+    seed's ROM before player settings with the player settings written, nothing else. A graphics
+    theme is the exception (it goes in before generation, so a finished ROM never takes it): the
+    finished ROM is the unthemed one apart from the theme's tile and palette bytes."""
+    before_settings = before_player_settings(built)
+    settings = player_settings_from_page(config.page_settings)
+    theme = settings.graphics_theme
+    expected = apply_player_settings(before_settings, replace(settings, graphics_theme=GraphicsTheme.OFF))
+    allowed = theme_offsets(theme)
+    if len(finished.rom) != len(expected) or any(
+            built_byte != shipped and offset not in allowed
+            for offset, (built_byte, shipped) in enumerate(zip(expected, finished.rom))):
         fail("the finished ROM is not the seed's ROM plus the player settings")
     stamped = before_settings[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH]
-    if stamped != expected_seed_code(before_settings):
-        fail("the seed code is not the hash of the ROM before player settings")
+    if stamped != expected_seed_code(built):
+        fail("the seed code is not the generated game's (FP-HASH-01)")
     if finished.code != seed_code(before_settings) or finished.code != seed_code(finished.rom):
         fail(f"the returned seed code {finished.code} is not the ROM's")
 
 
 def check_returned_to_page(config: Config, asked: Settings, encoded: bool, finished: GeneratedRom,
                            fail: Callable[[str], None]) -> None:
-    """What the page gets back: the strings as asked, "?" unresolved, and the
+    """What the page gets back: the strings as asked with FL-DEP-02's turn-offs applied (rule 4:
+    a layout source without the person shuffles turns B28 and B29 off), "?" unresolved, and the
     level encoding as asked (B82 is on or off, never "?")."""
-    if decode(finished.flag_string) != asked:
+    if decode(finished.flag_string) != apply_dependencies(asked):
         fail(f"returned flags {finished.flag_string!r} differ from the asked {config.flag_string!r}")
     if finished.encode_level_data != encoded:
         fail(f"returned level encoding {finished.encode_level_data!r}, expected {encoded!r}")
@@ -397,12 +464,15 @@ def check_returned_to_page(config: Config, asked: Settings, encoded: bool, finis
         fail(f"returned seed {finished.seed} differs from {config.seed}")
 
 
-def check_round_trip(chosen: GenerationPlan, world: GameWorld, rom: bytes, fail: Callable[[str], None]) -> None:
-    """Parse and re-serialize byte for byte, then the finished-ROM checks. An encoded ROM is
-    checked through its plain build, whose level data its own must decode to (a second-quest
-    set's block is in its first-quest slot in both: GameWorld.store_second_quest_sets_in_first_quest_slots)."""
+def check_round_trip(chosen: GenerationPlan, built: Built, rom: bytes, fail: Callable[[str], None]) -> None:
+    """Parse and re-serialize byte for byte, then the finished-ROM checks and the overworld walk
+    (every shown cave reached on foot, the raft's and the bracelet's screens excepted:
+    zora_measure/overworld_walk.py). An encoded ROM is checked through its plain build, whose level
+    data its own must decode to (a second-quest set's block is in its first-quest slot in both:
+    GameWorld.store_second_quest_sets_in_first_quest_slots)."""
     if chosen.config.level_encoding is not None:
-        plain = serialize_to_rom(world, base_rom(), config=replace(chosen.config, level_encoding=None))
+        plain_config = replace(with_item_counter(built), level_encoding=None)
+        plain = serialize_to_rom(written_world(built.world, plain_config), base_rom(), config=plain_config)
         if level_encoding.decode_level_data(rom, chosen.config.level_encoding) \
                 != level_encoding.plain_level_data(plain):
             fail("encoded level data does not decode to the plain build's")
@@ -410,10 +480,26 @@ def check_round_trip(chosen: GenerationPlan, world: GameWorld, rom: bytes, fail:
     reading = reading_config(chosen.config)
     if not round_trips(rom, reading):
         fail("parse and re-serialize changed the ROM")
-    level_2_sword = chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2
-    for check in run_checks(parse_rom(rom, reading), finished_rom_checks(level_2_sword=level_2_sword)):
+    parsed = parse_rom(rom, reading)
+    for check in run_checks(parsed, plan_checks(chosen)):
         if not check.passed:
             fail(f"finished-ROM check {check.check_id}: {check.message}")
+    unreached = unreached_caves(rom, parsed, overworld_gates(chosen.zora_resolved, chosen.settings))
+    if unreached:
+        fail("overworld walk: no walk reaches the caves on "
+             + ", ".join(f"${screen:02X} ({cave.name})" for screen, cave in sorted(unreached.items())))
+
+
+def plan_checks(chosen: GenerationPlan) -> tuple[Check, ...]:
+    """The finished-ROM checks the plan's options call for, as tests/test_flag_invariants.py picks
+    them: sorted numbering only with sort_shapes, the shape stage's rules only for generated shapes
+    (a set keeping a quest's own dungeons leaves them out), B26's and Remove Maps' (B92) exceptions,
+    and Add L4 Sword = Level 2's item cellar."""
+    return finished_rom_checks(
+        sort_shapes=chosen.shape_options.sort_shapes, post_shapes=chosen.post_shapes,
+        shaped=chosen.alternatives.dungeon_quest is DungeonLayoutSource.GENERATED_SHAPES,
+        start_rooms_moved=chosen.shape_options.start_room_swap, maps_removed=chosen.alternatives.remove_maps,
+        level_2_sword=chosen.zora_resolved.l4_sword is L4Sword.LEVEL_2)
 
 
 def check_alternative(config: Config) -> tuple[Outcome, dict[str, bool]]:
@@ -653,8 +739,12 @@ def _summarise(outcomes: list[Outcome]) -> int:
     failed = sum(bool(outcome.failures) for outcome in outcomes)
     encoded = sum(outcome.encoded for outcome in outcomes)
     expected = sum(outcome.expected_refusal is not None for outcome in outcomes)
+    skipped_flags = sum(outcome.config.skipped_flag_draws for outcome in outcomes)
+    skipped_zora = sum(outcome.config.skipped_zora_draws for outcome in outcomes)
     print(f"{len(outcomes)} configurations, {encoded} encoded, {expected} refused as expected, "
           f"{failed} with failures; by kind {dict(kinds)}")
+    print(f"draws skipped: {skipped_flags} flag strings the dependency rules refuse, "
+          f"{skipped_zora} ZORA strings zora_flags.validate refuses")
     return 1 if failed else 0
 
 

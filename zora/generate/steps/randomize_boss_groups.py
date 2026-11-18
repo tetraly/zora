@@ -65,9 +65,15 @@ BOSSES: dict[Enemy, Boss] = {
 }
 BOSS_ORDER = tuple(BOSSES)                       # Dodongo, Gleeok, Aquamentus, ...
 SPECIAL_CANDIDATES = (E.AQUAMENTUS, E.MANHANDLA, E.SINGLE_DIGDOGGER)
-BLOCK_FREE_TILES = (64, 64, 8, 32)
+# The common block: CommonBackgroundPatterns tiles 48-79 ($30-$4F), the spec's 32, in every game. From
+# 2026-11-13 an Archipelago game's deal stopped at $4B to keep $4C-$4F for the Archipelago logo; the logo
+# moved to $5C-$5F (zora/rom/archipelago_logo.py; owner decision 2026-11-14), which no deal reaches.
+# Change Hidden OW Tiles' squares share $30-$3F, swapped in on the overworld (zora/rom/hidden_tiles.py
+# step 4). Packing the bosses tighter is tasks/boss-tiles.md.
+COMMON_BLOCK_TILES = range(48, 80)
+BLOCK_FREE_TILES = (64, 64, 8, len(COMMON_BLOCK_TILES))
 BOSS_BLOCK_TILES = {0: range(192, 256), 1: range(192, 256), 2: range(248, 256),
-                    OVERWORLD: range(48, 80)}
+                    OVERWORLD: COMMON_BLOCK_TILES}
 BOSS_BLOCKS = {0: PatternBlock.BOSS1257, 1: PatternBlock.BOSS3468, 2: PatternBlock.BOSS9}
 BOSS_BLOCK_FIRST_TILE = 192
 COMMON_BLOCK_FIRST_TILE = 48
@@ -82,6 +88,9 @@ GLEEOK_HEAP_OFFSET = 199
 class BossDeal:
     special: Enemy
     blocks: dict[int, list[Enemy]]               # block -> bosses, special first
+
+    def block_tiles(self, block: int) -> range:
+        return BOSS_BLOCK_TILES[block]
 
     def widened(self, block: int) -> list[Enemy]:
         """PS-BGRP-02: the block's bosses' variants, then the common
@@ -121,7 +130,7 @@ def packed_slots(deal: BossDeal) -> Iterator[tuple[int, Enemy, SpriteObject, lis
     """PS-SPR-02's placement: (block, boss, sprite object, its tiles), first-fit per block in
     packing order, companions right after their boss."""
     for block, bosses in deal.blocks.items():
-        free = list(BOSS_BLOCK_TILES[block])
+        free = list(deal.block_tiles(block))
         # Packing follows the dealing order (descending cost), the special
         # boss included: Aquamentus dealt into the common block beside a
         # special Digdogger still takes its first slot.

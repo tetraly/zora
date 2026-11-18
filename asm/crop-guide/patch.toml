@@ -1,0 +1,20 @@
+# ZORA's crop guide: white squares in the file-select screen's four corner cells and blue squares one
+# cell in from each, for setting an emulator's or capture device's overscan crop. asm/README.md describes this file.
+
+[[segment]]
+name = "ZORA_CROP_GUIDE"
+bank = 2
+# 53 bytes. Bank 2 has no $10-aligned run that long left; $B7C2-$B7FF, between the statistics screen's
+# level table and the credits, is 62.
+size = 0x38
+align = 1
+
+[[hook]]
+name = "death-counts"
+offset = 0x0A539
+length = 4
+note = "InitMode1_Sub6, once its death-count records are copied: LDA #$00 / STA $0A becomes JSR CopyCropGuide + NOP, which adds the guide's records and does those two instructions."
+code = """
+    JSR CopyCropGuide
+    NOP
+"""

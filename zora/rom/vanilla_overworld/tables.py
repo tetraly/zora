@@ -67,6 +67,14 @@ ROOM_LAYOUTS_OW = RomTable("RoomLayoutsOW", "Z_05.asm, bank 5 $9418", 0x15418,
 # (RoomLayoutOWCave0, 1, 2 follow each other).
 ROOM_LAYOUTS_OW_CAVE = RomTable("RoomLayoutOWCave0", "Z_05.asm, bank 5 $9BA8", 0x15BA8,
                                 CAVE_LAYOUT_COUNT * LAYOUT_COLUMNS)
+# ZORA's screen layouts $7C-$7F (asm/flags2/lost-hills, bank 5 $BBC0): the game's layout numbers run to
+# $7F, its table to $7B; with Randomize Lost Hills a routine points the renderer at these four for
+# $7C-$7F (zora/rom/extra_layouts.py writes them). Blank ($FF) in every other ROM.
+FIRST_EXTRA_LAYOUT = OW_LAYOUT_COUNT + CAVE_LAYOUT_COUNT       # $7C
+EXTRA_LAYOUT_COUNT = 4
+EXTRA_LAYOUTS = RomTable("ExtraLayouts", "asm/flags2/lost-hills, bank 5 $BBC0", cpu_to_prg(5, 0xBBC0),
+                         EXTRA_LAYOUT_COUNT * LAYOUT_COLUMNS)
+EXTRA_LAYOUTS_ADDRESS = EXTRA_LAYOUTS.file_offset              # 0x17BD0 (asm/rom_space.toml's site)
 # Z_06.asm, segment BANK_06_DATA: stored in bank 6, copied to RAM $6827.
 # Sixteen little-endian pointers into bank 5, one per ColumnHeapOW0-F.
 COLUMN_DIRECTORY_OW = RomTable("ColumnDirectoryOW", "Z_06.asm, BANK_06_DATA, runs at $6827",

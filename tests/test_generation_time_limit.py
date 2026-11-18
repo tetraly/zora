@@ -1,6 +1,6 @@
 """How long a seed may take (2026-10-28): the web page's 30 s limit (15 s until 2026-11-02), which stops
 generation between attempts without changing what a finished seed is (zora/generate/deadline.py; the page's
-generateWithinLimit in web/zora-web.js, run here in Node). (Gatekeeper Bosses' restart cap and
+onGenerate in web/zora-web.js, run here in Node). (Gatekeeper Bosses' restart cap and
 fallback were tested here until its retirement, 2026-10-29.)"""
 import json
 import re
@@ -19,7 +19,8 @@ from zora.rom.base_rom import remember_repo_base_rom
 
 REPO = Path(__file__).resolve().parent.parent
 PAGE_SCRIPT = (REPO / "web" / "zora-web.js").read_text()
-PAGE_CONSTANTS = ("GENERATION_LIMIT_MS", "CHOSEN_SEED_MS", "RETRY_MIN_MS", "STOPPED", "GENERATION_FAILED")
+PAGE_CONSTANTS = ("GENERATION_LIMIT_MS", "STOPPED", "GENERATION_FAILED", "MUSIC_PROBLEM",
+                  "NOT_PRODUCED_REFUSAL", "NOT_IMPLEMENTED", "BACKGROUND_TAB_NOTE")
 
 
 # --- generation's side --------------------------------------------------------------------------
@@ -51,67 +52,106 @@ def page_function(name: str) -> str:
     return match.group(0)
 
 
-# A clock that moves only when a seed runs: each seed takes OUTCOMES[seed][1] ms, or stops at its limit.
+# onGenerate on a stubbed page. A seed in OUTCOMES fails as it says; any other runs out its limit.
 PAGE_STUBS = """
-let clock = 0;
-const performance = { now: () => clock };
-const nodes = { seed: { value: SEED } };
-const $ = (id) => nodes[id];
-let seedTyped = TYPED;
-let nextSeed = 100;
-const tried = [];
-const form = { flags: "F", zora: { flags: "" } };
-function status() {}
-function randomSeed() { nodes.seed.value = String(nextSeed++); seedTyped = false; }
+const element = (tag, props = {}) => ({ tag, ...props });
+const stub = () => new Proxy({}, { get: (target, key) => key in target ? target[key] : () => {},
+                                   set: (target, key, value) => { target[key] = value; return true; } });
+const nodes = {};
+const $ = (id) => (nodes[id] ||= stub());
+const tried = [], statuses = [];
+const status = (text) => statuses.push(text);
+const showAfterSeed = () => {}, markStepDone = () => {}, updateButton = () => {}, labelIn = () => "None";
+const crypto = { getRandomValues: () => [CHOSEN] };
+const metadata = { encodeLevelData: "B82", spoilerLevelField: "B51" };
+const form = { flags: "F", zora: { flags: "" }, fields: { B82: { value: 0 }, B51: { value: 0 } } };
+const controls = new Map([["B51", { field: { values: [] } }]]);
+const playerSettings = {}, TOGGLE_ON = 1;
+let linkSeed = null;
+let tabWentBehind = true;           // left over from an earlier run: onGenerate starts afresh
+const document = { hidden: HIDDEN_AT_START };
 async function generateSeed(seed, flags, zoraFlags, limitMs) {
   tried.push([seed, limitMs]);
-  const [kind, ms] = OUTCOMES[seed] || ["slow", Infinity];
-  if (kind === "slow" && ms > limitMs) {
-    clock += limitMs;
-    throw new Error("zora.generate.deadline.GenerationStopped: stopped");
-  }
-  clock += ms;
-  if (kind === "fail") throw new Error("RuntimeError: generation failed after 2000 attempts, none accepted");
-  return { seed };
+  if (GOES_BEHIND) { document.hidden = true; noteTabHidden(); document.hidden = false; }
+  if ((OUTCOMES)[seed] === "fail") throw new Error("RuntimeError: generation failed after 2000 attempts");
+  throw new Error("zora.generate.deadline.GenerationStopped: stopped");
 }
 """
 
 
-def run_page(seed: str, typed: bool, outcomes: dict[str, list[Any]]) -> Any:
+def run_page(chosen_by_page: bool, outcomes: dict[str, str], *, hidden_at_start: bool = False,
+             goes_behind: bool = False) -> Any:
+    """Generate on seed 7, chosen by the page (the real randomSeed) or typed: what was tried, the box after it,
+    and the last status."""
     node = shutil.which("node")
     if node is None:
         pytest.skip("Node is not installed")
     constants = [line for line in PAGE_SCRIPT.splitlines() if re.match(rf"const ({'|'.join(PAGE_CONSTANTS)}) = ", line)]
     assert len(constants) == len(PAGE_CONSTANTS)
-    stubs = (PAGE_STUBS.replace("SEED", json.dumps(seed)).replace("TYPED", json.dumps(typed))
-             .replace("OUTCOMES", json.dumps(outcomes)))
-    script = """
-generateWithinLimit().then((result) => console.log(JSON.stringify({ result, tried, clock })),
-                           (err) => console.log(JSON.stringify({ error: err.message, tried, clock })));
+    stubs = (PAGE_STUBS.replace("CHOSEN", "7").replace("OUTCOMES", json.dumps(outcomes))
+             .replace("HIDDEN_AT_START", json.dumps(hidden_at_start)).replace("GOES_BEHIND", json.dumps(goes_behind)))
+    script = f"""
+{'randomSeed();' if chosen_by_page else '$("seed").value = "7";'}
+onGenerate().then(() => console.log(JSON.stringify({{ tried, box: $("seed").value, last: statuses.at(-1) }})));
 """
-    source = "\n".join([*constants, stubs, page_function("generateWithinLimit"), script])
+    functions = [page_function(name) for name in ("randomSeed", "onGenerate", "seedProblem", "noteTabHidden",
+                                                       "generationErrorText")]
+    source = "\n".join([*constants, stubs, *functions, script])
     return json.loads(subprocess.run([node, "-e", source], capture_output=True, text=True, check=True).stdout)
 
 
-def test_a_typed_seed_gets_the_whole_limit_then_a_message() -> None:
-    outcome = run_page("7", typed=True, outcomes={})
+STOPPED_TEXT = ("Seed 7 took longer than 30 seconds to generate, so it was stopped. "
+                "Press Generate to try it again, or New seed for a different seed.")
+STOPPED_BEHIND_TEXT = ("Seed 7 took longer than 30 seconds to generate, so it was stopped. "
+                       "This tab was in the background, which can slow generation down, so keep it in front. "
+                       "Press Generate to try it again, or New seed for a different seed.")
+CANNOT_BE_MADE_TEXT = ("Seed 7 could not be made with these settings. "
+                       "Press New seed for a different seed, or change the settings.")
+
+
+def test_a_slow_seed_chosen_by_the_page_keeps_its_number() -> None:
+    """The page's own number gets the whole limit, once, and is still in the box afterwards."""
+    outcome = run_page(chosen_by_page=True, outcomes={})
     assert outcome["tried"] == [["7", 30000]]
-    assert outcome["error"] == "Seed 7 took longer than 30 s to generate. Try another seed."
+    assert outcome["box"] == "7" and outcome["last"] == STOPPED_TEXT
 
 
-def test_a_typed_seed_that_fails_reports_its_own_error() -> None:
-    outcome = run_page("7", typed=True, outcomes={"7": ["fail", 300]})
-    assert outcome["tried"] == [["7", 30000]] and "generation failed" in outcome["error"]
+def test_a_typed_seed_gets_the_whole_limit_then_a_message() -> None:
+    outcome = run_page(chosen_by_page=False, outcomes={})
+    assert outcome["tried"] == [["7", 30000]]
+    assert outcome["box"] == "7" and outcome["last"] == STOPPED_TEXT
 
 
-def test_a_chosen_seed_is_replaced_quietly_until_one_finishes() -> None:
-    outcome = run_page("1", typed=False, outcomes={"100": ["fail", 2000], "101": ["ok", 1500]})
-    assert outcome["tried"] == [["1", 5000], ["100", 5000], ["101", 5000]]
-    assert outcome["result"] == {"seed": "101"} and outcome["clock"] == 8500
+@pytest.mark.parametrize("chosen_by_page", [True, False])
+def test_a_seed_that_cannot_be_made_says_so_plainly(chosen_by_page: bool) -> None:
+    outcome = run_page(chosen_by_page, outcomes={"7": "fail"})
+    assert outcome["tried"] == [["7", 30000]] and outcome["box"] == "7"
+    assert outcome["last"] == CANNOT_BE_MADE_TEXT
 
 
-def test_chosen_seeds_stop_within_the_limit() -> None:
-    outcome = run_page("1", typed=False, outcomes={})
-    assert [limit for _seed, limit in outcome["tried"]] == [5000] * 6
-    assert outcome["clock"] == 30000
-    assert outcome["error"].startswith("No seed was ready within 30 s with these settings.")
+@pytest.mark.parametrize("behind", [{"goes_behind": True}, {"hidden_at_start": True}])
+def test_a_timeout_after_the_tab_went_behind_says_so(behind: dict[str, bool]) -> None:
+    assert run_page(chosen_by_page=True, outcomes={}, **behind)["last"] == STOPPED_BEHIND_TEXT
+
+
+def test_a_timeout_with_the_tab_in_front_says_nothing_of_it() -> None:
+    """Also when the tab was behind in an earlier run (the harness starts with the note set)."""
+    assert run_page(chosen_by_page=True, outcomes={})["last"] == STOPPED_TEXT
+
+
+def test_the_background_note_is_only_for_a_timeout() -> None:
+    assert run_page(chosen_by_page=True, outcomes={"7": "fail"}, goes_behind=True)["last"] == CANNOT_BE_MADE_TEXT
+
+
+def test_the_page_listens_for_the_tab_going_behind() -> None:
+    assert 'document.addEventListener("visibilitychange", noteTabHidden);' in PAGE_SCRIPT
+
+
+def test_only_new_seed_page_load_and_a_link_write_the_seed_box() -> None:
+    """Nothing in Generate can change the number: the box is written by randomSeed and a shared link alone,
+    and randomSeed runs only from New seed and at page load."""
+    assert len(re.findall(r'\$\("seed"\)\.value = ', PAGE_SCRIPT)) == 2
+    callers = [line for line in PAGE_SCRIPT.splitlines()
+               if "randomSeed()" in line and "function randomSeed" not in line]
+    assert callers == ['$("new-seed").addEventListener("click", () => { randomSeed(); onSeedChanged(); });',
+                       "randomSeed();"]

@@ -101,7 +101,7 @@ FREE_SPACE["ZORA_ASNB_LOOK_B7"] = FreeSpace(7, 0xFF43, 0xFF4F)
 GROWTH = {
     "ZORA_FP_PROG_01_RESOLVE": FreeSpace(1, 0xBEE0, 0xBF4F),
     "ZORA_FP_PROG_02_ARMOS": FreeSpace(4, 0xB900, 0xB9FF),
-    "ZORA_FP_PROG_02_ROOM": FreeSpace(5, 0xBB00, 0xBBFF),
+    "ZORA_FP_PROG_02_ROOM": FreeSpace(5, 0xBB00, 0xBB9F),   # $BBA0-$BBFF: Lost Hills (asm/flags2/lost-hills)
 }
 
 # The per-seed operands (one value, written to all three), and its two values.

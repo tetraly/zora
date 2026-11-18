@@ -1,8 +1,10 @@
 """The batch run's stamp (scripts/full_tier.py; docs/design/test-speed.md 3.2): a tree is stamped
 only when it is exactly a commit, and a release needs HEAD's tree stamped, or the release gate's
-relaxation: only low-risk changes (Markdown, the version string) since the newest stamped commit,
+relaxation: only low-risk changes (Markdown, the version string, test files that are not output inputs)
+since the newest stamped commit,
 with the quick check passed on HEAD. A throwaway git repository with the script."""
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -53,6 +55,23 @@ def test_a_clean_commit_is_stamped_and_checked(repo: Path) -> None:
     assert "stamped" in done.stdout and "NOT" not in done.stdout
     assert (repo / "temp" / "verify" / "full-tier" / f"{_git(repo, 'rev-parse', 'HEAD^{tree}')}.json").is_file()
     assert _full_tier(repo, "check").returncode == 0
+
+
+def test_the_stamp_lists_the_runs_encoder_tests(repo: Path) -> None:
+    """A release's test stage reruns these in the release tree (scripts/make_release.py); a stand-in repository
+    has no encoder record, so a real record's reading is shown here with the real tests/encoder_check.py."""
+    (repo / "tests").mkdir()
+    shutil.copy2(REPO / "tests" / "encoder_check.py", repo / "tests" / "encoder_check.py")
+    (repo / "tests" / "__init__.py").write_text("")
+    _git(repo, "add", "--all")
+    _git(repo, "commit", "--quiet", "--no-verify", "-m", "the record's reader")
+    record = repo / "temp" / "verify" / "encoder-record"
+    record.mkdir(parents=True)
+    (record / "gw0.txt").write_text("/copy\ttests/test_b.py::test_two\n/copy\ttests/test_a.py::test_one\n")
+    assert "NOT" not in _full_tier(repo, "stamp", "7", PYTHONPATH=str(REPO)).stdout      # the reader imports zora
+    tree = _git(repo, "rev-parse", "HEAD^{tree}")
+    stamp = json.loads((repo / "temp" / "verify" / "full-tier" / f"{tree}.json").read_text())
+    assert stamp["encoder tests"] == ["tests/test_a.py::test_one", "tests/test_b.py::test_two"]
 
 
 def test_uncommitted_changes_are_not_stamped(repo: Path) -> None:
@@ -186,4 +205,61 @@ def test_a_quick_check_with_uncommitted_changes_records_nothing(stamped_repo: Pa
     (stamped_repo / "docs" / "notes.md").write_text("# Changed\n")
     assert "not recorded" in _full_tier(stamped_repo, "quick-stamp").stdout
     (stamped_repo / "docs" / "notes.md").write_text("# Notes\n")
+    assert _full_tier(stamped_repo, "release-check").returncode == 1
+
+
+OUTPUT_INPUTS = REPO / "scripts" / "output_inputs.py"
+# A stand-in for scripts/output_hash.py: its worker generates with zora/, its matrix's cases come from tests/
+OUTPUT_HASH_STAND_IN = '''def hash_seed():
+    from zora import generate
+
+
+def matrix_jobs():
+    from tests import matrix_cases
+
+
+def main():
+    pass
+'''
+
+
+@pytest.fixture
+def inputs_repo(repo: Path) -> Path:
+    """REPO with scripts/output_inputs.py, an output_hash.py stand-in, a zora/ package and two test files,
+    stamped by a batch run."""
+    _commit(repo, "inputs", **{
+        "scripts/output_inputs.py": OUTPUT_INPUTS.read_text(), "scripts/output_hash.py": OUTPUT_HASH_STAND_IN,
+        "zora/__init__.py": "", "zora/generate.py": "SEED = 1\n",
+        "tests/__init__.py": "", "tests/matrix_cases.py": "CASES = []\n", "tests/test_game.py": "def test(): pass\n"})
+    assert "stamped" in _full_tier(repo, "stamp", "7").stdout
+    return repo
+
+
+def test_a_tests_only_change_keeps_the_stamp(inputs_repo: Path) -> None:
+    """Owner decision, 2026-11-07 (docs/reports/release-process-review.md recommendation 2): a test file that is
+    not an output input is low-risk."""
+    _commit(inputs_repo, "tests", **{"tests/test_game.py": "def test(): assert True\n",
+                                     "tests/test_new.py": "def test(): pass\n"})
+    _full_tier(inputs_repo, "quick-stamp", "--matrix", "full")
+    accepted = _full_tier(inputs_repo, "release-check")
+    assert accepted.returncode == 0, accepted.stdout
+    assert "tests/test_game.py: a test file, not an output input" in accepted.stdout
+
+
+@pytest.mark.parametrize("files", [
+    {"zora/generate.py": "SEED = 2\n"},                                              # generation
+    {"tests/matrix_cases.py": "CASES = [1]\n"},                                      # the matrix's cases
+    {"tests/test_game.py": "def test(): assert True\n", "zora/generate.py": "SEED = 2\n"},
+])
+def test_a_zora_or_matrix_change_still_needs_a_new_batch_run(inputs_repo: Path, files: dict[str, str]) -> None:
+    _commit(inputs_repo, "change", **files)
+    _full_tier(inputs_repo, "quick-stamp", "--matrix", "full")
+    refused = _full_tier(inputs_repo, "release-check")
+    assert refused.returncode == 1 and "not low-risk" in refused.stdout, refused.stdout
+    assert "tests/test_game.py" not in refused.stdout.split("not low-risk")[1]
+
+
+def test_without_output_inputs_a_test_file_is_not_low_risk(stamped_repo: Path) -> None:
+    _commit(stamped_repo, "tests", **{"tests/test_game.py": "def test(): pass\n"})
+    _full_tier(stamped_repo, "quick-stamp", "--matrix", "full")
     assert _full_tier(stamped_repo, "release-check").returncode == 1

@@ -1,6 +1,6 @@
 """Change Enemy HP: "Most" Enemy HP (C09) and Boss HP (C10) at every value, Set Ganon HP
 to 0 (B41) and Maximum Enemy and Boss Health (B45, B46), post-shapes batch B8's hit points,
-and the owner's level-9 Vire cap (tetraly/zora#14, on the shipped world) (post-shapes-b8.md
+and the owner's level-9 bomb-dropper rule and Vire cap (tetraly/zora#14, 2026-11-16) (post-shapes-b8.md
 PS-HP). The batch's overworld monster re-deal (PS-OWM) is shuffle_overworld_monsters; level 9's room records
 (PS-L9REC) are applied at write-back (writeback.level9_records).
 
@@ -10,14 +10,20 @@ Zol's value as the enemy pass left it (PS-EGRP-01).
 PS-OWM edits the staged overworld model the flow ships; the hit points are
 staged in an EnemyHpResult and written into the GameWorld when the pass ships.
 """
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from ...flags.fields import HitPointChange
-from ...model.enums import Enemy
+from ...model.enums import Enemy, Item
 from ...model.game_world import GameWorld
 from ...model.levels import Level
+from ...model.rooms import Room
 from ...model.sprites import EnemyData
+from ..dungeon_walk import LOGIC_WALK, walk_level
 from ..rng import IntRng, discard
+from .shuffle_enemy_drop_groups import CLASS_C_START, PRG0_DROP_CLASSES
 
 E = Enemy
 
@@ -65,7 +71,7 @@ class EnemyHpResult:
     ganon_return: int | None = None
 
     @classmethod
-    def unchanged(cls, enemies: EnemyData) -> "EnemyHpResult":
+    def unchanged(cls, enemies: EnemyData) -> EnemyHpResult:
         """The base ROM's values, before either pass."""
         return cls(dict(enemies.hp), enemies.rope_hp, {}, enemies.gleeok_head_hp)
 
@@ -161,46 +167,103 @@ def apply_enemy_hp(gw: GameWorld, state: EnemyHpResult) -> None:
     enemies.ganon_return_hp = state.ganon_return
 
 
-# --- Vires as level 9's only bomb droppers (owner rule, tetraly/zora#14) ------------------------
+# --- Level 9's bomb droppers (owner rules, tetraly/zora#14 and the 2026-11-16 report) ---------------
 
-# The ordinary monsters on the drop table's rows that hold bombs: rows 2 (DropItemMonsterTypes2)
-# and 3 (every type on no other list). Make Important Items Drops (B39) replaces only rupees and
-# hearts, so the bombs stay. Bosses, Lanmolas and the overworld-only monsters of row 3 are left
-# out: leaving a dropper out can only cap the Vires where the cap was not needed.
-BOMB_DROPPERS = frozenset({
-    E.BLUE_LYNEL, E.BLUE_MOBLIN, E.RED_GORIYA, E.BLUE_OCTOROK_1, E.BLUE_OCTOROK_2, E.RED_DARKNUT, E.VIRE,
-    E.BLUE_WIZZROBE, E.GIBDO,                                   # row 2
-    E.RED_LYNEL, E.BLUE_GORIYA, E.BLUE_DARKNUT,                 # row 3
-})
+# A killed monster's drop comes from the first of the game's drop lists that holds its type (the
+# no-drop list, then classes A, B and C; any other type is class D). Only class C's row of
+# DropItemTable holds bombs (item $00); class D's holds hearts, rupees and fairies only. In PRG0
+# class C is Blue Lynel, Blue Moblin, Red Goriya, both Blue Octoroks, Red Darknut, Vire, Red
+# Wizzrobe ($24) and Gibdo; Shuffle Enemy Drop Groups (B38) re-deals the lists
+# (GameWorld.enemy_drop_classes). Make Important Items Drops (B39) replaces only rupees and hearts,
+# so the bombs stay. The help drop's bomb needs a bomb kill first, so it never counts.
+# Lanmolas and Moldorms are left out: segmented monsters, never counted on to drop.
+NEVER_COUNTED = frozenset({E.RED_LANMOLA, E.BLUE_LANMOLA, E.MOLDORM})
 # A Vire harmed but not killed splits into two red Keese (CheckVireCollisions), which drop nothing
 # (NoDropMonsterTypes). At 4 or less (64 hit points) the magical sword's or a bomb's hit kills it
 # outright, so it can drop bombs.
 VIRE_MOST_HP = 4
 LEVEL_9 = 9
+# Everything held but bombs: the rooms a player reaches without bombs, whatever monster families
+# they meet (the walk's family blocking) and with the ladder for the moats
+HELD_WITHOUT_BOMBS = frozenset(item for item in Item if item != Item.BOMBS)
+
+
+def bomb_droppers(drop_classes: Sequence[int] | None) -> frozenset[int]:
+    """The monster types whose drops come from the row with bombs: class C's, less the types an
+    earlier list holds (the game finds those first). drop_classes: GameWorld.enemy_drop_classes
+    (None: PRG0's lists)."""
+    lists = drop_classes if drop_classes is not None else PRG0_DROP_CLASSES
+    earlier = set(lists[:CLASS_C_START])
+    return frozenset(enemy for enemy in lists[CLASS_C_START:]
+                     if enemy not in earlier and enemy not in NEVER_COUNTED)
+
+
+@dataclass(frozen=True)
+class MixedLists:
+    """The mixed monster lists: the list blob and each list code's start in it."""
+    data: Sequence[int]
+    starts: Mapping[int, int]
+
+    @classmethod
+    def of(cls, gw: GameWorld, staged: Sequence[int] | None = None) -> MixedLists:
+        """The world's lists, or the blob an attempt staged (Staged.mixed_lists) before it ships."""
+        return cls(staged if staged is not None else gw.enemies.mixed_enemy_data, gw.enemies.mixed_group_offsets)
+
+
+def room_monsters(level: Level, room: Room, mixed: MixedLists) -> set[int]:
+    """The monster types a room holds, a mixed list's members by their own types (as many as the
+    room's count, from the list blob the passes left: EnemyData.mixed_groups is the base ROM's)."""
+    if room.enemy in mixed.starts:
+        start = mixed.starts[room.enemy]
+        return set(mixed.data[start:start + level.enemy_quantity(room)])
+    return {room.enemy}
 
 
 def level_monsters(gw: GameWorld, level: Level) -> set[int]:
-    """The monster types the level's rooms hold, a mixed list's members by their own types (as
-    many as the room's count, from the list blob the passes left: EnemyData.mixed_groups is the
-    base ROM's)."""
-    lists, starts = gw.enemies.mixed_enemy_data, gw.enemies.mixed_group_offsets
-    monsters: set[int] = set()
-    for room in level.rooms:
-        if room.enemy in starts:
-            start = starts[room.enemy]
-            monsters.update(lists[start:start + level.enemy_quantity(room)])
-        else:
-            monsters.add(room.enemy)
-    return monsters
+    """The monster types the level's rooms hold (room_monsters), in a shipped world."""
+    mixed = MixedLists.of(gw)
+    return {monster for room in level.rooms for monster in room_monsters(level, room, mixed)}
+
+
+def level_9(levels: Sequence[Level]) -> Level:
+    return next(level for level in levels if level.level_num == LEVEL_9)
+
+
+def rooms_reached_without_bombs(level: Level) -> list[Room]:
+    """The level's rooms a player walks to from its entrance with every item but bombs: bomb holes
+    stay closed, the last boss's shutters too (dungeon_walk.walk_level, the logic's walk rules)."""
+    walk = walk_level(level, HELD_WITHOUT_BOMBS, is_last_boss_open=False, uses_families=True,
+                      walk_rules=LOGIC_WALK, bomb_holes_pass=False)
+    reached = set(walk.reached) & set(level.room_nums)
+    return [room for room in level.rooms if room.room_num in reached]
+
+
+def level_9_bomb_droppers_without_bombs(levels: Sequence[Level], mixed: MixedLists,
+                                        drop_classes: Sequence[int] | None) -> set[int]:
+    """The bomb droppers in level 9's rooms that a player reaches without bombs."""
+    level = level_9(levels)
+    droppers = bomb_droppers(drop_classes)
+    return {monster for room in rooms_reached_without_bombs(level)
+            for monster in room_monsters(level, room, mixed) if monster in droppers}
+
+
+def has_level_9_bomb_dropper(levels: Sequence[Level], mixed: MixedLists,
+                             drop_classes: Sequence[int] | None) -> bool:
+    """The owner's level-9 rule (2026-11-16): level 9 holds a bomb dropper a player reaches without
+    bombs. A Vire counts: cap_level_9_vire_hp then leaves it at 4 hit points or less."""
+    return bool(level_9_bomb_droppers_without_bombs(levels, mixed, drop_classes))
 
 
 def cap_level_9_vire_hp(gw: GameWorld) -> bool:
-    """When Vires are the only bomb droppers in level 9, their hit points are at most 4, so bombs
-    can still drop there; True when the cap changed them. On the shipped world, after every pass
-    that places monsters (the enemy groups, Oops All, the room exchange); no draw."""
-    level_9 = next(level for level in gw.levels if level.level_num == LEVEL_9)
-    droppers = level_monsters(gw, level_9) & BOMB_DROPPERS
-    if droppers != {E.VIRE} or gw.enemies.hp[E.VIRE] <= VIRE_MOST_HP:
+    """When level 9 holds Vires and no other bomb dropper a player reaches without bombs, their
+    hit points are at most 4, so bombs can still drop there; True when the cap changed them. On
+    the shipped world, after every pass that places monsters (the enemy groups, Oops All, the room
+    exchange); no draw."""
+    level = level_9(gw.levels)
+    if E.VIRE not in level_monsters(gw, level) or E.VIRE not in bomb_droppers(gw.enemy_drop_classes):
+        return False
+    others = level_9_bomb_droppers_without_bombs(gw.levels, MixedLists.of(gw), gw.enemy_drop_classes) - {E.VIRE}
+    if others or gw.enemies.hp[E.VIRE] <= VIRE_MOST_HP:
         return False
     gw.enemies.hp[E.VIRE] = VIRE_MOST_HP
     return True

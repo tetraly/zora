@@ -4,7 +4,7 @@ from dataclasses import replace
 
 from ...model.game_world import GameWorld
 from ..base_rom import PlayerRom, recognized_player_rom, using_player_rom
-from ..code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, overworld_start_y
+from ..code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, carries_start_table_jump, overworld_start_y
 from ..final_steps import FinalSettings, run_final_steps
 from ..game_config import GameConfig
 from ..graphics_theme import GraphicsTheme
@@ -69,8 +69,11 @@ def _serialize(game_world: GameWorld, rom: bytes, cfg: GameConfig, player_settin
     # ROM parsed again) keeps the start Y in the patch's own byte, where
     # parse_rom read it, even when this call writes no patches.
     start_y_in_patch = cfg.features_b10 or overworld_start_y(rom) is not None
+    # FP-START-02 likewise: a ROM whose new file already jumps to the start table keeps the jump
+    # (its hearts are in the table), so PRG0's HeartValues immediates are not written over it.
     patch = serialize_game_world(game_world, original_bins_from_rom(rom),
-                                hint_mode=cfg.hint_mode, config=cfg, start_y_in_patch=start_y_in_patch)
+                                hint_mode=cfg.hint_mode, config=cfg, start_y_in_patch=start_y_in_patch,
+                                start_table_in_rom=carries_start_table_jump(rom))
     out = bytearray(rom)
     patch.apply(out)
     shown_code = rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH]

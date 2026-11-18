@@ -9,6 +9,7 @@ from ...model.levels import Level, LevelBlock
 from ...model.rooms import DIAMOND_STAIRS_PUSH, LayoutInfo, Room
 from ..drop_squares import drop_squares
 from ..rng import IntRng
+from .universal_drops_v2 import CENTER as UNIVERSAL_DROPS_CENTER
 
 # PS-OSTAIR-01: the open-stairs layouts (layout byte bits 6-0)
 OPEN_STAIRS_LAYOUTS = frozenset({DIAMOND_STAIRS_PUSH, RoomType.NARROW_STAIR_ROOM, RoomType.SPIRAL_STAIR_ROOM})
@@ -41,8 +42,9 @@ def remove_most_open_stairs(blocks: Sequence[LevelBlock], rng: IntRng,
     reads keeps PRG0's bytes in ZORA's output (ship._ship_sets), and its rooms are never seen.
 
     With Universal Drops v2.0, `place` then sets the room's item position on the new layout's
-    drop squares; a room holding an item whose drawn layout's squares hold none of its level's four
-    positions takes the double block ($4A) instead, which always seats the center."""
+    drop squares; a room holding an item whose drawn layout's squares hold none of its level's three
+    positions other than the center (the Triforce rooms' alone) takes the double block ($4A) instead, which
+    holds every candidate square but $99, so always seats one of the three."""
     for block in blocks:
         for room in block.rooms:
             if _has_most_open_stairs(room):
@@ -51,7 +53,8 @@ def remove_most_open_stairs(blocks: Sequence[LevelBlock], rng: IntRng,
                 level = block.owner_of(room.room_num)
                 if place is not None and level is not None:
                     if room.item != Item.NOTHING \
-                            and not drop_squares(room.layout_code).intersection(level.item_position_table):
+                            and not drop_squares(room.layout_code).intersection(
+                                set(level.item_position_table) - {UNIVERSAL_DROPS_CENTER}):
                         room.layout_info = DOUBLE_BLOCK_PUSH
                     place(level, room)
 

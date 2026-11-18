@@ -6,7 +6,7 @@ bank 1 $A423-$A456, so the take ran 7 of lozft's bytes first. Here each cave kin
 cave, the wood, white and magical sword caves, the letter cave, a shop and the potion shop) has
 each item kind (a heart container, a potion, rupees, a fairy, an upgrade) put in its first ware's
 place and taken, on PRG0 and PRG1, with the original music and with Music: Random. The second test
-keeps every claim of asm/rom_space.toml out of lozft's bytes but the two that never meet it.
+keeps every claim of asm/rom_space.toml out of lozft's bytes but its own and the two that never meet it.
 """
 from functools import cache
 
@@ -30,9 +30,10 @@ CAVES = (Destination.TAKE_ANY, Destination.WOOD_SWORD_CAVE, Destination.WHITE_SW
          Destination.POTION_SHOP)
 ITEMS = (Item.HEART_CONTAINER, Item.RED_POTION, Item.FIVE_RUPEES, Item.FAIRY, Item.BLUE_RING)
 SETTLE_FRAMES = 180                         # the lift, the tune and the hearts' fill
-# Claims lozft's bytes may meet: the statistics screen's original-music code in bank 0 (with Music on
-# the setting writes asm/fp-stats-01-music instead), and z1rr-coop's reserve (no coop ROM has music).
-LOZFT_NEIGHBOURS = {"setting:statistics_screen", "z1rr-coop"}
+# Claims lozft's bytes may meet: lozft's own reservations (asm/rom_space.toml holds its bank-0 bytes so
+# the builders stay off them, 248331d), the statistics screen's original-music code in bank 0 (with Music
+# on the setting writes asm/fp-stats-01-music instead), and z1rr-coop's reserve (no coop ROM has music).
+LOZFT_NEIGHBOURS = {"lozft", "setting:statistics_screen", "z1rr-coop"}
 
 
 def _music_assets() -> MusicAssets:
@@ -88,18 +89,20 @@ def test_every_item_from_every_cave_is_taken_without_a_crash(revision: str, musi
             assert console.emu.mode == CAVE_MODE, case          # Link still in the cave, playing
 
 
-@needs_base_rom
 def test_lozft_writes_no_zora_claim() -> None:
-    """Every byte lozft owns in banks 0-6 is clear of asm/rom_space.toml's claims (builders, slots,
-    sites, reservations, placements) but LOZFT_NEIGHBOURS'."""
-    from zora.rom.music.lozft import lozft_bytes
-    _, mask = lozft_bytes(_music_assets().patch, remember_repo_base_rom())
+    """Every byte lozft writes in banks 0-6 is clear of asm/rom_space.toml's claims (builders, slots, sites,
+    reservations, placements) but LOZFT_NEIGHBOURS'. scripts/lozft_build.py reserves them when it links lozft, so
+    this catches a claim added after the data was built, on every machine, music folder or not."""
     from tests.test_rom_space import rom_space as load_rom_space
+    from zora.rom.music.lozft_patch_data import PATCHES
     rom_space = load_rom_space()
     space = rom_space.table()
     placed = [area for row in rom_space.placements() for area in row.areas()]
     claimed = rom_space.claims(space, rom_space.builder_bytes(), placed)
     header, bank_size = 0x10, 0x4000
-    met = {(owner, offset) for offset in range(header, header + 7 * bank_size) if mask[offset]
-           for owner in claimed.get(offset, ()) if owner not in LOZFT_NEIGHBOURS}
-    assert not met, sorted(f"{owner} 0x{offset:05X}" for owner, offset in met)[:20]
+    for revision, pieces in PATCHES.items():
+        written = {offset + index for offset, piece in pieces
+                   for index in range(len(piece) if isinstance(piece, bytes) else piece.length)}
+        met = {(owner, offset) for offset in written if header <= offset < header + 7 * bank_size
+               for owner in claimed.get(offset, ()) if owner not in LOZFT_NEIGHBOURS}
+        assert not met, (revision, sorted(f"{owner} 0x{offset:05X}" for owner, offset in met)[:20])

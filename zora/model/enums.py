@@ -345,8 +345,12 @@ class Enemy(IntEnum):
     FALLING_ROCK      = 0x20
     GHINI_1           = 0x21
     GHINI_2           = 0x22
-    RED_WIZZROBE      = 0x23
-    BLUE_WIZZROBE     = 0x24
+    # Named as the game shows them, as aldonunez UpdateObject_JumpTable does: $23 is
+    # UpdateBlueWizzrobe (walks, teleports), $24 UpdateRedWizzrobe (fades in and out).
+    # Quirk: the post-shapes specs call them the other way round (their "blue Wizzrobe"
+    # is $24, the level-9 and drop-class-C one; their "red Wizzrobe" is $23).
+    BLUE_WIZZROBE     = 0x23
+    RED_WIZZROBE      = 0x24
     ENEMY_0x25        = 0x25
     PATRA_SPAWN       = 0x26
     WALLMASTER        = 0x27

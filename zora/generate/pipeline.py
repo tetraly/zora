@@ -141,6 +141,7 @@ from .rng import Rng
 from .shapes.options import ShapeOptions
 from .steps.expanded_dungeon_locations import expanded_dungeon_locations_seed
 from .steps.level_9_entry import Level9Entry
+from .steps.lost_hills_layouts import give_screen_11_its_own_layout
 from .steps.mirror_overworld import mirror_overworld
 from .steps.overworld_gates import OverworldGates
 from .steps.start_items import resolve_start_item_coins, start_state
@@ -168,6 +169,7 @@ HINT_STYLE_MODES: dict[int, HintMode] = {
 }
 # The start of the refusal that names the fields the support matrix does not produce.
 NOT_PRODUCED_PREFIX = "not produced: "
+LOST_HILLS = "randomize_lost_hills"          # its ZORA flag's name in GameConfig.owner_flags
 # Book is an Atlas: a code patch, so the serializer's switch (GameConfig).
 BOOK_IS_AN_ATLAS = TOGGLES_BY_ID["B49"]
 RECORDER_TO_NEW_DUNGEONS = TOGGLES_BY_ID["B01"]
@@ -691,6 +693,7 @@ def extra_options(chosen: GenerationPlan) -> ExtraOptions:
         swap_swords_and_rings=zora_flags.swaps_swords_and_rings(chosen.zora_resolved, chosen.settings),
         swordlish_pieces=chosen.zora_resolved.swordlish_pieces,
         start_triforce_pieces=chosen.alternatives.start_triforce_pieces,
+        wizzrobes_shoot_wallmasters=chosen.zora_resolved.is_on("wizzrobes_shoot_wallmasters"),
     )
 
 
@@ -744,7 +747,8 @@ def finish(built: Built, base_rom: bytes | PlayerRom, assignment: Assignment | N
     from ..rom.serialize.rom_file import serialize_to_rom
     if assignment is None:
         assert not slot_identity, "a slot identity is External mode's"
-        return serialize_to_rom(written_world(built.world, built.plan.config), base_rom, config=built.plan.config,
+        config = with_item_counter(built)
+        return serialize_to_rom(written_world(built.world, config), base_rom, config=config,
                                 player_settings=player_settings)
     with using_player_rom(as_player_rom(base_rom)):
         world, finished = finish_world(built, assignment, recompute, received, check, look)
@@ -752,15 +756,31 @@ def finish(built: Built, base_rom: bytes | PlayerRom, assignment: Assignment | N
     return serialize_to_rom(written_world(world, config), base_rom, config=config, player_settings=player_settings)
 
 
+def with_item_counter(built: Built) -> GameConfig:
+    """The built plan's configuration, with Item Counter on (ZORA version 22) the seed's table of counted places
+    (item_counter.py), read from the built world before any mirroring, as the item places are."""
+    config = built.plan.config
+    if not built.plan.zora_resolved.is_on(zora_flags.ITEM_COUNTER_FIELD):
+        return config
+    from .item_counter import counter_table
+    table = counter_table(built.places, config.mirror_overworld)
+    return replace(config, item_counter_table=table)
+
+
 def written_world(world: GameWorld, config: GameConfig) -> GameWorld:
-    """The world FINISH writes: with Mirror Overworld (B06) a copy with its overworld flipped
-    (steps/mirror_overworld.py), the world as the finished ROM holds it, which the parser reads back;
-    the built world stays as generation and its logic made it, left to right as PRG0's."""
-    if not config.mirror_overworld:
+    """The world FINISH writes, the world as the finished ROM holds it, which the parser reads back: with
+    Randomize Lost Hills a copy in which screen $0B shows its own layout (steps/lost_hills_layouts.py),
+    with Mirror Overworld (B06) a copy with its overworld flipped (steps/mirror_overworld.py), in that
+    order. The built world stays as generation and its logic made it, left to right as PRG0's."""
+    lost_hills = LOST_HILLS in config.owner_flags
+    if not (config.mirror_overworld or lost_hills):
         return world
-    flipped = copy.deepcopy(world)
-    mirror_overworld(flipped)
-    return flipped
+    written = copy.deepcopy(world)
+    if lost_hills:
+        give_screen_11_its_own_layout(written.overworld)
+    if config.mirror_overworld:
+        mirror_overworld(written)
+    return written
 
 
 def finish_world(built: Built, assignment: Assignment, recompute: bool = True, received: Collection[Item] = (),

@@ -19,6 +19,7 @@ from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.zora_flags import ZoraFlags
 from zora.generate.pipeline import generate_rom
+from zora.rom.archipelago_logo import MAGICAL_SHIELD, logo_writes
 from zora.rom.base_rom import PRG1_ROM_PATH
 from zora.rom.code_patches import BOOMERANG_CODE, SEED_CODE_ADDRESS, SEED_CODE_ITEMS, SEED_CODE_LENGTH, SEED_CODE_NAMES
 from zora.rom.layout import NES_HEADER_SIZE
@@ -91,6 +92,22 @@ def test_pegasus_boots_draw_the_boot() -> None:
     boots = assert_drawn_as_the_screen(with_code(finished(zora_flag_string=BOOTS), [BOOMERANG_CODE] * SEED_CODE_LENGTH))
     assert boots[0].name == "Pegasus Boots" and boots[0].pixels != plain.pixels
 
+
+
+@pytest.mark.parametrize("zora_flag_string", ("", BOOTS))
+def test_the_archipelago_logo_is_drawn_whole(zora_flag_string: str) -> None:
+    """With the Archipelago logo's writes (archipelago_logo.py), the magical shield's code item is the
+    16x16 logo from background tiles $4C-$4F, and the other items keep their shapes, the boot too:
+    the logo's test takes the place of the narrow start Pegasus Boots moves."""
+    image = bytearray(finished(zora_flag_string=zora_flag_string))
+    for address, data in logo_writes():
+        image[address:address + len(data)] = data
+    items = [MAGICAL_SHIELD, BOMBS, BOOMERANG_CODE, BOW]
+    icons = assert_drawn_as_the_screen(with_code(bytes(image), items))
+    logo = np.array(icons[0].pixels)
+    backdrop = logo[0][0]
+    assert (logo[:, :8] != backdrop).any() and (logo[:, 8:] != backdrop).any()      # both halves
+    assert not np.array_equal(logo[:, 8:], logo[:, :8][:, ::-1])                       # not mirrored
 
 def test_custom_sprites_are_drawn_from_the_players_rom() -> None:
     """A ROM with modified graphics (here the bomb's tiles inverted) shows its own bomb."""

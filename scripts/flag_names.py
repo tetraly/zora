@@ -209,7 +209,8 @@ WHAT_IT_DOES = {
     "B86": "With it on, generated dungeon shapes are not sorted by size; with it off, they are.",
     "B87": "With it on, bridges are added over the river; with it off, the river is as usual.",
     "B88": "With it on, there is a shortcut through the Lost Woods; with it off, there isn't.",
-    "B89": "With it on, the hidden tiles on the overworld change; with it off, they are as usual.",
+    "B89": "With it on, the overworld's secret rocks, walls, trees and gravestones look marked, so you can see "
+           "where they are; with it off, they look like any other.",
     "B90": "With it on, the bomb upgrade adds more bombs; with it off, it adds the usual number.",
     "B91": "With it on, generated dungeons can use universal drops; with it off, they don't.",
     "B92": "With it on, no dungeon room holds a map; with it off, the maps stay.",

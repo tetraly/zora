@@ -45,7 +45,7 @@ from ..rom.player_settings import (
 )
 from ..version import PLAYER_VERSION
 from . import beta
-from .codec import ALPHABET, FlagStringError, canonicalize, decode, encode
+from .codec import ALIASES, ALPHABET, FlagStringError, canonicalize, decode, encode
 from .dependencies import apply_dependencies, check_dependencies
 from .fields import (
     BOMB_UPGRADE_PERSON_SHUFFLE,
@@ -75,7 +75,7 @@ from .fields import (
     ThreeState,
     ToggleField,
 )
-from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESETS, ZORA_PRESETS
+from .presets import MVP_BASELINE_LEVEL_ENCODING_OFF, PRESET_LIST
 from .support import (
     ENCODE_LEVEL_DATA_RANDOM_NOTICE,
     POSTPONED_TOGGLES,
@@ -114,18 +114,12 @@ RANGE_UNUSED_TEXT = ("No effect: only Level 9 Entry = Triforce Range or Specific
 LEVEL_9_ENTRY_BY_SWORD_TEXT = ("Level 9 Entrance = Level 4 sword (ZORA Extras) decides what level 9's entrance "
                                "asks for: four sword upgrades")
 
-# Owner rulings: the page may call the MVP baseline "Consternation", and calls published variants A
-# and C by their community names, "Consternation Remastered" and "Hopla" (presets.HOPLA; beta 5),
-# both with level encoding on as published.
-PRESET_LABELS = {"MVP baseline": "Consternation", "Published variant A": "Consternation Remastered",
-                 "Published variant C": "Hopla"}
-# Kept in presets.py but not on the menu (owner, beta 5): Random%, published variant B. ZORA produces
-# every field of it since the beta 8 export (flags-behavior.md FL-SUP-01); it stays off the menu.
-HIDDEN_PRESETS = frozenset({"Published variant B"})
-# CP-5: the MVP baseline with level encoding off. Listed with the presets so
-# a build without level encoding has a preset it can produce.
-LEVEL_ENCODING_OFF_PRESET = ("MVP baseline, level encoding off", "Consternation without level encoding",
-                             MVP_BASELINE_LEVEL_ENCODING_OFF)
+# The page's names for the published presets (owner rulings, beta 5: "Consternation" for the MVP baseline,
+# "Consternation Remastered" and "Hopla" for variants A and C, with level encoding on as published) and the
+# presets kept off the menu (Random%, published variant B; ZORA produces every field of it since the beta 8
+# export, flags-behavior.md FL-SUP-01): both from presets.PRESET_LIST.
+PRESET_LABELS = {preset.id: preset.name for preset in PRESET_LIST if preset.id != preset.name}
+HIDDEN_PRESETS = frozenset(preset.id for preset in PRESET_LIST if preset.hidden)
 
 # The dependency rules as the page lists them; the check itself is flags.check_dependencies.
 DEPENDENCY_RULES = (
@@ -251,9 +245,10 @@ SPOILER_LEVEL_LABELS = {int(ThreeState.OFF): "None", int(ThreeState.ON): "Basic"
 # one keeps its spec label; Encode level data always keeps its own label.
 OWNER_NAMES_FILE = "names.json"
 # Switches the page names in ZORA's own words, not the community's (owner decision,
-# 2026-10-12: neutral wording); scripts/flag_names.py reference keeps them. Their
-# Archipelago keys stay as beta 3 froze them (zora/archipelago.py KEPT_KEYS).
-OWN_SWITCH_NAMES = {"B29": "Shuffle Bomb Upgraders", "B48": "Book to Understand NPCs"}
+# 2026-10-12: neutral wording; B89 2026-11-17, saying what it does); scripts/flag_names.py
+# reference keeps them. Their Archipelago keys stay as beta 3 froze them (zora/archipelago.py KEPT_KEYS).
+OWN_SWITCH_NAMES = {"B29": "Shuffle Bomb Upgraders", "B48": "Book to Understand NPCs",
+                    "B89": "Show Hidden OW Tiles"}
 
 
 @cache
@@ -344,20 +339,19 @@ def generation_refusals(flag_string: str, zora_flag_string: str = "") -> list[st
 
 
 def presets() -> list[dict[str, Any]]:
-    """The page's preset menu: FL-PRE-01 to FL-PRE-04 but HIDDEN_PRESETS, plus CP-5, then ZORA's own
-    presets (ZORA_PRESETS: All Swords No Boards, Vanilla and three community flagsets), each with its
+    """The page's preset menu, presets.PRESET_LIST in its order but the hidden ones: FL-PRE-01 to FL-PRE-04
+    but Random%, plus CP-5, then ZORA's own presets and the community flagsets, each with its
     ZORA string (`zoraFlags`, empty for the Z1R presets); each disabled with its reasons when ZORA
     cannot produce it. Variant A is on it with level encoding on only (owner, beta 5);
     presets.PUBLISHED_VARIANT_A_LEVEL_ENCODING_OFF stays for the code that needs it."""
-    entries = [(name, PRESET_LABELS.get(name, name), string, "") for name, string in PRESETS.items()
-               if name not in HIDDEN_PRESETS]
-    entries.append((*LEVEL_ENCODING_OFF_PRESET, ""))
-    entries += [(name, name, string, zora) for name, (string, zora) in ZORA_PRESETS.items()]
     out = []
-    for name, label, string, zora in entries:
-        reasons = generation_refusals(string, zora)
-        out.append({"name": name, "label": label, "flags": canonicalize(string), "zoraFlags": zora,
-                    "available": not reasons, "reasons": reasons, "reason": _short_reason(reasons)})
+    for preset in PRESET_LIST:
+        if preset.hidden:
+            continue
+        reasons = generation_refusals(preset.flags, preset.zora)
+        out.append({"name": preset.id, "label": preset.name, "flags": canonicalize(preset.flags),
+                    "zoraFlags": preset.zora, "available": not reasons, "reasons": reasons,
+                    "reason": _short_reason(reasons)})
     return out
 
 
@@ -413,6 +407,9 @@ def metadata() -> dict[str, Any]:
         "beta": beta_metadata(),
         "defaultFlags": MVP_BASELINE_LEVEL_ENCODING_OFF,
         "alphabet": ALPHABET,
+        # Characters both strings read as an alphabet digit ("_" for "!", as the page's file names write it):
+        # the flag boxes show the digit as soon as one is typed or pasted.
+        "alphabetAliases": ALIASES,
         "zora": zora_metadata(),
         "version": PLAYER_VERSION,
         # The tunic colors that switch the map marker to Link's skin color (the page's note).

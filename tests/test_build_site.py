@@ -161,6 +161,16 @@ def test_beta_output_is_ignored() -> None:
     assert build_site.check_output_folder(build_site.BETA_OUT) == build_site.BETA_OUT
 
 
+def test_the_page_shows_the_version_plain_and_on_test_with_its_commit(tmp_path: Path) -> None:
+    """The regular page shows "v2.0.1"; the test page "v2.0.1 (a1b2c3d)", its build's commit, since a version may be
+    cut to test more than once. The full build label goes beside it for "Copy bug report info"."""
+    commit = build_site._git("rev-parse", "--short", "HEAD")
+    assert build_site.channel_version("regular") == PLAYER_VERSION
+    assert build_site.channel_version("test").startswith(f"{PLAYER_VERSION} ({commit})")
+    page = build_site.single_file_html(_fake_site(tmp_path), "v2.0.1 (a1b2c3d)", "v2.0.1 2026-11-12 a1b2c3d")
+    assert '{"label": "v2.0.1 (a1b2c3d)", "build": "v2.0.1 2026-11-12 a1b2c3d"}' in page
+
+
 def test_version_label_names_the_version_and_commit() -> None:
     label, slug = build_site.version_label()
     commit = build_site._git("rev-parse", "--short", "HEAD")
@@ -201,7 +211,9 @@ def test_the_banner_and_noindex_are_on_the_test_page_only(tmp_path: Path) -> Non
     assert test.count(build_site.ROBOTS_NOINDEX) == 1 and test.count(meta) == 1
     banner = build_site.channel_banner()
     assert test.index("<body>\n" + banner) < test.index('class="beta-banner"')
-    assert f"Test channel: trying ZORA {PLAYER_VERSION}. For races and normal play, use " in banner
+    commit = build_site._git("rev-parse", "--short", "HEAD")
+    assert f"Test channel: trying ZORA {PLAYER_VERSION} ({commit})" in banner
+    assert ". For races and normal play, use " in banner
     assert '<a href="https://zora.gg/">zora.gg</a>' in banner
     test_guide = build_site.marked_page(guide, channel="test", banner=False)
     assert build_site.ROBOTS_NOINDEX in test_guide and meta in test_guide and "channel-banner" not in test_guide

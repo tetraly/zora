@@ -8,7 +8,9 @@ from the seed before encoding (rulings of 2026-11-06). An encoded seed at None g
 - **View in Visualizer** hands the seed to the Z1R Visualizer
   (https://tetraly.github.io/z1r-visualizer/), in the visualizer's seed format. Encode level data
   alone decides whether a seed gets it.
-- **Spoiler log** saves a plain-text log, `zora-<version>-seed-<seed>-spoiler.txt`, only for a seed
+- **Spoiler log** saves a plain-text log, `<stem>.spoiler.txt` beside the ROM's `<stem>.nes` and the tracker
+  file's `<stem>.tracker.json` (the page's names, `zora-<version>-<flag string>-<ZORA flag string>-<seed>`, then `-music` with randomized music;
+  web/zora-web.js `seedFileStem`; the API's `spoilerName` keeps its own form), only for a seed
   whose Spoiler Log Detail Level is Basic, Medium or Full, all three beta in 2.0.0 (rulings of 2026-11-06;
   docs/design/spoiler-levels.md). The level is Print Quest Info (B51) and the ZORA flag Detailed
   Spoiler Log, and with Random the level the seed resolved to. At None the page shows no button,

@@ -1,5 +1,6 @@
 """The ending's last screen (docs/reports/ending-text.md): FP-LOCK-02 replaces credits lines 12-14
-(the second-quest announcement) and MUST keep line 15, PRG0's copyright line. ZORA 2.0 beta 1
+(the second-quest announcement; ZORA's lines 12 and 13 read A STATISTICS SCREEN / WILL NOW APPEAR.
+and line 14 keeps PRESS THE START BUTTON., owner 2026-11-13) and MUST keep line 15, PRG0's copyright line. ZORA 2.0 beta 1
 pointed line 15 at $AC72, $100 below PRG0's record at $AD72: the game then drew another credits
 record there (25 tiles from column 27, past the 32-tile row), the copyright line was gone, and the
 overrun broke DrawCredits' transfer buffer, which wrote stray bytes into the nametables and the
@@ -17,6 +18,8 @@ from tests.emulator import GAME_MODE, GAME_SUBMODE, Emulator
 from tests.test_feature_patches import vanilla
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
+from zora.rom.serialize.features import stats_announcement_records
+from zora.rom.text_encoding import BYTE_TO_CHAR
 
 SEED = 1
 # CreditsTextAddrsLo/Hi (bank 2): 23 low bytes, then 23 high bytes.
@@ -95,10 +98,12 @@ def test_the_ending_leaves_the_tile_patterns_alone() -> None:
     assert last_screen(zora_rom())[1] == last_screen(with_prg0s_line_15(zora_rom()))[1]
 
 
-# --- FP-LOCK-02's rebuild condition (spec export 2026-10-08, F10) ----------------------------------
+# --- FP-LOCK-02's rebuild condition (spec export 2026-10-08, F10), as ZORA rewrites it -------------
+# Lines 12 and 13 announce the statistics screen (owner, 2026-11-13); lines 14 and 15 keep PRG0's
+# records (PRESS THE START BUTTON. and the copyright line).
 
-BLANK_LINES = (12, 13, 14)
-BLANK_TILE = 0x24
+ANNOUNCEMENT_LINES = {12: "A STATISTICS SCREEN", 13: "WILL NOW APPEAR."}
+PRG0_LINES = (14, 15)
 LINE_15_ENTRIES = (0x72, 0xAD)              # low, high: PRG0's copyright record at $AD72
 CONDITION_SEEDS = (0, 1, 12345)
 
@@ -123,13 +128,28 @@ CONDITION_CASES = condition_cases()
 @pytest.mark.parametrize("seed", CONDITION_SEEDS)
 @pytest.mark.parametrize("case", list(CONDITION_CASES))
 def test_every_rom_meets_fp_lock_02s_rebuild_condition(case: str, seed: int) -> None:
-    """Lines 12-14 each address a record with n >= 1, c + n <= 32 and every tile $24; line 15's
-    entries are $72 (low) and $AD (high)."""
+    """Lines 12 and 13 each address a record with n >= 1 and c + n <= 32 holding the statistics
+    screen's announcement, centered as PRG0 centers its closing lines; lines 14 and 15 are PRG0's
+    entries (line 15's are $72 low and $AD high)."""
     flags, zora = CONDITION_CASES[case]
-    rom = generate_rom(flags, seed, vanilla(), zora_flag_string=zora).rom
-    for line in BLANK_LINES:
-        blank = record(rom, line_pointer(rom, line))
-        length, column, tiles = blank[0], blank[1], blank[2:]
+    rom, original = generate_rom(flags, seed, vanilla(), zora_flag_string=zora).rom, vanilla()
+    for line, text in ANNOUNCEMENT_LINES.items():
+        announcement = record(rom, line_pointer(rom, line))
+        length, column, tiles = announcement[0], announcement[1], announcement[2:]
         assert length >= 1 and column + length <= CREDITS_ROW_TILES, (line, length, column)
-        assert set(tiles) == {BLANK_TILE}, (line, tiles.hex())
+        assert "".join(BYTE_TO_CHAR[tile] for tile in tiles) == text
+        assert column == (CREDITS_ROW_TILES - length + 1) // 2, (line, column)
+    assert [line_pointer(rom, line) for line in PRG0_LINES] == [line_pointer(original, line) for line in PRG0_LINES]
     assert (rom[CREDITS_POINTERS_LO + COPYRIGHT_LINE], rom[CREDITS_POINTERS_HI + COPYRIGHT_LINE]) == LINE_15_ENTRIES
+
+
+def test_the_announcement_is_centered_as_prg0s_lines_are() -> None:
+    """PRG0's closing lines are centered in the 32-tile row (an odd leftover puts the extra column on
+    the left), and ZORA's two lines the same way, no wider than PRG0's widest."""
+    original = vanilla()
+    prg0_lines = [record(original, line_pointer(original, line)) for line in (12, 13, 14)]
+    assert [line[1] for line in prg0_lines] == [(CREDITS_ROW_TILES - line[0] + 1) // 2 for line in prg0_lines]
+    records = stats_announcement_records()
+    assert ["".join(BYTE_TO_CHAR[tile] for tile in line[2:]) for line in records] == list(ANNOUNCEMENT_LINES.values())
+    assert [line[1] for line in records] == [(CREDITS_ROW_TILES - line[0] + 1) // 2 for line in records]
+    assert all(line[0] <= max(prg0[0] for prg0 in prg0_lines) for line in records)

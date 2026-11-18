@@ -81,10 +81,12 @@ def original_song(area: Area) -> Song:
                 primary_square_channel=1)
 
 
-def resolve_playlist(playlist: Playlist, songs: list[Song], safe_only: bool) -> tuple[dict[int, Song], list[str]]:
+def resolve_playlist(playlist: Playlist, songs: list[Song], safe_only: bool,
+                     left_out: frozenset[str] = frozenset()) -> tuple[dict[int, Song], list[str]]:
     """The playlist's songs by lozft song number, from `songs` (the chosen library, unsafe songs
     included), and its warnings. A title the library lacks is refused, and with safe_only a song
-    marked unsafe for streaming; a song not tagged for its area is only warned about."""
+    marked unsafe for streaming; a song not tagged for its area is only warned about, and a title in
+    `left_out` (too large) leaves its area to the draw, with a warning."""
     by_title = {song.title: song for song in reversed(songs)}
     fixed: dict[int, Song] = {}
     warnings: list[str] = []
@@ -92,6 +94,9 @@ def resolve_playlist(playlist: Playlist, songs: list[Song], safe_only: bool) -> 
         area = AREA_KEYS[key]
         if track == ORIGINAL:
             fixed[area.song_number] = original_song(area)
+            continue
+        if track in left_out:
+            warnings.append(f"{area.label}: {track} is too large to use, so this area gets a random track")
             continue
         song = by_title.get(track)
         if song is None:

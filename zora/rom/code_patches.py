@@ -18,7 +18,7 @@ from ..model.sprites import SpriteData
 from .base_rom import piece_bytes, piece_length
 from .code_patch_data import PATCHES, SYMBOLS
 from .game_config import GameConfig
-from .layout import CAVE_NOTHING_CODE
+from .layout import CAVE_NOTHING_CODE, NEW_FILE_START_STATE_ADDRESS, SECOND_QUEST_START_STATE_ADDRESS
 from .revision import Revision
 from .serialize.caves import CAVE_ITEM_CODE_MASK, WARES_PER_CAVE, cave_ware_tables
 
@@ -208,6 +208,20 @@ def overworld_start_y(rom: bytes) -> int | None:
                if address != data_byte and address not in overlaid):
             return None
     return rom[data_byte]
+
+
+# fp-start-02's two jumps into the start table (the new file's and the second quest's), the pieces
+# that replace PRG0's HeartValues immediates; the table itself holds the seed's data, never compared.
+START_ITEMS_JUMPS = (NEW_FILE_START_STATE_ADDRESS, SECOND_QUEST_START_STATE_ADDRESS)
+
+
+def carries_start_table_jump(rom: bytes) -> bool:
+    """FP-START-02: the ROM's new file and second quest jump to the start table (a finished ROM
+    with start items or start pieces, parsed again), so its hearts are the table's, not PRG0's
+    immediates, which the jumps overwrite."""
+    jumps = [(offset, piece) for offset, piece in PATCHES[START_ITEMS] if offset in START_ITEMS_JUMPS]
+    assert len(jumps) == len(START_ITEMS_JUMPS), "fp-start-02's jumps"
+    return all(rom[offset:offset + piece_length(piece)] == piece_bytes(piece) for offset, piece in jumps)
 
 
 def seed_code_items(world: GameWorld, config: GameConfig) -> bytes:

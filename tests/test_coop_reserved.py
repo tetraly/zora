@@ -178,7 +178,7 @@ def test_no_player_setting_writes_a_reserved_byte(setting: str) -> None:
 
 
 def test_no_fixed_site_writes_a_reserved_byte() -> None:
-    """The overworld red Wizzrobe routine, the title screen's two rows (FP-TITLE-01: fixed
+    """The overworld blue Wizzrobe routine, the title screen's two rows (FP-TITLE-01: fixed
     24-byte rows either side of the co-op's title bytes) and the level encoding's region and
     sites."""
     assert not hits(written(OVERWORLD_WIZZROBE_PATCH))

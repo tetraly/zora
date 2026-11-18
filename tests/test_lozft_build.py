@@ -122,7 +122,7 @@ OVERWORLD_FRAMES = 600
 @needs_base_rom
 @pytest.mark.parametrize("revision", [Revision.PRG0, Revision.PRG1])
 def test_a_music_rom_from_source_plays(revision: Revision) -> None:
-    """A seed with Music: Random through lozft built from source (randomize_music(from_source=True)):
+    """A seed with Music: Random through lozft built from source (randomize_music):
     the 256 KB MMC3 ROM with the battery bit, the statistics screen called once a frame, every cave
     kind's take and a FamiTracker song on the overworld, in the emulator, without a crash."""
     from tests.test_bait_in_pool import CAVE_ITEM_IDS, ITEM_INACTIVE, Console
@@ -140,7 +140,7 @@ def test_a_music_rom_from_source_plays(revision: Revision) -> None:
     world = parse_rom(rom)
     screens = {destination: next(screen.screen_num for screen in world.overworld.screens
                                  if screen.destination == destination) for destination in CAVES}
-    music = randomize_music(rom, base, _music_assets(), SEED, from_source=True).rom
+    music = randomize_music(rom, base, _music_assets(), SEED).rom
     assert music[PRG_BANKS_BYTE] == LOZFT_BANKS and music[BATTERY_BYTE] == MMC3_WITH_BATTERY
     console = Console(music)
     console.emu.run(OVERWORLD_FRAMES)
@@ -197,7 +197,7 @@ def test_book_is_an_atlas_and_the_bomb_upgrade_on_a_music_rom_from_source(state:
     place = floor_room(built)
     rom = finish(built, base, with_items(built, {place.name: Item[item]}),
                  player_settings=PlayerSettings(music=Music.RANDOM_STANDARD))
-    music = randomize_music(rom, base, _music_assets(), 1, from_source=True).rom
+    music = randomize_music(rom, base, _music_assets(), 1).rom
     target = SET_ITEM_JUMP_TARGETS[b49]
     assert music[SET_ITEM_VALUE_STORE:SET_ITEM_VALUE_STORE + 3] == bytes([0x4C, target & 0xFF, target >> 8])
     game_fixed, lozft_fixed = NES_HEADER_SIZE + 7 * 0x4000 - 0xC000, NES_HEADER_SIZE + 15 * 0x4000 - 0xC000
@@ -219,6 +219,41 @@ def test_book_is_an_atlas_and_the_bomb_upgrade_on_a_music_rom_from_source(state:
         assert triggered and emu[ITEMS + BOOK_SLOT] == 1
     else:
         assert (emu[INV_SWORD], emu[MAX_BOMBS], emu[INV_BOMBS]) == (0, PRG0_MAX_BOMBS + 2, PRG0_MAX_BOMBS + 2)
+
+
+@needs_base_rom
+@pytest.mark.parametrize("revision", [Revision.PRG0, Revision.PRG1])
+@pytest.mark.parametrize("choice", ["CONTROLLER2_UP_A", "CONTROLLER1_UP_A", "CONTROLLER1_UP_SELECT"])
+def test_the_death_warp_works_on_a_music_rom(revision: Revision, choice: str) -> None:
+    """The controller-2 check (docs/music.md): lozft reads controller 2 only with the item screen open. The game's
+    death warp, its one use of controller 2 and ZORA's only one (asm/ has no other read of $F9 or $FB), happens there,
+    so each death-warp setting still warps from the item screen. The other controller's Up and A do not."""
+    from tests.emulator import CONTINUE_MODE, Button, Emulator
+    from tests.test_cave_takes_emulator import SEED, _music_assets
+    from tests.test_stats_screen import DEATH_WARP_BUTTONS, warp
+    from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
+    from zora.generate.pipeline import generate_rom
+    from zora.rom.music.randomize import randomize_music
+    from zora.rom.player_settings import DeathWarp, Music, PlayerSettings
+    base = build_script().release(revision)
+    base_rom.remember_repo_base_rom()
+    setting = DeathWarp[choice]
+    finished = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, base,
+                            PlayerSettings(music=Music.RANDOM_STANDARD, death_warp=setting)).rom
+    music = randomize_music(finished, base, _music_assets(), SEED).rom
+    emulator = Emulator(music)
+    emulator.new_game()
+    emulator.run(10)
+    if setting is DeathWarp.CONTROLLER2_UP_A:         # the other controller, on the item screen: no warp
+        emulator.open_item_screen()
+        emulator.nes.controller = int(Button.UP | Button.A)
+        for _ in range(10):
+            emulator.nes.step(1)
+        emulator.nes.controller = 0
+        assert emulator.mode != CONTINUE_MODE
+        emulator.close_item_screen()
+    warp(emulator, DEATH_WARP_BUTTONS[setting])
+    assert emulator.mode == CONTINUE_MODE and not emulator.nes.has_crashed
 
 
 def test_the_areas_song_numbers_are_lozfts() -> None:
@@ -276,7 +311,7 @@ def test_the_statistics_count_on_lozft2_as_on_mmc1(revision: Revision) -> None:
     base_rom.remember_repo_base_rom()
     mmc1 = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, base, PlayerSettings()).rom
     music = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, SEED, base, PlayerSettings(music=Music.RANDOM_STANDARD)).rom
-    lozft2 = randomize_music(music, base, _music_assets(), SEED, from_source=True).rom
+    lozft2 = randomize_music(music, base, _music_assets(), SEED).rom
     compared = [address for address in range(0x800) if address not in MUSIC_RAM] + CART_RAM + list(STATS_BLOCK)
 
     def game_frame(emu: Emulator, buttons: int) -> None:

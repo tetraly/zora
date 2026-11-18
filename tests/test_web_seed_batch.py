@@ -25,9 +25,13 @@ PAGE = (REPO / "web" / "index.html").read_text()
 PAGE_SCRIPT = (REPO / "web" / "zora-web.js").read_text()
 WORKER = (REPO / "web" / "zora-worker.js").read_text()
 FLAGS = api.flag_form.metadata()["defaultFlags"]
-CONSTANTS = ("SEED_LIMIT", "GENERATION_LIMIT_MS", "ZIP_SEED_LIMIT", "FOLDER_SEED_LIMIT", "BATCH_ZIP", "BATCH_FOLDER",
+CONSTANTS = ("SEED_LIMIT", "GENERATION_LIMIT_MS", "STOPPED", "GENERATION_FAILED",
+             "ZIP_SEED_LIMIT", "FOLDER_SEED_LIMIT", "BATCH_ZIP", "BATCH_FOLDER",
              "ZIP_TYPE", "ZIP_LOCAL_HEADER", "ZIP_CENTRAL_HEADER", "ZIP_END", "ZIP_VERSION", "ZIP_UTF8_NAMES",
-             "ZIP_STORED", "ZIP_MAX_FILES", "ZIP_MAX_BYTES", "NOT_PRODUCED_REFUSAL", "NOT_IMPLEMENTED", "MUSIC_PROBLEM")
+             "ZIP_STORED", "ZIP_MAX_FILES", "ZIP_MAX_BYTES", "NOT_PRODUCED_REFUSAL", "NOT_IMPLEMENTED", "MUSIC_PROBLEM",
+             "FILE_NAME_STAND_INS", "FILE_NAME_UNSAFE")
+FILE_NAME_FUNCTIONS = ["fileNameSafe", "fileNameVersion", "seedFileStem", "batchZipName", "romFileName",
+                       "spoilerFileName", "trackerFileName"]
 ZIP_FUNCTIONS = ["crc32", "dosDateTime", "zipStore"]
 
 
@@ -101,16 +105,18 @@ def test_a_batch_counts_up_from_the_seed_box() -> None:
                                  [None, 1000], [None, None], [None, None], [None, None]]
 
 
-# onGenerateBatch on a stubbed page: a worker that makes each seed (seed 125 fails), the zip chosen, and
-# Stop pressed while STOP_AT is being made. What it asked generateSeed for, the zip's files and the card.
+# onGenerateBatch on a stubbed page: a worker that makes each seed (125 fails, 126 runs out of time), the
+# zip chosen, and Stop pressed while STOP_AT is being made. What it asked generateSeed for, the zip's files
+# and the card.
 BATCH_HARNESS = """
 const element = (tag, props = {}) => ({ tag, ...props });
 const stub = () => new Proxy({ classList: { toggle() {} }, querySelectorAll: () => [] }, { get: (target, key) =>
   key in target ? target[key] : (key === "hasChildNodes" ? () => false
     : ["replaceChildren", "append"].includes(key) ? (...children) => { target.children = children; } : () => {}),
   set: (target, key, value) => { target[key] = value; return true; } });
-const nodes = {};
+const nodes = { version: { textContent: "v2.0.1" } };
 const $ = (id) => (nodes[id] ||= stub());
+const PAGE_CHANNEL = "regular", TEST_CHANNEL = "test";
 let clock = 0;
 const performance = { now: () => clock };
 const blobs = [];
@@ -121,7 +127,7 @@ const markStepDone = () => {}, updateButton = () => {}, getSetting = () => null;
 const window = {};
 let batch = null, mode = "single";
 const metadata = { encodeLevelData: "B82" };
-const form = { flags: "FLAGS", zora: { ok: true, flags: "ZORA" }, fields: { B82: { value: 0 } } };
+const form = { flags: "F!AGS", zora: { ok: true, flags: "18.ZORA" }, fields: { B82: { value: 0 } } };
 const TOGGLE_ON = 1;
 const asked = [];
 async function generateSeed(seed, flags, zoraFlags, limitMs) {
@@ -129,11 +135,10 @@ async function generateSeed(seed, flags, zoraFlags, limitMs) {
   clock += 1500;
   if (seed === STOP_AT) onStopBatch();
   if (seed === "125") throw new Error("generation failed after 3 attempts");
-  return { seed, bytes: new TextEncoder().encode("ROM " + seed), spoilerLevel: seed === "124" ? 2 : 0, tracks: null };
+  if (seed === "126") throw new Error("zora.generate.deadline.GenerationStopped: generation stopped");
+  return { seed, bytes: new TextEncoder().encode("ROM " + seed), spoilerLevel: seed === "124" ? 2 : 0, tracks: MUSIC };
 }
-const seedReport = async (result) => ({ spoiler: "log " + result.seed,
-                                        spoilerName: `zora-seed-${result.seed}-spoiler.txt`,
-                                        tracker: "{}", trackerName: `zora-seed-${result.seed}-tracker.json` });
+const seedReport = async (result) => ({ spoiler: "log " + result.seed, tracker: "{}" });
 (async () => {
   await onGenerateBatch({ seeds: batchSeeds("123", 5) });
   const zip = blobs.length ? Buffer.from(await blobs[0].arrayBuffer()).toString("base64") : null;
@@ -143,14 +148,17 @@ const seedReport = async (result) => ({ spoiler: "log " + result.seed,
                                statuses, stopHidden: nodes["batch-stop"].hidden }));
 })();
 """
-BATCH_FUNCTIONS = [*ZIP_FUNCTIONS, "batchSeeds", "batchOutput", "canSaveToFolder", "runBatch", "seedFiles",
-                   "romFileName", "generationErrorText", "showBatchProgress", "timeLeftText", "onGenerateBatch",
+BATCH_FUNCTIONS = [*ZIP_FUNCTIONS, *FILE_NAME_FUNCTIONS, "batchSeeds", "batchOutput", "canSaveToFolder", "runBatch",
+                   "seedFiles", "seedProblem", "batchFailureText", "generationErrorText",
+                   "showBatchProgress", "timeLeftText", "onGenerateBatch",
                    "showBatchResult",
                    "onStopBatch"]
 
 
-def run_batch(stop_at: str) -> dict[str, Any]:
-    result: dict[str, Any] = run(BATCH_FUNCTIONS, BATCH_HARNESS.replace("STOP_AT", json.dumps(stop_at)))
+def run_batch(stop_at: str, music: bool = False) -> dict[str, Any]:
+    """`music`: every seed made with Music: Random (generateSeed reports its tracks)."""
+    harness = BATCH_HARNESS.replace("STOP_AT", json.dumps(stop_at)).replace("MUSIC", '["a track"]' if music else "null")
+    result: dict[str, Any] = run(BATCH_FUNCTIONS, harness)
     return result
 
 
@@ -161,28 +169,41 @@ def zipped(answer: dict[str, Any]) -> dict[str, bytes]:
 
 
 def test_each_seed_is_asked_for_as_generate_asks_for_a_typed_seed() -> None:
-    """Every seed in order, with the batch's flags and Generate's time limit; one that fails is listed and
-    the rest are made; the zip holds each made seed's files by their single-download names."""
+    """Every seed in order under its own number, with the batch's flags and Generate's time limit; one
+    that fails or runs out of time is listed under its number and the rest are made; the zip holds each
+    made seed's files by their single-download names."""
     answer = run_batch(stop_at="none")
-    assert answer["asked"] == [[str(seed), "FLAGS", "ZORA", 30000] for seed in range(123, 128)]
-    assert answer["failures"] == ["Seed 125: Generation failed: generation failed after 3 attempts"]
-    assert zipped(answer) == {"zora-seed-123.nes": b"ROM 123", "zora-seed-124.nes": b"ROM 124",
-                              "zora-seed-124-spoiler.txt": b"log 124", "zora-seed-124-tracker.json": b"{}",
-                              "zora-seed-126.nes": b"ROM 126", "zora-seed-127.nes": b"ROM 127"}
-    assert answer["link"] == "zora-seeds-123-127.zip"
-    assert answer["summary"][:4] == ["Seeds", "123 to 127", "Made", "4 of 5"]
+    assert answer["asked"] == [[str(seed), "F!AGS", "18.ZORA", 30000] for seed in range(123, 128)]
+    assert answer["failures"] == ["Seed 125: could not be made with these settings.",
+                                  "Seed 126: took longer than 30 seconds to generate, so it was stopped."]
+    stem = "zora-2.0.1-F_AGS-18.ZORA-"
+    assert zipped(answer) == {f"{stem}123.nes": b"ROM 123", f"{stem}124.nes": b"ROM 124",
+                              f"{stem}124.spoiler.txt": b"log 124", f"{stem}124.tracker.json": b"{}",
+                              f"{stem}127.nes": b"ROM 127"}
+    assert answer["link"] == f"{stem}123-127.zip"
+    assert answer["summary"][:4] == ["Seeds", "123 to 127", "Made", "3 of 5"]
     assert answer["statuses"][1] == "Generating seed 2 of 5 (seed 124)… about 6 s left."
-    assert answer["statuses"][-1] == "4 of 5 seeds made, 1 failed."
+    assert answer["statuses"][-1] == "3 of 5 seeds made, 2 failed."
     assert answer["stopHidden"] is True
 
 
 def test_stop_keeps_the_seeds_already_made() -> None:
     answer = run_batch(stop_at="124")
     assert [seed for seed, *_ in answer["asked"]] == ["123", "124"]
-    assert set(zipped(answer)) == {"zora-seed-123.nes", "zora-seed-124.nes", "zora-seed-124-spoiler.txt",
-                                   "zora-seed-124-tracker.json"}
-    assert answer["link"] == "zora-seeds-123-124.zip"
+    stem = "zora-2.0.1-F_AGS-18.ZORA-"
+    assert set(zipped(answer)) == {f"{stem}123.nes", f"{stem}124.nes", f"{stem}124.spoiler.txt",
+                                   f"{stem}124.tracker.json"}
+    assert answer["link"] == f"{stem}123-124.zip"
     assert answer["summary"][:4] == ["Seeds", "123 to 124", "Made", "2 of 5 (stopped)"]
+
+
+def test_music_ends_every_name_and_the_zips() -> None:
+    """Music: Random is in neither flag string: "-music" ends each file's stem and the zip's name."""
+    answer = run_batch(stop_at="124", music=True)
+    stem = "zora-2.0.1-F_AGS-18.ZORA-"
+    assert set(zipped(answer)) == {f"{stem}123-music.nes", f"{stem}124-music.nes", f"{stem}124-music.spoiler.txt",
+                                   f"{stem}124-music.tracker.json"}
+    assert answer["link"] == f"{stem}123-124-music.zip"
 
 
 def test_the_count_is_a_page_preference_never_in_a_flag_string_or_link() -> None:

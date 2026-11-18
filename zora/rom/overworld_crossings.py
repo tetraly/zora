@@ -17,7 +17,7 @@ Layouts $16, $26 and $4D serve those rooms alone under every Overworld Quest (OW
 from __future__ import annotations
 
 from .base_rom import original_bytes
-from .vanilla_overworld.tables import LAYOUT_COLUMNS, ROOM_LAYOUTS_OW
+from .vanilla_overworld.tables import EXTRA_LAYOUTS, FIRST_EXTRA_LAYOUT, LAYOUT_COLUMNS, ROOM_LAYOUTS_OW
 
 # FP-BRIDGE-01: room $17's column byte for rows 7 and 8 (ColumnHeapOWB, column 4)
 ROOM_17_RIVER_ROWS = 0x15E9D
@@ -36,7 +36,10 @@ OPEN_TREES_COLUMN = 0x16              # ColumnHeapOW1's column 6: open at rows 4
 
 
 def layout_column_offset(layout: int, column: int) -> int:
-    """The file offset of one layout's column descriptor in RoomLayoutsOW."""
+    """The file offset of one layout's column descriptor: in RoomLayoutsOW (and the cave rows after it),
+    or for $7C-$7F in ZORA's EXTRA_LAYOUTS (Randomize Lost Hills), where the routine reads them."""
+    if layout >= FIRST_EXTRA_LAYOUT:
+        return EXTRA_LAYOUTS.file_offset + (layout - FIRST_EXTRA_LAYOUT) * LAYOUT_COLUMNS + column
     return ROOM_LAYOUTS_OW.file_offset + layout * LAYOUT_COLUMNS + column
 
 

@@ -47,17 +47,15 @@ const FLAG_TABS_EMBEDDED_ID = "zora-embedded-flag-tabs";
 // zora.generate.NOT_PRODUCED_PREFIX: the generator's refusal of values ZORA
 // does not produce yet. The page words those per field instead.
 const NOT_PRODUCED_REFUSAL = "not produced: ";
-// Generate's time limit (owner decision, 2026-10-28; 30 s from 15 s, 2026-11-02): most seeds take
-// 2-3 s, and players will not wait much longer. A seed the page chose (the player typed none) is
-// replaced quietly while time is left; a typed or linked seed is reported. Generation stops between
-// attempts (zora/generate/deadline.py), so a seed that finishes in time is the same ROM with or
-// without the limit.
+// Generate's time limit (owner decisions, 2026-10-28; 30 s from 15 s, 2026-11-02): most seeds take
+// 2-3 s, and players will not wait much longer. The number in the seed box is the seed made, whoever
+// chose it (owner decision, 2026-11-08): a seed either generates with that number or stops here, and
+// the page never changes the number itself. Generation stops between attempts
+// (zora/generate/deadline.py), so a seed that finishes in time is the same ROM with or without the limit.
 const GENERATION_LIMIT_MS = 30000;
-// A page-chosen seed's share: a seed that has not finished by then is replaced, so six get a try.
-// (The browser is about 1.7 times slower than native Python; 5 s here is about 3 s there.)
-const CHOSEN_SEED_MS = 5000;
-const RETRY_MIN_MS = 1000;            // too little left for another seed: stop
 const STOPPED = /GenerationStopped/;
+// A background tab gets less of the processor, and the limit is wall-clock time (owner decision, 2026-11-08).
+const BACKGROUND_TAB_NOTE = "This tab was in the background, which can slow generation down, so keep it in front.";
 const GENERATION_FAILED = /generation failed after/;
 const NOT_IMPLEMENTED = "Not yet implemented";
 const BETA_SUFFIX = " (beta)";          // a beta value's label in its control
@@ -399,7 +397,7 @@ function buildForm(flagTabs) {
   const columns = new Map([[TOP_SECTION, $("top-flags")]]);
   const flagTab = (name) => {
     const panel = addTab(name);
-    if (name === START_TAB) panel.append(...startItemNotes());
+    if (name === START_TAB) panel.append(...startItemNotes(), startAllRow());
     columns.set(name, panel.appendChild(element("div", { className: "setting-columns" })));
   };
   FLAG_TABS.filter((name) => !AFTER_ZORA_TABS.includes(name)).forEach(flagTab);
@@ -421,6 +419,15 @@ function buildForm(flagTabs) {
     holder.children[column - 1].append(row);
   }
   // Each (min, max) pair on one line (flag-tabs.json's summaryRange: White Sword Hearts, Triforce Range)
+  // A ZORA field whose row names a flag tab (flagTab, flagColumn: Wizzrobes Shoot Wallmasters on Advanced) sits
+  // last in that tab's column; it stays a ZORA field, carried by the ZORA string.
+  for (const field of metadata.zora.fields) {
+    const holder = field.flagTab && columns.get(field.flagTab);
+    if (!holder) continue;
+    const column = field.flagColumn || 1;
+    while (holder.children.length < column) holder.append(element("div", { className: "setting-column" }));
+    holder.children[column - 1].append(zoraControls.get(field.name).row);
+  }
   for (const field of metadata.fields) {
     const range = flagTabs[field.id] && flagTabs[field.id].summaryRange;
     if (range && controls.has(range.max)) pairRows(controls.get(field.id).row, controls.get(range.max).row);
@@ -468,6 +475,41 @@ function startItemNotes() {
   return [element("p", { className: "panel-note", textContent: START_ITEMS_INTRO }),
           element("p", { id: "start-limit-note", className: "callout", role: "status", hidden: true,
                          textContent: START_LIMIT_NOTE })];
+}
+
+// "Set all to" (tetraly/zora#22): one action that sets every start-item field to Off, On or Random, each as a
+// click on it would (onToggled's checks, then one onControlChanged for all), so the flag string, the saved
+// preferences, the Max Start Items note and every rule update as after a manual change. Max Start Items is left
+// as it is. An action, not a setting: nothing of it goes into a flag string or is remembered, and its buttons
+// never show a value as chosen. No two start fields exclude each other (every sword and ring may start
+// together: the game uses the best), so On is always a state the generator takes.
+const START_ALL_LABEL = "Set all to";
+const START_ALL_HELP = "Sets every Start setting on this tab at once, as if you clicked each one. " +
+                       "Max Start Items stays as it is.";
+
+function startAllRow() {
+  const sample = metadata.fields.find((field) => startRules && field.id === startRules.items[0]);
+  const values = sample ? sample.values : [];
+  const { group } = segments(START_ALL_LABEL, values.map((entry) => entry.value),
+                             (value) => labelIn(values, value), setAllStartItems);
+  group.id = "start-all";
+  const { row } = settingRow(START_ALL_LABEL, START_ALL_HELP, group);
+  row.classList.add("start-all");
+  row.hidden = !sample;
+  return row;
+}
+
+// Every start field to `value` where the page would let a click set it (a value it refuses stays as it is).
+function setAllStartItems(value) {
+  if (!form || !startRules) return;
+  let changed = false;
+  for (const id of startRules.items) {
+    const field = form.fields[id];
+    if (!field || field.value === value || blockedReason(id, field, value) !== undefined) continue;
+    controls.get(id).value = value;
+    changed = true;
+  }
+  if (changed) onControlChanged();
 }
 
 // ---------------------------------------------------------------------------
@@ -537,7 +579,8 @@ function flagSummary(fields, flagTabs, values, zora) {
     }
     if (current === 0 || field.hidden || zoraPaired.has(field.name)) continue;  // a hidden field's line is its own tab's
     const label = labelIn(field.values, current);
-    lines.get(ZORA_TAB).push(field.kind !== "option" && current === TOGGLE_ON ? field.label : `${field.label}: ${label}`);
+    lines.get(field.flagTab || ZORA_TAB).push(field.kind !== "option" && current === TOGGLE_ON ? field.label
+      : `${field.label}: ${label}`);
   }
   if (!lines.get(ZORA_TAB).length) lines.get(ZORA_TAB).push(SUMMARY_NO_EXTRAS);
   return [...lines].filter(([, tabLines]) => tabLines.length).map(([tab, tabLines]) => ({ tab, lines: tabLines }));
@@ -595,7 +638,7 @@ const ZORA_GROUPS = [
   ["Enemies", [["recorder_kills_pols_voice", "oops_all_enemies", "harder_bosses"],
                ["like_like_eats_rupees", "oops_all_bosses", "harder_ganon"]]],
   ["Miscellaneous", [["speed_up_dungeon_transitions", "highlight_no_drop_rooms", "full_health"],
-                ["speed_up_heart_fill", "disable_custom_music", "compass_chime"]]],
+                ["speed_up_heart_fill", "disable_custom_music", "compass_chime", "item_counter"]]],
 ];
 const ZORA_OTHER_GROUP = "Other";
 
@@ -620,11 +663,13 @@ function buildZoraPanel(panel) {
     // A hidden field is set from another tab (Item Shuffle's Random (No Vanilla)); its control only carries the value.
     row.hidden = Boolean(field.hidden);
     rows.set(field.name, row);
+    // tab: where the row shows, ZORA extras or the flag tab it names (flagTab; buildForm moves it there)
     zoraControls.set(field.name, { kind: field.kind === "option" ? "select" : "segments", input, buttons, row,
-                                   reason, changed, value: 0 });
+                                   reason, changed, value: 0, tab: field.flagTab || ZORA_TAB });
   }
   const grouped = new Set(ZORA_GROUPS.flatMap(([, columns]) => columns.flat()));
-  const others = [...rows.keys()].filter((name) => !grouped.has(name));
+  const flagTabbed = new Set(metadata.zora.fields.filter((field) => field.flagTab).map((field) => field.name));
+  const others = [...rows.keys()].filter((name) => !grouped.has(name) && !flagTabbed.has(name));
   for (const [heading, names] of [...ZORA_GROUPS, [ZORA_OTHER_GROUP, [others]]]) {
     const shown = names.map((column) => column.filter((name) => rows.has(name)).map((name) => rows.get(name)));
     if (!shown.flat().some((row) => !row.hidden)) {
@@ -798,7 +843,7 @@ function conflictTabs(conflicts) {
   const tabs = new Set();
   for (const { fields } of conflicts) {
     for (const name of fields) {
-      if (zoraControls.has(name)) tabs.add(ZORA_TAB);
+      if (zoraControls.has(name)) tabs.add(zoraControls.get(name).tab || ZORA_TAB);
       else if (controls.has(name)) tabs.add(controls.get(name).tab);
     }
   }
@@ -903,6 +948,10 @@ const PLAYER_CHOICES = [
           "The original game uses controller 2's Up and A." },
   { key: "reduceFlashing", label: "Reduce flashing", default: "off", choices: [["off", "Off"], ["on", "On"]],
     help: "Tones down the screen flashes, for players sensitive to flashing light." },
+  { key: "cropGuide", label: "Crop guide", default: "on", choices: [["on", "On"], ["off", "Off"]],
+    help: "A white square in each corner of the file-select screen and a blue one just inside each. Crop " +
+          "your emulator's or capture setup's overscan until the white squares are gone and the blue ones " +
+          "still show. Off: the corners are plain." },
   { key: "graphicsTheme", label: "Graphics theme", default: "off", choices: [["off", "Off"], ["halloween", "Halloween"]],
     help: "Halloween: ZeroMeaning's Halloween art from Z1M1 for the overworld, the dungeons, the bosses and " +
           "Ganon, with Ganon's own colors. It changes only how the game looks: the same seed plays the same." },
@@ -2197,13 +2246,19 @@ const THEMES = ["light", "dark"];
 const NOT_A_SETTINGS_FILE = "This isn't a ZORA settings file: it has no zora_page_settings line.";
 const YAML_KEY = /^([A-Za-z_][\w-]*)\s*:(?:\s+(.*))?$/;
 
+// The build's full label, the version with its date and commit (scripts/build_site.py version_label), for
+// "Copy bug report info" and a saved settings file; the version pill shows the version alone on the regular channel.
+function buildLabel() {
+  return EMBEDDED_INFO?.build || $("version").textContent;
+}
+
 class SettingsFileError extends Error {}
 
 // What the file holds, in its order: the format and the page that saved it, then the settings.
 function pageSettings() {
   return {
     [SETTINGS_FORMAT_KEY]: SETTINGS_FORMAT,
-    saved_by: `ZORA ${$("version").textContent}`,
+    saved_by: `ZORA ${buildLabel()}`,
     mode,
     flags: form.flags,
     zora_flags: form.zora.ok ? form.zora.flags : "",
@@ -2700,10 +2755,23 @@ function onToggled(id, value) {
   onControlChanged();
 }
 
+// A flag box's aliases (metadata.alphabetAliases: "_" for "!", as the page's file names write it) become the
+// alphabet's own character as soon as they are typed or pasted, so flags copied from a file name paste as they
+// are and the box always shows "!". Each alias is one character for one, so the cursor stays where it was.
+function showAliasesAsDigits(input) {
+  const aliases = metadata ? metadata.alphabetAliases : {};
+  const text = [...input.value].map((character) => aliases[character] ?? character).join("");
+  if (text === input.value) return;
+  const { selectionStart, selectionEnd } = input;
+  input.value = text;
+  input.setSelectionRange(selectionStart, selectionEnd);
+}
+
 // Typing or pasting into either box loads the strings as they stand: the
 // dots then compare with them ("pasted flags").
 let typingTimer = null;
-function onFlagsTyped() {
+function onFlagsTyped(event) {
+  showAliasesAsDigits(event.target);
   clearTimeout(typingTimer);
   flagsPending = true;
   typingTimer = setTimeout(() => loadFlags($("flags").value.trim(), { rewrite: false, start: true, name: PASTED_FLAGS }),
@@ -2772,8 +2840,8 @@ function updateLink() {
 // ---------------------------------------------------------------------------
 
 let mode = sharedLink.mode;
+let tabWentBehind = false;          // this run of Generate: the tab has been in the background
 let linkSeed = sharedLink.seed;     // the seed the address names: the link's, then each generation's
-let seedTyped = false;              // the player typed the seed (or a link named it): never replaced
 let multiworldVerdict = null;   // zora_web.multiworld.check() for the current settings, in multiworld mode
 let multiworldRequest = 0;
 let playerNameProblem = "type a player name";
@@ -2889,7 +2957,6 @@ async function onExport() {
 function randomSeed() {
   const [value] = crypto.getRandomValues(new Uint32Array(1));
   $("seed").value = String(value || 1);
-  seedTyped = false;
   updateButton();
 }
 
@@ -3132,7 +3199,7 @@ function saveText(text, name, type) {
 async function downloadSpoiler(result) {
   try {
     const report = await seedReport(result);
-    saveText(report.spoiler, report.spoilerName, "text/plain");
+    saveText(report.spoiler, spoilerFileName(result), "text/plain");
   } catch (err) {
     showAfterSeed(`No spoiler log: ${err.message}`, "error");
   }
@@ -3140,13 +3207,17 @@ async function downloadSpoiler(result) {
 
 // The ZoraTracker save file, at the same level as the log. ZTracker opens it too but drops the items
 // numbered 15 and up (ZoraTracker's additions); report.ztrackerNote names what it will miss for this seed
-// (tracker_file.ztracker_note), when it misses anything, and always ZTracker's version warning.
+// (tracker_file.ztracker_note), when it misses anything, and always ZTracker's version warning. A seed made
+// with Spoiler Log Detail Level None gets the starter file: only what the flags tell a player at the start
+// (pinned items and start items: tracker_file.starter_file, the flags spec's tracker hints), for races.
 
 async function downloadTracker(result) {
   try {
     const report = await seedReport(result);
-    saveText(report.tracker, report.trackerName, "application/json");
-    showAfterSeed(["Tracker file saved.", report.ztrackerNote].filter(Boolean).join(" "), "ready");
+    saveText(report.tracker, trackerFileName(result), "application/json");
+    const saved = result.spoilerLevel > 0 ? "Tracker file saved."
+      : "Starter tracker file saved: only what the flags tell you at the start.";
+    showAfterSeed([saved, report.ztrackerNote].filter(Boolean).join(" "), "ready");
   } catch (err) {
     showAfterSeed(`No tracker file: ${err.message}`, "error");
   }
@@ -3156,19 +3227,20 @@ const MAP_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" st
   'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
   '<path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"></path><path d="M9 4v14M15 6v14"></path></svg>';
 
-// The report buttons: "Spoiler log" and "Download tracker file" when the seed's level is above None
-// (result.spoilerLevel, the level its "?" resolved to), encoded or not; "View in visualizer" only with
-// Encode level data off.
+// The report buttons: "Spoiler log" when the seed's level is above None (result.spoilerLevel, the level its "?"
+// resolved to), encoded or not; "Download tracker file" always (at None the starter file); "View in visualizer"
+// only with Encode level data off.
 function addSeedReportButtons(result, encoded) {
   if (result.spoilerLevel > 0) {
     const spoiler = element("button", { type: "button", id: "download-spoiler", className: "btn btn-outline",
                                         textContent: "Spoiler log" });
     spoiler.addEventListener("click", () => downloadSpoiler(result));
-    const tracker = element("button", { type: "button", id: "download-tracker", className: "btn btn-outline",
-                                        textContent: "Download tracker file" });
-    tracker.addEventListener("click", () => downloadTracker(result));
-    $("download").append(spoiler, tracker);
+    $("download").append(spoiler);
   }
+  const tracker = element("button", { type: "button", id: "download-tracker", className: "btn btn-outline",
+                                      textContent: "Download tracker file" });
+  tracker.addEventListener("click", () => downloadTracker(result));
+  $("download").append(tracker);
   if (encoded) return;
   const view = element("button", { type: "button", id: "view-visualizer", className: "btn btn-outline" });
   view.innerHTML = MAP_ICON;
@@ -3310,30 +3382,6 @@ function musicResult(result, hidden) {
   return music;
 }
 
-// One seed within GENERATION_LIMIT_MS: a page-chosen seed that runs out of time or fails is replaced
-// by a new one while time is left (the seed box shows each); a typed seed is tried once.
-async function generateWithinLimit() {
-  const started = performance.now();
-  for (;;) {
-    const seed = $("seed").value.trim();
-    const left = GENERATION_LIMIT_MS - (performance.now() - started);
-    try {
-      return await generateSeed(seed, form.flags, form.zora.flags, seedTyped ? left : Math.min(left, CHOSEN_SEED_MS));
-    } catch (err) {
-      const replaceable = !seedTyped && (STOPPED.test(err.message) || GENERATION_FAILED.test(err.message));
-      if (!replaceable || GENERATION_LIMIT_MS - (performance.now() - started) < RETRY_MIN_MS) {
-        if (!STOPPED.test(err.message)) throw err;
-        throw new Error(seedTyped
-          ? `Seed ${seed} took longer than ${GENERATION_LIMIT_MS / 1000} s to generate. Try another seed.`
-          : `No seed was ready within ${GENERATION_LIMIT_MS / 1000} s with these settings. Press Generate to `
-            + "try again, or change the settings.");
-      }
-      randomSeed();
-      status(`Generating seed ${$("seed").value}…`);
-    }
-  }
-}
-
 async function onGenerate() {
   const seed = $("seed").value.trim();
   // What the player asked for. Owner ruling: the page never shows what a
@@ -3358,9 +3406,11 @@ async function onGenerate() {
   markStepDone("step-generate-num", 3, false);
   status(`Generating seed ${seed}…`);
   try {
-    const result = await generateWithinLimit();
+    tabWentBehind = document.hidden;
+    const result = await generateSeed(seed, form.flags, form.zora.flags, GENERATION_LIMIT_MS);
+    result.fileStem = seedFileStem(result.seed, requested.flags, requested.zoraFlags, Boolean(result.tracks));
     const url = URL.createObjectURL(new Blob([result.bytes], { type: "application/octet-stream" }));
-    const name = romFileName(result, requested.encoded);
+    const name = romFileName(result);
     $("download").append(element("a", { id: "download-link", className: "btn btn-teal", href: url,
                                         download: name, title: name, textContent: "Download ROM" }));
     // A seed made with "Encode level data" never goes to the visualizer; its log and tracker file, when it
@@ -3381,7 +3431,7 @@ async function onGenerate() {
       : Array.isArray(result.code) && result.code.length === SEED_CODE_LENGTH ? result.code : [];
     if (result.tracks) $("result").append(element("dt", { textContent: "Music" }), musicResult(result, requested.hideTracks));
     // The ROM as identified when it was chosen: another chosen later does not change this seed's.
-    addCopyButtons({ version: $("version").textContent, seed: result.seed, flags: requested.flags,
+    addCopyButtons({ version: buildLabel(), seed: result.seed, flags: requested.flags,
                      zoraFlags: requested.zoraFlags, identity: romIdentity, code,
                      encoded: requested.encoded, spoilerLevel: requested.spoilerLevel, notices: requested.notices,
                      beta: requested.beta });
@@ -3398,19 +3448,91 @@ async function onGenerate() {
     linkSeed = String(result.seed);
     updateLink();
   } catch (err) {
-    status(generationErrorText(err), "error");
+    status(generationErrorText(err, seed, tabWentBehind), "error");
   }
   button.textContent = "Generate";
   updateButton();
 }
 
-// A seed's ROM file name, the same for a single download, a batch's zip and a batch's folder.
-function romFileName(result, encoded) {
-  return `zora-seed-${result.seed}${encoded ? "-encoded" : ""}${result.tracks ? "-music" : ""}.nes`;
+// A seed's files are named zora-<version>-<flag string>-<ZORA flag string>-<seed> (tetraly/zora#18): the ROM .nes, its
+// spoiler log .spoiler.txt and its tracker file .tracker.json, the same for a single download, a batch's zip and a
+// batch's folder; a batch's zip is named for its first and last seeds. Each ends "-music" with randomized music. The
+// flag strings are the ones the page shows, with FILE_NAME_STAND_INS in the name only: their characters are 0-9, A-Z,
+// a-z and "!" (FL-ENC-01), and "." in a ZORA string. "!" is legal on Windows, macOS and Linux and in a zip, but a shell
+// expands it (history) and a URL reserves it, so an upload may rename or escape it: "_" stands in, the alphabet's
+// alias for "!" (zora/flags/codec.py ALIASES), so a name's flag parts paste into the boxes as they are. Every name
+// is then 0-9, A-Z, a-z, ".", "_" and "-". Neither string holds "-", so the name reads from the right:
+// past any "-music", seed, ZORA string (empty when every ZORA flag is at its default), flag string, then the version.
+// The flags spec documents these names for outside tools (docs/flags-api.md "Reading a file's name"):
+// scripts/flags_api.py reads them from this code, so run it after changing them.
+const FILE_NAME_STAND_INS = { "!": "_" };
+const FILE_NAME_UNSAFE = /[^0-9A-Za-z._-]/g;
+
+function fileNameSafe(text) {
+  return text.replace(FILE_NAME_UNSAFE, (character) => FILE_NAME_STAND_INS[character] ?? "_");
 }
 
-// Why a seed was not made, as the status line (or a batch's list of failures) says it.
-function generationErrorText(err) {
+// The version as the page shows it (its version pill, without the "v": plain "2.0.1" on the regular channel,
+// "2.0.1 (a1b2c3d)" with the build's commit on the test channel; scripts/build_site.py channel_version), parentheses
+// dropped and spaces as hyphens, and "-test" on the test channel, as the single files' names have it.
+function fileNameVersion(shown = $("version").textContent, channel = PAGE_CHANNEL) {
+  const version = shown.trim().replace(/^v/, "").replace(/[()]/g, "").replace(/\s+/g, "-");
+  return fileNameSafe(version) + (channel === TEST_CHANNEL ? "-test" : "");
+}
+
+// "-music" ends the name of a seed with randomized music (Music: Random, a player setting in neither flag string),
+// so the same seed with and without music never shares a name.
+function seedFileStem(seed, flags, zoraFlags, music = false, version = fileNameVersion()) {
+  const stem = ["zora", version, fileNameSafe(flags), fileNameSafe(zoraFlags || ""), seed].join("-");
+  return music ? `${stem}-music` : stem;
+}
+
+// A batch's .zip: the first seed's stem, then "-" and the last seed, then any "-music".
+function batchZipName(first, last, flags, zoraFlags, music = false) {
+  return `${seedFileStem(first, flags, zoraFlags)}-${last}${music ? "-music" : ""}.zip`;
+}
+
+function romFileName(result) {
+  return `${result.fileStem}.nes`;
+}
+
+function spoilerFileName(result) {
+  return `${result.fileStem}.spoiler.txt`;
+}
+
+function trackerFileName(result) {
+  return `${result.fileStem}.tracker.json`;
+}
+
+// Why this seed itself was not made, to follow "Seed N" or "Seed N:"; null for any other problem.
+function seedProblem(err) {
+  if (STOPPED.test(err.message)) {
+    return `took longer than ${GENERATION_LIMIT_MS / 1000} seconds to generate, so it was stopped`;
+  }
+  return GENERATION_FAILED.test(err.message) ? "could not be made with these settings" : null;
+}
+
+// A batch's line for a seed that failed, after "Seed N: ". The batch carries on with the next number.
+function batchFailureText(err) {
+  const problem = seedProblem(err);
+  return problem ? `${problem}.` : generationErrorText(err);
+}
+
+// The tab has just gone into the background.
+function noteTabHidden() {
+  if (document.hidden) tabWentBehind = true;
+}
+
+// Why a seed was not made, as the status line says it (wasBehind: the tab was in the background meanwhile).
+function generationErrorText(err, seed, wasBehind = false) {
+  const problem = seedProblem(err);
+  if (problem) {
+    if (!STOPPED.test(err.message)) {
+      return `Seed ${seed} ${problem}. Press New seed for a different seed, or change the settings.`;
+    }
+    const note = wasBehind ? `${BACKGROUND_TAB_NOTE} ` : "";
+    return `Seed ${seed} ${problem}. ${note}Press Generate to try it again, or New seed for a different seed.`;
+  }
   const notProduced = err.message.indexOf(NOT_PRODUCED_REFUSAL);
   if (MUSIC_PROBLEM.test(err.message)) return `The music could not be made: ${err.message.replace(MUSIC_PROBLEM, "")}`;
   return notProduced < 0 ? `Generation failed: ${err.message}`
@@ -3419,8 +3541,8 @@ function generationErrorText(err) {
 
 // ---------------------------------------------------------------------------
 // Several seeds at once (issue #16): Number of seeds counts up from the seed box (123, 124, ...).
-// Each seed is made exactly as Generate makes that seed alone when it is typed (generateSeed, the same
-// time limit, never replaced by another), so its ROM is the same byte for byte. Single player only; the
+// Each seed is made exactly as Generate makes that seed alone (generateSeed, the same time limit, under
+// its own number), so its ROM is the same byte for byte. Single player only; the
 // count is a page preference (this browser), never in a flag string or a link.
 // A .zip (every browser, up to ZIP_SEED_LIMIT seeds) holds each seed's files, built at the end; a folder
 // (only where showDirectoryPicker exists: Chrome, Edge; up to FOLDER_SEED_LIMIT) gets each seed's files
@@ -3541,13 +3663,13 @@ async function runBatch(seeds, { make, keep, failed, progress, stopped }) {
 
 // A seed's files, by the names a single download gives them: the ROM, then its spoiler log and tracker
 // file when its Spoiler Log Detail Level is above None. A report that fails leaves the ROM and says why.
-async function seedFiles(result, encoded) {
-  const files = [{ name: romFileName(result, encoded), bytes: result.bytes }];
+async function seedFiles(result) {
+  const files = [{ name: romFileName(result), bytes: result.bytes }];
   if (result.spoilerLevel > 0) {
     const report = await seedReport(result);
     const text = new TextEncoder();
-    files.push({ name: report.spoilerName, bytes: text.encode(report.spoiler) },
-               { name: report.trackerName, bytes: text.encode(report.tracker) });
+    files.push({ name: spoilerFileName(result), bytes: text.encode(report.spoiler) },
+               { name: trackerFileName(result), bytes: text.encode(report.tracker) });
   }
   return files;
 }
@@ -3663,12 +3785,12 @@ async function onGenerateBatch(state) {
     }
   }
   const { seeds } = state;
-  const encoded = form.fields[metadata.encodeLevelData].value === TOGGLE_ON;
   const flags = form.flags;
   const zoraFlags = form.zora.flags;
   batch = { stopping: false };
   const zipped = [];
   const failures = [];
+  let music = false;
   $("generate").disabled = true;
   $("generate").replaceChildren(element("span", { className: "spinner", ariaHidden: "true" }), "Generating…");
   $("batch-stop").hidden = false;
@@ -3685,24 +3807,26 @@ async function onGenerateBatch(state) {
     tally = await runBatch(seeds, {
       make: (seed) => generateSeed(seed, flags, zoraFlags, GENERATION_LIMIT_MS),
       keep: async (seed, result) => {
-        const files = await seedFiles(result, encoded);
+        result.fileStem = seedFileStem(result.seed, flags, zoraFlags, Boolean(result.tracks));
+        music ||= Boolean(result.tracks);
+        const files = await seedFiles(result);
         if (folder) await writeToFolder(folder, files);
         else zipped.push(...files);
       },
-      failed: (seed, err) => failures.push([seed, generationErrorText(err)]),
+      failed: (seed, err) => failures.push([seed, batchFailureText(err)]),
       progress: showBatchProgress,
       stopped: () => batch.stopping,
     });
   } finally {
     batch = null;
   }
-  showBatchResult({ seeds, tally, failures, folder, zipped, flags, zoraFlags });
+  showBatchResult({ seeds, tally, failures, folder, zipped, flags, zoraFlags, music });
   $("batch-stop").hidden = true;
   for (const id of ["seed", "seed-count", "new-seed"]) $(id).disabled = false;
   updateButton();
 }
 
-function showBatchResult({ seeds, tally, failures, folder, zipped, flags, zoraFlags }) {
+function showBatchResult({ seeds, tally, failures, folder, zipped, flags, zoraFlags, music = false }) {
   const { done, made, ms } = tally;
   const stopped = done < seeds.length;
   const last = seeds[Math.max(done - 1, 0)];
@@ -3715,7 +3839,7 @@ function showBatchResult({ seeds, tally, failures, folder, zipped, flags, zoraFl
   $("batch-summary").replaceChildren(...summary.flatMap(([term, text]) =>
     [element("dt", { textContent: term }), element("dd", { textContent: text })]));
   if (!folder && zipped.length) {
-    const name = `zora-seeds-${seeds[0]}-${last}.zip`;
+    const name = batchZipName(seeds[0], last, flags, zoraFlags, music);
     const url = URL.createObjectURL(new Blob(zipStore(zipped), { type: ZIP_TYPE }));
     $("batch-download").append(element("a", { id: "batch-link", className: "btn btn-teal", href: url, download: name,
                                               title: name, textContent: "Download .zip" }));
@@ -3762,7 +3886,8 @@ $("presets").addEventListener("click", (event) => {
   const outside = event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
   if (event.target === $("presets") && outside) closePresets();
 });
-$("seed").addEventListener("input", () => { seedTyped = true; onSeedChanged(); });
+$("seed").addEventListener("input", onSeedChanged);
+document.addEventListener("visibilitychange", noteTabHidden);
 $("new-seed").addEventListener("click", () => { randomSeed(); onSeedChanged(); });
 $("flags").addEventListener("input", onFlagsTyped);
 $("flags").addEventListener("change", onFlagsCommitted);
@@ -3814,7 +3939,6 @@ tuckHeroLogo();
 randomSeed();
 if (linkSeed) {                                      // a shared link's seed (single player)
   $("seed").value = linkSeed;
-  seedTyped = true;
 }
 const bootStart = performance.now();
 if (EMBEDDED_INFO) {

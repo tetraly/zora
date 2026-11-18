@@ -2,6 +2,7 @@
 reservations, each segment's slot, the bytes ZORA's Python writes in free space and the bytes two
 owners share. One overlap check covers the five builders' bytes, the slots, the sites and the
 reservations; finished ROMs write free space only where the table says."""
+import dataclasses
 import importlib
 import importlib.util
 import os
@@ -59,6 +60,58 @@ def test_the_overlap_check_finds_a_clash() -> None:
     found = space.problems(written=written)
     assert any("series:new-patch, z1rr-coop with no [[shared]] row" in problem for problem in found)
     assert any("bank 3 $B000" in problem and "outside its slots" in problem for problem in found)
+
+
+LOZFT_GAME_BANKS = 8                    # lozft's banks 7-14 are its own (songs); its bank 15 is the fixed bank 7
+LOZFT_FIXED_BANK = 15
+
+
+def _lozft_bytes_in_prg0_places(revision: str) -> set[int]:
+    """Every file offset lozft's build writes in banks 0-7 for `revision`, at PRG0's place of that byte:
+    the header and lozft's own banks 7-14 left out, its bank 15 taken as the fixed bank 7."""
+    from zora.rom.base_rom import piece_length
+    from zora.rom.music.lozft_patch_data import PATCHES
+    from zora.rom.revision import PRG1_MOVES
+    space = rom_space()
+    offsets = set()
+    for offset, piece in PATCHES[revision]:
+        for byte in range(offset, offset + piece_length(piece)):
+            bank = (byte - space.NES_HEADER_SIZE) // space.BANK_SIZE
+            if byte < space.NES_HEADER_SIZE or space.FIXED_BANK <= bank < LOZFT_FIXED_BANK:
+                continue
+            if bank == LOZFT_FIXED_BANK:
+                byte -= (LOZFT_FIXED_BANK - space.FIXED_BANK) * space.BANK_SIZE
+            if revision == "PRG1":
+                move = next((move for move in PRG1_MOVES if move.start + move.shift <= byte < move.end + move.shift),
+                            None)
+                byte -= move.shift if move else 0
+            offsets.add(byte)
+    return offsets
+
+
+@pytest.mark.parametrize("revision", ["PRG0", "PRG1"])
+def test_lozft_writes_are_reserved(revision: str) -> None:
+    """Every byte Music: Random's lozft writes in banks 0-7 (its build's data for the release, in PRG0's
+    places) lies in one of lozft's reservations, so the overlap check sees it: a lozft rebuild that writes
+    somewhere new fails here until the table claims it."""
+    space = rom_space()
+    reserved = {offset for area in space.table().reserved if area.owner == "lozft" for offset in area.file_range()}
+    loose = _lozft_bytes_in_prg0_places(revision) - reserved
+    assert not loose, [f"bank {space.cpu_address(a)[0]} ${space.cpu_address(a)[1]:04X}-${space.cpu_address(b)[1]:04X}"
+                       for a, b in space._runs(loose)]
+
+
+def test_the_overlap_check_catches_a_table_on_lozfts_code() -> None:
+    """tetraly/zora#21's Item Counter table first sat at bank 5 $BA40-$BABF, over the code lozft puts at
+    $BA40-$BAB9 on a music ROM (moved to $BE60 in the port): with lozft's reservations, the check names it."""
+    space = rom_space()
+    table = space.table()
+    sites = tuple(dataclasses.replace(site, first=0xBA40, last=0xBABF) if site.owner == "site:item-counter-table"
+                  else site for site in table.sites)
+    assert sites != table.sites
+    found = space.problems(dataclasses.replace(table, sites=sites))
+    assert any(problem.startswith("bank 5 $BA40-$BAB9") and "lozft, site:item-counter-table" in problem
+               for problem in found), found
 
 
 @needs_base_rom
@@ -224,33 +277,40 @@ def test_the_committed_placements_are_each_free_and_recorded() -> None:
     assert {row.segment for row in space.placements()} == unpinned
 
 
+# Bank 5 has no 32 free unclaimed bytes left once lozft's code at $BA40-$BAB9 is reserved; bank 4 has.
+PLACEMENT_TEST_BANK = 4
+
+
 def test_a_new_segment_takes_the_lowest_free_unclaimed_aligned_bytes(lock_file: Path) -> None:
     space = rom_space()
-    placement = space.place(space.Request("ZORA_TEST_A", "series:test-a", (5,), 0x20), lock_file)
-    assert placement.banks == (5,) and placement.start % space.DEFAULT_ALIGN == 0
+    placement = space.place(space.Request("ZORA_TEST_A", "series:test-a", (PLACEMENT_TEST_BANK,), 0x20), lock_file)
+    assert placement.banks == (PLACEMENT_TEST_BANK,) and placement.start % space.DEFAULT_ALIGN == 0
     claimed = space.claims(space.table(), space.builder_bytes())
-    window = range(space.file_offset(5, placement.start), space.file_offset(5, placement.start) + 0x20)
+    window = range(space.file_offset(PLACEMENT_TEST_BANK, placement.start), space.file_offset(PLACEMENT_TEST_BANK, placement.start) + 0x20)
     assert not set(window) & set(claimed)
     # nothing lower in bank 5's free space would have fitted
     free = {offset for area in space.table().free for offset in area.file_range()}
-    for start in range(0xB8A0, placement.start, space.DEFAULT_ALIGN):
-        assert not space._fits(claimed, free, 5, start, 0x20), hex(start)
+    for area in space.table().free:
+        if area.bank == PLACEMENT_TEST_BANK:
+            aligned = -(-area.first // space.DEFAULT_ALIGN) * space.DEFAULT_ALIGN
+            for start in range(aligned, min(area.last + 1, placement.start), space.DEFAULT_ALIGN):
+                assert not space._fits(claimed, free, area.bank, start, 0x20), hex(start)
 
 
 def test_adding_a_patch_never_moves_a_placed_one(lock_file: Path) -> None:
     space = rom_space()
-    first = space.place(space.Request("ZORA_TEST_A", "series:test-a", (5,), 0x20), lock_file)
-    second = space.place(space.Request("ZORA_TEST_B", "series:test-b", (5,), 0x20), lock_file)
-    assert space.place(space.Request("ZORA_TEST_A", "series:test-a", (5,), 0x20), lock_file) == first
+    first = space.place(space.Request("ZORA_TEST_A", "series:test-a", (PLACEMENT_TEST_BANK,), 0x20), lock_file)
+    second = space.place(space.Request("ZORA_TEST_B", "series:test-b", (PLACEMENT_TEST_BANK,), 0x20), lock_file)
+    assert space.place(space.Request("ZORA_TEST_A", "series:test-a", (PLACEMENT_TEST_BANK,), 0x20), lock_file) == first
     assert set(first.areas()[0].file_range()).isdisjoint(second.areas()[0].file_range())
     assert [row.segment for row in space.placements(lock_file)] == ["ZORA_TEST_A", "ZORA_TEST_B"]
 
 
 def test_a_changed_segment_must_be_moved_on_purpose(lock_file: Path) -> None:
     space = rom_space()
-    space.place(space.Request("ZORA_TEST_A", "series:test-a", (5,), 0x20), lock_file)
+    space.place(space.Request("ZORA_TEST_A", "series:test-a", (PLACEMENT_TEST_BANK,), 0x20), lock_file)
     with pytest.raises(space.PlacementError, match="delete the row"):
-        space.place(space.Request("ZORA_TEST_A", "series:test-a", (5,), 0x40), lock_file)
+        space.place(space.Request("ZORA_TEST_A", "series:test-a", (PLACEMENT_TEST_BANK,), 0x40), lock_file)
 
 
 def test_a_pooled_segment_takes_the_first_bank_with_room(lock_file: Path) -> None:
@@ -273,8 +333,9 @@ def test_a_segment_is_never_placed_inside_the_disassemblys_segments(lock_file: P
 
 # Today no address is free in all of banks 0-6: bank 1's free space is full from $B770 (the extended
 # hint text, then fp-prog-01), bank 2's gaps between its slots meet claims in bank 0 or z1rr-coop's
-# bank-4 block, and $BFC0-$BFF9, free in every bank, is ASNB's. The mechanism is tested on four banks.
-MIRRORED_BANKS = (0, 3, 5, 6)
+# bank-4 block, and $BFC0-$BFF9, free in every bank, is ASNB's. The mechanism is tested on three banks
+# (bank 5, the fourth until 2026-11-12, has no 16 free unclaimed bytes once lozft's code at $BA40-$BAB9 is reserved).
+MIRRORED_BANKS = (0, 3, 6)
 
 
 def test_a_mirrored_segment_takes_one_address_free_in_every_bank(lock_file: Path) -> None:
@@ -300,17 +361,17 @@ def test_a_placed_segment_is_built_where_it_was_placed(lock_file: Path) -> None:
         pytest.skip("ca65/ld65 or the pinned disassembly missing")
     folder = lock_file.parent / "test-placed"
     folder.mkdir()
-    (folder / "patch.toml").write_text('[[segment]]\nname = "ZORA_TEST_PLACED"\nbank = 5\nsize = 0x10\n\n'
-                                       '[[segment]]\nname = "ZORA_TEST_MIRROR"\nmirrored = [0, 3, 5, 6]\n'
+    (folder / "patch.toml").write_text('[[segment]]\nname = "ZORA_TEST_PLACED"\nbank = 4\nsize = 0x10\n\n'
+                                       '[[segment]]\nname = "ZORA_TEST_MIRROR"\nmirrored = [0, 3, 6]\n'
                                        'size = 0x10\n')
-    (folder / "bank_05.s").write_text('.SEGMENT "ZORA_TEST_PLACED"\nTestPlaced:\n    LDA #$5A\n    RTS\n')
+    (folder / "bank_04.s").write_text('.SEGMENT "ZORA_TEST_PLACED"\nTestPlaced:\n    LDA #$5A\n    RTS\n')
     (folder / "mirrored.s").write_text('.SEGMENT "ZORA_TEST_MIRROR_B{BANK}"\nTestMirror:\n    LDA #${BANK}\n    RTS\n')
     vanilla()
     patch = tool.load_patch(folder, lock_file)
     image = tool.SourceTree(tool.scratch("rom-space-test")).apply(patch)
     placed, mirror = (next(row for row in rom_space().placements(lock_file) if row.segment == name)
                       for name in ("ZORA_TEST_PLACED", "ZORA_TEST_MIRROR"))
-    offset = rom_space().file_offset(5, placed.start)
+    offset = rom_space().file_offset(PLACEMENT_TEST_BANK, placed.start)
     assert image[offset:offset + 3] == bytes([0xA9, 0x5A, 0x60])
     for bank in MIRRORED_BANKS:
         offset = rom_space().file_offset(bank, mirror.start)

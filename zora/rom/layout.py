@@ -367,7 +367,8 @@ ROPE_HP_OPERAND_ADDRESSES = (0x112D3, 0x112DF)
 # first-quest save down the second-quest path.
 QUEST_MONSTER_BRANCH_ADDRESSES = (0x112DC, 0x1135D, 0x1139D)
 # PS-EGRP-05 (post-shapes-b4.md S7): the four byte runs that make overworld
-# red Wizzrobes work, written when the red Wizzrobe joins the overworld group.
+# blue Wizzrobes ($23; the spec's "red Wizzrobe") work, written when the blue
+# Wizzrobe joins the overworld group.
 OVERWORLD_WIZZROBE_PATCH: tuple[tuple[int, Piece], ...] = (
     (0x11E3B, bytes([0xC9, 0x9A, 0x90, 0x0E, 0xC9, 0xCC, 0x90, 0x06, 0x29, 0xFC, 0xC9, 0xE0,
                      0xD0, 0x04, 0x4C, 0xF5, 0xAF, 0x00])),
@@ -543,11 +544,18 @@ CREDITS_LINE_14_INDEX = 14
 CREDITS_LINE_15_INDEX = 15
 CREDITS_BLANK_TILE = 0x24
 CREDITS_COPYRIGHT_SYMBOL_TILE = 0xFC
-# The three replacement records (lines 12, 13, 14: 32, 8 and 25 bytes) in
-# bank-2 free space, after FP-HOT-01's slot (docs/rom-map.md, slot $B080-$B0DF).
-CREDITS_RECORD_CPU_ADDRESSES = (0xB080, 0xB0A0, 0xB0A8)
+# Lines 12 and 13 announce the statistics screen, which follows the ending (owner, 2026-11-13): PRG0's
+# "ANOTHER QUEST WILL START / FROM HERE." was untrue (FP-SAVE-01 saves the file and returns to the file
+# select, in the first quest). ZORA's records in bank-2 free space (32-byte slots), after FP-HOT-01's
+# slot (docs/rom-map.md, slot $B080-$B0DF), each centered in the 32-tile row as PRG0 centers its
+# lines; lines 14 and 15 keep PRG0's records.
+STATS_ANNOUNCEMENT_LINES = ("A STATISTICS SCREEN", "WILL NOW APPEAR.")
+CREDITS_ROW_TILES = 32
+CREDITS_RECORD_CPU_ADDRESSES = (0xB080, 0xB0A0)
+CREDITS_RECORD_SLOT_SIZE = 0x20
 CREDITS_FREE_SPACE_ADDRESS = 0xB090  # file offset of CPU $B080 in bank 2
 CREDITS_BANK_2_CPU_TO_FILE = 0x10 + 2 * 0x4000 - 0x8000   # a bank-2 CPU address + this = its file offset
+CREDITS_START_BUTTON_POINTER = 0xAD59   # line 14 keeps PRG0's "PRESS THE START BUTTON."
 CREDITS_COPYRIGHT_POINTER = 0xAD72   # line 15 keeps PRG0's copyright record (beta 1 had $AC72)
 
 # FP-RESET-01

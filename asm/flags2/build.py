@@ -83,6 +83,8 @@ PATCHES = (
     "full-health",              # Start With Full Health (credit: ShadowOne333, kalita-kun, gzip)
     "harder-ganon",             # Harder Ganon (credit: MetalMachine, Z1M1)
     "compass-chime",            # Compass Chime (ZORA version 18)
+    "wizzrobe-hand",            # Wizzrobes Shoot Wallmasters (ZORA version 21; idea: Ultralavos)
+    "item-counter",             # Item Counter (ZORA version 22; idea: Ultralavos)
 )
 
 # Community members who wrote a feature (the document's credits; docs/credits.md).
@@ -92,6 +94,8 @@ CREDITS = {
     "recorder-pols-voice": "Stratoform",
     "full-health": "ShadowOne333, kalita-kun and gzip",
     "harder-ganon": "MetalMachine",
+    "wizzrobe-hand": "Ultralavos",
+    "item-counter": "Ultralavos",
 }
 
 
@@ -108,7 +112,7 @@ class FreeSpace:
 
 
 # Bank 4's gap runs $B46F-$BF4F: z1rr-coop reserves $B46F-$B882, fp-prog-02's Armos slot is
-# $B900-$B9FF and the overworld red Wizzrobe routine (PS-EGRP-05) starts at $BF00. Bank 7's $FF43-$FF4F is its last
+# $B900-$B9FF and the overworld blue Wizzrobe routine (PS-EGRP-05) starts at $BF00. Bank 7's $FF43-$FF4F is its last
 # free gap; bank 1's $BFC0-$BFF9 lies between the ISR copy's code and its vectors. Bank 5's $BC80-$BCBF
 # follows fp-entr-01-sides' slot ($BC40-$BC7F) in bank 5's gap $B8A0-$BF4F.
 FREE_SPACE = {
@@ -119,6 +123,8 @@ FREE_SPACE = {
     "ZORA_F2_BOOTS_ENDING": FreeSpace(2, 0xAF90, 0xAF9F),
     "ZORA_F2_FULL_HEALTH_LOAD": FreeSpace(2, 0xB0E0, 0xB0FF),
     "ZORA_F2_FULL_HEALTH_DEATH": FreeSpace(5, 0xB920, 0xB93F),
+    # The end of fp-prog-02's old room slot $BB00-$BBFF; the extra screen layouts follow at $BBC0
+    "ZORA_F2_LOST_HILLS": FreeSpace(5, 0xBBA0, 0xBBBF),
     "ZORA_F2_HARDER_GANON": FreeSpace(4, 0xBB00, 0xBBFF),
 }
 

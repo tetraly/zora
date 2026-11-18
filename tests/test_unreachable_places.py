@@ -31,14 +31,15 @@ SCAN_SEEDS = range(100)
 SCAN_CHUNKS = chunks(sweep_seeds(SCAN_SEEDS))
 # The default options' FALSE places before the logic walk, by cause (the report's seeds).
 # Seeds 0 and 2 moved with 114f280 (their cellars went); 82 and 370 hold the same causes now.
+# Randomize Boss Groups' four logo tiles (28416f5e) moved 83's and 370's (to 5 and 33) and 93's, whose
+# cause 82, 6 and 87 still hold; the logo's move out of the boss tiles (d3997a4) moved 5's back to 83.
 REPORTED: dict[int, dict[str, str]] = {
     82: {"Level 9 Room 43 Stairway": "after Ganon"},
-    370: {"Level 9 Room 04 Stairway": "turnstile"},     # past a turnstile, by its measured line only
+    33: {"Level 9 Room 04 Stairway": "turnstile"},      # past a turnstile, by its measured line only
     6: {"Level 9 Room 73 Stairway": "after Ganon"},     # behind Ganon's room
     32: {"Level 2 Room 15 Floor": "ladder"},                # double moat by N
     83: {"Level 5 Room 3C Floor": "ladder"},                # horizontal moat by N
     87: {"Level 9 Room 0B Stairway": "after Ganon"},
-    93: {"Level 9 Room 20 Stairway": "after Ganon", "Level 9 Room 46 Stairway": "after Ganon"},
 }
 # The first seed of each other case that had a FALSE place, and two of ASNB's.
 OTHER_SEEDS = {"every owner flag on": 15, "every turn-off value, every owner flag on": 0,

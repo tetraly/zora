@@ -77,6 +77,7 @@ def header(document: dict[str, Any]) -> list[str]:
     if (entrance := level_9_entrance(document, with_setting=False)) is not None:
         lines += wrapped(entrance, " " * 4, "")
     lines.append(f"Start screen: {screen_name(document['spoiler']['startScreen'])}")
+    lines += wrapped(f"Start items: {', '.join(document['spoiler']['startItems']) or 'none'}", " " * 4, "")
     if document.get("progressiveItems"):
         lines += wrapped("Progressive Items is on: an item of a line (sword, candle, arrow, ring, boomerang or "
                          "boots) is listed as the ROM holds it, with its line; the game gives the next level "

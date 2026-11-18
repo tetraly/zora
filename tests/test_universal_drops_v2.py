@@ -1,7 +1,7 @@
 """Universal Drops v2.0 (ZORA flag universal_drops_v2, version 19; owner rulings 2026-11-05; docs/zora-extras.md
 section 26): never with Allow Universal Drops In Shapes (B91); on built seeds every room item stands on its
-screen type's drop squares, each level keeps the center at its index, a room able to seat the center takes it
-half the time and otherwise draws among its valid positions (ruling 2026-11-06), and Highlight No-Drop Rooms
+screen type's drop squares, each level keeps the center at its index, only Triforce rooms take the center,
+never a door square, and Highlight No-Drop Rooms
 marks no room that holds an item. The step's own rules: the coverage rule, and only the item moves when the
 drops are dealt."""
 import re
@@ -25,7 +25,6 @@ from zora.generate.steps.highlight_no_drop_rooms import MARKED_PALETTE
 from zora.generate.steps.universal_drops_v2 import (
     CANDIDATE_SQUARES,
     CENTER,
-    CENTER_WEIGHT_PERCENT,
     deal_drops,
     place_on_drop_square,
 )
@@ -42,7 +41,9 @@ FLAGS = {"baseline": MVP_BASELINE_LEVEL_ENCODING_OFF,
          "B30 and B17": encode(decode(MVP_BASELINE_LEVEL_ENCODING_OFF).updated(
              toggles={"B30": ThreeState.ON, "B17": ThreeState.ON}))}
 SEEDS = (1, 2, 3)
-WALL_MIDDLES = {0x76, 0x86, 0x29, 0xD9, 0x7C, 0x8C}
+# The door squares, where Link stands as he comes in: the top and bottom rows' two middle squares, the middle
+# row's end squares
+DOOR_SQUARES = {0x76, 0x86, 0x29, 0xD9, 0x7C, 0x8C}
 
 
 @cache
@@ -63,9 +64,17 @@ def test_held_back_from_archipelago() -> None:
     assert "universal_drops_v2" in archipelago.NOT_OFFERED
 
 
-def test_the_candidates_are_t5s_squares_and_the_wall_middles() -> None:
-    assert len(CANDIDATE_SQUARES) == 17 and CENTER not in CANDIDATE_SQUARES
-    assert WALL_MIDDLES <= set(CANDIDATE_SQUARES)
+def test_the_candidates_are_t5s_squares_and_never_a_door_square() -> None:
+    """No drop stands where Link comes in through a door (CustomShield's report on 2.0.1)."""
+    assert len(CANDIDATE_SQUARES) == 11 and CENTER not in CANDIDATE_SQUARES
+    assert not DOOR_SQUARES & set(CANDIDATE_SQUARES)
+
+
+def test_every_screen_type_with_drop_squares_keeps_a_candidate() -> None:
+    """Leaving out the door squares leaves no screen type with drop squares but none among the candidates,
+    so the coverage rule never fails for want of one."""
+    assert [f"${code:02X}" for code, squares in DROP_SQUARES.items()
+            if squares and not squares & set(CANDIDATE_SQUARES)] == []
 
 
 @pytest.mark.parametrize("name", list(FLAGS))
@@ -76,9 +85,13 @@ def test_built_seeds(name: str, seed: int) -> None:
     for level in world.levels:
         table = level.item_position_table
         assert CENTER in table and len(set(table)) == len(table)
+        assert not DOOR_SQUARES & set(table), (level.level_num, [f"${square:02X}" for square in table])
         for room in level.rooms:
             if room.item != Item.NOTHING:
                 assert room.palette_1 != MARKED_PALETTE, (level.level_num, f"${room.room_num:02X}")
+            # the center is the Triforce rooms' alone (Ganon's Triforce of Power drops at his ashes)
+            if room.item not in (Item.NOTHING, Item.TRIFORCE, Item.TRIFORCE_OF_POWER):
+                assert table[room.item_position] != CENTER, (level.level_num, f"${room.room_num:02X}", room.item)
 
 
 def test_the_center_keeps_its_index() -> None:
@@ -99,22 +112,21 @@ def test_dealing_moves_only_the_item() -> None:
     assert sorted(room.item for room in rooms) == items
 
 
-def test_the_center_half_the_time() -> None:
-    """A room seating the center and k of the four takes it with chance 1/2 + 1/(2k); a room that can't seat
-    the center draws uniformly among the positions it can (ruling 2026-11-06)."""
-    assert CENTER_WEIGHT_PERCENT == 50
+def test_the_center_is_the_triforce_rooms_alone() -> None:
+    """A room holding a Triforce piece takes the center whenever its squares hold it; every other room draws
+    uniformly among the other three positions its squares hold, never the center (CustomShield's report on
+    2.0.1; it replaces ruling 2026-11-06's center half the time)."""
     level = parse_rom(remember_repo_base_rom()).levels[0]
     room = level.rooms[0]
-    level.item_position_table[:] = [CENTER, 0x29, 0x2C, 0xD9]
+    level.item_position_table[:] = [CENTER, 0x26, 0x2C, 0xDC]
     plain = next(code for code, squares in DROP_SQUARES.items() if set(level.item_position_table) <= squares)
-    no_center = next(code for code, squares in DROP_SQUARES.items()
-                     if CENTER not in squares and len(squares & set(level.item_position_table)) == 2)
-    rng, draws = Rng(11), 4000
-    for code, expected in ((plain, 0.5 + 0.5 / 4), (no_center, 0.0)):
-        room.layout_info = LayoutInfo.from_layout_code(code)
-        squares: list[int] = []
-        for _ in range(draws):
+    room.layout_info = LayoutInfo.from_layout_code(plain)
+    rng, draws = Rng(11), 3000
+    others = {0x26, 0x2C, 0xDC}
+    for item, expected in ((Item.TRIFORCE, {CENTER}), (Item.KEY, others), (Item.NOTHING, others)):
+        room.item_info = replace(room.item_info, item=item)
+        squares = set()
+        for _ in range(draws if item != Item.TRIFORCE else 10):
             place_on_drop_square(level, room, rng)
-            squares.append(level.item_position_table[room.item_position])
-        assert set(squares) <= DROP_SQUARES[code]
-        assert abs(squares.count(CENTER) / draws - expected) < 0.03, (f"${code:02X}", squares.count(CENTER))
+            squares.add(level.item_position_table[room.item_position])
+        assert squares == expected, (item, squares)

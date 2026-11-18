@@ -19,6 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .archipelago_logo import LOGO_FRAME_TILE, LOGO_TEST, WIDE_BELOW_TEST
 from .code_patches import seed_code, seed_code_values
 from .inventory import ITEM_ID_TO_DESCRIPTOR, ITEM_ID_TO_SLOT
 from .layout import NES_HEADER_SIZE
@@ -64,11 +65,13 @@ FLIP_HORIZONTAL = 0x40
 FLIP_VERTICAL = 0x80
 PATTERN_TABLE_BIT = 0x01                # an 8x16 sprite's tile byte: bit 0 picks the pattern table
 
-# What the PPU's sprite pattern table holds on the file-select screen: CommonSpritePatterns at $0000
+# What the PPU's pattern tables hold on the file-select screen: CommonSpritePatterns at $0000
 # (TransferCommonPatterns), DemoSpritePatterns from $0700 at power-on (TransferDemoPatterns; a
-# level's blocks start at $08E0) and CommonMiscPatterns at $1F20.
+# level's blocks start at $08E0), CommonBackgroundPatterns at $1000 and CommonMiscPatterns at $1F20
+# (an odd 8x16 tile is drawn from the $1000 table: the heart's $F3, the Archipelago logo's $4D/$4F).
 PATTERN_TABLE_SIZE = 0x1000
-CHR_BLOCKS = (("CommonSpritePatterns", 0x0000), ("DemoSpritePatterns", 0x0700), ("CommonMiscPatterns", 0x1F20))
+CHR_BLOCKS = (("CommonSpritePatterns", 0x0000), ("DemoSpritePatterns", 0x0700),
+              ("CommonBackgroundPatterns", 0x1000), ("CommonMiscPatterns", 0x1F20))
 DEMO_BLOCK_END = 0x08E0                 # where a level's sprite blocks start
 
 # MenuPalettesTransferBuf (bank 6): a transfer record (PPU address, length) of the 8 palette rows.
@@ -131,7 +134,14 @@ def sprite_pair(image: bytes, slot: int, attributes: int) -> list[tuple[int, int
     left first: a half-width item one centered sprite, a wide one its tile beside its mirror image
     (a pixel closer below the slim bound), and from MIRRORED_END on the tile beside the next."""
     tile = image[ITEM_FRAME_TILES + image[ITEM_FRAME_OFFSETS + slot]]
-    if tile == image[NARROW_TILE_OPERAND] or image[NARROW_FIRST_OPERAND] <= tile < image[NARROW_END_OPERAND]:
+    if image[WIDE_BELOW_TEST:WIDE_BELOW_TEST + len(LOGO_TEST)] == LOGO_TEST:
+        # The Archipelago logo's test replaces "below the narrow start: wide" (archipelago_logo.py):
+        # its tile is the pair as it is, and every other tile below the narrow end is half-width.
+        if tile == LOGO_FRAME_TILE:
+            return [(0, tile, attributes), (WIDE_RIGHT_X, tile + RIGHT_TILE_STEP, attributes)]
+        if tile == image[NARROW_TILE_OPERAND] or tile < image[NARROW_END_OPERAND]:
+            return [(NARROW_X, tile, attributes)]
+    elif tile == image[NARROW_TILE_OPERAND] or image[NARROW_FIRST_OPERAND] <= tile < image[NARROW_END_OPERAND]:
         return [(NARROW_X, tile, attributes)]
     if tile >= image[MIRRORED_END_OPERAND]:
         return [(0, tile, attributes), (WIDE_RIGHT_X, tile + RIGHT_TILE_STEP, attributes)]
@@ -158,7 +168,7 @@ def tile_rows(data: bytes) -> list[list[int]]:
 
 
 def pattern(image: bytes, ppu_address: int) -> bytes:
-    """The 16 bytes of the tile at a sprite pattern table address on the file-select screen."""
+    """The 16 bytes of the tile at a pattern table address on the file-select screen."""
     blocks = {name: (start, size) for name, start, size in GRAPHICS_BLOCKS}
     for name, destination in CHR_BLOCKS:
         start, size = blocks[name]

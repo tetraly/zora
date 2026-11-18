@@ -69,7 +69,7 @@ pictures.
 ## What are beta settings?
 
 Some settings are still being tested. Each one reads "(beta)" on the page, and it can't be picked until you
-turn on the **Beta settings** switch under the flag strings. With it on, a notice at the top of the page
+turn on the **Enable Beta Flags** switch, above the tabs beside Hint Type. With it on, a notice at the top of the page
 says so. Seeds that use a beta setting are more likely to fail to generate or to have bugs.
 
 If you paste or load flags that use a beta setting, the switch turns on by itself. The switch is never

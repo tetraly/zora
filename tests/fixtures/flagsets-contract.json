@@ -1,0 +1,58 @@
+{
+  "_comment": "One contract for every copy of validateSnapshot. Owned by Z1RR.Data; other repos copy this file unchanged.",
+  "reservedCommands": ["grace", "schedule", "info", "ttpflags", "flags", "ttpbot", "cancel", "summary", "race", "matchup", "z1rr", "optout", "optin", "help", "ttp2", "ttp3", "ttp4", "ttp5"],
+  "valid": [
+    {"why": "one string", "snapshot": {"schemaVersion": 1, "revision": 1, "updatedAt": "2026-11-06T17:00:00.000Z", "flagsets": [
+      {"name": "Vanilla", "description": null, "shortcuts": [], "strings": [{"flags": "8m6YW18uL", "isLatest": true}]}
+    ]}},
+    {"why": "several strings, one latest, with a ! in a string and a description", "snapshot": {"schemaVersion": 1, "revision": 12, "updatedAt": "2026-11-06T17:00:00.000Z", "flagsets": [
+      {"name": "TTP3 Power", "description": "Season 3", "shortcuts": ["power", "2025 TTP3 Power"], "strings": [
+        {"flags": "143oNtDD4PAvBt5G8xyCFu5kwp7tS8vUBVpiZY", "isLatest": true},
+        {"flags": "D6jolIWI0Br9u!t9aygyjQhVfkvxLb3ya", "isLatest": false}
+      ]}
+    ]}},
+    {"why": "a flagset may repeat its own form, and punctuation and spaces are kept as typed", "snapshot": {"schemaVersion": 1, "revision": 2, "updatedAt": "2026-11-06T17:00:00.000Z", "flagsets": [
+      {"name": "ABNS 22 Swiss", "description": null, "shortcuts": ["abns22_swiss", "ABNS22SWISS"], "strings": [{"flags": "AAAA", "isLatest": true}]},
+      {"name": "Torneo Corto #28 and #29", "description": null, "shortcuts": ["tc28", "tc29"], "strings": [{"flags": "BBBB", "isLatest": true}]}
+    ]}}
+  ],
+  "invalid": [
+    {"why": "not an object", "snapshot": null},
+    {"why": "wrong schema", "snapshot": {"schemaVersion": 2, "revision": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "no revision", "snapshot": {"schemaVersion": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "revision zero", "snapshot": {"schemaVersion": 1, "revision": 0, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "empty list", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": []}},
+    {"why": "parses but holds an empty record", "snapshot": {"schemaVersion": 1, "revision": 99, "flagsets": [{}]}},
+    {"why": "a record that is not an object", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": ["A"]}},
+    {"why": "name with nothing to compare", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "###", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "name too long", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "description of the wrong type", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": 3, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "shortcuts missing", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": null, "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "shortcut with nothing to compare", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": ["__"], "strings": [{"flags": "AAAA", "isLatest": true}]}]}},
+    {"why": "no strings", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": []}]}},
+    {"why": "bad character in a string", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AA-AA", "isLatest": true}]}]}},
+    {"why": "no latest", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": false}]}]}},
+    {"why": "two latest", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}, {"flags": "BBBB", "isLatest": true}]}]}},
+    {"why": "isLatest not a boolean", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [{"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": "yes"}]}]}},
+    {"why": "a string in two flagsets", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [
+      {"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]},
+      {"name": "B", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]}
+    ]}},
+    {"why": "a shortcut clash that differs only by case and punctuation", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [
+      {"name": "A", "description": null, "shortcuts": ["abns22_swiss"], "strings": [{"flags": "AAAA", "isLatest": true}]},
+      {"name": "B", "description": null, "shortcuts": ["ABNS22SWISS"], "strings": [{"flags": "BBBB", "isLatest": true}]}
+    ]}},
+    {"why": "a shortcut that is another flagset's name", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [
+      {"name": "Torneo Corto #20", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]},
+      {"name": "B", "description": null, "shortcuts": ["Torneo Corto 20"], "strings": [{"flags": "BBBB", "isLatest": true}]}
+    ]}},
+    {"why": "two flagsets with one name", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [
+      {"name": "TTP3 Power", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]},
+      {"name": "ttp3 power", "description": null, "shortcuts": [], "strings": [{"flags": "BBBB", "isLatest": true}]}
+    ]}},
+    {"why": "two flagsets with the identical name", "snapshot": {"schemaVersion": 1, "revision": 1, "flagsets": [
+      {"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "AAAA", "isLatest": true}]},
+      {"name": "A", "description": null, "shortcuts": [], "strings": [{"flags": "BBBB", "isLatest": true}]}
+    ]}}
+  ]
+}

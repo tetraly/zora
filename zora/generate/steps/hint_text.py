@@ -13,7 +13,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field, replace
 from typing import TypeVar
 
-from ...model.enums import Destination, Enemy, Item, RoomAction
+from ...model.enums import Destination, Enemy, Item, RoomAction, RoomType
 from ...model.game_world import GameWorld
 from ...model.levels import LEVEL_9, Level
 from ...model.overworld import HintShop, ItemCave, Quote, Screen
@@ -1177,6 +1177,7 @@ def sword_cave_heart_quotes(slot: int, hearts: int) -> list[list[str]]:
 LEVEL_LOCATION_SLOTS = (33, 19, 20, 21, 22, 23, 28, 31, 32)
 # HT-HINT-01's person-name entries 10, 11 and 12 (texts 6, 7 and 3).
 SHOW_SLOT, MEET_SLOT, HOLDER_SLOT = 6, 7, 3
+SHOW_TEXT = "SHOW THIS TO"            # the letter cave's first line; the second names whom
 # The level-9 trio's slots: three of its four texts, one dropped at random.
 LEVEL9_TRIO_SLOTS = (35, 36, 37)
 # HT-HINT-02's relocation before the overlay: 38 -> 12, 19 -> 38, 19 emptied.
@@ -1553,7 +1554,9 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
     own item, one draw as ever, so the coin's heads tells the truth rather than drawing from nothing."""
     pair10, pair11, pair12 = ((person_appearance(gw, giver), person_appearance(gw, target))
                               for giver, target in NAME_PAIR_TYPES)
-    slot_texts[SHOW_SLOT] = [f"SHOW {person_name(*pair10)}", "SOMETHING"]
+    # The letter cave's text says whom to show the letter to (2026-11-17, from CustomShield's report on
+    # 2.0.1; it read "SHOW <name>|SOMETHING")
+    slot_texts[SHOW_SLOT] = [SHOW_TEXT, person_name(*pair10)]
     # entry 11: the lowest-numbered screen with code 19 (the magical-sword
     # cave) and its hidden flag clear
     meet_screen = next((screen_info.screen_num for screen_info in gw.overworld.screens
@@ -1639,12 +1642,25 @@ def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
                 return room
         return None
 
+    def level9_item_room(is_item: Callable[[Item], bool]) -> Room | None:
+        """The first level-9 room, in room order, holding an item `is_item` accepts; else the room
+        whose stairway leads down to the first item cellar holding one: a cellar's item is
+        shown by the room its stairs are in, never by the cellar's own number (which is not a
+        map room)."""
+        room = level9_room_where(lambda room: room.item is not None and is_item(room.item))
+        if room is not None:
+            return room
+        stair_room = next((stair.return_dest for stair in level9.block.staircases
+                           if stair.room_type == RoomType.ITEM_STAIRCASE and stair.item is not None
+                           and is_item(stair.item) and stair.return_dest in level9.room_nums), None)
+        return None if stair_room is None else level9.block.room(stair_room)
+
     if names.progressive_items:
-        silver_text = _arrow_upgrade_text(gw, item_shuffle_result, level9_room_where)
+        silver_text = _arrow_upgrade_text(gw, item_shuffle_result, level9_item_room)
     elif deception is not None:
         silver_text = _deceiving_silver_arrows_text(gw, item_shuffle_result, deception)
     else:
-        silver_text = _silver_arrows_text(gw, item_shuffle_result, level9_room_where)
+        silver_text = _silver_arrows_text(gw, item_shuffle_result, level9_item_room)
 
     ganon_room = level9_room_where(lambda room: room.enemy == Enemy.THE_BEAST)
     ganon_quadrant = _quadrant(gw, ganon_room.room_num) if ganon_room else "UNKNOWN"
@@ -1658,6 +1674,7 @@ def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
         zelda_quadrant = deception.pick(QUADRANTS)
     zelda_text = ["ZELDA IS IN THE", zelda_quadrant]
 
+    # Rooms only: the compass is never pooled (dungeon_room_shuffle.GUARDED_ITEMS), so never in a cellar.
     compass_room = level9_room_where(
         lambda room: room.item == Item.COMPASS and room.room_action != RoomAction.LAST_BOSS
     )
@@ -1674,17 +1691,17 @@ def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
     return [silver_text, ganon_text, zelda_text, compass_text]
 
 
-RoomFinder = Callable[[Callable[[Room], bool]], Room | None]
+# level9_trio_texts's level9_item_room: the room holding an item, or the stair room of its cellar
+ItemRoomFinder = Callable[[Callable[[Item], bool]], Room | None]
 
 
 def _silver_arrows_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
-                        level9_room_where: RoomFinder) -> list[str]:
-    """HT-HINT-01's silver-arrow text: their quadrant when they are in level 9."""
+                        level9_item_room: ItemRoomFinder) -> list[str]:
+    """HT-HINT-01's silver-arrow text: their quadrant when they are in level 9 (in an item cellar,
+    the quadrant of the room its stairs are in)."""
     silver = next((place for place in item_shuffle_result.tracked if place.item == Item.SILVER_ARROWS), None)
     if silver is not None and silver.level == 9:
-        room = level9_room_where(
-            lambda room: (room.item if room.item is not None else Item.NOTHING) == Item.SILVER_ARROWS
-        )
+        room = level9_item_room(lambda item: item == Item.SILVER_ARROWS)
         quadrant = _quadrant(gw, room.room_num) if room else "UNKNOWN"
         line = f"SILVER ARROWS ARE IN THE {quadrant}"
         silver_text = [line] if len(line) <= LINE_WIDTH else ["SILVER ARROWS ARE", f"IN THE {quadrant}"]
@@ -1693,19 +1710,30 @@ def _silver_arrows_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
     return silver_text
 
 
+def _record_room(gw: GameWorld, record: TrackedPlace) -> int | None:
+    """A level record's map room: its own room, or for an item cellar the room whose stairs lead
+    down to it (the cellar's return room). None when the record names neither (an assigned
+    world's rebuilt records, finish.rebuild_tracking)."""
+    if record.room is not None or record.cellar is None:
+        return record.room
+    level = next(level for level in gw.levels if level.level_num == record.level)
+    return next((stair.return_dest for stair in level.block.staircases
+                 if stair.room_num == record.cellar and stair.room_type == RoomType.ITEM_STAIRCASE), None)
+
+
 def _deceiving_silver_arrows_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
                                   deception: Deception) -> list[str]:
     """HT-HINT-06 item 4's silver-arrow text: a coin replaces their level by one drawn from 1 to 9.
     At level 9 (true or drawn), with the arrows in a level room, a second coin draws the quadrant;
-    tails computes it from their real room, in whatever level. Any other level, or arrows in an
-    overworld cave, says they lie elsewhere."""
+    tails computes it from their real room, in whatever level (in an item cellar, the room its
+    stairs are in). Any other level, or arrows in an overworld cave, says they lie elsewhere."""
     silver = next((place for place in item_shuffle_result.tracked if place.item == Item.SILVER_ARROWS), None)
     level = silver.level if silver is not None else None
     if deception.heads():
         level = 1 + deception.rng.below(9)
     if level != 9 or silver is None or silver.level is None:
         return ["SILVER ARROWS", "LIE ELSEWHERE"]
-    room = silver.room
+    room = _record_room(gw, silver)
     if deception.heads() or room is None:
         quadrant = deception.pick(QUADRANTS)
     else:
@@ -1715,11 +1743,12 @@ def _deceiving_silver_arrows_text(gw: GameWorld, item_shuffle_result: ItemShuffl
 
 
 def _arrow_upgrade_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
-                        level9_room_where: RoomFinder) -> list[str]:
+                        level9_item_room: ItemRoomFinder) -> list[str]:
     """PI-TEXT-01: the silver-arrow text names the arrow line and points at a level-9 place
-    holding an arrow-line item (the first room in room order), if one is there."""
+    holding an arrow-line item (the first room in room order, else the stair room of the first
+    item cellar holding one), if one is there."""
     if any(place.item in ARROW_LINE and place.level == 9 for place in item_shuffle_result.tracked):
-        room = level9_room_where(lambda room: room.item is not None and room.item & ITEM_CODE_MASK in ARROW_LINE)
+        room = level9_item_room(lambda item: item & ITEM_CODE_MASK in ARROW_LINE)
         quadrant = _quadrant(gw, room.room_num) if room else "UNKNOWN"
         return textwrap.wrap(f"AN ARROW UPGRADE IS IN THE {quadrant}", LINE_WIDTH)
     return ["ARROW UPGRADES", "LIE ELSEWHERE"]

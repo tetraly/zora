@@ -17,7 +17,7 @@ from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import build, finish, plan
 from zora.generate.rng import Rng
 from zora.rom import item_sprites as sprites
-from zora.rom.archipelago_logo import logo_writes
+from zora.rom.archipelago_logo import LOGO_TILES, LOGO_TILES_AT, logo_writes
 from zora.rom.base_rom import remember_repo_base_rom
 from zora_export.seed_document import seed_document
 from zora_web import api
@@ -82,19 +82,22 @@ def test_normal_keeps_the_pictures_and_the_icons() -> None:
 
 
 @pytest.mark.parametrize("appearance", (1, 2))
-def test_the_archipelago_logo_is_no_source_and_no_target(appearance: int) -> None:
-    """With the Archipelago logo in the magical shield's tiles (GameConfig.foreign_logo; owner
-    decisions, 2026-10-22) no item takes the logo's picture, and the logo itself is never written,
-    so other players' items keep its look; without it the shield's own picture is a source."""
+def test_with_the_logo_the_shield_is_no_source_and_no_target(appearance: int) -> None:
+    """With the Archipelago logo (GameConfig.foreign_logo; owner decisions, 2026-10-22) the magical
+    shield's picture is no source and no target, as when the logo was drawn in its tiles, and no write
+    reaches the logo's own background tiles; without it the shield's picture is a source."""
     image = bytearray(remember_repo_base_rom())
     for address, data in logo_writes():
         image[address:address + len(data)] = data
-    logo = pattern(bytes(image), sprites.LOGO_PATTERN)
+    logo = pattern(bytes(image), sprites.SHIELD_PATTERN)
+    logo_bytes = range(LOGO_TILES_AT, LOGO_TILES_AT + len(LOGO_TILES))
     seen_with_logo = set()
     for key in range(40):
         written = dict(sprites.item_sprite_writes(image, appearance, Rng(key), logo=True))
-        assert sprites.LOGO_PATTERN not in written
-        assert set(written) == set(sprites.ITEM_PATTERNS) - {sprites.LOGO_PATTERN} | {sprites.DEMO_LEFT_ITEMS}
+        assert sprites.SHIELD_PATTERN not in written
+        assert not any(offset in logo_bytes or offset + len(data) - 1 in logo_bytes
+                       for offset, data in written.items())
+        assert set(written) == set(sprites.ITEM_PATTERNS) - {sprites.SHIELD_PATTERN} | {sprites.DEMO_LEFT_ITEMS}
         seen_with_logo |= set(written.values())
     assert logo not in seen_with_logo
     plain = set()

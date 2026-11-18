@@ -45,6 +45,7 @@ NON_DEFAULTS: dict[str, tuple[Any, ...]] = {
     "low_health_beep": (LowHealthBeep.KEPT, LowHealthBeep.HALF_SPEED, LowHealthBeep.QUARTER_SPEED),
     "death_warp": (DeathWarp.CONTROLLER2_UP_A, DeathWarp.CONTROLLER1_UP_SELECT),
     "reduce_flashing": (True,),
+    "crop_guide": (False,),
     "tunic_colors": ((VIVID, 0x32, 0x16), (0x29, VIVID, 0x16), (0x29, 0x32, VIVID)),
     "heart_color": (VIVID,),
     "music": (Music.OFF,),
@@ -217,6 +218,10 @@ def test_the_pages_settings_map_to_player_settings() -> None:
                 "redRingTunic": 0x16, "heart": 0x16, "statisticsScreen": "off"}
     assert player_settings_from_page(defaults) == PlayerSettings() == player_settings_from_page({})
     assert player_settings_from_page({"selectButton": "off"}).select_swap is SelectSwap.OFF
+    # the crop guide (Cosmetic tab): on unless a page or settings file says off; a file saved before it was a
+    # setting (no cropGuide) keeps it on
+    assert player_settings_from_page({"cropGuide": "off"}).crop_guide is False
+    assert player_settings_from_page({"cropGuide": "on"}).crop_guide is True is PlayerSettings().crop_guide
     for bad in ({"music": "loud"}, {"heart": 0x0D}, {"deathWarp": 3}, {"levelWord": "DUNGEONS"},
                 {"levelWord": 7}, {"levelWord": ""}, {"bossSoundWord": "MOO"}, {"bossSoundWord": "A~BC"}):
         with pytest.raises(PlayerSettingError):

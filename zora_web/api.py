@@ -34,7 +34,13 @@ from zora.rom.revision import finished_in_prg0_layout
 from zora.rom.seed_code_icons import seed_code_icons
 from zora_export.seed_document import EncodedSeedRefused, seed_document
 from zora_export.spoiler_log import spoiler_file_name, spoiler_log
-from zora_export.tracker_file import tracker_file, tracker_file_name, ztracker_note
+from zora_export.tracker_file import (
+    starter_file,
+    starter_file_name,
+    tracker_file,
+    tracker_file_name,
+    ztracker_note,
+)
 from zora_web import multiworld
 
 # The page's player-settings names live in zora/ (Archipelago's recipe uses them too); they are
@@ -111,21 +117,27 @@ class SpoilerLogOff(ValueError):
 def seed_report(rom: bytes, flag_string: str, seed: int, zora_flag_string: str = "") -> dict[str, Any]:
     """For a finished ROM made from these strings and seed: the spoiler log's level
     (pipeline.resolve_spoiler_level); the seed document as JSON text (the "View in Visualizer" hand-off,
-    which Encode level data alone rules) for a seed with encoding off; and at Basic, Medium or Full the
-    spoiler log and the ZoraTracker file, each with its file name, and the note on what ZTracker
-    won't show (rulings of 2026-11-06). Reads the ROM only, after it is made: for an encoded seed with a
-    log, its pre-encoding ROM (GeneratedRom.report_rom). EncodedSeedRefused for an encoded seed at None."""
+    which Encode level data alone rules) for a seed with encoding off; the ZoraTracker file with its file name
+    and the note on what ZTracker won't show; and at Basic, Medium or Full the spoiler log (rulings of
+    2026-11-06). At None the tracker file is the starter file, from the flags alone (tracker_file.starter_file:
+    the flags spec's tracker hints, for races), and nothing reads the ROM but the visualizer's document. Above
+    None it reads the ROM only, after it is made: for an encoded seed with a log, its pre-encoding ROM
+    (GeneratedRom.report_rom)."""
     chosen = plan(flag_string, seed, zora_flag_string)       # planning draws nothing from the generation
-    document = seed_document(rom, chosen)
     report: dict[str, Any] = {"spoilerLevel": int(chosen.spoiler_level)}
+    if chosen.spoiler_level is SpoilerLevel.NONE:
+        if not chosen.encode_level_data:
+            report["json"] = json.dumps(seed_document(rom, chosen))
+        starter = starter_file(chosen.flag_string, chosen.zora_flag_string, chosen.seed)
+        return report | {"tracker": json.dumps(starter, indent=1), "trackerName": starter_file_name(chosen.seed),
+                         "ztrackerNote": ztracker_note(starter)}
+    document = seed_document(rom, chosen)
     if not chosen.encode_level_data:
         report["json"] = json.dumps(document)
-    if chosen.spoiler_level is not SpoilerLevel.NONE:
-        tracker = tracker_file(document)
-        report |= {"spoiler": spoiler_log(document), "spoilerName": spoiler_file_name(document),
-                   "tracker": json.dumps(tracker, indent=1), "trackerName": tracker_file_name(document),
-                   "ztrackerNote": ztracker_note(tracker)}
-    return report
+    tracker = tracker_file(document)
+    return report | {"spoiler": spoiler_log(document), "spoilerName": spoiler_file_name(document),
+                     "tracker": json.dumps(tracker, indent=1), "trackerName": tracker_file_name(document),
+                     "ztrackerNote": ztracker_note(tracker)}
 
 
 def spoiler_report(rom: bytes, flag_string: str, seed: int, zora_flag_string: str = "") -> dict[str, str]:
@@ -137,12 +149,12 @@ def spoiler_report(rom: bytes, flag_string: str, seed: int, zora_flag_string: st
 
 
 def music_asset_urls() -> dict[str, list[str]]:
-    """Where the page fetches the music assets, each in the order to try (zora.rom.music.pin: Quantam's
+    """Where the page fetches the music library, in the order to try (zora.rom.music.pin: Quantam's
     repository at the pinned commit, through a CDN, then GitHub's raw files)."""
     return {name: list(urls) for name, urls in ASSET_URLS.items()}
 
 
-def music_rom(rom: bytes, base: bytes, seed: int, library: bytes, patch: bytes,
+def music_rom(rom: bytes, base: bytes, seed: int, library: bytes,
               settings: PlayerSettings | None = None, local_libraries: list[tuple[str, bytes]] | None = None,
               playlist: str | None = None) -> dict[str, object]:
     """A finished ROM (made with a random Music value, from the player's ROM `base`) with lozft and the
@@ -154,7 +166,7 @@ def music_rom(rom: bytes, base: bytes, seed: int, library: bytes, patch: bytes,
     changes nothing it reads."""
     files = [LibraryFile(name, data) for name, data in local_libraries or ()]
     options = options_for(settings or PlayerSettings(), parse_playlist(playlist) if playlist else None)
-    result = randomize_music(rom, base, MusicAssets(library, patch), seed, options, files)
+    result = randomize_music(rom, base, MusicAssets(library), seed, options, files)
     return {"rom": result.rom, "tracks": [list(pair) for pair in result.track_list()],
             "warnings": list(result.warnings), "libraries": [list(pair) for pair in result.libraries]}
 

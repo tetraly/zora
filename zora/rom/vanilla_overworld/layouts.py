@@ -20,6 +20,9 @@ from .tables import (
     CAVE_LAYOUT_COUNT,
     COLUMN_DIRECTORY_OW,
     COLUMN_HEAP_BANK,
+    EXTRA_LAYOUT_COUNT,
+    EXTRA_LAYOUTS,
+    FIRST_EXTRA_LAYOUT,
     INES_HEADER_SIZE,
     LAYOUT_COLUMNS,
     OW_LAYOUT_COUNT,
@@ -84,6 +87,29 @@ def read_layout(rom: bytes, layout: int) -> Layout:
     assert 0 <= layout < OW_LAYOUT_COUNT
     table = ROOM_LAYOUTS_OW.read(rom)
     return _decode(rom, table[layout * LAYOUT_COLUMNS:(layout + 1) * LAYOUT_COLUMNS])
+
+
+def read_screen_layout(rom: bytes, layout: int) -> Layout:
+    """The layout a screen's layout number names, 0-127: RoomLayoutsOW's 121 rows, then the three
+    cave layouts that follow it (RoomLayoutOWCave0-2, layouts 121-123), which the engine reads
+    the same way, then ZORA's extra layouts $7C-$7F (EXTRA_LAYOUTS, which Randomize Lost Hills'
+    routine points the renderer at). The second quest's fairy fountain on screen $0B and pond on
+    $3C are layout 123 ($7B)."""
+    if layout < OW_LAYOUT_COUNT:
+        return read_layout(rom, layout)
+    if layout < FIRST_EXTRA_LAYOUT:
+        return read_cave_layout(rom, layout - OW_LAYOUT_COUNT)
+    return _decode(rom, screen_layout_codes(rom, layout))
+
+
+def screen_layout_codes(rom: bytes, layout: int) -> bytes:
+    """The 16 column descriptors of screen layout 0-127 (read_screen_layout's rows)."""
+    assert 0 <= layout < FIRST_EXTRA_LAYOUT + EXTRA_LAYOUT_COUNT
+    if layout < FIRST_EXTRA_LAYOUT:
+        table, row = ROOM_LAYOUTS_OW.read(rom) + ROOM_LAYOUTS_OW_CAVE.read(rom), layout
+    else:
+        table, row = EXTRA_LAYOUTS.read(rom), layout - FIRST_EXTRA_LAYOUT
+    return table[row * LAYOUT_COLUMNS:(row + 1) * LAYOUT_COLUMNS]
 
 
 def read_cave_layout(rom: bytes, cave_layout: int) -> Layout:

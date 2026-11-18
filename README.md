@@ -67,8 +67,8 @@ you're welcome here.
 
 The code is a Python package, `zora/`, with its tests in `tests/` (`sh scripts/verify.sh` runs
 them). The web page lives in `web/`, and the ROM patches in `asm/`. Further docs: the flag names
-(`docs/flag-names.md`), the seed document and spoiler log (`docs/seed-format/`) and the notes for
-beta testers (`docs/beta-testers.md`). A public developer guide is still to be written.
+(`docs/flag-names.md`) and the seed document and spoiler log (`docs/seed-format/`). A public
+developer guide is still to be written.
 
 ## License
 

@@ -1,6 +1,6 @@
-"""scripts/release_scan.py: make_release.py's mention and original-game-byte checks at commit time
-(scripts/verify.sh runs it before the suite). A planted mention or a planted run of PRG0 bytes in a
-file the allowlist releases fails the scan; the same in a file it leaves out does not. The checkout
+"""scripts/release_scan.py: make_release.py's mention, original-game-byte, original-game-text and
+disassembly-listing checks at commit time (scripts/verify.sh runs it before the suite). A planted mention,
+run of PRG0 bytes, game text line or disassembly run in a file the allowlist releases fails the scan; the same in a file it leaves out does not. The checkout
 scanned is a throwaway git repository in tmp_path with its own allowlist.
 """
 import importlib.util
@@ -113,6 +113,36 @@ def test_a_planted_run_of_prg1_only_bytes_fails(checkout: Path) -> None:
     assert f"notes/data.py:1: {PLANTED_RUN_LENGTH} bytes = PRG1" in done.stdout
 
 
+def test_a_planted_game_text_line_fails(checkout: Path) -> None:
+    """Recommendation 3 of docs/reports/release-process-review.md (2026-11-07): the original-game text check
+    runs at commit time. The line is read from the ROM when the test runs, so this file holds none."""
+    from zora.rom.parse.rom_file import parse_rom
+    lines = sorted(line.strip(" ~") for quote in parse_rom(BASE_ROM_PATH.read_bytes()).quotes
+                   for line in quote.text.split("|") if len(line.strip(" ~")) >= 10)
+    (checkout / "notes" / "story.md").write_text(f"The old man said {lines[0]}\n")
+    done = _scan(checkout)
+    assert done.returncode == 1
+    assert "[FAIL] no original-game text" in done.stdout and "notes/story.md" in done.stdout
+
+
+def test_a_planted_disassembly_run_fails(checkout: Path) -> None:
+    """Recommendation 3, as above: the disassembly-listing check runs at commit time. The run is the first
+    MIN_LISTING_RUN code lines of the pinned disassembly that are not all generic, found when the test runs."""
+    tool = _make_release()
+    for source in tool.disassembly_sources():
+        code = [normal for line in source.splitlines()
+                if (normal := tool.assembly_line(line)) and not normal.endswith(":") and not normal.startswith(".")]
+        runs = (code[i:i + tool.MIN_LISTING_RUN] for i in range(len(code) - tool.MIN_LISTING_RUN + 1))
+        run = next((run for run in runs if not all(tool.GENERIC_LINE.match(line) for line in run)), None)
+        if run:
+            break
+    assert run
+    (checkout / "notes" / "routine.s").write_text("".join(f"    {line}\n" for line in run))
+    done = _scan(checkout)
+    assert done.returncode == 1
+    assert "[FAIL] no disassembly listing" in done.stdout and "notes/routine.s:1:" in done.stdout
+
+
 def test_files_a_release_leaves_out_are_not_scanned(checkout: Path) -> None:
     (checkout / "internal").mkdir()
     (checkout / "internal" / "notes.md").write_text(f"This was {PLANTED_MENTION}.\n")
@@ -155,6 +185,14 @@ def test_the_released_changelog_never_says_unreleased() -> None:
     shipped = release.released_changelog(_changelog("- A change."), ZORA_VERSION, "2026-10-11")
     assert release.check_unreleased(shipped).passed, shipped
     assert release.check_unreleased("## 2.0\n\n## Unreleased\n").hits == ["docs/CHANGELOG.md:3: ## Unreleased"]
+
+
+@pytest.mark.parametrize(("version", "heading"), [("2.0.0b12", "2.0 beta 12"), ("2.0.1b1", "2.0.1 beta 1")])
+def test_the_released_changelog_finds_a_betas_heading(version: str, heading: str) -> None:
+    """A beta's entry under its players' form; a patch release's beta keeps its patch digit (2026-11-12)."""
+    text = f"## {heading}\n\n- New.\n\n## 2.0.0 (2026-11-07)\n\n- Old.\n"
+    shipped = _make_release().released_changelog(text, version, "2026-12-01")
+    assert shipped.endswith(f"## {heading} (2026-12-01)\n\n- New.\n")
 
 
 @pytest.mark.parametrize(("entry", "passes"), [("- A change.", True), ("- A change, still unreleased.", False)])

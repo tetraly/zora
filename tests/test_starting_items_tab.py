@@ -145,3 +145,68 @@ def test_the_page_shows_the_note_from_each_state() -> None:
     page = PAGE_SCRIPT.read_text()
     assert "const TOGGLE_OFF = 0;" in page
     assert '$("start-limit-note").hidden = !startItemsAllDropped(startRules, state.fields);' in page
+
+
+# --- "Set all to" (tetraly/zora#22), run in Node on the page's own functions ---------------------
+
+SET_ALL_FUNCTIONS = ("startItemRules", "blockedReason", "breaksRule", "setAllStartItems")
+
+
+def set_all(flag_string: str, value: int) -> tuple[dict[str, str] | None, list[int]]:
+    """setAllStartItems on the page state Python gives for FLAG_STRING: the control values it sends Python (as
+    onControlChanged sends them; None when it sends nothing) and how often it asked."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("Node is not installed")
+    metadata = flag_form.metadata()
+    state = flag_form.form_state(flag_string)
+    supported = {field["id"]: field["supportedValues"] for field in metadata["fields"]}
+    script = "\n".join([
+        *map(page_function, SET_ALL_FUNCTIONS),
+        f"const metadata = {{ dependencyRules: {json.dumps(metadata['dependencyRules'])} }};",
+        f"const form = {{ fields: {json.dumps(state['fields'])} }};",
+        f"const supported = {json.dumps(supported)};",
+        "const controls = new Map(Object.entries(form.fields).map(([id, field]) =>",
+        "  [id, { value: field.value, supported: new Set(supported[id]) }]));",
+        f"const startRules = startItemRules({json.dumps(FLAG_TABS)});",
+        "const sent = [];",
+        "function onControlChanged() {",
+        "  sent.push(Object.fromEntries([...controls].map(([id, control]) => [id, String(control.value)])));",
+        "}",
+        f"setAllStartItems({value});",
+        "console.log(JSON.stringify(sent));",
+    ])
+    sent = json.loads(subprocess.run([node, "-"], input=script, capture_output=True, text=True, check=True).stdout)
+    return (sent[-1] if sent else None), [len(sent)]
+
+
+SET_ALL_START = with_values({START_ITEM_LIMIT.id: START_ITEM_LIMIT_ALL_CHOSEN, STARTING_HEARTS.id: 3},
+                            {RAFT: ThreeState.ON, RECORDER: ThreeState.POSSIBLE})
+
+
+@pytest.mark.parametrize("value", [ThreeState.OFF, ThreeState.ON, ThreeState.POSSIBLE], ids=["off", "on", "random"])
+def test_set_all_sets_every_start_field_and_nothing_else(value: ThreeState) -> None:
+    """One change for all 23, through the path a click takes (onControlChanged, then Python's form_change); the
+    flag string afterward is the old one with every Start setting at the value, Max Start Items and the rest kept,
+    and the page takes it: no rule refuses it and generation would take it."""
+    values, asked = set_all(SET_ALL_START, int(value))
+    assert asked == [1] and values is not None
+    before = flag_form.form_state(SET_ALL_START)["fields"]
+    assert {code for code in values if int(values[code]) != before[code]["value"]} <= START_ITEM_IDS
+    after = flag_form.form_change(SET_ALL_START, values, "")
+    assert after["flags"] == with_values({START_ITEM_LIMIT.id: START_ITEM_LIMIT_ALL_CHOSEN, STARTING_HEARTS.id: 3},
+                                         dict.fromkeys(START_ITEM_IDS, value))
+    assert after["refusals"] == [] and after["generateRefusals"] == []
+
+
+def test_set_all_to_what_every_field_already_holds_changes_nothing() -> None:
+    assert set_all(with_values(), int(ThreeState.OFF)) == (None, [0])
+
+
+def test_set_all_is_an_action_never_a_setting() -> None:
+    """Its buttons never show a value as chosen and it keeps no value of its own: nothing of it reaches a flag
+    string, the saved preferences or the shared link (the page's other controls all come from the metadata)."""
+    source = page_function("startAllRow") + page_function("setAllStartItems")
+    assert "aria-pressed" not in source and "localStorage" not in source and "pageStorage" not in source
+    assert "startAll" not in page_function("controlValues")
+    assert "start-all" not in {field["id"] for field in flag_form.metadata()["fields"]}

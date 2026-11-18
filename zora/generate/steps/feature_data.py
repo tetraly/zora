@@ -8,7 +8,7 @@ CODE patches are zora/rom/code_patches.py; FP-PERSON-01's draw is
 zora/generate/steps/person_appearances.py, which runs before the hint text.
 """
 from ...model.game_world import GameWorld
-from ...rom.layout import CREDITS_COPYRIGHT_POINTER, CREDITS_RECORD_CPU_ADDRESSES
+from ...rom.layout import CREDITS_COPYRIGHT_POINTER, CREDITS_RECORD_CPU_ADDRESSES, CREDITS_START_BUTTON_POINTER
 from ...version import PLAYER_NAME, PLAYER_VERSION
 
 # ASNB 3c (docs/design/asnb.md): with Level 9 Entrance = Level 4 sword, the refusal text (lines of
@@ -30,9 +30,9 @@ def write_fixed_feature_data(gw: GameWorld, seed: int) -> None:
     gw.q2_room_trigger_value = 0x01
     gw.level_dash_tile = 0x2F
 
-    # FP-LOCK-02: replacement records in bank-2 free space.
-    # Line 15 keeps PRG0's copyright pointer.
-    gw.credits_pointers = (*CREDITS_RECORD_CPU_ADDRESSES, CREDITS_COPYRIGHT_POINTER)
+    # FP-LOCK-02: lines 12 and 13 announce the statistics screen (ZORA's records in bank-2 free
+    # space); lines 14 and 15 keep PRG0's "PRESS THE START BUTTON." and copyright records.
+    gw.credits_pointers = (*CREDITS_RECORD_CPU_ADDRESSES, CREDITS_START_BUTTON_POINTER, CREDITS_COPYRIGHT_POINTER)
 
     # FP-TRIF-01: the level-9 entrance refusal text, ZORA's own wording. The
     # serializer writes it outside the hint block and points slot 34 at it.

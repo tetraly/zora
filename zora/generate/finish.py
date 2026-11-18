@@ -359,8 +359,8 @@ def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng
         if place.name in assignment:
             write_item(world, place, written_item(assignment[place.name], FOREIGN_ITEMS[look]))
     # every ware place is sold once, whatever it holds, so that buying it is a location check
-    config = replace(built.plan.config, one_time_places=one_time_places(places),
-                     foreign_logo=look is ForeignLook.LOGO)
+    logo = look is ForeignLook.LOGO
+    config = replace(built.plan.config, one_time_places=one_time_places(places), foreign_logo=logo)
     if needs_remap(places, assignment):
         config = replace(config, dungeon_nothing_code=DungeonNothingCode.ZORA_REMAP)
         world.dungeon_nothing_code = DungeonNothingCode.ZORA_REMAP

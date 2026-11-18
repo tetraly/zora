@@ -16,6 +16,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from . import json5
+from .lozft_patch_data import MUSIC_LAYOUT
 
 DEFLATE_PREFIX, HEX_PREFIX = "deflate:", "hex:"
 RAW_DEFLATE = -15                    # zlib's wbits for a raw deflate stream (.NET's DeflateStream)
@@ -228,13 +229,27 @@ def library_songs(library: bytes, safe_only: bool = True) -> list[Song]:
     return read_library(library, safe_only)[0]
 
 
+def too_large(song: Song) -> bool:
+    """Whether the song's module cannot fit one of lozft's music banks."""
+    return song.module is not None and len(song.module.data) > MUSIC_LAYOUT["bank_size"]
+
+
 def local_library_songs(files: Sequence[LibraryFile]) -> tuple[list[Song], list[str]]:
-    """Every enabled song of the player's library files, merged in the files' order (Z2R's rule),
-    and the warnings: each file's own (read_library's, naming the file), and a song whose full
-    title an earlier file already has is left out. A file the importer cannot read raises
-    LibraryError naming it; files with no song to place at all raise MusicError."""
+    """local_library_contents without the titles it left out for their size."""
+    songs, warnings, _too_large = local_library_contents(files)
+    return songs, warnings
+
+
+def local_library_contents(files: Sequence[LibraryFile]) -> tuple[list[Song], list[str], frozenset[str]]:
+    """Every enabled song of the player's library files that can be used, merged in the files' order (Z2R's
+    rule), the warnings, and the titles left out for their size. Warnings: each file's own (read_library's,
+    naming the file), a song whose full title an earlier file already has is left out, and so is a song too
+    large for a music bank (too_large). A file the importer cannot read raises LibraryError naming it; files
+    with no song to place at all raise MusicError, unless only their size kept the songs out: then the seed
+    keeps the game's own songs and the warnings say why."""
     songs: list[Song] = []
     warnings: list[str] = []
+    left_out: set[str] = set()
     first_file: dict[str, str] = {}
     for file in files:
         try:
@@ -247,8 +262,14 @@ def local_library_songs(files: Sequence[LibraryFile]) -> tuple[list[Song], list[
                 warnings.append(f"{song.title}: in {first_file[song.title]} and {file.name}; the first is used")
                 continue
             first_file[song.title] = file.name
+            if too_large(song):
+                assert song.module is not None
+                warnings.append(f"{file.name}: {song.title}: left out, it is {len(song.module.data):,} bytes and a "
+                                f"track can be at most {MUSIC_LAYOUT['bank_size']:,}")
+                left_out.add(song.title)
+                continue
             songs.append(song)
-    if files and not songs:
+    if files and not songs and not left_out:
         raise MusicError("the library files have no track for The Legend of Zelda's areas (Title, Overworld, "
                          "Dungeon, LastDungeon or Ending, or Zelda II's); choose other files")
-    return songs, warnings
+    return songs, warnings, frozenset(left_out)

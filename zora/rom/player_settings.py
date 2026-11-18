@@ -167,6 +167,10 @@ BEEP_REMOVED, BEEP_KEPT = 0x00, 0x40
 # the play mode's Select test). Its bank-5 and bank-7 slots stay, unreachable.
 HOT_KEY_PATCH = "fp-hot-01"
 SELECT_SWAP_OFF_SITES = (0x0B010, 0x140E5, 0x1A040, 0x1EC46)
+# The crop guide (asm/crop-guide/): its patch is a hook in InitMode1_Sub6 and the routine it calls. Off
+# puts PRG0's bytes back at the hook, so the routine never runs and the file-select screen's corners stay
+# plain; on writes both, so a finished ROM can be turned back on.
+CROP_GUIDE_PATCH = "crop-guide"
 
 
 # FP-LEVEL-01: the level label's word ("LEVEL-1" on a level's status bar, its only place in the
@@ -332,6 +336,9 @@ class PlayerSettings:
     # in before generation, so it applies only when a ROM is generated (apply_player_settings refuses it).
     # Never drawn by Random.
     graphics_theme: GraphicsTheme = GraphicsTheme.OFF
+    # The crop guide on the file-select screen (asm/crop-guide/): on by default, as every ROM had it before
+    # it was a setting (2026-11-17). Last, so the fields' order before it stays.
+    crop_guide: bool = True
 
     @property
     def randomize_music(self) -> bool:
@@ -558,6 +565,7 @@ def write_player_settings(rom: bytes, settings: PlayerSettings, coop: bool = Fal
     low_health_beep(out, settings.low_health_beep)
     death_warp(out, settings.death_warp)
     reduce_flashing(out, settings.reduce_flashing)
+    crop_guide(out, settings.crop_guide)
     tunics, others = shown_link_colors(settings)
     tunic_colors(out, tunics)
     link_other_colors(out, others)
@@ -988,6 +996,8 @@ def written_offsets(settings_field: str) -> set[int]:
         return {offset for theme in GraphicsTheme for offset in theme_offsets(theme)}
     elif settings_field == "link_colors":
         return {*link_palette_color_offsets(2), *link_palette_color_offsets(3)}
+    elif settings_field == "crop_guide":
+        runs = list(PATCHES[CROP_GUIDE_PATCH])
     else:
         runs = [run for runs in SETTINGS[settings_field].values() for run in runs]
     return {offset + i for offset, run in runs for i in range(piece_length(run))}
@@ -997,6 +1007,17 @@ SETTING_CHOICES: dict[str, type[Enum]] = {"select_swap": SelectSwap, "low_health
                                           "death_warp": DeathWarp, "music": Music, "link_sprite": LinkSprite,
                                           "character_colors": CharacterColors, "graphics_theme": GraphicsTheme}
 RANDOM_WORD = "random"                  # a color's or the level word's Random on the command line
+def crop_guide(rom: bytearray, on: bool) -> None:
+    """The crop guide's squares on the file-select screen: on writes its patch (hook and routine), off puts
+    PRG0's bytes back at the hook (CROP_GUIDE_PATCH)."""
+    pieces = PATCHES[CROP_GUIDE_PATCH]
+    if on:
+        _write(rom, pieces)
+    else:
+        hook_offset, hook = pieces[0]
+        _write(rom, ((hook_offset, original_bytes(hook_offset, piece_length(hook))),))
+
+
 SWITCH_WORDS = {"off": False, "on": True}
 # Settings that are gone, by their command-line, YAML and page names: still accepted, with any value,
 # and ignored, so what named them before still reads (the statistics screen, always on since
@@ -1007,7 +1028,7 @@ RETIRED_PAGE_SETTINGS = frozenset({"statisticsScreen"})
 
 def parse_player_settings(pairs: list[str]) -> PlayerSettings:
     """Command-line settings, each `name=value` with PlayerSettings' field names: a choice by
-    its value (music=off, music=random-standard, low_health_beep=random), reduce_flashing=on,
+    its value (music=off, music=random-standard, low_health_beep=random), reduce_flashing=on, crop_guide=off,
     music_streaming_safe_only=off, heart_color=0x21 or heart_color=random,
     tunic_colors=0x29,random,0x16, link_colors=0x36,0x0F (Link's colors 2 and 3), character_colors=set or
     mine (without it, tunic or Link colors other than the defaults mean mine), level_word=PALACE (any
@@ -1022,7 +1043,7 @@ def parse_player_settings(pairs: list[str]) -> PlayerSettings:
                 continue
             if name in SETTING_CHOICES:
                 chosen[name] = SETTING_CHOICES[name](text)
-            elif name in ("reduce_flashing", *MUSIC_SWITCHES.values()):
+            elif name in ("reduce_flashing", "crop_guide", *MUSIC_SWITCHES.values()):
                 chosen[name] = SWITCH_WORDS[text]
             elif name == "heart_color":
                 chosen[name] = _color_word(text)
@@ -1064,6 +1085,7 @@ PAGE_CHOICES: dict[str, tuple[str, dict[str, Any]]] = {
     "deathWarp": ("death_warp", {"p2-up-a": DeathWarp.CONTROLLER2_UP_A, "p1-up-a": DeathWarp.CONTROLLER1_UP_A,
                                  "p1-up-select": DeathWarp.CONTROLLER1_UP_SELECT}),
     "reduceFlashing": ("reduce_flashing", {"off": False, "on": True}),
+    "cropGuide": ("crop_guide", {"on": True, "off": False}),
     "music": ("music", {"on": Music.ON, "off": Music.OFF}),
     # Look and feel's Graphics theme: the page's and Archipelago's (read at the world's build, P3)
     "graphicsTheme": ("graphics_theme", {"off": GraphicsTheme.OFF, "halloween": GraphicsTheme.HALLOWEEN}),

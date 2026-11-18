@@ -505,7 +505,8 @@ def test_modified_graphics_follow_into_the_tile_copies(case: str, revision: Revi
 @pytest.mark.parametrize("case", ["baseline", "every ZORA flag on", "All Swords No Boards"])
 def test_the_seed_code_is_the_same_on_every_release_graphics_and_setting(case: str) -> None:
     """PRG0 and PRG1, each as released and with every tile inverted, each with several cosmetic
-    player settings: one code. It is the one the model gives (seed_code_items)."""
+    player settings: one code. It is the one the model gives (seed_code_items) for the world FINISH
+    writes (pipeline.written_world: with Randomize Lost Hills, $0B on its own layout)."""
     flags, zora_flags = CASES[case]
     codes = {}
     for revision in Revision:
@@ -519,7 +520,7 @@ def test_the_seed_code_is_the_same_on_every_release_graphics_and_setting(case: s
     chosen = pipeline.plan(flags, 5, zora_flags)
     built = pipeline.build(chosen, prg1())
     config = replace(chosen.config, revision=Revision.PRG1, modified_graphics=True)
-    assert seed_code_items(built.world, config) == next(iter(codes.values()))[1]
+    assert seed_code_items(pipeline.written_world(built.world, config), config) == next(iter(codes.values()))[1]
 
 
 @needs_both

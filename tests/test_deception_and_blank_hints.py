@@ -11,6 +11,7 @@ HT-HINT-05's Random bullet), on finished ROMs from the spec's own Check strings:
     exchanged ones; PRG0's white-sword cave selector, hint-shop selectors and prices; no first-eight
     dungeon selector $4C.
   - Random resolves to each of the six styles."""
+import re
 from functools import cache
 
 import pytest
@@ -82,6 +83,9 @@ def test_deception_keeps_helpful_hints_selectors_and_shows_every_helpful_text(se
     assert tuple(shipped.hint_shop_offer_selectors or ()) == HINT_SHOP_OFFER_SELECTORS
     # ZORA's slot 0 shows its own quotes (owner ruling); the other four always show their helpful text
     assert text(shipped, SHOW_SLOT).startswith("SHOW") and text(shipped, MEET_SLOT).startswith("MEET")
+    # the letter cave's text says whom to show the letter to, on two lines (CustomShield's report on 2.0.1)
+    assert re.fullmatch(r"SHOW THIS TO (THE (ELDER|MERCHANT|MOBLIN|HUMAN)|ME)", text(shipped, SHOW_SLOT))
+    assert (shipped.quotes[SHOW_SLOT].text or "").count("|") == 1
     assert " HAS" in text(shipped, HOLDER_SLOT) or "I HAVE" in text(shipped, HOLDER_SLOT)
 
 

@@ -1,0 +1,621 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://zora.gg/flags/zora-flags.schema.json",
+ "title": "ZORA flags spec",
+ "description": "ZORA's two flag strings, how to decode them and what they mean (docs/flags-api.md).",
+ "type": "object",
+ "required": [
+  "spec_version",
+  "zora_version",
+  "alphabet",
+  "alphabet_aliases",
+  "page_default",
+  "z1r",
+  "zora",
+  "combined_controls",
+  "tracker_hints",
+  "file_name"
+ ],
+ "properties": {
+  "$schema": {
+   "type": "string"
+  },
+  "spec_version": {
+   "type": "string",
+   "pattern": "^[0-9]+\\.[0-9]+$"
+  },
+  "zora_version": {
+   "type": "string"
+  },
+  "generated_by": {
+   "type": "string"
+  },
+  "alphabet": {
+   "type": "string",
+   "minLength": 2
+  },
+  "alphabet_aliases": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 1
+   }
+  },
+  "page_default": {
+   "type": "object",
+   "required": [
+    "z1r",
+    "zora"
+   ],
+   "properties": {
+    "z1r": {
+     "type": "string"
+    },
+    "zora": {
+     "type": "string"
+    }
+   }
+  },
+  "z1r": {
+   "type": "object",
+   "required": [
+    "rules",
+    "fields"
+   ],
+   "properties": {
+    "fields": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "key",
+       "position",
+       "kind",
+       "radix",
+       "name",
+       "values",
+       "random_values",
+       "default",
+       "beta_values"
+      ],
+      "properties": {
+       "key": {
+        "type": "string",
+        "pattern": "^[CB][0-9]{2}$"
+       },
+       "position": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "kind": {
+        "enum": [
+         "option",
+         "three_state",
+         "switch"
+        ]
+       },
+       "radix": {
+        "type": "integer",
+        "minimum": 2
+       },
+       "values": {
+        "type": "array",
+        "items": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "random_values": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "required": [
+          "value",
+          "resolves_to"
+         ],
+         "properties": {
+          "value": {
+           "type": "integer",
+           "minimum": 0
+          },
+          "resolves_to": {
+           "type": "array",
+           "items": {
+            "type": "integer",
+            "minimum": 0
+           }
+          }
+         }
+        }
+       },
+       "default": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "beta_values": {
+        "type": "array",
+        "items": {
+         "type": "integer",
+         "minimum": 0
+        }
+       },
+       "page_control": {
+        "type": "string"
+       },
+       "name": {
+        "type": "string"
+       },
+       "description": {
+        "type": "string"
+       },
+       "no_effect": {
+        "type": "boolean"
+       }
+      }
+     }
+    }
+   }
+  },
+  "zora": {
+   "type": "object",
+   "required": [
+    "separator",
+    "pattern",
+    "current_version",
+    "rules",
+    "fields"
+   ],
+   "properties": {
+    "separator": {
+     "type": "string"
+    },
+    "pattern": {
+     "type": "string"
+    },
+    "current_version": {
+     "type": "integer",
+     "minimum": 1
+    },
+    "fields": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "key",
+       "position",
+       "kind",
+       "radix",
+       "added_in_version",
+       "name",
+       "values",
+       "random_values",
+       "default",
+       "beta_values"
+      ],
+      "properties": {
+       "key": {
+        "type": "string",
+        "pattern": "^[a-z0-9_]+$"
+       },
+       "position": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "kind": {
+        "enum": [
+         "option",
+         "three_state",
+         "switch"
+        ]
+       },
+       "radix": {
+        "type": "integer",
+        "minimum": 2
+       },
+       "values": {
+        "type": "array",
+        "items": {
+         "type": [
+          "string",
+          "null"
+         ]
+        }
+       },
+       "random_values": {
+        "type": "array",
+        "items": {
+         "type": "object",
+         "required": [
+          "value",
+          "resolves_to"
+         ],
+         "properties": {
+          "value": {
+           "type": "integer",
+           "minimum": 0
+          },
+          "resolves_to": {
+           "type": "array",
+           "items": {
+            "type": "integer",
+            "minimum": 0
+           }
+          }
+         }
+        }
+       },
+       "default": {
+        "type": "integer",
+        "minimum": 0
+       },
+       "beta_values": {
+        "type": "array",
+        "items": {
+         "type": "integer",
+         "minimum": 0
+        }
+       },
+       "page_control": {
+        "type": "string"
+       },
+       "added_in_version": {
+        "type": "integer",
+        "minimum": 1
+       },
+       "name": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "retired": {
+        "type": "boolean"
+       },
+       "hidden": {
+        "type": "boolean"
+       }
+      }
+     }
+    }
+   }
+  },
+  "combined_controls": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "name",
+     "fields",
+     "values"
+    ],
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "fields": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "values": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "required": [
+        "name",
+        "fields",
+        "beta"
+       ],
+       "properties": {
+        "name": {
+         "type": "string"
+        },
+        "fields": {
+         "type": "object",
+         "additionalProperties": {
+          "type": "integer",
+          "minimum": 0
+         }
+        },
+        "beta": {
+         "type": "boolean"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "tracker_hints": {
+   "type": "object",
+   "required": [
+    "pins",
+    "start_items",
+    "modifiers"
+   ],
+   "properties": {
+    "pins": {
+     "type": "object",
+     "required": [
+      "applies_when",
+      "unknown_when",
+      "locations",
+      "values"
+     ],
+     "properties": {
+      "applies_when": {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/condition"
+       }
+      },
+      "unknown_when": {
+       "type": "array",
+       "items": {
+        "$ref": "#/$defs/condition"
+       }
+      },
+      "locations": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": [
+         "location",
+         "field",
+         "name"
+        ],
+        "properties": {
+         "location": {
+          "type": "string"
+         },
+         "field": {
+          "type": "string"
+         },
+         "name": {
+          "type": "string"
+         }
+        }
+       }
+      },
+      "values": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": [
+         "value",
+         "status"
+        ],
+        "properties": {
+         "value": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "status": {
+          "enum": [
+           "not_pinned",
+           "item",
+           "unknown"
+          ]
+         },
+         "item": {
+          "type": "string"
+         },
+         "not_item": {
+          "type": "string"
+         }
+        }
+       }
+      }
+     }
+    },
+    "start_items": {
+     "type": "object",
+     "required": [
+      "fields",
+      "limit_field",
+      "limits"
+     ],
+     "properties": {
+      "fields": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": [
+         "field",
+         "item"
+        ],
+        "properties": {
+         "field": {
+          "type": "string"
+         },
+         "item": {
+          "type": "string"
+         }
+        }
+       }
+      },
+      "limit_field": {
+       "type": "string"
+      },
+      "limits": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": [
+         "value"
+        ],
+        "properties": {
+         "value": {
+          "type": "integer",
+          "minimum": 0
+         },
+         "limit": {
+          "type": [
+           "integer",
+           "null"
+          ]
+         },
+         "random": {
+          "type": "boolean"
+         }
+        }
+       }
+      }
+     }
+    },
+    "modifiers": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "id",
+       "applies_to",
+       "applies_when",
+       "unknown_when"
+      ],
+      "properties": {
+       "id": {
+        "type": "string"
+       },
+       "applies_to": {
+        "type": "array",
+        "items": {
+         "enum": [
+          "locations",
+          "start_items"
+         ]
+        }
+       },
+       "applies_when": {
+        "type": "array",
+        "items": {
+         "$ref": "#/$defs/condition"
+        }
+       },
+       "unknown_when": {
+        "type": "array",
+        "items": {
+         "$ref": "#/$defs/condition"
+        }
+       }
+      }
+     }
+    }
+   }
+  },
+  "file_name": {
+   "type": "object",
+   "required": [
+    "prefix",
+    "separator",
+    "parts",
+    "extensions",
+    "pattern",
+    "groups",
+    "batch_zip",
+    "tolerate"
+   ],
+   "properties": {
+    "prefix": {
+     "type": "string"
+    },
+    "separator": {
+     "type": "string"
+    },
+    "parts": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "required": [
+       "part",
+       "about"
+      ],
+      "properties": {
+       "part": {
+        "type": "string"
+       },
+       "about": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    "test_channel_ending": {
+     "type": "string"
+    },
+    "music_ending": {
+     "type": "string"
+    },
+    "extensions": {
+     "type": "object",
+     "additionalProperties": {
+      "type": "string"
+     }
+    },
+    "pattern": {
+     "type": "string"
+    },
+    "groups": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "batch_zip": {
+     "type": "object",
+     "required": [
+      "pattern",
+      "groups"
+     ],
+     "properties": {
+      "pattern": {
+       "type": "string"
+      },
+      "groups": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    "tolerate": {
+     "type": "object",
+     "required": [
+      "duplicate_suffix"
+     ],
+     "properties": {
+      "duplicate_suffix": {
+       "type": "object",
+       "required": [
+        "pattern"
+       ],
+       "properties": {
+        "pattern": {
+         "type": "string"
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "$defs": {
+  "condition": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "array",
+    "items": {
+     "type": "integer",
+     "minimum": 0
+    }
+   },
+   "description": "Every named field (a Z1R key or a ZORA key) holds one of its values."
+  }
+ }
+}

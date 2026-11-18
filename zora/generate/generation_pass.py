@@ -29,7 +29,7 @@ from dataclasses import replace
 from functools import partial
 
 from ..flags.fields import ItemShuffleScope, Level9Requirement, WoodenSwordState
-from ..flags.zora_flags import Pacing
+from ..flags.zora_flags import OopsAllEnemies, Pacing
 from ..model.enums import Destination, Enemy
 from ..model.game_world import GameWorld
 from ..model.levels import LEVEL_9, LEVEL_BLOCK_ROOMS, Level
@@ -41,7 +41,7 @@ from .boss_sounds import boss_sound_end_pass, check_boss_sounds
 from .context import GenerationContext, GenerationResult, GenerationSettings, Step
 from .deadline import check_deadline
 from .drop_square_table import DROP_SQUARES
-from .drop_squares import check_drop_squares, is_drop_square
+from .drop_squares import check_drop_squares
 from .errors import GenerationFailure
 from .extra_options import NO_EXTRAS, ExtraOptions
 from .flag_steps import ALL_STEPS_ON, FlagSteps
@@ -71,9 +71,11 @@ from .steps.cave_entries import OverworldResult
 from .steps.change_bomb_upgrades import change_bomb_upgrades
 from .steps.change_enemy_hp import (
     EnemyHpResult,
+    MixedLists,
     cap_level_9_vire_hp,
     change_boss_hp,
     change_most_enemy_hp,
+    has_level_9_bomb_dropper,
     maximum_boss_hp,
     maximum_enemy_hp,
     zero_ganon_hp,
@@ -127,6 +129,7 @@ from .steps.monster_lists import MonsterShuffleResult, build_room_lists
 from .steps.move_last_boss_room_items import move_last_boss_room_items
 from .steps.move_map_near_entrance import move_map_near_entrance
 from .steps.oops_all import oops_all_bosses, oops_all_enemies
+from .steps.overworld_gates import brown_raft_bridge
 from .steps.person_appearances import draw_person_appearances
 from .steps.place_triforces import place_triforces
 from .steps.potion_shop import shuffle_blue_potion
@@ -180,7 +183,12 @@ from .steps.starting_hearts import set_starting_hearts
 from .steps.swap_start_rooms import swap_start_rooms
 from .steps.swap_swords_and_rings import swap_swords_and_rings
 from .steps.sword_states import BOMB_UPGRADE_STATES, change_sword_caves, red_candle_for_maximum_boss_health
-from .steps.universal_drops_v2 import balance_drops, place_on_drop_square
+from .steps.universal_drops_v2 import (
+    balance_drops,
+    is_off_center_drop_square,
+    place_on_drop_square,
+    seat_triforces_at_the_center,
+)
 from .steps.wood_sword_behind_blocks import wood_sword_extra_screens
 
 # The attempt cap: SH-FLOW-03 (revised spec) says a rebuild must retry, then
@@ -342,13 +350,24 @@ def build_levels(context: GenerationContext) -> None:
     context.sets = build_sets(context.world, context.plans, context.set_sources)
 
 
+def _shaped_levels(context: GenerationContext) -> list[Level]:
+    """The levels of the sets the shape stage drew (a vanilla set keeps its quest's)."""
+    shaped_numbers = {level for source, levels in zip(context.set_sources, SET_LEVELS, strict=True)
+                      if not source.is_vanilla for level in levels}
+    return [level for level in context.sets.levels if level.level_num in shaped_numbers]
+
+
 def universal_drops_v2_step(context: GenerationContext) -> None:
     """Universal Drops v2.0 (ZORA extra): the shape stage's last step, on each shaped level (a
     vanilla set keeps its quest's positions), before the post-shapes passes read the levels
     (steps/universal_drops_v2.py)."""
-    shaped_numbers = {level for source, levels in zip(context.set_sources, SET_LEVELS, strict=True)
-                      if not source.is_vanilla for level in levels}
-    balance_drops([level for level in context.sets.levels if level.level_num in shaped_numbers], context.rng)
+    balance_drops(_shaped_levels(context), context.rng)
+
+
+def seat_triforces_at_the_center_step(context: GenerationContext) -> None:
+    """Universal Drops v2.0: the center is the Triforce rooms' alone, once every step that moves items has run
+    (steps/universal_drops_v2.seat_triforces_at_the_center), before the drop-square check."""
+    seat_triforces_at_the_center(_shaped_levels(context), context.rng)
 
 
 def _blank_unowned_plans(worlds: list[SetWorld | None]) -> None:
@@ -639,6 +658,7 @@ def shuffle_enemy_groups_step(context: GenerationContext) -> None:
         context.overworld, context.hit_points.hp[Enemy.ZOL], groups.staged,
         overworld_group=context.settings.alternatives.shuffle_overworld_group,
         wizzrobes_in_level_9_group=not context.settings.alternatives.shuffle_level_9_monsters,
+        wallmasters_with_wizzrobes=context.settings.extras.wizzrobes_shoot_wallmasters,
     )
 
 
@@ -646,8 +666,8 @@ def randomize_boss_groups_step(context: GenerationContext) -> None:
     """PS-BGRP."""
     groups = context.groups
     assert groups is not None
-    groups.boss_deal, groups.bosses_redrawn = randomize_boss_groups(context.sets.blocks, context.world,
-                                                                    context.rng, groups.staged)
+    groups.boss_deal, groups.bosses_redrawn = randomize_boss_groups(
+        context.sets.blocks, context.world, context.rng, groups.staged)
 
 
 def shuffle_enemy_drop_groups_step(context: GenerationContext) -> None:
@@ -980,7 +1000,7 @@ def add_l4_sword_step(context: GenerationContext) -> None:
     """Add L4 Sword (docs/design/l4-sword.md): the progressive sword in a level-9 room, after every
     step that changes level 9's rooms."""
     if context.settings.shape_options.universal_drops_v2:
-        add_l4_sword(context.sets.levels, context.rng, is_drop_square)
+        add_l4_sword(context.sets.levels, context.rng, is_off_center_drop_square)
     else:
         add_l4_sword(context.sets.levels, context.rng)
 
@@ -1048,6 +1068,16 @@ def check_magical_sword_hearts_step(context: GenerationContext) -> None:
                                         OverworldResult(context.overworld, context.caves),
                                         context.settings.extras, context.logic_rules)
     _reject_unless_accepted(context, None if accepted else "hearts")
+
+
+def check_level_9_bomb_droppers_step(context: GenerationContext) -> None:
+    """The owner's level-9 rule (2026-11-16), judged as an acceptance check on the staged attempt:
+    level 9 holds a bomb dropper a player reaches without bombs (change_enemy_hp). Not under Oops
+    All Enemies: Keese, whose rooms hold no type the drop lists give bombs."""
+    staged = context.groups.staged.mixed_lists if context.groups is not None else None
+    accepted = has_level_9_bomb_dropper(context.sets.levels, MixedLists.of(context.world, staged),
+                                        context.world.enemy_drop_classes)
+    _reject_unless_accepted(context, None if accepted else "level 9 bombs")
 
 
 def _reject_unless_accepted(context: GenerationContext, failure: str | None) -> None:
@@ -1147,6 +1177,12 @@ def _change_sword_hearts(context: GenerationContext, overworld: Overworld) -> No
     the ZORA cap's (zora_flags.magical_sword_heart_range, from C22 and C23)."""
     change_sword_hearts(overworld, context.rng, context.settings.extras.magical_sword_hearts,
                         context.settings.alternatives.white_sword_hearts)
+
+
+def brown_raft_bridge_step(context: GenerationContext) -> None:
+    """Extra Raft Blocks (owner's 2.0 flag): its bridge's screen in the brown inner palette, on the shipped
+    world, whose cave entries are final (steps/overworld_gates.brown_raft_bridge)."""
+    brown_raft_bridge(context.world.overworld)
 
 
 def randomize_mazes_step(context: GenerationContext) -> None:
@@ -1417,6 +1453,8 @@ STEPS: tuple[Step, ...] = (
          lambda s: (s.post_shapes and s.extras.checks_magical_sword_hearts and s.feature_data
                     and s.steps.change_sword_hearts)),
     Step("check_item_spots", "", check_item_spots_step, post_shapes, restart_label=""),
+    Step("seat_triforces_at_the_center", "ZORA universal_drops_v2", seat_triforces_at_the_center_step,
+         lambda s: s.shape_options.universal_drops_v2, restart_label=""),
     Step("check_drop_squares", "ZORA universal_drops_v2", check_drop_squares_step,
          lambda s: s.shape_options.universal_drops_v2, restart_label=""),
     Step("acceptance_check", "", acceptance_check_step, post_shapes, restart_label="acceptance: "),
@@ -1424,8 +1462,12 @@ STEPS: tuple[Step, ...] = (
     Step("check_magical_sword_hearts", "ZORA randomize_magical_sword or level 9 entrance",
          check_magical_sword_hearts_step,
          lambda s: s.post_shapes and s.extras.checks_magical_sword_hearts, restart_label="acceptance: "),
+    Step("check_level_9_bomb_droppers", "owner rule 2026-11-16", check_level_9_bomb_droppers_step,
+         lambda s: s.post_shapes and s.extras.oops_all_enemies is not OopsAllEnemies.KEESE,
+         restart_label="acceptance: "),
     Step("ship", "", ship_step),
     # On the shipped world
+    Step("brown_raft_bridge", "ZORA extra_raft_blocks", brown_raft_bridge_step, lambda s: s.extras.gates.raft_blocks),
     Step("cap_level_9_vire_hp", "owner rule #14", cap_level_9_vire_hp_step, post_shapes),
     Step("highlight_no_drop_rooms", "ZORA highlight_no_drop_rooms", highlight_no_drop_rooms_step,
          lambda s: (s.post_shapes and s.extras.highlight_no_drop_rooms

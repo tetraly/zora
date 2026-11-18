@@ -337,26 +337,21 @@ BANK_7_FILE, BANK_15_FILE = NES_HEADER_SIZE + 7 * BANK_SIZE, NES_HEADER_SIZE + 1
 
 
 @cache
-def music_rom(from_source: bool) -> bytes:
-    """Case 1's ROM with Music: Random (the standard library): lozft from the pinned lozft.bps, which
-    players get, or built from its pinned source (lozft2, randomize_music's from_source)."""
+def music_rom() -> bytes:
+    """Case 1's ROM with Music: Random (the standard library)."""
     from scripts.music_assets import assets_available, pinned_assets
     from zora.rom.music.randomize import randomize_music
     if not assets_available():
         pytest.skip("needs the music clone (scripts/music_assets.py)")
     base = remember_repo_base_rom()
     finished = rom(settings=PlayerSettings(music=Music.RANDOM_STANDARD))
-    return randomize_music(finished, base, pinned_assets(), SEED, from_source=from_source).rom
+    return randomize_music(finished, base, pinned_assets(), SEED).rom
 
 
-MUSIC_BUILDS = pytest.mark.parametrize("from_source", [False, True], ids=["lozft.bps", "lozft from source"])
-
-
-@MUSIC_BUILDS
-def test_case_19_music_random_mutes_its_pulse_2_for_the_chime(from_source: bool) -> None:
+def test_case_19_music_random_mutes_its_pulse_2_for_the_chime() -> None:
     """Case 1 with Music: Random: the chime plays all four notes; lozft's song keeps playing, with its
     pulse 2 muted on exactly the frames Tune1 is not 0 (the chime's), and given back after."""
-    emu = in_level(music_rom(from_source), 1)
+    emu = in_level(music_rom(), 1)
     room = target_room(emu)
     hidden_item()(emu, room)
     emu[ROOM_ID] = room
@@ -379,11 +374,10 @@ def test_case_19_music_random_mutes_its_pulse_2_for_the_chime(from_source: bool)
     assert frames and not mismatched, mismatched
 
 
-@MUSIC_BUILDS
-def test_case_19_the_chimes_bytes_survive_the_music(from_source: bool) -> None:
+def test_case_19_the_chimes_bytes_survive_the_music() -> None:
     """lozft writes none of the chime's bytes (its bank-0 song table and code are reserved,
     asm/rom_space.toml); the bank-7 hook is in the fixed bank, which a music ROM moves to bank 15."""
-    made = music_rom(from_source)
+    made = music_rom()
     for offset, piece in PATCHES["compass-chime"]:
         if not isinstance(piece, bytes):
             continue

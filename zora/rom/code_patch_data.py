@@ -173,6 +173,11 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
         (0x04860, bytes.fromhex("20449f")),
         (0x05F54, bytes.fromhex("8d0503b100c9e4d005a9ff8d020360")),
     ),
+    "crop-guide": (
+        (0x0A539, bytes.fromhex("20e3b7ea")),
+        (0x0B7D2, bytes.fromhex("20000125201f012523a0012523bf012520210127203e012723810127239e0127ffa900850aa91a8514"
+                                "a020b9c2b79914038810f760")),
+    ),
 }
 
 # Data the passes fill per seed: exported label -> file offset.

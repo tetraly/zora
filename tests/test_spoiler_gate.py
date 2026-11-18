@@ -39,12 +39,15 @@ def test_the_log_only_above_none(b51: ThreeState, zora: str, level: SpoilerLevel
     report = api.seed_report(made.rom, flags, SEED, zora)
     assert report["spoilerLevel"] == level
     assert json.loads(str(report["json"]))["seed"]["number"] == str(SEED)       # the Visualizer's hand-off
+    tracker = json.loads(report["tracker"])
     if level is SpoilerLevel.NONE:
         assert "spoiler" not in report and "spoilerName" not in report
         with pytest.raises(api.SpoilerLogOff):
             api.spoiler_report(made.rom, flags, SEED, zora)
+        assert tracker["ZoraFlags"] == zora and tracker["Notes"] == ""      # the starter file, from the flags
     else:
         assert api.spoiler_report(made.rom, flags, SEED, zora)["spoiler"] == report["spoiler"]
+        assert tracker["ZoraFlags"] == zora and tracker["Notes"].startswith("ZORA ")     # the full file too
 
 
 def test_random_follows_the_level_the_seed_resolved_to() -> None:
@@ -63,6 +66,8 @@ def test_the_page_shows_the_log_button_by_level_and_the_visualizer_by_encoding()
     buttons = page_function("addSeedReportButtons")
     assert "if (result.spoilerLevel > 0) {" in buttons and '"download-spoiler"' in buttons
     assert '"download-tracker"' in buttons and "if (encoded) return;" in buttons
+    # the tracker button at every level (the starter file at None), after the level's check
+    assert buttons.index('"download-tracker"') > buttons.index("$(\"download\").append(spoiler);")
     assert buttons.index("if (encoded) return;") < buttons.index('"view-visualizer"')
     assert "addSeedReportButtons(result, requested.encoded);" in PAGE_SCRIPT
     worker = (REPO / "web" / "zora-worker.js").read_text()
@@ -76,7 +81,8 @@ def test_the_page_knows_the_spoiler_field() -> None:
 @needs_base_rom
 def test_an_encoded_seed_with_a_log_gets_its_log_and_tracker_file_but_no_document() -> None:
     """Rulings of 2026-11-06: an encoded seed above None gets its log and tracker file, read from its ROM before
-    encoding (GeneratedRom.report_rom); the visualizer's document stays off. At None it gets nothing."""
+    encoding (GeneratedRom.report_rom); the visualizer's document stays off. At None it gets the starter tracker
+    file alone, from its flags (tracker_file.starter_file)."""
     from zora.flags.fields import ENCODE_LEVEL_DATA
     from zora.rom import level_encoding
     if not level_encoding.is_available():
@@ -91,8 +97,9 @@ def test_an_encoded_seed_with_a_log_gets_its_log_and_tracker_file_but_no_documen
     no_log = encode(BASELINE.updated(toggles={ENCODE_LEVEL_DATA.id: ThreeState.ON}))
     plain = generate_rom(no_log, SEED, base)
     assert plain.report_rom == b""
-    with pytest.raises(api.EncodedSeedRefused):
-        api.seed_report(plain.rom, no_log, SEED)
+    starter = api.seed_report(plain.rom, no_log, SEED)
+    assert "json" not in starter and "spoiler" not in starter
+    assert json.loads(starter["tracker"])["ZoraVersion"] and json.loads(starter["tracker"])["Seed"] == str(SEED)
 
 
 @needs_base_rom
@@ -103,4 +110,5 @@ def test_the_report_carries_the_tracker_file_and_the_ztracker_note() -> None:
     assert report["trackerName"].endswith(f"-seed-{SEED}-tracker.json")
     assert isinstance(report["ztrackerNote"], str)
     page = PAGE_SCRIPT
-    assert '["Tracker file saved.", report.ztrackerNote].filter(Boolean)' in page and "ZTRACKER_NOTE" not in page
+    assert '"Tracker file saved."' in page and "[saved, report.ztrackerNote].filter(Boolean)" in page
+    assert "Starter tracker file saved" in page and "ZTRACKER_NOTE" not in page

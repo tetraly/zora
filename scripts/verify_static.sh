@@ -26,9 +26,10 @@ fi
 # another name; docs/packaging.md "Packages").
 python3 scripts/check_imports.py || fail "zora/'s import rules (scripts/check_imports.py)"
 
-# The release's mention and original-game-byte checks (scripts/make_release.py's own) on the files
-# a release would ship: a hit fails here, at commit time, rather than at the release. A released
-# checkout has no release/ folder to scan against.
+# The release's mention, original-game-byte, original-game-text and disassembly-listing checks
+# (scripts/make_release.py's own) on the files a release would ship: a hit fails here, at commit
+# time, rather than at the release. The world-version check runs too, as a warning only (the world
+# version is raised at release prep). A released checkout has no release/ folder to scan against.
 if [ -f release/allowlist.txt ]; then
     python3 scripts/release_scan.py || fail "the release scan (scripts/release_scan.py)"
 fi

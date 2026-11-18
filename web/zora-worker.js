@@ -61,7 +61,7 @@ def music_songs(library, names, files):
 def music_areas():
     return json.dumps(music_playlist_areas())
 
-def generate(data, seed, flag_string, player_settings, zora_flag_string, library=None, patch=None,
+def generate(data, seed, flag_string, player_settings, zora_flag_string, library=None,
              names=None, files=None, playlist=None, limit=None):
     global LAST_RESULT, REPORT_ROM
     settings = player_settings_from_page(json.loads(player_settings))
@@ -77,7 +77,7 @@ def generate(data, seed, flag_string, player_settings, zora_flag_string, library
     if settings.randomize_music:
         # The seed report reads the ROM from before the music (docs/music.md).
         REPORT_ROM = rom
-        music = music_rom(rom, bytes(data.to_py()), result.seed, bytes(library.to_py()), bytes(patch.to_py()),
+        music = music_rom(rom, bytes(data.to_py()), result.seed, bytes(library.to_py()),
                           settings, local_files(names, files), playlist)
         rom = music["rom"]
         info.update(tracks=music["tracks"], musicWarnings=music["warnings"], musicLibraries=music["libraries"])
@@ -160,9 +160,9 @@ function zoraChange({ id, flags, zoraValues }) {
   postMessage({ type: "result", id, state: JSON.parse(call("zora_form_change", flags, JSON.stringify(zoraValues))) });
 }
 
-// Randomized music (docs/music.md): Quantam's library and lozft, fetched from his repository at the
+// Randomized music (docs/music.md): Quantam's library, fetched from his repository at the
 // pinned commit (zora_web.api.music_asset_urls: a CDN, then GitHub's raw files) the first time a seed
-// asks for them, kept for the page's life. Python checks them against the pinned checksums.
+// asks for it, kept for the page's life. Python checks it against the pinned checksum.
 let musicAssets = null;
 async function fetchMusicAsset(urls) {
   let problem = "no address";
@@ -180,8 +180,7 @@ async function fetchMusicAsset(urls) {
 async function loadMusicAssets() {
   if (!musicAssets) {
     const urls = JSON.parse(call("music_urls"));
-    const [library, patch] = await Promise.all([fetchMusicAsset(urls.library), fetchMusicAsset(urls.patch)]);
-    musicAssets = { library, patch };
+    musicAssets = { library: await fetchMusicAsset(urls.library) };
   }
   return musicAssets;
 }
@@ -195,7 +194,7 @@ async function generate({ id, bytes, seed, flags, zoraFlags, playerSettings, mus
   const music = playerSettings && RANDOM_MUSIC.includes(playerSettings.music) ? await loadMusicAssets() : null;
   const local = music && playerSettings.music === "random-local" ? musicLibraries || [] : null;
   const result = call("generate", bytes, String(seed), flags, JSON.stringify(playerSettings || {}), zoraFlags || "",
-                      music ? music.library : null, music ? music.patch : null,
+                      music ? music.library : null,
                       // undefined, not null: Pyodide passes JavaScript's null as JsNull, not None
                       local ? local.map((file) => file.name) : undefined, local ? local.map((file) => file.bytes) : undefined,
                       music && musicPlaylist ? musicPlaylist : undefined, limit ?? undefined);

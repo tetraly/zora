@@ -9,12 +9,18 @@ from .fields import OPTION_FIELDS, TOGGLE_FIELDS, Settings, ThreeState
 
 ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!"
 RADIX = len(ALPHABET)
+# Characters read as an alphabet digit, never written: the page's file names write "!" as "_" (a shell and a
+# URL treat "!" specially), so flags copied from a file name paste as they are. Both strings read them
+# (zora_flags uses DIGIT_VALUE); encoding always writes the alphabet's "!". The original Z1R program reads "!"
+# only (docs/flags-api.md).
+ALIASES = {"_": "!"}
 DIGIT_VALUE = {digit: value for value, digit in enumerate(ALPHABET)}
+DIGIT_VALUE |= {alias: DIGIT_VALUE[digit] for alias, digit in ALIASES.items()}
 THREE_STATE_SLOTS = 3
 
 
 class FlagStringError(ValueError):
-    """A flag string that FL-ENC-03 rejects: empty, or a character outside the alphabet."""
+    """A flag string that FL-ENC-03 rejects: empty, or a character outside the alphabet and its ALIASES."""
 
 
 # ---------------------------------------------------------------------------

@@ -4,9 +4,8 @@ lozft (ZeldaMusicRandomizer's patch) grows the ROM to 16 banks of 16 KB, the fix
 the last. Its song table is in bank 0: SONG_TABLE has two bytes per song number (the bank, XORed
 with $FF for a FamiTracker song, and the song's index in its module), MODULE_ADDRESSES one address
 per song number (its module's). Where the modules go is the build's BankLayout (MusicImporter's
-BankLayout "ft"): LOZFT_2026_10_22, the pinned lozft.bps, has music banks 7-14, each with a copy
-of the driver, bank 7's first $1800 bytes, and modules after it; LOZFT2, lozft built from source,
-has 8 KB banks $0F-$1D at $A000 and the driver in a bank of its own. A song for each area: the
+BankLayout "ft"): LOZFT2, lozft built from source, has 8 KB banks $0F-$1D at $A000 and the driver in a
+bank of its own. A song for each area: the
 overworld (song 0), the ending (4), level 9 (5) and one per level 1-8 (6, 11-17), lozft's own
 song numbers (MusicImporter.UsageTrackIdcs), and the title screen (7), which ZORA adds: lozft's glue
 plays the game's title request ($80) from song 7 (track 8: the request's highest bit, 5 + 3).
@@ -67,16 +66,12 @@ class BankLayout:
         return HEADER + bank * self.bank_size
 
 
-# lozft of 2026-10-22 (the pinned lozft.bps): 16 KB banks 7-14 at $8000, each with the driver's $1800 bytes.
-LOZFT_2026_10_22 = BankLayout(bank_size=0x4000, banks=tuple(range(7, 15)), base=0x8000, driver_bank=7,
-                              driver_size=0x1800)
 # lozft2, built from source: the driver has a bank of its own, and every number comes from its build
 # (lozft.ftcfg and the link, scripts/lozft_build.py), so a change of lozft's layout only regenerates it.
 LOZFT2 = BankLayout(bank_size=MUSIC_LAYOUT["bank_size"], banks=tuple(range(*MUSIC_LAYOUT["banks"])),
                     base=MUSIC_LAYOUT["base"], driver_bank=MUSIC_LAYOUT["driver_bank"], driver_size=0,
                     song_table=MUSIC_LAYOUT["song_table"], module_addresses=MUSIC_LAYOUT["module_addresses"],
                     song_numbers=MUSIC_LAYOUT["song_numbers"])
-MUSIC_BANK_ROOM = LOZFT_2026_10_22.room
 
 
 class RomFull(MusicError):
@@ -161,7 +156,7 @@ class _ModuleInfo:
         return bytes(module.data)
 
 
-def check_modules(songs: list[Song], layout: BankLayout = LOZFT_2026_10_22) -> None:
+def check_modules(songs: list[Song], layout: BankLayout = LOZFT2) -> None:
     """Each song's module relocated as the importer would place it (Z2R's TestSongs), so a module
     whose data the driver cannot use is refused before the draw, naming it."""
     by_module: dict[int, _ModuleInfo] = {}
@@ -191,7 +186,7 @@ def _first_fitting(infos: list[_ModuleInfo], start: int, room: int) -> int | Non
     return None
 
 
-def pack_songs(rom: bytearray, placed: list[Placed], layout: BankLayout = LOZFT_2026_10_22) -> None:
+def pack_songs(rom: bytearray, placed: list[Placed], layout: BankLayout = LOZFT2) -> None:
     """Write the placed songs into a lozft ROM: their modules into the music banks, the song table
     and the module addresses. An original song (module None) takes the table entries the ROM has
     for its own song number."""

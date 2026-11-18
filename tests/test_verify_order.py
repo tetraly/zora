@@ -208,7 +208,9 @@ def test_verify_and_the_full_tier_run_the_static_checks_before_the_lock() -> Non
         lock = next(n for n, line in enumerate(lines) if "exec python3 tests/suite_lock.py" in line)
         assert static < lock, script
     verify = (REPO / "scripts" / "verify.sh").read_text()
-    assert 'python3 -m pytest tests -q -m "$SELECTION" $PYTEST_WORKERS $MAXFAIL' in verify
+    # tests/released_files.py in the fast suite and the quick check's selection
+    assert 'python3 -m pytest tests -q -m "$SELECTION" -p tests.released_files $PYTEST_WORKERS $MAXFAIL' in verify
+    assert '-m "not slow and not full_tier" -p tests.released_files $WORKERS $MAXFAIL $(cat $SELECTION)' in verify
     # The quick check's part ends before the lock is taken: it never reaches it
     assert verify.index("compare_output --workers $HASH_WORKERS --no-lock") < verify.index("exec python3 tests/suite_lock.py")
     assert "-m slow -n auto $MAXFAIL" in (REPO / "scripts" / "verify_full.sh").read_text()

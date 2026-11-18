@@ -25,7 +25,7 @@ from ..model.rooms import (
     StaircaseRoom,
 )
 from .late_gate.walk import level9_entry_room
-from .shapes.world import D_SHUTTER, D_WALL
+from .shapes.world import D_BOMB, D_SHUTTER, D_WALL
 
 SHUTTERS_OPEN_TRIGGERS = frozenset({RoomAction.ALL_DEAD, RoomAction.ALL_DEAD_ITEM, RoomAction.BLOCK_DOOR,
                                     RoomAction.MONEY_OR_LIFE})                    # VA-WALK-03
@@ -308,7 +308,7 @@ def stair_partners(level: Level, room: int, staircases: list[StaircaseRoom]) -> 
 def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
                uses_families: bool, target: int | None = None, uses_entry_sides: bool = True,
                family_lists: FamilyLists = FAMILY_LISTS, walk_rules: WalkRules = SPEC_WALK,
-               goriya_hungry: bool = False) -> Walk:
+               goriya_hungry: bool = False, bomb_holes_pass: bool = True) -> Walk:
     """VA-REJ-17/18's inventory walk over (room, side) pairs, from the start
     room entered by its south side. A pair steps out through its own side
     (rule 1) and turns to the sides its room's row allows (rule 2); item
@@ -320,7 +320,8 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
     uses_entry_sides=False is the plain walk of VA-WALK (E3): every row is
     "all", and an accepted target is explored through. walk_rules: SPEC_WALK
     or LOGIC_WALK's arrival and turnstile corrections. goriya_hungry: a hungry Goriya's room
-    takes HUNGRY_GORIYA_ROW (entry_row)."""
+    takes HUNGRY_GORIYA_ROW (entry_row). bomb_holes_pass=False closes the bombable sides: the
+    rooms reached without bombs (ZORA's level-9 bomb droppers, change_enemy_hp)."""
     room_numbers = set(level.room_nums)
     block = level.block
     staircases = block.staircases
@@ -345,7 +346,8 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
             if side == Side.EAST and here.layout_code == RoomType.NARROW_STAIR_ROOM:
                 continue
             door = here.walls[side.direction]
-            if door == D_WALL or (door == D_SHUTTER and not are_shutters_open):
+            if door == D_WALL or (door == D_SHUTTER and not are_shutters_open) or (
+                    door == D_BOMB and not bomb_holes_pass):
                 continue
             behind = neighbor(room, side)
             if behind is not None and behind in room_numbers:

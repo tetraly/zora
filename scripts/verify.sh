@@ -167,7 +167,7 @@ if [ -z "$FAST_SUITE" ] && [ "$ZORA_VERIFY_TIER" != "full" ]; then
     if [ -n "$HAVE_XDIST" ]; then WORKERS="-n 2"; else WORKERS=""; fi
     run_selected_tests() {
         # shellcheck disable=SC2046 # one test path a line, without spaces
-        python3 -m pytest -q -m "not slow and not full_tier" $WORKERS $MAXFAIL $(cat $SELECTION)
+        python3 -m pytest -q -m "not slow and not full_tier" -p tests.released_files $WORKERS $MAXFAIL $(cat $SELECTION)
     }
     TESTS_LOG=$OUT/quick-tests.log
     TESTS_PID=""
@@ -256,11 +256,13 @@ fi
 # The encoder check (scripts/encoder_check.py): the tests that reach the private level encoder
 # are recorded, then rerun without it, as in a release tree; each must pass or skip.
 # The run stops at the first failing test (--maxfail=1) unless --all-failures asks for them all.
+# tests/released_files.py (here and in the quick check's selection): a released test that uses a
+# repository file the release leaves out fails here, not in the release tree.
 progress_step "tests"
 ENCODER_RECORD=$OUT/encoder-record
 rm -rf "$ENCODER_RECORD"
 export ZORA_ENCODER_RECORD="$ENCODER_RECORD"
-python3 -m pytest tests -q -m "$SELECTION" $PYTEST_WORKERS $MAXFAIL || {
+python3 -m pytest tests -q -m "$SELECTION" -p tests.released_files $PYTEST_WORKERS $MAXFAIL || {
     if [ -n "$MAXFAIL" ]; then
         echo "verify: FAILED in the tests: stopped at the first failure (above); --all-failures lists them all" >&2
     else

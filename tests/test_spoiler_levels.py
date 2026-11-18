@@ -5,7 +5,7 @@ from zora.flags import form
 from zora.flags.codec import decode
 from zora.flags.fields import PRINT_QUEST_INFO, ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.flags.zora_flags import CURRENT_VERSION, SpoilerLevel, ZoraFlags, spoiler_level
+from zora.flags.zora_flags import FIELDS, SpoilerLevel, ZoraFlags, spoiler_level
 from zora.flags.zora_flags import decode as decode_zora
 from zora.flags.zora_flags import encode as encode_zora
 
@@ -24,7 +24,8 @@ def test_the_two_bits_give_four_levels() -> None:
 
 
 def test_detailed_spoiler_log_is_version_20_and_off_by_default() -> None:
-    assert CURRENT_VERSION == 20
+    # the version that introduced the field, not the newest version (later flags raise that)
+    assert next(field.version for field in FIELDS if field.name == "detailed_spoiler_log") == 20
     assert ZoraFlags().detailed_spoiler_log is False
     assert encode_zora(ZoraFlags()) == ""
     assert decode_zora(encode_zora(ZoraFlags(detailed_spoiler_log=True))).detailed_spoiler_log is True

@@ -9,8 +9,11 @@ from zora.generate.steps import overworld_gates as gates
 from zora.model.enums import Item
 from zora.rom import overworld_crossings as crossings
 from zora.rom.base_rom import BASE_ROM_PATH, verify_base_rom
+from zora.rom.extra_layouts import OWN_LAYOUTS, extra_layout_writes
+from zora.rom.flags2_patch_data import PATCHES as FLAGS2_PATCHES
 from zora.rom.parse.rom_file import load_rom, parse_rom
-from zora.rom.vanilla_overworld.walkability import ScreenGraph, screen_graph, screen_tiles
+from zora.rom.vanilla_overworld.tables import ATTRIBUTE_TABLE_SIZE, LEVEL_BLOCK_OW, ROOM_LAYOUTS_OW
+from zora.rom.vanilla_overworld.walkability import LAYOUT_MASK, LAYOUT_TABLE, ScreenGraph, screen_graph, screen_tiles
 
 pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 
@@ -25,25 +28,52 @@ LAYOUT_EDITS = {
              (0x15765, "91 78"), (0x1582F, "02 08 0B 0B 0B 0B 0B 0B 0B 0B 01"), (0x1592F, "17 17")],
     "bracelet": [(0x1554E, "38"), (0x15554, "06 E7 00 00 00"), (0x15649, "00 A9"), (0x1564E, "B6"),
                  (0x1574E, "02")],
-    "lost_hills": [(0x154D7, "01 01 01 01 01 01 01"), (0x154F1, "09"), (0x154F5, "06"), (0x155DD, "02"),
+    # and $0B on a layout of its own (own_layouts)
+    "lost_hills": [(0x154D8, "01 01 01 01 01 01"), (0x154F1, "09"), (0x154F5, "06"), (0x155DD, "02"),
                    (0x155F5, "51")],
     "dead_woods": [(0x15B08, "29")],
     # Add Bridges to the River (B87, FP-BRIDGE-01) and Add Lost Woods Shortcut (B88, FP-WOODS-01)
     "bridges": [(crossings.ROOM_17_RIVER_ROWS, "4B"), (crossings.ROOM_27_RIVER_COLUMN, "12")],
     "shortcut": [(crossings.ROOM_51_WEST_EDGE, "16")],
 }
+# The second quest's fairy fountain on $0B and pond on $3C, layout 123 ($7B): 2nd Quest, Mixed Quest
+# ($3C) and an unchosen 1Q5 or a closed pond under Expanded Dungeon Locations show them.
+FOUNTAIN_LAYOUT = 0x7B
+FOUNTAIN_SCREENS = (0x0B, 0x3C)
+SCREEN_11 = 0x0B
+LOOKS = {"fountain": FOUNTAIN_SCREENS}
 LOST_HILLS_REPEATS = frozenset({(gates.LOST_HILLS_SCREEN, side) for side in "NSE"})     # free exit: west
 DEAD_WOODS_REPEATS = frozenset({(gates.DEAD_WOODS_SCREEN, side) for side in "NSW"})     # free exit: east
 
 
+def layout_byte(screen: int) -> int:
+    return LEVEL_BLOCK_OW.file_offset + LAYOUT_TABLE * ATTRIBUTE_TABLE_SIZE + screen
+
+
 @cache
-def graph(edits: tuple[str, ...], ladder: bool = False) -> ScreenGraph:
+def graph(edits: tuple[str, ...], ladder: bool = False, own_layout: bool = True) -> ScreenGraph:
+    """PRG0 with the named flags' layout edits and the named looks (each look's screens on layout 123);
+    with Lost Hills, $0B on its own copy of the layout it shows, as a finished ROM has it (own_layouts),
+    unless `own_layout` is False."""
     rom = bytearray(verify_base_rom().read_bytes())
     for name in edits:
-        for offset, new in LAYOUT_EDITS[name]:
+        for offset, new in LAYOUT_EDITS.get(name, ()):
             data = bytes.fromhex(new)
             rom[offset:offset + len(data)] = data
+        for screen in LOOKS.get(name, ()):
+            rom[layout_byte(screen)] = rom[layout_byte(screen)] & ~LAYOUT_MASK | FOUNTAIN_LAYOUT
+    if "lost_hills" in edits and own_layout:
+        own_layouts(rom)
     return screen_graph(bytes(rom), ladder)
+
+
+def own_layouts(rom: bytearray) -> None:
+    """Randomize Lost Hills' layouts $7C and $7D (zora/rom/extra_layouts.py, which writes them from the
+    image's rows) and $0B on the one copying its layout (zora/generate/steps/lost_hills_layouts.py)."""
+    for offset, data in extra_layout_writes(rom):
+        rom[offset:offset + len(data)] = data
+    at = layout_byte(SCREEN_11)
+    rom[at] = rom[at] & ~LAYOUT_MASK | OWN_LAYOUTS[rom[at] & LAYOUT_MASK]
 
 
 def beyond(world: ScreenGraph, closed: frozenset[tuple[int, str]], start: int = START) -> set[int]:
@@ -103,6 +133,39 @@ def test_the_maze_sets_come_from_the_map(blocks: tuple[str, ...]) -> None:
     assert gated(walk, no_west) == (gates.DEAD_WOODS_GATED | gates.DEAD_WOODS_WEST) - unreached_blocks
     if blocks:
         assert unreached_blocks == gates.RAFT_ENCLOSED_SCREENS | gates.BRACELET_ENCLOSED_SCREENS
+
+
+def test_the_lost_hills_edits_are_the_patch_s() -> None:
+    """LAYOUT_EDITS' Lost Hills bytes are the layout bytes Randomize Lost Hills writes (asm/flags2/lost-hills;
+    its other bytes are the routine and its hook)."""
+    layouts = range(ROOM_LAYOUTS_OW.file_offset, ROOM_LAYOUTS_OW.file_offset + ROOM_LAYOUTS_OW.size)
+    written = {offset: piece for offset, piece in FLAGS2_PATCHES["lost-hills"]
+               if isinstance(piece, bytes) and offset in layouts}
+    assert {offset: bytes.fromhex(new) for offset, new in LAYOUT_EDITS["lost_hills"]} == written
+
+
+@pytest.mark.parametrize("look", [(), ("fountain",)])
+@pytest.mark.parametrize("blocks", [(), ("raft", "bracelet")])
+def test_the_maze_sets_hold_with_0b_s_own_layout(look: tuple[str, ...], blocks: tuple[str, ...]) -> None:
+    """With $0B on its own layout ($7D, its doorway's copy, or with $0B and $3C on layout 123, the
+    fountain and the pond, $7C) the maze sets are the same and no cave is cut off. On the layout it
+    shares with $3C, which Lost Hills leaves as PRG0's, $0B shuts $0C and $0D off (2.0.0's bug with the
+    fountain)."""
+    edits = ("lost_hills", "dead_woods", *look, *blocks)
+    walk, ladder = graph(edits), graph(edits, ladder=True)
+    plain = graph(("lost_hills", "dead_woods", *blocks))
+    assert gated(walk, LOST_HILLS_REPEATS) == gated(ladder, LOST_HILLS_REPEATS) == gates.LOST_HILLS_GATED
+    assert gated(ladder, DEAD_WOODS_REPEATS) == gates.DEAD_WOODS_GATED
+    assert cut_off(walk) == cut_off(plain)
+    shared = graph(edits, own_layout=False)
+    assert {0x0C, 0x0D} <= cut_off(shared) - cut_off(plain)
+
+
+def test_the_fountain_screens_show_layout_123() -> None:
+    """The screens the gate tests put on layout 123 are the ones generation does."""
+    from zora.generate.steps.mixed_overworld_quest import SCREEN_11, SCREEN_11_LAYOUT, SCREEN_60, SCREEN_60_LAYOUT
+    assert (SCREEN_11, SCREEN_60) == FOUNTAIN_SCREENS
+    assert SCREEN_11_LAYOUT == SCREEN_60_LAYOUT == FOUNTAIN_LAYOUT
 
 
 def test_the_cave_on_72_needs_the_dead_woods_hint() -> None:

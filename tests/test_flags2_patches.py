@@ -106,7 +106,7 @@ def test_every_replaced_byte_is_prg0_in_zora_output(seed: int, zora_flags: str) 
 
 def test_no_two_patches_write_the_same_byte() -> None:
     """Between these patches, and between each of them and the series, every player setting's
-    choices and the overworld red Wizzrobe routine."""
+    choices and the overworld blue Wizzrobe routine."""
     others = {f"series {name}": written(pieces) for name, pieces in SERIES_PATCHES.items()}
     for setting, choices in settings.SETTINGS.items():
         others[f"setting {setting}"] = set().union(*(written(runs) for runs in choices.values()))
@@ -145,7 +145,8 @@ def test_the_credits_are_recorded() -> None:
     docs/credits.md."""
     assert data.CREDITS == {"fast-heart-fill": "snarfblam", "fast-dungeon-scroll": "fiskbit",
                             "recorder-pols-voice": "Stratoform",
-                            "full-health": "ShadowOne333, kalita-kun and gzip", "harder-ganon": "MetalMachine"}
+                            "full-health": "ShadowOne333, kalita-kun and gzip", "harder-ganon": "MetalMachine",
+                            "wizzrobe-hand": "Ultralavos", "item-counter": "Ultralavos"}
     credits = (REPO / "docs" / "credits.md").read_text()
     for name, author in data.CREDITS.items():
         assert author in (REPO / "asm" / "flags2" / name / "patch.toml").read_text()

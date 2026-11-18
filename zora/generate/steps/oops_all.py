@@ -64,15 +64,16 @@ from .shuffle_enemy_groups import (
 # --- the families ----------------------------------------------------------------------------
 
 FAMILIES: dict[OopsAllEnemies, tuple[Enemy, ...]] = {
-    OopsAllEnemies.WIZZROBES: (E.RED_WIZZROBE, E.BLUE_WIZZROBE),
+    OopsAllEnemies.WIZZROBES: (E.BLUE_WIZZROBE, E.RED_WIZZROBE),
     OopsAllEnemies.KEESE: (E.BLUE_KEESE, E.RED_KEESE, E.DARK_KEESE),
     OopsAllEnemies.BOUNCERS: (E.POLS_VOICE, E.VIRE),
 }
 # The sprite objects whose tiles each family needs, packed in this order so the last ends at
 # tile 191 (as B42's seed enemy does). The Keese draw from the common dungeon tiles ($9A-$9C),
-# which every level loads (1.3), and red Wizzrobe shares blue Wizzrobe's tiles (PS-EGRP-02).
+# which every level loads (1.3), and the blue Wizzrobe shares the red Wizzrobe's tiles (PS-EGRP-02;
+# the spec calls them the other way round).
 FAMILY_SPRITES: dict[OopsAllEnemies, tuple[Enemy, ...]] = {
-    OopsAllEnemies.WIZZROBES: (E.BLUE_WIZZROBE,),
+    OopsAllEnemies.WIZZROBES: (E.RED_WIZZROBE,),
     OopsAllEnemies.KEESE: (),
     OopsAllEnemies.BOUNCERS: (E.VIRE, E.POLS_VOICE),
 }
@@ -82,8 +83,8 @@ FAMILY_SPRITES: dict[OopsAllEnemies, tuple[Enemy, ...]] = {
 REWRITTEN_ENEMIES = frozenset({
     E.BLUE_LYNEL, E.RED_LYNEL, E.BLUE_MOBLIN, E.RED_MOBLIN, E.BLUE_GORIYA, E.RED_GORIYA,
     E.RED_DARKNUT, E.BLUE_DARKNUT, E.BLUE_TEKTITE, E.RED_TEKTITE, E.VIRE, E.ZOL, E.GEL_1, E.GEL_2,
-    E.POLS_VOICE, E.LIKE_LIKE, E.BLUE_KEESE, E.RED_KEESE, E.DARK_KEESE, E.RED_WIZZROBE,
-    E.BLUE_WIZZROBE, E.WALLMASTER, E.ROPE, E.STALFOS, E.GIBDO, E.RED_LANMOLA, E.BLUE_LANMOLA,
+    E.POLS_VOICE, E.LIKE_LIKE, E.BLUE_KEESE, E.RED_KEESE, E.DARK_KEESE, E.BLUE_WIZZROBE,
+    E.RED_WIZZROBE, E.WALLMASTER, E.ROPE, E.STALFOS, E.GIBDO, E.RED_LANMOLA, E.BLUE_LANMOLA,
 })
 FIRST_LIST_CODE = 0x62                   # codes $62-$7F name a mixed list (1.1)
 LIST_READ_LENGTH = 8                     # a room reads up to its count's bytes, at most 8
@@ -224,7 +225,7 @@ def redraw_overworld(gw: GameWorld, overworld: Overworld, deal: EnemyDeal, famil
                            and not (enemy in WIZZROBES and screens & WIZZROBE_BARRED_SCREENS)]
                 staged.mixed_lists[position] = _pick_allowed(allowed, rng).value
                 redrawn += 1
-    staged.red_wizzrobe_overworld = E.RED_WIZZROBE in remaining
+    staged.blue_wizzrobe_overworld = E.BLUE_WIZZROBE in remaining
     return redrawn
 
 

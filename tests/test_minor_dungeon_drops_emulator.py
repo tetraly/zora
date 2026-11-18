@@ -32,7 +32,7 @@ REVEAL_LIMIT = 300
 # (slot, item, seed): the first of seeds 1-40 whose slot holds the item
 CASES = (("armos", Item.BOMBS, 9), ("armos", Item.FIVE_RUPEES, 2), ("armos", Item.KEY, 1),
          ("white_sword", Item.BOMBS, 1), ("white_sword", Item.FIVE_RUPEES, 4),
-         ("coast", Item.BOMBS, 4), ("coast", Item.FIVE_RUPEES, 28), ("coast", Item.KEY, 1))
+         ("coast", Item.BOMBS, 4), ("coast", Item.FIVE_RUPEES, 21), ("coast", Item.KEY, 1))
 
 
 @cache
