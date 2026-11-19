@@ -12,7 +12,7 @@ import hashlib
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, replace
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..model.enums import Destination, DungeonNothingCode, Item
 from ..model.overworld import Shop
@@ -260,8 +260,47 @@ def shields_to_fairies(world: GameWorld, foreign_wares: Collection[tuple[Destina
 
 # --- the hint text --------------------------------------------------------------------------
 
+def hinted_foreign_places(places: Collection[Any], assignment: Mapping[str, object],
+                          owners: dict[str, tuple[str, str]]) -> dict[str, int | str]:
+    """The other-player places a hint can name, as place name -> key: the player level for a level
+    holding exactly one other player's item, "coast" for the Coast and "white sword" for the White
+    Sword Cave. A place whose owner or item name has no character the font shows is left out (the
+    encoder drops those, so the hint would read "'S ... AWAITS"); it keeps the generic wording.
+    owners: place name -> (owner name, item name)."""
+    from .steps.hint_text import has_shown_character
+    def nameable(place_name: str) -> bool:
+        return (isinstance(assignment.get(place_name), Foreign) and place_name in owners
+                and all(has_shown_character(text) for text in owners[place_name]))
+    by_level: dict[int, list[str]] = {}
+    for place in places:
+        if place.level is not None and nameable(place.name):
+            by_level.setdefault(place.level, []).append(place.name)
+    hinted: dict[str, int | str] = {found[0]: level for level, found in by_level.items() if len(found) == 1}
+    hinted.update({place_name: key for place_name, key in (("Coast", "coast"), ("White Sword Cave", "white sword"))
+                   if nameable(place_name)})
+    return hinted
+
+
+def foreign_level_labels(world: GameWorld, places: Collection[Place], assignment: Mapping[str, object],
+                         owners: dict[str, tuple[str, str]]) -> tuple[tuple[int | str, str, str], ...]:
+    """(level, owner, item) for each place hinted_foreign_places names: a level is given as the
+    ROM's level number, the Coast and the White Sword Cave by key."""
+    labels: list[tuple[int | str, str, str]] = []
+    for place_name, key in hinted_foreign_places(places, assignment, owners).items():
+        label: int | str = key
+        if isinstance(key, int):
+            level = next((lvl for lvl in world.levels if lvl.level_num == key), None)
+            if level is None:
+                continue
+            label = level.rom_level_num
+        owner, item = owners[place_name]
+        labels.append((label, owner, item.upper()))
+    return tuple(labels)
+
+
 def recompose_hint_text(world: GameWorld, built: Built, item_shuffle_result: ItemShuffleResult, rng: Rng,
-                        foreign: bool = False, foreign_item: Item = FOREIGN_ITEM) -> None:
+                        foreign: bool = False, foreign_item: Item = FOREIGN_ITEM,
+                        foreign_labels: tuple[tuple[int | str, str, str], ...] = ()) -> None:
     """The hint text again on the assigned world: the hint text step (compose_hint_text), B19's
     pointer exchange when it ran, and ship_hint_text. foreign: the assignment holds another
     player's item; a hint naming a place that holds one says it is an item for another player
@@ -276,7 +315,8 @@ def recompose_hint_text(world: GameWorld, built: Built, item_shuffle_result: Ite
         return
     chosen = built.plan
     hint_text = compose_hint_text(world, item_shuffle_result, result.hint_assignment, rng, extra_options(chosen),
-                                  chosen.alternatives, result.maze_offers, foreign_item if foreign else None)
+                                  chosen.alternatives, result.maze_offers, foreign_item if foreign else None,
+                                  foreign_labels)
     if chosen.steps.shuffle_dungeon_text:
         hint_text = shuffle_dungeon_text(hint_text, rng)
     ship_hint_text(world, hint_text)
@@ -338,7 +378,8 @@ class Finished:
 
 def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng: Rng, recompute: bool = True,
                      received: Collection[Item] = (), check: bool = True,
-                     look: ForeignLook = ForeignLook.RUPEE) -> Finished:
+                     look: ForeignLook = ForeignLook.RUPEE,
+                     foreign_owners: dict[str, tuple[str, str]] | None = None) -> Finished:
     """Write the assignment into `world` (a copy of the built world), refusing it whole if any
     part breaks a rule (AssignmentRefused); then redo every output that depends on which item
     sits where (docs/archipelago.md, R3): the tracked items, the joined wares' prices and the hint
@@ -371,7 +412,8 @@ def apply_assignment(world: GameWorld, built: Built, assignment: Assignment, rng
         reprice_wares(world, built, rng)
         recompose_hint_text(world, built, item_shuffle_result, rng,
                             foreign=any(isinstance(value, Foreign) for value in assignment.values()),
-                            foreign_item=FOREIGN_ITEMS[look])
+                            foreign_item=FOREIGN_ITEMS[look],
+                            foreign_labels=foreign_level_labels(world, places, assignment, foreign_owners or {}))
     if look is ForeignLook.LOGO:
         foreign_wares = {(place.destination, place.position) for place in places
                          if place.destination is not None and place.position is not None

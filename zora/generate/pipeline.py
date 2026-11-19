@@ -737,7 +737,7 @@ def build(chosen: GenerationPlan, base_rom: bytes | PlayerRom) -> Built:
 def finish(built: Built, base_rom: bytes | PlayerRom, assignment: Assignment | None = None,
            player_settings: PlayerSettings = DEFAULT_PLAYER_SETTINGS, recompute: bool = True,
            received: Collection[Item] = (), check: bool = True, slot_identity: bytes = b"",
-           look: ForeignLook | None = None) -> bytes:
+           look: ForeignLook | None = None, foreign_owners: dict[str, tuple[str, str]] | None = None) -> bytes:
     """FINISH: the built world as a ROM. With no assignment (ZORA mode) it is serialize_to_rom on
     the built world, which only reads it, so one build can be finished more than once. With one
     (External mode) the items go into a copy of the world first (finish_world); `slot_identity`
@@ -751,7 +751,7 @@ def finish(built: Built, base_rom: bytes | PlayerRom, assignment: Assignment | N
         return serialize_to_rom(written_world(built.world, config), base_rom, config=config,
                                 player_settings=player_settings)
     with using_player_rom(as_player_rom(base_rom)):
-        world, finished = finish_world(built, assignment, recompute, received, check, look)
+        world, finished = finish_world(built, assignment, recompute, received, check, look, foreign_owners)
     config = replace(finished.config, slot_identity=slot_identity, archipelago_rom=True, seed_number=None)
     return serialize_to_rom(written_world(world, config), base_rom, config=config, player_settings=player_settings)
 
@@ -784,14 +784,15 @@ def written_world(world: GameWorld, config: GameConfig) -> GameWorld:
 
 
 def finish_world(built: Built, assignment: Assignment, recompute: bool = True, received: Collection[Item] = (),
-                 check: bool = True, look: ForeignLook | None = None) -> tuple[GameWorld, Finished]:
+                 check: bool = True, look: ForeignLook | None = None,
+                 foreign_owners: dict[str, tuple[str, str]] | None = None) -> tuple[GameWorld, Finished]:
     """External mode before serialization: a deep copy of the built world with the assignment
     applied (finish.apply_assignment, which also takes `received` and `check`), on FINISH's own
     stream; the built world is left as it is."""
     from .finish import ForeignLook, apply_assignment, finish_rng
     world = copy.deepcopy(built.world)
     finished = apply_assignment(world, built, assignment, finish_rng(built.plan.generation_seed), recompute,
-                                received, check, look or ForeignLook.RUPEE)
+                                received, check, look or ForeignLook.RUPEE, foreign_owners)
     return world, finished
 
 

@@ -77,6 +77,11 @@ def toll_slot_shown(item_shuffle_result: ItemShuffleResult) -> bool:
 SHOWN_CHARACTERS = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .!'?-" + ',"')
 
 
+def has_shown_character(text: str) -> bool:
+    """Whether the encoder emits at least one tile for `text`."""
+    return any(character.upper() in SHOWN_CHARACTERS and character != " " for character in text)
+
+
 def _encode_line(line: str) -> list[int]:
     cleaned = "".join(
         character.upper() if character.isalpha() else character
@@ -342,9 +347,29 @@ class ItemNames:
     bomb_upgrade: bool = False
     # Pegasus Boots: the boomerangs' items are the boots (BOOTS_NAMES)
     pegasus_boots: bool = False
+    # Archipelago (owner ruling): (level, owner, item) for a level holding exactly one other
+    # player's item; its item-location hint names the owner and the item, not FOREIGN_NAME.
+    foreign_labels: tuple[tuple[int | str, str, str], ...] = ()
 
     def is_foreign(self, code: int) -> bool:
         return self.foreign_code is not None and code == self.foreign_code
+
+    def foreign_label(self, code: int, level: int) -> tuple[str, str] | None:
+        """The owner and item of the one other-player item in `level`, when the sentence fits."""
+        if not self.is_foreign(code):
+            return None
+        for labelled_level, owner, item in self.foreign_labels:
+            if labelled_level == level:
+                sentence = f"{owner}'S {item} {FOREIGN_VERB} IN LEVEL-{level}."
+                return (owner, item) if len(textwrap.wrap(sentence, LINE_WIDTH)) <= MAX_LINES else None
+        return None
+
+    def place_owner(self, key: str) -> tuple[str, str] | None:
+        """The owner and item of a named place's other-player item ("coast", "white sword")."""
+        for labelled, owner, item in self.foreign_labels:
+            if labelled == key:
+                return owner, item
+        return None
 
     def is_boots(self, code: int) -> bool:
         return self.pegasus_boots and code in BOOTS_NAMES
@@ -441,6 +466,9 @@ OPENERS = (
 def item_location_sentence(code: int, level: int, names: ItemNames = VANILLA_NAMES) -> str:
     """An item-location hint: the item, its verb, and its level (the player level, SH-NUM-03)."""
     if names.is_foreign(code):
+        owned = names.foreign_label(code, level)
+        if owned is not None:
+            return f"{owned[0]}'S {owned[1]} {FOREIGN_VERB} IN LEVEL-{level}."
         return f"{FOREIGN_NAME} {FOREIGN_VERB} IN LEVEL-{level}."
     line = names._line(code)
     if line is not None:
@@ -1018,6 +1046,27 @@ def _fit(line: str, first: str, second: str) -> list[str]:
     return [line] if len(line) <= LINE_WIDTH else [first, second]
 
 
+def owner_text(candidate: Requirement, names: ItemNames, means: str) -> str | None:
+    """"OWNER'S ITEM" for the coast (ladder) or the White Sword cave when that place holds another
+    player's item, and the owned line fits the hint box; else None (the generic wording)."""
+    if candidate.item is None or not names.is_foreign(candidate.item):
+        return None
+    if candidate.white_sword_cave:
+        owned = names.place_owner("white sword")
+    elif candidate.form == Form.LADDER:
+        owned = names.place_owner("coast")
+    else:
+        return None
+    if owned is None:
+        return None
+    line = f"{owned[0]}'S {owned[1]}"
+    if candidate.white_sword_cave:
+        fits = len(line) <= LINE_WIDTH
+    else:
+        fits = len(textwrap.wrap(f"{line} NEEDS THE {means}", LINE_WIDTH)) <= MAX_LINES
+    return line if fits else None
+
+
 def requirement_text(candidate: Requirement, names: ItemNames = VANILLA_NAMES) -> list[str]:
     """ZORA's own wording for a requirement candidate."""
     if candidate.form in NOT_NEEDED_TEXT:
@@ -1030,6 +1079,11 @@ def requirement_text(candidate: Requirement, names: ItemNames = VANILLA_NAMES) -
     if candidate.gravestone:
         return hint_lines(GRAVESTONE_TEXT.format(item=phrase))
     means = candidate.form.upper()
+    owned = owner_text(candidate, names, means)
+    if owned is not None:
+        if candidate.white_sword_cave:
+            return ["THE CAVE WITH", owned, f"NEEDS THE {means}"]
+        return names.fit(f"{owned} NEEDS THE {means}", owned, f"NEEDS THE {means}")
     if candidate.white_sword_cave and names.is_foreign(candidate.item):
         return ["THE CAVE WITH", phrase, f"NEEDS THE {means}"]
     if candidate.white_sword_cave:
