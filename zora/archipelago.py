@@ -38,7 +38,12 @@ from .flags.fields import (
 from .flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from .flags.zora_flags import SWORDLISH_HIGHEST_FIELD, SWORDLISH_LOWEST_FIELD, SWORDLISH_PIECES, HarderLevel, Swordlish
 from .generate.finish import (
-    FOREIGN, AssignmentRefused, AssignmentUnbeatable, Foreign, ForeignLook, hinted_foreign_places,
+    FOREIGN,
+    AssignmentRefused,
+    AssignmentUnbeatable,
+    Foreign,
+    ForeignLook,
+    hinted_foreign_places,
 )
 from .generate.logic import LogicModel, logic_model, triforce_event
 from .generate.pipeline import Built, FlagsRefused, GenerationPlan, plan

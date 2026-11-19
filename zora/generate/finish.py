@@ -276,9 +276,8 @@ def hinted_foreign_places(places: Collection[Any], assignment: Mapping[str, obje
         if place.level is not None and nameable(place.name):
             by_level.setdefault(place.level, []).append(place.name)
     hinted: dict[str, int | str] = {found[0]: level for level, found in by_level.items() if len(found) == 1}
-    for place_name, key in (("Coast", "coast"), ("White Sword Cave", "white sword")):
-        if nameable(place_name):
-            hinted[place_name] = key
+    hinted.update({place_name: key for place_name, key in (("Coast", "coast"), ("White Sword Cave", "white sword"))
+                   if nameable(place_name)})
     return hinted
 
 
@@ -288,13 +287,14 @@ def foreign_level_labels(world: GameWorld, places: Collection[Place], assignment
     ROM's level number, the Coast and the White Sword Cave by key."""
     labels: list[tuple[int | str, str, str]] = []
     for place_name, key in hinted_foreign_places(places, assignment, owners).items():
+        label: int | str = key
         if isinstance(key, int):
             level = next((lvl for lvl in world.levels if lvl.level_num == key), None)
             if level is None:
                 continue
-            key = level.rom_level_num
+            label = level.rom_level_num
         owner, item = owners[place_name]
-        labels.append((key, owner, item.upper()))
+        labels.append((label, owner, item.upper()))
     return tuple(labels)
 
 
