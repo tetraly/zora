@@ -27,6 +27,8 @@ ON = ZoraFlags(wizzrobes_shoot_wallmasters=ThreeState.ON)
 WIZZROBES = {E.RED_WIZZROBE, E.BLUE_WIZZROBE}
 BANKS = {EnemySpriteSet.A: PatternBlock.UWSP127, EnemySpriteSet.B: PatternBlock.UWSP358,
          EnemySpriteSet.C: PatternBlock.UWSP469}
+# ObjTypeToDamagePoints's entries for the shots $58 and $59 (file offset)
+WALLMASTER_DAMAGE_ENTRIES = 0x07322
 OPEN_HAND = 0xAC                         # PRG0's open-hand frame: $AC and $AE, two 8x16 sprites
 HAND_TILES = 4
 WALLMASTER_FRAMES = 146                  # the Wallmaster's frames in ObjAnimFrameHeap
@@ -89,7 +91,7 @@ def test_the_deal_keeps_the_wallmaster_with_the_blue_wizzrobe(overworld_group: b
 
 
 def test_the_patch_writes_the_wallmaster_damage_for_both_shots() -> None:
-    damage = dict(PATCHES["wizzrobe-hand"])[0x07322]
+    damage = dict(PATCHES["wizzrobe-hand"])[WALLMASTER_DAMAGE_ENTRIES]
     assert bytes(damage) == bytes([0x80, 0x80])        # ObjTypeToDamagePoints for $58 and $59
 
 
