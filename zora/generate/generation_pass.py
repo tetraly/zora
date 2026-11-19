@@ -1173,7 +1173,7 @@ def generate_hint_text_step(context: GenerationContext) -> None:
 def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
                       rng: Rng, extras: ExtraOptions, alternatives: AlternativeValues,
                       maze_offers: dict[int, MazeOffer], foreign_code: int | None = None,
-                      foreign_labels: tuple = ()) -> HintTextResult:
+                      foreign_labels: tuple[tuple[int | str, str, str], ...] = ()) -> HintTextResult:
     """The hint text step's work on a shipped world: also FINISH's, on an assigned world
     (Archipelago Phase 2), which passes foreign_code, the code another player's item is written
     as, so that a hint naming such a place says so (ItemNames.foreign_code)."""

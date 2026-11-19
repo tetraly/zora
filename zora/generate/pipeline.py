@@ -735,7 +735,7 @@ def build(chosen: GenerationPlan, base_rom: bytes | PlayerRom) -> Built:
 def finish(built: Built, base_rom: bytes | PlayerRom, assignment: Assignment | None = None,
            player_settings: PlayerSettings = DEFAULT_PLAYER_SETTINGS, recompute: bool = True,
            received: Collection[Item] = (), check: bool = True, slot_identity: bytes = b"",
-           look: ForeignLook | None = None, foreign_owners: dict | None = None) -> bytes:
+           look: ForeignLook | None = None, foreign_owners: dict[str, tuple[str, str]] | None = None) -> bytes:
     """FINISH: the built world as a ROM. With no assignment (ZORA mode) it is serialize_to_rom on
     the built world, which only reads it, so one build can be finished more than once. With one
     (External mode) the items go into a copy of the world first (finish_world); `slot_identity`
@@ -778,7 +778,7 @@ def written_world(world: GameWorld, config: GameConfig) -> GameWorld:
 
 def finish_world(built: Built, assignment: Assignment, recompute: bool = True, received: Collection[Item] = (),
                  check: bool = True, look: ForeignLook | None = None,
-                 foreign_owners: dict | None = None) -> tuple[GameWorld, Finished]:
+                 foreign_owners: dict[str, tuple[str, str]] | None = None) -> tuple[GameWorld, Finished]:
     """External mode before serialization: a deep copy of the built world with the assignment
     applied (finish.apply_assignment, which also takes `received` and `check`), on FINISH's own
     stream; the built world is left as it is."""

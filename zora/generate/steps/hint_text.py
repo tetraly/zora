@@ -349,7 +349,7 @@ class ItemNames:
     pegasus_boots: bool = False
     # Archipelago (owner ruling): (level, owner, item) for a level holding exactly one other
     # player's item; its item-location hint names the owner and the item, not FOREIGN_NAME.
-    foreign_labels: tuple[tuple[int, str, str], ...] = ()
+    foreign_labels: tuple[tuple[int | str, str, str], ...] = ()
 
     def is_foreign(self, code: int) -> bool:
         return self.foreign_code is not None and code == self.foreign_code

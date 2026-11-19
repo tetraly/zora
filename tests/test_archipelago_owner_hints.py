@@ -13,7 +13,7 @@ from zora.generate.steps.hint_text import (
 from zora.rom.base_rom import BASE_ROM_PATH
 
 FOREIGN = 0x18
-LABELS = ((3, "Gob-Z2", "HAMMER"), ("coast", "Gob-DWR", "WINGS"), ("white sword", "Gob-DWR", "MAGIC KEY"),
+LABELS: tuple[tuple[int | str, str, str], ...] = ((3, "Gob-Z2", "HAMMER"), ("coast", "Gob-DWR", "WINGS"), ("white sword", "Gob-DWR", "MAGIC KEY"),
           (5, "A-VERY-LONG-NAME", "AN EXTREMELY LONG ITEM NAME THAT WILL NOT FIT AT ALL"))
 NAMES = ItemNames(foreign_code=FOREIGN, foreign_labels=LABELS)
 
@@ -79,7 +79,7 @@ class HintedPlacesTest(unittest.TestCase):
 def test_recipe_rebuild_matches_generation() -> None:
     """The ROM rebuilt from the filtered recipe is the one generation wrote. The assignment is the
     seed's own pool with two places swapped for other players' items, so it passes ZORA's walk."""
-    from tests.test_archipelago_beta_smoke import FLAG_CASES
+    from tests.archipelago_cases import FLAG_CASES
     from tests.test_archipelago_client_ram import CASE, SEED
     from zora.rom.base_rom import remember_repo_base_rom
 
