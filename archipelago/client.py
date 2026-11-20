@@ -243,7 +243,7 @@ class ZoraClient(BizHawkClient):
 
     async def hud_tick(self, ctx: BizHawkClientContext) -> None:
         import time
-        from worlds._bizhawk import RequestFailedError
+        from worlds._bizhawk import NotConnectedError, RequestFailedError
 
         queue = self.hud_queue()
         now = time.monotonic()
@@ -263,10 +263,14 @@ class ZoraClient(BizHawkClient):
                     self.hud_dirty = False
             elif now - self.hud_drawn_at >= self.HUD_REDRAW and await self.hud_write(ctx, self.hud_text):
                 self.hud_drawn_at = now
-        except RequestFailedError:
-            return
+        except (RequestFailedError, NotConnectedError):
+            return                      # the connection dropped: tried again once it is back
         except Exception as error:      # unknown whether it was written: tried again next tick
-            self.skip_connector_error(error)
+            # The HUD is optional, so no error here may stop the game watcher: log it once.
+            message = f"{type(error).__name__}: {error}"
+            if message != getattr(self, "hud_last_error", None):
+                self.hud_last_error = message
+                logger.warning(f"ZORA: could not write an item message; trying again: {message}")
 
     async def game_watcher(self, ctx: BizHawkClientContext) -> None:
         await self.zora_game_watcher(ctx)
