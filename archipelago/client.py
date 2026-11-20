@@ -114,7 +114,7 @@ class ZoraClient(BizHawkClient):
         from worlds._bizhawk import RequestFailedError, get_memory_size, read
 
         try:
-            if await get_memory_size(ctx.bizhawk_ctx, PRG_ROM) != PRG_SIZE:
+            if await get_memory_size(ctx.bizhawk_ctx, PRG_ROM) not in (PRG_SIZE, 2 * PRG_SIZE):
                 return False
             prg_address = SLOT_IDENTITY_ADDRESS - NES_HEADER_SIZE
             (record,) = await read(ctx.bizhawk_ctx, [(prg_address, SLOT_IDENTITY_SIZE, PRG_ROM)])
@@ -140,6 +140,138 @@ class ZoraClient(BizHawkClient):
         ctx.watcher_timeout = WATCHER_TIMEOUT
         logger.info(f"ZORA world {world_version()}: recognized the ROM for {identity.ap_name.decode(errors='replace')}")
         return True
+
+    # fceux-archipelago patch: HUD messages
+    # Item messages go in the blank top row of the status bar (nametable $2022, 28 columns), written
+    # through the game's tile buffer: DynTileBuf at $0302, with $0301 the index of its $FF end. The NMI
+    # copies it to the PPU and resets it. Written in play mode ($12=5, $13=0) while the buffer is
+    # empty, so the game's own records go after ours (cellars, $12=9/$A, the same), or in a cave ($12=$B/$C) in place of that
+    # frame's status-bar redraw. Columns 22-29 take the -LIFE- palette (red).
+    HUD_ROW = 0x2022
+    HUD_WIDTH = 28
+    HUD_SECONDS = 6.0
+    HUD_SECONDS_BUSY = 3.0      # each message's time when more are waiting
+    HUD_STALE = 30.0            # a message that could not show for this long is dropped
+    HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
+
+    def on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
+        """Queue a HUD message for items this slot sent or received (fceux-archipelago patch)."""
+        if cmd != "PrintJSON" or args.get("type") != "ItemSend":
+            return
+        try:
+            item = args["item"]
+            receiver = args["receiving"]
+            name = ctx.item_names.lookup_in_slot(item.item, receiver)
+            if receiver == ctx.slot:
+                if item.player == ctx.slot:
+                    text = f"GOT {self.hud_fit(name, self.HUD_WIDTH - 4)}"
+                else:
+                    player = self.hud_player(ctx.player_names[item.player])
+                    room = self.HUD_WIDTH - len("GOT  FROM ") - len(player)
+                    text = f"GOT {self.hud_fit(name, room)} FROM {player}"
+            elif item.player == ctx.slot:
+                player = self.hud_player(ctx.player_names[receiver])
+                room = self.HUD_WIDTH - len("SENT  TO ") - len(player)
+                text = f"SENT {self.hud_fit(name, room)} TO {player}"
+            else:
+                return
+            import time
+            self.hud_queue().append((text, time.monotonic()))
+        except Exception:      # a message is never worth stopping the client
+            logger.exception("ZORA: could not queue an item message")
+
+    def hud_queue(self) -> list:
+        if not hasattr(self, "hud_messages"):
+            self.hud_messages = []          # (text, queued at)
+            self.hud_text = None            # the message on screen now, or None
+            self.hud_until = 0.0
+            self.hud_drawn_at = 0.0
+            self.hud_dirty = False          # the row holds text that still has to be blanked
+        return self.hud_messages
+
+    @staticmethod
+    def hud_shown(text: str) -> str:
+        from .zora.rom.text_encoding import CHAR_TO_BYTE
+        kept = "".join(c if c in CHAR_TO_BYTE and c not in "~\"" else " " for c in text.upper().replace("'", ""))
+        return " ".join(kept.split())
+
+    @classmethod
+    def hud_player(cls, name: str) -> str:
+        return cls.hud_shown(name)[:11].rstrip() or "ANOTHER PLAYER"
+
+    @classmethod
+    def hud_fit(cls, name: str, room: int) -> str:
+        """The item name in at most `room` characters, cut at the last whole word that fits."""
+        shown = cls.hud_shown(name)
+        if len(shown) <= room:
+            return shown
+        head = shown[:room + 1]
+        if " " in head:
+            return head.rsplit(" ", 1)[0].rstrip()
+        return shown[:room]
+
+    async def hud_write(self, ctx: BizHawkClientContext, text: str) -> bool:
+        """Write text (blank for "") into the HUD row; False if the game was not ready this tick."""
+        from worlds._bizhawk import guarded_write
+        from .zora.rom.text_encoding import CHAR_TO_BYTE
+
+        tiles = [CHAR_TO_BYTE.get(c, CHAR_TO_BYTE[" "]) for c in text[:self.HUD_WIDTH]]
+        tiles += [CHAR_TO_BYTE[" "]] * (self.HUD_WIDTH - len(tiles))
+        record = [self.HUD_ROW >> 8, self.HUD_ROW & 0xFF, self.HUD_WIDTH] + tiles + [0xFF]
+        writes = [(0x0302, record, RAM), (0x0301, [len(record) - 1], RAM)]
+        if await guarded_write(
+                ctx.bizhawk_ctx, writes,
+                [(0x12, [5], RAM), (0x13, [0], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
+            return True
+        # Cellars (mode 9, and $A on the way out) play with GameSubmode left at its last init step
+        # (9), so they need their own guard: updating ($11=1) with an empty buffer.
+        for mode in (0x09, 0x0A):
+            if await guarded_write(
+                    ctx.bizhawk_ctx, writes,
+                    [(0x12, [mode], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
+                return True
+        # Caves (modes $B, $C) redraw the whole status bar through the buffer every frame, starting
+        # with the hearts record (20 B6 08), so the buffer is never empty there. Replacing one
+        # frame's redraw is harmless: the game sends it again next frame. Text typing and other
+        # one-off records start differently and are left alone.
+        for mode in (0x0B, 0x0C):
+            if await guarded_write(
+                    ctx.bizhawk_ctx, writes,
+                    [(0x12, [mode], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0x20, 0xB6, 0x08], RAM)]):
+                return True
+        return False
+
+    async def hud_tick(self, ctx: BizHawkClientContext) -> None:
+        import time
+        from worlds._bizhawk import RequestFailedError
+
+        queue = self.hud_queue()
+        now = time.monotonic()
+        try:
+            if self.hud_text is not None and now >= self.hud_until:
+                self.hud_text = None                    # time is up: blank it, or show the next one
+            if self.hud_text is None:
+                while queue and now - queue[0][1] > self.HUD_STALE:
+                    queue.pop(0)
+                if queue:
+                    text = queue[0][0]
+                    if await self.hud_write(ctx, text):
+                        queue.pop(0)
+                        self.hud_text, self.hud_drawn_at, self.hud_dirty = text, now, True
+                        self.hud_until = now + (self.HUD_SECONDS_BUSY if queue else self.HUD_SECONDS)
+                elif self.hud_dirty and await self.hud_write(ctx, ""):
+                    self.hud_dirty = False
+            elif now - self.hud_drawn_at >= self.HUD_REDRAW and await self.hud_write(ctx, self.hud_text):
+                self.hud_drawn_at = now
+        except RequestFailedError:
+            return
+        except Exception as error:      # unknown whether it was written: tried again next tick
+            self.skip_connector_error(error)
+
+    async def game_watcher(self, ctx: BizHawkClientContext) -> None:
+        await self.zora_game_watcher(ctx)
+        if ctx.server is not None and ctx.slot_data is not None:
+            await self.hud_tick(ctx)
 
     async def set_auth(self, ctx: BizHawkClientContext) -> None:
         if self.ap_name:
@@ -169,7 +301,7 @@ class ZoraClient(BizHawkClient):
             self.last_connector_error = message
             logger.info(f"ZORA: the connector couldn't read the game; trying again: {message}")
 
-    async def game_watcher(self, ctx: BizHawkClientContext) -> None:
+    async def zora_game_watcher(self, ctx: BizHawkClientContext) -> None:
         from worlds._bizhawk import RequestFailedError, guarded_write, read
 
         if ctx.server is None or ctx.slot_data is None:
