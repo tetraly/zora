@@ -109,6 +109,7 @@ class ZoraClient(BizHawkClient):
         self.tables_of: dict[str, Any] | None = None
         self.last_error = ""
         self.last_connector_error = ""
+        self.hud_reset()
 
     async def validate_rom(self, ctx: BizHawkClientContext) -> bool:
         from worlds._bizhawk import RequestFailedError, get_memory_size, read
@@ -134,6 +135,7 @@ class ZoraClient(BizHawkClient):
             return False
         self.ap_name = identity.ap_name
         self.memory = zora_ap.NO_MEMORY
+        self.hud_reset()                    # messages for the last game must not show on this ROM
         ctx.game = self.game
         ctx.items_handling = 0b111
         ctx.want_slot_data = True
@@ -193,14 +195,32 @@ class ZoraClient(BizHawkClient):
         except Exception:      # a message is never worth stopping the client
             logger.exception("ZORA: could not queue an item message")
 
+    def hud_reset(self) -> None:
+        self.hud_messages: list = []        # (text, queued at)
+        self.hud_text: str | None = None    # the message on screen now, or None
+        self.hud_until = 0.0
+        self.hud_drawn_at = 0.0
+        self.hud_dirty = False              # the row holds text that still has to be blanked
+
     def hud_queue(self) -> list:
-        if not hasattr(self, "hud_messages"):
-            self.hud_messages = []          # (text, queued at)
-            self.hud_text = None            # the message on screen now, or None
-            self.hud_until = 0.0
-            self.hud_drawn_at = 0.0
-            self.hud_dirty = False          # the row holds text that still has to be blanked
         return self.hud_messages
+
+    HUD_SUMMARY_AT = 4          # more waiting than this: one summary line replaces them
+
+    def hud_summarize(self, now: float) -> None:
+        """Replace a long queue with one line, so a release or collect shows a count, not dropped items."""
+        queue = self.hud_messages
+        if len(queue) <= self.HUD_SUMMARY_AT:
+            return
+        sent = sum(1 for text, _ in queue if text.startswith("SENT "))
+        got = sum(1 for text, _ in queue if text.startswith("GOT "))
+        if sent == len(queue):
+            text = f"SENT {sent} ITEMS"
+        elif got == len(queue):
+            text = f"GOT {got} ITEMS"
+        else:
+            text = f"{len(queue)} ITEMS"
+        queue[:] = [(text, now)]
 
     @staticmethod
     def hud_shown(text: str) -> str:
@@ -260,6 +280,7 @@ class ZoraClient(BizHawkClient):
 
         queue = self.hud_queue()
         now = time.monotonic()
+        self.hud_summarize(now)
         try:
             if self.hud_text is not None and now >= self.hud_until:
                 self.hud_text = None                    # time is up: blank it, or show the next one
