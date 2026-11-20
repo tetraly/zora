@@ -147,6 +147,18 @@ class ZoraClient(BizHawkClient):
     # copies it to the PPU and resets it. Written in play mode ($12=5, $13=0) while the buffer is
     # empty, so the game's own records go after ours (cellars, $12=9/$A, the same), or in a cave ($12=$B/$C) in place of that
     # frame's status-bar redraw. Columns 22-29 take the -LIFE- palette (red).
+    # Item names too long for the status-bar row (player's choice, 2026-11-20).
+    HUD_SHORT_NAMES = {
+        "Wood Sword": "SWORD", "White Sword": "W SWORD", "Magical Sword": "M SWORD",
+        "Blue Candle": "B CANDLE", "Red Candle": "R CANDLE", "Wooden Arrow": "ARROWS",
+        "Silver Arrow": "SILVERS", "Magical Key": "MAGIC KEY", "Triforce of Power": "TRIFORCE",
+        "5 Rupees": "FIVER", "Blue Ring": "B RING", "Red Ring": "R RING",
+        "Power Bracelet": "PB", "Heart Container": "HC", "Triforce": "TRI",
+        "Boomerang": "BOOMER", "Magical Boomerang": "M BOOMER", "Blue Potion": "BLUE POT",
+        "Red Potion": "RED POT", "Sword Upgrade": "SWORD UP", "Candle Upgrade": "CANDLE UP",
+        "Arrow Upgrade": "ARROW UP", "Bomb Upgrade": "BOMB UP", "Boots Upgrade": "BOOTS UP",
+        "Pegasus Boots": "BOOTS", "Magical Boots": "M BOOTS",
+    }
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
     HUD_SECONDS = 6.0
@@ -162,6 +174,7 @@ class ZoraClient(BizHawkClient):
             item = args["item"]
             receiver = args["receiving"]
             name = ctx.item_names.lookup_in_slot(item.item, receiver)
+            name = self.HUD_SHORT_NAMES.get(name, name)
             if receiver == ctx.slot:
                 if item.player == ctx.slot:
                     text = f"GOT {self.hud_fit(name, self.HUD_WIDTH - 4)}"
