@@ -163,8 +163,8 @@ class ZoraClient(BizHawkClient):
     }
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
-    HUD_SECONDS = 6.0
-    HUD_SECONDS_BUSY = 3.0      # each message's time when more are waiting
+    HUD_SECONDS = 20.0
+    HUD_SECONDS_BUSY = 5.0     # each message's time when more are waiting
     HUD_STALE = 30.0            # a message that could not show for this long is dropped
     HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
 
