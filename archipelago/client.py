@@ -163,9 +163,9 @@ class ZoraClient(BizHawkClient):
     }
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
-    HUD_SECONDS = 20.0
-    HUD_SECONDS_BUSY = 5.0     # each message's time when more are waiting
-    HUD_STALE = 30.0            # a message that could not show for this long is dropped
+    HUD_SECONDS = 10.0
+    HUD_SECONDS_BUSY = 5.0      # each message's time while HUD_BUSY_AT or more are pending
+    HUD_BUSY_AT = 5             # pending messages, the one going up included
     HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
 
     def on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
@@ -204,23 +204,6 @@ class ZoraClient(BizHawkClient):
 
     def hud_queue(self) -> list:
         return self.hud_messages
-
-    HUD_SUMMARY_AT = 4          # more waiting than this: one summary line replaces them
-
-    def hud_summarize(self, now: float) -> None:
-        """Replace a long queue with one line, so a release or collect shows a count, not dropped items."""
-        queue = self.hud_messages
-        if len(queue) <= self.HUD_SUMMARY_AT:
-            return
-        sent = sum(1 for text, _ in queue if text.startswith("SENT "))
-        got = sum(1 for text, _ in queue if text.startswith("GOT "))
-        if sent == len(queue):
-            text = f"SENT {sent} ITEMS"
-        elif got == len(queue):
-            text = f"GOT {got} ITEMS"
-        else:
-            text = f"{len(queue)} ITEMS"
-        queue[:] = [(text, now)]
 
     @staticmethod
     def hud_shown(text: str) -> str:
@@ -280,19 +263,17 @@ class ZoraClient(BizHawkClient):
 
         queue = self.hud_queue()
         now = time.monotonic()
-        self.hud_summarize(now)
         try:
             if self.hud_text is not None and now >= self.hud_until:
                 self.hud_text = None                    # time is up: blank it, or show the next one
             if self.hud_text is None:
-                while queue and now - queue[0][1] > self.HUD_STALE:
-                    queue.pop(0)
                 if queue:
                     text = queue[0][0]
                     if await self.hud_write(ctx, text):
+                        busy = len(queue) >= self.HUD_BUSY_AT
                         queue.pop(0)
                         self.hud_text, self.hud_drawn_at, self.hud_dirty = text, now, True
-                        self.hud_until = now + (self.HUD_SECONDS_BUSY if queue else self.HUD_SECONDS)
+                        self.hud_until = now + (self.HUD_SECONDS_BUSY if busy else self.HUD_SECONDS)
                 elif self.hud_dirty and await self.hud_write(ctx, ""):
                     self.hud_dirty = False
             elif now - self.hud_drawn_at >= self.HUD_REDRAW and await self.hud_write(ctx, self.hud_text):
