@@ -165,7 +165,7 @@ class ZoraClient(BizHawkClient):
     HUD_WIDTH = 28
     HUD_SECONDS = 10.0
     HUD_SECONDS_BUSY = 5.0      # each message's time while HUD_BUSY_AT or more are pending
-    HUD_BUSY_AT = 5             # pending messages, the one going up included
+    HUD_BUSY_AT = 4             # pending messages, the one going up included: 3 or fewer get 10 s, more get 5 s
     HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
 
     def on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
