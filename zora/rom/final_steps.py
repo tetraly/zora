@@ -28,6 +28,7 @@ from ..model.game_world import GameWorld
 from . import (
     archipelago_logo,
     bait_count,
+    cave_palette,
     code_patches,
     credits_staff,
     extra_layouts,
@@ -84,6 +85,8 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     story is ZORA's, the same on every seed (opening_story), and the ending credits hold the
     Randomizer Staff box (fp-credits-01's tables, credits_staff)."""
     config = settings.config
+    # a finished ROM written again: the caves' screen back to the one PRG0 (or the flip) names
+    cave_palette.restore_cave_screen(rom, mirror_overworld.is_mirrored(rom))
     if mirror_overworld.is_mirrored(rom):
         # a mirrored ROM written again: the patches below go over PRG0's layout rows and code bytes
         mirror_overworld.unmirror_image(rom)
@@ -160,6 +163,10 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
         # Mirror Overworld (B06): the flip's part the model does not hold, after every write to the
         # overworld (the crossings, the hidden tiles: OW-MIR-06) and before the level encoding
         mirror_overworld.mirror_image(rom)
+    # last: the caves' colors from a screen the overworld writes above left with PRG0's palettes
+    # (Extra Raft Blocks paints $44's inside brown; cave_palette)
+    for address, data in cave_palette.cave_screen_writes(rom):
+        rom[address:address + len(data)] = data
 
 
 def uphill_battle_writes(config: GameConfig, rom: bytes | bytearray) -> list[tuple[int, bytes]]:
