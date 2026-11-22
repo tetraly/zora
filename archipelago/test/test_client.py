@@ -286,10 +286,9 @@ class TestHudMessages(unittest.TestCase):
             asyncio.run(self.client.hud_write(self.ctx, "GOT RAFT"))
         record = written[0][0][1]
         self.assertEqual(record[:3], [0x20, 0x22, 0x1C])
-        self.assertEqual(len(record), 38)
+        self.assertEqual(len(record), 32)
         self.assertEqual(record[-1], 0xFF)
-        self.assertEqual(record[31:37], [0x23, 0xC5, 0x03, 0x40, 0x50, 0x50])
-        tiles = record[3:31]
+        tiles = record[3:-1]
         blank = tiles[0]
         lead = next(i for i, tile in enumerate(tiles) if tile != blank)
         self.assertEqual(lead, (28 - len("GOT RAFT")) // 2)

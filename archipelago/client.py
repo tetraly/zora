@@ -306,11 +306,7 @@ class ZoraClient(BizHawkClient):
         text = " " * ((self.HUD_WIDTH - len(text)) // 2) + text      # centered in the row
         tiles = [CHAR_TO_BYTE.get(c, CHAR_TO_BYTE[" "]) for c in text]
         tiles += [CHAR_TO_BYTE[" "]] * (self.HUD_WIDTH - len(tiles))
-        # The row record, then the attribute bytes for columns 20-31 of rows 0-1 set to palette 0
-        # ($23C5-$23C7 = 40 50 50), so the text is white on ROMs built before hud-white-text.
-        # Bits 4-7 (rows 2-3, -LIFE-) are left as they are.
-        record = ([self.HUD_ROW >> 8, self.HUD_ROW & 0xFF, self.HUD_WIDTH] + tiles
-                  + [0x23, 0xC5, 0x03, 0x40, 0x50, 0x50] + [0xFF])
+        record = [self.HUD_ROW >> 8, self.HUD_ROW & 0xFF, self.HUD_WIDTH] + tiles + [0xFF]
         writes = [(0x0302, record, RAM), (0x0301, [len(record) - 1], RAM)]
         if await guarded_write(
                 ctx.bizhawk_ctx, writes,
