@@ -144,7 +144,7 @@ class ZoraClient(BizHawkClient):
         logger.info(f"ZORA world {world_version()}: recognized the ROM for {identity.ap_name.decode(errors='replace')}")
         return True
 
-    # fceux-archipelago patch: HUD messages
+    # HUD messages
     # Item messages go in the blank top row of the status bar (nametable $2022, 28 columns), written
     # through the game's tile buffer: DynTileBuf at $0302, with $0301 the index of its $FF end. The NMI
     # copies it to the PPU and resets it. Written in play ($12=5, $13=0) and cellars ($12=9/$A)
@@ -187,7 +187,7 @@ class ZoraClient(BizHawkClient):
     HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
 
     def on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
-        """Queue a HUD message for items this slot sent to other players (fceux-archipelago patch).
+        """Queue a HUD message for items this slot sent to other players.
         Items this slot receives are announced where they are given (hud_got), since the server
         sends this notice only to clients connected at the time and never again."""
         if cmd != "PrintJSON" or args.get("type") != "ItemSend":
