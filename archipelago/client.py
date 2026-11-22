@@ -169,31 +169,47 @@ class ZoraClient(BizHawkClient):
     HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
 
     def on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
-        """Queue a HUD message for items this slot sent or received (fceux-archipelago patch)."""
+        """Queue a HUD message for items this slot sent to other players (fceux-archipelago patch).
+        Items this slot receives are announced where they are given (hud_got), since the server
+        sends this notice only to clients connected at the time and never again."""
         if cmd != "PrintJSON" or args.get("type") != "ItemSend":
             return
         try:
             item = args["item"]
             receiver = args["receiving"]
-            name = ctx.item_names.lookup_in_slot(item.item, receiver)
-            name = self.HUD_SHORT_NAMES.get(name, name)
-            if receiver == ctx.slot:
-                if item.player == ctx.slot:
-                    text = f"GOT {self.hud_fit(name, self.HUD_WIDTH - 4)}"
-                else:
-                    player = self.hud_player(ctx.player_names[item.player])
-                    room = self.HUD_WIDTH - len("GOT  FROM ") - len(player)
-                    text = f"GOT {self.hud_fit(name, room)} FROM {player}"
-            elif item.player == ctx.slot:
-                player = self.hud_player(ctx.player_names[receiver])
-                room = self.HUD_WIDTH - len("SENT  TO ") - len(player)
-                text = f"SENT {self.hud_fit(name, room)} TO {player}"
-            else:
+            if item.player != ctx.slot or receiver == ctx.slot:
                 return
+            player = self.hud_player(ctx.player_names[receiver])
+            room = self.HUD_WIDTH - len("SENT  TO ") - len(player)
+            name = self.hud_item(ctx.item_names.lookup_in_slot(item.item, receiver), room)
+            import time
+            self.hud_queue().append((f"SENT {name} TO {player}", time.monotonic()))
+        except Exception:      # a message is never worth stopping the client
+            logger.exception("ZORA: could not queue an item message")
+
+    def hud_got(self, ctx: BizHawkClientContext, item: Any) -> None:
+        """Queue "GOT X" (or "GOT X FROM player") for a received item as it is given."""
+        try:
+            if item.location == -2:         # starting inventory: not news
+                return
+            name = ctx.item_names.lookup_in_game(item.item)
+            if item.player == ctx.slot:
+                text = f"GOT {self.hud_item(name, self.HUD_WIDTH - 4)}"
+            else:
+                player = self.hud_player(ctx.player_names[item.player])
+                room = self.HUD_WIDTH - len("GOT  FROM ") - len(player)
+                text = f"GOT {self.hud_item(name, room)} FROM {player}"
             import time
             self.hud_queue().append((text, time.monotonic()))
         except Exception:      # a message is never worth stopping the client
             logger.exception("ZORA: could not queue an item message")
+
+    @classmethod
+    def hud_item(cls, name: str, room: int) -> str:
+        """The full item name if it fits in `room`, else its short name cut to fit."""
+        if len(cls.hud_shown(name)) <= room:
+            return cls.hud_shown(name)
+        return cls.hud_fit(cls.HUD_SHORT_NAMES.get(name, name), room)
 
     def hud_reset(self) -> None:
         self.hud_messages: list = []        # (text, queued at)
@@ -231,7 +247,9 @@ class ZoraClient(BizHawkClient):
         from worlds._bizhawk import guarded_write
         from .zora.rom.text_encoding import CHAR_TO_BYTE
 
-        tiles = [CHAR_TO_BYTE.get(c, CHAR_TO_BYTE[" "]) for c in text[:self.HUD_WIDTH]]
+        text = text[:self.HUD_WIDTH]
+        text = " " * ((self.HUD_WIDTH - len(text)) // 2) + text      # centered in the row
+        tiles = [CHAR_TO_BYTE.get(c, CHAR_TO_BYTE[" "]) for c in text]
         tiles += [CHAR_TO_BYTE[" "]] * (self.HUD_WIDTH - len(tiles))
         record = [self.HUD_ROW >> 8, self.HUD_ROW & 0xFF, self.HUD_WIDTH] + tiles + [0xFF]
         writes = [(0x0302, record, RAM), (0x0301, [len(record) - 1], RAM)]
@@ -367,6 +385,8 @@ class ZoraClient(BizHawkClient):
             # the server's name for it (Sword Upgrade), not the code it was given as
             shown = (ctx.item_names.lookup_in_game(ctx.items_received[count - 1].item)
                      if 0 < count <= len(ctx.items_received) else None)
+            if (decision.gives or decision.skips) and 0 < count <= len(ctx.items_received):
+                self.hud_got(ctx, ctx.items_received[count - 1])
             if decision.gives:
                 logger.info(f"ZORA: gave received item #{count}, {shown or decision.gives}")
             elif decision.skips:
