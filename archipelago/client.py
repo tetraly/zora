@@ -312,20 +312,20 @@ class ZoraClient(BizHawkClient):
                 [(0x12, [5], RAM), (0x13, [0], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM),
                  (0x0301, [0], RAM)]):
             return True
-        # In play the game also queues the status-bar redraw (20 B6 08) every second frame, which
-        # fails the empty-buffer guard above on those frames. Replace it, as in caves below.
+        # In play the game also queues the status-bar redraw every second frame, which fails the
+        # empty-buffer guard above on those frames. Its first record (20 B6 08) is the blank row
+        # above the hearts. Replace the redraw, as in caves below.
         if await guarded_write(
                 ctx.bizhawk_ctx, writes,
                 [(0x12, [5], RAM), (0x13, [0], RAM), (0x11, [1], RAM), (0x14, [0], RAM),
                  (0x0302, [0x20, 0xB6, 0x08], RAM)]):
             return True
-        # Cellars (mode 9, and $A on the way out) play with GameSubmode left at its last init step
-        # (9), so they need their own guard: updating ($11=1) with an empty buffer.
-        for mode in (0x09, 0x0A):
-            if await guarded_write(
-                    ctx.bizhawk_ctx, writes,
-                    [(0x12, [mode], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
-                return True
+        # Cellars (mode 9) play with GameSubmode left at its last init step (9), so they need their
+        # own guard: updating ($11=1) with an empty buffer. Mode $A, the way out, never updates.
+        if await guarded_write(
+                ctx.bizhawk_ctx, writes,
+                [(0x12, [0x09], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
+            return True
         # Caves (modes $B, $C) take only the frames with the status-bar redraw (every second frame,
         # starting 20 B6 08, sent alone into an empty buffer). Replacing it is harmless: the game
         # sends it again two frames later. Text typing and other one-off records start

@@ -371,9 +371,8 @@ class TestHudWrite(unittest.TestCase):
                 self.assert_refused(hud_ram(mode, buffer=buffer, selector=0x44))
 
     def test_cellars_with_their_submode_left_at_9(self) -> None:
-        for mode in (0x09, 0x0A):
-            with self.subTest(mode=mode):
-                self.assert_written(hud_ram(mode, submode=9))
+        self.assert_written(hud_ram(0x09, submode=9))
+        self.assert_refused(hud_ram(0x0A, submode=9))        # leaving the cellar: no write
 
     def test_cellars_with_a_full_buffer_wait(self) -> None:
         self.assert_refused(hud_ram(0x09, submode=9, buffer=STATUS_REDRAW))
