@@ -93,8 +93,11 @@ class TestClient(unittest.TestCase):
         self.sent: list[int] = []
         self.client = client_module.ZoraClient()
         self.ctx = self.make_ctx()
+        import tempfile
+        seen = tempfile.mktemp(suffix=".json")      # the HUD's record of announced items, not the real one
         patches = (mock.patch("worlds._bizhawk.read", self.console.read),
-                   mock.patch("worlds._bizhawk.guarded_write", self.console.guarded_write))
+                   mock.patch("worlds._bizhawk.guarded_write", self.console.guarded_write),
+                   mock.patch.object(client_module.ZoraClient, "hud_seen_path", lambda _self: seen))
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
@@ -212,3 +215,80 @@ class TestClient(unittest.TestCase):
         self.assertEqual(self.console.ram[RAFT], 1)
         self.assertEqual(self.console.ram[inventory.TUNE1_REQUEST], inventory.ITEM_APPEARS_SOUND)
         self.assertEqual(self.console.writes, 1)
+
+
+class TestHudMessages(unittest.TestCase):
+    """The HUD lines the client builds, on a stand-in context (no emulator)."""
+
+    def setUp(self) -> None:
+        import os
+        import tempfile
+        self.client = client_module.ZoraClient()
+        handle, self.path = tempfile.mkstemp(suffix=".json")
+        os.close(handle)
+        os.remove(self.path)
+        patch = mock.patch.object(client_module.ZoraClient, "hud_seen_path", lambda _self: self.path)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.addCleanup(lambda: os.path.exists(self.path) and os.remove(self.path))
+        names = {1: "Heart Container", 2: "Magical Boomerang", 3: "Raft", 4: "éé"}
+        self.ctx = types.SimpleNamespace(
+            slot=SLOT, seed_name="seed", bizhawk_ctx=None, player_names={SLOT: "Gob-ZORA", 2: "Gob-Z2R", 3: "Someone Else Long"},
+            item_names=types.SimpleNamespace(lookup_in_game=names.get, lookup_in_slot=lambda i, _s: names[i]))
+
+    def texts(self) -> list:
+        return [text for text, _ in self.client.hud_messages]
+
+    def got(self, item: int, player: int, count: int, location: int = 5) -> None:
+        self.client.hud_got(self.ctx, NetworkItem(item, location, player), count)
+
+    def test_full_names_when_they_fit_and_no_got_on_lines_from_others(self) -> None:
+        self.got(1, SLOT, 1)
+        self.got(1, 2, 2)                      # prefix "Gob-" left off the sender
+        self.got(2, 3, 3)                      # too long for the room: short name
+        self.assertEqual(self.texts(), ["GOT HEART CONTAINER", "HEART CONTAINER FROM Z2R",
+                                        "M BOOMER FROM SOMEONE ELS"])
+        self.assertTrue(all(len(text) <= 28 for text in self.texts()))
+
+    def test_starting_items_are_not_announced(self) -> None:
+        self.got(3, SLOT, 1, location=-2)
+        self.assertEqual(self.texts(), [])
+
+    def test_an_item_with_no_showable_characters_is_called_item(self) -> None:
+        self.got(4, SLOT, 1)
+        self.assertEqual(self.texts(), ["GOT ITEM"])
+
+    def test_items_given_again_fold_into_one_line_even_after_a_restart(self) -> None:
+        for count in (1, 2, 3):
+            self.got(3, SLOT, count)
+        self.client = client_module.ZoraClient()       # a switch restarts the client
+        self.ctx.items_received = []
+        for count in (1, 2, 3, 4):
+            self.got(3, SLOT, count)
+        self.assertEqual(self.texts(), ["3 ITEMS GIVEN BACK", "GOT RAFT"])
+
+    def test_a_sent_line_goes_ahead_of_received_lines_that_wait(self) -> None:
+        self.got(3, 2, 1)
+        self.got(3, 2, 2)
+        item = NetworkItem(1, 9, SLOT)
+        self.client.on_package(self.ctx, "PrintJSON", {"type": "ItemSend", "item": item, "receiving": 2})
+        self.assertEqual(self.texts()[0], "SENT HEART CONTAINER TO Z2R")
+        self.assertEqual(len(self.texts()), 3)
+
+    def test_the_written_row_is_centered(self) -> None:
+        written = []
+
+        async def guarded_write(_ctx, writes, _guards):
+            written.append(writes)
+            return True
+        fake = types.SimpleNamespace(guarded_write=guarded_write)
+        with mock.patch.dict(sys.modules, {"worlds._bizhawk": fake}):
+            asyncio.run(self.client.hud_write(self.ctx, "GOT RAFT"))
+        record = written[0][0][1]
+        self.assertEqual(record[:3], [0x20, 0x22, 0x1C])
+        self.assertEqual(len(record), 32)
+        self.assertEqual(record[-1], 0xFF)
+        tiles = record[3:-1]
+        blank = tiles[0]
+        lead = next(i for i, tile in enumerate(tiles) if tile != blank)
+        self.assertEqual(lead, (28 - len("GOT RAFT")) // 2)

@@ -109,6 +109,7 @@ class ZoraClient(BizHawkClient):
         self.tables_of: dict[str, Any] | None = None
         self.last_error = ""
         self.last_connector_error = ""
+        self.hud_seen: dict | None = None   # see hud_seen_load
         self.hud_reset()
 
     async def validate_rom(self, ctx: BizHawkClientContext) -> bool:
@@ -148,7 +149,8 @@ class ZoraClient(BizHawkClient):
     # through the game's tile buffer: DynTileBuf at $0302, with $0301 the index of its $FF end. The NMI
     # copies it to the PPU and resets it. Written in play mode ($12=5, $13=0) while the buffer is
     # empty, so the game's own records go after ours (cellars, $12=9/$A, the same), or in a cave ($12=$B/$C) in place of that
-    # frame's status-bar redraw. Columns 22-29 take the -LIFE- palette (red).
+    # frame's status-bar redraw. Columns 22-29 take the -LIFE- palette (red) in ROMs without the
+    # hud-white-text patch.
     # Item names too long for the status-bar row (player's choice, 2026-11-20).
     HUD_SHORT_NAMES = {
         "Wood Sword": "SWORD", "White Sword": "W SWORD", "Magical Sword": "M SWORD",
@@ -160,6 +162,10 @@ class ZoraClient(BizHawkClient):
         "Red Potion": "RED POT", "Sword Upgrade": "SWORD UP", "Candle Upgrade": "CANDLE UP",
         "Arrow Upgrade": "ARROW UP", "Bomb Upgrade": "BOMB UP", "Boots Upgrade": "BOOTS UP",
         "Pegasus Boots": "BOOTS", "Magical Boots": "M BOOTS",
+        # Items of the other games in a multiworld
+        "Erdrick's Token": "TOKEN", "Erdrick's Sword": "E SWORD", "Erdrick's Armor": "E ARMOR",
+        "Stones of Sunlight": "SUN STONES", "Magic Container": "MAGIC CONT",
+        "Blue Magic Jar": "BLUE JAR", "Red Magic Jar": "RED JAR",
     }
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
@@ -179,40 +185,85 @@ class ZoraClient(BizHawkClient):
             receiver = args["receiving"]
             if item.player != ctx.slot or receiver == ctx.slot:
                 return
-            player = self.hud_player(ctx.player_names[receiver])
+            player = self.hud_player(ctx.player_names[receiver], ctx.player_names[ctx.slot])
             room = self.HUD_WIDTH - len("SENT  TO ") - len(player)
             name = self.hud_item(ctx.item_names.lookup_in_slot(item.item, receiver), room)
-            import time
-            self.hud_queue().append((f"SENT {name} TO {player}", time.monotonic()))
+            # A live line goes ahead of any backlog of received-item lines.
+            queue = self.hud_queue()
+            at = 0
+            while at < len(queue) and queue[at][1] == "sent":
+                at += 1
+            queue.insert(at, (f"SENT {name} TO {player}", "sent"))
         except Exception:      # a message is never worth stopping the client
             logger.exception("ZORA: could not queue an item message")
 
-    def hud_got(self, ctx: BizHawkClientContext, item: Any) -> None:
-        """Queue "GOT X" (or "GOT X FROM player") for a received item as it is given."""
+    def hud_got(self, ctx: BizHawkClientContext, item: Any, count: int) -> None:
+        """Queue the line for received item number `count` as it is given. An item already announced
+        for this seed and slot (given again after a switch from the battery save, or in a new save
+        file) is folded into one "N ITEMS GIVEN BACK" line."""
         try:
+            key = f"{getattr(ctx, 'seed_name', None)}:{ctx.slot}"
+            seen = self.hud_seen_load().get(key, 0)
+            if count <= seen:
+                self.hud_given_back += 1
+                n = self.hud_given_back
+                line = (f"{n} ITEM GIVEN BACK" if n == 1 else f"{n} ITEMS GIVEN BACK", "back")
+                queue = self.hud_queue()
+                for i, entry in enumerate(queue):
+                    if entry[1] == "back":
+                        queue[i] = line
+                        break
+                else:
+                    queue.append(line)
+                return
+            self.hud_seen[key] = count
+            self.hud_seen_save()
             if item.location == -2:         # starting inventory: not news
                 return
-            name = ctx.item_names.lookup_in_game(item.item)
+            name = self.hud_item
             if item.player == ctx.slot:
-                text = f"GOT {self.hud_item(name, self.HUD_WIDTH - 4)}"
+                text = f"GOT {name(ctx.item_names.lookup_in_game(item.item), self.HUD_WIDTH - 4)}"
             else:
-                player = self.hud_player(ctx.player_names[item.player])
-                room = self.HUD_WIDTH - len("GOT  FROM ") - len(player)
-                text = f"GOT {self.hud_item(name, room)} FROM {player}"
-            import time
-            self.hud_queue().append((text, time.monotonic()))
+                player = self.hud_player(ctx.player_names[item.player], ctx.player_names[ctx.slot])
+                room = self.HUD_WIDTH - len(" FROM ") - len(player)
+                text = f"{name(ctx.item_names.lookup_in_game(item.item), room)} FROM {player}"
+            self.hud_queue().append((text, "got"))
         except Exception:      # a message is never worth stopping the client
             logger.exception("ZORA: could not queue an item message")
+
+    def hud_seen_path(self) -> str:
+        import Utils
+        return Utils.user_path("zora_hud_seen.json")
+
+    def hud_seen_load(self) -> dict:
+        """The highest received-item number announced, per seed and slot, kept across client restarts."""
+        if self.hud_seen is None:
+            import json
+            try:
+                with open(self.hud_seen_path(), encoding="utf-8") as file:
+                    self.hud_seen = {str(k): int(v) for k, v in json.load(file).items()}
+            except (OSError, ValueError, AttributeError):
+                self.hud_seen = {}
+        return self.hud_seen
+
+    def hud_seen_save(self) -> None:
+        import json
+        try:
+            with open(self.hud_seen_path(), "w", encoding="utf-8") as file:
+                json.dump(self.hud_seen, file)
+        except OSError:
+            logger.warning("ZORA: could not save which item messages were shown")
 
     @classmethod
     def hud_item(cls, name: str, room: int) -> str:
         """The full item name if it fits in `room`, else its short name cut to fit."""
         if len(cls.hud_shown(name)) <= room:
-            return cls.hud_shown(name)
-        return cls.hud_fit(cls.HUD_SHORT_NAMES.get(name, name), room)
+            return cls.hud_shown(name) or "ITEM"
+        return cls.hud_fit(cls.HUD_SHORT_NAMES.get(name, name), room) or "ITEM"
 
     def hud_reset(self) -> None:
-        self.hud_messages: list = []        # (text, queued at)
+        self.hud_messages: list = []        # (text, kind): kind is "sent", "got" or "back"
+        self.hud_given_back = 0             # items given again that were announced before
         self.hud_text: str | None = None    # the message on screen now, or None
         self.hud_until = 0.0
         self.hud_drawn_at = 0.0
@@ -228,7 +279,11 @@ class ZoraClient(BizHawkClient):
         return " ".join(kept.split())
 
     @classmethod
-    def hud_player(cls, name: str) -> str:
+    def hud_player(cls, name: str, mine: str = "") -> str:
+        """A player's name for a HUD line. A prefix up to the first "-" that this slot's own name
+        shares (Gob-ZORA and Gob-Z2R) is left off: "Z2R"."""
+        if "-" in name and "-" in mine and name.split("-", 1)[0].lower() == mine.split("-", 1)[0].lower():
+            name = name.split("-", 1)[1]
         return cls.hud_shown(name)[:11].rstrip() or "ANOTHER PLAYER"
 
     @classmethod
@@ -386,7 +441,7 @@ class ZoraClient(BizHawkClient):
             shown = (ctx.item_names.lookup_in_game(ctx.items_received[count - 1].item)
                      if 0 < count <= len(ctx.items_received) else None)
             if (decision.gives or decision.skips) and 0 < count <= len(ctx.items_received):
-                self.hud_got(ctx, ctx.items_received[count - 1])
+                self.hud_got(ctx, ctx.items_received[count - 1], count)
             if decision.gives:
                 logger.info(f"ZORA: gave received item #{count}, {shown or decision.gives}")
             elif decision.skips:
