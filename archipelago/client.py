@@ -147,10 +147,9 @@ class ZoraClient(BizHawkClient):
     # fceux-archipelago patch: HUD messages
     # Item messages go in the blank top row of the status bar (nametable $2022, 28 columns), written
     # through the game's tile buffer: DynTileBuf at $0302, with $0301 the index of its $FF end. The NMI
-    # copies it to the PPU and resets it. Written in play mode ($12=5, $13=0) while the buffer is
-    # empty, so the game's own records go after ours (cellars, $12=9/$A, the same), or in a cave ($12=$B/$C) in place of that
-    # frame's status-bar redraw. Columns 22-29 take the -LIFE- palette (red) in ROMs without the
-    # hud-white-text patch.
+    # copies it to the PPU and resets it. Written in play ($12=5, $13=0) and cellars ($12=9/$A)
+    # while the buffer is empty, so the game's own records go after ours, or in play and caves
+    # ($12=$B/$C) in place of that frame's status-bar redraw, which the game sends again.
     # Item names too long for the status-bar row (player's choice, 2026-11-20).
     HUD_SHORT_NAMES = {
         "Wood Sword": "SWORD", "White Sword": "W SWORD", "Magical Sword": "M SWORD",
@@ -310,7 +309,15 @@ class ZoraClient(BizHawkClient):
         writes = [(0x0302, record, RAM), (0x0301, [len(record) - 1], RAM)]
         if await guarded_write(
                 ctx.bizhawk_ctx, writes,
-                [(0x12, [5], RAM), (0x13, [0], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
+                [(0x12, [5], RAM), (0x13, [0], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM),
+                 (0x0301, [0], RAM)]):
+            return True
+        # In play the game also queues the status-bar redraw (20 B6 08) every second frame, which
+        # fails the empty-buffer guard above on those frames. Replace it, as in caves below.
+        if await guarded_write(
+                ctx.bizhawk_ctx, writes,
+                [(0x12, [5], RAM), (0x13, [0], RAM), (0x11, [1], RAM), (0x14, [0], RAM),
+                 (0x0302, [0x20, 0xB6, 0x08], RAM)]):
             return True
         # Cellars (mode 9, and $A on the way out) play with GameSubmode left at its last init step
         # (9), so they need their own guard: updating ($11=1) with an empty buffer.
@@ -319,10 +326,10 @@ class ZoraClient(BizHawkClient):
                     ctx.bizhawk_ctx, writes,
                     [(0x12, [mode], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
                 return True
-        # Caves (modes $B, $C) redraw the whole status bar through the buffer every frame, starting
-        # with the hearts record (20 B6 08), so the buffer is never empty there. Replacing one
-        # frame's redraw is harmless: the game sends it again next frame. Text typing and other
-        # one-off records start differently and are left alone.
+        # Caves (modes $B, $C) take only the frames with the status-bar redraw (every second frame,
+        # starting 20 B6 08, sent alone into an empty buffer). Replacing it is harmless: the game
+        # sends it again two frames later. Text typing and other one-off records start
+        # differently and are left alone.
         for mode in (0x0B, 0x0C):
             if await guarded_write(
                     ctx.bizhawk_ctx, writes,

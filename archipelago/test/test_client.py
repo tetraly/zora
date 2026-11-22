@@ -292,3 +292,229 @@ class TestHudMessages(unittest.TestCase):
         blank = tiles[0]
         lead = next(i for i, tile in enumerate(tiles) if tile != blank)
         self.assertEqual(lead, (28 - len("GOT RAFT")) // 2)
+
+
+# The game's status-bar redraw as FCEUX shows it in $0302, sent every second frame in play, caves
+# and cellars into an empty buffer, with $0301 left at 0: the row above the hearts, the hearts,
+# rupees, keys, bombs and -LIFE-.
+STATUS_REDRAW = [0x20, 0xB6, 0x08] + [0x24] * 8 + [
+    0x20, 0xD6, 0x08, 0xF2, 0xF2, 0xF2, 0x66, 0x66, 0x66, 0x24, 0x24,
+    0x20, 0x6C, 0x03, 0x21, 0x09, 0x09, 0x20, 0xAC, 0x03, 0x21, 0x0A, 0x24, 0x20, 0xCC, 0x03, 0x21, 0x04, 0x24,
+    0x20, 0x76, 0x09, 0x24, 0x2F, 0x15, 0x12, 0x0F, 0x0E, 0x2F, 0x24, 0x24, 0xFF]
+CAVE_TYPING = [0x21, 0xA9, 0x01, 0x15, 0xFF]     # one character of the old man's text, $0301 left at 0
+
+
+def hud_ram(mode: int, submode: int = 0, updating: int = 1, buffer: list[int] | None = None,
+            index: int = 0, selector: int = 0) -> list[int]:
+    """RAM with GameMode $12, GameSubmode $13, IsUpdatingMode $11, TileBufSelector $14 and the tile
+    buffer at $0302 with $0301 (the index of its $FF end, which the game's whole-buffer records
+    leave at 0)."""
+    ram = [0] * RAM_SIZE
+    ram[0x12], ram[0x13], ram[0x11], ram[0x14] = mode, submode, updating, selector
+    buffer = [0xFF] if buffer is None else buffer
+    ram[0x0302:0x0302 + len(buffer)] = buffer
+    ram[0x0301] = index
+    return ram
+
+
+class TestHudWrite(unittest.TestCase):
+    """hud_write's guards: the 32-byte record goes into the tile buffer only in the states where the
+    NMI copies it without losing one of the game's own records."""
+
+    def setUp(self) -> None:
+        self.client = client_module.ZoraClient()
+        self.ctx = types.SimpleNamespace(bizhawk_ctx=None)
+
+    def write(self, ram: list[int], text: str = "GOT RAFT") -> tuple[bool, Console]:
+        console = Console(ram)
+        with mock.patch("worlds._bizhawk.guarded_write", console.guarded_write):
+            done = asyncio.run(self.client.hud_write(self.ctx, text))
+        return done, console
+
+    def assert_written(self, ram: list[int]) -> None:
+        done, console = self.write(ram)
+        self.assertTrue(done)
+        self.assertEqual(console.ram[0x0302:0x0305], [0x20, 0x22, 28])
+        self.assertEqual(console.ram[0x0302 + 31], 0xFF)          # the record's end
+        self.assertEqual(console.ram[0x0301], 31)                  # index of that end
+
+    def assert_refused(self, ram: list[int]) -> None:
+        before = list(ram)
+        done, console = self.write(ram)
+        self.assertFalse(done)
+        self.assertEqual(console.ram, before)
+
+    def test_play_with_an_empty_buffer(self) -> None:
+        self.assert_written(hud_ram(5))
+
+    def test_play_with_the_status_bar_redraw_replaces_it(self) -> None:
+        self.assert_written(hud_ram(5, buffer=STATUS_REDRAW))
+
+    def test_play_with_another_record_waits(self) -> None:
+        for buffer in ([0x21, 0x00, 0x04, 1, 2, 3, 4, 0xFF],
+                       [0x20, 0xE4, 0x04, 1, 2, 3, 4, 0xFF]):     # starts $20, but not the redraw
+            with self.subTest(buffer=buffer[:3]):
+                self.assert_refused(hud_ram(5, buffer=buffer, index=len(buffer) - 1))
+
+    def test_not_updating_waits(self) -> None:
+        """$11=0 while a mode sets itself up (cave and cellar entry and exit), in every guard."""
+        for mode, buffer in ((5, None), (5, STATUS_REDRAW), (0x09, None), (0x0A, None),
+                             (0x0B, STATUS_REDRAW), (0x0C, STATUS_REDRAW)):
+            with self.subTest(mode=mode, redraw=buffer is not None):
+                self.assert_refused(hud_ram(mode, updating=0, buffer=buffer))
+
+    def test_a_fixed_buffer_send_waits(self) -> None:
+        """$14 (TileBufSelector) nonzero: the NMI sends one of the game's fixed buffers instead of
+        $0302, then resets both, so a record written now would be lost."""
+        for mode, buffer in ((5, None), (5, STATUS_REDRAW), (0x09, None), (0x0B, STATUS_REDRAW)):
+            with self.subTest(mode=mode, redraw=buffer is not None):
+                self.assert_refused(hud_ram(mode, buffer=buffer, selector=0x44))
+
+    def test_cellars_with_their_submode_left_at_9(self) -> None:
+        for mode in (0x09, 0x0A):
+            with self.subTest(mode=mode):
+                self.assert_written(hud_ram(mode, submode=9))
+
+    def test_cellars_with_a_full_buffer_wait(self) -> None:
+        self.assert_refused(hud_ram(0x09, submode=9, buffer=STATUS_REDRAW))
+
+    def test_caves_replace_the_status_bar_redraw(self) -> None:
+        for mode in (0x0B, 0x0C):
+            with self.subTest(mode=mode):
+                self.assert_written(hud_ram(mode, buffer=STATUS_REDRAW))
+
+    def test_caves_leave_typing_text_alone(self) -> None:
+        self.assert_refused(hud_ram(0x0B, buffer=CAVE_TYPING))
+
+    def test_no_write_outside_play(self) -> None:
+        """Title and file screens, scrolls (6, 7), stairs ($10), death ($11) and continue (8)."""
+        for mode in (0x00, 0x01, 0x04, 0x06, 0x07, 0x08, 0x10, 0x11):
+            with self.subTest(mode=mode):
+                self.assert_refused(hud_ram(mode))
+
+    def test_the_blank_row_is_all_spaces(self) -> None:
+        from ..zora.rom.text_encoding import CHAR_TO_BYTE
+        done, console = self.write(hud_ram(5), "")
+        self.assertTrue(done)
+        self.assertEqual(console.ram[0x0305:0x0305 + 28], [CHAR_TO_BYTE[" "]] * 28)
+
+    def test_a_long_line_is_cut_to_the_row(self) -> None:
+        done, console = self.write(hud_ram(5), "X" * 40)
+        self.assertTrue(done)
+        self.assertEqual(console.ram[0x0302 + 31], 0xFF)
+
+
+class TestHudTiming(unittest.TestCase):
+    """hud_tick: how long each line stays, the redraw while shown, the blank after, and retries."""
+
+    def setUp(self) -> None:
+        self.client = client_module.ZoraClient()
+        self.ctx = types.SimpleNamespace(bizhawk_ctx=None)
+        self.console = Console(hud_ram(5))
+        self.now = 100.0
+        patches = (mock.patch("worlds._bizhawk.guarded_write", self.console.guarded_write),
+                   mock.patch("time.monotonic", lambda: self.now))
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+
+    def tick_at(self, offset: float) -> None:
+        self.now = 100.0 + offset
+        self.console.ram[0x0302], self.console.ram[0x0301] = 0xFF, 0    # the NMI emptied the buffer
+        asyncio.run(self.client.hud_tick(self.ctx))
+
+    def queue(self, *texts: str) -> None:
+        self.client.hud_queue().extend((text, "got") for text in texts)
+
+    def test_a_line_shows_10_s_then_the_row_is_blanked(self) -> None:
+        self.queue("GOT RAFT")
+        self.tick_at(0)
+        self.assertEqual((self.client.hud_text, self.console.writes), ("GOT RAFT", 1))
+        self.tick_at(9.9)
+        self.assertEqual(self.client.hud_text, "GOT RAFT")
+        self.tick_at(10)
+        self.assertIsNone(self.client.hud_text)
+        self.assertFalse(self.client.hud_dirty)
+        writes = self.console.writes
+        self.tick_at(11)                                        # blank already written: nothing more
+        self.assertEqual(self.console.writes, writes)
+
+    def test_a_shown_line_is_redrawn_each_second(self) -> None:
+        self.queue("GOT RAFT")
+        self.tick_at(0)
+        self.tick_at(0.5)
+        self.assertEqual(self.console.writes, 1)
+        self.tick_at(1.0)
+        self.assertEqual(self.console.writes, 2)
+        self.tick_at(1.5)                                   # counted from the last redraw
+        self.assertEqual(self.console.writes, 2)
+        self.tick_at(2.0)
+        self.assertEqual(self.console.writes, 3)
+
+    def test_a_refused_redraw_is_tried_again_next_tick(self) -> None:
+        self.queue("GOT RAFT")
+        self.tick_at(0)
+        self.console.ram[0x12] = 0x07                       # a scroll
+        self.tick_at(1.0)
+        self.assertEqual(self.console.writes, 1)
+        self.console.ram[0x12] = 5
+        self.tick_at(1.1)
+        self.assertEqual(self.console.writes, 2)
+
+    def test_a_refused_blank_is_tried_again_until_it_lands(self) -> None:
+        self.queue("GOT RAFT")
+        self.tick_at(0)
+        self.console.ram[0x12] = 0x07
+        self.tick_at(10)
+        self.assertIsNone(self.client.hud_text)
+        self.assertTrue(self.client.hud_dirty)              # the text is still on screen
+        self.console.ram[0x12] = 5
+        self.tick_at(10.1)
+        self.assertFalse(self.client.hud_dirty)
+        self.assertEqual(self.console.writes, 2)
+
+    def test_lines_follow_each_other_without_a_blank_between(self) -> None:
+        self.queue("GOT RAFT", "GOT BOW")
+        self.tick_at(0)
+        self.tick_at(10)
+        self.assertEqual(self.client.hud_text, "GOT BOW")
+        self.assertTrue(self.client.hud_dirty)
+
+    def test_a_busy_queue_gives_each_line_5_s(self) -> None:
+        self.queue("A", "B", "C", "D")
+        self.tick_at(0)
+        self.assertEqual(self.client.hud_until, 105.0)
+        self.client.hud_queue().clear()
+        self.queue("E", "F", "G")
+        self.tick_at(5)
+        self.assertEqual(self.client.hud_until, 115.0)      # 3 pending: 10 s again
+
+    def test_a_refused_write_keeps_the_line(self) -> None:
+        self.queue("GOT RAFT")
+        self.console.ram[0x12] = 0                          # title screen
+        self.now = 100.0
+        asyncio.run(self.client.hud_tick(self.ctx))
+        self.assertEqual((self.client.hud_text, len(self.client.hud_queue())), (None, 1))
+        self.console.ram[0x12] = 5
+        self.tick_at(1)
+        self.assertEqual((self.client.hud_text, len(self.client.hud_queue())), ("GOT RAFT", 0))
+
+    def test_a_dropped_connection_keeps_the_line(self) -> None:
+        from worlds._bizhawk import RequestFailedError
+        self.queue("GOT RAFT")
+        self.console.errors = [RequestFailedError("gone")]
+        with self.assertNoLogs("Client"):               # a dropped link is expected: not logged
+            self.tick_at(0)
+        self.assertEqual(len(self.client.hud_queue()), 1)
+        self.tick_at(1)
+        self.assertEqual(self.client.hud_text, "GOT RAFT")
+
+    def test_an_unknown_error_is_logged_once_and_never_raised(self) -> None:
+        self.queue("GOT RAFT")
+        self.console.errors = [RuntimeError("odd"), RuntimeError("odd")]
+        with self.assertLogs("Client", "WARNING") as logs:
+            self.tick_at(0)
+            self.tick_at(0.1)
+        self.assertEqual(len(logs.records), 1)
+        self.tick_at(0.2)
+        self.assertEqual(self.client.hud_text, "GOT RAFT")
