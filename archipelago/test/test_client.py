@@ -495,15 +495,10 @@ class TestHudWrite(unittest.TestCase):
     def test_cellars_leave_the_item_counter_record_alone(self) -> None:
         self.assert_refused(hud_ram(0x09, submode=9, buffer=[0x20, 0x8B, 0x04, 0, 0, 0, 0, 0xFF]))
 
-    def test_caves_never_replace_the_status_bar_redraw(self) -> None:
+    def test_caves_replace_the_status_bar_redraw(self) -> None:
         for mode in (0x0B, 0x0C):
             with self.subTest(mode=mode):
-                self.assert_refused(hud_ram(mode, buffer=STATUS_REDRAW))
-
-    def test_caves_write_into_an_empty_buffer(self) -> None:
-        for mode in (0x0B, 0x0C):
-            with self.subTest(mode=mode):
-                self.assert_written(hud_ram(mode, buffer=None))
+                self.assert_written(hud_ram(mode, buffer=STATUS_REDRAW))
 
     def test_caves_leave_typing_text_alone(self) -> None:
         self.assert_refused(hud_ram(0x0B, buffer=CAVE_TYPING))

@@ -389,18 +389,11 @@ class ZoraClient(BizHawkClient):
         # harmless: the game sends it again two frames later. A typed character of cave text
         # starts differently and is never replaced, but on some cave entries it takes the
         # redraw's frames, so a line can wait out the typing (about 120 frames).
-        # Caves no longer replace the redraw: a record after it (the cave text's colors) is lost
-        # with it. Caves write only into an empty buffer, so their lines wait for a free frame.
-        for mode in (0x0B, 0x0C):
+        for mode in (0x09, 0x0B, 0x0C):
             if await guarded_write(
                     ctx.bizhawk_ctx, writes,
-                    [(0x12, [mode], RAM), (0x13, [0], RAM), (0x11, [1], RAM), (0x14, [0], RAM),
-                     (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
+                    [(0x12, [mode], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0x20, 0xB6, 0x08], RAM)]):
                 return True
-        if await guarded_write(
-                ctx.bizhawk_ctx, writes,
-                [(0x12, [0x09], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0x20, 0xB6, 0x08], RAM)]):
-            return True
         return False
 
     async def hud_tick(self, ctx: BizHawkClientContext) -> None:
