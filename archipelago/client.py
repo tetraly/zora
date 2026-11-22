@@ -165,7 +165,9 @@ class ZoraClient(BizHawkClient):
         "Erdrick's Token": "TOKEN", "Erdrick's Sword": "E SWORD", "Erdrick's Armor": "E ARMOR",
         "Stones of Sunlight": "SUN STONES", "Magic Container": "MAGIC CONT",
         "Blue Magic Jar": "BLUE JAR", "Red Magic Jar": "RED JAR",
+        "Piece of Heart": "HEART PIECE",
     }
+    HUD_DANGLING = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}     # never the last word of a cut name
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
     HUD_SECONDS = 10.0
@@ -292,9 +294,12 @@ class ZoraClient(BizHawkClient):
         if len(shown) <= room:
             return shown
         head = shown[:room + 1]
-        if " " in head:
-            return head.rsplit(" ", 1)[0].rstrip()
-        return shown[:room]
+        if " " not in head:
+            return shown[:room]
+        words = head.rsplit(" ", 1)[0].split()
+        while len(words) > 1 and words[-1] in cls.HUD_DANGLING:      # no "PIECE OF"
+            words.pop()
+        return " ".join(words)
 
     async def hud_write(self, ctx: BizHawkClientContext, text: str) -> bool:
         """Write text (blank for "") into the HUD row; False if the game was not ready this tick."""

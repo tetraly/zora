@@ -275,6 +275,10 @@ class TestHudMessages(unittest.TestCase):
         self.assertEqual(self.texts()[0], "SENT HEART CONTAINER TO Z2R")
         self.assertEqual(len(self.texts()), 3)
 
+    def test_a_cut_name_never_ends_on_a_small_word(self) -> None:
+        self.assertEqual(client_module.ZoraClient.hud_item("Piece of Heart", 13), "HEART PIECE")
+        self.assertEqual(client_module.ZoraClient.hud_fit("Book of Mudora", 10), "BOOK")
+
     def test_the_written_row_is_centered(self) -> None:
         written = []
 
