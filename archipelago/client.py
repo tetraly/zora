@@ -201,7 +201,7 @@ class ZoraClient(BizHawkClient):
     def hud_got(self, ctx: BizHawkClientContext, item: Any, count: int) -> None:
         """Queue the line for received item number `count` as it is given. An item already announced
         for this seed and slot (given again after a switch from the battery save, or in a new save
-        file) is folded into one "N ITEMS GIVEN BACK" line."""
+        file) adds or updates one "N ITEMS GIVEN BACK" line, which stays ahead of the items' own lines."""
         try:
             key = f"{getattr(ctx, 'seed_name', None)}:{ctx.slot}"
             seen = self.hud_seen_load().get(key, 0)
@@ -216,9 +216,9 @@ class ZoraClient(BizHawkClient):
                         break
                 else:
                     queue.append(line)
-                return
-            self.hud_seen[key] = count
-            self.hud_seen_save()
+            else:
+                self.hud_seen[key] = count
+                self.hud_seen_save()
             if item.location == -2:         # starting inventory: not news
                 return
             name = self.hud_item

@@ -258,14 +258,25 @@ class TestHudMessages(unittest.TestCase):
         self.got(4, SLOT, 1)
         self.assertEqual(self.texts(), ["GOT ITEM"])
 
-    def test_items_given_again_fold_into_one_line_even_after_a_restart(self) -> None:
+    def test_items_given_again_get_one_burst_line_even_after_a_restart(self) -> None:
         for count in (1, 2, 3):
             self.got(3, SLOT, count)
         self.client = client_module.ZoraClient()       # a switch restarts the client
         self.ctx.items_received = []
         for count in (1, 2, 3, 4):
             self.got(3, SLOT, count)
-        self.assertEqual(self.texts(), ["3 ITEMS GIVEN BACK", "GOT RAFT"])
+        self.assertEqual(self.texts(), ["3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
+
+    def test_the_burst_line_comes_first_then_each_item_of_the_burst(self) -> None:
+        for count in (1, 2):
+            self.got(1, SLOT, count)
+        self.client = client_module.ZoraClient()       # a switch restarts the client
+        self.ctx.items_received = []
+        self.got(1, SLOT, 1)                           # given again
+        self.got(1, 2, 2)                              # given again, from another player
+        self.got(3, SLOT, 3)                           # new
+        self.assertEqual(self.texts(), ["2 ITEMS GIVEN BACK", "GOT HEART CONTAINER",
+                                        "HEART CONTAINER FROM Z2R", "GOT RAFT"])
 
     def test_a_sent_line_goes_ahead_of_received_lines_that_wait(self) -> None:
         self.got(3, 2, 1)
