@@ -339,6 +339,30 @@ class TestHudMessages(unittest.TestCase):
             shown.append(self.client.hud_messages.pop(0)[0])
         self.assertEqual(shown + self.texts(), ["3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
 
+    def test_a_new_seed_does_not_count_items_of_an_old_one(self) -> None:
+        self.ctx.seed_name = None                      # as Archipelago leaves it
+        self.ctx.server_seed_name = "old"
+        for count in (1, 2, 3):
+            self.got(3, SLOT, count)
+        self.client.hud_messages.clear()
+        self.ctx.server_seed_name = "new"
+        self.got(3, SLOT, 1)
+        self.assertEqual(self.texts(), ["GOT RAFT"])
+
+    def test_with_no_seed_name_no_item_counts_as_given_again(self) -> None:
+        self.ctx.seed_name = None
+        self.got(3, SLOT, 1)
+        self.got(3, SLOT, 1)
+        self.assertEqual(self.texts(), ["GOT RAFT", "GOT RAFT"])
+
+    def test_a_burst_counts_no_more_items_than_the_server_sent(self) -> None:
+        for count in (1, 2, 3, 4, 5):
+            self.got(3, SLOT, count)
+        self.client.hud_messages.clear()
+        self.ctx.items_received = [NetworkItem(3, 5, SLOT)] * 2
+        self.got(3, SLOT, 1)
+        self.assertEqual(self.texts()[0], "2 ITEMS GIVEN BACK")
+
     def test_a_later_burst_counts_from_its_own_first_item(self) -> None:
         for count in (1, 2, 3):
             self.got(3, SLOT, count)

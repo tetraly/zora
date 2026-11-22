@@ -210,8 +210,13 @@ class ZoraClient(BizHawkClient):
         file) starts a burst: one "N ITEMS GIVEN BACK" line counting every item given again, then
         each item's own line. New items' lines go ahead of the burst."""
         try:
-            key = f"{getattr(ctx, 'seed_name', None)}:{ctx.slot}"
-            seen = self.hud_seen_load().get(key, 0)
+            # Archipelago keeps the server's seed name in server_seed_name and leaves seed_name None;
+            # with no seed name at all, no item counts as given again (one count shared by every
+            # seed would turn a new seed's first items into a burst)
+            seed = getattr(ctx, "server_seed_name", None) or getattr(ctx, "seed_name", None)
+            key = f"{seed}:{ctx.slot}"
+            seen = self.hud_seen_load().get(key, 0) if seed else 0
+            seen = min(seen, len(getattr(ctx, "items_received", ())) or seen)
             regiven = count <= seen
             if regiven:
                 if not self.hud_burst:          # the whole burst is known now: items count..seen
@@ -220,8 +225,9 @@ class ZoraClient(BizHawkClient):
                     self.hud_add(f"{n} ITEM GIVEN BACK" if n == 1 else f"{n} ITEMS GIVEN BACK", "back")
             else:
                 self.hud_burst = False
-                self.hud_seen[key] = count
-                self.hud_seen_save()
+                if seed:
+                    self.hud_seen[key] = count
+                    self.hud_seen_save()
             if item.location == -2:         # starting inventory: not news
                 return
             name = self.hud_item
