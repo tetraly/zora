@@ -265,17 +265,58 @@ class TestHudMessages(unittest.TestCase):
         self.ctx.items_received = []
         for count in (1, 2, 3, 4):
             self.got(3, SLOT, count)
-        self.assertEqual(self.texts(), ["3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
+        # the new item (4) goes ahead of the burst
+        self.assertEqual(self.texts(), ["GOT RAFT", "3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
+
+    def wait_ram(self, mode: int, given: int) -> dict:
+        return {0x12: mode, client_module.zora_ap.RECEIVED_COUNT: given}
+
+    def note_waiting(self, mode: int, given: int) -> None:
+        with mock.patch.object(client_module.zora_ap, "checks_readable", lambda _ram: True):
+            self.client.hud_note_waiting(self.ctx, self.wait_ram(mode, given))
 
     def test_exit_cave_line_shows_once_while_items_wait_in_a_cave(self) -> None:
         self.ctx.items_received = [NetworkItem(1, 5, 2), NetworkItem(1, 6, 2)]
-        in_cave = {0x12: 0x0B, client_module.zora_ap.RECEIVED_COUNT: 0}
-        self.client.hud_note_waiting(self.ctx, in_cave)
-        self.client.hud_note_waiting(self.ctx, in_cave)
-        self.assertEqual(self.texts(), ["EXIT CAVE FOR ITEMS"])
-        self.client.hud_note_waiting(self.ctx, {0x12: 0x05, client_module.zora_ap.RECEIVED_COUNT: 2})
-        self.assertEqual(self.texts(), ["EXIT CAVE FOR ITEMS"])
+        self.client.on_package(self.ctx, "PrintJSON", {"type": "ItemSend", "item": NetworkItem(1, 9, SLOT),
+                                                       "receiving": 2})
+        self.got(3, SLOT, 1)
+        self.note_waiting(0x0B, 0)
+        self.note_waiting(0x0B, 0)
+        self.assertEqual(self.texts(), ["SENT HEART CONTAINER TO Z2R", "EXIT CAVE FOR ITEMS", "GOT RAFT"])
+
+    def test_the_wait_line_is_dropped_once_the_player_leaves(self) -> None:
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        self.got(3, SLOT, 1)
+        self.note_waiting(0x0B, 0)
+        self.note_waiting(0x05, 0)
+        self.assertEqual(self.texts(), ["GOT RAFT"])
         self.assertFalse(self.client.hud_waiting)
+
+    def test_a_wait_line_on_screen_ends_when_the_player_leaves(self) -> None:
+        self.ctx.items_received = []
+        self.client.hud_text, self.client.hud_kind, self.client.hud_until = "EXIT CAVE FOR ITEMS", "wait", 1e12
+        self.note_waiting(0x05, 0)
+        self.assertLess(self.client.hud_until, 1e12)
+
+    def test_a_reconnect_in_a_cave_queues_no_second_wait_line(self) -> None:
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        self.note_waiting(0x0B, 0)
+        self.ctx.items_received = []                   # the reconnect empties the list, then refills it
+        self.note_waiting(0x0B, 0)
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        self.note_waiting(0x0B, 0)
+        self.assertEqual(self.texts(), ["EXIT CAVE FOR ITEMS"])
+
+    def test_a_cellar_gets_its_own_wait_line(self) -> None:
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        self.note_waiting(0x09, 0)
+        self.assertEqual(self.texts(), ["EXIT CELLAR FOR ITEMS"])
+
+    def test_no_wait_line_from_an_unreadable_read(self) -> None:
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        with mock.patch.object(client_module.zora_ap, "checks_readable", lambda _ram: False):
+            self.client.hud_note_waiting(self.ctx, self.wait_ram(0x0B, 0))
+        self.assertEqual(self.texts(), [])
 
     def test_the_burst_line_comes_first_then_each_item_of_the_burst(self) -> None:
         for count in (1, 2):
@@ -285,8 +326,28 @@ class TestHudMessages(unittest.TestCase):
         self.got(1, SLOT, 1)                           # given again
         self.got(1, 2, 2)                              # given again, from another player
         self.got(3, SLOT, 3)                           # new
-        self.assertEqual(self.texts(), ["2 ITEMS GIVEN BACK", "GOT HEART CONTAINER",
-                                        "HEART CONTAINER FROM Z2R", "GOT RAFT"])
+        self.assertEqual(self.texts(), ["GOT RAFT", "2 ITEMS GIVEN BACK", "GOT HEART CONTAINER",
+                                        "HEART CONTAINER FROM Z2R"])
+
+    def test_one_burst_line_with_the_full_count_when_lines_show_between_gives(self) -> None:
+        for count in (1, 2, 3):
+            self.got(3, SLOT, count)
+        self.client = client_module.ZoraClient()
+        shown = []
+        for count in (1, 2, 3):                        # hud_tick shows the first line after each give
+            self.got(3, SLOT, count)
+            shown.append(self.client.hud_messages.pop(0)[0])
+        self.assertEqual(shown + self.texts(), ["3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
+
+    def test_a_later_burst_counts_from_its_own_first_item(self) -> None:
+        for count in (1, 2, 3):
+            self.got(3, SLOT, count)
+        self.client = client_module.ZoraClient()
+        self.got(3, SLOT, 3)                           # one item given again
+        self.got(3, SLOT, 4)                           # then a new one ends the burst
+        self.client.hud_messages.clear()
+        self.got(3, SLOT, 4)                           # a new file: item 4 given again
+        self.assertEqual(self.texts()[0], "1 ITEM GIVEN BACK")
 
     def test_a_sent_line_goes_ahead_of_received_lines_that_wait(self) -> None:
         self.got(3, 2, 1)
@@ -399,8 +460,12 @@ class TestHudWrite(unittest.TestCase):
         self.assert_written(hud_ram(0x09, submode=9))
         self.assert_refused(hud_ram(0x0A, submode=9))        # leaving the cellar: no write
 
-    def test_cellars_with_a_full_buffer_wait(self) -> None:
-        self.assert_refused(hud_ram(0x09, submode=9, buffer=STATUS_REDRAW))
+    def test_cellars_replace_the_status_bar_redraw(self) -> None:
+        # with the Item Counter on, the buffer is never empty in a cellar: the redraw frames are the way in
+        self.assert_written(hud_ram(0x09, submode=9, buffer=STATUS_REDRAW))
+
+    def test_cellars_leave_the_item_counter_record_alone(self) -> None:
+        self.assert_refused(hud_ram(0x09, submode=9, buffer=[0x20, 0x8B, 0x04, 0, 0, 0, 0, 0xFF]))
 
     def test_caves_replace_the_status_bar_redraw(self) -> None:
         for mode in (0x0B, 0x0C):
@@ -512,6 +577,19 @@ class TestHudTiming(unittest.TestCase):
         self.queue("E", "F", "G")
         self.tick_at(5)
         self.assertEqual(self.client.hud_until, 115.0)      # 3 pending: 10 s again
+
+    def test_a_line_up_when_the_queue_gets_busy_keeps_only_5_s(self) -> None:
+        self.queue("A")
+        self.tick_at(0)
+        self.assertEqual(self.client.hud_until, 110.0)
+        self.queue("B", "C", "D")
+        self.tick_at(1)
+        self.assertEqual(self.client.hud_until, 105.0)
+
+    def test_items_given_again_get_5_s_each(self) -> None:
+        self.client.hud_queue().append(("GOT RAFT", "regot"))
+        self.tick_at(0)
+        self.assertEqual(self.client.hud_until, 105.0)
 
     def test_a_refused_write_keeps_the_line(self) -> None:
         self.queue("GOT RAFT")

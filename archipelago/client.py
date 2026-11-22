@@ -168,7 +168,12 @@ class ZoraClient(BizHawkClient):
         "Piece of Heart": "HEART PIECE",
     }
     HUD_DANGLING = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}     # never the last word of a cut name
-    CAVE_MODES = (0x0B, 0x0C)           # caves: the game gives received items only in normal play
+    # Where received items wait: the game gives them only in normal play (mode 5), so the player
+    # is told to leave. Caves are $B (every cave, shop and take-any) and $C (the take-any road).
+    HUD_WAIT_LINES = {0x0B: "EXIT CAVE FOR ITEMS", 0x0C: "EXIT CAVE FOR ITEMS", 0x09: "EXIT CELLAR FOR ITEMS"}
+    # Queue order by kind: sent lines, the wait line, new items, then a burst of re-given items
+    # (its "N ITEMS GIVEN BACK" line, then each item).
+    HUD_ORDER = {"sent": 0, "wait": 1, "got": 2, "back": 3, "regot": 4}
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
     HUD_SECONDS = 10.0
@@ -190,34 +195,26 @@ class ZoraClient(BizHawkClient):
             player = self.hud_player(ctx.player_names[receiver], ctx.player_names[ctx.slot])
             room = self.HUD_WIDTH - len("SENT  TO ") - len(player)
             name = self.hud_item(ctx.item_names.lookup_in_slot(item.item, receiver), room)
-            # A live line goes ahead of any backlog of received-item lines.
-            queue = self.hud_queue()
-            at = 0
-            while at < len(queue) and queue[at][1] == "sent":
-                at += 1
-            queue.insert(at, (f"SENT {name} TO {player}", "sent"))
+            self.hud_add(f"SENT {name} TO {player}", "sent")     # a live line goes ahead of any backlog
         except Exception:      # a message is never worth stopping the client
             logger.exception("ZORA: could not queue an item message")
 
     def hud_got(self, ctx: BizHawkClientContext, item: Any, count: int) -> None:
         """Queue the line for received item number `count` as it is given. An item already announced
         for this seed and slot (given again after a switch from the battery save, or in a new save
-        file) adds or updates one "N ITEMS GIVEN BACK" line, which stays ahead of the items' own lines."""
+        file) starts a burst: one "N ITEMS GIVEN BACK" line counting every item given again, then
+        each item's own line. New items' lines go ahead of the burst."""
         try:
             key = f"{getattr(ctx, 'seed_name', None)}:{ctx.slot}"
             seen = self.hud_seen_load().get(key, 0)
-            if count <= seen:
-                self.hud_given_back += 1
-                n = self.hud_given_back
-                line = (f"{n} ITEM GIVEN BACK" if n == 1 else f"{n} ITEMS GIVEN BACK", "back")
-                queue = self.hud_queue()
-                for i, entry in enumerate(queue):
-                    if entry[1] == "back":
-                        queue[i] = line
-                        break
-                else:
-                    queue.append(line)
+            regiven = count <= seen
+            if regiven:
+                if not self.hud_burst:          # the whole burst is known now: items count..seen
+                    self.hud_burst = True
+                    n = seen - count + 1
+                    self.hud_add(f"{n} ITEM GIVEN BACK" if n == 1 else f"{n} ITEMS GIVEN BACK", "back")
             else:
+                self.hud_burst = False
                 self.hud_seen[key] = count
                 self.hud_seen_save()
             if item.location == -2:         # starting inventory: not news
@@ -229,9 +226,18 @@ class ZoraClient(BizHawkClient):
                 player = self.hud_player(ctx.player_names[item.player], ctx.player_names[ctx.slot])
                 room = self.HUD_WIDTH - len(" FROM ") - len(player)
                 text = f"{name(ctx.item_names.lookup_in_game(item.item), room)} FROM {player}"
-            self.hud_queue().append((text, "got"))
+            self.hud_add(text, "regot" if regiven else "got")
         except Exception:      # a message is never worth stopping the client
             logger.exception("ZORA: could not queue an item message")
+
+    def hud_add(self, text: str, kind: str) -> None:
+        """Queue a line after every queued line of its kind or an earlier one in HUD_ORDER."""
+        queue = self.hud_queue()
+        rank = self.HUD_ORDER[kind]
+        at = len(queue)
+        while at > 0 and self.HUD_ORDER[queue[at - 1][1]] > rank:
+            at -= 1
+        queue.insert(at, (text, kind))
 
     def hud_seen_path(self) -> str:
         import Utils
@@ -264,27 +270,42 @@ class ZoraClient(BizHawkClient):
         return cls.hud_fit(cls.HUD_SHORT_NAMES.get(name, name), room) or "ITEM"
 
     def hud_reset(self) -> None:
-        self.hud_messages: list = []        # (text, kind): kind is "sent", "got" or "back"
-        self.hud_given_back = 0             # items given again that were announced before
+        self.hud_messages: list = []        # (text, kind): kind is a key of HUD_ORDER
+        self.hud_burst = False              # items given again are being given; their line is queued
         self.hud_text: str | None = None    # the message on screen now, or None
+        self.hud_kind = ""                  # the kind of hud_text
         self.hud_until = 0.0
+        self.hud_shown_at = 0.0             # when hud_text went up
         self.hud_drawn_at = 0.0
         self.hud_dirty = False              # the row holds text that still has to be blanked
-        self.hud_waiting = False            # items are waiting for the player to leave a cave
+        self.hud_waiting = False            # a wait line was queued for this stay in a cave or cellar
 
     def hud_note_waiting(self, ctx: BizHawkClientContext, ram: dict) -> None:
-        """Queue "EXIT CAVE FOR ITEMS" once when items the server sent wait for the player to leave
-        a cave: the game gives them only in normal play, so they show after the exit."""
+        """Queue a wait line (HUD_WAIT_LINES) once per stay in a cave or cellar while items the server
+        sent wait there, and drop it once the player leaves: the items then show as they are given."""
+        import time
         try:
+            if not zora_ap.checks_readable(ram):    # power-on garbage or a torn read: no news
+                return
             from .zora.rom.inventory import GAME_MODE
-            in_cave = ram[GAME_MODE] in self.CAVE_MODES
-            waiting = in_cave and len(ctx.items_received) > ram[zora_ap.RECEIVED_COUNT]
-        except Exception:      # a message is never worth stopping the client
-            logger.exception("ZORA: could not check for waiting items")
+            line = self.HUD_WAIT_LINES.get(ram[GAME_MODE])
+            pending = len(ctx.items_received) > ram[zora_ap.RECEIVED_COUNT]
+        except Exception as error:      # a message is never worth stopping the client
+            message = f"{type(error).__name__}: {error}"
+            if message != getattr(self, "hud_last_error", None):
+                self.hud_last_error = message
+                logger.warning(f"ZORA: could not check for waiting items: {message}")
             return
-        if waiting and not self.hud_waiting:
-            self.hud_queue().append(("EXIT CAVE FOR ITEMS", "wait"))
-        self.hud_waiting = waiting
+        if line is None:                # left (or never in) a cave or cellar
+            self.hud_waiting = False
+            self.hud_messages[:] = [entry for entry in self.hud_queue() if entry[1] != "wait"]
+            if self.hud_text is not None and self.hud_kind == "wait":
+                self.hud_until = time.monotonic()
+        elif pending and not self.hud_waiting:
+            # kept until the player leaves, so a reconnect (items_received empties, then fills)
+            # queues no second one
+            self.hud_waiting = True
+            self.hud_add(line, "wait")
 
     def hud_queue(self) -> list:
         return self.hud_messages
@@ -342,16 +363,19 @@ class ZoraClient(BizHawkClient):
                  (0x0302, [0x20, 0xB6, 0x08], RAM)]):
             return True
         # Cellars (mode 9) play with GameSubmode left at its last init step (9), so they need their
-        # own guard: updating ($11=1) with an empty buffer. Mode $A, the way out, never updates.
+        # own guards: updating ($11=1) with an empty buffer, or in place of the status-bar redraw
+        # below. With the Item Counter on, its record (20 8B 04) fills the other frames, so the
+        # buffer is never empty there. Mode $A, the way out, never updates.
         if await guarded_write(
                 ctx.bizhawk_ctx, writes,
                 [(0x12, [0x09], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
             return True
-        # Caves (modes $B, $C) take only the frames with the status-bar redraw (every second frame,
-        # starting 20 B6 08, sent alone into an empty buffer). Replacing it is harmless: the game
-        # sends it again two frames later. Text typing and other one-off records start
-        # differently and are left alone.
-        for mode in (0x0B, 0x0C):
+        # Caves (modes $B, $C) and cellars take the frames with the status-bar redraw (every
+        # second frame, starting 20 B6 08, alone in the buffer; $0301 stays 0). Replacing it is
+        # harmless: the game sends it again two frames later. A typed character of cave text
+        # starts differently and is never replaced, but on some cave entries it takes the
+        # redraw's frames, so a line can wait out the typing (about 120 frames).
+        for mode in (0x09, 0x0B, 0x0C):
             if await guarded_write(
                     ctx.bizhawk_ctx, writes,
                     [(0x12, [mode], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0x20, 0xB6, 0x08], RAM)]):
@@ -365,15 +389,20 @@ class ZoraClient(BizHawkClient):
         queue = self.hud_queue()
         now = time.monotonic()
         try:
+            if self.hud_text is not None and len(queue) + 1 >= self.HUD_BUSY_AT:
+                # the queue got busy while this line was up: it keeps only the busy time
+                self.hud_until = min(self.hud_until, self.hud_shown_at + self.HUD_SECONDS_BUSY)
             if self.hud_text is not None and now >= self.hud_until:
                 self.hud_text = None                    # time is up: blank it, or show the next one
             if self.hud_text is None:
                 if queue:
-                    text = queue[0][0]
+                    text, kind = queue[0]
                     if await self.hud_write(ctx, text):
-                        busy = len(queue) >= self.HUD_BUSY_AT
+                        # items given again are old news: always the busy time
+                        busy = len(queue) >= self.HUD_BUSY_AT or kind == "regot"
                         queue.pop(0)
-                        self.hud_text, self.hud_drawn_at, self.hud_dirty = text, now, True
+                        self.hud_text, self.hud_kind, self.hud_dirty = text, kind, True
+                        self.hud_shown_at = self.hud_drawn_at = now
                         self.hud_until = now + (self.HUD_SECONDS_BUSY if busy else self.HUD_SECONDS)
                 elif self.hud_dirty and await self.hud_write(ctx, ""):
                     self.hud_dirty = False
