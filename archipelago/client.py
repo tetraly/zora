@@ -167,6 +167,11 @@ class ZoraClient(BizHawkClient):
         "Blue Magic Jar": "BLUE JAR", "Red Magic Jar": "RED JAR",
         "Piece of Heart": "HEART PIECE",
     }
+    # Second short names, for when the short name above is too long for the room left on a SENT line
+    HUD_TINY_NAMES = {
+        "Piece of Heart": "HEART PC", "Stones of Sunlight": "SUNSTONE", "Magical Key": "M KEY",
+        "Candle Upgrade": "CNDL UP", "Magic Container": "M CONT",
+    }
     HUD_DANGLING = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}     # never the last word of a cut name
     # Where received items wait: the game gives them only in normal play (mode 5), so the player
     # is told to leave. Caves are $B (every cave, shop and take-any) and $C (the take-any road).
@@ -267,6 +272,9 @@ class ZoraClient(BizHawkClient):
         """The full item name if it fits in `room`, else its short name cut to fit."""
         if len(cls.hud_shown(name)) <= room:
             return cls.hud_shown(name) or "ITEM"
+        for short in (cls.HUD_SHORT_NAMES.get(name, name), cls.HUD_TINY_NAMES.get(name)):
+            if short and len(cls.hud_shown(short)) <= room:
+                return cls.hud_shown(short)
         return cls.hud_fit(cls.HUD_SHORT_NAMES.get(name, name), room) or "ITEM"
 
     def hud_reset(self) -> None:

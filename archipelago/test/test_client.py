@@ -361,6 +361,10 @@ class TestHudMessages(unittest.TestCase):
         self.assertEqual(client_module.ZoraClient.hud_item("Piece of Heart", 13), "HEART PIECE")
         self.assertEqual(client_module.ZoraClient.hud_fit("Book of Mudora", 10), "BOOK")
 
+    def test_a_short_name_too_long_for_the_room_uses_its_tiny_name(self) -> None:
+        self.assertEqual(client_module.ZoraClient.hud_item("Piece of Heart", 8), "HEART PC")
+        self.assertEqual(client_module.ZoraClient.hud_item("Piece of Heart", 13), "HEART PIECE")
+
     def test_the_written_row_is_centered(self) -> None:
         written = []
 
