@@ -267,6 +267,16 @@ class TestHudMessages(unittest.TestCase):
             self.got(3, SLOT, count)
         self.assertEqual(self.texts(), ["3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
 
+    def test_exit_cave_line_shows_once_while_items_wait_in_a_cave(self) -> None:
+        self.ctx.items_received = [NetworkItem(1, 5, 2), NetworkItem(1, 6, 2)]
+        in_cave = {0x12: 0x0B, client_module.zora_ap.RECEIVED_COUNT: 0}
+        self.client.hud_note_waiting(self.ctx, in_cave)
+        self.client.hud_note_waiting(self.ctx, in_cave)
+        self.assertEqual(self.texts(), ["EXIT CAVE FOR ITEMS"])
+        self.client.hud_note_waiting(self.ctx, {0x12: 0x05, client_module.zora_ap.RECEIVED_COUNT: 2})
+        self.assertEqual(self.texts(), ["EXIT CAVE FOR ITEMS"])
+        self.assertFalse(self.client.hud_waiting)
+
     def test_the_burst_line_comes_first_then_each_item_of_the_burst(self) -> None:
         for count in (1, 2):
             self.got(1, SLOT, count)

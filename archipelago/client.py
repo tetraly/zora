@@ -168,6 +168,7 @@ class ZoraClient(BizHawkClient):
         "Piece of Heart": "HEART PIECE",
     }
     HUD_DANGLING = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}     # never the last word of a cut name
+    CAVE_MODES = (0x0B, 0x0C)           # caves: the game gives received items only in normal play
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
     HUD_SECONDS = 10.0
@@ -269,6 +270,21 @@ class ZoraClient(BizHawkClient):
         self.hud_until = 0.0
         self.hud_drawn_at = 0.0
         self.hud_dirty = False              # the row holds text that still has to be blanked
+        self.hud_waiting = False            # items are waiting for the player to leave a cave
+
+    def hud_note_waiting(self, ctx: BizHawkClientContext, ram: dict) -> None:
+        """Queue "EXIT CAVE FOR ITEMS" once when items the server sent wait for the player to leave
+        a cave: the game gives them only in normal play, so they show after the exit."""
+        try:
+            from .zora.rom.inventory import GAME_MODE
+            in_cave = ram[GAME_MODE] in self.CAVE_MODES
+            waiting = in_cave and len(ctx.items_received) > ram[zora_ap.RECEIVED_COUNT]
+        except Exception:      # a message is never worth stopping the client
+            logger.exception("ZORA: could not check for waiting items")
+            return
+        if waiting and not self.hud_waiting:
+            self.hud_queue().append(("EXIT CAVE FOR ITEMS", "wait"))
+        self.hud_waiting = waiting
 
     def hud_queue(self) -> list:
         return self.hud_messages
@@ -421,6 +437,7 @@ class ZoraClient(BizHawkClient):
             self.skip_connector_error(error)
             return
         ram, ram_after = snapshot(tables, values)
+        self.hud_note_waiting(ctx, ram)
         try:
             decision = zora_ap.client_step(ram, ram_after, server_view(ctx), tables, self.memory)
         except Exception as error:      # never let one tick stop the client (docs/archipelago.md)
