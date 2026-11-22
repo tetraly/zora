@@ -3,13 +3,12 @@ is updated (the HUD would otherwise show the new name in full, with no short for
 import csv
 import unittest
 
-from ..hud_names import HUD_NAMES_FILE, load_hud_names
+from ..hud_names import hud_names_lines, load_hud_names
 from ..zora.model.item_names import ITEM_NAMES
 
 
 def csv_items() -> set[str]:
-    with HUD_NAMES_FILE.open(encoding="utf-8", newline="") as file:
-        lines = [line for line in file.read().splitlines() if not line.startswith("#")]
+    lines = [line for line in hud_names_lines() if not line.startswith("#")]
     return {row["item"] for row in csv.DictReader(lines)}
 
 

@@ -27,10 +27,12 @@ from __future__ import annotations
 import json
 import logging
 import pkgutil
+import time
 from base64 import b64encode
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from NetUtils import ClientStatus
+from worlds._bizhawk import NotConnectedError, RequestFailedError, guarded_write
 from worlds._bizhawk.client import BizHawkClient
 
 from . import hud_names
@@ -38,6 +40,7 @@ from .names import GIVEN_AS, LOCATION_NAME_TO_ID
 from .rom import GAME, rom_file_bytes
 from .zora import archipelago as zora_ap
 from .zora.rom.slot_identity import SLOT_IDENTITY_ADDRESS, SLOT_IDENTITY_SIZE
+from .zora.rom.text_encoding import CHAR_TO_BYTE
 
 if TYPE_CHECKING:
     from worlds._bizhawk.context import BizHawkClientContext
@@ -155,13 +158,16 @@ class ZoraClient(BizHawkClient):
     # the names come from item_short_names.csv (hud_names.py)
     HUD_SHORT_NAMES = hud_names.HUD_SHORT_NAMES
     HUD_TINY_NAMES = hud_names.HUD_TINY_NAMES
-    HUD_DANGLING = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}     # never the last word of a cut name
+    # never the last word of a cut name
+    HUD_DANGLING: ClassVar[set[str]] = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}
     # Where received items wait: the game gives them only in normal play (mode 5), so the player
     # is told to leave. Caves are $B (every cave, shop and take-any) and $C (the take-any road).
-    HUD_WAIT_LINES = {0x0B: "EXIT CAVE FOR ITEMS", 0x0C: "EXIT CAVE FOR ITEMS", 0x09: "EXIT CELLAR FOR ITEMS"}
+    HUD_WAIT_LINES: ClassVar[dict[int, str]] = {
+        0x0B: "EXIT CAVE FOR ITEMS", 0x0C: "EXIT CAVE FOR ITEMS", 0x09: "EXIT CELLAR FOR ITEMS",
+    }
     # Queue order by kind: sent lines, the wait line, new items, then a burst of re-given items
     # (its "N ITEMS GIVEN BACK" line, then each item).
-    HUD_ORDER = {"sent": 0, "wait": 1, "got": 2, "back": 3, "regot": 4}
+    HUD_ORDER: ClassVar[dict[str, int]] = {"sent": 0, "wait": 1, "got": 2, "back": 3, "regot": 4}
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
     HUD_SECONDS = 10.0
@@ -280,7 +286,6 @@ class ZoraClient(BizHawkClient):
     def hud_note_waiting(self, ctx: BizHawkClientContext, ram: dict) -> None:
         """Queue a wait line (HUD_WAIT_LINES) once per stay in a cave or cellar while items the server
         sent wait there, and drop it once the player leaves: the items then show as they are given."""
-        import time
         try:
             if not zora_ap.checks_readable(ram):    # power-on garbage or a torn read: no news
                 return
@@ -309,8 +314,7 @@ class ZoraClient(BizHawkClient):
 
     @staticmethod
     def hud_shown(text: str) -> str:
-        from .zora.rom.text_encoding import CHAR_TO_BYTE
-        kept = "".join(c if c in CHAR_TO_BYTE and c not in "~\"" else " " for c in text.upper().replace("'", ""))
+        kept = "".join(c if c in CHAR_TO_BYTE and c not in '~"' else " " for c in text.upper().replace("'", ""))
         return " ".join(kept.split())
 
     @classmethod
@@ -337,14 +341,12 @@ class ZoraClient(BizHawkClient):
 
     async def hud_write(self, ctx: BizHawkClientContext, text: str) -> bool:
         """Write text (blank for "") into the HUD row; False if the game was not ready this tick."""
-        from worlds._bizhawk import guarded_write
-        from .zora.rom.text_encoding import CHAR_TO_BYTE
 
         text = text[:self.HUD_WIDTH]
         text = " " * ((self.HUD_WIDTH - len(text)) // 2) + text      # centered in the row
         tiles = [CHAR_TO_BYTE.get(c, CHAR_TO_BYTE[" "]) for c in text]
         tiles += [CHAR_TO_BYTE[" "]] * (self.HUD_WIDTH - len(tiles))
-        record = [self.HUD_ROW >> 8, self.HUD_ROW & 0xFF, self.HUD_WIDTH] + tiles + [0xFF]
+        record = [self.HUD_ROW >> 8, self.HUD_ROW & 0xFF, self.HUD_WIDTH, *tiles, 0xFF]
         writes = [(0x0302, record, RAM), (0x0301, [len(record) - 1], RAM)]
         if await guarded_write(
                 ctx.bizhawk_ctx, writes,
@@ -380,8 +382,6 @@ class ZoraClient(BizHawkClient):
         return False
 
     async def hud_tick(self, ctx: BizHawkClientContext) -> None:
-        import time
-        from worlds._bizhawk import NotConnectedError, RequestFailedError
 
         queue = self.hud_queue()
         now = time.monotonic()

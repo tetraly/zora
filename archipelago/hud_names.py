@@ -6,18 +6,24 @@ shorter name for a SENT line with less room. An empty cell means no name at that
 version whenever a row changes.
 """
 import csv
-from pathlib import Path
+import pkgutil
 
-HUD_NAMES_FILE = Path(__file__).with_name("item_short_names.csv")
+HUD_NAMES_FILE = "item_short_names.csv"
 
 
-def load_hud_names(path: Path = HUD_NAMES_FILE) -> tuple[int, dict[str, str], dict[str, str]]:
+def hud_names_lines() -> list[str]:
+    """The file's lines. Read with pkgutil, not a path: Archipelago installs a .apworld as a zip."""
+    data = pkgutil.get_data(__package__, HUD_NAMES_FILE)
+    assert data is not None
+    return data.decode("utf-8").splitlines()
+
+
+def load_hud_names() -> tuple[int, dict[str, str], dict[str, str]]:
     """(version, short names, tiny names), each keyed by the item's full name."""
-    with path.open(encoding="utf-8", newline="") as file:
-        lines = file.read().splitlines()
+    lines = hud_names_lines()
     head, _, number = lines[0].partition(":") if lines else ("", "", "")
     if head.strip() != "# version" or not number.strip().isdigit():
-        raise ValueError(f"{path.name}: the first line must be '# version: N'")
+        raise ValueError(f"{HUD_NAMES_FILE}: the first line must be '# version: N'")
     short: dict[str, str] = {}
     tiny: dict[str, str] = {}
     rows = csv.DictReader(line for line in lines[1:] if not line.startswith("#"))
