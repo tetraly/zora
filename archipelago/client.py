@@ -33,6 +33,7 @@ from typing import TYPE_CHECKING, Any
 from NetUtils import ClientStatus
 from worlds._bizhawk.client import BizHawkClient
 
+from . import hud_names
 from .names import GIVEN_AS, LOCATION_NAME_TO_ID
 from .rom import GAME, rom_file_bytes
 from .zora import archipelago as zora_ap
@@ -151,27 +152,9 @@ class ZoraClient(BizHawkClient):
     # while the buffer is empty, so the game's own records go after ours, or in play and caves
     # ($12=$B/$C) in place of that frame's status-bar redraw, which the game sends again.
     # Item names too long for the status-bar row (player's choice, 2026-11-20).
-    HUD_SHORT_NAMES = {
-        "Wood Sword": "SWORD", "White Sword": "W SWORD", "Magical Sword": "M SWORD",
-        "Blue Candle": "B CANDLE", "Red Candle": "R CANDLE", "Wooden Arrow": "ARROWS",
-        "Silver Arrow": "SILVERS", "Magical Key": "MAGIC KEY", "Triforce of Power": "TRIFORCE",
-        "5 Rupees": "FIVER", "Blue Ring": "B RING", "Red Ring": "R RING",
-        "Power Bracelet": "PB", "Heart Container": "HC", "Triforce": "TRI",
-        "Boomerang": "BOOMER", "Magical Boomerang": "M BOOMER", "Blue Potion": "BLUE POT",
-        "Red Potion": "RED POT", "Sword Upgrade": "SWORD UP", "Candle Upgrade": "CANDLE UP",
-        "Arrow Upgrade": "ARROW UP", "Bomb Upgrade": "BOMB UP", "Boots Upgrade": "BOOTS UP",
-        "Pegasus Boots": "BOOTS", "Magical Boots": "M BOOTS",
-        # Items of the other games in a multiworld
-        "Erdrick's Token": "TOKEN", "Erdrick's Sword": "E SWORD", "Erdrick's Armor": "E ARMOR",
-        "Stones of Sunlight": "SUN STONES", "Magic Container": "MAGIC CONT",
-        "Blue Magic Jar": "BLUE JAR", "Red Magic Jar": "RED JAR",
-        "Piece of Heart": "HEART PIECE",
-    }
-    # Second short names, for when the short name above is too long for the room left on a SENT line
-    HUD_TINY_NAMES = {
-        "Piece of Heart": "HEART PC", "Stones of Sunlight": "SUNSTONE", "Magical Key": "M KEY",
-        "Candle Upgrade": "CNDL UP", "Magic Container": "M CONT",
-    }
+    # the names come from item_short_names.csv (hud_names.py)
+    HUD_SHORT_NAMES = hud_names.HUD_SHORT_NAMES
+    HUD_TINY_NAMES = hud_names.HUD_TINY_NAMES
     HUD_DANGLING = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}     # never the last word of a cut name
     # Where received items wait: the game gives them only in normal play (mode 5), so the player
     # is told to leave. Caves are $B (every cave, shop and take-any) and $C (the take-any road).
