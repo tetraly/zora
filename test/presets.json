@@ -1,7 +1,7 @@
 {
  "schemaVersion": 1,
- "revision": 1,
- "updatedAt": "2026-11-17T14:00:39Z",
+ "revision": 2,
+ "updatedAt": "2026-11-21T15:46:22Z",
  "flagsets": [
   {
    "name": "All Swords No Boards",
@@ -97,6 +97,146 @@
     {
      "flags": "oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUULH",
      "zora": "18.1DzN7gO9LZ4p",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Consternation",
+   "description": null,
+   "shortcuts": [
+    "consternation"
+   ],
+   "strings": [
+    {
+     "flags": "oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUJ3A",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Consternation Remastered",
+   "description": null,
+   "shortcuts": [
+    "remastered"
+   ],
+   "strings": [
+    {
+     "flags": "oIbnPfPb01Hll3D295IGDxxjR4UwfEok8P4MD",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Hopla",
+   "description": null,
+   "shortcuts": [
+    "hopla"
+   ],
+   "strings": [
+    {
+     "flags": "oIbnRjuMUKqwdnOXzOMO7PuDtwAvU3boJnaXW",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Consternation without level encoding",
+   "description": null,
+   "shortcuts": [
+    "consternation-noenc"
+   ],
+   "strings": [
+    {
+     "flags": "8hq4BeR1JXo89BJ2!TFpTP02u8UJ3A",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "Vanilla",
+   "description": null,
+   "shortcuts": [
+    "vanilla"
+   ],
+   "strings": [
+    {
+     "flags": "CEERPCkLslB6BApr1Him1SiR28Y",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "OHK0HPla Remastered",
+   "description": null,
+   "shortcuts": [
+    "ohk0hpla"
+   ],
+   "strings": [
+    {
+     "flags": "oIbnRjuQKp1DXiYCys9LwvSpzqZbXk1pRmZzr",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "TTP5: Muffle Rug",
+   "description": null,
+   "shortcuts": [
+    "mufflerug"
+   ],
+   "strings": [
+    {
+     "flags": "2487lt0moGMFLRug1ofQdxPuUBWnJVSsi7d202I",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "TTP5: Pick 5",
+   "description": null,
+   "shortcuts": [
+    "pick5"
+   ],
+   "strings": [
+    {
+     "flags": "p8GIOeYEAonHy5131VdG6b94Ts3EMMvBaQoWR",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "TTP5: Uphill Battle",
+   "description": null,
+   "shortcuts": [
+    "uphill"
+   ],
+   "strings": [
+    {
+     "flags": "143oNtDD4Pw3Yw6SRryTCXlqTsRz2fxg4s4pJW",
+     "zora": "",
+     "isLatest": true
+    }
+   ]
+  },
+  {
+   "name": "SGLive Onsite 2026",
+   "description": null,
+   "shortcuts": [
+    "sglive2026"
+   ],
+   "strings": [
+    {
+     "flags": "12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA",
+     "zora": "",
      "isLatest": true
     }
    ]
