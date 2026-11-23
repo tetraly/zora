@@ -499,12 +499,18 @@ class TestHudTiming(unittest.TestCase):
         self.assertEqual((self.client.hud_text, self.console.writes), ("GOT RAFT", 1))
         self.tick_at(9.9)
         self.assertEqual(self.client.hud_text, "GOT RAFT")
+        writes = self.console.writes
         self.tick_at(10)
         self.assertIsNone(self.client.hud_text)
+        self.assertEqual(self.console.writes, writes + 1)       # the first blank goes at once
+        self.tick_at(10.5)
+        self.assertEqual(self.console.writes, writes + 1)
+        self.tick_at(11)
+        self.tick_at(12)                                        # a blank can be lost: written 3 times
+        self.assertEqual(self.console.writes, writes + 3)
         self.assertFalse(self.client.hud_dirty)
-        writes = self.console.writes
-        self.tick_at(11)                                        # blank already written: nothing more
-        self.assertEqual(self.console.writes, writes)
+        self.tick_at(13)                                        # then nothing more
+        self.assertEqual(self.console.writes, writes + 3)
 
     def test_a_shown_line_is_redrawn_each_second(self) -> None:
         self.queue("GOT RAFT")
@@ -537,8 +543,11 @@ class TestHudTiming(unittest.TestCase):
         self.assertTrue(self.client.hud_dirty)              # the text is still on screen
         self.console.ram[0x12] = 5
         self.tick_at(10.1)
-        self.assertFalse(self.client.hud_dirty)
         self.assertEqual(self.console.writes, 2)
+        self.tick_at(11.1)
+        self.tick_at(12.1)
+        self.assertFalse(self.client.hud_dirty)
+        self.assertEqual(self.console.writes, 4)
 
     def test_lines_follow_each_other_without_a_blank_between(self) -> None:
         self.queue("GOT RAFT", "GOT BOW")

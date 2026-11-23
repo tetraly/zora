@@ -32,7 +32,6 @@ from base64 import b64encode
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from NetUtils import ClientStatus
-from worlds._bizhawk import NotConnectedError, RequestFailedError, guarded_write
 from worlds._bizhawk.client import BizHawkClient
 
 from . import hud_names
@@ -169,6 +168,9 @@ class ZoraClient(BizHawkClient):
     HUD_SECONDS_BUSY = 5.0      # each message's time while HUD_BUSY_AT or more are pending
     HUD_BUSY_AT = 4             # pending messages, the one going up included: 3 or fewer get 10 s, more get 5 s
     HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
+    # A blank is written this many times, HUD_REDRAW apart: a write can be lost (the game's status-bar
+    # redraw can take the buffer that frame), and a lost blank left a line up until a screen change.
+    HUD_BLANK_WRITES = 3
 
     def on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
         """Queue a HUD message for items this slot sent to other players.
@@ -276,6 +278,7 @@ class ZoraClient(BizHawkClient):
         self.hud_shown_at = 0.0             # when hud_text went up
         self.hud_drawn_at = 0.0
         self.hud_dirty = False              # the row holds text that still has to be blanked
+        self.hud_blanks = 0                 # blanks written since the last line went away
 
     def hud_queue(self) -> list:
         return self.hud_messages
@@ -309,6 +312,7 @@ class ZoraClient(BizHawkClient):
 
     async def hud_write(self, ctx: BizHawkClientContext, text: str) -> bool:
         """Write text (blank for "") into the HUD row; False if the game was not ready this tick."""
+        from worlds._bizhawk import guarded_write
 
         text = text[:self.HUD_WIDTH]
         text = " " * ((self.HUD_WIDTH - len(text)) // 2) + text      # centered in the row
@@ -350,6 +354,7 @@ class ZoraClient(BizHawkClient):
         return False
 
     async def hud_tick(self, ctx: BizHawkClientContext) -> None:
+        from worlds._bizhawk import NotConnectedError, RequestFailedError
 
         queue = self.hud_queue()
         now = time.monotonic()
@@ -359,6 +364,7 @@ class ZoraClient(BizHawkClient):
                 self.hud_until = min(self.hud_until, self.hud_shown_at + self.HUD_SECONDS_BUSY)
             if self.hud_text is not None and now >= self.hud_until:
                 self.hud_text = None                    # time is up: blank it, or show the next one
+                self.hud_blanks, self.hud_drawn_at = 0, float("-inf")   # the first blank goes now
             if self.hud_text is None:
                 if queue:
                     text, kind = queue[0]
@@ -369,8 +375,11 @@ class ZoraClient(BizHawkClient):
                         self.hud_text, self.hud_kind, self.hud_dirty = text, kind, True
                         self.hud_shown_at = self.hud_drawn_at = now
                         self.hud_until = now + (self.HUD_SECONDS_BUSY if busy else self.HUD_SECONDS)
-                elif self.hud_dirty and await self.hud_write(ctx, ""):
-                    self.hud_dirty = False
+                elif (self.hud_dirty and now - self.hud_drawn_at >= self.HUD_REDRAW
+                      and await self.hud_write(ctx, "")):
+                    self.hud_drawn_at = now
+                    self.hud_blanks += 1
+                    self.hud_dirty = self.hud_blanks < self.HUD_BLANK_WRITES
             elif now - self.hud_drawn_at >= self.HUD_REDRAW and await self.hud_write(ctx, self.hud_text):
                 self.hud_drawn_at = now
         except (RequestFailedError, NotConnectedError):
