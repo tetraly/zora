@@ -268,56 +268,6 @@ class TestHudMessages(unittest.TestCase):
         # the new item (4) goes ahead of the burst
         self.assertEqual(self.texts(), ["GOT RAFT", "3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
 
-    def wait_ram(self, mode: int, given: int) -> dict:
-        return {0x12: mode, client_module.zora_ap.RECEIVED_COUNT: given}
-
-    def note_waiting(self, mode: int, given: int) -> None:
-        with mock.patch.object(client_module.zora_ap, "checks_readable", lambda _ram: True):
-            self.client.hud_note_waiting(self.ctx, self.wait_ram(mode, given))
-
-    def test_exit_cave_line_shows_once_while_items_wait_in_a_cave(self) -> None:
-        self.ctx.items_received = [NetworkItem(1, 5, 2), NetworkItem(1, 6, 2)]
-        self.client.on_package(self.ctx, "PrintJSON", {"type": "ItemSend", "item": NetworkItem(1, 9, SLOT),
-                                                       "receiving": 2})
-        self.got(3, SLOT, 1)
-        self.note_waiting(0x0B, 0)
-        self.note_waiting(0x0B, 0)
-        self.assertEqual(self.texts(), ["SENT HEART CONTAINER TO Z2R", "EXIT CAVE FOR ITEMS", "GOT RAFT"])
-
-    def test_the_wait_line_is_dropped_once_the_player_leaves(self) -> None:
-        self.ctx.items_received = [NetworkItem(1, 5, 2)]
-        self.got(3, SLOT, 1)
-        self.note_waiting(0x0B, 0)
-        self.note_waiting(0x05, 0)
-        self.assertEqual(self.texts(), ["GOT RAFT"])
-        self.assertFalse(self.client.hud_waiting)
-
-    def test_a_wait_line_on_screen_ends_when_the_player_leaves(self) -> None:
-        self.ctx.items_received = []
-        self.client.hud_text, self.client.hud_kind, self.client.hud_until = "EXIT CAVE FOR ITEMS", "wait", 1e12
-        self.note_waiting(0x05, 0)
-        self.assertLess(self.client.hud_until, 1e12)
-
-    def test_a_reconnect_in_a_cave_queues_no_second_wait_line(self) -> None:
-        self.ctx.items_received = [NetworkItem(1, 5, 2)]
-        self.note_waiting(0x0B, 0)
-        self.ctx.items_received = []                   # the reconnect empties the list, then refills it
-        self.note_waiting(0x0B, 0)
-        self.ctx.items_received = [NetworkItem(1, 5, 2)]
-        self.note_waiting(0x0B, 0)
-        self.assertEqual(self.texts(), ["EXIT CAVE FOR ITEMS"])
-
-    def test_a_cellar_gets_its_own_wait_line(self) -> None:
-        self.ctx.items_received = [NetworkItem(1, 5, 2)]
-        self.note_waiting(0x09, 0)
-        self.assertEqual(self.texts(), ["EXIT CELLAR FOR ITEMS"])
-
-    def test_no_wait_line_from_an_unreadable_read(self) -> None:
-        self.ctx.items_received = [NetworkItem(1, 5, 2)]
-        with mock.patch.object(client_module.zora_ap, "checks_readable", lambda _ram: False):
-            self.client.hud_note_waiting(self.ctx, self.wait_ram(0x0B, 0))
-        self.assertEqual(self.texts(), [])
-
     def test_the_burst_line_comes_first_then_each_item_of_the_burst(self) -> None:
         for count in (1, 2):
             self.got(1, SLOT, count)

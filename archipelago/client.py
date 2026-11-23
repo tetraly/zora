@@ -160,14 +160,9 @@ class ZoraClient(BizHawkClient):
     HUD_TINY_NAMES = hud_names.HUD_TINY_NAMES
     # never the last word of a cut name
     HUD_DANGLING: ClassVar[set[str]] = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}
-    # Where received items wait: the game gives them only in normal play (mode 5), so the player
-    # is told to leave. Caves are $B (every cave, shop and take-any) and $C (the take-any road).
-    HUD_WAIT_LINES: ClassVar[dict[int, str]] = {
-        0x0B: "EXIT CAVE FOR ITEMS", 0x0C: "EXIT CAVE FOR ITEMS", 0x09: "EXIT CELLAR FOR ITEMS",
-    }
-    # Queue order by kind: sent lines, the wait line, new items, then a burst of re-given items
+    # Queue order by kind: sent lines, new items, then a burst of re-given items
     # (its "N ITEMS GIVEN BACK" line, then each item).
-    HUD_ORDER: ClassVar[dict[str, int]] = {"sent": 0, "wait": 1, "got": 2, "back": 3, "regot": 4}
+    HUD_ORDER: ClassVar[dict[str, int]] = {"sent": 0, "got": 1, "back": 2, "regot": 3}
     HUD_ROW = 0x2022
     HUD_WIDTH = 28
     HUD_SECONDS = 10.0
@@ -281,33 +276,6 @@ class ZoraClient(BizHawkClient):
         self.hud_shown_at = 0.0             # when hud_text went up
         self.hud_drawn_at = 0.0
         self.hud_dirty = False              # the row holds text that still has to be blanked
-        self.hud_waiting = False            # a wait line was queued for this stay in a cave or cellar
-
-    def hud_note_waiting(self, ctx: BizHawkClientContext, ram: dict) -> None:
-        """Queue a wait line (HUD_WAIT_LINES) once per stay in a cave or cellar while items the server
-        sent wait there, and drop it once the player leaves: the items then show as they are given."""
-        try:
-            if not zora_ap.checks_readable(ram):    # power-on garbage or a torn read: no news
-                return
-            from .zora.rom.inventory import GAME_MODE
-            line = self.HUD_WAIT_LINES.get(ram[GAME_MODE])
-            pending = len(ctx.items_received) > ram[zora_ap.RECEIVED_COUNT]
-        except Exception as error:      # a message is never worth stopping the client
-            message = f"{type(error).__name__}: {error}"
-            if message != getattr(self, "hud_last_error", None):
-                self.hud_last_error = message
-                logger.warning(f"ZORA: could not check for waiting items: {message}")
-            return
-        if line is None:                # left (or never in) a cave or cellar
-            self.hud_waiting = False
-            self.hud_messages[:] = [entry for entry in self.hud_queue() if entry[1] != "wait"]
-            if self.hud_text is not None and self.hud_kind == "wait":
-                self.hud_until = time.monotonic()
-        elif pending and not self.hud_waiting:
-            # kept until the player leaves, so a reconnect (items_received empties, then fills)
-            # queues no second one
-            self.hud_waiting = True
-            self.hud_add(line, "wait")
 
     def hud_queue(self) -> list:
         return self.hud_messages
@@ -463,7 +431,6 @@ class ZoraClient(BizHawkClient):
             self.skip_connector_error(error)
             return
         ram, ram_after = snapshot(tables, values)
-        self.hud_note_waiting(ctx, ram)
         try:
             decision = zora_ap.client_step(ram, ram_after, server_view(ctx), tables, self.memory)
         except Exception as error:      # never let one tick stop the client (docs/archipelago.md)
