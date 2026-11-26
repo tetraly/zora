@@ -27,16 +27,19 @@ from __future__ import annotations
 import json
 import logging
 import pkgutil
+import time
 from base64 import b64encode
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from NetUtils import ClientStatus
 from worlds._bizhawk.client import BizHawkClient
 
+from . import hud_names
 from .names import GIVEN_AS, LOCATION_NAME_TO_ID
 from .rom import GAME, rom_file_bytes
 from .zora import archipelago as zora_ap
 from .zora.rom.slot_identity import SLOT_IDENTITY_ADDRESS, SLOT_IDENTITY_SIZE
+from .zora.rom.text_encoding import CHAR_TO_BYTE
 
 if TYPE_CHECKING:
     from worlds._bizhawk.context import BizHawkClientContext
@@ -109,12 +112,14 @@ class ZoraClient(BizHawkClient):
         self.tables_of: dict[str, Any] | None = None
         self.last_error = ""
         self.last_connector_error = ""
+        self.hud_seen: dict | None = None   # see hud_seen_load
+        self.hud_reset()
 
     async def validate_rom(self, ctx: BizHawkClientContext) -> bool:
         from worlds._bizhawk import RequestFailedError, get_memory_size, read
 
         try:
-            if await get_memory_size(ctx.bizhawk_ctx, PRG_ROM) != PRG_SIZE:
+            if await get_memory_size(ctx.bizhawk_ctx, PRG_ROM) not in (PRG_SIZE, 2 * PRG_SIZE):
                 return False
             prg_address = SLOT_IDENTITY_ADDRESS - NES_HEADER_SIZE
             (record,) = await read(ctx.bizhawk_ctx, [(prg_address, SLOT_IDENTITY_SIZE, PRG_ROM)])
@@ -134,12 +139,262 @@ class ZoraClient(BizHawkClient):
             return False
         self.ap_name = identity.ap_name
         self.memory = zora_ap.NO_MEMORY
+        self.hud_reset()                    # messages for the last game must not show on this ROM
         ctx.game = self.game
         ctx.items_handling = 0b111
         ctx.want_slot_data = True
         ctx.watcher_timeout = WATCHER_TIMEOUT
         logger.info(f"ZORA world {world_version()}: recognized the ROM for {identity.ap_name.decode(errors='replace')}")
         return True
+
+    # HUD messages
+    # Item messages go in the blank top row of the status bar (nametable $2022, 28 columns), written
+    # through the game's tile buffer: DynTileBuf at $0302, with $0301 the index of its $FF end. The NMI
+    # copies it to the PPU and resets it. Written in play ($12=5, $13=0) and cellars ($12=9/$A)
+    # while the buffer is empty, so the game's own records go after ours, or in play and caves
+    # ($12=$B/$C) in place of that frame's status-bar redraw, which the game sends again.
+    # Item names too long for the status-bar row (player's choice, 2026-11-20).
+    # the names come from item_short_names.csv (hud_names.py)
+    HUD_SHORT_NAMES = hud_names.HUD_SHORT_NAMES
+    HUD_TINY_NAMES = hud_names.HUD_TINY_NAMES
+    # never the last word of a cut name
+    HUD_DANGLING: ClassVar[set[str]] = {"OF", "THE", "A", "AN", "AND", "TO", "FOR"}
+    # Queue order by kind: sent lines, new items, then a burst of re-given items
+    # (its "N ITEMS GIVEN BACK" line, then each item).
+    HUD_ORDER: ClassVar[dict[str, int]] = {"sent": 0, "got": 1, "back": 2, "regot": 3}
+    HUD_ROW = 0x2022
+    HUD_WIDTH = 28
+    HUD_SECONDS = 10.0
+    HUD_SECONDS_BUSY = 5.0      # each message's time while HUD_BUSY_AT or more are pending
+    HUD_BUSY_AT = 4             # pending messages, the one going up included: 3 or fewer get 10 s, more get 5 s
+    HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
+    # A blank is written this many times, HUD_REDRAW apart: a write can be lost (the game's status-bar
+    # redraw can take the buffer that frame), and a lost blank left a line up until a screen change.
+    HUD_BLANK_WRITES = 3
+
+    def on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
+        """Queue a HUD message for items this slot sent to other players.
+        Items this slot receives are announced where they are given (hud_got), since the server
+        sends this notice only to clients connected at the time and never again."""
+        if cmd != "PrintJSON" or args.get("type") != "ItemSend":
+            return
+        try:
+            item = args["item"]
+            receiver = args["receiving"]
+            if item.player != ctx.slot or receiver == ctx.slot:
+                return
+            player = self.hud_player(ctx.player_names[receiver], ctx.player_names[ctx.slot])
+            room = self.HUD_WIDTH - len("SENT  TO ") - len(player)
+            name = self.hud_item(ctx.item_names.lookup_in_slot(item.item, receiver), room)
+            self.hud_add(f"SENT {name} TO {player}", "sent")     # a live line goes ahead of any backlog
+        except Exception:      # a message is never worth stopping the client
+            logger.exception("ZORA: could not queue an item message")
+
+    def hud_got(self, ctx: BizHawkClientContext, item: Any, count: int) -> None:
+        """Queue the line for received item number `count` as it is given. An item already announced
+        for this seed and slot (given again after a switch from the battery save, or in a new save
+        file) starts a burst: one "N ITEMS GIVEN BACK" line counting every item given again, then
+        each item's own line. New items' lines go ahead of the burst."""
+        try:
+            # Archipelago keeps the server's seed name in server_seed_name and leaves seed_name None;
+            # with no seed name at all, no item counts as given again (one count shared by every
+            # seed would turn a new seed's first items into a burst)
+            seed = getattr(ctx, "server_seed_name", None) or getattr(ctx, "seed_name", None)
+            key = f"{seed}:{ctx.slot}"
+            seen = self.hud_seen_load().get(key, 0) if seed else 0
+            seen = min(seen, len(getattr(ctx, "items_received", ())) or seen)
+            regiven = count <= seen
+            if regiven:
+                if not self.hud_burst:          # the whole burst is known now: items count..seen
+                    self.hud_burst = True
+                    n = seen - count + 1
+                    self.hud_add(f"{n} ITEM GIVEN BACK" if n == 1 else f"{n} ITEMS GIVEN BACK", "back")
+            else:
+                self.hud_burst = False
+                if seed:
+                    self.hud_seen[key] = count
+                    self.hud_seen_save()
+            if item.location == -2:         # starting inventory: not news
+                return
+            name = self.hud_item
+            if item.player == ctx.slot:
+                text = f"GOT {name(ctx.item_names.lookup_in_game(item.item), self.HUD_WIDTH - 4)}"
+            else:
+                player = self.hud_player(ctx.player_names[item.player], ctx.player_names[ctx.slot])
+                room = self.HUD_WIDTH - len(" FROM ") - len(player)
+                text = f"{name(ctx.item_names.lookup_in_game(item.item), room)} FROM {player}"
+            self.hud_add(text, "regot" if regiven else "got")
+        except Exception:      # a message is never worth stopping the client
+            logger.exception("ZORA: could not queue an item message")
+
+    def hud_add(self, text: str, kind: str) -> None:
+        """Queue a line after every queued line of its kind or an earlier one in HUD_ORDER."""
+        queue = self.hud_queue()
+        rank = self.HUD_ORDER[kind]
+        at = len(queue)
+        while at > 0 and self.HUD_ORDER[queue[at - 1][1]] > rank:
+            at -= 1
+        queue.insert(at, (text, kind))
+
+    def hud_seen_path(self) -> str:
+        import Utils
+        return Utils.user_path("zora_hud_seen.json")
+
+    def hud_seen_load(self) -> dict:
+        """The highest received-item number announced, per seed and slot, kept across client restarts."""
+        if self.hud_seen is None:
+            import json
+            try:
+                with open(self.hud_seen_path(), encoding="utf-8") as file:
+                    self.hud_seen = {str(k): int(v) for k, v in json.load(file).items()}
+            except (OSError, ValueError, AttributeError):
+                self.hud_seen = {}
+        return self.hud_seen
+
+    def hud_seen_save(self) -> None:
+        import json
+        try:
+            with open(self.hud_seen_path(), "w", encoding="utf-8") as file:
+                json.dump(self.hud_seen, file)
+        except OSError:
+            logger.warning("ZORA: could not save which item messages were shown")
+
+    @classmethod
+    def hud_item(cls, name: str, room: int) -> str:
+        """The full item name if it fits in `room`, else its short name cut to fit."""
+        if len(cls.hud_shown(name)) <= room:
+            return cls.hud_shown(name) or "ITEM"
+        for short in (cls.HUD_SHORT_NAMES.get(name, name), cls.HUD_TINY_NAMES.get(name)):
+            if short and len(cls.hud_shown(short)) <= room:
+                return cls.hud_shown(short)
+        return cls.hud_fit(cls.HUD_SHORT_NAMES.get(name, name), room) or "ITEM"
+
+    def hud_reset(self) -> None:
+        self.hud_messages: list = []        # (text, kind): kind is a key of HUD_ORDER
+        self.hud_burst = False              # items given again are being given; their line is queued
+        self.hud_text: str | None = None    # the message on screen now, or None
+        self.hud_kind = ""                  # the kind of hud_text
+        self.hud_until = 0.0
+        self.hud_shown_at = 0.0             # when hud_text went up
+        self.hud_drawn_at = 0.0
+        self.hud_dirty = False              # the row holds text that still has to be blanked
+        self.hud_blanks = 0                 # blanks written since the last line went away
+
+    def hud_queue(self) -> list:
+        return self.hud_messages
+
+    @staticmethod
+    def hud_shown(text: str) -> str:
+        kept = "".join(c if c in CHAR_TO_BYTE and c not in '~"' else " " for c in text.upper().replace("'", ""))
+        return " ".join(kept.split())
+
+    @classmethod
+    def hud_player(cls, name: str, mine: str = "") -> str:
+        """A player's name for a HUD line. A prefix up to the first "-" that this slot's own name
+        shares (Gob-ZORA and Gob-Z2R) is left off: "Z2R"."""
+        if "-" in name and "-" in mine and name.split("-", 1)[0].lower() == mine.split("-", 1)[0].lower():
+            name = name.split("-", 1)[1]
+        return cls.hud_shown(name)[:11].rstrip() or "ANOTHER PLAYER"
+
+    @classmethod
+    def hud_fit(cls, name: str, room: int) -> str:
+        """The item name in at most `room` characters, cut at the last whole word that fits."""
+        shown = cls.hud_shown(name)
+        if len(shown) <= room:
+            return shown
+        head = shown[:room + 1]
+        if " " not in head:
+            return shown[:room]
+        words = head.rsplit(" ", 1)[0].split()
+        while len(words) > 1 and words[-1] in cls.HUD_DANGLING:      # no "PIECE OF"
+            words.pop()
+        return " ".join(words)
+
+    async def hud_write(self, ctx: BizHawkClientContext, text: str) -> bool:
+        """Write text (blank for "") into the HUD row; False if the game was not ready this tick."""
+        from worlds._bizhawk import guarded_write
+
+        text = text[:self.HUD_WIDTH]
+        text = " " * ((self.HUD_WIDTH - len(text)) // 2) + text      # centered in the row
+        tiles = [CHAR_TO_BYTE.get(c, CHAR_TO_BYTE[" "]) for c in text]
+        tiles += [CHAR_TO_BYTE[" "]] * (self.HUD_WIDTH - len(tiles))
+        record = [self.HUD_ROW >> 8, self.HUD_ROW & 0xFF, self.HUD_WIDTH, *tiles, 0xFF]
+        writes = [(0x0302, record, RAM), (0x0301, [len(record) - 1], RAM)]
+        if await guarded_write(
+                ctx.bizhawk_ctx, writes,
+                [(0x12, [5], RAM), (0x13, [0], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM),
+                 (0x0301, [0], RAM)]):
+            return True
+        # In play the game also queues the status-bar redraw every second frame, which fails the
+        # empty-buffer guard above on those frames. Its first record (20 B6 08) is the blank row
+        # above the hearts. Replace the redraw, as in caves below.
+        if await guarded_write(
+                ctx.bizhawk_ctx, writes,
+                [(0x12, [5], RAM), (0x13, [0], RAM), (0x11, [1], RAM), (0x14, [0], RAM),
+                 (0x0302, [0x20, 0xB6, 0x08], RAM)]):
+            return True
+        # Cellars (mode 9) play with GameSubmode left at its last init step (9), so they need their
+        # own guards: updating ($11=1) with an empty buffer, or in place of the status-bar redraw
+        # below. With the Item Counter on, its record (20 8B 04) fills the other frames, so the
+        # buffer is never empty there. Mode $A, the way out, never updates.
+        if await guarded_write(
+                ctx.bizhawk_ctx, writes,
+                [(0x12, [0x09], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0xFF], RAM), (0x0301, [0], RAM)]):
+            return True
+        # Caves (modes $B, $C) and cellars take the frames with the status-bar redraw (every
+        # second frame, starting 20 B6 08, alone in the buffer; $0301 stays 0). Replacing it is
+        # harmless: the game sends it again two frames later. A typed character of cave text
+        # starts differently and is never replaced, but on some cave entries it takes the
+        # redraw's frames, so a line can wait out the typing (about 120 frames).
+        for mode in (0x09, 0x0B, 0x0C):
+            if await guarded_write(
+                    ctx.bizhawk_ctx, writes,
+                    [(0x12, [mode], RAM), (0x11, [1], RAM), (0x14, [0], RAM), (0x0302, [0x20, 0xB6, 0x08], RAM)]):
+                return True
+        return False
+
+    async def hud_tick(self, ctx: BizHawkClientContext) -> None:
+        from worlds._bizhawk import NotConnectedError, RequestFailedError
+
+        queue = self.hud_queue()
+        now = time.monotonic()
+        try:
+            if self.hud_text is not None and len(queue) + 1 >= self.HUD_BUSY_AT:
+                # the queue got busy while this line was up: it keeps only the busy time
+                self.hud_until = min(self.hud_until, self.hud_shown_at + self.HUD_SECONDS_BUSY)
+            if self.hud_text is not None and now >= self.hud_until:
+                self.hud_text = None                    # time is up: blank it, or show the next one
+                self.hud_blanks, self.hud_drawn_at = 0, float("-inf")   # the first blank goes now
+            if self.hud_text is None:
+                if queue:
+                    text, kind = queue[0]
+                    if await self.hud_write(ctx, text):
+                        # items given again are old news: always the busy time
+                        busy = len(queue) >= self.HUD_BUSY_AT or kind == "regot"
+                        queue.pop(0)
+                        self.hud_text, self.hud_kind, self.hud_dirty = text, kind, True
+                        self.hud_shown_at = self.hud_drawn_at = now
+                        self.hud_until = now + (self.HUD_SECONDS_BUSY if busy else self.HUD_SECONDS)
+                elif (self.hud_dirty and now - self.hud_drawn_at >= self.HUD_REDRAW
+                      and await self.hud_write(ctx, "")):
+                    self.hud_drawn_at = now
+                    self.hud_blanks += 1
+                    self.hud_dirty = self.hud_blanks < self.HUD_BLANK_WRITES
+            elif now - self.hud_drawn_at >= self.HUD_REDRAW and await self.hud_write(ctx, self.hud_text):
+                self.hud_drawn_at = now
+        except (RequestFailedError, NotConnectedError):
+            return                      # the connection dropped: tried again once it is back
+        except Exception as error:      # unknown whether it was written: tried again next tick
+            # The HUD is optional, so no error here may stop the game watcher: log it once.
+            message = f"{type(error).__name__}: {error}"
+            if message != getattr(self, "hud_last_error", None):
+                self.hud_last_error = message
+                logger.warning(f"ZORA: could not write an item message; trying again: {message}")
+
+    async def game_watcher(self, ctx: BizHawkClientContext) -> None:
+        await self.zora_game_watcher(ctx)
+        if ctx.server is not None and ctx.slot_data is not None:
+            await self.hud_tick(ctx)
 
     async def set_auth(self, ctx: BizHawkClientContext) -> None:
         if self.ap_name:
@@ -169,7 +424,7 @@ class ZoraClient(BizHawkClient):
             self.last_connector_error = message
             logger.info(f"ZORA: the connector couldn't read the game; trying again: {message}")
 
-    async def game_watcher(self, ctx: BizHawkClientContext) -> None:
+    async def zora_game_watcher(self, ctx: BizHawkClientContext) -> None:
         from worlds._bizhawk import RequestFailedError, guarded_write, read
 
         if ctx.server is None or ctx.slot_data is None:
@@ -216,6 +471,8 @@ class ZoraClient(BizHawkClient):
             # the server's name for it (Sword Upgrade), not the code it was given as
             shown = (ctx.item_names.lookup_in_game(ctx.items_received[count - 1].item)
                      if 0 < count <= len(ctx.items_received) else None)
+            if (decision.gives or decision.skips) and 0 < count <= len(ctx.items_received):
+                self.hud_got(ctx, ctx.items_received[count - 1], count)
             if decision.gives:
                 logger.info(f"ZORA: gave received item #{count}, {shown or decision.gives}")
             elif decision.skips:

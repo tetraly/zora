@@ -124,6 +124,9 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "8df00460")),
         (0x1EC8A, bytes.fromhex("a90520acff2080bceaeaeaeaeaea")),
     ),
+    "hud-white-text": (
+        (0x1A2E9, bytes.fromhex("405050")),
+    ),
     "full-health": (
         (0x0A646, bytes.fromhex("e0b0")),
         (0x0B0F0, bytes.fromhex("a9ff8d7006ad6f064a4a4a4a8500ad6f0629f005008d6f064ca1eb")),

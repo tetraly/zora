@@ -61,7 +61,7 @@ ALWAYS_WRITTEN = ("auto-show-letter",)
 RETIRED_PATCHES = frozenset({"l4-sword-take"})
 # asm/flags2's patches only an Archipelago game's ROM gets (GameConfig.archipelago_rom): ring-color, the
 # tunic repainted for a ring the client gives through RAM (the beta 5 fixes spec, item 1).
-ARCHIPELAGO_PATCHES = ("ring-color",)
+ARCHIPELAGO_PATCHES = ("ring-color", "hud-white-text")
 # asm/flags2's patches a setting with levels writes, not a flag that is on or off: Harder Ganon's
 # (zora/rom/harder_bosses.py sets its level byte).
 LEVEL_PATCHES = ("harder-ganon",)

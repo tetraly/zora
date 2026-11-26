@@ -1,0 +1,16 @@
+# No flag: Archipelago games' ROMs only. The client writes item messages into the status bar's
+# blank top row ($2022). StatusBarStaticsTransferBuf (bank 6, Z_06.asm) sets attribute bytes
+# $23C5-$23C7 to $44 $55 $55, so the top half of columns 22-31 takes palette 1, -LIFE-'s red,
+# and the end of a long message shows red. Clearing the top-half bits (0-3) gives those rows
+# palette 0, white like the rupee count. The bottom half, where -LIFE- sits, keeps palette 1.
+# asm/README.md and asm/flags2/build.py describe this file.
+
+[[hook]]
+name = "status-bar-top-attributes"
+offset = 0x1A2E3
+length = 16
+note = "StatusBarStaticsTransferBuf's first two lines (the $23C2 attribute record): the values for $23C5-$23C7, $44 $55 $55, become $40 $50 $50; the rest is unchanged."
+code = """
+    .BYTE $23, $C2, $0E, $40, $00, $00, $40, $50
+    .BYTE $50, $00, $00, $04, $00, $00, $44, $55
+"""
