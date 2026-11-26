@@ -4039,26 +4039,18 @@
     ]
    },
    {
-    "key": "add_triforces_to_pool",
+    "key": "triforce_shuffle",
     "position": 46,
-    "kind": "three_state",
+    "kind": "option",
     "radix": 3,
     "added_in_version": 23,
-    "name": "Add Triforces to the Item Pool",
+    "name": "Triforce Shuffle",
     "values": [
      "Off",
-     "On",
-     "Random"
+     "Anywhere",
+     "Between levels"
     ],
-    "random_values": [
-     {
-      "value": 2,
-      "resolves_to": [
-       0,
-       1
-      ]
-     }
-    ],
+    "random_values": [],
     "default": 0,
     "beta_values": [
      1,
@@ -4066,26 +4058,18 @@
     ]
    },
    {
-    "key": "add_maps_compasses_to_pool",
+    "key": "map_compass_shuffle",
     "position": 47,
-    "kind": "three_state",
+    "kind": "option",
     "radix": 3,
     "added_in_version": 23,
-    "name": "Add Maps/Compasses to the Item Pool",
+    "name": "Map & Compass Shuffle",
     "values": [
      "Off",
-     "On",
-     "Random"
+     "Anywhere",
+     "Between levels"
     ],
-    "random_values": [
-     {
-      "value": 2,
-      "resolves_to": [
-       0,
-       1
-      ]
-     }
-    ],
+    "random_values": [],
     "default": 0,
     "beta_values": [
      1,
@@ -4731,13 +4715,13 @@
     "about": "Wood Sword Only and Swordless: the White Sword item is still named so, but taking it adds two bombs to the bomb capacity instead of giving a sword."
    },
    {
-    "id": "add_triforces_to_pool",
+    "id": "triforce_shuffle",
     "applies_to": [
      "locations"
     ],
     "applies_when": [
      {
-      "add_triforces_to_pool": [
+      "triforce_shuffle": [
        1
       ],
       "C06": [
@@ -4747,7 +4731,7 @@
       ]
      },
      {
-      "add_triforces_to_pool": [
+      "triforce_shuffle": [
        1
       ],
       "C06": [
@@ -4760,18 +4744,7 @@
     ],
     "unknown_when": [
      {
-      "add_triforces_to_pool": [
-       2
-      ],
-      "C06": [
-       1,
-       2,
-       3,
-       4
-      ]
-     },
-     {
-      "add_triforces_to_pool": [
+      "triforce_shuffle": [
        1
       ],
       "C06": [
@@ -4800,16 +4773,69 @@
      "Level 7 Triforce",
      "Level 8 Triforce"
     ],
-    "about": "Each named item is an item of its own, shuffled with the others: within its own level (own_level) or into any level, cave or shop ware the shuffle reaches (anywhere). Where Item Shuffle is Random the reach is unknown. A level's Triforce room, map room and compass room then hold whatever the shuffle put there."
+    "about": "Anywhere: each named item is an item of its own, shuffled with the others: within its own level (own_level) or into any level, cave or shop ware the shuffle reaches (anywhere). Where Item Shuffle is Random the reach is unknown. A level's Triforce room, map room and compass room then hold whatever the shuffle put there."
    },
    {
-    "id": "add_maps_compasses_to_pool",
+    "id": "triforce_shuffle_between_levels",
     "applies_to": [
      "locations"
     ],
     "applies_when": [
      {
-      "add_maps_compasses_to_pool": [
+      "triforce_shuffle": [
+       2
+      ],
+      "C06": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "triforce_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "triforce_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       0
+      ]
+     }
+    ],
+    "items": [
+     "Level 1 Triforce",
+     "Level 2 Triforce",
+     "Level 3 Triforce",
+     "Level 4 Triforce",
+     "Level 5 Triforce",
+     "Level 6 Triforce",
+     "Level 7 Triforce",
+     "Level 8 Triforce"
+    ],
+    "about": "Between levels: each level still holds exactly one item of each named kind, where Off would put it, but which level's it is was shuffled among that kind's levels: level 3's Triforce room may hold Level 6 Triforce. Each shows its own level's number and works for that level."
+   },
+   {
+    "id": "map_compass_shuffle",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "map_compass_shuffle": [
        1
       ],
       "C06": [
@@ -4819,7 +4845,7 @@
       ]
      },
      {
-      "add_maps_compasses_to_pool": [
+      "map_compass_shuffle": [
        1
       ],
       "C06": [
@@ -4832,18 +4858,7 @@
     ],
     "unknown_when": [
      {
-      "add_maps_compasses_to_pool": [
-       2
-      ],
-      "C06": [
-       1,
-       2,
-       3,
-       4
-      ]
-     },
-     {
-      "add_maps_compasses_to_pool": [
+      "map_compass_shuffle": [
        1
       ],
       "C06": [
@@ -4882,7 +4897,70 @@
      "Level 8 Compass",
      "Level 9 Compass"
     ],
-    "about": "Each named item is an item of its own, shuffled with the others: within its own level (own_level) or into any level, cave or shop ware the shuffle reaches (anywhere). Where Item Shuffle is Random the reach is unknown. A level's Triforce room, map room and compass room then hold whatever the shuffle put there."
+    "about": "Anywhere: each named item is an item of its own, shuffled with the others: within its own level (own_level) or into any level, cave or shop ware the shuffle reaches (anywhere). Where Item Shuffle is Random the reach is unknown. A level's Triforce room, map room and compass room then hold whatever the shuffle put there."
+   },
+   {
+    "id": "map_compass_shuffle_between_levels",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "map_compass_shuffle": [
+       2
+      ],
+      "C06": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "map_compass_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "map_compass_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       0
+      ]
+     }
+    ],
+    "items": [
+     "Level 1 Map",
+     "Level 2 Map",
+     "Level 3 Map",
+     "Level 4 Map",
+     "Level 5 Map",
+     "Level 6 Map",
+     "Level 7 Map",
+     "Level 8 Map",
+     "Level 9 Map",
+     "Level 1 Compass",
+     "Level 2 Compass",
+     "Level 3 Compass",
+     "Level 4 Compass",
+     "Level 5 Compass",
+     "Level 6 Compass",
+     "Level 7 Compass",
+     "Level 8 Compass",
+     "Level 9 Compass"
+    ],
+    "about": "Between levels: each level still holds exactly one item of each named kind, where Off would put it, but which level's it is was shuffled among that kind's levels: level 3's Triforce room may hold Level 6 Triforce. Each shows its own level's number and works for that level."
    },
    {
     "id": "bomb_upgrades_in_pool",

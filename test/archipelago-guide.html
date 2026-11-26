@@ -339,6 +339,9 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .beta-warning { flex: 1 1 100%; margin: 0; padding: 8px 12px; font-size: 13px; border-radius: 8px;
   background: var(--beta-bg); color: var(--beta-ink); border: 1px solid var(--beta-line); }
 .beta-warning[hidden] { display: none; }
+/* A setting's caution (zora_flags.single_player_warnings): its own line, in the beta banner's amber */
+.setting-caution { display: block; margin-top: 4px; padding: 6px 10px; border-radius: 8px; font-weight: 600;
+  background: var(--beta-bg); color: var(--beta-ink); border: 1px solid var(--beta-line); }
 /* Multiworld mode: the warning while values not through ZORA's logic scan for multiworld are in use (big, in the
    error color: other players' games are at stake), and the notes on settings the Multiworld tab leaves out. */
 .mw-beta-warning { margin: 0 0 14px; padding: 14px 18px; border-radius: 12px; border: 3px solid var(--error);
