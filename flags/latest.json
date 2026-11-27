@@ -1,7 +1,7 @@
 {
  "$schema": "https://zora.gg/flags/zora-flags.schema.json",
  "spec_version": "1.0",
- "zora_version": "2.0.1",
+ "zora_version": "2.0.2",
  "generated_by": "scripts/flags_api.py from zora/flags/ (docs/flags-api.md); do not edit",
  "alphabet": "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!",
  "alphabet_aliases": {
@@ -3065,7 +3065,7 @@
   "about": "'<version>.<payload>': a decimal version, a dot, then one whole number in the alphabet. The fields whose added_in_version is at most the string's version are read in position order, the first least significant, as in the Z1R string. A field added after the string's version is at its default.",
   "separator": ".",
   "pattern": "^([1-9][0-9]*)\\.(.+)$",
-  "current_version": 22,
+  "current_version": 23,
   "rules": {
    "empty_string": "every field at its default",
    "version_above_current_version": "refused",
@@ -4037,6 +4037,61 @@
      1,
      2
     ]
+   },
+   {
+    "key": "triforce_shuffle",
+    "position": 46,
+    "kind": "option",
+    "radix": 3,
+    "added_in_version": 23,
+    "name": "Triforce Shuffle",
+    "values": [
+     "Off",
+     "Anywhere",
+     "Between levels"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [
+     1,
+     2
+    ]
+   },
+   {
+    "key": "map_compass_shuffle",
+    "position": 47,
+    "kind": "option",
+    "radix": 3,
+    "added_in_version": 23,
+    "name": "Map & Compass Shuffle",
+    "values": [
+     "Off",
+     "Anywhere",
+     "Between levels"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [
+     1,
+     2
+    ]
+   },
+   {
+    "key": "bomb_upgrades_in_pool",
+    "position": 48,
+    "kind": "switch",
+    "radix": 2,
+    "added_in_version": 23,
+    "name": "Bomb Upgrades in the Item Pool",
+    "values": [
+     "Off",
+     "On"
+    ],
+    "random_values": [],
+    "default": 0,
+    "beta_values": [
+     1
+    ]
    }
   ]
  },
@@ -4658,6 +4713,276 @@
      "White Sword": "bomb upgrade"
     },
     "about": "Wood Sword Only and Swordless: the White Sword item is still named so, but taking it adds two bombs to the bomb capacity instead of giving a sword."
+   },
+   {
+    "id": "triforce_shuffle",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "triforce_shuffle": [
+       1
+      ],
+      "C06": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "triforce_shuffle": [
+       1
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "triforce_shuffle": [
+       1
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       0
+      ]
+     }
+    ],
+    "reach": {
+     "field": "C06",
+     "by_value": {
+      "1": "anywhere",
+      "2": "own_level",
+      "3": "anywhere"
+     }
+    },
+    "items": [
+     "Level 1 Triforce",
+     "Level 2 Triforce",
+     "Level 3 Triforce",
+     "Level 4 Triforce",
+     "Level 5 Triforce",
+     "Level 6 Triforce",
+     "Level 7 Triforce",
+     "Level 8 Triforce"
+    ],
+    "about": "Anywhere: each named item is an item of its own, shuffled with the others: within its own level (own_level) or into any level, cave or shop ware the shuffle reaches (anywhere). Where Item Shuffle is Random the reach is unknown. A level's Triforce room, map room and compass room then hold whatever the shuffle put there."
+   },
+   {
+    "id": "triforce_shuffle_between_levels",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "triforce_shuffle": [
+       2
+      ],
+      "C06": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "triforce_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "triforce_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       0
+      ]
+     }
+    ],
+    "items": [
+     "Level 1 Triforce",
+     "Level 2 Triforce",
+     "Level 3 Triforce",
+     "Level 4 Triforce",
+     "Level 5 Triforce",
+     "Level 6 Triforce",
+     "Level 7 Triforce",
+     "Level 8 Triforce"
+    ],
+    "about": "Between levels: each level still holds exactly one item of each named kind, where Off would put it, but which level's it is was shuffled among that kind's levels: level 3's Triforce room may hold Level 6 Triforce. Each shows its own level's number and works for that level."
+   },
+   {
+    "id": "map_compass_shuffle",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "map_compass_shuffle": [
+       1
+      ],
+      "C06": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "map_compass_shuffle": [
+       1
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "map_compass_shuffle": [
+       1
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       0
+      ]
+     }
+    ],
+    "reach": {
+     "field": "C06",
+     "by_value": {
+      "1": "anywhere",
+      "2": "own_level",
+      "3": "anywhere"
+     }
+    },
+    "items": [
+     "Level 1 Map",
+     "Level 2 Map",
+     "Level 3 Map",
+     "Level 4 Map",
+     "Level 5 Map",
+     "Level 6 Map",
+     "Level 7 Map",
+     "Level 8 Map",
+     "Level 9 Map",
+     "Level 1 Compass",
+     "Level 2 Compass",
+     "Level 3 Compass",
+     "Level 4 Compass",
+     "Level 5 Compass",
+     "Level 6 Compass",
+     "Level 7 Compass",
+     "Level 8 Compass",
+     "Level 9 Compass"
+    ],
+    "about": "Anywhere: each named item is an item of its own, shuffled with the others: within its own level (own_level) or into any level, cave or shop ware the shuffle reaches (anywhere). Where Item Shuffle is Random the reach is unknown. A level's Triforce room, map room and compass room then hold whatever the shuffle put there."
+   },
+   {
+    "id": "map_compass_shuffle_between_levels",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "map_compass_shuffle": [
+       2
+      ],
+      "C06": [
+       1,
+       2,
+       3
+      ]
+     },
+     {
+      "map_compass_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [
+     {
+      "map_compass_shuffle": [
+       2
+      ],
+      "C06": [
+       4
+      ],
+      "item_shuffle_no_vanilla": [
+       0
+      ]
+     }
+    ],
+    "items": [
+     "Level 1 Map",
+     "Level 2 Map",
+     "Level 3 Map",
+     "Level 4 Map",
+     "Level 5 Map",
+     "Level 6 Map",
+     "Level 7 Map",
+     "Level 8 Map",
+     "Level 9 Map",
+     "Level 1 Compass",
+     "Level 2 Compass",
+     "Level 3 Compass",
+     "Level 4 Compass",
+     "Level 5 Compass",
+     "Level 6 Compass",
+     "Level 7 Compass",
+     "Level 8 Compass",
+     "Level 9 Compass"
+    ],
+    "about": "Between levels: each level still holds exactly one item of each named kind, where Off would put it, but which level's it is was shuffled among that kind's levels: level 3's Triforce room may hold Level 6 Triforce. Each shows its own level's number and works for that level."
+   },
+   {
+    "id": "bomb_upgrades_in_pool",
+    "applies_to": [
+     "locations"
+    ],
+    "applies_when": [
+     {
+      "bomb_upgrades_in_pool": [
+       1
+      ]
+     }
+    ],
+    "unknown_when": [],
+    "locations": {
+     "name": "Level N Room XX Bomb Upgrade",
+     "count": 2
+    },
+    "items": [
+     "Bomb Upgrade"
+    ],
+    "about": "Multiworld games only. Each of the two bomb upgraders that sell is a place, named by his level and room (XX in hex): he shows the item placed there and gives it for his price, once. Which rooms they are is the seed's draw. Each seller's own Bomb Upgrade, which raises the bomb capacity by the seed's upgrade amount, is an item of its own, placed anywhere in the multiworld."
    },
    {
     "id": "progressive_items",

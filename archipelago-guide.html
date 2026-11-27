@@ -337,6 +337,29 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 .beta-warning { flex: 1 1 100%; margin: 0; padding: 8px 12px; font-size: 13px; border-radius: 8px;
   background: var(--beta-bg); color: var(--beta-ink); border: 1px solid var(--beta-line); }
 .beta-warning[hidden] { display: none; }
+/* A setting's caution (zora_flags.single_player_warnings): its own line, in the beta banner's amber */
+.setting-caution { display: block; margin-top: 4px; padding: 6px 10px; border-radius: 8px; font-weight: 600;
+  background: var(--beta-bg); color: var(--beta-ink); border: 1px solid var(--beta-line); }
+/* Multiworld mode: the warning while values not through ZORA's logic scan for multiworld are in use (big, in the
+   error color: other players' games are at stake), and the notes on settings the Multiworld tab leaves out. */
+.mw-beta-warning { margin: 0 0 14px; padding: 14px 18px; border-radius: 12px; border: 3px solid var(--error);
+  background: var(--beta-bg); color: var(--beta-ink); }
+.mw-beta-warning[hidden] { display: none; }
+.mw-beta-title { margin: 0 0 6px; font-size: 18px; font-weight: 800; color: var(--error); }
+.mw-beta-list { margin: 0 0 6px; padding-left: 20px; font-size: 15px; font-weight: 600; }
+.mw-beta-text { margin: 0; font-size: 15px; line-height: 1.45; }
+.mw-ignored { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+.mw-ignored:empty { display: none; }
+.multiworld-left-out { display: none !important; }
+/* The Multiworld tab's .apzora step: the two files, then the look-and-feel settings the recipe holds */
+.apzora-files { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; }
+.apzora-file { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.apzora-file .seed-label { min-width: 110px; }
+#apzora-settings { margin: 10px 0 14px; }
+#apzora-settings[hidden] { display: none; }
+.yaml-load { margin-top: 12px; }
+.yaml-load[hidden] { display: none; }
+.yaml-load .message { margin-top: 6px; }
 .beta-tag { font-size: 11px; font-weight: 700; color: var(--beta-ink); background: var(--beta-bg);
   border: 1px solid var(--beta-line); border-radius: 999px; padding: 0 6px; margin-left: 6px; }
 
@@ -939,6 +962,7 @@ h1, h2, .wordmark, .step-title, .step-num, .result-title, .btn-generate {
 <li><strong>Items that look like a single rupee</strong> (the flashing one) belong to another player. Picking one up sends it to them, and gives you one rupee. With <strong>Other players' items look like</strong> set to the Archipelago logo on ZORA's page, they show the logo instead and give you nothing; shops then sell a fairy where the magical shield was.</li>
 <li><strong>Items sent to you</strong> wait until normal play, then arrive one at a time, each with the sound of an item appearing. (On ZORA's page, <strong>Sound when an item arrives</strong> chooses that sound, the sound of picking up an item, or none.) The client's log lists each one, for example <code>ZORA: gave received item #3, Raft</code>.</li>
 <li><strong>Nothing is reported or given</strong> on the title or file-select screens: the client waits until you're playing.</li>
+<li><strong>DeathLink</strong> (<code>death_link: true</code> in your YAML, or DeathLink: On on ZORA's page): when Link runs out of hearts, every other DeathLink player dies too, and when one of them dies, so does Link, as soon as you're in normal play (never in a cave, a scroll or the item screen). A death that arrives on the title or file-select screen, or while Link is already dying, is dropped. With <strong>OHKO</strong> on, DeathLink is harsh, but it works.</li>
 <li><strong>To save:</strong> with the default Death-warp setting, open the item screen (Start), then hold Up and press A on controller 1. (If you changed Death-warp on ZORA's page, use the buttons you chose.) Losing all your hearts also brings up the menu. Choose <strong>SAVE</strong>.</li>
 <li><strong>Some items stay in your own game:</strong> rupees, hearts, fairies, maps, compasses, Triforce pieces and the clock are never sent between players. They stay where ZORA puts them. With <strong>Allow Triforces in Stairways</strong> on, each level's Triforce may be in any of that level's item spots, on a room's floor or down a stairway; the spoiler log lists where each one is.</li>
 <li><strong>Heart containers from Take Any caves stay in your game and aren't reported.</strong> Those caves aren't Archipelago locations; the heart containers in boss rooms and by the coast are.</li>
