@@ -181,7 +181,7 @@ def test_the_metadata_is_archipelagos_offer() -> None:
 
 
 PERMANENTLY_OFF = {ENCODE_LEVEL_DATA, ITEM_SHUFFLE, "B51", "shuffle_wood_sword", "disable_custom_music",
-                   "detailed_spoiler_log", "item_shuffle_no_vanilla"}
+                   "detailed_spoiler_log", "item_shuffle_no_vanilla", "show_item_pickups"}
 
 
 def test_the_settings_off_for_good_are_not_on_the_multiworld_tab() -> None:

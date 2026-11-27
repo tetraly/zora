@@ -224,6 +224,13 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "60200ee7a9044cacff203f73a9044cacffa213ad83fdf007a9ff95aca5ab60a91860ad83fdf00a68")),
         (0x1FE33, bytes.fromhex("a5ab2070734c8d8cad7c0660ad7c06186d84fd8d7c068d580660ffffff")),
     ),
+    "level-compass": (
+        (0x06A9F, bytes.fromhex("0620acff4c88adeaa90520acff98")),
+        (0x06AAD, Original(0x06AAD, 1)),
+        (0x06AAE, bytes.fromhex("0d")),
+        (0x1AD90, bytes.fromhex("0000000000000000a410c009f022a50048a50148adb06b8501adaf6b8500b97fada8b100a868850168"
+                                "8500982910d00ba5152910d005a0024c2772a0034c2772")),
+    ),
     "item-line": (
         (0x0654B, bytes.fromhex("20a9bd")),
         (0x06BFE, bytes.fromhex("85f0a412c005f00ba0808c0605")),
@@ -241,12 +248,5 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
                                 "e016f00ae017f006a907e01bd0eda8b9709d8d2903a9248d2a03a9ff85f0bd40b28500bd64b28501a2"
                                 "05bd5fbe9d2303ca10f7a000b100297faac8b100992a03cad0f7981869088502a000b100298005028d"
                                 "2203a9228500a90385014c76b1150e1f0e1524")),
-    ),
-    "level-compass": (
-        (0x06A9F, bytes.fromhex("0620acff4c88adeaa90520acff98")),
-        (0x06AAD, Original(0x06AAD, 1)),
-        (0x06AAE, bytes.fromhex("0d")),
-        (0x1AD90, bytes.fromhex("0000000000000000a410c009f022a50048a50148adb06b8501adaf6b8500b97fada8b100a868850168"
-                                "8500982910d00ba5152910d005a0024c2772a0034c2772")),
     ),
 }
