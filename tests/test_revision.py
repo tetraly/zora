@@ -222,7 +222,10 @@ def test_every_patch_piece_in_moved_code_lands_on_the_same_code() -> None:
 # In the Archipelago items' far segment (bank 6), DigitTile's `BEQ @NotReady` (F0 EE) ends in $EE, read as
 # INC abs with the next instructions' bytes (DEX; LDA FrameCounter) as its operand $A5CA (a7ec93db). Up to
 # a7ec93db a `JMP $9DF9` at 0x19E03 was the reviewed one; that segment's layout no longer makes it look like one.
-NOT_OPERANDS: dict[int, tuple[int, ...]] = {0x19EBF: (0xF0, 0xEE)}
+# In the item line's per-level code (bank 6), `LDA #$BD` / `PHA` and `LDA #$AD` / `PHA` push the hop's return
+# address, so the immediates read as LDA abs,X and LDA abs; `JMP $FFAC`'s low byte $AC reads as LDY abs.
+NOT_OPERANDS: dict[int, tuple[int, ...]] = {0x19EBF: (0xF0, 0xEE), 0x1B1DE: (0xA9, 0xBD), 0x1B1E1: (0xA9, 0xAD),
+                                            0x1B1E6: (0x4C, 0xAC)}
 
 
 def is_reviewed_false_positive(piece: Piece, offset: int, index: int) -> bool:
