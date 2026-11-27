@@ -13,7 +13,7 @@ size = 0xA0                 # the player and its script
 [[segment]]
 name = "ZORA_F2_COMPASS_CHIME_B5"
 bank = 5
-size = 0xA0                 # the room check
+size = 0x89                 # the room check (137 bytes; Show Item Pickups' hop follows at $BDA9)
 
 [imports]
 bank_07 = ["CreateRoomObjectsAndChime"]

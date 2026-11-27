@@ -711,6 +711,34 @@ first = 0xBC80
 last = 0xBCBF
 
 [[slot]]
+segment = "ZORA_F2_ITEM_LINE"
+owner = "flags2:item-line"
+bank = 6
+first = 0xB150
+last = 0xB23F
+
+[[slot]]
+segment = "ZORA_F2_ITEM_LINE_HOP_B5"
+owner = "flags2:item-line"
+bank = 5
+first = 0xBDA9
+last = 0xBDB1
+
+[[slot]]
+segment = "ZORA_F2_ITEM_LINE_HOP_B6"
+owner = "flags2:item-line"
+bank = 6
+first = 0xBDAE
+last = 0xBDB0
+
+[[slot]]
+segment = "ZORA_F2_ITEM_LINE_LEVEL"
+owner = "flags2:item-line"
+bank = 6
+first = 0xBDB1
+last = 0xBE7F
+
+[[slot]]
 segment = "ZORA_F2_BOOTS_ENDING"
 owner = "flags2:pegasus-boots"
 bank = 2
@@ -949,6 +977,14 @@ last = 0xED9F
 # Per-seed, per-flag and per-setting writes outside the builders' data. `source` names the module
 # constant holding the site's first byte (its file offset; checked); the range is the most it
 # writes. Owners are "site:NAME".
+
+[[site]]
+name = "item-line-names"
+bank = 6
+first = 0xB240
+last = 0xB3FF
+source = "zora.rom.item_line:TABLE"
+what = "Show Item Pickups' texts for each item code (ZORA flag show_item_pickups; asm/flags2/item-line), up to the end of the owner's reservation $B150-$B3FF"
 
 [[site]]
 name = "item-counter-table"

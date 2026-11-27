@@ -1,0 +1,82 @@
+# ZORA Show Item Pickups (the ZORA flag show_item_pickups): when Link takes an item, the blank top row of the
+# status bar (PPU $2022, 28 tiles) shows "GOT <item>" for about 6 seconds (bombs, keys, maps and compasses 3), written by the game itself, so it
+# needs no emulator script and no Archipelago client (Archipelago's own client writes the same row, so
+# Archipelago holds the flag back). TakeItem keeps the item's code in ItemLineLatch ($F0); World_ChangeRupees,
+# once it has checked that the dynamic buffer is free, calls bank 6's ItemLine, which writes the line (or the
+# blank when ItemLineTimer, $F1, runs out) and then leaves World_ChangeRupees for that frame. The texts are the
+# seed's table at bank 6 $B240 (asm/rom_space.toml site "item-line-names"; zora/rom/item_line.py). The power-on
+# clear reaches $F2, so no byte starts as garbage; ItemLine's first call sets the latch to $FF (no item). In
+# per-level mode (Triforce Shuffle, Map & Compass Shuffle) the hop goes to ItemLineLevel first, which names a level
+# item's level by the number the status bar shows: "GOT LEVEL 4 TRIFORCE". asm/README.md and asm/flags2/build.py describe this file.
+
+[[segment]]
+name = "ZORA_F2_ITEM_LINE"
+bank = 6
+start = 0xB150              # bank 6's linker gap after z1rr-coop's $B100-$B14C (owner, 2026-11-25)
+
+[[segment]]
+name = "ZORA_F2_ITEM_LINE_HOP_B5"
+bank = 5
+start = 0xBDA9              # after Compass Chime's code, which ends at $BDA8 (owner, 2026-11-25)
+
+[[segment]]
+name = "ZORA_F2_ITEM_LINE_HOP_B6"
+bank = 6
+start = 0xBDAE              # where bank 5's hop lands once SwitchBank puts bank 6 in
+
+[[segment]]
+name = "ZORA_F2_ITEM_LINE_LEVEL"
+bank = 6
+start = 0xBDB1              # after the hop: per-level items' "LEVEL <n>" line (unused $FF in every build, 2026-11-27)
+
+[imports]
+bank_01 = ["ItemLineEnter"]
+bank_05 = ["SwitchBank"]
+bank_06 = ["SwitchBank", "ItemLineTail"]
+
+[exports]
+bank_05 = ["ItemLineEnter", "ItemLineTail"]
+bank_07 = ["SwitchBank"]
+
+[[hook]]
+name = "take-item"
+offset = 0x06BFE
+length = 19
+note = "TakeItem after its tune requests (and fp-fix-04's call, left as it is) keeps A, the item's code, in ItemLineLatch, then does the lift setup PRG0 does there in the same 19 bytes: Y in place of X for the mode test and the lift time, and the song request from X, still TakeItem's $08 (only the Triforce of Power's call changes X, and that item is taken in play mode, which skips the lift)."
+code = """
+    STA $F0
+    LDY GameMode
+    CPY #$05
+    BEQ *+13
+    LDY #$80
+    STY ItemLiftTimer
+    STX SongRequest
+    STA ItemTypeToLift
+"""
+
+[[hook]]
+name = "change-rupees"
+offset = 0x0654B
+length = 3
+note = "World_ChangeRupees' LDA InvRupees (after its free-buffer checks and LDY #$27; bank 5 is in: its one caller, UpdateHeartsAndRupees, switched it) is JSR ItemLineEnter, which returns with A, Z and Y as before, or, on a frame it writes the row, returns from World_ChangeRupees itself."
+code = """
+    JSR ItemLineEnter
+"""
+
+[[hook]]
+name = "transfer-attr"
+offset = 0x1A0AE
+length = 3
+note = "TransferCurTileBuf's STX DynTileBuf (after its transfer, bank 6 in, X = 0) is JSR ItemLineAttr, which makes the status row's colours white when a line was written, then empties the buffer as the STX did."
+code = """
+    JSR ItemLineAttr
+"""
+
+[[hook]]
+name = "clear-ram"
+offset = 0x17509
+length = 2
+note = "ClearRam's LDY #$EF clears $00-$F2, so ItemLineLatch, ItemLineTimer and ItemLineAttrReq start at 0 (nothing else uses $F0-$F2)."
+code = """
+    LDY #$F2
+"""

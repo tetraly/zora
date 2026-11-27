@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import logging
 import pkgutil
+import re
 from base64 import b64encode
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -164,6 +165,8 @@ class ZoraClient(BizHawkClient):
     # the names come from item_short_names.csv (hud_names.py)
     HUD_SHORT_NAMES = hud_names.HUD_SHORT_NAMES
     HUD_TINY_NAMES = hud_names.HUD_TINY_NAMES
+    LEVEL_ITEM = re.compile(r"Level (\d) (\w+)")          # a level's piece, map or compass
+    HUD_LEVEL_SHORT: ClassVar[dict[str, str]] = {"Triforce": "TRI", "Compass": "CMP"}
     # never the last word of a cut name
     HUD_DANGLING: ClassVar[frozenset[str]] = frozenset({"OF", "THE", "A", "AN", "AND", "TO", "FOR"})
     # Where received items wait: the game gives them in normal play and in cellars (zora_ap.may_receive), never in a
@@ -180,6 +183,7 @@ class ZoraClient(BizHawkClient):
     HUD_SECONDS_BUSY = 5.0      # each message's time while HUD_BUSY_AT or more are pending
     HUD_BUSY_AT = 4             # pending messages, the one going up included: 3 or fewer get 10 s, more get 5 s
     HUD_REDRAW = 1.0            # written again this often while shown, in case a screen change wiped it
+    HUD_BURST_LINES = 10        # a burst of more items given back shows its count line, not each item
 
     def hud_on_package(self, ctx: BizHawkClientContext, cmd: str, args: dict) -> None:
         """Queue a HUD message for items this slot sent to other players (from on_package).
@@ -218,6 +222,9 @@ class ZoraClient(BizHawkClient):
                     self.hud_burst = True
                     n = seen - count + 1
                     self.hud_add(f"{n} ITEM GIVEN BACK" if n == 1 else f"{n} ITEMS GIVEN BACK", "back")
+                    self.hud_burst_quiet = n > self.HUD_BURST_LINES     # 500 lines would take 41 minutes
+                if self.hud_burst_quiet:
+                    return
             else:
                 self.hud_burst = False
                 if seed:
@@ -275,7 +282,7 @@ class ZoraClient(BizHawkClient):
             try:
                 with open(self.hud_seen_path(), encoding="utf-8") as file:
                     self.hud_seen = {str(k): int(v) for k, v in json.load(file).items()}
-            except (OSError, ValueError, AttributeError):
+            except (OSError, ValueError, TypeError, AttributeError):
                 self.hud_seen = {}
         return self.hud_seen
 
@@ -292,6 +299,12 @@ class ZoraClient(BizHawkClient):
         """The full item name if it fits in `room`, else its short name cut to fit."""
         if len(cls.hud_shown(name)) <= room:
             return cls.hud_shown(name) or "ITEM"
+        level = cls.LEVEL_ITEM.fullmatch(name)      # "Level 4 Triforce": "L4 TRIFORCE", then "L4 TRI"
+        if level:
+            number, kind = level.groups()
+            for short in (f"L{number} {kind}", f"L{number} {cls.HUD_LEVEL_SHORT.get(kind, kind)}"):
+                if len(cls.hud_shown(short)) <= room:
+                    return cls.hud_shown(short)
         for short in (cls.HUD_SHORT_NAMES.get(name, name), cls.HUD_TINY_NAMES.get(name)):
             if short and len(cls.hud_shown(short)) <= room:
                 return cls.hud_shown(short)
@@ -300,6 +313,7 @@ class ZoraClient(BizHawkClient):
     def hud_reset(self) -> None:
         self.hud_messages: list = []        # (text, kind): kind is a key of HUD_ORDER
         self.hud_burst = False              # items given again are being given; their line is queued
+        self.hud_burst_quiet = False        # this burst is over HUD_BURST_LINES: only its count line shows
         self.hud_text: str | None = None    # the message on screen now, or None
         self.hud_kind = ""                  # the kind of hud_text
         self.hud_until = 0.0
@@ -320,10 +334,7 @@ class ZoraClient(BizHawkClient):
             line = self.HUD_WAIT_LINES.get(ram[GAME_MODE])
             pending = len(ctx.items_received) > ram[zora_ap.RECEIVED_COUNT]
         except Exception as error:      # a message is never worth stopping the client
-            message = f"{type(error).__name__}: {error}"
-            if message != getattr(self, "hud_last_error", None):
-                self.hud_last_error = message
-                logger.warning(f"ZORA: could not check for waiting items: {message}")
+            self.hud_log_error(error)
             return
         if line is None:                # left (or never in) a cave or cellar
             self.hud_waiting = False
@@ -331,12 +342,22 @@ class ZoraClient(BizHawkClient):
             if self.hud_text is not None and self.hud_kind == "wait":
                 self.hud_until = time.monotonic()
         elif pending:
-            self.hud_announce_waiting(ctx, ram[zora_ap.RECEIVED_COUNT])
+            try:
+                self.hud_announce_waiting(ctx, ram[zora_ap.RECEIVED_COUNT])
+            except Exception as error:  # same: a bad save file or item name must not stop the watcher
+                self.hud_log_error(error)
             if not self.hud_waiting:
                 # kept until the player leaves, so a reconnect (items_received empties, then fills)
                 # queues no second one
                 self.hud_waiting = True
                 self.hud_add(line, "wait")
+
+    def hud_log_error(self, error: Exception) -> None:
+        """Log an error from the waiting-item check once, until it changes."""
+        message = f"{type(error).__name__}: {error}"
+        if message != getattr(self, "hud_last_error", None):
+            self.hud_last_error = message
+            logger.warning(f"ZORA: could not check for waiting items: {message}")
 
     def hud_queue(self) -> list:
         return self.hud_messages
@@ -423,6 +444,12 @@ class ZoraClient(BizHawkClient):
         await self.zora_game_watcher(ctx)
         if ctx.server is not None and ctx.slot_data is not None:
             await self.hud_tick(ctx)
+        elif self.hud_dirty:            # the server dropped: blank the row, not leave a line up until reconnect
+            try:
+                if await self.hud_write(ctx, ""):
+                    self.hud_text, self.hud_dirty = None, False
+            except Exception:           # the HUD is optional; tried again next tick
+                pass
 
     async def set_auth(self, ctx: BizHawkClientContext) -> None:
         if self.ap_name:

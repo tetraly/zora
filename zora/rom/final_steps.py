@@ -28,7 +28,6 @@ from ..model.game_world import GameWorld
 from . import (
     archipelago_logo,
     bait_count,
-    cave_palette,
     code_patches,
     credits_staff,
     extra_layouts,
@@ -36,6 +35,7 @@ from . import (
     harder_bosses,
     hidden_tiles,
     item_counter,
+    item_line,
     item_sprites,
     level_items,
     mirror_overworld,
@@ -86,8 +86,6 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     story is ZORA's, the same on every seed (opening_story), and the ending credits hold the
     Randomizer Staff box (fp-credits-01's tables, credits_staff)."""
     config = settings.config
-    # a finished ROM written again: the caves' screen back to the one PRG0 (or the flip) names
-    cave_palette.restore_cave_screen(rom, mirror_overworld.is_mirrored(rom))
     if mirror_overworld.is_mirrored(rom):
         # a mirrored ROM written again: the patches below go over PRG0's layout rows and code bytes
         mirror_overworld.unmirror_image(rom)
@@ -116,6 +114,9 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
             rom[address:address + len(data)] = data
     for address, data in harder_bosses.harder_writes(config.harder_bosses, config.harder_ganon):
         rom[address:address + len(data)] = data
+    if item_line.ITEM_LINE_FLAG in config.owner_flags:
+        for address, data in item_line.item_line_writes(item_line.PEGASUS_BOOTS_FLAG in config.owner_flags):
+            rom[address:address + len(data)] = data
     if config.item_counter_table:
         for address, data in item_counter.item_counter_writes(config.item_counter_table):
             rom[address:address + len(data)] = data
@@ -173,10 +174,6 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
         # Mirror Overworld (B06): the flip's part the model does not hold, after every write to the
         # overworld (the crossings, the hidden tiles: OW-MIR-06) and before the level encoding
         mirror_overworld.mirror_image(rom)
-    # last: the caves' colors from a screen the overworld writes above left with PRG0's palettes
-    # (Extra Raft Blocks paints $44's inside brown; cave_palette)
-    for address, data in cave_palette.cave_screen_writes(rom):
-        rom[address:address + len(data)] = data
 
 
 def uphill_battle_writes(config: GameConfig, rom: bytes | bytearray) -> list[tuple[int, bytes]]:

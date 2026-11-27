@@ -19,6 +19,7 @@ from .zora_flags import (
     ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
     ITEM_COUNTER_FIELD,
+    ITEM_LINE_FIELD,
     ITEM_SHUFFLE_NO_VANILLA_FIELD,
     LEVEL_ITEM_SHUFFLE_FIELDS,
     MAP_COMPASS_SHUFFLE_FIELD,
@@ -186,6 +187,11 @@ FIELDS: tuple[dict[str, Any], ...] = (
           "piece's spot; its map's and compass's spots only with Map & Compass Shuffle: Anywhere. On the "
           "overworld, the caves, the Armos and coast items and the shop wares in the item shuffle. Totals over "
           "9 show in hexadecimal (A = 10). Idea by Ultralavos.")),
+        (ITEM_LINE_FIELD, "Show Item Pickups",
+         ("The HUD's empty top row shows GOT and the item's name for about 6 seconds each time you take an "
+          "item, rupees, hearts, fairies and clocks aside; bombs, keys, maps and compasses show for half as long. "
+          "Not offered in Archipelago, whose client "
+          "writes that row itself.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)

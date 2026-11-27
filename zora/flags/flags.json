@@ -32,6 +32,9 @@
     },
     "bomb_upgrades_in_pool": {
       "beta": "all"
+    },
+    "show_item_pickups": {
+      "beta": "all"
     }
   }
 }

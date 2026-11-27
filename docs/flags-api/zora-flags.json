@@ -3065,7 +3065,7 @@
   "about": "'<version>.<payload>': a decimal version, a dot, then one whole number in the alphabet. The fields whose added_in_version is at most the string's version are read in position order, the first least significant, as in the Z1R string. A field added after the string's version is at its default.",
   "separator": ".",
   "pattern": "^([1-9][0-9]*)\\.(.+)$",
-  "current_version": 23,
+  "current_version": 24,
   "rules": {
    "empty_string": "every field at its default",
    "version_above_current_version": "refused",
@@ -4091,6 +4091,33 @@
     "default": 0,
     "beta_values": [
      1
+    ]
+   },
+   {
+    "key": "show_item_pickups",
+    "position": 49,
+    "kind": "three_state",
+    "radix": 3,
+    "added_in_version": 24,
+    "name": "Show Item Pickups",
+    "values": [
+     "Off",
+     "On",
+     "Random"
+    ],
+    "random_values": [
+     {
+      "value": 2,
+      "resolves_to": [
+       0,
+       1
+      ]
+     }
+    ],
+    "default": 0,
+    "beta_values": [
+     1,
+     2
     ]
    }
   ]
