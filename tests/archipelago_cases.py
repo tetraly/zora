@@ -30,6 +30,9 @@ FLAG_CASES: dict[str, tuple[str, str]] = {
     "mixed overworld quest, second-quest variant": (
         z1r_with(options={"C01": OverworldQuest.MIXED_SECOND_QUEST_VARIANT}), ""),
     "random overworld quest": (z1r_with(options={"C01": OverworldQuest.RANDOM}), ""),
+    # Shuffle Minor Dungeon Drops (B17): its bombs, five rupees and keys are places too
+    # (docs/design/archipelago-items.md piece 3)
+    "minor dungeon drops": (z1r_with(toggles={"B17": ThreeState.ON}), ""),
     "full start shuffle": (z1r_with(options={"C04": StartScreen.FULL_SHUFFLE}), ""),
     "wood sword screen start": (z1r_with(options={"C04": StartScreen.WOODEN_SWORD_SCREEN}), ""),
     "force overworld block": (z1r_with(toggles={"B81": ThreeState.ON}), ""),

@@ -12,19 +12,24 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .fields import THREE_STATE_LABELS, TOGGLES_BY_ID, Settings, ThreeState
+from .fields import OPTIONS_BY_ID, THREE_STATE_LABELS, TOGGLES_BY_ID, Settings, ThreeState
 from .zora_flags import (
+    BOMB_UPGRADES_FIELD,
     DETAILED_SPOILER_LOG_FIELD,
     ENUM_FIELDS,
     HEARTS_CAP_CHOICES,
     ITEM_COUNTER_FIELD,
     ITEM_SHUFFLE_NO_VANILLA_FIELD,
+    LEVEL_ITEM_SHUFFLE_FIELDS,
+    MAP_COMPASS_SHUFFLE_FIELD,
     SWORDLISH_HIGHEST_FIELD,
     SWORDLISH_LOWEST_FIELD,
     SWORDLISH_PIECES,
     THREE_STATE_FIELDS,
+    TRIFORCE_SHUFFLE_FIELD,
     WIZZROBE_HAND_FIELD,
     L4Sword,
+    LevelItemShuffle,
     Swordlish,
     ZoraFlags,
     ZoraFlagStringError,
@@ -32,6 +37,7 @@ from .zora_flags import (
     decode,
     encode,
     forced_z1r_values,
+    single_player_warnings,
     warnings,
 )
 
@@ -174,10 +180,12 @@ FIELDS: tuple[dict[str, Any], ...] = (
          ("With a level's compass, a chime plays when you enter a room that still holds an item you haven't "
           "collected: one that appears after a fight, or one down the room's stairway.")),
         (ITEM_COUNTER_FIELD, "Item Counter",
-         ("The HUD's empty row under the rupees shows a chest, how many of the area's major items you have "
-          "found, a slash and the area's total: in a level, its rooms and item cellars, heart containers "
-          "included whatever the item shuffle; on the overworld, the caves, the Armos and coast items and the "
-          "shop wares in the item shuffle. Totals over 9 show in hexadecimal (A = 10). Idea by Ultralavos.")),
+         ("The HUD's empty row under the rupees shows a chest, how many of the area's item spots you have "
+          "taken, a slash and the area's total. It counts spots, not items: in a level, its rooms and item "
+          "cellars in the item shuffle, heart containers included whatever the item shuffle, and its Triforce "
+          "piece's spot; its map's and compass's spots only with Map & Compass Shuffle: Anywhere. On the "
+          "overworld, the caves, the Armos and coast items and the shop wares in the item shuffle. Totals over "
+          "9 show in hexadecimal (A = 10). Idea by Ultralavos.")),
     )),
 )
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
@@ -299,6 +307,56 @@ WIZZROBE_HAND_ROW = {
              "dungeon group (never the overworld's) with the Wallmasters. Not with Oops All Enemies: "
              "Wizzrobes. Idea by Ultralavos.")}
 FIELDS = (*FIELDS, WIZZROBE_HAND_ROW)
+# Version 23: Triforce Shuffle and Map & Compass Shuffle (docs/design/archipelago-items.md pieces 6 and 7), Off /
+# Between levels / Anywhere, in single-player and in Multiworld games. The value names and descriptions are the
+# owner's (2026-11-25). Listed in the page's order; Anywhere's digit is 1 (LevelItemShuffle). "multiworldDefault":
+# Archipelago's default, Anywhere (zora/archipelago.py ARCHIPELAGO_ZORA_DEFAULTS reads it), which the page sets when
+# switched to Multiworld mode.
+LEVEL_ITEM_SHUFFLE_VALUE_ORDER = (LevelItemShuffle.OFF, LevelItemShuffle.BETWEEN_LEVELS, LevelItemShuffle.ANYWHERE)
+LEVEL_ITEM_SHUFFLE_LABELS = {LevelItemShuffle.OFF: "Off", LevelItemShuffle.BETWEEN_LEVELS: "Between levels",
+                             LevelItemShuffle.ANYWHERE: "Anywhere"}
+
+
+def _level_item_shuffle_help(off: str, between: str, anywhere: str) -> str:
+    return " ".join((f"Off: {off}", f"Between levels: {between}", f"Anywhere: {anywhere}",
+                     "No effect with Item Shuffle: None."))
+
+
+LEVEL_ITEM_POOL_ROWS = (
+    {"name": TRIFORCE_SHUFFLE_FIELD, "kind": "option", "label": "Triforce Shuffle",
+     "help": _level_item_shuffle_help(
+         "Like vanilla, each level's triforce stays within that level. Note that other settings may move an item "
+         "within its level.",
+         "Every level still has exactly one Triforce, but which level's each one is gets shuffled: Triforce pieces "
+         "1\u20138 are shuffled among levels 1\u20138.",
+         "Triforces join the main item pool and can be placed anywhere: caves, shops, other levels, possibly "
+         "multiple ones in a single level."),
+     "values": [{"value": int(value), "label": LEVEL_ITEM_SHUFFLE_LABELS[value]}
+                for value in LEVEL_ITEM_SHUFFLE_VALUE_ORDER],
+     "multiworldDefault": int(LevelItemShuffle.ANYWHERE)},
+    {"name": MAP_COMPASS_SHUFFLE_FIELD, "kind": "option", "label": "Map & Compass Shuffle",
+     "help": _level_item_shuffle_help(
+         "Like vanilla, each level's map/compass stays within that level. Note that other settings may move an "
+         "item within its level.",
+         "Every level still has exactly one map and compass, but which level's each one is gets shuffled: maps and "
+         "compasses 1\u20139 are shuffled among levels 1\u20139.",
+         "Maps and Compasses join the main item pool and can be placed anywhere: caves, shops, other levels, "
+         "possibly multiple ones in a single level."),
+     "values": [{"value": int(value), "label": LEVEL_ITEM_SHUFFLE_LABELS[value]}
+                for value in LEVEL_ITEM_SHUFFLE_VALUE_ORDER],
+     "multiworldDefault": int(LevelItemShuffle.ANYWHERE)},
+)
+FIELDS = (*FIELDS, *LEVEL_ITEM_POOL_ROWS)
+# Also version 23: Bomb Upgrades in the Item Pool (docs/design/archipelago-items.md piece 8). Multiworld only
+# (zora_flags.MULTIWORLD_ONLY_FIELDS): the page shows its row only in its Multiworld mode.
+BOMB_UPGRADES_ROWS = (
+    {"name": BOMB_UPGRADES_FIELD, "kind": "toggle", "label": "Bomb Upgrades in the Item Pool",
+     "multiworldOnly": True,
+     "help": ("The two bomb upgraders are locations: each shows the item Archipelago placed with him where his rupee "
+              "lies, and sells it once for his price. His own two 'Bomb Upgrade' items go into the pool: each "
+              "raises Link's bomb capacity, wherever it is found, as the upgraders do.")},
+)
+FIELDS = (*FIELDS, *BOMB_UPGRADES_ROWS)
 FIELD_NAMES = tuple(field["name"] for field in FIELDS)
 
 
@@ -348,11 +406,23 @@ RECORDER_WARPING_UNAVAILABLE = ("Recorder Warping does nothing until both Record
                                 "to New Dungeons are on.")
 
 
+# The level items' pool switches act under every Item Shuffle but None (docs/design/archipelago-items.md piece 7,
+# decision 21). Not a conflict: Item Shuffle: Random may draw None in a seed whose switches are On.
+ITEM_SHUFFLE_FIELD = OPTIONS_BY_ID["C06"]
+ITEM_SHUFFLE_NONE = 0
+LEVEL_ITEM_POOL_UNAVAILABLE = "No effect: Item Shuffle is None."
+
+
 def unavailable_fields(z1r: Settings | None) -> list[dict[str, str]]:
     """The ZORA settings that do nothing under these Z1R settings, each with its note."""
-    if z1r is None or all(z1r.toggle(toggle) is ThreeState.ON for toggle in RECORDER_WARPING_NEEDS):
+    if z1r is None:
         return []
-    return [{"field": "recorder_warping", "message": RECORDER_WARPING_UNAVAILABLE}]
+    found = []
+    if not all(z1r.toggle(toggle) is ThreeState.ON for toggle in RECORDER_WARPING_NEEDS):
+        found.append({"field": "recorder_warping", "message": RECORDER_WARPING_UNAVAILABLE})
+    if z1r.option(ITEM_SHUFFLE_FIELD) == ITEM_SHUFFLE_NONE:
+        found += [{"field": name, "message": LEVEL_ITEM_POOL_UNAVAILABLE} for name in LEVEL_ITEM_SHUFFLE_FIELDS]
+    return found
 
 
 def zora_state(zora_flag_string: str, z1r: Settings | None) -> dict[str, Any]:
@@ -371,7 +441,10 @@ def zora_state(zora_flag_string: str, z1r: Settings | None) -> dict[str, Any]:
         "values": {name: control_value(flags, name) for name in FIELD_NAMES},
         "conflicts": [{"message": message, "fields": list(names)} for message, names in found],
         # accepted, but worth a note beside the settings it names (not red)
-        "warnings": [{"message": message, "fields": list(names)} for message, names in warned],
+        "warnings": ([{"message": message, "fields": list(names)} for message, names in warned]
+                     # single-player only, shown as a caution (amber, the beta banner's colors)
+                     + [{"message": message, "fields": list(names), "singlePlayer": True, "caution": True}
+                        for message, names in single_player_warnings(flags)]),
         # Z1R fields these flags set whatever the Z1R string holds (shown so, with the note)
         "forced": [{"field": field_id, "value": int(value), "message": message}
                    for field_id, value, message in forced_z1r_values(flags)],

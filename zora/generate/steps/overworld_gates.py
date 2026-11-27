@@ -95,6 +95,24 @@ class OverworldGates:
                 needs.append((DEAD_WOODS_WEST, Item.LADDER))
         return tuple(needs)
 
+    def walk_in_needs(self) -> tuple[tuple[frozenset[int], int], ...]:
+        """What Link needs to walk onto each gated screen at all, not just to its cave entrance: the screens
+        the raft and bracelet blocks wall in, and the screens past each maze. The Armos item, which has no
+        entrance, is reached by walking onto its screen, and Shuffle Armos (B13) can draw $34, which Extra
+        Raft Blocks walls in (the 2.0.2 report, seed 3425595242: the raft under an Armos on $34)."""
+        needs: list[tuple[frozenset[int], int]] = []
+        if self.raft_blocks:
+            needs.append((RAFT_ENCLOSED_SCREENS, Item.RAFT))
+        if self.bracelet_blocks:
+            needs.append((BRACELET_ENCLOSED_SCREENS, Item.POWER_BRACELET))
+        if self.lost_hills:
+            needs.append((LOST_HILLS_GATED, LOST_HILLS_HINT))
+        if self.dead_woods:
+            needs.append((DEAD_WOODS_GATED, DEAD_WOODS_HINT))
+            if not self.river_west_open:
+                needs.append((DEAD_WOODS_WEST, Item.LADDER))
+        return tuple(needs)
+
     def maze_hints(self) -> tuple[tuple[int, Destination], ...]:
         """Each gated maze's hint pseudo-item and the hint shop that gives it."""
         hints = []

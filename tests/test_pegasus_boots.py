@@ -227,7 +227,7 @@ def test_a_boots_seeds_document_and_log_name_the_boots() -> None:
     assert {"Pegasus Boots", "Magical Boots"} <= set(schema["$defs"]["itemName"]["anyOf"][0]["enum"])
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 3, vanilla(), zora_flag_string=BOOTS).rom
     document = seed_document_for(rom, MVP_BASELINE_LEVEL_ENCODING_OFF, 3, BOOTS)
-    assert document["formatVersion"] == FORMAT_VERSION == "1.1"
+    assert document["formatVersion"] == FORMAT_VERSION          # 1.1 added the boots; 1.2 the Archipelago items
     assert not list(jsonschema.Draft202012Validator(schema).iter_errors(document))
     text = repr(document)
     assert "'Pegasus Boots'" in text and "'Magical Boots'" in text

@@ -16,10 +16,10 @@ from ..model.levels import GANON_LIST, L9_ENTRY_PERSON_LIST, MERCHANT_LIST, ZELD
 from ..model.room_grid import neighbor
 from ..model.rooms import (
     DIAMOND_STAIRS_PUSH,
-    ITEM_MASK,
     NO_ITEM_CODE,
     PERSON_LAYOUT_BYTE,
     PUSH_BLOCK_VARIANT,
+    ROOM_ITEM_MASK,
     TURNSTILE_PUSH,
     Room,
     StaircaseRoom,
@@ -124,8 +124,8 @@ def is_family_blocked(room: Room, held: frozenset[int], family_lists: FamilyList
 
 
 def item_code(item: Item) -> int:
-    """An item as the walk compares it: its five-bit code ($03 is "no item")."""
-    return NO_ITEM_CODE if item == Item.NOTHING else item.value & ITEM_MASK
+    """An item as the walk compares it: its room code, five bits or six ($03 is "no item")."""
+    return NO_ITEM_CODE if item == Item.NOTHING else item.value & ROOM_ITEM_MASK
 
 
 @dataclass
@@ -217,16 +217,17 @@ def has_trap_monsters(room: Room) -> bool:
 
 
 def entry_row(room: Room, is_level9_entry: bool, has_ladder: bool, measured_turnstile: bool = False,
-              goriya_hungry: bool = False) -> Row | None:
+              goriya_hungry: bool = False, persons_only: bool = False) -> Row | None:
     """VA-REJ-18: the room's table line, the first that fits; None is the
     default row ("all" for every entry side). measured_turnstile: the $60
     room's measured line instead of VA-REJ-18's (WalkRules). goriya_hungry: Shuffle Major Shop
     Items without the bait usable, where a hungry Goriya's room takes HUNGRY_GORIYA_ROW (its
-    layout byte is $26, not a person's $A6, so VA-REJ-18 gives it the default row)."""
+    layout byte is $26, not a person's $A6, so VA-REJ-18 gives it the default row). persons_only: the
+    person row only where the room holds a person (WalkRules.persons_only)."""
     if goriya_hungry and room.enemy == Enemy.HUNGRY_GORIYA:
         return HUNGRY_GORIYA_ROW
     code = room.layout_code                      # the layout byte's low seven bits
-    if room.layout_byte == PERSON_LAYOUT_BYTE:
+    if room.layout_byte == PERSON_LAYOUT_BYTE and (room.is_person or not persons_only):
         unrestricted = (room.monster_byte == MERCHANT_LIST
                         or (room.monster_byte == L9_ENTRY_PERSON_LIST and is_level9_entry)
                         or room.monster_byte > PERSON_ROW_MONSTER_LIMIT)
@@ -257,7 +258,7 @@ LADDER_MOAT_LAYOUTS = frozenset({RoomType.HORIZONTAL_MOAT_ROOM, RoomType.DOUBLE_
 
 @dataclass(frozen=True)
 class WalkRules:
-    """Which walk: SPEC_WALK (VA-REJ-17/18 as written) or LOGIC_WALK, its three corrections
+    """Which walk: SPEC_WALK (VA-REJ-17/18 as written) or LOGIC_WALK, its four corrections
     and the last-boss shutters, for Archipelago (docs/archipelago.md "The two walks").
       ladder_moats: layouts whose arrival takes any side while the ladder is held
       measured_turnstile: the $60 room's measured line (MEASURED_TURNSTILE_ROW), not VA-REJ-18's
@@ -265,16 +266,20 @@ class WalkRules:
         the target may be walked through like any room (rule 4 lifted; acceptance_check)
       triforce_of_power_opens: the last-boss shutters are open while the Triforce of Power is
         held (CheckSecretTriggerLastBoss reads LastBossDefeated, which taking it sets)
+      persons_only: VA-REJ-18's person row only in a room that holds a person (lists $0B-$12, object
+        types $4B-$52): the game blocks Link only behind a person object (CheckPersonBlocking), and
+        a Black room ($26) with the monster flag and any other list also has the layout byte $A6
 """
     ladder_moats: frozenset[int] = frozenset()
     measured_turnstile: bool = False
     through_target: bool = False
     triforce_of_power_opens: bool = False
+    persons_only: bool = False
 
 
 SPEC_WALK = WalkRules()
 LOGIC_WALK = WalkRules(ladder_moats=LADDER_MOAT_LAYOUTS, measured_turnstile=True,
-                       through_target=True, triforce_of_power_opens=True)
+                       through_target=True, triforce_of_power_opens=True, persons_only=True)
 
 
 def are_stairs_usable(room: Room, is_blocked: bool) -> bool:
@@ -378,7 +383,7 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
         room, side = stack.pop()
         room_exits = exits(room)
         row = (entry_row(block.room(room), room == level9_entry, has_ladder, walk_rules.measured_turnstile,
-                         goriya_hungry)
+                         goriya_hungry, walk_rules.persons_only)
                if uses_entry_sides else None)
         turns = room_exits.keys() if row is None else row[side] & room_exits.keys()
         for turn in turns:
@@ -390,14 +395,22 @@ def walk_level(level: Level, held: frozenset[int], is_last_boss_open: bool,
     return result
 
 
+def holds_item(held: Item | None, item: int) -> bool:
+    """Whether a room or cellar holding `held` holds the item (its code). An empty room never does: its code is
+    $03, the Magical Sword's, so before 2.0.2 the walk took a level's first empty room for a Magical Sword in that
+    level (tracked under Level 9 Entrance = Level 4 sword, and since 2.0.2 under Offense Item Pacing): too strict
+    when the sword lay in a cellar, too lenient when an empty room was easier to reach (scan 2026-11-22)."""
+    return held is not None and held != Item.NOTHING and item_code(held) == item
+
+
 def item_room(level: Level, item: int) -> int | None:
     """The level's first room, in room order, holding the item."""
-    return next((room.room_num for room in level.rooms if item_code(room.item) == item), None)
+    return next((room.room_num for room in level.rooms if holds_item(room.item, item)), None)
 
 
 def item_cellar(level: Level, item: int) -> int | None:
     """The first item cellar, in room order, that holds the item and returns
     to one of the level's rooms."""
     return next((stair.room_num for stair in level.block.staircases
-                 if stair.room_type == RoomType.ITEM_STAIRCASE and stair.item is not None
-                 and item_code(stair.item) == item and stair.return_dest in level.room_nums), None)
+                 if stair.room_type == RoomType.ITEM_STAIRCASE and holds_item(stair.item, item)
+                 and stair.return_dest in level.room_nums), None)

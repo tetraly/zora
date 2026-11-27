@@ -1,4 +1,5 @@
-"""Owner-named hints for other players' items (owner approval 2026-11-18)."""
+"""Owner-named hints for other players' items: naming the owner, for hint-able places only, was
+approved by Gob, a contributor, on 2026-11-18; docs/archipelago.md decision 4 records this."""
 import unittest
 from types import SimpleNamespace
 
@@ -15,7 +16,7 @@ from zora.rom.base_rom import BASE_ROM_PATH
 FOREIGN = 0x18
 LABELS: tuple[tuple[int | str, str, str], ...] = ((3, "Gob-Z2", "HAMMER"), ("coast", "Gob-DWR", "WINGS"), ("white sword", "Gob-DWR", "MAGIC KEY"),
           (5, "A-VERY-LONG-NAME", "AN EXTREMELY LONG ITEM NAME THAT WILL NOT FIT AT ALL"))
-NAMES = ItemNames(foreign_code=FOREIGN, foreign_labels=LABELS)
+NAMES = ItemNames(foreign_codes=frozenset({FOREIGN}), foreign_labels=LABELS)
 
 
 class OwnerHintTest(unittest.TestCase):
@@ -37,7 +38,7 @@ class OwnerHintTest(unittest.TestCase):
         self.assertEqual(lines, ["THE CAVE WITH", "Gob-DWR'S MAGIC KEY", "NEEDS THE RECORDER"])
 
     def test_no_labels_keeps_generic_wording(self) -> None:
-        plain = ItemNames(foreign_code=FOREIGN)
+        plain = ItemNames(foreign_codes=frozenset({FOREIGN}))
         lines = requirement_text(Requirement(Form.LADDER, FOREIGN), plain)
         self.assertEqual(" ".join(lines), "ANOTHER PLAYER'S ITEM NEEDS THE LADDER")
 
@@ -68,6 +69,15 @@ class HintedPlacesTest(unittest.TestCase):
         self.assertNotIn("L2 a", hinted)
         self.assertNotIn("L3 a", hinted)
         self.assertIn("Coast", hinted)
+
+    def test_a_level_with_an_unnameable_second_item_stays_generic(self) -> None:
+        """Level 1 holds two other players' items, one with no shown character: the count comes
+        first, so neither is named, not the one that could be."""
+        owners = {**OWNERS, "L1 b": ("ゴブ", "HAMMER")}
+        hinted = hinted_foreign_places(PLACES, ALL_FOREIGN, owners)
+        self.assertNotIn("L1 a", hinted)
+        self.assertNotIn("L1 b", hinted)
+        self.assertEqual(hinted["L2 a"], 2)
 
     def test_has_shown_character(self) -> None:
         self.assertTrue(has_shown_character("Gob-Z2"))

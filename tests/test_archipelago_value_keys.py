@@ -165,6 +165,9 @@ VALUE_KEYS = {
         "at_most_12_hearts", "at_most_13_hearts", "at_most_14_hearts"),
     "progressive_items": SWITCH,
     "shop_items_in_pool": SWITCH,
+    # Multiworld only (archipelago-items piece 6)
+    "triforce_shuffle": ("off", "anywhere", "between_levels"),
+    "map_compass_shuffle": ("off", "anywhere", "between_levels"),
     "shuffle_blue_potion": THREE_STATE,
     "add_l4_sword": ("off", "level_2", "level_9"),
     "level_9_entrance_sword": ("triforce_pieces", "level_4_sword"),
@@ -195,6 +198,10 @@ VALUE_KEYS = {
     "do_not_segment_dungeons": THREE_STATE,
     "full_health": THREE_STATE,
     "compass_chime": THREE_STATE,
+    "wizzrobes_shoot_wallmasters": THREE_STATE,
+    "bomb_upgrades_in_pool": SWITCH,
+    "universal_drops_v2": THREE_STATE,
+    "item_counter": THREE_STATE,
 }
 # every NES palette value but $0D, then Random
 COLORS = (*(f"0x{value:02X}" for value in range(0x40) if value != 0x0D), "random_color")
@@ -228,8 +235,7 @@ PLAYER_KEYS = {
         "darknut", "gibdo", "goriya", "lynel", "moblin", "stalfos", "wizzrobe", "random_choice")),
     "linkColor2": ("playable_character_color_2", COLORS[:-1]),
     "linkColor3": ("playable_character_color_3", COLORS[:-1]),
-    # Multiworld mode only (owner decision 2026-10-18)
-    "foreignItemLook": ("foreign_item_look", ("rupee", "logo")),
+    # Multiworld mode only (owner decision 2026-10-18; "foreignItemLook" retired by piece 5)
     "itemArrivalSound": ("item_arrival_sound", ("item_appears", "item_taken", "none")),
 }
 SPECS = archipelago.option_fields()

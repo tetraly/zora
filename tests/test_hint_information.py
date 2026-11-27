@@ -161,6 +161,11 @@ class _World:
     """Just the cave person appearance table."""
     class enemies:
         overworld_npc_pointers = [0] * 43
+        overworld_npc_frames = [[0] for _ in range(43)]
+
+        @staticmethod
+        def frame_bytes(offset: int, count: int) -> list[int]:
+            return [offset] * count
 
 
 def test_person_appearances_are_drawn_once_per_type() -> None:

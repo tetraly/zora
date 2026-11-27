@@ -38,3 +38,31 @@ owner = "flags2:item-counter"
 banks = [5]
 start = 0xBDC0
 size = 0xA0
+
+[[placement]]
+segment = "ZORA_F2_AP_ITEMS_B4"
+owner = "flags2:ap-items"
+banks = [4]
+start = 0xBC80
+size = 0xE0
+
+[[placement]]
+segment = "ZORA_F2_AP_ITEMS_FAR"
+owner = "flags2:ap-items"
+banks = [6]
+start = 0x9D70
+size = 0x290
+
+[[placement]]
+segment = "ZORA_F2_LEVEL_COMPASS"
+owner = "flags2:level-compass"
+banks = [6]
+start = 0xAD80
+size = 0x40
+
+[[placement]]
+segment = "ZORA_F2_AP_ITEMS_FAR_GLYPH"
+owner = "flags2:ap-items"
+banks = [6]
+start = 0xADC0
+size = 0xA0

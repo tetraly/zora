@@ -37,6 +37,7 @@ from zora.flags.fields import (
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.flags.zora_flags import NO_VANILLA_ITEM_SHUFFLES, SWORDLISH_RANDOM_STATES, SWORDS_WITHOUT_SWAP, Swordlish
+from zora.generate.places import SELLER_SUFFIX
 from zora.generate.steps.hint_text import BOOMERANG_LINE, BOOTS_LINE, UPGRADE_LINES
 from zora.generate.steps.shuffle_items import FORCED_ITEM_OPTIONS, NON_HEART, RANDOM_ITEM
 from zora.generate.steps.start_items import START_ITEM_ORDER
@@ -44,6 +45,7 @@ from zora.generate.steps.swap_swords_and_rings import SWAPPED_PAIRS
 from zora.generate.steps.sword_states import BOMB_UPGRADE_STATES
 from zora.model.enums import Item
 from zora.model.item_names import ITEM_NAMES, PEGASUS_BOOTS_NAMES
+from zora.model.level_items import LEVELS, LevelItemKind, level_item_name
 
 RANDOM = int(ThreeState.POSSIBLE)
 PEGASUS_BOOTS = "pegasus_boots"          # the modifier's id, the ZORA field's name
@@ -166,6 +168,8 @@ def modifiers() -> list[dict[str, Any]]:
          "acts_as": {item_name(Item.WHITE_SWORD): "bomb upgrade"},
          "about": ("Wood Sword Only and Swordless: the White Sword item is still named so, but taking it adds two "
                    "bombs to the bomb capacity instead of giving a sword.")},
+        *level_item_pool_modifiers(),
+        bomb_upgrade_sellers(),
         {"id": "progressive_items", "applies_to": ["locations"],
          "applies_when": [{"progressive_items": [1]}], "unknown_when": [],
          "upgrade_lines": {**lines, **boots_lines},
@@ -173,6 +177,74 @@ def modifiers() -> list[dict[str, Any]]:
                    "lacks, whichever item of the line it is named. Start items are not changed: a start item is "
                    "the item itself. Each line's items are listed lowest first.")},
     ]
+
+
+# Triforce Shuffle and Map & Compass Shuffle (docs/design/archipelago-items.md piece 7): each acts under every Item
+# Shuffle but None. Anywhere reaches as far as Item Shuffle does; Between levels keeps each kind in its own spots
+ACTING_SCOPES = [int(scope) for scope in NO_VANILLA_ITEM_SHUFFLES]
+REACH = {str(int(ItemShuffleScope.DUNGEON_ITEMS_ONLY)): "anywhere",
+         str(int(ItemShuffleScope.WITHIN_EACH_DUNGEON)): "own_level", str(int(ItemShuffleScope.FULL)): "anywhere"}
+LEVEL_ITEM_SHUFFLE_KINDS = {zora_flags.TRIFORCE_SHUFFLE_FIELD: (LevelItemKind.TRIFORCE,),
+                            zora_flags.MAP_COMPASS_SHUFFLE_FIELD: (LevelItemKind.MAP, LevelItemKind.COMPASS)}
+ANYWHERE = int(zora_flags.LevelItemShuffle.ANYWHERE)
+BETWEEN_LEVELS = int(zora_flags.LevelItemShuffle.BETWEEN_LEVELS)
+
+
+def _acting_when(field: str, value: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """A level-item shuffle's value acting (applies_when) and maybe acting (unknown_when: Item Shuffle Random, which
+    may draw None unless Random (No Vanilla))."""
+    random_scope = int(ItemShuffleScope.RANDOM)
+    no_vanilla = zora_flags.ITEM_SHUFFLE_NO_VANILLA_FIELD
+    return ([{field: [value], ITEM_SHUFFLE_SCOPE.id: ACTING_SCOPES},
+             {field: [value], ITEM_SHUFFLE_SCOPE.id: [random_scope], no_vanilla: [1]}],
+            [{field: [value], ITEM_SHUFFLE_SCOPE.id: [random_scope], no_vanilla: [0]}])
+
+
+def level_item_pool_modifiers() -> list[dict[str, Any]]:
+    """The two level-item shuffles. Anywhere: the level's piece (or map and compass) is an item of its own, shuffled
+    as far as Item Shuffle reaches. Between levels: each level still holds one of each, but which level's is drawn."""
+    entries = []
+    for field, kinds in LEVEL_ITEM_SHUFFLE_KINDS.items():
+        items = [level_item_name(kind, level) for kind in kinds for level in LEVELS[kind]]
+        applies, unknown = _acting_when(field, ANYWHERE)
+        entries.append({
+            "id": field, "applies_to": ["locations"], "applies_when": applies, "unknown_when": unknown,
+            "reach": {"field": ITEM_SHUFFLE_SCOPE.id, "by_value": REACH},
+            "items": items,
+            "about": ("Anywhere: each named item is an item of its own, shuffled with the others: within its own "
+                      "level (own_level) or into any level, cave or shop ware the shuffle reaches (anywhere). Where "
+                      "Item Shuffle is Random the reach is unknown. A level's Triforce room, map room and compass "
+                      "room then hold whatever the shuffle put there."),
+        })
+        applies, unknown = _acting_when(field, BETWEEN_LEVELS)
+        entries.append({
+            "id": f"{field}_between_levels", "applies_to": ["locations"], "applies_when": applies,
+            "unknown_when": unknown, "items": items,
+            "about": ("Between levels: each level still holds exactly one item of each named kind, where Off would "
+                      "put it, but which level's it is was shuffled among that kind's levels: level 3's Triforce "
+                      "room may hold Level 6 Triforce. Each shows its own level's number and works for that level."),
+        })
+    return entries
+
+
+# Bomb Upgrades in the Item Pool (docs/design/archipelago-items.md piece 8): the two bomb upgraders that sell are
+# places, named by their rooms; a switch, Multiworld games only, so never Random
+SELLERS_PER_SEED = 2
+
+
+def bomb_upgrade_sellers() -> dict[str, Any]:
+    """The pool switch of piece 8: each selling bomb upgrader is a place, his ware the item placed there."""
+    field = zora_flags.BOMB_UPGRADES_FIELD
+    return {
+        "id": field, "applies_to": ["locations"], "applies_when": [{field: [1]}], "unknown_when": [],
+        "locations": {"name": f"Level N Room XX {SELLER_SUFFIX}", "count": SELLERS_PER_SEED},
+        "items": [item_name(Item.BOMB_UPGRADE)],
+        "about": ("Multiworld games only. Each of the two bomb upgraders that sell is a place, named by his level "
+                  "and room (XX in hex): he shows the item placed there and gives it for his price, once. Which "
+                  "rooms they are is the seed's draw. Each seller's own Bomb Upgrade, which raises the bomb "
+                  "capacity by the seed's upgrade amount, is an item of its own, placed anywhere in the "
+                  "multiworld."),
+    }
 
 
 @cache

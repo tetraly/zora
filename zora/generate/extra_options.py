@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from ..flags.fields import WoodenSwordState
 from ..flags.zora_flags import OopsAllBosses, OopsAllEnemies, Pacing
 from .acceptance_check import LogicRules, PacingHearts, logic_rules
+from .level_swaps import NO_SWAPS, LevelSwaps
 from .steps.change_sword_hearts import MAGICAL_SWORD_HEARTS
 from .steps.overworld_gates import NO_GATES, OverworldGates
 from .steps.shop_prices import PriceRules
@@ -26,6 +27,8 @@ class ExtraOptions:
     # Progressive Items and Shop Items in the Item Pool (docs/design/progressive-items-plan.md)
     progressive_items: bool = False
     shop_items_in_pool: bool = False
+    # Shuffle Shop Items (B08) as it runs: the shop prices' groups reprice the shops' own stock only with it on
+    shuffle_shop_items: bool = False
     # The owner's 2.0 overworld gates (Extra Raft / Power Bracelet Blocks, Randomize Lost Hills /
     # Dead Woods), resolved
     gates: OverworldGates = NO_GATES
@@ -78,10 +81,29 @@ class ExtraOptions:
     # (zora_flags.swaps_swords_and_rings), Swordlish's N (0: off) and the starting pieces its walk counts
     swap_swords_and_rings: bool = False
     swordlish_pieces: int = 0
+    # Bomb Upgrades in the Item Pool (docs/design/archipelago-items.md piece 8; Multiworld only): the selling bomb
+    # upgraders' rooms are places holding the Bomb Upgrade
+    bomb_upgrades_in_pool: bool = False
     start_triforce_pieces: int = 0
     # Wizzrobes Shoot Wallmasters, resolved: the deal puts the Wizzrobes in the Wallmasters' dungeon group
     # (steps/shuffle_enemy_groups.py)
     wizzrobes_shoot_wallmasters: bool = False
+    # Not a ZORA extra: Shuffle Minor Dungeon Drops (B17, PS-ITEM-14), resolved. Its bombs, five rupees and
+    # keys are item places too (places.item_pool; docs/design/archipelago-items.md piece 3)
+    minor_dungeon_drops: bool = False
+    # Triforce Shuffle and Map & Compass Shuffle (ZORA version 23; docs/design/archipelago-items.md pieces 6 and 7).
+    # Anywhere: the levels' pieces, or maps and compasses, are places and pool items. Between levels: BUILD places
+    # them as Off does and FINISH writes each spot's item as the level level_swaps drew (level_swaps.py)
+    add_triforces_to_pool: bool = False
+    add_maps_compasses_to_pool: bool = False
+    triforces_between_levels: bool = False
+    maps_compasses_between_levels: bool = False
+    level_swaps: LevelSwaps = NO_SWAPS
+
+    @property
+    def per_level_items(self) -> bool:
+        return (self.add_triforces_to_pool or self.add_maps_compasses_to_pool or self.triforces_between_levels
+                or self.maps_compasses_between_levels)
 
     @property
     def oops_all(self) -> bool:
@@ -114,6 +136,7 @@ class ExtraOptions:
                            offense_pacing=self.offense_pacing, defense_pacing=self.defense_pacing,
                            recorder_warps=self.recorder_warps,
                            swordlish_pieces=self.swordlish_pieces, start_triforce_pieces=self.start_triforce_pieces,
+                           triforce_codes=self.level_swaps.triforce,
                            pacing_hearts=PacingHearts(self.starting_heart_containers, max(self.white_sword_hearts),
                                                       max(self.magical_sword_hearts)))
 
@@ -125,7 +148,7 @@ class ExtraOptions:
                           wood_sword_in_pool=self.shuffle_wood_sword,
                           swords_open_level_9=self.level_9_entrance_sword,
                           book_needed=self.maze_hints_need_book and bool(self.gates.maze_hints()),
-                          pegasus_boots=self.pegasus_boots)
+                          pegasus_boots=self.pegasus_boots, shops_shuffled=self.shuffle_shop_items)
 
 
 # Every ZORA extra off: the default where none are given.

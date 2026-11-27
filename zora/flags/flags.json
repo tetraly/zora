@@ -23,6 +23,15 @@
     },
     "item_counter": {
       "beta": "all"
+    },
+    "triforce_shuffle": {
+      "beta": "all"
+    },
+    "map_compass_shuffle": {
+      "beta": "all"
+    },
+    "bomb_upgrades_in_pool": {
+      "beta": "all"
     }
   }
 }

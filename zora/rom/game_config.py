@@ -163,9 +163,17 @@ class GameConfig:
     # ring-color, which repaints Link when the client gives a ring through RAM (owner decision
     # 2026-10-18). Off in ZORA mode, whose output stays as it is; omitted from the seed's code there.
     archipelago_rom: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
-    # Other players' items look like the Archipelago logo (an Archipelago game's foreign_item_look =
-    # logo; zora/rom/archipelago_logo.py): the magical shield's tiles, take and palette bytes.
-    foreign_logo: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
+    # Per-level mode (Add Triforces / Maps/Compasses to the Item Pool, ZORA version 23; an Archipelago game's
+    # ROM only; zora/rom/level_items.py): each level's piece, map and compass is taken as its own and shows
+    # its level's number. The number the status bar shows for data levels 1-9; empty when off.
+    per_level_shown: tuple[int, ...] = field(default=(), metadata=OMITTED_AT_DEFAULT)
+    # Per-level mode's compass marker (asm/flags2/level-compass): for data levels 1-8, the room whose item the
+    # marker blinks until taken, its marked room or the item cellar under it (finish.compass_item_rooms); empty
+    # when per-level mode is off.
+    per_level_compass_rooms: tuple[int, ...] = field(default=(), metadata=OMITTED_AT_DEFAULT)
+    # Bomb Upgrades in the Item Pool (an Archipelago game's ROM only; docs/design/archipelago-items.md piece 8,
+    # zora/rom/level_items.py): the two bomb upgraders' rooms are places whose item each shows and sells.
+    bomb_upgrade_sellers: bool = field(default=False, metadata=OMITTED_AT_DEFAULT)
     # The seed number the statistics screen shows (ZORA mode; code_patches.stamp_seed_number, owner
     # request 2026-10-19). Never part of the seed's code (code_patches.seed_code_items leaves it
     # out); None in External mode (an Archipelago game's number is not one its player chose).

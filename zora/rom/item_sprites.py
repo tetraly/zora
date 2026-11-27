@@ -10,11 +10,9 @@ pictures as the ROM image holds them then (the player's graphics), with their ow
            before any write), drawn with repetition; the same four zeroed; then five groups made
            equal to their first member.
 
-In an Archipelago ROM with the logo (GameConfig.foreign_logo) the magical shield's picture is neither
-a source nor a target (owner decisions, 2026-10-22). Up to 2.0.1 the logo was drawn in the shield's
-tiles, so this kept other players' items looking like the logo and no other item taking its look.
-Since the logo moved to background tiles of its own (zora/rom/archipelago_logo.py), which Item Sprites
-never writes, the rule only keeps those seeds' draws as they were: no item is a magical shield there.
+The Archipelago logo is in background tiles of its own (zora/rom/archipelago_logo.py), which Item
+Sprites never writes. Up to piece 5 of docs/design/archipelago-items.md an Archipelago ROM with the logo
+look left the magical shield's picture out of the draws; the look is retired, so every ROM draws alike.
 """
 from __future__ import annotations
 
@@ -40,8 +38,6 @@ ZEROED = (0x4E84, 0x4EE4, 0x4F24, 0x4F64)
 EQUAL_GROUPS = ((0x828F, 0x850F, 0x4F04), (0x4F44, 0x830F), (0x4E64, 0x4EA4), (0x4F84, 0x852F),
                 (0x83EF, 0x840F, 0x842F))
 FUN_PERCENTAGE, SPRITE_SHUFFLE = 1, 2
-SHIELD_PATTERN = 0x85EF                # the magical shield's tiles $56/$57, left out with the logo
-assert SHIELD_PATTERN in FUN_PERCENTAGE_SOURCES and SHIELD_PATTERN in SHUFFLE_SOURCES
 assert len(ITEM_PATTERNS) == 34 and len(SHUFFLE_SOURCES) == 19
 
 # Under every C15 but 0: the title story's left item list (DemoLeftItemIds), its first 18 entries
@@ -64,21 +60,15 @@ def _pattern(image: bytes | bytearray, offset: int) -> bytes:
     return bytes(image[offset:offset + PATTERN_BYTES])
 
 
-def _sources(offsets: tuple[int, ...], logo: bool) -> tuple[int, ...]:
-    return tuple(offset for offset in offsets if offset != SHIELD_PATTERN) if logo else offsets
-
-
-def item_sprite_writes(image: bytes | bytearray, appearance: int, rng: IntRng, logo: bool = False) -> Writes:
-    """FP-SPRITE-01's pattern writes and the title story's list, from the pictures in `image`;
-    with `logo` (the Archipelago logo in the shield's tiles) the shield's picture is neither a
-    source nor written (its draw is still made, so the other pictures keep theirs)."""
+def item_sprite_writes(image: bytes | bytearray, appearance: int, rng: IntRng) -> Writes:
+    """FP-SPRITE-01's pattern writes and the title story's list, from the pictures in `image`."""
     patterns: dict[int, bytes]
     if appearance == FUN_PERCENTAGE:
-        offsets = _sources(FUN_PERCENTAGE_SOURCES, logo)
+        offsets = FUN_PERCENTAGE_SOURCES
         source = _pattern(image, offsets[rng.below(len(offsets))])
         patterns = dict.fromkeys(ITEM_PATTERNS, source)
     elif appearance == SPRITE_SHUFFLE:
-        sources = [_pattern(image, offset) for offset in _sources(SHUFFLE_SOURCES, logo)]
+        sources = [_pattern(image, offset) for offset in SHUFFLE_SOURCES]
         patterns = {offset: sources[rng.below(len(sources))] for offset in ITEM_PATTERNS}
     else:
         raise ValueError(f"C15 = {appearance} writes nothing")
@@ -86,8 +76,6 @@ def item_sprite_writes(image: bytes | bytearray, appearance: int, rng: IntRng, l
     if appearance == SPRITE_SHUFFLE:
         for first, *others in EQUAL_GROUPS:
             patterns.update(dict.fromkeys(others, patterns[first]))
-    if logo:
-        del patterns[SHIELD_PATTERN]
     return [*patterns.items(), (DEMO_LEFT_ITEMS, bytes([DEMO_ITEM]) * DEMO_LEFT_ITEMS_CHANGED)]
 
 

@@ -265,3 +265,85 @@ def test_the_chest_shows_nowhere_else() -> None:
             assert_clean(emu, f"level {level.level_num} room {room:02X}")
             rooms += 1
     assert rooms > MOST_SCREENS
+
+
+# Into a level by its overworld entrance and out by its first room's south door (found in testing): the counter
+# shows the overworld's count until the level is on screen, and the level's until the overworld is. Link steps into
+# the entrance inside a play frame (HandleWarpOW sets CurLevel and the stairs mode, $10), whose status bar update
+# then comes; the stairs mode draws none, so a counter written on that frame showed the level's count for the
+# whole walk down the stairs. The counter writes on every other frame: both parities are walked.
+STAIRS_MODE = 0x10
+LEAVE_CAVE_MODE = 0x0A
+UNDERGROUND_EXIT_TYPE = 0x5A
+LEVEL_EXIT = 2
+PPU_MASK = 0xFE
+RENDERING = 0x18
+WALK_OUT_FRAMES = 120               # Link walks down out of the entrance, as leaving the level put him
+STEP_FRAMES = 8
+TRANSITION_FRAMES = 700
+
+
+def open_entrance(rom: bytes) -> tuple[int, int]:
+    """(level, screen) of a level whose entrance needs nothing: no bomb, candle, raft or ladder."""
+    from zora.model.overworld import EntranceType
+    for screen in parse_rom(rom).overworld.screens:
+        if screen.destination.name.startswith("LEVEL_") and screen.entrance_type is EntranceType.OPEN:
+            return int(screen.destination.name.removeprefix("LEVEL_")), screen.screen_num
+    raise AssertionError("no level with an open entrance")
+
+
+def rendering(emu: Emulator) -> bool:
+    return bool(emu[PPU_MASK] & RENDERING)
+
+
+def rows_around_the_load(emu: Emulator, button: Button, area: int) -> tuple[list[tuple[int, int] | None],
+                                                                            list[tuple[int, int] | None], set[int]]:
+    """The row each drawn frame before the screen goes dark for the load, and after it is drawn again, until play
+    in `area` shows a count; and the modes seen."""
+    before: list[tuple[int, int] | None] = []
+    after: list[tuple[int, int] | None] = []
+    modes: set[int] = set()
+    dark = False
+    for _ in range(TRANSITION_FRAMES):
+        emu[LINK_INVINCIBILITY_TIMER] = INVINCIBLE
+        emu.run(1, button)
+        modes.add(emu.mode)
+        if not rendering(emu):
+            dark = True
+            continue
+        (after if dark else before).append(shown(emu))
+        if dark and emu.mode == Mode.PLAY and emu[CUR_LEVEL] == area and shown(emu) is not None:
+            return before, after, modes
+    raise AssertionError("the transition never ended")
+
+
+@pytest.mark.parametrize("parity", [0, 1])
+def test_the_counter_switches_area_once_the_new_one_is_on_screen(parity: int) -> None:
+    rom = counter_rom()
+    level, screen = open_entrance(rom)
+    flags, places = areas(rom)[0]
+    emu = Emulator(rom)
+    emu.new_game()
+    emu[HEART_VALUES] = THREE_HEARTS
+    emu[ROOM_ID], emu[CUR_LEVEL], emu[UNDERGROUND_EXIT_TYPE] = screen, 0, LEVEL_EXIT
+    start_mode(emu, LEAVE_CAVE_MODE)
+    wait_for_play(emu)
+    set_place(emu, flags, places[0])            # the overworld's count differs from the level's
+    settle(emu, WALK_OUT_FRAMES + parity)
+    emu.run(STEP_FRAMES, Button.DOWN)
+    overworld = (1, len(places))
+    level_count = (0, len(areas(rom)[level][1]))
+    assert shown(emu) == overworld and level_count != overworld
+
+    # In: the overworld's count while the overworld is drawn, the walk down the stairs too; the level's from the
+    # first count drawn in it (the game's load leaves the row blank until play)
+    before, after, modes = rows_around_the_load(emu, Button.UP, level)
+    assert STAIRS_MODE in modes, "Link never went down the stairs"
+    assert set(before) == {overworld}, before
+    assert {row for row in after if row is not None} == {level_count}, after
+
+    # Out by the first room's south door: the level's count while the level is drawn, then the overworld's
+    settle(emu)
+    before, after, _ = rows_around_the_load(emu, Button.DOWN, 0)
+    assert set(before) == {level_count}, before
+    assert {row for row in after if row is not None} == {overworld}, after

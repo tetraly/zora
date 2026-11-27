@@ -319,3 +319,94 @@ def test_publish_site_passes_the_presets() -> None:
     assert "presets=docs/flags-api/presets.json" in publish_site
     assert publish_site.count('"$repo/$presets"') == 3          # both channels and --presets
     assert "python3 scripts/flags_api.py --check" in publish_site
+
+
+# --- --archive VERSION: a release kept at its own address, https://zora.gg/VERSION/ ---------------------------
+
+OLD_PAGE = "zora-2.0.0-2026-11-08-78ee155.html"
+
+
+def publish_two_releases(origin: Path) -> str:
+    """2.0.0 published with its guide, then 2.0.1 over it (its dated copy stays): origin's gh-pages."""
+    first = commit_files(origin, {"index.html": "page 2.0.0\n", OLD_PAGE: "page 2.0.0\n", ".nojekyll": "",
+                                  "archipelago-guide.html": "guide 2.0.0\n", "CNAME": "zora.gg"},
+                         None, "refs/heads/gh-pages")
+    return commit_files(origin, {"index.html": "page 2.0.1\n", OLD_PAGE: "page 2.0.0\n", ".nojekyll": "",
+                                 "zora-2.0.1-2026-11-18-73a591d.html": "page 2.0.1\n",
+                                 "archipelago-guide.html": "guide 2.0.1\n", "CNAME": "zora.gg"},
+                        first, "refs/heads/gh-pages")
+
+
+def archive(clone: Path, version: str) -> subprocess.CompletedProcess[str]:
+    environment = {name: value for name, value in os.environ.items() if not name.startswith("GIT_")}
+    return subprocess.run(["sh", str(SCRIPT), "--archive", str(clone), version], capture_output=True, text=True,
+                          check=False, env=environment)
+
+
+def outside(clone: Path, ref: str, folder: str) -> list[str]:
+    return [line for line in git(clone, "ls-tree", "-r", ref).splitlines() if f"\t{folder}/" not in line]
+
+
+def test_archive_keeps_the_release_page_and_its_own_guide(repos: tuple[Path, Path]) -> None:
+    """VERSION/ holds the root's dated page, as published, and the guide published with it (not today's);
+    nothing else changes, and archiving again commits nothing."""
+    origin, clone = repos
+    latest = publish_two_releases(origin)
+    done = archive(clone, "2.0.0")
+    assert done.returncode == 0, done.stderr
+    assert git(clone, "rev-parse", "refs/heads/gh-pages^") == latest
+    assert branch_file(clone, "2.0.0/index.html") == "page 2.0.0"
+    assert git(clone, "rev-parse", "refs/heads/gh-pages:2.0.0/index.html") == git(origin, "rev-parse",
+                                                                                  f"{latest}:{OLD_PAGE}")
+    assert branch_file(clone, "2.0.0/archipelago-guide.html") == "guide 2.0.0"
+    assert outside(clone, "refs/heads/gh-pages", "2.0.0") == outside(origin, latest, "2.0.0")
+    assert git(clone, "log", "-1", "--format=%s", "refs/heads/gh-pages") == f"Archive 2.0.0: {OLD_PAGE}"
+    assert archive(clone, "2.0.0").stdout.strip().endswith("nothing to commit")
+
+
+@pytest.mark.parametrize(("version", "message"), [
+    ("1.9.9", "found: none"),
+    ("../x", "is not a version"),
+    ("test", "is not a version"),
+])
+def test_archive_refuses_a_version_it_cannot_keep(repos: tuple[Path, Path], version: str, message: str) -> None:
+    origin, clone = repos
+    publish_two_releases(origin)
+    done = archive(clone, version)
+    assert done.returncode != 0 and message in done.stderr
+    assert git(clone, "branch", "--list", "gh-pages") == ""                 # nothing committed
+
+
+def test_archive_refuses_two_pages_of_a_version(repos: tuple[Path, Path]) -> None:
+    origin, clone = repos
+    latest = publish_two_releases(origin)
+    tree = git(origin, "ls-tree", latest)
+    extra = git(origin, "hash-object", "-w", "--stdin", stdin="another 2.0.0\n")
+    second = git(origin, "mktree", stdin=tree + f"\n100644 blob {extra}\tzora-2.0.0-2026-11-09-abc1234.html\n")
+    git(origin, "update-ref", "refs/heads/gh-pages", git(origin, "commit-tree", second, "-p", latest, "-m", "two"))
+    done = archive(clone, "2.0.0")
+    assert done.returncode == 1 and "exactly one" in done.stderr
+
+
+def test_archive_never_changes_a_published_folder(repos: tuple[Path, Path]) -> None:
+    origin, clone = repos
+    latest = publish_two_releases(origin)
+    page = git(origin, "hash-object", "-w", "--stdin", stdin="something else\n")
+    folder = git(origin, "mktree", stdin=f"100644 blob {page}\tindex.html\n")
+    tree = git(origin, "mktree", stdin=git(origin, "ls-tree", latest) + f"\n040000 tree {folder}\t2.0.0\n")
+    git(origin, "update-ref", "refs/heads/gh-pages", git(origin, "commit-tree", tree, "-p", latest, "-m", "folder"))
+    done = archive(clone, "2.0.0")
+    assert done.returncode == 1 and "an archive never changes" in done.stderr
+
+
+def test_archive_is_refused_without_the_root_cname(repos: tuple[Path, Path]) -> None:
+    origin, clone = repos
+    commit_files(origin, {"index.html": "page 2.0.0\n", OLD_PAGE: "page 2.0.0\n", "archipelago-guide.html": "g\n"},
+                 None, "refs/heads/gh-pages")
+    done = archive(clone, "2.0.0")
+    assert done.returncode == 1 and "CNAME" in done.stderr
+
+
+def test_publish_site_passes_the_archive() -> None:
+    publish_site = (REPO / "scripts" / "publish_site.sh").read_text()
+    assert 'sh scripts/gh_pages_commit.sh --archive "$target" "$version"' in publish_site

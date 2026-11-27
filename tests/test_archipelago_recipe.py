@@ -3,7 +3,8 @@ docs/archipelago.md "Interface"), Archipelago Phase 4a tests 4 and 5:
   4. for seeds across tests/archipelago_cases.py, with shuffled assignments that FINISH accepts
      (some places holding another player's item, their own items received) and player settings,
      the ROM rebuilt from the recipe after a JSON round trip equals finish()'s byte for byte: in
-     this process, in a fresh one, and under Python 3.11 and 3.13;
+     this process, in a fresh one, and under Python 3.11 and 3.13; another player's items carry
+     each of the three classes (format 1.3), and a 1.2 recipe or an unknown class is refused;
   5. the pin: one changed byte in a copied zora/ changes the source hash, and that copy refuses
      the recipe naming both; the hash is the same from the repo, a copied folder and a zip."""
 import hashlib
@@ -23,7 +24,7 @@ from tests.archipelago_cases import FLAG_CASES
 from tests.shared_builds import prebuild
 from tests.test_assignment import identity, permuted
 from zora import archipelago
-from zora.generate.finish import AssignmentUnbeatable, Foreign
+from zora.generate.finish import AssignmentUnbeatable, Foreign, ItemClass
 from zora.model.item_names import ITEM_NAMES
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.version import ZORA_VERSION
@@ -33,6 +34,7 @@ SEEDS = (1, 2, 3)
 MANY_SEEDS = range(4, 16)
 SHUFFLE_TRIES = 20
 FOREIGN_SHARE = 0.25
+CLASSES = tuple(ItemClass)
 # The oldest and newest Python Archipelago supports (docs/releasing.md "Python versions"): pyenv's 3.11
 # and Homebrew's 3.13, which brew upgrade keeps on the newest 3.13 security release.
 PYTHONS = {"3.11": Path.home() / ".pyenv/versions/3.11.16/bin/python",
@@ -73,11 +75,11 @@ def accepted_assignment(result: archipelago.BuildResult, seed: int) -> tuple[dic
     for items in (*candidates, identity(result.state)):
         assignment = named(items)  # type: ignore[arg-type]
         received: list[str] = []
-        for place in rng.sample(sorted(assignment), int(len(assignment) * FOREIGN_SHARE)):
+        for index, place in enumerate(rng.sample(sorted(assignment), int(len(assignment) * FOREIGN_SHARE))):
             item = assignment[place]
             assert isinstance(item, str)
             received.append(item)
-            assignment[place] = archipelago.FOREIGN
+            assignment[place] = Foreign(CLASSES[index % len(CLASSES)])
         try:
             archipelago.finish(result, assignment, received)
         except AssignmentUnbeatable:
@@ -102,7 +104,11 @@ def test_the_recipe_rebuilds_the_rom(base: bytes, case: str, seed: int) -> None:
     assert data["producer"] == {"name": "ZORA", "version": ZORA_VERSION,
                                 "sourceHash": archipelago.source_hash()}
     assert data["seed"]["number"] == str(seed)
-    assert any(value == {"foreign": True} for value in data["assignment"].values())
+    assert data["formatVersion"] == "1.3"
+    foreign = [value for value in data["assignment"].values() if isinstance(value, dict)]
+    assert all(value.keys() == {"foreign", "class"} and value["foreign"] is True for value in foreign)
+    classes = {value["class"] for value in foreign}
+    assert classes == {item_class.value for item_class in ItemClass}
     assert archipelago.rom_from_recipe(data, base) == rom
 
 
@@ -133,6 +139,18 @@ def test_a_recipe_from_another_version_is_refused(base: bytes) -> None:
     data["producer"]["version"] = "0.0.0"
     with pytest.raises(archipelago.RecipeRefused, match=r"ZORA 0\.0\.0.*this is ZORA"):
         archipelago.rom_from_recipe(data, base)
+
+
+def test_a_1_2_recipe_and_an_unknown_class_are_refused(base: bytes) -> None:
+    data, _rom = round_tripped("baseline", 1)
+    older = {**data, "formatVersion": "1.2"}
+    with pytest.raises(archipelago.RecipeRefused, match=r"not a zora-ap-recipe 1\.3 recipe"):
+        archipelago.rom_from_recipe(older, base)
+    place = next(place for place, value in data["assignment"].items() if isinstance(value, dict))
+    for wrong in ({"foreign": True}, {"foreign": True, "class": "trap"}):
+        bad = {**data, "assignment": {**data["assignment"], place: wrong}}
+        with pytest.raises(archipelago.RecipeRefused):
+            archipelago.rom_from_recipe(bad, base)
 
 
 # --- test 5: the pin -------------------------------------------------------------------------------

@@ -24,6 +24,8 @@ COUNTER_ADDRESS_LOW = $8B
 COUNTER_TILES = 4
 TRANSFER_END = $FF
 
+GAME_MODE_STAIRS = $10              ; Link going down a cave's, level's or passage's stairs on the overworld
+
 TILE_CHEST = $52                    ; CommonBackgroundPatterns' blank tiles $52 and $53 (zora/rom/item_counter.py)
 TILE_SLASH = $53
 TILE_BLANK = $24
@@ -39,31 +41,32 @@ Total := $06
 ; World_ChangeRupees has checked that no static transfer is chosen and that the dynamic buffer is free.
 ; Returns C as the LSR leaves it.
 ;
+; Not in the stairs mode: Link stepping into a level's entrance (HandleWarpOW) sets CurLevel and the stairs mode
+; inside a play frame, whose status bar update then comes, and the stairs mode draws no status bar, so the level's
+; count would show for the whole walk down the overworld's stairs. That frame leaves the row as it is; the next
+; play frame, in the level, writes the level's count. Leaving a level sets CurLevel back to 0 only after its last
+; status bar update.
+;
 ItemCounterOnSkippedFrames:
     LDA FrameCounter
     LSR
     BCC @Return                     ; a frame that formats the status bar text
+    LDA GameMode
+    CMP #GAME_MODE_STAIRS
+    BEQ @Return                     ; equal leaves C set: the text is skipped, as on any such frame
     JSR WriteCounterRecord
     SEC
 
 @Return:
     RTS
 
-; The counter's record, alone in the dynamic buffer.
+; The counter's record, alone in the dynamic buffer: the blank record, then the counts.
 ;
 WriteCounterRecord:
-    LDA #COUNTER_ADDRESS_HIGH
-    STA DynTileBuf
-    LDA #COUNTER_ADDRESS_LOW
-    STA DynTileBuf+1
-    LDA #COUNTER_TILES
-    STA DynTileBuf+2
-    LDA #TRANSFER_END
-    STA DynTileBuf+3+COUNTER_TILES
-    LDX #COUNTER_TILES-1
-    LDA #TILE_BLANK
+    LDX #BLANK_RECORD_SIZE-1
 :
-    STA DynTileBuf+3, X
+    LDA BlankCounterRecord, X
+    STA DynTileBuf, X
     DEX
     BPL :-
 
@@ -81,6 +84,13 @@ WriteCounterRecord:
 
 @Exit:
     RTS
+
+; The record of a blank row: the PPU address, the tile count, the blank tiles, the end mark.
+BlankCounterRecord:
+    .BYTE COUNTER_ADDRESS_HIGH, COUNTER_ADDRESS_LOW, COUNTER_TILES
+    .BYTE TILE_BLANK, TILE_BLANK, TILE_BLANK, TILE_BLANK
+    .BYTE TRANSFER_END
+BLANK_RECORD_SIZE = * - BlankCounterRecord
 
 ; For the area Link is in (CurLevel): returns A (and Z) the total, and Found.
 ;

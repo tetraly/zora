@@ -1,24 +1,33 @@
-"""One full test suite at a time (tasks/test-speed-2.md).
+"""One full test suite at a time on this machine (tasks/test-speed-2.md).
 
-Several sessions share this checkout and each runs whole suites in parallel; run together they
-oversubscribe the machine and every one of them crawls (load averages of 100 on 10 cores). A
-full suite takes an exclusive lock on a file in temp/ and holds it until it ends; another waits
-for it and says so. The operating system releases the lock when its process ends, however it
-ends, so a crashed run never leaves it held.
+Several sessions run whole suites in parallel, in this checkout, in other checkouts beside it
+(a second checkout, the release worktree) and in the release tree a test stage builds; run together
+they oversubscribe the machine and every one of them crawls (load averages of 100 on 10 cores; a
+test stage timed out on 2026-11-24 beside another checkout's slow suite). A full suite takes an
+exclusive lock on one file for the whole machine, MACHINE_LOCK under ~/.cache, outside every
+checkout, and holds it until it ends; another waits for it and says so. The operating system
+releases the lock when its process ends, however it ends, so a crashed run never leaves it held.
 
 Who takes it: scripts/verify.sh for its whole run (through main() below), any pytest run with
 more than LIGHT_WORKERS xdist workers, such as `pytest -n auto`, any pytest run that selects a
-slow test (tests/conftest.py), and scripts/compare_revision.py; a run already inside a held
-lock (ZORA_SUITE_LOCK_HELD) does not take it again. A clean copy's runs take this checkout's
-lock (lock_path). A light run (owner rule, 2026-10-11: at most LIGHT_WORKERS workers while
-any run holds the lock) takes no lock and runs beside the suite.
+slow test (tests/conftest.py), scripts/compare_revision.py, and scripts/make_release.py for a
+whole stage; a run already inside a held lock (ZORA_SUITE_LOCK_HELD) does not take it again.
+Every checkout, clean copy and release tree takes the same file (lock_path): ZORA_TEST_SUITE_LOCK
+names another only for the environment of a test of this module. The old setting, ZORA_SUITE_LOCK, which
+older clean copies' and release worktrees' verify.env files still name, is ignored. A light run (owner rule,
+2026-10-11: at most LIGHT_WORKERS workers while any run holds the lock) takes no lock and runs
+beside the suite.
 
     python3 tests/suite_lock.py COMMAND [ARGS...]    run COMMAND holding the lock
 
 Waiters queue first come, first served (owner rule, 2026-10-13): each registers in a folder beside
 the lock and takes it only when it is the earliest live waiter. While waiting, a run says every
-minute who holds the lock (session, command, process, since when) and its own place in the queue,
-and tells the job it runs in (zora_measure/progress.py) what it is waiting for.
+minute who holds the lock (its checkout, command, session, process and start time) and its own
+place in the queue, and tells the job it runs in (zora_measure/progress.py) what it is waiting for.
+
+A run whose own ancestor process holds the lock never waits for it (HeldByAncestor): the ancestor waits for
+the run in turn, so it would never start. It stops at once, naming both. A nested run inherits
+ZORA_SUITE_LOCK_HELD; a test's own nested runs that drop it name a lock of their own (ZORA_TEST_SUITE_LOCK).
 """
 import fcntl
 import json
@@ -32,8 +41,9 @@ from pathlib import Path
 from typing import IO, Any, TypedDict
 
 REPO = Path(__file__).resolve().parent.parent
-LOCK_SETTING = "ZORA_SUITE_LOCK"
-LOCK_NAME = "test-suite.lock"
+CHECKOUT = REPO                     # the checkout, copy or release tree a holder or waiter runs in
+LOCK_SETTING = "ZORA_TEST_SUITE_LOCK"     # a test's own lock; never set in verify.env
+MACHINE_LOCK = Path.home() / ".cache" / "zora" / "test-suite.lock"   # one for the whole machine
 HELD_ENV = "ZORA_SUITE_LOCK_HELD"
 LIGHT_WORKERS = 2                   # the most workers a test run may use while the lock is held
 QUEUE_NAME = "test-suite-queue"     # beside the lock: one file per waiting run
@@ -42,27 +52,13 @@ INTERVAL_ENV = "ZORA_PROGRESS_SECONDS"     # as zora_measure/progress.py; tests 
 REPORT_SECONDS = 60.0
 
 
-def _local_setting(name: str) -> str | None:
-    """A VAR=value line of this checkout's verify.env, or None."""
-    path = REPO / "verify.env"
-    for line in path.read_text(encoding="utf-8").splitlines() if path.is_file() else ():
-        key, separator, value = line.strip().partition("=")
-        if separator and not key.startswith("#") and key.strip() == name:
-            return value.strip().strip("\"'")
-    return None
-
-
 def lock_path() -> Path:
-    """ZORA_SUITE_LOCK when set, in the environment or in this checkout's verify.env (scripts/clean_copy.py
-    sets it for a copy's runs, scripts/release_branch.py in a release worktree's file). Otherwise, in a
-    clean copy (temp/NAME-copy inside a checkout) the checkout's own lock, so a copy run without
-    its settings still waits for the checkout's suites, not a lock of its own nobody else takes;
-    otherwise this checkout's."""
-    if setting := os.environ.get(LOCK_SETTING) or _local_setting(LOCK_SETTING):
+    """The machine's lock, MACHINE_LOCK, for every checkout, copy and release tree alike; ZORA_TEST_SUITE_LOCK
+    in the environment only for a test's own lock (tests/test_suite_lock.py). The old ZORA_SUITE_LOCK, a
+    checkout's own lock, is ignored: it let two checkouts' suites run together (2026-11-24)."""
+    if setting := os.environ.get(LOCK_SETTING):
         return Path(setting)
-    if REPO.parent.name == "temp" and (REPO.parent.parent / "tests" / "suite_lock.py").is_file():
-        return REPO.parent / LOCK_NAME
-    return REPO / "temp" / LOCK_NAME
+    return MACHINE_LOCK
 
 
 LOCK_PATH = lock_path()
@@ -97,6 +93,50 @@ def _note_queued(place: int, of: int, holder_text: str) -> None:
 
 class JobEnded(SystemExit):
     """The job this waiting run belongs to has ended: it gives up its place, never to start later."""
+
+
+class HeldByAncestor(SystemExit):
+    """The lock is held by one of this run's own ancestor processes, which waits for this run to end: waiting
+    would never end (2026-11-24: a nested run without ZORA_SUITE_LOCK_HELD hung a fast suite 39 minutes)."""
+
+
+def holder_pid() -> int | None:
+    """The process holding the lock, from its holder line ("pid N, ..."), or None."""
+    text = holder()
+    if not text or not text.startswith("pid "):
+        return None
+    number = text[len("pid "):].partition(",")[0]
+    return int(number) if number.isdigit() else None
+
+
+def ancestors(pid: int | None = None) -> list[int]:
+    """PID's parent, its parent and so on (this process's when None), up to but not including process 1."""
+    found: list[int] = []
+    current = os.getppid() if pid is None else _parent(pid)
+    while current and current > 1 and current not in found:
+        found.append(current)
+        current = _parent(current)
+    return found
+
+
+def _parent(pid: int) -> int | None:
+    done = subprocess.run(["ps", "-o", "ppid=", "-p", str(pid)], capture_output=True, text=True, check=False)
+    text = done.stdout.strip()
+    return int(text) if text.isdigit() else None
+
+
+def _refuse_an_ancestors_lock(label: str) -> bool:
+    """Stop at once, naming both runs, when an ancestor of this process holds the lock. True once the holder is
+    known and is not one (no need to look again); False while its holder line is not written yet."""
+    if (pid := holder_pid()) is None:
+        return False
+    if pid in ancestors():
+        raise HeldByAncestor(
+            f"suite lock: this run (pid {os.getpid()}, in {CHECKOUT}: {one_line(label)}) would wait for the lock at "
+            f"{LOCK_PATH}, held by its own ancestor ({holder()}), which waits for it in turn: it would never start. "
+            f"A run started inside a held lock inherits {HELD_ENV}; a test's own runs name a lock of their own with "
+            f"{LOCK_SETTING}.")
+    return True
 
 
 def _job_ended() -> str | None:
@@ -136,6 +176,7 @@ class Waiter(TypedDict):
     pid: int
     label: str
     session: str
+    checkout: str           # the checkout (or copy, or release tree) it runs in
     since: float
 
 
@@ -183,7 +224,8 @@ def suite_lock(label: str, say: Callable[[str], None] = _say) -> Iterator[None]:
         _take(lock, label, say)
         lock.seek(0)
         lock.truncate()
-        lock.write(f"pid {os.getpid()}, {_session()}, {one_line(label)}, since {time.strftime('%H:%M:%S')}\n")
+        lock.write(f"pid {os.getpid()}, {_session()}, in {CHECKOUT}: {one_line(label)}, "
+                   f"since {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
         lock.flush()
         os.environ[HELD_ENV] = "1"
         try:
@@ -198,10 +240,11 @@ def _take(lock: IO[str], label: str, say: Callable[[str], None]) -> None:
     entry = queue_folder() / f"{os.getpid()}.json"
     queue_folder().mkdir(parents=True, exist_ok=True)
     entry.write_text(json.dumps({"pid": os.getpid(), "label": one_line(label), "session": _session(),
-                                 "since": time.time()}))
+                                 "checkout": str(CHECKOUT), "since": time.time()}))
     started = time.monotonic()
     next_report = started + float(os.environ.get(INTERVAL_ENV) or REPORT_SECONDS)
     waited = False
+    holder_checked = False                         # the holder seen, and not an ancestor of this run
     noted: tuple[int, int, str] | None = None      # the place last told to the job
     try:
         while True:
@@ -213,6 +256,8 @@ def _take(lock: IO[str], label: str, say: Callable[[str], None]) -> None:
                     break
                 except BlockingIOError:
                     pass
+            if not holder_checked:
+                holder_checked = _refuse_an_ancestors_lock(label)
             if ended := _job_ended():
                 say(f"not waiting any longer: {ended}")
                 raise JobEnded(1)
@@ -226,7 +271,8 @@ def _take(lock: IO[str], label: str, say: Callable[[str], None]) -> None:
                 _note_queued(*queue)
             if time.monotonic() >= next_report:
                 next_report += float(os.environ.get(INTERVAL_ENV) or REPORT_SECONDS)
-                ahead = "; ahead of it: " + "; ".join(f"{run['session']}, pid {run['pid']}, {run['label']}"
+                ahead = "; ahead of it: " + "; ".join(f"{run['session']}, pid {run['pid']}, "
+                                                      f"in {run.get('checkout', '?')}: {run['label']}"
                                                       for run in waiters[:place - 1]) if place > 1 else ""
                 say(f"still waiting after {time.monotonic() - started:.0f} s: held by {holder() or 'another run'}; "
                     f"this run is number {place} of {len(waiters)} waiting{ahead}")

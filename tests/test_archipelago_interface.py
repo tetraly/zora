@@ -32,7 +32,10 @@ def built(case: str, seed: int, base: bytes) -> archipelago.BuildResult:
 
 
 def by_name(result: archipelago.BuildResult) -> dict[str, str | archipelago.Foreign]:
-    return {place: ITEM_NAMES[item] if not isinstance(item, archipelago.Foreign) else item
+    """BUILD's placement by the seed's item names ("Level 3 Map" with Triforce Shuffle or Map & Compass Shuffle away
+    from Off, Archipelago's default)."""
+    names = {**ITEM_NAMES, **archipelago.seed_item_names(result.state.world)}
+    return {place: names[item] if not isinstance(item, archipelago.Foreign) else item
             for place, item in identity(result.state).items()}
 
 

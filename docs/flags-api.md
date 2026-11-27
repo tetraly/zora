@@ -111,7 +111,13 @@ matches when any one does.
 - **Start items:** a start-item field at On gives its item when the Max Start Items limit (C17) keeps every
   chosen item; a field at Random, or a limit that may drop items, leaves it unknown.
 - **Modifiers**, applied in their listed order: Swap Swords and Rings trades two pairs of items, Pegasus
-  Boots renames the boomerangs, Wood Sword Only and Swordless make the White Sword a bomb upgrade, and
+  Boots renames the boomerangs, Wood Sword Only and Swordless make the White Sword a bomb upgrade, Triforce
+  Shuffle and Map & Compass Shuffle at Anywhere make each level's piece (or map and compass) an item of its
+  own, which its `reach` says may leave its level (`anywhere`, by Item Shuffle's value) or not
+  (`own_level`), so a pinned place's level item is no longer known to be there, and at Between levels
+  (`<field>_between_levels`) keep one of each kind per level but shuffle which level's it is, Bomb
+  Upgrades in the Item Pool (Multiworld games only) makes the two selling bomb upgraders places (`locations`
+  gives their name pattern and count; which rooms is the seed's draw) and their Bomb Upgrades items, and
   Progressive Items makes each item of an upgrade line found in the world give the next one of that line.
   Each has its own `applies_when` and `unknown_when`, and acts only on what its `applies_to` names
   (`locations`, `start_items`).
@@ -185,8 +191,9 @@ What a tool should tolerate (`tolerate`):
 
 ## Presets: `presets.json`
 
-`https://zora.gg/presets.json` lists the presets a race bot can roll: every preset on the flag page that
-has a ZORA flag string, each with a shortcut. TTPBot, the RaceTime.gg bot, reads it every five minutes and
+`https://zora.gg/presets.json` lists the presets a race bot can roll: every preset on the flag page, each
+with a shortcut. The ones with a ZORA flag string come first; then, since revision 2, the ones that are a Z1R
+string alone, each with `zora` `""` (Random%, which the page's menu leaves out, stays out here too). TTPBot, the RaceTime.gg bot, reads it every five minutes and
 uses none of it if any of the checks below fails. The format is the Z1R Council registry's, with a `zora`
 key added:
 
@@ -201,10 +208,10 @@ key added:
 | `schemaVersion` | The integer `1`. |
 | `revision` | An integer from 1 to 2^53-1, raised by one whenever the presets change. The bot ignores a file whose revision it has already read. |
 | `updatedAt` | When the revision was raised (ISO 8601, UTC, to the second). |
-| `flagsets` | One per preset, in the page's menu order: `name` (at most 80 characters), `description` (always `null`), `shortcuts` (the preset's key) and `strings` (its one string, `isLatest` true). |
+| `flagsets` | One per preset, the presets with a ZORA string first, then the Z1R-only ones, each group in the page's menu order: `name` (at most 80 characters), `description` (always `null`), `shortcuts` (the preset's key) and `strings` (its one string, `isLatest` true). |
 
 Each string has `flags`, the Z1R string (`[A-Za-z0-9!]{1,200}`, always `!`, never `_`), and `zora`, the
-ZORA string (`[1-9][0-9]*\.[0-9A-Za-z!]{1,200}`). Two presets may share a Z1R string with different ZORA
+ZORA string (`[1-9][0-9]*\.[0-9A-Za-z!]{1,200}`), or `""` for a preset of a Z1R string alone. Two presets may share a Z1R string with different ZORA
 strings (Zora The Explorer weeks 4 and 5); no pair of strings is in two flagsets.
 
 The bot compares names and shortcuts lowercased with everything but `a-z` and `0-9` removed. Each must leave
@@ -245,7 +252,9 @@ settings in every later ZORA version.
 - The presets live in one ordered list, `PRESET_LIST` in `zora/flags/presets.py`: each entry's `key` (its
   shortcut), `name` (what the page's menu shows), `flags` and `zora` (empty for none). The page's menu
   (`form.presets`) and `presets.json` are both made from it; `hidden` keeps an entry off the menu (Random%).
-  Give every entry a key; the ones with a ZORA string are the ones `presets.json` lists.
+  Give every entry a key (lowercase letters, digits and hyphens). `presets.json` lists every entry the menu
+  shows: those with a ZORA string first, then those of a Z1R string alone (`scripts/flags_api.py`'s
+  `presets_flagsets`), so a new preset of either kind joins the end of its group.
 - `python3 scripts/flags_api.py` also writes `docs/flags-api/presets.json`. Its revision is the committed
   counter `docs/flags-api/presets-revision.json` (the revision, when it was raised, and a SHA-256 of the
   flagsets): a run whose presets differ from the counter's raises the revision by one. `--check` and

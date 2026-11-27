@@ -26,12 +26,23 @@ from tests.test_assignment import (
     permuted,
     reading,
 )
-from zora.generate.finish import FOREIGN, Foreign, rebuild_tracking, recompose_hint_text, with_tracking, written_item
+from zora.generate.finish import (
+    FOREIGN,
+    Foreign,
+    ItemClass,
+    rebuild_tracking,
+    recompose_hint_text,
+    with_tracking,
+    written_item,
+)
 from zora.generate.pipeline import Built, build, finish, finish_world, plan
-from zora.generate.places import read_item
+from zora.generate.places import Place, read_item
 from zora.generate.rng import Rng
 from zora.model.enums import Item
 from zora.model.game_world import GameWorld
+from zora.model.overworld import ShopItem
+from zora.model.rooms import TRIGGER_ITEM_HIGH_BIT
+from zora.rom.archipelago_logo import logo_writes
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.code_patches import SEED_CODE_ADDRESS, SEED_CODE_LENGTH, SEED_DIGITS_LENGTH, STATS_SEED_DIGITS
 from zora.rom.layout import (
@@ -39,6 +50,11 @@ from zora.rom.layout import (
     EXT_HINT_DATA_ROM_END,
     EXT_HINT_DATA_ROM_START,
     HINT_SHOP_QUOTES_ADDRESS,
+    LEVEL_1_6_DATA_ADDRESS,
+    LEVEL_1_6_DATA_ADDRESS_Q2,
+    LEVEL_7_9_DATA_ADDRESS,
+    LEVEL_7_9_DATA_ADDRESS_Q2,
+    LEVEL_TABLE_SIZE,
     OVERWORLD_PERSON_TEXT_SELECTORS_ADDRESS,
     QUOTE_DATA_ADDRESS,
     REFUSAL_TEXT_ADDRESS,
@@ -46,8 +62,9 @@ from zora.rom.layout import (
     UNDERWORLD_PERSON_TEXT_SELECTORS_B_ADDRESS,
     UNDERWORLD_PERSON_TEXT_SELECTORS_SIZE,
 )
-from zora.rom.parse.rom_file import parse_rom
+from zora.rom.level_items import bomb_upgrade_writes
 from zora.rom.owner_patches import archipelago_patch_writes
+from zora.rom.parse.rom_file import parse_rom
 
 REPO = Path(__file__).resolve().parent.parent
 SEEDS = (1, 2, 3)
@@ -76,8 +93,19 @@ def base() -> bytes:
     return remember_repo_base_rom()
 
 
+# A room item code's bit 5 lives in LevelBlockAttrsF (TRIGGER_ITEM_HIGH_BIT): an item of $20 or more, another
+# player's among them (archipelago-items piece 5), flips that one bit of its room's or cellar's byte
+ATTRS_F_TABLE = 5
+ITEM_HIGH_BIT_OFFSETS = {block + ATTRS_F_TABLE * LEVEL_TABLE_SIZE + room
+                         for block in (LEVEL_1_6_DATA_ADDRESS, LEVEL_7_9_DATA_ADDRESS, LEVEL_1_6_DATA_ADDRESS_Q2,
+                                       LEVEL_7_9_DATA_ADDRESS_Q2)
+                         for room in range(LEVEL_TABLE_SIZE)}
+
+
 def _changed(before: bytes, after: bytes) -> set[int]:
-    return {offset for offset, (old, new) in enumerate(zip(before, after, strict=True)) if old != new}
+    """The offsets that differ, apart from a flip of a room's item high bit alone (part of its item)."""
+    return {offset for offset, (old, new) in enumerate(zip(before, after, strict=True))
+            if old != new and not (offset in ITEM_HIGH_BIT_OFFSETS and old ^ new == TRIGGER_ITEM_HIGH_BIT)}
 
 
 # --- test 3, with the recompute on --------------------------------------------------------------
@@ -190,7 +218,8 @@ def test_recomposed_hint_text_with_builds_draws_is_builds(base: bytes, case: str
     for rom in (external, zora_mode):
         rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH] = bytes(SEED_CODE_LENGTH)
         rom[STATS_SEED_DIGITS:STATS_SEED_DIGITS + SEED_DIGITS_LENGTH] = bytes(SEED_DIGITS_LENGTH)
-    for offset, data in archipelago_patch_writes():
+    # and ap-items' bomb upgrade count, the seed's (piece 8)
+    for offset, data in (*archipelago_patch_writes(), *logo_writes(), *bomb_upgrade_writes(zora_mode, sellers=False)):
         zora_mode[offset:offset + len(data)] = data
     assert external == zora_mode
 
@@ -230,18 +259,47 @@ def test_the_prices_follow_the_items(base: bytes) -> None:
     assert wares[0].destination is not None and potion.destination is not None
     expected = {Item.LADDER: range(60, 81), Item.BOOK: range(200, 241), Item.HEART_CONTAINER: range(20, 41),
                 Item.LETTER: range(20, 41), Item.BLUE_POTION: range(25, 56)}
-    for item, prices in expected.items():
+    for item, item_prices in expected.items():
         assignment = _swap_into(built, wares[0].name, item)
         world, _ = finish_world_unchecked(built, assignment)
         shop = world.overworld.get_cave(wares[0].destination, Shop)
         assert shop is not None and wares[0].position is not None
+        prices = item_prices
+        if item == Item.BOOK and _outranked(built, world, shop.ware(wares[0].position)):
+            prices = range(40, 151)      # SI-PRICE-01's groups: a higher-ranked optional item is the headline
         assert shop.ware(wares[0].position).price in prices, item
-    # another player's item keeps the ware's price from before SI-PRICE-01
-    world, _ = finish_world_unchecked(built, {**identity(built), potion.name: FOREIGN})
-    shop = world.overworld.get_cave(potion.destination, Shop)
-    assert shop is not None and potion.position is not None
-    own = [ware.shop.destination for ware in extras.shop_wares].index(potion.destination)
-    assert shop.ware(potion.position).price == extras.slot_prices[own]
+    # another player's item is priced by its class (piece 1): progression 60-80, useful and filler
+    # 30-40, drawn after every other draw, so every other ware keeps the price it has with FOREIGN
+    plain, _ = finish_world_unchecked(built, {**identity(built), potion.name: FOREIGN})
+    expected_by_class = {ItemClass.PROGRESSION: range(60, 81), ItemClass.USEFUL: range(30, 41),
+                         ItemClass.FILLER: range(30, 41)}
+    for item_class, prices in expected_by_class.items():
+        world, _ = finish_world_unchecked(built, {**identity(built), potion.name: Foreign(item_class)})
+        shop = world.overworld.get_cave(potion.destination, Shop)
+        assert shop is not None and potion.position is not None
+        assert shop.ware(potion.position).price in prices, item_class
+        assert _other_ware_prices(world, potion) == _other_ware_prices(plain, potion)
+
+
+def _outranked(built: Built, world: GameWorld, ware: ShopItem) -> bool:
+    """Another optional item in the world's grouped wares ranks above the ware's (it is then the headline)."""
+    from zora.generate.pipeline import extra_options
+    from zora.generate.steps.shop_prices import grouped_wares, headline_rank
+    rules = extra_options(built.plan).price_rules
+    return any(other is not ware and other.item in rules.optional_items
+               and headline_rank(other.item) < headline_rank(ware.item)
+               for other in grouped_wares(world, built.result.extra_pool_items, rules))
+
+
+def _other_ware_prices(world: GameWorld, skipped: Place) -> list[int]:
+    """Every shop ware's price but the skipped place's, in cave order."""
+    from zora.model.overworld import Shop
+    assert skipped.destination is not None and skipped.position is not None
+    skipped_shop = world.overworld.get_cave(skipped.destination, Shop)
+    assert skipped_shop is not None
+    skipped_ware = skipped_shop.ware(skipped.position)
+    return [ware.price for cave in world.overworld.caves if isinstance(cave, Shop)
+            for ware in (*cave.items, *([cave.middle] if cave.middle else [])) if ware is not skipped_ware]
 
 
 def test_an_all_foreign_world_tracks_nothing(base: bytes) -> None:

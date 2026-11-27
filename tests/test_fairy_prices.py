@@ -1,14 +1,13 @@
 """A fairy costs 20-40 rupees wherever a shop sells one (owner decision, 2026-10-19; beta 6
 testing): the spare bait's fairy (Shop Items in the Item Pool with one hungry Goriya,
-bait_in_pool), the logo look's shield fairies (finish.shields_to_fairies) and any joined ware the
-price classes reprice holding a fairy (shop_prices.PriceRules.prices, SI-PRICE-01)."""
+bait_in_pool) and any joined ware the price classes reprice holding a fairy (shop_prices.PriceRules.prices,
+SI-PRICE-01). (Up to piece 5 of docs/design/archipelago-items.md the logo look also turned shields into fairies.)"""
 import copy
 
 import pytest
 
 from tests.test_bait_in_pool import SHAPES, _built
-from tests.test_foreign_item_look import rom, shields_and_fairies
-from zora.generate.finish import LOGO_SHOP_FAIRY_PRICES, ForeignLook
+from tests.test_foreign_item_look import rom
 from zora.generate.pipeline import finish
 from zora.generate.rng import Rng
 from zora.generate.steps.bait_in_pool import bait_in_pool, bait_wares
@@ -35,7 +34,7 @@ def fairy_prices(image: bytes) -> list[int]:
 
 def test_every_path_shares_one_range() -> None:
     assert FAIRY_PRICES == (LOW, HIGH)
-    assert DEFAULT_PRICE_RULES.prices[Item.FAIRY] == FAIRY_PRICES and LOGO_SHOP_FAIRY_PRICES == FAIRY_PRICES
+    assert DEFAULT_PRICE_RULES.prices[Item.FAIRY] == FAIRY_PRICES
 
 
 def test_the_spare_bait_fairy_draws_over_the_whole_range() -> None:
@@ -71,11 +70,7 @@ def test_every_sold_fairy_costs_20_to_40_in_a_finished_rom(seed: int) -> None:
     assert prices and all(LOW <= price <= HIGH for price in prices), prices
 
 
-@pytest.mark.parametrize("look", list(ForeignLook))
-def test_every_sold_fairy_costs_20_to_40_in_an_archipelago_rom(look: ForeignLook) -> None:
-    """Archipelago's FINISH with every owner flag on: the spare bait's fairy, and with the logo
-    the real shields' fairies too."""
-    image = rom(look)
-    prices = shields_and_fairies(image)[1]
-    assert prices == fairy_prices(image)
+def test_every_sold_fairy_costs_20_to_40_in_an_archipelago_rom() -> None:
+    """Archipelago's FINISH with every owner flag on: the spare bait's fairy."""
+    prices = fairy_prices(rom())
     assert prices and all(LOW <= price <= HIGH for price in prices), prices

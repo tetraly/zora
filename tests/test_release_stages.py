@@ -7,6 +7,8 @@ import importlib.util
 import json
 import sys
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from types import ModuleType
 
@@ -97,14 +99,25 @@ def test_a_stage_or_dry_run_is_required(make_release: ModuleType, monkeypatch: p
     (["--stage", "promote"], (False, False, "promote", False))])
 def test_each_way_in_reaches_the_release(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch,
                                          argv: list[str], call: tuple[bool, bool, str | None, bool]) -> None:
+    """Each holding the machine's suite lock for the whole run (tests/suite_lock.py): here a stand-in that records it."""
     calls: list[tuple[bool, bool, str | None, bool]] = []
+    held: list[str] = []
+
+    @contextmanager
+    def suite_lock(label: str) -> Iterator[None]:
+        held.append(label)
+        yield
+        held.append("released")
 
     def release(dry_run: bool, whole_suite: bool = True, stage: str | None = None, without_stamp: bool = False) -> int:
+        assert held and held[-1] != "released", "the release ran outside the suite lock"
         calls.append((dry_run, whole_suite, stage, without_stamp))
         return 0
     monkeypatch.setattr(make_release, "release", release)
+    monkeypatch.setattr(make_release, "suite_lock", suite_lock)
     monkeypatch.setattr(sys, "argv", ["make_release.py", *argv])
     assert make_release.main() == 0 and calls == [call]
+    assert held == ["make_release.py " + ("--dry-run" if call[0] else f"--stage {call[2]}"), "released"]
     assert 'python3 scripts/make_release.py --dry-run || failed' in (SCRIPTS / "verify_full.sh").read_text()
 
 
@@ -113,7 +126,7 @@ def _stage_run(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch,
     """The commands release_tree_tests runs for STAGE (none really runs); the release tree holds three test files."""
     commands: list[list[str]] = []
 
-    def run_in(tree: Path, command: list[str], timeout: int = 0, output_lines: int | None = 12) -> tuple[bool, str]:
+    def run_in(tree: Path, command: list[str], stall_seconds: float = 0, output_lines: int | None = 12) -> tuple[bool, str]:
         commands.append(command)
         return True, "tests/test_a.py::test_one\ntests/test_b.py::test_two\ntests/test_c.py::test_three\n"
     monkeypatch.setattr(make_release, "run_in", run_in)

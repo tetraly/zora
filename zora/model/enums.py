@@ -230,36 +230,39 @@ class Item(IntEnum):
     ITEM_0x21       = 0x21  # unused in vanilla dungeon rooms; placeholder
     SINGLE_HEART    = 0x22
     FAIRY           = 0x23
-    # $24-$3E: not defined by vanilla cave/item bytes; randomized ROMs use
-    # extended item codes (identity unknown - likely progressive-item space).
-    # Placeholders keep parsing lossless.
-    ITEM_0x24 = 0x24
-    ITEM_0x25 = 0x25
-    ITEM_0x26 = 0x26
-    ITEM_0x27 = 0x27
-    ITEM_0x28 = 0x28
-    ITEM_0x29 = 0x29
-    ITEM_0x2A = 0x2A
-    ITEM_0x2B = 0x2B
-    ITEM_0x2C = 0x2C
-    ITEM_0x2D = 0x2D
-    ITEM_0x2E = 0x2E
-    ITEM_0x2F = 0x2F
-    ITEM_0x30 = 0x30
-    ITEM_0x31 = 0x31
-    ITEM_0x32 = 0x32
-    ITEM_0x33 = 0x33
-    ITEM_0x34 = 0x34
-    ITEM_0x35 = 0x35
-    ITEM_0x36 = 0x36
-    ITEM_0x37 = 0x37
-    ITEM_0x38 = 0x38
-    ITEM_0x39 = 0x39
-    ITEM_0x3A = 0x3A
-    ITEM_0x3B = 0x3B
-    ITEM_0x3C = 0x3C
-    ITEM_0x3D = 0x3D
-    ITEM_0x3E = 0x3E
+    # $24-$33: a level's own compass and map (data levels 1-8, CurLevel; docs/design/archipelago-items.md
+    # section 4), drawn as the Compass and the Map with the level's digit by asm/flags2/ap-items. Level
+    # 9's are COMPASS and MAP, and level 8's Triforce piece is TRIFORCE, in per-level mode.
+    COMPASS_1 = 0x24
+    COMPASS_2 = 0x25
+    COMPASS_3 = 0x26
+    COMPASS_4 = 0x27
+    COMPASS_5 = 0x28
+    COMPASS_6 = 0x29
+    COMPASS_7 = 0x2A
+    COMPASS_8 = 0x2B
+    MAP_1 = 0x2C
+    MAP_2 = 0x2D
+    MAP_3 = 0x2E
+    MAP_4 = 0x2F
+    MAP_5 = 0x30
+    MAP_6 = 0x31
+    MAP_7 = 0x32
+    MAP_8 = 0x33
+    # Another player's item in an Archipelago game's ROM, by its class: the Archipelago logo in the red,
+    # blue or Link's palette row (asm/flags2/ap-items; docs/design/archipelago-items.md piece 5)
+    ARCHIPELAGO_PROGRESSION = 0x34
+    ARCHIPELAGO_USEFUL = 0x35
+    ARCHIPELAGO_FILLER = 0x36
+    BOMB_UPGRADE = 0x37             # piece 8: MaxBombs and the bombs rise by the upgraders' count
+    # $38-$3E: the Triforce pieces of data levels 1-7 (level 8's is TRIFORCE)
+    TRIFORCE_1 = 0x38
+    TRIFORCE_2 = 0x39
+    TRIFORCE_3 = 0x3A
+    TRIFORCE_4 = 0x3B
+    TRIFORCE_5 = 0x3C
+    TRIFORCE_6 = 0x3D
+    TRIFORCE_7 = 0x3E
     OVERWORLD_NO_ITEM = 0x3F
     # Virtual items — not ROM values, used only by the validator
     BEAST_DEFEATED_VIRTUAL_ITEM        = 0x40

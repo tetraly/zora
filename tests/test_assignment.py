@@ -14,12 +14,13 @@ import pytest
 
 import zora.generate.places as places_module
 from tests.archipelago_cases import FLAG_CASES
-from zora.generate.finish import FOREIGN, FOREIGN_ITEM, AssignmentRefused, Foreign, one_time_places, written_item
+from zora.generate.finish import FOREIGN, AssignmentRefused, Foreign, one_time_places, written_item
 from zora.generate.pipeline import Built, build, finish, finish_world, plan
 from zora.generate.places import Place, PlaceKind, is_never_a_place, read_item
 from zora.generate.steps import move_last_boss_room_items
 from zora.model.enums import Destination, Item, RoomAction, RoomType
 from zora.model.overworld import ItemCave
+from zora.rom.archipelago_logo import logo_writes
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.code_patches import (
     ONE_TIME_WARES,
@@ -29,7 +30,6 @@ from zora.rom.code_patches import (
     STATS_SEED_DIGITS,
 )
 from zora.rom.game_config import DungeonNothingCode, GameConfig
-from zora.rom.owner_patches import archipelago_patch_writes
 from zora.rom.layout import (
     ARMOS_ITEM_ADDRESS,
     ASM_NOTHING_CODE_PATCH_OFFSET,
@@ -41,6 +41,8 @@ from zora.rom.layout import (
     LEVEL_7_9_DATA_ADDRESS_Q2,
     LEVEL_TABLE_SIZE,
 )
+from zora.rom.level_items import bomb_upgrade_writes
+from zora.rom.owner_patches import archipelago_patch_offsets, archipelago_patch_writes
 from zora.rom.parse.rom_file import parse_rom
 
 SEEDS = (1, 2, 3, 4)
@@ -69,7 +71,12 @@ def _built(case: str, seed: int) -> Built:
 
 
 def identity(built: Built) -> dict[str, Item | Foreign]:
-    return {place.name: read_item(built.world, place) for place in built.places}
+    """BUILD's placement as an assignment, each place's item named as the pool names it (places.own_item): with
+    Add Triforces or Add Maps/Compasses to the Item Pool on, a level's piece, map or compass by its own level's code,
+    as real builds name them. Read back as the generic code, every level's piece would be level 8's, and FINISH's
+    walk could never collect levels 1-7's (E1)."""
+    from zora.generate.solo_assignment import identity as own_identity
+    return dict(own_identity(built))
 
 
 def permuted(built: Built, seed: int) -> dict[str, Item | Foreign]:
@@ -102,7 +109,8 @@ def item_byte_offsets() -> set[int]:
 
 ALLOWED_WITHOUT_RECOMPUTE = (item_byte_offsets() | set(range(SEED_CODE_ADDRESS, SEED_CODE_ADDRESS + SEED_CODE_LENGTH))
                              | set(range(ONE_TIME_WARES, ONE_TIME_WARES + ONE_TIME_WARES_SIZE))
-                             | {offset + i for offset, data in archipelago_patch_writes() for i in range(len(data))}
+                             | archipelago_patch_offsets()
+                             | {offset + i for offset, data in logo_writes() for i in range(len(data))}
                              | {ASM_NOTHING_CODE_PATCH_OFFSET}
                              # External mode stamps no seed number: the statistics screen's digits
                              # stay the player's ROM's (test 2)
@@ -119,7 +127,9 @@ def test_the_identity_assignment_gives_the_zora_mode_rom(base: bytes, case: str,
     expected = bytearray(zora_mode)
     for shop_number, position in one_time_places(built.places):
         expected[ONE_TIME_WARES + position] |= 1 << shop_number
-    for offset, data in archipelago_patch_writes():             # the ring check (asm/flags2/ring-color)
+    # asm/flags2's Archipelago patches (ring-color, ap-items), the Archipelago logo's tiles and ap-items' bomb
+    # upgrade count, the seed's (piece 8)
+    for offset, data in (*archipelago_patch_writes(), *logo_writes(), *bomb_upgrade_writes(zora_mode, sellers=False)):
         expected[offset:offset + len(data)] = data
     external = bytearray(finish_unchecked(built, base, identity(built), recompute=False))
     # The seed code covers the configuration, External mode's one-time places included, so it
@@ -153,18 +163,18 @@ def test_a_permuted_assignment_lands_where_it_should(base: bytes, case: str, see
     assert finish(built, base) == original
 
 
-def test_foreign_items_show_as_rupees(base: bytes) -> None:
+def test_foreign_items_show_as_the_filler_logo(base: bytes) -> None:
     built = _built("baseline", 1)
     assignment = {place.name: FOREIGN for place in built.places}
     _, finished = finish_world_unchecked(built, assignment, recompute=False)
     parsed = parse_rom(finish_unchecked(built, base, assignment, recompute=False), reading(finished.config))
-    assert {read_item(parsed, place) for place in built.places} == {FOREIGN_ITEM}
+    assert {read_item(parsed, place) for place in built.places} == {written_item(FOREIGN)}
 
 
 # --- test 9: exclusions and restrictions (R2) --------------------------------------------------
 
 def test_the_exclusion_is_vareg20s_own_rule() -> None:
-    assert getattr(places_module, "is_last_boss_room") is move_last_boss_room_items.is_last_boss_room
+    assert getattr(places_module, "is_last_boss_room") is move_last_boss_room_items.is_last_boss_room  # noqa: B009
 
 
 @pytest.mark.parametrize("seed", SEEDS)
@@ -198,7 +208,7 @@ def test_assignments_breaking_a_rule_are_refused(base: bytes) -> None:
     assert _refused(built, base, {room.name: Item.TRIFORCE_OF_POWER})
     assert _refused(built, base, {cellar.name: Item.TRIFORCE_OF_POWER})
     assert _refused(built, base, {room.name: Item.MAGICAL_SHIELD}) == [
-        f"{room.name}: MAGICAL_SHIELD is not in this seed's major pool"]
+        f"{room.name}: MAGICAL_SHIELD is not in this seed's item pool"]
     assert _refused(built, base, {"Level 1 Room 7F Stairway": Item.BOW, "Nowhere": Item.BOW})
     # the letter and heart containers anywhere else, and FOREIGN anywhere, are fine
     finish_unchecked(built, base, {ware.name: Item.LETTER, room.name: Item.HEART_CONTAINER, potion.name: FOREIGN})

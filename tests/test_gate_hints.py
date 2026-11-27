@@ -240,7 +240,7 @@ def test_the_finished_rom_shows_the_gravestone_text(base: bytes, case: str, seed
 
 def test_the_gravestone_text_fits_for_every_item() -> None:
     """Every item, upgrade line and another player's item, with its own article, in the box."""
-    namings = (hint_text.VANILLA_NAMES, hint_text.PROGRESSIVE_NAMES, hint_text.ItemNames(foreign_code=Item.BAIT))
+    namings = (hint_text.VANILLA_NAMES, hint_text.PROGRESSIVE_NAMES, hint_text.ItemNames(foreign_codes=frozenset({Item.BAIT})))
     for names in namings:
         for code in range(len(hint_text.ITEM_NAMES)):
             lines = hint_text.requirement_text(Requirement(Form.BRACELET, code, gravestone=True), names)

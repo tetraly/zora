@@ -31,11 +31,15 @@ REPO = Path(__file__).resolve().parent.parent
 PRG1_ROM = BASE_ROM_PATH.with_name("Legend of Zelda, The (USA) (Rev 1).nes")
 NEEDED = [REPO / "scripts" / "verify.sh", REPO / "scripts" / "verify_static.sh", REPO / "scripts" / "affected_tests.py"]
 TIME_LIMIT_SECONDS = 180
+# The held lock outlasts every test's verify runs (two at most, each within the time limit); the
+# fixture releases it when the test ends
+HELD_LOCK_SECONDS = 3 * TIME_LIMIT_SECONDS
 MATRIX_JOBS = "4"           # the quick check's matrix, shortened to fit the time limit
 NESTED_SETTING = "ZORA_VERIFY_ORDER_NESTED"
 # This run's own settings (its job, lock, copy and encoder record), which the throwaway checkout
 # must not inherit
-UNINHERITED = ("ZORA_JOB_ID", "ZORA_JOBS_FOLDER", "ZORA_SUITE_LOCK", "ZORA_SUITE_LOCK_HELD", "ZORA_VERIFY_STATIC_DONE",
+UNINHERITED = ("ZORA_JOB_ID", "ZORA_JOBS_FOLDER", "ZORA_TEST_SUITE_LOCK", "ZORA_SUITE_LOCK", "ZORA_SUITE_LOCK_HELD",
+               "ZORA_VERIFY_STATIC_DONE",
                "ZORA_VERIFY_TIER", "ZORA_SOURCE_REPO", "ZORA_CODE_DIR", "ZORA_COPY_REVISION", "ZORA_COPY_ADDED",
                "ZORA_ENCODER_RECORD", "ZORA_HIDE_LEVEL_ENCODING", "PYTEST_XDIST_WORKER", "PYTEST_ADDOPTS")
 PLANTED_TYPE_ERROR = 'PLANTED: int = "not a number"\n'
@@ -53,7 +57,7 @@ pytestmark = [
 def _environment(lock: Path) -> dict[str, str]:
     environment = {name: value for name, value in os.environ.items()
                    if not name.startswith("GIT_") and name not in UNINHERITED}
-    environment["ZORA_SUITE_LOCK"] = str(lock)
+    environment["ZORA_TEST_SUITE_LOCK"] = str(lock)
     environment[NESTED_SETTING] = "1"
     environment["ZORA_VERIFY_MATRIX_JOBS"] = MATRIX_JOBS
     return environment
@@ -88,9 +92,12 @@ def checkout(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture
 def held_lock(tmp_path: Path) -> Iterator[Path]:
-    """The throwaway checkout's suite lock, taken by another process for the whole test."""
+    """The throwaway checkout's suite lock, taken by another process for the whole test. It is held
+    past the test's own time limit: under a busy machine (a full suite at -n auto) verify's static
+    checks alone outlast the lock tests' 60 seconds, and a holder that let go then left verify
+    seeing a free lock (2026-11-25)."""
     lock, done = tmp_path / "suite.lock", tmp_path / "holder.done"
-    holder = _hold(lock, done)
+    holder = _hold(lock, done, limit_seconds=HELD_LOCK_SECONDS)
     yield lock
     done.with_suffix(".release").touch()
     holder.wait(timeout=30)

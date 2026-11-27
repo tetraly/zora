@@ -173,6 +173,19 @@ ITEM_COUNTER_FIELD = "item_counter"
 ITEM_COUNTER_FIELDS = (
     ITEM_COUNTER_FIELD,                    # the HUD counts the area's major-item places taken out of its total
 )
+# Version 23: Triforce Shuffle and Map & Compass Shuffle (docs/design/archipelago-items.md pieces 6 and 7; owner,
+# 2026-11-25: they replace 2.0.2's test release's two pool switches, Add Triforces and Add Maps/Compasses to the Item
+# Pool, in the same two digits), each Off / Between levels / Anywhere (LevelItemShuffle), Off by default, in
+# single-player and in Multiworld games. Either one away from Off puts the ROM in per-level mode
+# (zora/model/level_items.py).
+TRIFORCE_SHUFFLE_FIELD = "triforce_shuffle"
+MAP_COMPASS_SHUFFLE_FIELD = "map_compass_shuffle"
+LEVEL_ITEM_SHUFFLE_FIELDS = (TRIFORCE_SHUFFLE_FIELD, MAP_COMPASS_SHUFFLE_FIELD)
+# Also version 23 (never released): Bomb Upgrades in the Item Pool (docs/design/archipelago-items.md piece 8), a
+# switch, Off by default, for Multiworld games only (MULTIWORLD_ONLY_FIELDS: the page shows it in Multiworld mode,
+# and a single-player ROM refuses it). The two bomb upgraders' rooms are places whose item each sells.
+BOMB_UPGRADES_FIELD = "bomb_upgrades_in_pool"
+MULTIWORLD_ONLY_FIELDS = frozenset({BOMB_UPGRADES_FIELD})
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
                       *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
@@ -220,6 +233,17 @@ class Pacing(IntEnum):
     LATER = 3
 
 
+class LevelItemShuffle(IntEnum):
+    """Triforce Shuffle and Map & Compass Shuffle (version 23; docs/design/archipelago-items.md pieces 6 and 7).
+    Off: each level's item stays in its level. Between levels: BUILD places them as Off does, then each kind's level
+    numbers are shuffled among that kind's own spots (zora/generate/level_swaps.py). Anywhere: the items join the
+    pool. Anywhere is 1, the digit of 2.0.2's test release's On, so its strings keep their meaning; that release's
+    "?" (2) was never offered in Multiworld and now reads as Between levels."""
+    OFF = 0
+    ANYWHERE = 1
+    BETWEEN_LEVELS = 2
+
+
 class Swordlish(IntEnum):
     """Swordlish (features-behavior.md FP-SWL-01 and FP-SWL-04; from BogieSmalls): Off, On (the
     wooden sword costs N triforce pieces), or Random, one of five wooden-sword states per seed."""
@@ -240,7 +264,9 @@ SWORDLISH_HIGHEST_FIELD = "swordlish_highest"
 ENUM_FIELDS: dict[str, type[IntEnum]] = {"oops_all_enemies": OopsAllEnemies, "oops_all_bosses": OopsAllBosses,
                                          "harder_bosses": HarderLevel, "harder_ganon": HarderLevel,
                                          "offense_pacing": Pacing, "defense_pacing": Pacing,
-                                         "swordlish": Swordlish}
+                                         "swordlish": Swordlish,
+                                         TRIFORCE_SHUFFLE_FIELD: LevelItemShuffle,
+                                         MAP_COMPASS_SHUFFLE_FIELD: LevelItemShuffle}
 
 # Every field ever defined, in payload order (least significant first).
 # Append only: a field's position and radix never change once released.
@@ -322,6 +348,10 @@ FIELDS: tuple[ZoraField, ...] = (
     # Version 22: Item Counter (ITEM_COUNTER_FIELDS), Off by default, so every older string keeps its meaning and
     # its spelling.
     *(ZoraField(name, THREE_STATE_SLOTS, version=22) for name in ITEM_COUNTER_FIELDS),
+    # Version 23: Triforce Shuffle and Map & Compass Shuffle (LEVEL_ITEM_SHUFFLE_FIELDS, LevelItemShuffle), Off by
+    # default, so every older string keeps its meaning and its spelling.
+    *(ZoraField(name, len(LevelItemShuffle), version=23) for name in LEVEL_ITEM_SHUFFLE_FIELDS),
+    ZoraField(BOMB_UPGRADES_FIELD, 2, version=23),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -407,6 +437,17 @@ class ZoraFlags:
     wizzrobes_shoot_wallmasters: ThreeState = ThreeState.OFF
     # Version 22: Item Counter, On / Off / ? (ITEM_COUNTER_FIELDS).
     item_counter: ThreeState = ThreeState.OFF
+    # Version 23: Triforce Shuffle and Map & Compass Shuffle (LEVEL_ITEM_SHUFFLE_FIELDS).
+    triforce_shuffle: LevelItemShuffle = LevelItemShuffle.OFF
+    map_compass_shuffle: LevelItemShuffle = LevelItemShuffle.OFF
+    # Also version 23: Bomb Upgrades in the Item Pool (Multiworld only), a switch.
+    bomb_upgrades_in_pool: bool = False
+
+    @property
+    def per_level_items(self) -> bool:
+        """The ROM's per-level mode: each level's piece, map and compass has its own code (either shuffle away
+        from Off)."""
+        return any(getattr(self, name) is not LevelItemShuffle.OFF for name in LEVEL_ITEM_SHUFFLE_FIELDS)
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -923,6 +964,19 @@ def wizzrobe_hand_conflicts(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, 
     if flags.wizzrobes_shoot_wallmasters is ThreeState.OFF or flags.oops_all_enemies is not OopsAllEnemies.WIZZROBES:
         return []
     return [(WIZZROBE_HAND_CONFLICT, (WIZZROBE_HAND_FIELD, "oops_all_enemies"))]
+
+
+# Triforce Shuffle or Map & Compass Shuffle at Anywhere in a single-player game (owner, 2026-11-25): no item tracker
+# follows a level's piece, map or compass outside its level yet. Not in Multiworld mode, whose client tracks them.
+LEVEL_ITEMS_ANYWHERE_WARNING = ("Warning: This is an advanced setting that may make tracking items tricky. No tracker "
+                                "currently supports this setting! If you enable this setting, enabling "
+                                '"Item Counter" in addition is strongly recommended.')
+
+
+def single_player_warnings(flags: ZoraFlags) -> list[tuple[str, tuple[str, ...]]]:
+    """Settings the page warns about in single-player mode only, with the fields each names."""
+    return [(LEVEL_ITEMS_ANYWHERE_WARNING, (name,)) for name in LEVEL_ITEM_SHUFFLE_FIELDS
+            if getattr(flags, name) is LevelItemShuffle.ANYWHERE]
 
 
 def warnings(flags: ZoraFlags, z1r: Settings) -> list[tuple[str, tuple[str, ...]]]:

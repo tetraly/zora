@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any
 from ..flags.zora_flags import Pacing
 from ..model.enums import Destination, Item
 from ..model.level_9_gate import GateKind, Level9Gate
+from ..model.level_items import LevelItemKind, level_item
 from ..model.levels import LEVEL_9
 from ..model.overworld import ItemCave
 from .acceptance_check import (
@@ -354,7 +355,10 @@ def logic_model(built: Built) -> LogicModel:
         return held_derive(partial(check.collects, tracked_place(place, Item.WOOD_SWORD)), universes.cave, place.name,
                       named=named)
 
-    for level in TRIFORCE_LEVELS:
+    # With Triforce Shuffle: Anywhere (docs/design/archipelago-items.md piece 6) each piece is an item that
+    # Archipelago places, and its room an ordinary place: no events, and level 9 asks for the items.
+    pieces_are_items = extras.add_triforces_to_pool
+    for level in () if pieces_are_items else TRIFORCE_LEVELS:
         events[triforce_event(level)] = conjoin(
             entry[level], held_derive(partial(check.completes, level), universes.inside, triforce_event(level),
                                  named=named))
@@ -384,7 +388,7 @@ def logic_model(built: Built) -> LogicModel:
     if rules.level_9_by_swords:
         events[LEVEL9_ENTRY_EVENT] = rule_of(CountTerm(SWORD, SWORDS_FOR_LEVEL_9))
     else:
-        events[LEVEL9_ENTRY_EVENT] = level_9_entry_rule(rules.level_9_gate)
+        events[LEVEL9_ENTRY_EVENT] = level_9_entry_rule(rules.level_9_gate, pieces_are_items, rules.triforce_codes)
     if rules.level_9_gate.kind is GateKind.ITEM:
         events[LEVEL9_ITEM_EVENT] = held_derive(check.holds_gate_item, gate_item_universe(rules, universes),
                                                 LEVEL9_ITEM_EVENT, named=named)
@@ -421,14 +425,23 @@ def logic_model(built: Built) -> LogicModel:
                       take_any_events=take_any_events)
 
 
-def level_9_entry_rule(gate: Level9Gate) -> Rule:
+def level_9_entry_rule(gate: Level9Gate, pieces_are_items: bool = False,
+                       triforce_codes: tuple[int, ...] = tuple(TRIFORCE_LEVELS)) -> Rule:
     """VA-REJ-07's level-9 entry (FP-TRIF-01 to FP-TRIF-06): any `pieces` of the eight Triforce
-    events, every chosen level's, or nothing (open, or an item, which level 9's entry door needs)."""
+    events, every chosen level's, or nothing (open, or an item, which level 9's entry door needs).
+    With `pieces_are_items` (Triforce Shuffle: Anywhere) each level's piece is the item itself. With Triforce
+    Shuffle: Between levels a chosen level's piece is the event of the level it lies in (`triforce_codes`, the
+    level whose piece each data level holds: LogicRules.triforce_codes)."""
+    def piece(level: int) -> Term:
+        if pieces_are_items:
+            return ItemTerm(level_item(LevelItemKind.TRIFORCE, level))
+        return EventTerm(triforce_event(triforce_codes.index(level) + 1))
+
     if gate.kind is GateKind.LEVELS:
-        return rule_of(*(EventTerm(triforce_event(level)) for level in sorted(gate.levels)))
+        return rule_of(*(piece(level) for level in sorted(gate.levels)))
     if gate.kind is not GateKind.PIECES:
         return TRUE
-    return disjoin(*(rule_of(*(EventTerm(triforce_event(level)) for level in chosen))
+    return disjoin(*(rule_of(*(piece(level) for level in chosen))
                      for chosen in combinations(TRIFORCE_LEVELS, gate.pieces)))
 
 

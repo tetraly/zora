@@ -107,6 +107,10 @@ Note that when you generate a seed with a spoiler log, **Download tracker file**
 level of detail as the log designed for ZoraTracker. ZTracker opens it too, but it shows a version warning (click "Attempt Load"), and the page tells you what ZTracker won't show for that
 seed.
 
+## Why is a shop missing an item?
+
+When the "Progressive Items" option is enabled, shops hide upgrades that you can't use because you already have the highest level of that item. For example, a candle upgrade when you already have the red candle. The shop spot shows nothing as a feature to prevent players from inadvertently wasting rupees on a useless upgrade. Outside shops, an unnecessary item upgrade still appears as the highest level item, which is needed so that you can mark the check as completed and not need to worry you're missing another item.
+
 ## How do I report a bug?
 
 1. After generating, click **Copy bug report info**. It copies the version, the seed, both flag strings,
@@ -125,6 +129,10 @@ game, share one item pool, and items you find may be sent to other players' game
 1. On ZORA's page, choose **Multiworld (Archipelago)** under "How will you play?".
 2. Choose your settings and export your YAML. The page only offers what Archipelago supports.
 3. Install `zora.apworld` for your ZORA version (the page links it) and give your YAML to the organizer.
+
+In Archipelago, Triforce Shuffle and Map & Compass Shuffle start at Anywhere: each level's Triforce piece, map
+and compass is an item of its own ("Level 3 Map") that may turn up in any player's game. Between levels keeps them
+in your own game, one of each per level, with which level's each one is shuffled; Off keeps each in its own level.
 
 Playing needs Windows or Linux, since the BizHawk emulator doesn't run on a Mac. Beta settings aren't
 offered in Archipelago yet. The [Archipelago guide](archipelago-guide.md) covers installing, generating,

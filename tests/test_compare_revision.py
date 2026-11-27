@@ -33,8 +33,13 @@ DIFFERENT_COPY = "temp/different-copy"          # made from "different", while t
 SMALL = ["--seeds", "1", "--matrix-jobs", "1", "--workers", "1"]
 # This run's settings the source checkout must set for itself: its own source and code, and its
 # own suite lock (the outer suite's lock is held while these tests run).
-UNINHERITED = ("ZORA_SOURCE_REPO", "ZORA_CODE_DIR", "ZORA_SUITE_LOCK", "ZORA_SUITE_LOCK_HELD", "ZORA_COPY_REVISION",
-               "ZORA_COPY_ADDED")
+UNINHERITED = ("ZORA_SOURCE_REPO", "ZORA_CODE_DIR", "ZORA_TEST_SUITE_LOCK", "ZORA_SUITE_LOCK", "ZORA_SUITE_LOCK_HELD",
+               "ZORA_COPY_REVISION", "ZORA_COPY_ADDED")
+# The copies' compare runs take a lock of their own, in the source checkout's temp/: without
+# ZORA_SUITE_LOCK_HELD they would otherwise wait for the machine's lock, which the suite running these
+# tests holds, and never get it (2026-11-24: a fast suite hung 39 minutes at 0%; tests/suite_lock.py now
+# refuses such a wait at once).
+_LOCK: list[Path] = []                          # the source checkout's lock, once the fixture has made it
 
 # A release leaves the clean-copy script out (release/allowlist.txt): these tests then skip
 NEEDED = [REPO / "scripts" / "clean_copy.py", REPO / "scripts" / "compare_revision.py"]
@@ -42,9 +47,11 @@ pytestmark = pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the ba
 
 
 def _environment() -> dict[str, str]:
-    """Without this run's own copy settings or git steering: the source repository decides."""
-    return {name: value for name, value in os.environ.items()
-            if not name.startswith("GIT_") and name not in UNINHERITED}
+    """Without this run's own copy settings or git steering: the source repository decides, and its
+    runs take the source checkout's own lock (_LOCK)."""
+    environment = {name: value for name, value in os.environ.items()
+                   if not name.startswith("GIT_") and name not in UNINHERITED}
+    return environment | ({"ZORA_TEST_SUITE_LOCK": str(_LOCK[0])} if _LOCK else {})
 
 
 def _git(repo: Path, *args: str) -> None:
@@ -58,6 +65,7 @@ def source(tmp_path_factory: pytest.TempPathFactory) -> Path:
     if not all(path.exists() for path in NEEDED):
         pytest.skip("scripts/clean_copy.py or scripts/compare_revision.py is not here")
     repo = tmp_path_factory.mktemp("source")
+    _LOCK[:] = [repo / "temp" / "test-suite.lock"]
     # The working tree's files, new ones included: the code under test, committed or not
     files = subprocess.run(["git", "-C", str(REPO), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
                            capture_output=True, check=True, env=_environment()).stdout.decode().split("\0")

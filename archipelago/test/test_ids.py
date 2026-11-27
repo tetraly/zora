@@ -5,8 +5,15 @@ import unittest
 
 from ..names import ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID
 
-NOT_ARCHIPELAGO_ITEMS = ("Rupee", "5 Rupees", "Heart", "Fairy", "Map", "Compass", "Triforce", "Triforce of Power",
-                         "Clock")
+NOT_ARCHIPELAGO_ITEMS = ("Rupee", "Heart", "Fairy", "Map", "Compass", "Triforce", "Triforce of Power", "Clock")
+# Every item code's ID as world 2.0.1 numbered them; 5 Rupees, an item since Shuffle Minor Dungeon Drops'
+# rooms are places (docs/design/archipelago-items.md piece 3), takes the gap its position left
+WORLD_2_0_1_ITEMS = {"Bombs": 1, "Wood Sword": 2, "White Sword": 3, "Magical Sword": 4, "Bait": 5, "Recorder": 6,
+                     "Blue Candle": 7, "Red Candle": 8, "Wooden Arrow": 9, "Silver Arrow": 10, "Bow": 11,
+                     "Magical Key": 12, "Raft": 13, "Ladder": 14, "Wand": 17, "Book": 18, "Blue Ring": 19,
+                     "Red Ring": 20, "Power Bracelet": 21, "Letter": 22, "Key": 26, "Heart Container": 27,
+                     "Shield": 29, "Boomerang": 30, "Magical Boomerang": 31, "Blue Potion": 32, "Red Potion": 33}
+FIVE_RUPEES_ID = 16
 # As world 0.2.3 and 0.3.0 numbered them; the renamed items as world 0.5.0 numbered them
 PINNED_ITEMS = {"Raft": 13, "Heart Container": 27, "Blue Potion": 32,
                 "Sword Upgrade": 101, "Candle Upgrade": 102, "Arrow Upgrade": 103, "Ring Upgrade": 104,
@@ -24,6 +31,10 @@ class TestIds(unittest.TestCase):
     def test_ids_unchanged(self) -> None:
         self.assertEqual({name: ITEM_NAME_TO_ID[name] for name in PINNED_ITEMS}, PINNED_ITEMS)
         self.assertEqual({name: LOCATION_NAME_TO_ID[name] for name in PINNED_LOCATIONS}, PINNED_LOCATIONS)
+
+    def test_no_item_id_moves(self) -> None:
+        self.assertEqual({name: ITEM_NAME_TO_ID[name] for name in WORLD_2_0_1_ITEMS}, WORLD_2_0_1_ITEMS)
+        self.assertEqual(ITEM_NAME_TO_ID["5 Rupees"], FIVE_RUPEES_ID)
 
     def test_ids_are_unique(self) -> None:
         self.assertEqual(len(set(ITEM_NAME_TO_ID.values())), len(ITEM_NAME_TO_ID))

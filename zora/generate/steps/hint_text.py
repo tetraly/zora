@@ -15,6 +15,7 @@ from typing import TypeVar
 
 from ...model.enums import Destination, Enemy, Item, RoomAction, RoomType
 from ...model.game_world import GameWorld
+from ...model.level_items import GENERIC_LEVEL, LEVEL_ITEMS, level_of
 from ...model.levels import LEVEL_9, Level
 from ...model.overworld import HintShop, ItemCave, Quote, Screen
 from ...model.rooms import DARK_BIT, Room
@@ -298,10 +299,18 @@ ITEM_NAMES: tuple[str, ...] = (
     "RED POTION", "CLOCK", "HEART", "FAIRY",
 )
 assert len(ITEM_NAMES) == 36
+# Codes past the game's own a hint may name: a Bomb Upgrade (Bomb Upgrades in the Item Pool, docs/design/
+# archipelago-items.md piece 8), which an Archipelago assignment may put in a cave a hint names
+EXTENDED_ITEM_NAMES: dict[int, str] = {Item.BOMB_UPGRADE: "BOMB UPGRADE"}
 
 
 def item_name(code: int) -> str:
-    return ITEM_NAMES[code]
+    """The hint's name for an item code; a level's own piece, map or compass (docs/design/archipelago-items.md
+    piece 6) by its kind, as the generic code's."""
+    found = level_of(Item(code)) if code >= len(ITEM_NAMES) else None
+    if found is not None:
+        return ITEM_NAMES[GENERIC_LEVEL[found[0]][0]]
+    return EXTENDED_ITEM_NAMES.get(code) or ITEM_NAMES[code]
 
 
 # PI-TEXT-01 (docs/design/progressive-items-plan.md section 7): with Progressive Items on, hint
@@ -339,10 +348,10 @@ def wrapped(line: str) -> list[str]:
 class ItemNames:
     """How hint text names an item: by its own name (HT-HINT-01), or with Progressive Items on
     an upgrade-line item by its line (PI-TEXT-01). The vanilla names give today's texts.
-    foreign_code (Archipelago's FINISH only; None in ZORA): the code another player's item is
-    written as; a place holding it is named FOREIGN_NAME, as noun and phrase alike."""
+    foreign_codes (Archipelago's FINISH only; empty in ZORA): the codes another player's item is
+    written as, one per class; a place holding one is named FOREIGN_NAME, as noun and phrase alike."""
     progressive_items: bool = False
-    foreign_code: int | None = None
+    foreign_codes: frozenset[int] = frozenset()
     # Swords (C07) at Wood Sword Only or Swordless (FP-WOOD-02): item $02 is a bomb upgrade
     bomb_upgrade: bool = False
     # Pegasus Boots: the boomerangs' items are the boots (BOOTS_NAMES)
@@ -352,7 +361,7 @@ class ItemNames:
     foreign_labels: tuple[tuple[int | str, str, str], ...] = ()
 
     def is_foreign(self, code: int) -> bool:
-        return self.foreign_code is not None and code == self.foreign_code
+        return code in self.foreign_codes
 
     def foreign_label(self, code: int, level: int) -> tuple[str, str] | None:
         """The owner and item of the one other-player item in `level`, when the sentence fits."""
@@ -408,10 +417,10 @@ class ItemNames:
     def fit(self, line: str, first: str, second: str) -> list[str]:
         """A text on one line, else on two (_fit). The progressive wording is wrapped at the
         line width instead, in at most three lines; so is a two-line split that would not fit,
-        which only another player's item (foreign_code) makes."""
+        which only another player's item (foreign_codes) makes."""
         if self.progressive_items:
             return wrapped(line)
-        if self.foreign_code is not None and max(len(first), len(second)) > LINE_WIDTH:
+        if self.foreign_codes and max(len(first), len(second)) > LINE_WIDTH:
             return wrapped(line)
         return _fit(line, first, second)
 
@@ -648,7 +657,13 @@ REQUIREMENT_TEXT_COUNT = 10
 REQUIREMENT_SLOTS = (24, 29, 38, 39, 40, 41, 42, 43, 26, 30)
 # Tracked items the hints never name (owner design, 2026-10-17; docs/zora-extras.md section 13):
 # Shuffle Major Shop Items' baits
-UNHINTED_ITEMS = frozenset({Item.BAIT})
+# A level's Triforce piece, map and compass, the generic codes (level 8's piece, level 9's map and compass) among
+# them: no hint is ever about one (owner ruling, 2026-11-23). They are items only with Add Triforces or Add
+# Maps/Compasses to the Item Pool on (docs/design/archipelago-items.md piece 6); a hint about where one lies is no help.
+LEVEL_ITEM_CODES = frozenset(LEVEL_ITEMS)
+UNHINTED_ITEMS = frozenset({Item.BAIT}) | LEVEL_ITEM_CODES
+# The White Sword Cave's holder text when the cave holds a level item: the wording it has without the cave
+UNNAMED_ITEM_PHRASE, UNNAMED_ITEM_LABEL = "THE ITEM", "ITEM"
 
 
 def _hidden_flag(screen: Screen) -> bool:
@@ -970,7 +985,8 @@ def requirement_candidates(gw: GameWorld, level_items: list[tuple[int, int]],
         white_sword_form = next((means_form for screens, means_form in white_sword_means(recorder, gates)
                                  if white_sword_screen in screens), None)
         if white_sword_form is not None:
-            candidates.append(Requirement(white_sword_form, cave.item & ITEM_CODE_MASK, white_sword_cave=True))
+            if cave.item & ITEM_CODE_MASK not in LEVEL_ITEM_CODES:     # never a hint about a level item
+                candidates.append(Requirement(white_sword_form, cave.item & ITEM_CODE_MASK, white_sword_cave=True))
             recorded.add(white_sword_form)
     # 4. fallbacks; a means is also recorded when any door needs it (door_needs)
     doors = {_door_screen(gw, level) for level in range(1, 10)}
@@ -983,7 +999,8 @@ def requirement_candidates(gw: GameWorld, level_items: list[tuple[int, int]],
         candidates.append(Requirement(Form.NO_BRACELET))
     if Form.RAFT not in recorded:
         candidates.append(Requirement(Form.NO_RAFT))
-    candidates.append(Requirement(Form.LADDER, coast_item(gw)))
+    if coast_item(gw) not in LEVEL_ITEM_CODES:                          # never a hint about a level item
+        candidates.append(Requirement(Form.LADDER, coast_item(gw)))
     # 5. boss forms: levels 1-8 only, each with the label of the player level the item is in
     candidates.extend(Requirement(Form.BOSS, item, _level(gw.levels, level).rom_level_num)
                       for item, level in named if level != 9)
@@ -1009,7 +1026,8 @@ def deceiving_requirement_candidates(gw: GameWorld, item_shuffle_result: ItemShu
         white_sword_form = next((means_form for screens, means_form in white_sword_means(recorder, gates)
                                  if white_sword_screen in screens), None)
         if white_sword_form is not None:
-            candidates.append(Requirement(white_sword_form, cave.item & ITEM_CODE_MASK, white_sword_cave=True))
+            if cave.item & ITEM_CODE_MASK not in LEVEL_ITEM_CODES:     # never a hint about a level item
+                candidates.append(Requirement(white_sword_form, cave.item & ITEM_CODE_MASK, white_sword_cave=True))
             recorded.add(white_sword_form)
     doors = {_door_screen(gw, level) for level in range(1, 10)}
     gated = gated_screens(gates)
@@ -1260,7 +1278,8 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
                        maze_offers: dict[int, MazeOffer] | None = None,
                        gates: OverworldGates = NO_GATES,
                        every_helpful_hint: bool = False, book_needed: bool = False,
-                       deceive: bool = False, mirrored: bool = False) -> HintTextResult:
+                       deceive: bool = False, mirrored: bool = False,
+                       maps_compasses_pooled: bool = False) -> HintTextResult:
     """HT-TEXT and HT-HINT. every_helpful_hint: Helpful hints (C03 = 1, HT-HINT-04), where every
     slot with a helpful text shows it, with no overlay coin. deceive: Deception (C03 = 3, HT-HINT-06),
     helpful hints whose facts each a coin may replace (Deception, its own stream drawn first), and
@@ -1268,6 +1287,8 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     slot 0's candidates are the lines in which the speaker cannot be understood.
     names: how the texts name items (PI-TEXT-01; the vanilla names give HT-HINT-01's).
     gates: the owner's overworld gates, for the requirement candidates.
+    maps_compasses_pooled: Add Maps/Compasses to the Item Pool is on; level 9's compass text is never shown.
+    No text names a level's piece, map or compass (LEVEL_ITEM_CODES).
 
     The random draws, in order: the hint-shop prices, the level-9 trio's
     dropped text, the requirement texts, the pool routing, and per slot the
@@ -1287,10 +1308,14 @@ def generate_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hi
     level_slots: list[int | None] = [None] * SLOT_COUNT
     write_level_location_texts(gw, slot_texts, sentences, level_slots, deception, mirrored)
     write_person_name_texts(gw, slot_texts, names, deception,
-                            pool_items=[record.item for record in item_shuffle_result.tracked], mirrored=mirrored)
+                            pool_items=[record.item for record in item_shuffle_result.tracked
+                                        if record.item & ITEM_CODE_MASK not in LEVEL_ITEM_CODES], mirrored=mirrored)
 
     trio = level9_trio_texts(gw, item_shuffle_result, names, deception)
-    trio.pop(1 + rng.below(3))
+    dropped = 1 + rng.below(3)
+    # With Add Maps/Compasses to the Item Pool on, level 9's compass is an item: its guardian's text (the trio's
+    # last) is the one left out, the draw made as ever
+    trio.pop(LEVEL9_COMPASS_TEXT if maps_compasses_pooled else dropped)
     for slot, text in zip(LEVEL9_TRIO_SLOTS, trio, strict=True):
         slot_texts[slot] = text
 
@@ -1638,10 +1663,13 @@ def write_person_name_texts(gw: GameWorld, slot_texts: list[list[str] | None],
                 code = deception.pick(pool_items or [white_sword_cave.item]) & ITEM_CODE_MASK
             if deception.heads():
                 white_sword_region = deception.region()
-        slot_texts[HOLDER_SLOT] = holder_hearts_lines(holder_text, names.phrase(code), names.label(code),
+        # never a hint about a level's piece, map or compass: the cave's item goes unnamed
+        phrase, label = ((UNNAMED_ITEM_PHRASE, UNNAMED_ITEM_LABEL) if code in LEVEL_ITEM_CODES
+                         else (names.phrase(code), names.label(code)))
+        slot_texts[HOLDER_SLOT] = holder_hearts_lines(holder_text, phrase, label,
                                                       white_sword_region, white_sword_cave.heart_requirement)
     else:
-        slot_texts[HOLDER_SLOT] = holder_lines(holder_text, "THE ITEM", region_phrase(white_sword_region))
+        slot_texts[HOLDER_SLOT] = holder_lines(holder_text, UNNAMED_ITEM_PHRASE, region_phrase(white_sword_region))
 
 
 # Owner request (beta 7): the hints that lead to the two sword caves say how many heart containers
@@ -1743,6 +1771,9 @@ def level9_trio_texts(gw: GameWorld, item_shuffle_result: ItemShuffleResult,
     else:
         compass_text = ["THE COMPASS HAS", "NO GUARDIAN"]
     return [silver_text, ganon_text, zelda_text, compass_text]
+
+
+LEVEL9_COMPASS_TEXT = 3              # level9_trio_texts's index of the compass's guardian
 
 
 # level9_trio_texts's level9_item_room: the room holding an item, or the stair room of its cellar

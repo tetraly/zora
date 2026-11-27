@@ -54,6 +54,7 @@ from zora.archipelago import (
     receivable,
 )
 from zora.model.item_names import ITEM_NAMES
+from zora.model.level_items import ALL_LEVEL_ITEM_NAMES
 from zora.rom import inventory
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.player_settings import PlayerSettingError
@@ -64,7 +65,7 @@ COUNT = archipelago.RECEIVED_COUNT
 HEARTS = inventory.ITEMS + inventory.HEART_VALUES_SLOT
 LADDER = inventory.ITEMS + 0x0C
 RAFT = inventory.ITEMS + 0x09
-MAX_WRITES, MAX_GUARDS = 3, 12      # the item, the arrival sound and the count
+MAX_WRITES, MAX_GUARDS = 3, 13      # the item, the arrival sound and the count; CurPpuControl among the guards
 POLL_FRAMES = 30                      # the world polls every 0.125 s
 NO_BUTTONS = Button(0)
 
@@ -75,8 +76,10 @@ PLACE_A, PLACE_B = "Place A", "Place B"
 FLAG_A, FLAG_B = inventory.WORLD_FLAGS + 0x81, inventory.WORLD_FLAGS + 0x82     # two level rooms' flags
 TABLES = ClientTables({PLACE_A: RamCheck(FLAG_A, inventory.ITEM_TAKEN),
                        PLACE_B: RamCheck(FLAG_B, inventory.ITEM_TAKEN)}, inventory.GiveRules())
+FRAME_DONE, FRAME_RUNNING = 0xB0, 0x30     # CurPpuControl between frames in play, and while an update runs
 IN_PLAY = {inventory.GAME_MODE: inventory.PLAY_MODE, inventory.IS_UPDATING_MODE: 1, inventory.CUR_SAVE_SLOT: 0,
-           inventory.TRANSFERRED_COMMON_PATTERNS: inventory.SET_UP, inventory.SKIPPED_DEMO: inventory.SET_UP}
+           inventory.TRANSFERRED_COMMON_PATTERNS: inventory.SET_UP, inventory.SKIPPED_DEMO: inventory.SET_UP,
+           inventory.CUR_PPU_CONTROL: FRAME_DONE}
 STARTING_HEARTS = 0x22                # three containers, three hearts
 SOUND = inventory.TUNE1_REQUEST
 
@@ -121,7 +124,8 @@ def test_the_read_plan() -> None:
     assert all(length <= archipelago.MAX_READ_LENGTH for _start, length in READ_RANGES)
     assert len(STATE_ADDRESSES) <= archipelago.MAX_READ_LENGTH
     assert set(STATE_ADDRESSES) == {*archipelago.CHECKS_STATE, *archipelago.RECEIVE_STATE, *archipelago.GOAL_STATE,
-                                    inventory.TUNE1_REQUEST}
+                                    inventory.TUNE1_REQUEST, archipelago.CUR_LEVEL, *archipelago.DEATH_STATE,
+                                    inventory.CUR_PPU_CONTROL}
     covered = set(ClientTables({}, inventory.GiveRules()).addresses())
     assert set(range(inventory.ITEMS, inventory.WORLD_FLAGS + 3 * inventory.WORLD_FLAGS_SIZE)) <= covered
     assert all(check.address in covered for check in archipelago.client_tables_of(result()).checks.values())
@@ -184,7 +188,8 @@ def test_a_give_plays_the_arrival_sound(choice: str, sound: int) -> None:
         archipelago.client_tables_to_json(result(), {"item_arrival_sound": choice.replace("-", "_")}))
     assert tables.arrival_sound == sound
     ram = loaded()
-    decision = client_step(ram, state_of(ram), ServerView((ReceivedItem("Ladder"),)), replace(TABLES, arrival_sound=sound))
+    sounding = replace(TABLES, arrival_sound=sound)
+    decision = client_step(ram, state_of(ram), ServerView((ReceivedItem("Ladder"),)), sounding)
     assert decision.gives == "Ladder"
     guards = dict(decision.guards)
     if sound:
@@ -253,7 +258,8 @@ def test_one_item_per_poll_with_its_guards() -> None:
     assert decision.writes == ((HEARTS, STARTING_HEARTS + 0x11), (SOUND, inventory.ITEM_APPEARS_SOUND),
                                (COUNT, 1))                                     # the count last
     guards = dict(decision.guards)
-    assert set(guards) == {*archipelago.RECEIVE_STATE, COUNT, HEARTS, SOUND} and guards[COUNT] == 0
+    assert set(guards) == {*archipelago.RECEIVE_STATE, COUNT, HEARTS, SOUND, inventory.CUR_PPU_CONTROL}
+    assert guards[COUNT] == 0 and guards[inventory.CUR_PPU_CONTROL] == FRAME_DONE
     assert guards[SOUND] == 0
     assert len(decision.writes) <= MAX_WRITES and len(decision.guards) <= MAX_GUARDS
     assert decision.memory.awaiting_count == 1
@@ -262,6 +268,24 @@ def test_one_item_per_poll_with_its_guards() -> None:
     assert second.gives == "Ladder" and second.writes == ((LADDER, 1), (COUNT, 2))
     assert guarded_write(ram, second)
     assert step(ram, server, second.memory).writes == ()                        # nothing more to give
+
+
+def test_no_write_while_the_frame_update_runs() -> None:
+    """CurPpuControl's NMI bit clear: the game's update was still running (a frame that lags), so a write
+    would land in its middle. Nothing is written, the place is still reported, and the item comes on the
+    next poll that sees the frame finished. A write decided on a finished frame is refused by its guard if
+    the next frame lags before it lands (2.0.2)."""
+    server = ServerView((ReceivedItem("Heart Container"),))
+    lagging = loaded({inventory.CUR_PPU_CONTROL: FRAME_RUNNING, FLAG_A: inventory.ITEM_TAKEN})
+    waiting = step(lagging, server)
+    assert waiting.writes == () and waiting.gives is None and waiting.report == (PLACE_A,)
+    assert waiting.memory.awaiting_count is None
+    finished = loaded({FLAG_A: inventory.ITEM_TAKEN})
+    decision = step(finished, server, waiting.memory)
+    assert decision.gives == "Heart Container"
+    finished[inventory.CUR_PPU_CONTROL] = FRAME_RUNNING                        # the next frame lags before the write
+    assert not guarded_write(finished, decision)
+    assert finished[HEARTS] == STARTING_HEARTS and finished[COUNT] == 0
 
 
 def test_an_item_found_in_this_file_is_counted_not_given() -> None:
@@ -278,13 +302,16 @@ def test_an_item_found_in_this_file_is_counted_not_given() -> None:
 
 def test_receivable() -> None:
     """Owner rulings: rupees, regular hearts, fairies, maps, compasses, regular Triforce pieces and
-    the clock are never Archipelago items, nor the Triforce of Power (the goal). receive() gives
-    every other item name and refuses those."""
-    assert NOT_RECEIVABLE == {"Rupee", "5 Rupees", "Heart", "Fairy", "Map", "Compass", "Triforce",
-                              "Triforce of Power", "Clock"}
-    assert len(archipelago.RECEIVABLE_ITEMS) == len(ITEM_NAMES) - len(NOT_RECEIVABLE) == 27
+    the clock are never Archipelago items, nor the Triforce of Power (the goal); 5 Rupees is one since
+    Shuffle Minor Dungeon Drops made its rooms places; another player's item, by its class, is only ever
+    another world's (archipelago-items piece 5). receive() gives every other item name and refuses those; and
+    each level's own piece, map and compass ("Level 3 Map", piece 6) is one, as is the Bomb Upgrade (piece 8)."""
+    assert NOT_RECEIVABLE == {"Rupee", "Heart", "Fairy", "Map", "Compass", "Triforce", "Triforce of Power", "Clock",
+                              *archipelago.FOREIGN_ITEM_NAMES}
+    assert len(archipelago.RECEIVABLE_ITEMS) == len(ITEM_NAMES) - len(NOT_RECEIVABLE) + len(ALL_LEVEL_ITEM_NAMES)
+    assert len(archipelago.RECEIVABLE_ITEMS) == 29 + 26
     assert not receivable("Fishing Rod")                                         # no item of the seed format
-    ram = loaded()
+    ram = loaded() | {inventory.RUPEES_TO_ADD: 0}
     for name in ITEM_NAMES.values():
         if receivable(name):
             archipelago.receive(name, ram)
@@ -311,7 +338,7 @@ def test_an_item_it_cannot_give_is_counted_not_raised() -> None:
     assert [(d.cannot_give, d.gives) for d in decisions] == [
         ("Rupee", None), ("Clock", None), ("Fishing Rod", None), (None, "Raft")]
     assert decisions[0].writes == ((COUNT, 1),)
-    assert set(dict(decisions[0].guards)) == {*archipelago.RECEIVE_STATE, COUNT}
+    assert set(dict(decisions[0].guards)) == {*archipelago.RECEIVE_STATE, COUNT, inventory.CUR_PPU_CONTROL}
     assert (ram[RAFT], ram[COUNT]) == (1, 4)
 
 

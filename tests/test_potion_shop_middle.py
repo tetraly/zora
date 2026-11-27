@@ -19,7 +19,7 @@ from zora import archipelago
 from zora.flags import zora_flags
 from zora.flags.fields import ThreeState
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
-from zora.generate.finish import FOREIGN_ITEM, Foreign
+from zora.generate.finish import FOREIGN, Foreign, written_item
 from zora.generate.pipeline import Built, generate_rom
 from zora.generate.places import PlaceKind
 from zora.generate.steps.potion_shop import potion_shop
@@ -38,7 +38,7 @@ SEED = 1
 SHUFFLE_BLUE_POTION = zora_flags.encode(replace(zora_flags.DEFAULT, shuffle_blue_potion=ThreeState.ON))
 POTION_SHOP_BIT = 1 << SHOPS_BY_NUMBER.index(Destination.POTION_SHOP)
 INV_RAFT = ITEMS + 0x09
-ANY_ITEM = sorted({*ITEM_NAMES, FOREIGN_ITEM})
+ANY_ITEM = sorted({*ITEM_NAMES, written_item(FOREIGN)})
 
 
 def one_time_bits(rom: bytes) -> list[bool]:

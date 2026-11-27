@@ -1,4 +1,4 @@
-# version: 1
+# version: 2
 item,short,tiny
 Wood Sword,SWORD,
 White Sword,W SWORD,
@@ -51,3 +51,6 @@ Recorder,,
 Rupee,,
 Shield,,
 Wand,,
+Archipelago Item (Filler),AP ITEM,
+Archipelago Item (Progression),AP ITEM,
+Archipelago Item (Useful),AP ITEM,

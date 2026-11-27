@@ -66,7 +66,7 @@ def _commands(make_release: ModuleType, monkeypatch: pytest.MonkeyPatch, whole_s
     """The commands release_tree_tests runs (none really runs): collection lists two tests."""
     commands: list[list[str]] = []
 
-    def run_in(tree: Path, command: list[str], timeout: int = 0, output_lines: int | None = 12) -> tuple[bool, str]:
+    def run_in(tree: Path, command: list[str], stall_seconds: float = 0, output_lines: int | None = 12) -> tuple[bool, str]:
         commands.append(command)
         return True, "tests/test_a.py::test_one\ntests/test_b.py::test_two\n"
     monkeypatch.setattr(make_release, "run_in", run_in)

@@ -3,7 +3,7 @@ its own walk. A rule is a set of clauses, any one of which is enough; a clause i
 all of which must hold.
 
 Items are counted under both of their names (names.ItemNaming): the ZORA name, which a start
-inventory may give, and the name this seed uses in Archipelago (Sword Upgrade, Bomb Upgrade, ...).
+inventory may give, and the name this seed uses in Archipelago (Sword Upgrade, Boots Upgrade, ...).
 With Progressive Items on, an item term naming a line item at grade g holds once the line counts g
 (the game gives a line's next level for any of its codes); ZORA's model already counts lines
 there, so this is a safety net.
@@ -15,16 +15,16 @@ from BaseClasses import CollectionState
 from .names import HEART_CONTAINER, ItemNaming
 from .zora.generate.logic import CountTerm, EventTerm, HeartsTerm, ItemTerm, Line, LogicModel, Rule, Term
 from .zora.model.enums import Item
-from .zora.model.item_names import ITEM_NAMES
 
 StateRule = Callable[[CollectionState], bool]
+DEFAULT_NAMING = ItemNaming()       # the seed format's names (frozen, so one shared default)
 
 TAKE_ANY_FREE = 2      # the take-any allowance counts max(0, k - 2) caves (check_magical_sword_hearts)
 
 
 def names_of(items: frozenset[Item], naming: ItemNaming) -> set[str]:
     """Every name the items are held under: their ZORA names and this seed's Archipelago names."""
-    zora = {ITEM_NAMES[item] for item in items}
+    zora = {naming.zora_name(item) for item in items}
     return zora | {naming.archipelago_name(name) for name in zora}
 
 
@@ -36,7 +36,7 @@ def line_count(line: Line, state: CollectionState, player: int, naming: ItemNami
 
 
 def item_holds(item: Item, state: CollectionState, player: int, model: LogicModel, naming: ItemNaming) -> bool:
-    name = ITEM_NAMES[item]
+    name = naming.zora_name(item)
     graded = naming.line_of(name)
     if graded is None:
         return any(state.has(held, player) for held in names_of(frozenset({item}), naming))
@@ -49,7 +49,7 @@ def item_holds(item: Item, state: CollectionState, player: int, model: LogicMode
 
 
 def term_holds(term: Term, state: CollectionState, player: int, model: LogicModel,
-               naming: ItemNaming = ItemNaming()) -> bool:
+               naming: ItemNaming = DEFAULT_NAMING) -> bool:
     if isinstance(term, ItemTerm):
         return item_holds(term.item, state, player, model, naming)
     if isinstance(term, EventTerm):
@@ -65,7 +65,7 @@ def term_holds(term: Term, state: CollectionState, player: int, model: LogicMode
     raise TypeError(f"unknown logic term {term!r}")
 
 
-def state_rule(rule: Rule, player: int, model: LogicModel, naming: ItemNaming = ItemNaming()) -> StateRule:
+def state_rule(rule: Rule, player: int, model: LogicModel, naming: ItemNaming = DEFAULT_NAMING) -> StateRule:
     clauses = [tuple(clause) for clause in rule]
     if any(not clause for clause in clauses):
         return lambda state: True

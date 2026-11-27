@@ -16,6 +16,11 @@ ITEM_NAMES: dict[Item, str] = {
     Item.MAGICAL_SHIELD: "Shield", Item.WOOD_BOOMERANG: "Boomerang", Item.MAGICAL_BOOMERANG: "Magical Boomerang",
     Item.BLUE_POTION: "Blue Potion", Item.RED_POTION: "Red Potion", Item.ITEM_0x21: "Clock",
     Item.SINGLE_HEART: "Heart", Item.FAIRY: "Fairy",
+    # seed format 1.2: another player's item in an Archipelago game's ROM, by its class (never received)
+    Item.ARCHIPELAGO_PROGRESSION: "Archipelago Item (Progression)",
+    Item.ARCHIPELAGO_USEFUL: "Archipelago Item (Useful)", Item.ARCHIPELAGO_FILLER: "Archipelago Item (Filler)",
+    # an Archipelago game's ROM with Bomb Upgrades in the Item Pool (docs/design/archipelago-items.md piece 8)
+    Item.BOMB_UPGRADE: "Bomb Upgrade",
 }
 ITEMS_BY_NAME: dict[str, Item] = {name: item for item, name in ITEM_NAMES.items()}
 assert len(ITEMS_BY_NAME) == len(ITEM_NAMES), "item names must be unique"

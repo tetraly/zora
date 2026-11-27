@@ -1,9 +1,9 @@
-ZORA 2.0.1 spoiler log
+ZORA 2.0.2 spoiler log
 ================================================================================
 Seed: 12345
 Flags: 8hq8GLVh80Vf2OzvNLiPtGiwrZUJ3A
 ZORA flags: 2.1B
-Seed code: Wooden Arrow, Shield, Wood Sword, Shield
+Seed code: Bombs, Key, Blue Potion, Magical Sword
 Progressive Items is on: a sword, candle, arrow, ring or boomerang gives the
 next level of its line that you lack. Items are listed as the ROM holds them,
 with their line.
@@ -156,6 +156,7 @@ ZORA  Compass Chime ........................................................ off
 ZORA  Universal Drops v2.0 ................................................. off
 ZORA  Wizzrobes Shoot Wallmasters .......................................... off
 ZORA  Item Counter ......................................................... off
+ZORA  Bomb Upgrades in the Item Pool ....................................... off
 
 ================================================================================
 Major items by place
@@ -219,9 +220,9 @@ Overworld
     Magical Sword Cave: Sword Upgrade (Magical Sword)
     Letter Cave: Heart Container
     Shop 2: Heart Container for 36 rupees
-    Shop 3: Ring Upgrade (Red Ring) for 230 rupees
-    Shop 3: Candle Upgrade (Red Candle) for 61 rupees
-    Shop 4: Wand for 205 rupees
+    Shop 3: Ring Upgrade (Red Ring) for 234 rupees
+    Shop 3: Candle Upgrade (Red Candle) for 72 rupees
+    Shop 4: Wand for 141 rupees
 
 ================================================================================
 Caves and shops: every ware, in the order the cave shows it
@@ -235,9 +236,9 @@ Potion Shop: Blue Potion (38 rupees); Red Potion (70 rupees)
 Shop 1: Shield (82 rupees); Key (65 rupees); Bombs (40 rupees)
 Shop 2: Shield (137 rupees); Heart Container (36 rupees, sold once); Key (108
     rupees)
-Shop 3: Ring Upgrade (Red Ring) (230 rupees, sold once); Candle Upgrade (Red
-    Candle) (61 rupees, sold once); Shield (159 rupees)
-Shop 4: Fairy (24 rupees); Wand (205 rupees, sold once); Heart (11 rupees)
+Shop 3: Ring Upgrade (Red Ring) (234 rupees, sold once); Candle Upgrade (Red
+    Candle) (72 rupees, sold once); Shield (159 rupees)
+Shop 4: Fairy (24 rupees); Wand (141 rupees, sold once); Heart (11 rupees)
 
 ================================================================================
 Texts: the game's texts in its order, with who says them

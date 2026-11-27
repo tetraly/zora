@@ -127,6 +127,13 @@
         </div>
         <p id="beta-warning" class="beta-warning" role="status" hidden></p>
       </div>
+      <!-- Multiworld mode: Archipelago's beta values in use (values not through ZORA's logic scan for
+           multiworld; showMultiworldNotes). The exported YAML starts with the same warning. -->
+      <div id="multiworld-beta-warning" class="mw-beta-warning" role="alert" hidden>
+        <p class="mw-beta-title" id="multiworld-beta-title"></p>
+        <ul class="mw-beta-list" id="multiworld-beta-list"></ul>
+        <p class="mw-beta-text" id="multiworld-beta-text"></p>
+      </div>
       <div id="form" hidden>
         <!-- The settings in words, one section per tab (showFlagSummary) -->
         <details id="flag-summary" class="flag-summary">
@@ -192,6 +199,16 @@
       <p class="step-error" id="player-name-error" role="alert"></p>
       <p class="status-line"><span id="status-dot" class="status-dot" aria-hidden="true"></span><span id="status" role="status">Loading Python…</span></p>
       <ul id="problems" class="problems"></ul>
+      <!-- Multiworld mode: values of settings the Multiworld tab leaves out, which the YAML ignores -->
+      <ul id="multiworld-ignored" class="mw-ignored"></ul>
+      <!-- Multiworld mode: a player's Archipelago YAML back into the page (loadArchipelagoYaml), with what it
+           could not apply -->
+      <div class="yaml-load multiworld-only" id="yaml-load-row" hidden>
+        <button id="yaml-load" class="btn btn-tint btn-small" type="button">Load an Archipelago YAML</button>
+        <input id="yaml-load-file" type="file" accept=".yaml,.yml" hidden>
+        <p id="yaml-load-note" class="message" role="status"></p>
+        <ul id="yaml-load-problems" class="mw-ignored"></ul>
+      </div>
 
       <div id="generate-result" class="result-card" hidden>
         <div class="result-head">
@@ -230,6 +247,37 @@
           <pre id="yaml-preview" class="yaml-preview"></pre>
         </details>
       </div>
+    </div>
+  </section>
+
+  <!-- Multiworld mode, after the host has generated: the player's ROM from their .apzora (zora_web/apzora.py),
+       with the look and feel chosen now. The base ROM is the page's own ROM input (step 1 in single player). -->
+  <section class="step multiworld-only" id="step-apzora" aria-labelledby="step-apzora-title" hidden>
+    <span class="step-num" id="step-apzora-num" aria-hidden="true">4</span>
+    <div class="step-body">
+      <h2 class="step-title" id="step-apzora-title">Build your ROM from a .apzora</h2>
+      <p class="step-sub">Once the host has generated the multiworld, you get a .apzora file. Build your ROM from it
+        here and choose its look and feel now: only your game's looks and sounds change, never the items or anyone
+        else's game.</p>
+      <div class="apzora-files">
+        <div class="apzora-file">
+          <span class="seed-label">Your .apzora</span>
+          <span id="apzora-label" class="step-note">No file chosen.</span>
+          <button id="apzora-btn" class="btn btn-tint btn-small" type="button">Choose .apzora</button>
+          <input id="apzora-file" type="file" accept=".apzora" hidden>
+        </div>
+        <div class="apzora-file">
+          <span class="seed-label">Base ROM</span>
+          <span id="apzora-rom-label" class="step-note">No ROM chosen.</span>
+          <button id="apzora-rom-btn" class="btn btn-tint btn-small" type="button">Choose ROM</button>
+        </div>
+      </div>
+      <p class="step-error" id="apzora-error" role="alert"></p>
+      <div id="apzora-settings" class="setting-grid" hidden></div>
+      <div class="generate-row">
+        <button id="apzora-build" class="btn-generate" type="button" disabled>Build ROM</button>
+      </div>
+      <div class="result-actions" id="apzora-download"></div>
     </div>
   </section>
 

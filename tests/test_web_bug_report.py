@@ -1,8 +1,10 @@
 """The web page's copy buttons (web/zora-web.js): "Copy bug report info" (bugReportText; owner's
 triage, 2026-10-17), one block with the version, the seed, both flag strings, the ROM (PRG0 or PRG1,
-and modified graphics if so, from zora_web.api.identify_rom) and the seed code as its item names;
-"Copy seed code" (seedCodeText; owner, 2026-10-17), the item names alone, for a race room; and "Copy
-race info" (raceInfoText; owner, 2026-10-22), a short block for a race channel."""
+and modified graphics if so, from zora_web.api.identify_rom) and the seed code; "Copy seed code"
+(seedCodeText; owner, 2026-10-17), the code alone, for a race room; and "Copy race info" (raceInfoText; owner,
+2026-10-22), a short block for a race channel. Each copies the code as its items' Discord emoji names
+(zora.rom.code_patches.SEED_CODE_EMOJI, which the worker sends as codeEmoji; owner, 2026-11-25), while the page
+shows the item names beside the icons for screen readers."""
 import json
 import re
 import shutil
@@ -12,6 +14,7 @@ from typing import Any
 
 import pytest
 
+from zora.rom import code_patches
 from zora.rom.base_rom import BASE_ROM_PATH, PRG1_ROM_PATH
 from zora.rom.revision import GRAPHICS_BLOCKS, NES_HEADER_SIZE
 from zora_web import api
@@ -20,6 +23,8 @@ REPO = Path(__file__).resolve().parent.parent
 PAGE_SCRIPT = (REPO / "web" / "zora-web.js").read_text()
 FLAGS = api.flag_form.metadata()["defaultFlags"]
 CODE = ["Magical Key", "Wooden Arrow", "Heart Container", "Power Bracelet"]
+CODE_EMOJI = ["MagicalKey", "WoodArrow", "HeartContainer", "PowerBracelet"]
+COPIED = "MagicalKey, WoodArrow, HeartContainer, PowerBracelet"
 
 
 def page_constant(name: str) -> str:
@@ -70,23 +75,46 @@ def identity(rom: bytes) -> dict[str, Any]:
 @pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 def test_prg0_with_both_flag_strings_and_the_seed_code() -> None:
     info = {"version": "2.0 beta 6", "seed": "2535214729", "flags": FLAGS, "zoraFlags": "AB",
-            "identity": identity(BASE_ROM_PATH.read_bytes()), "code": CODE, "beta": []}
+            "identity": identity(BASE_ROM_PATH.read_bytes()), "code": CODE, "codeEmoji": CODE_EMOJI, "beta": []}
     assert bug_report(info) == ("ZORA 2.0 beta 6\nSeed: 2535214729\n"
                                 f"Z1R flags: {FLAGS}\nZORA flags: AB\nROM: PRG0\n"
-                                "Seed code: Magical Key, Wooden Arrow, Heart Container, Power Bracelet")
+                                f"Seed code: {COPIED}")
 
 
 @pytest.mark.skipif(not PRG1_ROM_PATH.exists(), reason="PRG1 ROM not found")
 def test_prg1_with_modified_graphics_no_zora_flags_no_code() -> None:
     info = {"version": "v2.0.0b6", "seed": "7", "flags": FLAGS, "zoraFlags": "",
-            "identity": identity(graphics_inverted(PRG1_ROM_PATH.read_bytes())), "code": [], "beta": []}
+            "identity": identity(graphics_inverted(PRG1_ROM_PATH.read_bytes())), "code": [], "codeEmoji": [],
+            "beta": []}
     assert bug_report(info).splitlines()[3:] == ["ZORA flags: (none)", "ROM: PRG1, modified graphics",
                                                  "Seed code: (none)"]
 
 
 def test_the_seed_code_alone() -> None:
-    """No "Seed code:" label: the four item names, as a race room takes them."""
-    assert run_page(f"seedCodeText({json.dumps(CODE)})") == "Magical Key, Wooden Arrow, Heart Container, Power Bracelet"
+    """No "Seed code:" label: the four Discord emoji names, no spaces, as a race room takes them; without them
+    (the four characters under Item Sprites) the code as it is shown."""
+    assert run_page(f"seedCodeText({json.dumps(CODE)}, {json.dumps(CODE_EMOJI)})") == COPIED
+    assert run_page('seedCodeText(["4K7Q"], [])') == "4K7Q"
+
+
+def test_every_code_item_has_an_emoji_name() -> None:
+    """SEED_CODE_EMOJI names each item SEED_CODE_NAMES does (and the boot), once each, with no spaces."""
+    names = [*code_patches.SEED_CODE_EMOJI.values(), code_patches.BOOTS_CODE_EMOJI]
+    assert set(code_patches.SEED_CODE_EMOJI) == set(code_patches.SEED_CODE_NAMES)
+    assert len(set(names)) == len(names) and all(name.isalnum() for name in names)
+
+
+@pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
+def test_the_worker_sends_each_seeds_emoji_names() -> None:
+    """api.code_emoji, the worker's codeEmoji: the code's four items in screen order, the boot's name where the
+    game draws Pegasus Boots, and none where the screen shows the code as characters."""
+    from tests.test_seed_code_icons import BOOTS, finished, with_code
+    items = list(code_patches.SEED_CODE_ITEMS[:code_patches.SEED_CODE_LENGTH])
+    assert api.code_emoji(with_code(finished(), items)) == [code_patches.SEED_CODE_EMOJI[item] for item in items]
+    boomerangs = [code_patches.BOOMERANG_CODE] * code_patches.SEED_CODE_LENGTH
+    assert api.code_emoji(with_code(finished(zora_flag_string=BOOTS), boomerangs)) == \
+        [code_patches.BOOTS_CODE_EMOJI] * code_patches.SEED_CODE_LENGTH
+    assert api.code_emoji(with_code(finished(), boomerangs)) == ["Boomerang"] * code_patches.SEED_CODE_LENGTH
 
 
 def test_the_buttons_follow_each_generated_seed() -> None:
@@ -97,29 +125,31 @@ def test_the_buttons_follow_each_generated_seed() -> None:
     # the build's full label (version, date and commit), though the regular page's pill shows the version alone
     assert "return EMBEDDED_INFO?.build || $(\"version\").textContent;" in page_function("buildLabel")
     assert "zoraFlags: requested.zoraFlags, identity: romIdentity, code," in on_generate
+    assert "codeEmoji: Array.isArray(result.codeEmoji) ? result.codeEmoji : []," in on_generate
+    assert "codeEmoji: result.codeEmoji," in page_function("generateSeed")
     assert "encoded: requested.encoded, spoilerLevel: requested.spoilerLevel, notices: requested.notices," \
            in on_generate
     buttons = page_function("addCopyButtons")
     assert '"Copy bug report info", bugReportText(info)' in buttons
     assert '"Copy race info", raceInfoText(info)' in buttons
-    assert "if (info.code.length) {" in buttons and '"Copy seed code", seedCodeText(info.code)' in buttons
+    assert "if (info.code.length) {" in buttons and '"Copy seed code", seedCodeText(info.code, info.codeEmoji)' in buttons
 
 
 def race_info(**changes: Any) -> str:
     info = {"version": "2.0 beta 7", "seed": "2535214729", "flags": FLAGS, "zoraFlags": "", "code": CODE,
-            "encoded": False, "spoilerLevel": "None", "notices": [], **changes}
+            "codeEmoji": CODE_EMOJI, "encoded": False, "spoilerLevel": "None", "notices": [], **changes}
     return run_page(f"raceInfoText({json.dumps(info)})")
 
 
 def test_race_info_is_short_and_plain() -> None:
     assert race_info() == ("ZORA 2.0 beta 7\nSeed: 2535214729\n"
                            f"Flags: {FLAGS}\n"
-                           "Seed code: Magical Key, Wooden Arrow, Heart Container, Power Bracelet\n"
+                           f"Seed code: {COPIED}\n"
                            "Race ROM: off\nSpoiler log: None")
 
 
 def test_race_info_with_zora_flags_an_encoded_seed_and_a_notice() -> None:
-    lines = race_info(zoraFlags="AB", encoded=True, code=[], spoilerLevel="Random",
+    lines = race_info(zoraFlags="AB", encoded=True, code=[], codeEmoji=[], spoilerLevel="Random",
                       notices=["Mirrored overworld isn't supported yet; this seed is not mirrored"]).splitlines()
     assert lines[3:] == ["ZORA flags: AB", "Race ROM: on (level data encoded)", "Spoiler log: Random",
                          "Notice: Mirrored overworld isn't supported yet; this seed is not mirrored."]
@@ -127,4 +157,4 @@ def test_race_info_with_zora_flags_an_encoded_seed_and_a_notice() -> None:
 
 def test_race_info_with_the_code_as_characters() -> None:
     """Under Item Sprites other than normal the page passes the four characters as the code."""
-    assert "Seed code: 4K7Q" in race_info(code=["4K7Q"]).splitlines()
+    assert "Seed code: 4K7Q" in race_info(code=["4K7Q"], codeEmoji=[]).splitlines()

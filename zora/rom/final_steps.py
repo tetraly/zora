@@ -37,6 +37,7 @@ from . import (
     hidden_tiles,
     item_counter,
     item_sprites,
+    level_items,
     mirror_overworld,
     opening_story,
     overworld_crossings,
@@ -105,7 +106,9 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
     for address, data in fairy_refill.fairy_refill_writes():
         rom[address:address + len(data)] = data
     for address, data in owner_patches.owner_patch_writes(config.owner_flags, config.level_9_entrance_sword,
-                                                          config.archipelago_rom):
+                                                          config.archipelago_rom,
+                                                          config.archipelago_rom or bool(config.per_level_shown),
+                                                          per_level=bool(config.per_level_shown)):
         rom[address:address + len(data)] = data
     if LOST_HILLS in config.owner_flags:
         # the layouts $7C-$7F its routine reads: $0B's own copies of $7B and $0A (extra_layouts)
@@ -118,8 +121,16 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
             rom[address:address + len(data)] = data
     for address, data in opening_story.story_writes(rom):
         rom[address:address + len(data)] = data
-    if config.foreign_logo:
+    if config.archipelago_rom:
         for address, data in archipelago_logo.logo_writes():
+            rom[address:address + len(data)] = data
+    if config.per_level_shown:
+        for address, data in level_items.per_level_writes(config.per_level_shown, rom):
+            rom[address:address + len(data)] = data
+        for address, data in level_items.compass_room_writes(config.per_level_compass_rooms):
+            rom[address:address + len(data)] = data
+    if config.archipelago_rom or config.per_level_shown:
+        for address, data in level_items.bomb_upgrade_writes(rom, config.bomb_upgrade_sellers):
             rom[address:address + len(data)] = data
     if config.bait_in_pool:
         for address, data in bait_count.bait_count_writes():
@@ -156,8 +167,7 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
         # last of the code patches: the pictures as everything before leaves them (FP-SPRITE-01)
         assert config.item_sprites_key is not None
         for address, data in item_sprites.item_sprite_writes(rom, config.item_appearance,
-                                                             Rng(config.item_sprites_key),
-                                                             logo=config.foreign_logo):
+                                                             Rng(config.item_sprites_key)):
             rom[address:address + len(data)] = data
     if world.overworld_mirrored:
         # Mirror Overworld (B06): the flip's part the model does not hold, after every write to the

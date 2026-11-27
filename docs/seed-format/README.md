@@ -22,13 +22,22 @@ from the seed before encoding (rulings of 2026-11-06). An encoded seed at None g
 
 ## The format
 
-`seed-format.schema.json` here is the visualizer's JSON Schema for format 1.1. It is copied
+`seed-format.schema.json` here is the visualizer's JSON Schema for format 1.2. It is copied
 from github.com/tetraly/z1r-visualizer (`docs/seed-format.schema.json`; its `$comment` names the
 commit), with ZORA's own extra fields kept (`notices`, a setting's `final` and `changedBy`, the
 requirements' `level9Levels` and `level9Item`; the format allows unknown properties). Format 1.1
 added the item names "Pegasus Boots" and "Magical Boots", which a Pegasus Boots seed's item
 fields use ("Boots Upgrade" under Progressive Items, in the spoiler log as in the visualizer), and
 the `shownNumber`, `shownName`, `shownShortName` and `shownSpeaker` fields ZORA already wrote.
+Format 1.2 adds "Archipelago Item (Progression)", "(Useful)" and
+"(Filler)": another player's item in an Archipelago game's ROM, by its class
+(docs/design/archipelago-items.md piece 5), and "Level N Triforce", "Level N Map" and "Level N Compass":
+with Triforce Shuffle or Map & Compass Shuffle away from Off, each level's own piece, map and compass,
+N being the number its status bar shows (piece 6). The plain "Triforce", "Map" and "Compass" are then
+never written: their codes are level 8's piece and level 9's map and compass. The visualizer reads
+format 1.2 since its commit 104d8f4 (2026-11-21): the per-level Triforces, maps and compasses, the
+Archipelago item codes $34 to $37 and a room item's sixth bit. The schema here is that commit's
+(copied 2026-11-22).
 That repo's `docs/seed-format.md` explains each field and the hand-off. No visualizer code is
 copied into ZORA.
 

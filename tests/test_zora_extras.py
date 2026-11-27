@@ -290,7 +290,8 @@ from zora.generate.steps.shop_items_in_pool import (  # noqa: E402
     JOINED_SHOP_ITEMS, own_shop_ware, price_displaced_wares, shop_items_in_pool,
 )
 from zora.generate.steps.shop_prices import (  # noqa: E402
-    ALWAYS_REQUIRED, BOOMERANG_PRICES, BOOMERANGS, CHEAP_ITEMS, DEFAULT_PRICE_RULES, HEART_CONTAINER_PRICES,
+    ALWAYS_REQUIRED, BOOMERANG_DRAW, BOOMERANG_PRICES, BOOMERANGS, CHEAP_ITEMS, DEFAULT_PRICE_RULES,
+    HEART_CONTAINER_PRICES,
     OPTIONAL_ITEMS, OPTIONAL_PRICES, REQUIRED_PRICES,
 )
 from zora.model.overworld import Shop  # noqa: E402
@@ -430,4 +431,5 @@ def test_the_classes_are_disjoint_and_match_the_owner_list() -> None:
     assert not ALWAYS_REQUIRED & OPTIONAL_ITEMS and not CHEAP_ITEMS & (ALWAYS_REQUIRED | OPTIONAL_ITEMS)
     assert CHEAP_ITEMS == {Item.HEART_CONTAINER, Item.LETTER}
     assert REQUIRED_PRICES == (60, 80) and OPTIONAL_PRICES == (200, 240) and HEART_CONTAINER_PRICES == (20, 40)
-    assert BOOMERANG_PRICES == (75, 125)
+    # since 2026-11-27 a boomerang without the boots costs 20-40 (price_groups); the steps still draw 75-125
+    assert BOOMERANG_PRICES == (20, 40) and BOOMERANG_DRAW == (75, 125)

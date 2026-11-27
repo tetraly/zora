@@ -72,6 +72,13 @@ KEYS = {
     "swap_swords_and_rings": "swap_swords_and_rings", "swordlish": "swordlish",
     "swordlish_lowest": "swordlish_lowest", "swordlish_highest": "swordlish_highest",
     "compass_chime": "compass_chime",
+    "wizzrobes_shoot_wallmasters": "wizzrobes_shoot_wallmasters",
+    "triforce_shuffle": "triforce_shuffle", "map_compass_shuffle": "map_compass_shuffle",
+    "bomb_upgrades_in_pool": "bomb_upgrades_in_pool",
+    # Universal Drops v2.0: offered since 2026-11-21, its On and Random as beta values (archipelago.HELD_BACK)
+    "universal_drops_v2": "universal_drops_v2",
+    # Item Counter: offered since 2.0.2 (2026-11-21), its On and Random as beta values
+    "item_counter": "item_counter",
     # Shuffle Wood Sword is never offered (archipelago.ZORA_FORCED_OFF, owner ruling 2026-10-17): no key
 }
 CODE = re.compile(r"(?:^|_)[bc]\d{2}(?:_|$)")

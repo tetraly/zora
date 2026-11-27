@@ -75,6 +75,12 @@ MONSTER_BIT_CODE = 0x40     # enemy codes $40+ carry LevelBlockAttrsD's monster 
 MONSTER_VALUE_BIT = 0x100   # the monster bit as a ninth bit of a monster value
 PERSON_LISTS = range(0x0B, 0x13)   # person monster lists $0B-$12
 ITEM_MASK = 0x1F            # LevelBlockAttrsE bits 4-0: the item
+# A room's item is six bits (docs/design/archipelago-items.md piece 4): LevelBlockAttrsE bits 4-0 and,
+# as bit 5, LevelBlockAttrsF bit 3, which is zero in every room of PRG0 and PRG1. Only ROMs with
+# asm/flags2/ap-items read it; only External mode (FINISH) writes codes above $1F.
+ROOM_ITEM_MASK = 0x3F
+ROOM_ITEM_HIGH_BIT = 0x20
+TRIGGER_ITEM_HIGH_BIT = 0x08  # LevelBlockAttrsF bit 3: the room item's bit 5
 BOSS_SOUND_SHIFT = 5        # LevelBlockAttrsE bits 6-5: the boss sound index
 BOSS_SOUND_MASK = 0x03
 DARK_BIT = 0x80             # LevelBlockAttrsE bit 7
@@ -83,6 +89,16 @@ TRIGGER_MASK = 0x07         # LevelBlockAttrsF bits 2-0: the secret trigger
 ITEM_POSITION_SHIFT = 4     # LevelBlockAttrsF bits 5-4: the item position
 ITEM_POSITION_MASK = 0x03
 STAIR_EXIT_MASK = 0x7F      # a staircase's LevelBlockAttrsA / B bits 6-0: an exit room
+
+
+def room_item_code(item_byte: int, trigger_byte: int) -> int:
+    """A room's six-bit item code from its LevelBlockAttrsE and LevelBlockAttrsF bytes."""
+    return (item_byte & ITEM_MASK) | (ROOM_ITEM_HIGH_BIT if trigger_byte & TRIGGER_ITEM_HIGH_BIT else 0)
+
+
+def item_high_bit(code: int) -> int:
+    """The LevelBlockAttrsF bit that holds a six-bit item code's bit 5."""
+    return TRIGGER_ITEM_HIGH_BIT if code & ROOM_ITEM_HIGH_BIT else 0
 
 
 @dataclass(frozen=True)
@@ -178,14 +194,18 @@ class ItemInfo:
 
     @property
     def item_code(self) -> int:
-        """The item's five bits as the spec reads them ($03 is "no item")."""
-        return NO_ITEM_CODE if self.item == Item.NOTHING else self.item.value & ITEM_MASK
+        """The item's code as the spec reads it ($03 is "no item"): five bits, or six for a code
+        above $1F (ROOM_ITEM_MASK)."""
+        return NO_ITEM_CODE if self.item == Item.NOTHING else self.item.value & ROOM_ITEM_MASK
 
     @property
     def item_byte(self) -> int:
         """The whole byte as the spec reads it. The byte actually written is
         the serializer's (game_config.DungeonNothingCode picks the "no item"
-        code)."""
+        code). A six-bit item has no such byte: its bit 5 lives in LevelBlockAttrsF, so a pass that
+        moves the byte whole would drop it. Such items come only from FINISH, after every pass."""
+        if self.item_code & ROOM_ITEM_HIGH_BIT:
+            raise ValueError(f"{self.item.name}: a six-bit room item has no single item byte; move item_info")
         return (self.item_code | (self.boss_sound << BOSS_SOUND_SHIFT)
                 | (DARK_BIT if self.is_dark else 0))
 

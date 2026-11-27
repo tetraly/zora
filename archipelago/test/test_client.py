@@ -27,8 +27,10 @@ TABLES = {"format": zora_ap.CLIENT_TABLES_FORMAT, "version": zora_ap.CLIENT_TABL
           "checks": [[PLACE_A, FLAG_A, inventory.ITEM_TAKEN], [PLACE_B, FLAG_B, inventory.ITEM_TAKEN]],
           "rules": {"progressiveItems": False, "l4Sword": False, "fourPotions": False,
                     "arrivalSound": inventory.ITEM_APPEARS_SOUND}}
+FRAME_DONE, FRAME_RUNNING = 0xB0, 0x30     # CurPpuControl between frames in play, and while an update runs
 IN_PLAY = {inventory.GAME_MODE: inventory.PLAY_MODE, inventory.IS_UPDATING_MODE: 1, inventory.CUR_SAVE_SLOT: 0,
-           inventory.TRANSFERRED_COMMON_PATTERNS: inventory.SET_UP, inventory.SKIPPED_DEMO: inventory.SET_UP}
+           inventory.TRANSFERRED_COMMON_PATTERNS: inventory.SET_UP, inventory.SKIPPED_DEMO: inventory.SET_UP,
+           inventory.CUR_PPU_CONTROL: FRAME_DONE}
 HEARTS = inventory.ITEMS + inventory.HEART_VALUES_SLOT
 STARTING_HEARTS = 0x22                  # three containers, three hearts
 BOMBS = inventory.ITEMS + 0x01
@@ -205,6 +207,16 @@ class TestClient(unittest.TestCase):
         self.assertEqual(self.console.ram[SWORD], 2)        # the white sword
         self.assertIn("gave received item #1, Sword Upgrade", "\n".join(logs.output))
 
+    def test_a_bomb_upgrade_raises_max_bombs_by_the_seed_s_count(self) -> None:
+        """Bomb Upgrade (ID 106) is piece 8's code $37: MaxBombs and the bombs rise by the client tables' count, and
+        no sword is given (the White Sword naming it once had is retired)."""
+        self.ctx.slot_data = {"client_tables": {**TABLES, "rules": {**TABLES["rules"], "bombUpgradeCount": 6}}}
+        self.console.ram[inventory.MAX_BOMBS], self.console.ram[BOMBS] = 8, 3
+        self.ctx.items_received.append(NetworkItem(ITEM_NAME_TO_ID["Bomb Upgrade"], -2, SLOT))
+        self.tick(4)
+        self.assertEqual((self.console.ram[inventory.MAX_BOMBS], self.console.ram[BOMBS]), (14, 14))
+        self.assertEqual(self.console.ram[SWORD], 0)
+
     def test_the_client_reads_the_recipe_format_zora_makes(self) -> None:
         self.assertEqual(client_module.RECIPE_FORMAT, tuple(zora_ap.FORMAT_VERSION_NUMBERS))
 
@@ -233,7 +245,8 @@ class TestHudMessages(unittest.TestCase):
         self.addCleanup(lambda: os.path.exists(self.path) and os.remove(self.path))
         names = {1: "Heart Container", 2: "Magical Boomerang", 3: "Raft", 4: "éé"}
         self.ctx = types.SimpleNamespace(
-            slot=SLOT, seed_name="seed", bizhawk_ctx=None, player_names={SLOT: "Gob-ZORA", 2: "Gob-Z2R", 3: "Someone Else Long"},
+            slot=SLOT, seed_name="seed", bizhawk_ctx=None,
+            player_names={SLOT: "Gob-ZORA", 2: "Gob-Z2R", 3: "Someone Else Long"},
             item_names=types.SimpleNamespace(lookup_in_game=names.get, lookup_in_slot=lambda i, _s: names[i]))
 
     def texts(self) -> list:
@@ -267,6 +280,80 @@ class TestHudMessages(unittest.TestCase):
             self.got(3, SLOT, count)
         # the new item (4) goes ahead of the burst
         self.assertEqual(self.texts(), ["GOT RAFT", "3 ITEMS GIVEN BACK", "GOT RAFT", "GOT RAFT", "GOT RAFT"])
+
+    def wait_ram(self, mode: int, given: int) -> dict:
+        return {0x12: mode, client_module.zora_ap.RECEIVED_COUNT: given}
+
+    def note_waiting(self, mode: int, given: int) -> None:
+        with mock.patch.object(client_module.zora_ap, "checks_readable", lambda _ram: True):
+            self.client.hud_note_waiting(self.ctx, self.wait_ram(mode, given))
+
+    def test_in_a_cave_each_waiting_item_shows_at_once_then_one_exit_line(self) -> None:
+        """2026-11-23: a received item waits in a cave (shops and gift caves choose their wares on entry), but its
+        line shows as it arrives, then one "EXIT CAVE TO RECEIVE" per stay; a sent line still goes first."""
+        self.ctx.items_received = [NetworkItem(3, 5, 2), NetworkItem(1, 6, SLOT)]
+        self.client.on_package(self.ctx, "PrintJSON", {"type": "ItemSend", "item": NetworkItem(1, 9, SLOT),
+                                                       "receiving": 2})
+        self.note_waiting(0x0B, 0)
+        self.note_waiting(0x0B, 0)
+        self.assertEqual(self.texts(), ["SENT HEART CONTAINER TO Z2R", "RAFT FROM Z2R", "GOT HEART CONTAINER",
+                                        "EXIT CAVE TO RECEIVE"])
+
+    def test_an_item_arriving_later_in_the_stay_shows_too_and_once(self) -> None:
+        self.ctx.items_received = [NetworkItem(3, 5, 2)]
+        self.note_waiting(0x0B, 0)
+        self.ctx.items_received.append(NetworkItem(1, 6, SLOT))
+        self.note_waiting(0x0B, 0)
+        self.note_waiting(0x0B, 0)
+        self.assertEqual(self.texts(), ["RAFT FROM Z2R", "GOT HEART CONTAINER", "EXIT CAVE TO RECEIVE"])
+
+    def test_on_the_way_out_the_lines_are_not_shown_again(self) -> None:
+        self.ctx.items_received = [NetworkItem(3, 5, 2), NetworkItem(1, 6, SLOT)]
+        self.note_waiting(0x0B, 0)
+        self.note_waiting(0x05, 0)                     # out: the wait line goes
+        self.got(3, 2, 1)                              # given on the way out
+        self.got(1, SLOT, 2)
+        self.assertEqual(self.texts(), ["RAFT FROM Z2R", "GOT HEART CONTAINER"])
+        self.assertFalse(self.client.hud_waiting)
+
+    def test_an_item_given_again_waits_for_its_burst(self) -> None:
+        """An item already announced for this seed and slot (a new save file) is not news in the cave: its burst
+        line and its own line come as it is given."""
+        self.got(3, 2, 1)
+        self.client = client_module.ZoraClient()       # a switch restarts the client
+        self.ctx.items_received = [NetworkItem(3, 5, 2)]
+        self.note_waiting(0x0B, 0)
+        self.assertEqual(self.texts(), ["EXIT CAVE TO RECEIVE"])
+        self.note_waiting(0x05, 0)
+        self.got(3, 2, 1)
+        self.assertEqual(self.texts(), ["1 ITEM GIVEN BACK", "RAFT FROM Z2R"])
+
+    def test_a_wait_line_on_screen_ends_when_the_player_leaves(self) -> None:
+        self.ctx.items_received = []
+        self.client.hud_text, self.client.hud_kind, self.client.hud_until = "EXIT CAVE TO RECEIVE", "wait", 1e12
+        self.note_waiting(0x05, 0)
+        self.assertLess(self.client.hud_until, 1e12)
+
+    def test_a_reconnect_in_a_cave_queues_no_second_line(self) -> None:
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        self.note_waiting(0x0B, 0)
+        self.ctx.items_received = []                   # the reconnect empties the list, then refills it
+        self.note_waiting(0x0B, 0)
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        self.note_waiting(0x0B, 0)
+        self.assertEqual(self.texts(), ["HEART CONTAINER FROM Z2R", "EXIT CAVE TO RECEIVE"])
+
+    def test_no_wait_line_in_a_cellar(self) -> None:
+        """Items are given in cellars since 2026-11-23 (zora_ap.may_receive): their lines come as they are given."""
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        self.note_waiting(0x09, 0)
+        self.assertEqual(self.texts(), [])
+
+    def test_no_wait_line_from_an_unreadable_read(self) -> None:
+        self.ctx.items_received = [NetworkItem(1, 5, 2)]
+        with mock.patch.object(client_module.zora_ap, "checks_readable", lambda _ram: False):
+            self.client.hud_note_waiting(self.ctx, self.wait_ram(0x0B, 0))
+        self.assertEqual(self.texts(), [])
 
     def test_the_burst_line_comes_first_then_each_item_of_the_burst(self) -> None:
         for count in (1, 2):
@@ -345,7 +432,9 @@ class TestHudMessages(unittest.TestCase):
         async def guarded_write(_ctx, writes, _guards):
             written.append(writes)
             return True
-        fake = types.SimpleNamespace(guarded_write=guarded_write)
+        async def read(_ctx, _reads):           # zora_ap.HUD_READS: CurPpuControl, GameMode, the tile buffer
+            return [bytes([FRAME_DONE]), bytes([5]), bytes([0xFF] * inventory.DYN_TILE_BUF_SIZE)]
+        fake = types.SimpleNamespace(guarded_write=guarded_write, read=read)
         with mock.patch.dict(sys.modules, {"worlds._bizhawk": fake}):
             asyncio.run(self.client.hud_write(self.ctx, "GOT RAFT"))
         record = written[0][0][1]
@@ -369,12 +458,13 @@ CAVE_TYPING = [0x21, 0xA9, 0x01, 0x15, 0xFF]     # one character of the old man'
 
 
 def hud_ram(mode: int, submode: int = 0, updating: int = 1, buffer: list[int] | None = None,
-            index: int = 0, selector: int = 0) -> list[int]:
-    """RAM with GameMode $12, GameSubmode $13, IsUpdatingMode $11, TileBufSelector $14 and the tile
-    buffer at $0302 with $0301 (the index of its $FF end, which the game's whole-buffer records
-    leave at 0)."""
+            index: int = 0, selector: int = 0, control: int = FRAME_DONE) -> list[int]:
+    """RAM with GameMode $12, GameSubmode $13, IsUpdatingMode $11, TileBufSelector $14, CurPpuControl
+    $FF and the tile buffer at $0302 with $0301 (the index of its $FF end, which the game's
+    whole-buffer records leave at 0)."""
     ram = [0] * RAM_SIZE
     ram[0x12], ram[0x13], ram[0x11], ram[0x14] = mode, submode, updating, selector
+    ram[inventory.CUR_PPU_CONTROL] = control
     buffer = [0xFF] if buffer is None else buffer
     ram[0x0302:0x0302 + len(buffer)] = buffer
     ram[0x0301] = index
@@ -391,7 +481,8 @@ class TestHudWrite(unittest.TestCase):
 
     def write(self, ram: list[int], text: str = "GOT RAFT") -> tuple[bool, Console]:
         console = Console(ram)
-        with mock.patch("worlds._bizhawk.guarded_write", console.guarded_write):
+        with (mock.patch("worlds._bizhawk.read", console.read),
+              mock.patch("worlds._bizhawk.guarded_write", console.guarded_write)):
             done = asyncio.run(self.client.hud_write(self.ctx, text))
         return done, console
 
@@ -442,16 +533,56 @@ class TestHudWrite(unittest.TestCase):
         # with the Item Counter on, the buffer is never empty in a cellar: the redraw frames are the way in
         self.assert_written(hud_ram(0x09, submode=9, buffer=STATUS_REDRAW))
 
-    def test_cellars_leave_the_item_counter_record_alone(self) -> None:
-        self.assert_refused(hud_ram(0x09, submode=9, buffer=[0x20, 0x8B, 0x04, 0, 0, 0, 0, 0xFF]))
+    def assert_appended(self, ram: list[int], record: list[int]) -> None:
+        """The game's record kept, the line's record after it, $0301 at the new end (2026-11-23)."""
+        done, console = self.write(ram)
+        self.assertTrue(done)
+        end = len(record)
+        self.assertEqual(console.ram[0x0302:0x0302 + end], record)
+        self.assertEqual(console.ram[0x0302 + end:0x0302 + end + 3], [0x20, 0x22, 28])
+        self.assertEqual(console.ram[0x0302 + end + 31], 0xFF)
+        self.assertEqual(console.ram[0x0301], end + 31)
+
+    def test_cellars_append_after_the_item_counter_record(self) -> None:
+        counter = [0x20, 0x8B, 0x04, 1, 2, 3, 4]
+        self.assert_appended(hud_ram(0x09, submode=9, buffer=[*counter, 0xFF]), counter)
+
+    def test_caves_with_an_empty_buffer(self) -> None:
+        for mode in (0x0B, 0x0C):
+            with self.subTest(mode=mode):
+                self.assert_written(hud_ram(mode))
+
+    def test_no_append_without_room_for_the_line(self) -> None:
+        """A record that leaves fewer than 32 bytes before OpenDoorwayMask ($033F): refused."""
+        long_record = [0x21, 0x00, 30, *range(30)]
+        self.assert_refused(hud_ram(0x0B, buffer=[*long_record, 0xFF]))
 
     def test_caves_replace_the_status_bar_redraw(self) -> None:
         for mode in (0x0B, 0x0C):
             with self.subTest(mode=mode):
                 self.assert_written(hud_ram(mode, buffer=STATUS_REDRAW))
 
-    def test_caves_leave_typing_text_alone(self) -> None:
-        self.assert_refused(hud_ram(0x0B, buffer=CAVE_TYPING))
+    def test_caves_append_after_typing_text(self) -> None:
+        """A typed character of cave text is kept and sent with the line: the text types on."""
+        self.assert_appended(hud_ram(0x0B, buffer=CAVE_TYPING), CAVE_TYPING[:-1])
+
+    def test_a_frame_that_lags_waits(self) -> None:
+        """CurPpuControl's NMI bit clear: the game's update is still running, and would store over the
+        record (the status-bar text over its end) or over its start. In every guard (2.0.2)."""
+        for mode, submode, buffer in ((5, 0, None), (5, 0, STATUS_REDRAW), (0x09, 9, None),
+                                      (0x09, 9, STATUS_REDRAW), (0x0B, 0, STATUS_REDRAW), (0x0C, 0, STATUS_REDRAW)):
+            with self.subTest(mode=mode, redraw=buffer is not None):
+                self.assert_refused(hud_ram(mode, submode, buffer=buffer, control=FRAME_RUNNING))
+
+    def test_every_write_is_guarded_on_the_value_read(self) -> None:
+        """The frame read as finished, then the next one lags before the write lands: refused."""
+        console = Console(hud_ram(5))
+        console.between = lambda ram: ram.__setitem__(inventory.CUR_PPU_CONTROL, FRAME_RUNNING)
+        with (mock.patch("worlds._bizhawk.read", console.read),
+              mock.patch("worlds._bizhawk.guarded_write", console.guarded_write)):
+            self.assertFalse(asyncio.run(self.client.hud_write(self.ctx, "GOT RAFT")))
+        self.assertEqual(console.writes, 0)
+        self.assertEqual(console.ram[0x0302], 0xFF)
 
     def test_no_write_outside_play(self) -> None:
         """Title and file screens, scrolls (6, 7), stairs ($10), death ($11) and continue (8)."""
@@ -479,7 +610,8 @@ class TestHudTiming(unittest.TestCase):
         self.ctx = types.SimpleNamespace(bizhawk_ctx=None)
         self.console = Console(hud_ram(5))
         self.now = 100.0
-        patches = (mock.patch("worlds._bizhawk.guarded_write", self.console.guarded_write),
+        patches = (mock.patch("worlds._bizhawk.read", self.console.read),
+                   mock.patch("worlds._bizhawk.guarded_write", self.console.guarded_write),
                    mock.patch("time.monotonic", lambda: self.now))
         for patch in patches:
             patch.start()
@@ -499,18 +631,12 @@ class TestHudTiming(unittest.TestCase):
         self.assertEqual((self.client.hud_text, self.console.writes), ("GOT RAFT", 1))
         self.tick_at(9.9)
         self.assertEqual(self.client.hud_text, "GOT RAFT")
-        writes = self.console.writes
         self.tick_at(10)
         self.assertIsNone(self.client.hud_text)
-        self.assertEqual(self.console.writes, writes + 1)       # the first blank goes at once
-        self.tick_at(10.5)
-        self.assertEqual(self.console.writes, writes + 1)
-        self.tick_at(11)
-        self.tick_at(12)                                        # a blank can be lost: written 3 times
-        self.assertEqual(self.console.writes, writes + 3)
         self.assertFalse(self.client.hud_dirty)
-        self.tick_at(13)                                        # then nothing more
-        self.assertEqual(self.console.writes, writes + 3)
+        writes = self.console.writes
+        self.tick_at(11)                                        # blank already written: nothing more
+        self.assertEqual(self.console.writes, writes)
 
     def test_a_shown_line_is_redrawn_each_second(self) -> None:
         self.queue("GOT RAFT")
@@ -543,11 +669,8 @@ class TestHudTiming(unittest.TestCase):
         self.assertTrue(self.client.hud_dirty)              # the text is still on screen
         self.console.ram[0x12] = 5
         self.tick_at(10.1)
-        self.assertEqual(self.console.writes, 2)
-        self.tick_at(11.1)
-        self.tick_at(12.1)
         self.assertFalse(self.client.hud_dirty)
-        self.assertEqual(self.console.writes, 4)
+        self.assertEqual(self.console.writes, 2)
 
     def test_lines_follow_each_other_without_a_blank_between(self) -> None:
         self.queue("GOT RAFT", "GOT BOW")

@@ -40,6 +40,17 @@ SEED_CODE_NAMES: dict[int, str] = {
     0x1B: "Triforce", 0x1C: "Magical Shield", 0x1D: "Wooden Boomerang", 0x1F: "Blue Potion",
     0x21: "Clock", 0x22: "Heart", 0x23: "Fairy",
 }
+# Each code item as the Discord emoji name the race rooms use (owner list, 2026-11-25): what the page's "Copy seed
+# code" and the bug report's "Seed code:" line copy (seed_code_emoji). The page shows SEED_CODE_NAMES beside the
+# icons, which screen readers read.
+SEED_CODE_EMOJI: dict[int, str] = {
+    0x00: "Bomb", 0x01: "WoodSword", 0x03: "MagicalSword", 0x04: "Bait", 0x05: "Recorder",
+    0x06: "BlueCandle", 0x08: "WoodArrow", 0x0A: "Bow", 0x0B: "MagicalKey", 0x0C: "Raft",
+    0x0D: "Ladder", 0x0F: "Rupee", 0x10: "Wand", 0x11: "Book", 0x12: "BlueRing",
+    0x14: "PowerBracelet", 0x15: "Letter", 0x16: "Compass", 0x19: "Key", 0x1A: "HeartContainer",
+    0x1B: "Triforce", 0x1C: "MagicalShield", 0x1D: "Boomerang", 0x1F: "BluePotion",
+    0x21: "Clock", 0x22: "Heart", 0x23: "Fairy",
+}
 SEED_CODE_ITEMS = tuple(SEED_CODE_NAMES)
 SEED_CODE_LENGTH = 4
 SEED_CODE_ADDRESS = SYMBOLS["ZORA_B2_CodeIcons"]      # the asm label keeps its name
@@ -270,6 +281,7 @@ def stamp_seed_code(rom: bytearray, world: GameWorld, config: GameConfig) -> Non
 # draws it. The code's value stays $1D.
 BOOMERANG_CODE = 0x1D
 BOOTS_CODE_NAME = "Pegasus Boots"
+BOOTS_CODE_EMOJI = "PegasusBoots"      # not in the owner's list: SEED_CODE_EMOJI's pattern, the name without spaces
 BOOMERANG_FRAME_OFFSET = 0x07154        # Anim_ItemFrameOffsets[$1D], bank 1 (no PRG1 move)
 BOOT_FRAME_ENTRY = 0x25
 
@@ -279,13 +291,28 @@ def draws_boots(rom: bytes) -> bool:
     return rom[BOOMERANG_FRAME_OFFSET] == BOOT_FRAME_ENTRY
 
 
+# The seed's code shows items through the game's ItemIdToSlot and ItemIdToDescriptor, which end at $23:
+# an extended item code ($24 and up, asm/flags2/ap-items) would read the next table's bytes.
+FIRST_EXTENDED_CODE = 0x24
+
+
 def seed_code_values(rom: bytes) -> bytes:
     """The seed's code as the four item values, in screen order."""
-    return rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH]
+    values = rom[SEED_CODE_ADDRESS:SEED_CODE_ADDRESS + SEED_CODE_LENGTH]
+    assert max(values) < FIRST_EXTENDED_CODE, f"an extended item code in the seed's code: {values.hex()}"
+    return values
 
 
 def seed_code(rom: bytes) -> tuple[str, ...]:
     """The seed's code as the four items' names, in screen order, as the game draws them."""
     boots = draws_boots(rom)
     return tuple(BOOTS_CODE_NAME if boots and item == BOOMERANG_CODE else SEED_CODE_NAMES[item]
+                 for item in seed_code_values(rom))
+
+
+def seed_code_emoji(rom: bytes) -> tuple[str, ...]:
+    """The seed's code as the four items' Discord emoji names (SEED_CODE_EMOJI), in screen order, the boot's
+    for the boomerang where the game draws Pegasus Boots, as seed_code names them."""
+    boots = draws_boots(rom)
+    return tuple(BOOTS_CODE_EMOJI if boots and item == BOOMERANG_CODE else SEED_CODE_EMOJI[item]
                  for item in seed_code_values(rom))

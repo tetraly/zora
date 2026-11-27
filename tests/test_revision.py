@@ -216,12 +216,30 @@ def test_every_patch_piece_in_moved_code_lands_on_the_same_code() -> None:
                     assert any(lo <= at < hi for lo, hi in WRITABLE_CHANGED), (where, hex(at))
 
 
+# The heuristic's reviewed false positives: (operand site, the instruction whose last byte the "opcode" is,
+# each checked against the disassembled bytes). An entry names that instruction's bytes, a JMP's or a branch's,
+# so the site is skipped only while those bytes are still there.
+# In the Archipelago items' far segment (bank 6), DigitTile's `BEQ @NotReady` (F0 EE) ends in $EE, read as
+# INC abs with the next instructions' bytes (DEX; LDA FrameCounter) as its operand $A5CA (a7ec93db). Up to
+# a7ec93db a `JMP $9DF9` at 0x19E03 was the reviewed one; that segment's layout no longer makes it look like one.
+NOT_OPERANDS: dict[int, tuple[int, ...]] = {0x19EBF: (0xF0, 0xEE)}
+
+
+def is_reviewed_false_positive(piece: Piece, offset: int, index: int) -> bool:
+    site = offset + index + 1
+    instruction = NOT_OPERANDS.get(site)
+    if instruction is None or index < len(instruction) - 1:
+        return False
+    return tuple(piece[index - len(instruction) + 1:index + 1]) == instruction
+
+
 @needs_both
 def test_no_patch_operand_points_into_moved_code_unlisted() -> None:
     """A patch's absolute operand (JSR, JMP, loads, stores) that points into code PRG1 moves,
     written outside that code, must be in MOVED_POINTERS so the move adjusts it. A
-    heuristic: any opcode byte followed by such an address counts. Every write to
-    TransferBufAddrs (pointers into PRG1's moved buffers) is one too."""
+    heuristic: any opcode byte followed by such an address counts, NOT_OPERANDS' reviewed sites aside (each
+    checked to be the JMP it was). Every write to TransferBufAddrs (pointers into PRG1's moved buffers) is
+    one too."""
     found = set()
     for where, offset, piece in patch_writes():
         if isinstance(piece, Original):
@@ -229,6 +247,8 @@ def test_no_patch_operand_points_into_moved_code_unlisted() -> None:
         for index in range(len(piece) - 2):
             site = offset + index + 1
             if piece[index] not in ABSOLUTE_OPERAND_OPCODES or move_of(site) is not None:
+                continue
+            if is_reviewed_false_positive(piece, offset, index):
                 continue
             target = piece[index + 1] | piece[index + 2] << 8
             if target >= 0x8000 and move_of(cpu_to_file(bank_of(site), target)) is not None:

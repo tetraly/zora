@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from zora.model.level_items import LevelItemKind, level_item_name
 from zora.version import player_version
 
 from .room_names import layout_name
@@ -34,6 +35,12 @@ MAP_SIZE = 8
 # The items whose room is the level's own (the triforce piece, and Ganon's Triforce of Power): FP-SPOIL-01 leaves
 # the triforce pieces' rooms out, so Basic lists neither; Medium lists every major item with its room.
 LEVEL_OWN_ITEMS = frozenset({"Triforce", "Triforce of Power"})
+
+
+def is_level_own(name: str, level: dict[str, Any]) -> bool:
+    """Whether an item named `name` in `level` is the level's own: LEVEL_OWN_ITEMS, or in per-level mode the
+    level's own piece by its shown number (another level's piece found here is a major item like any other)."""
+    return name in LEVEL_OWN_ITEMS or name == level_item_name(LevelItemKind.TRIFORCE, level["shownNumber"])
 SIDES = ("north", "east", "south", "west")
 OPPOSITE = {"north": "south", "south": "north", "east": "west", "west": "east"}
 # The map's marks: a passage open both ways, open one way only (in the arrow's direction), the way out
@@ -99,7 +106,7 @@ def level_item_places(document: dict[str, Any], level: dict[str, Any], facts: di
         item = room["item"]
         if l4 and (level["number"], room["number"]) == (l4["level"], l4["room"]):
             found.append(("floor", L4_SWORD_LABEL))
-        elif item and item["name"] in MAJOR_ITEMS and (detailed or item["name"] not in LEVEL_OWN_ITEMS):
+        elif item and item["name"] in MAJOR_ITEMS and (detailed or not is_level_own(item["name"], level)):
             found.append(("floor", item_label(item["name"], progressive)))
         stair = room["staircase"]
         if stair and stair["kind"] == "item" and stair["item"] in MAJOR_ITEMS:

@@ -1,7 +1,9 @@
 """Item Counter (ZORA flag item_counter, version 22; asm/flags2/item-counter/, zora/generate/item_counter.py,
 zora/rom/item_counter.py): the table's encoding, the chest and slash tiles, which places count under each item
-shuffle, and the table written into finished ROMs, alone and beside Change Hidden OW Tiles and Pegasus Boots.
-tests/test_item_counter_emulator.py plays it."""
+shuffle and each combination of Triforce Shuffle and Map & Compass Shuffle (places, not items: the pool's places,
+plus each level's Triforce spot unless Triforce Shuffle is Anywhere; maps and compasses only with Map & Compass
+Shuffle: Anywhere), and the table written into finished ROMs, alone and beside Change Hidden OW Tiles and Pegasus
+Boots. tests/test_item_counter_emulator.py plays it."""
 from dataclasses import replace
 from functools import cache
 
@@ -18,8 +20,10 @@ from zora.flags.fields import (
     ThreeState,
 )
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
+from zora.flags.zora_flags import LevelItemShuffle
 from zora.generate.item_counter import counter_areas
 from zora.generate.pipeline import Built, build, generate_rom, plan, with_item_counter
+from zora.generate.places import triforce_spot_rooms
 from zora.rom import hidden_tiles, inventory
 from zora.rom.archipelago_logo import LOGO_BACKGROUND_TILES
 from zora.rom.base_rom import remember_repo_base_rom
@@ -42,10 +46,14 @@ from zora.rom.item_counter import (
 
 ON = zora_flags.encode(zora_flags.ZoraFlags(item_counter=ThreeState.ON))
 SEEDS = range(3)
-FIRST_QUEST_SPOTS = (3, 2, 2, 2, 2, 2, 2, 3, 2)       # levels 1-9 under every shuffle: items and hearts
-# The second quest's by CurLevel (the game shows levels 2-3, 4-5 and 7-8 swapped: 2-2-2-3-2-2-2-3-2 as shown)
-SECOND_QUEST_SPOTS = (2, 2, 2, 2, 3, 2, 3, 2, 2)
+# Levels 1-9 under every item shuffle, with Map & Compass Shuffle Off or Between levels: items, hearts and levels
+# 1-8's Triforce spot
+FIRST_QUEST_SPOTS = (4, 3, 3, 3, 3, 3, 3, 4, 2)
+# The second quest's by CurLevel (the game shows levels 2-3, 4-5 and 7-8 swapped: 3-3-3-4-3-3-3-4-2 as shown)
+SECOND_QUEST_SPOTS = (3, 3, 3, 3, 4, 3, 4, 3, 2)
+MAP_AND_COMPASS = 2                                    # each level's, with Map & Compass Shuffle: Anywhere
 OVERWORLD_SPOTS = 3                                    # the white sword cave, the Armos and coast items
+SHUFFLES = tuple(LevelItemShuffle)
 
 
 def with_scope(scope: ItemShuffleScope) -> str:
@@ -105,35 +113,66 @@ def built(scope: ItemShuffleScope, seed: int) -> Built:
     return build(plan(with_scope(scope), seed, ON), remember_repo_base_rom())
 
 
+def table_totals(table: bytes) -> tuple[int, ...]:
+    """Each area's total, as the patch reads it: the block's third byte."""
+    return tuple(table[table[area] + 2] for area in range(AREAS))
+
+
 @needs_base_rom
 @pytest.mark.slow
 @pytest.mark.parametrize("scope", [ItemShuffleScope.FULL, ItemShuffleScope.DUNGEON_ITEMS_ONLY,
                                    ItemShuffleScope.WITHIN_EACH_DUNGEON, ItemShuffleScope.NONE],
                          ids=["full", "item-only", "within-each-dungeon", "none"])
 def test_every_shuffle_counts_every_level_place(scope: ItemShuffleScope) -> None:
-    """Every shuffle counts each level's item places, heart containers included, so the levels' totals follow the
-    dungeon layout alone, the first quest's here, whatever the shuffle (a shuffle rolled at random stays hidden)."""
+    """Every item shuffle counts each level's item places, heart containers included, and its Triforce spot, so the
+    levels' totals follow the dungeon layout alone, the first quest's here, whatever the shuffle (a shuffle rolled
+    at random stays hidden)."""
     for seed in SEEDS:
         made = built(scope, seed)
-        areas = counter_areas(made.places)
+        spots = triforce_spot_rooms(made.world)
+        areas = counter_areas(made.places, piece_spots=spots)
         assert areas[0].total == OVERWORLD_SPOTS
         assert tuple(area.total for area in areas[1:]) == FIRST_QUEST_SPOTS, (scope, seed)
+        assert table_totals(with_item_counter(made).item_counter_table) == (OVERWORLD_SPOTS, *FIRST_QUEST_SPOTS)
         for level, area in enumerate(areas[1:], start=1):
             assert area.flags_address == inventory.room_flags(level)
-            assert area.places == tuple(place.room_num for place in made.places if place.level == level)
+            own = tuple(place.room_num for place in made.places if place.level == level)
+            assert area.places == own + ((spots[level],) if level in spots else ())
+
+
+def level_totals(flags: str, triforces: LevelItemShuffle, maps_compasses: LevelItemShuffle,
+                 seed: int) -> tuple[int, ...]:
+    zora = zora_flags.encode(zora_flags.ZoraFlags(item_counter=ThreeState.ON, triforce_shuffle=triforces,
+                                                  map_compass_shuffle=maps_compasses))
+    table = with_item_counter(build(plan(flags, seed, zora), remember_repo_base_rom())).item_counter_table
+    return table_totals(table)[1:]
+
+
+def expected_totals(spots: tuple[int, ...], maps_compasses: LevelItemShuffle) -> tuple[int, ...]:
+    """The levels' totals: the layout's spots, plus the map and compass with Map & Compass Shuffle: Anywhere."""
+    extra = MAP_AND_COMPASS if maps_compasses is LevelItemShuffle.ANYWHERE else 0
+    return tuple(total + extra for total in spots)
 
 
 @needs_base_rom
 @pytest.mark.slow
-@pytest.mark.parametrize("scope", [ItemShuffleScope.FULL, ItemShuffleScope.DUNGEON_ITEMS_ONLY],
-                         ids=["full", "item-only"])
-def test_second_quest_dungeons_count_their_own_places(scope: ItemShuffleScope) -> None:
-    """With the second quest's dungeons, each level counts its own places: the second quest's totals."""
-    flags = codec.encode(codec.decode(with_scope(scope)).updated(
-        options={DUNGEON_LAYOUT_SOURCE.id: int(DungeonLayoutSource.SECOND_QUEST)}))
-    for seed in SEEDS:
-        made = build(plan(flags, seed, ON), remember_repo_base_rom())
-        assert tuple(area.total for area in counter_areas(made.places)[1:]) == SECOND_QUEST_SPOTS, (scope, seed)
+@pytest.mark.parametrize("triforces", SHUFFLES, ids=[value.name.lower() for value in SHUFFLES])
+@pytest.mark.parametrize("maps_compasses", SHUFFLES, ids=[value.name.lower() for value in SHUFFLES])
+@pytest.mark.parametrize("quest", ["first", "second"])
+def test_the_totals_under_each_level_item_shuffle(quest: str, maps_compasses: LevelItemShuffle,
+                                                 triforces: LevelItemShuffle) -> None:
+    """Places, not items (rule of 2026-11-26): the first quest's levels read 4-3-3-3-3-3-3-4-2 with Map & Compass
+    Shuffle Off or Between levels and 6-5-5-5-5-5-5-6-4 with Anywhere, whatever Triforce Shuffle says (its pieces'
+    spots count as pool places with Anywhere, as spots of their own otherwise); the second quest the same way."""
+    flags = with_scope(ItemShuffleScope.FULL)
+    spots = FIRST_QUEST_SPOTS
+    if quest == "second":
+        flags = codec.encode(codec.decode(flags).updated(
+            options={DUNGEON_LAYOUT_SOURCE.id: int(DungeonLayoutSource.SECOND_QUEST)}))
+        spots = SECOND_QUEST_SPOTS
+    for seed in SEEDS[:2]:
+        assert level_totals(flags, triforces, maps_compasses, seed) == expected_totals(spots, maps_compasses), \
+            (quest, triforces, maps_compasses, seed)
 
 
 @needs_base_rom

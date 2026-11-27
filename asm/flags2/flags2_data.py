@@ -179,9 +179,56 @@ PATCHES: dict[str, tuple[tuple[int, Piece], ...]] = {
     ),
     "item-counter": (
         (0x0655B, bytes.fromhex("20c0bd")),
-        (0x17DD0, bytes.fromhex("a5154a900420cabd3860a9208d0203a98b8d0303a9048d0403a9ff8d0903a203a9249d0503ca10fa20"
-                                "00bef0128d0803a5058d0603a9528d0503a9538d070360a410be60bebd60be8500bd61be8501bd62be"
-                                "85048506a9008505c6043009202abef0f7e605d0f3a50660e8bd62be300f1865008502a50169008503"
-                                "a910d01b484a4a4a29031869778502a9068503682907a8a9018830030ad0faa000310260")),
+        (0x17DD0, bytes.fromhex("a5154a900aa512c910f00420d0bd3860a207bdf3bd9d0203ca10f720fbbdf0128d0803a5058d0603a9"
+                                "528d0503a9538d070360208b0424242424ffa410be60bebd60be8500bd61be8501bd62be85048506a9"
+                                "008505c60430092025bef0f7e605d0f3a50660e8bd62be300f1865008502a50169008503a910d01b48"
+                                "4a4a4a29031869778502a9068503682907a8a9018830030ad0faa000310260")),
+    ),
+    "ap-items": (
+        (0x04B3F, bytes.fromhex("200bfeea")),
+        (0x04B96, bytes.fromhex("201cfe")),
+        (0x06C16, bytes.fromhex("20bcfd")),
+        (0x13120, bytes.fromhex("fbfd")),
+        (0x13159, bytes.fromhex("03fe")),
+        (0x13C90, bytes.fromhex("20e2e5")),
+        (0x13C93, Original(0x1FD92, 190)),
+        (0x17859, bytes.fromhex("20d4fd")),
+        (0x1785D, bytes.fromhex("3f")),
+        (0x17888, bytes.fromhex("20e2fdd00beaeaeaea")),
+        (0x19D80, bytes.fromhex("0102030405060708090000000000000000000000000000000000000000000000000000000000000000"
+                                "00000000000000000000000000000000000000000000000000000000000000000000000000000000bd"
+                                "1a9fc9fff071c98090034cbb9ebc6c9fc0ffd009aaa8a90085044c3ae748bc6c9fa20cc91ad002a208"
+                                "8602a50048a50148ad410348b96f9d20809eb006205f9e4c099e68a9ff48babd02018501bd03018500"
+                                "bd0401a8aaa9008504203ae768aa686868e0fff010bdab77aaac4303203a9eac44034c3a9e608602c4"
+                                "02b01da9048503bd000248b900029d000268990002e8c8c603d0ec9838e904aa60608504ae4103bcab"
+                                "77a500186502990302a504990102a9018503a9081865014caf79a8a20298dd7003f020ca10f7ad7603"
+                                "d00ca202bd7303c515d005ca10f63860989d7003e88e76033860e8ec7603f0eecaa5159d73038a0a18"
+                                "695560290385048505ae4103bdac778d4403bdab778d4303a95f8503a95d8502a908850aa9018507a9"
+                                "008552a20f86084c6878e037d0034c2ffebc439fc0fff036bd6c9f4838e9012907aaa900382aca10fc"
+                                "19570699570668c01ad009a90285e0a901856360c011f004c013d009c510d005a9018de504601011ff"
+                                "ffff1a")),
+        (0x19F4E, bytes.fromhex("10101010101010101111111111111111828180011a1a1a1a1a1a1a1213ffffff1a")),
+        (0x19F77, bytes.fromhex("10101010101010101111111111111111ffffffff1a1a1a1a1a1a1a0909ffffff08")),
+        (0x19FA0, bytes.fromhex("01020304050607080102030405060708ffffffff01020304050607")),
+        (0x1ADD0, bytes.fromhex("20c6ad4c80a0a514d014a511f010a5fe2918f00aae7603f0052022ae900160ae7603caa9008d7603a5"
+                                "ff29fb85ff8d0020ad0220a9158d06208a0a0a0a0a0a69408d0620bd70030a0a0aaaa010bd719d8d07"
+                                "20e888c008d0058a38e908aa98d0ec60a0008400b902033031b90403293fd002a9401869056500c919"
+                                "b0208500b904032940f006c8c8c8c8d0dab90403293f1869038501986501a890ca1860")),
+        (0x1E4D2, bytes.fromhex("c0ad")),
+        (0x1E739, bytes.fromhex("20")),
+        (0x1E73B, bytes.fromhex("fd")),
+        (0x1E741, bytes.fromhex("4cabfdea")),
+        (0x1FD8F, bytes.fromhex("4c80bc000004e024b01aad82fdf014a512f010c913f00ce016f009e017f005e01bf00118602085fd90"
+                                "0f6868a90620acff20c19da9014cacffbda472602085fdb004bdc872606868a90620acff20eb9ea901"
+                                "4cacffb9fe6a0a0a597e6a2920597e6a60a510f00d20d4fd293fc9389009a91bd005b97e6a291fc91b"
+                                "60200ee7a9044cacff203f73a9044cacffa213ad83fdf007a9ff95aca5ab60a91860ad83fdf00a68")),
+        (0x1FE33, bytes.fromhex("a5ab2070734c8d8cad7c0660ad7c06186d84fd8d7c068d580660ffffff")),
+    ),
+    "level-compass": (
+        (0x06A9F, bytes.fromhex("0620acff4c88adeaa90520acff98")),
+        (0x06AAD, Original(0x06AAD, 1)),
+        (0x06AAE, bytes.fromhex("0d")),
+        (0x1AD90, bytes.fromhex("0000000000000000a410c009f022a50048a50148adb06b8501adaf6b8500b97fada8b100a868850168"
+                                "8500982910d00ba5152910d005a0024c2772a0034c2772")),
     ),
 }

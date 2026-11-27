@@ -60,8 +60,10 @@ def test_never_with_allow_universal_drops_in_shapes(b91: ThreeState, v2: ThreeSt
     assert UNIVERSAL_DROPS_V2_CONFLICT.startswith("Universal Drops v2.0")
 
 
-def test_held_back_from_archipelago() -> None:
-    assert "universal_drops_v2" in archipelago.NOT_OFFERED
+def test_a_beta_value_in_archipelago() -> None:
+    """Held back until its logic scan (owner ruling 8, 2026-11-05); since 2026-11-21 offered as a beta value."""
+    assert "universal_drops_v2" not in archipelago.NOT_OFFERED
+    assert archipelago.HELD_BACK["universal_drops_v2"] == {ThreeState.ON, ThreeState.POSSIBLE}
 
 
 def test_the_candidates_are_t5s_squares_and_never_a_door_square() -> None:

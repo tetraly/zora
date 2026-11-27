@@ -43,6 +43,9 @@ SWORD, CANDLE, ARROW, RING = (inventory.ITEMS + slot for slot in (0x00, 0x04, 0x
 WOOD_BOOMERANG, MAGICAL_BOOMERANG = inventory.ITEMS + 0x1D, inventory.ITEMS + 0x1E
 BOW, LETTER, MAGICAL_KEY, RAFT, RECORDER = (inventory.ITEMS + slot for slot in (0x03, 0x0F, 0x0D, 0x09, 0x05))
 HEARTS, POTION = inventory.ITEMS + inventory.HEART_VALUES_SLOT, inventory.ITEMS + inventory.POTION_SLOT
+RUPEES = inventory.ITEMS + 0x16                  # InvRupees ($066D)
+STARTING_RUPEES = 10
+COUNTING_FRAMES = 30                             # the game counts one rupee in every second frame
 # Each item to receive and the inventories to receive it in (address -> value before).
 LINE_LEVELS = {SWORD: range(4), CANDLE: range(3), ARROW: range(3), RING: range(3)}
 
@@ -246,6 +249,34 @@ def test_items_beyond_an_inventory_bit() -> None:
     assert receive("Blue Potion", inventory.GiveRules(four_potions=True), potion=2) == {POTION: 3}
     with pytest.raises(archipelago.UnknownItem):
         receive("Hookshot")
+
+
+def test_five_rupees_go_into_rupees_to_add() -> None:
+    """Take5Rupees: five INCs of RupeesToAdd, which wrap as the game's do; the inventory is untouched
+    (docs/design/archipelago-items.md piece 3)."""
+    assert archipelago.receive("5 Rupees", EMPTY | {inventory.RUPEES_TO_ADD: 0}) == {inventory.RUPEES_TO_ADD: 5}
+    assert archipelago.receive("5 Rupees", EMPTY | {inventory.RUPEES_TO_ADD: 3}) == {inventory.RUPEES_TO_ADD: 8}
+    assert archipelago.receive("5 Rupees", EMPTY | {inventory.RUPEES_TO_ADD: 0xFE}) == {inventory.RUPEES_TO_ADD: 3}
+
+
+@pytest.mark.parametrize("case", ["minor dungeon drops"])
+def test_received_five_rupees_count_in_as_taken_ones(base: bytes, case: str) -> None:
+    """In the emulator: five rupees taken from a room and five received (receive's writes) both end
+    as five more rupees once the game has counted RupeesToAdd in."""
+    result = built(case)
+    room = floor_rooms(result)[0]
+    assignment = {**identity(result.state), room.name: Item.FIVE_RUPEES}
+    taker = Taker(finish(result.state, base, assignment, check=False))
+    taker.take_with(room, {RUPEES: STARTING_RUPEES})
+    taker.emu.run(COUNTING_FRAMES)
+    assert taker.emu[RUPEES] == STARTING_RUPEES + 5
+    taker.emu.load(taker.start)
+    taker.emu[RUPEES] = STARTING_RUPEES
+    ram = {address: taker.emu[address] for address in (*INVENTORY, inventory.RUPEES_TO_ADD)}
+    for address, value in archipelago.receive("5 Rupees", ram).items():
+        taker.emu[address] = value
+    taker.emu.run(COUNTING_FRAMES)
+    assert taker.emu[RUPEES] == STARTING_RUPEES + 5
 
 
 def test_may_receive_only_in_normal_play(base: bytes) -> None:

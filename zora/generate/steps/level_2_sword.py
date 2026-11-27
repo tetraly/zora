@@ -39,7 +39,8 @@ def level_2_sword_cellar(levels: list[Level]) -> ItemCellarPlace:
 
 def join_level_2_sword(levels: list[Level], state: ItemShuffleResult, extras: ExtraPoolItems, rng: IntRng,
                        tracked: bool, opts: ItemShuffleOptions | None = None) -> None:
-    """The level-2 sword joins the pool (one draw); `tracked`: Level 9 Entrance = Level 4 sword. A
+    """The level-2 sword joins the pool (one draw); `tracked`: whenever the walk counts swords
+    (generation_pass.sword_is_tracked: Level 9 Entrance = Level 4 sword, or Offense Item Pacing). A
     joined shop ware it lands in is priced again by SI-PRICE-01's classes (bug fix, beta 9 price
     review: it kept the price of the item it held)."""
     opts = opts or ItemShuffleOptions()

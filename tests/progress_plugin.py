@@ -10,8 +10,17 @@ run's done tests actually took: a run whose slow tests come last no longer estim
 fast ones' average (owner request, 2026-10-16). Each passing test's duration (setup, call and
 teardown) is recorded when the run ends, with whether it is heavy (marked slow or full_tier),
 which the quick check's selection cap reads (scripts/affected_tests.py). tests/conftest.py loads
-this plugin."""
+this plugin.
+
+Failures as they happen (2026-11-24, after a test stage stopped at its time limit lost every result): each
+failing test (any phase) or collection error is counted on the progress line ("N failed so far") the moment
+it is reported, and, when ZORA_FAILURES_FILE names a file, appended there at once: a FAILED line with the
+test's id and phase, then its short traceback, indented. scripts/make_release.py sets it for each step in the
+release tree and echoes each FAILED line while the step still runs, so a run stopped at any point still
+names every failure so far."""
+import os
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -19,10 +28,14 @@ import pytest
 from zora_measure import progress
 
 HEAVY_MARKS = ("slow", "full_tier")
+FAILURES_SETTING = "ZORA_FAILURES_FILE"
+FAILED_PREFIX = "FAILED "
+TRACEBACK_LINES = 30                    # the end of each failure's traceback, in the failures file
 
 _job: list[progress.Job] = []
 _expected: dict[str, float] = {}
 _ran: dict[str, list[Any]] = {}          # node id: [seconds so far, heavy, its call passed, a phase failed]
+_failed: list[str] = []                  # "node id (phase)" of each failure so far
 
 
 class _PastCapture:
@@ -79,9 +92,27 @@ def pytest_xdist_node_collection_finished(node: Any, ids: list[str]) -> None:
         _collected(ids)
 
 
+def _note_failure(what: str, report: pytest.TestReport | pytest.CollectReport) -> None:
+    """One failure, the moment it is reported: on the progress line and in the failures file."""
+    _failed.append(what)
+    progress.note_step(f"{len(_failed)} failed so far", _job[0].id)
+    if not (path := os.environ.get(FAILURES_SETTING)):
+        return
+    traceback = report.longreprtext.strip().splitlines()[-TRACEBACK_LINES:]
+    with Path(path).open("a", encoding="utf-8") as failures:
+        failures.write(f"{FAILED_PREFIX}{what}\n" + "".join(f"    {line}\n" for line in traceback))
+
+
+def pytest_collectreport(report: pytest.CollectReport) -> None:
+    if _job and report.failed:
+        _note_failure(f"{report.nodeid or 'collection'} (collecting)", report)
+
+
 def pytest_runtest_logreport(report: pytest.TestReport) -> None:
     if not _job:
         return
+    if report.failed:
+        _note_failure(f"{report.nodeid} ({report.when})", report)
     heavy = any(mark in report.keywords for mark in HEAVY_MARKS)
     seconds, heavy, called, failed = _ran.get(report.nodeid, [0.0, heavy, False, False])
     _ran[report.nodeid] = [seconds + report.duration, heavy, called or (report.when == "call" and report.passed),
@@ -96,4 +127,5 @@ def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
         progress.record_durations({test: (seconds, heavy) for test, (seconds, heavy, called, failed) in _ran.items()
                                    if called and not failed})
         _ran.clear()
+        _failed.clear()
         _job.pop().finish(ok=exitstatus in (0, 5))      # 5: nothing collected, not a failure

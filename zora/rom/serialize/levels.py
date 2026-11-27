@@ -3,7 +3,7 @@
 from ...model.enums import BossSpriteSet, Enemy, EnemySpriteSet, Item, RoomType
 from ...model.game_world import GameWorld
 from ...model.levels import Level, LevelBlock
-from ...model.rooms import Room, StaircaseRoom
+from ...model.rooms import ITEM_MASK, ROOM_ITEM_MASK, Room, StaircaseRoom, item_high_bit
 from ..layout import DUNGEON_NOTHING_CODE, LEVEL_TABLE_SIZE, NUM_TABLES
 
 # ---------------------------------------------------------------------------
@@ -33,10 +33,10 @@ def _room_bytes(room: Room, nothing_code: int = DUNGEON_NOTHING_CODE) -> RoomByt
             f"room {room.room_num:02X}: triforce of power outside a Ganon "
             "($3E) room under ZORA_REMAP"
         )
-    item_code = nothing_code if room.item == Item.NOTHING else room.item.value & 0x1F
+    item_code = nothing_code if room.item == Item.NOTHING else six_bit_code(room.item)
     dark_bit = 0x80 if room.is_dark else 0
-    t4 = dark_bit | ((room.boss_sound & 0x03) << 5) | item_code
-    t5 = ((room.item_position & 0x03) << 4) | (room.room_action & 0x07)
+    t4 = dark_bit | ((room.boss_sound & 0x03) << 5) | (item_code & ITEM_MASK)
+    t5 = ((room.item_position & 0x03) << 4) | (room.room_action & 0x07) | item_high_bit(item_code)
     return t0, t1, t2, t3, t4, t5
 
 
@@ -47,11 +47,21 @@ def _staircase_bytes(sc: StaircaseRoom,
     t0, t1 = sc.exit_bytes()        # with the bits A43 cleared
     t2 = ((sc.exit_x & 0x0F) << 4) | (sc.exit_y & 0x0F)
     t3 = sc.room_type & 0x3F
+    t5 = sc.t5_raw
     if sc.room_type == RoomType.ITEM_STAIRCASE and sc.item is not None:
-        t4 = nothing_code if sc.item == Item.NOTHING else sc.item.value & 0x1F
+        code = nothing_code if sc.item == Item.NOTHING else six_bit_code(sc.item)
+        t4, t5 = code & ITEM_MASK, t5 | item_high_bit(code)
     else:
         t4 = nothing_code               # a transport's item byte: the ROM's "no item" code (PS-DROP-01)
-    return t0, t1, t2, t3, t4, sc.t5_raw
+    return t0, t1, t2, t3, t4, t5
+
+
+def six_bit_code(item: Item) -> int:
+    """A room's or cellar's item as its six-bit code. $3F is not one: the game's "no item" in a
+    room is the nothing code, and a ROM without asm/flags2/ap-items reads five bits only."""
+    if item.value >= ROOM_ITEM_MASK:
+        raise ValueError(f"{item.name} (${item.value:02X}) cannot be a room's item")
+    return item.value
 
 
 def encode_level_block(block: LevelBlock,

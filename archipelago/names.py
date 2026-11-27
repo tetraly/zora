@@ -2,7 +2,8 @@
 
 Items use the seed format's item names (zora.model.item_names), the ones ZORA's receivable() allows
 (owner ruling: rupees, regular hearts, fairies, maps, compasses, regular Triforce pieces, the
-Triforce of Power and the clock are never Archipelago items). Locations use ZORA's superset of place
+Triforce of Power and the clock are never Archipelago items; 5 Rupees is one since Shuffle Minor
+Dungeon Drops made its rooms places, with the ID its position always left). Locations use ZORA's superset of place
 names (zora.generate.places.all_place_names), so every name any seed can produce has a fixed ID.
 
 An ID is fixed by the name's place in ZORA's list, so a name left out leaves a gap and no other ID
@@ -17,13 +18,15 @@ Upgrade. ItemNaming says which apply to a seed; zora_names turns
 Archipelago's names back into the codes ZORA writes.
 """
 from collections import defaultdict, deque
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from .zora import archipelago as zora_ap
 from .zora.generate.places import all_place_names
 from .zora.generate.steps.hint_text import UPGRADE_LINES
+from .zora.model.enums import Item
 from .zora.model.item_names import ITEM_NAMES
+from .zora.model.level_items import ALL_LEVEL_ITEM_NAMES
 
 ITEM_ID_BASE = 1
 LOCATION_ID_BASE = 1
@@ -33,8 +36,10 @@ RENAMED_ID_BASE = 101
 LINE_ITEMS = {"SWORD": "Sword Upgrade", "CANDLE": "Candle Upgrade", "ARROW": "Arrow Upgrade",
               "RING": "Ring Upgrade", "BOOMERANG": "Boomerang Upgrade"}
 assert set(LINE_ITEMS) == set(UPGRADE_LINES.values()), "an upgrade line without an Archipelago name"
+# Bomb Upgrade, ID 106: a bomb upgrader's item, code $37 (Bomb Upgrades in the Item Pool; docs/design/
+# archipelago-items.md piece 8). Named 2026-10-18 as the White Sword's name where FP-WOOD-02 makes it a bomb upgrade,
+# a naming never switched on; retired 2026-11-21, so the ID went to piece 8's item and the White Sword keeps its name
 BOMB_UPGRADE = "Bomb Upgrade"
-WHITE_SWORD = "White Sword"
 BOOTS_UPGRADE = "Boots Upgrade"         # the BOOMERANG line's name with Pegasus Boots on
 # The boomerangs' items one by one with Pegasus Boots on and Progressive Items off (owner, 2026-10-18)
 BOOTS = {"Boomerang": "Pegasus Boots", "Magical Boomerang": "Magical Boots"}
@@ -44,6 +49,10 @@ ITEM_NAME_TO_ID: dict[str, int] = {
     name: ITEM_ID_BASE + index for index, name in enumerate(ITEM_NAMES.values()) if zora_ap.receivable(name)
 }
 ITEM_NAME_TO_ID |= {name: RENAMED_ID_BASE + index for index, name in enumerate(RENAMED_ITEMS)}
+# A level's own piece, map and compass (Add Triforces / Maps/Compasses to the Item Pool; docs/design/
+# archipelago-items.md piece 6), named by the number the status bar shows, after the renamed items: no ID moves
+LEVEL_ITEM_ID_BASE = RENAMED_ID_BASE + len(RENAMED_ITEMS)
+ITEM_NAME_TO_ID |= {name: LEVEL_ITEM_ID_BASE + index for index, name in enumerate(ALL_LEVEL_ITEM_NAMES)}
 LOCATION_NAME_TO_ID: dict[str, int] = {
     name: LOCATION_ID_BASE + index for index, name in enumerate(all_place_names())
 }
@@ -51,7 +60,7 @@ LOCATION_NAME_TO_ID: dict[str, int] = {
 # Each line item's line name and grade (1 for its lowest code), and the code each renamed item is
 # given as: a line's lowest (the game gives the line's next level for any of its codes).
 LINE_OF: dict[str, tuple[str, int]] = {}
-GIVEN_AS: dict[str, str] = {BOMB_UPGRADE: WHITE_SWORD}
+GIVEN_AS: dict[str, str] = {}
 for _line, _upgrade in LINE_ITEMS.items():
     _codes = sorted(code for code, line in UPGRADE_LINES.items() if line == _line)
     LINE_OF |= {ITEM_NAMES[code]: (_upgrade, grade) for grade, code in enumerate(_codes, start=1)}
@@ -59,8 +68,14 @@ for _line, _upgrade in LINE_ITEMS.items():
 GIVEN_AS[BOOTS_UPGRADE] = GIVEN_AS[LINE_ITEMS["BOOMERANG"]]
 GIVEN_AS |= {boots: boomerang for boomerang, boots in BOOTS.items()}
 
-# Owner decision (2026-10-08): the blue potion is filler; ZORA's logic never requires it.
-FILLER_ITEMS = frozenset({"Blue Potion"})
+# Shuffle Minor Dungeon Drops' keys stay in their own world (docs/design/archipelago-items.md piece 3), since
+# ZORA's logic never counts keys. The item classes: classes.py.
+KEY = "Key"
+
+
+def kept_home(pool: Iterable[str]) -> frozenset[str]:
+    """The pool's items that stay in this world (Archipelago's local_items): its keys."""
+    return frozenset({KEY}) & frozenset(pool)
 HEART_CONTAINER = "Heart Container"
 
 
@@ -68,19 +83,22 @@ HEART_CONTAINER = "Heart Container"
 class ItemNaming:
     """Which of Archipelago's own item names a seed uses (from zora.archipelago.give_rules)."""
     progressive: bool = False
-    bomb_upgrade: bool = False
     pegasus_boots: bool = False
+    # the seed's names of its codes (zora.archipelago.seed_item_names): a level's own piece, map and compass
+    # by the number the status bar shows; empty: the seed format's names
+    seed_names: tuple[tuple[Item, str], ...] = ()
 
     @classmethod
-    def of(cls, rules: object) -> "ItemNaming":
-        # bomb_upgrade and pegasus_boots: GiveRules fields ZORA adds with those settings
-        return cls(*(bool(getattr(rules, field, False)) for field in ("progressive_items", "bomb_upgrade",
-                                                                       "pegasus_boots")))
+    def of(cls, rules: object, seed_names: Mapping[Item, str] | None = None) -> "ItemNaming":
+        flags = (bool(getattr(rules, field, False)) for field in ("progressive_items", "pegasus_boots"))
+        return cls(*flags, seed_names=tuple(sorted((seed_names or {}).items())))
+
+    def zora_name(self, item: Item) -> str:
+        """An item code's name in this seed (a level's own piece, map or compass by its shown number)."""
+        return dict(self.seed_names).get(item) or ITEM_NAMES[item]
 
     def archipelago_name(self, name: str) -> str:
         """A ZORA item name as this seed names it in Archipelago."""
-        if self.bomb_upgrade and name == WHITE_SWORD:
-            return BOMB_UPGRADE
         if self.progressive and name in LINE_OF:
             line = LINE_OF[name][0]
             return BOOTS_UPGRADE if self.pegasus_boots and line == LINE_ITEMS["BOOMERANG"] else line
@@ -91,7 +109,7 @@ class ItemNaming:
     def line_of(self, name: str) -> tuple[str, int] | None:
         """The upgrade item and grade a ZORA item counts as, when this seed names it by its line."""
         line = LINE_OF.get(name)
-        if not self.progressive or line is None or self.archipelago_name(name) in (name, BOMB_UPGRADE):
+        if not self.progressive or line is None or self.archipelago_name(name) == name:
             return None
         return self.archipelago_name(name), line[1]
 

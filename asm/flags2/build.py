@@ -23,6 +23,21 @@ bytes:
     bytes = "0C"                # the new bytes, hex
     note = "what it changes"
 
+and moved runs, for the original game's bytes a patch moves farther than scripts/asm_patches.py's
+MOVE_DISTANCE (asm/flags2/ap-items: InitObject's jump table, from bank 7 to bank 4). The build
+writes the run, read from the player's PRG0 ROM, as the binary FILE that the patch's routines
+include (`.INCBIN "zora-moved/FILE"`), and records it as an Original piece:
+
+    [[moved]]
+    file = "init-object-table.bin"
+    source = 0x1FD92            # headered file offset of the run in PRG0
+    length = 190
+    note = "what it moves"
+
+A patch may also set `write_kept_bytes = false`: the original game's bytes that lie between its
+changed bytes, unchanged, are then not written back (they are the player's ROM's already). ap-items
+sets it: asnb's l4-sword-look rewrites the operand between two of its hooks.
+
 `build` assembles the ZORA build, then each patch on it, writes its data edits into the
 image, and records what changed as pieces: ZORA's own bytes, or Original pieces for the bytes
 of the original game a patch keeps, read from the player's ROM (never stored). It checks that
@@ -86,6 +101,8 @@ PATCHES = (
     "compass-chime",            # Compass Chime (ZORA version 18)
     "wizzrobe-hand",            # Wizzrobes Shoot Wallmasters (ZORA version 21; idea: Ultralavos)
     "item-counter",             # Item Counter (ZORA version 22; idea: Ultralavos)
+    "ap-items",                 # Archipelago ROMs only: items (docs/design/archipelago-items.md)
+    "level-compass",            # per-level mode only: the compass marker follows its room (archipelago-items)
 )
 
 # Community members who wrote a feature (the document's credits; docs/credits.md).
@@ -144,6 +161,57 @@ def data_edits(name: str) -> tuple[DataEdit, ...]:
                  for edit in spec.get("data", []))
 
 
+@dataclass(frozen=True)
+class MovedRun:
+    """A run of the original game's bytes that a patch includes as a binary somewhere else."""
+    file: str
+    source: int
+    length: int
+    note: str
+
+
+MOVED_DIR = "zora-moved"            # the moved runs' folder among the build's binaries
+
+
+def moved_runs(name: str) -> tuple[MovedRun, ...]:
+    spec = tomllib.loads((FLAGS2_DIR / name / tool.PATCH_FILE).read_text())
+    return tuple(MovedRun(run["file"], run["source"], run["length"], run["note"])
+                 for run in spec.get("moved", []))
+
+
+def write_moved(tree: Any, name: str, original: bytes) -> None:
+    """The patch's moved runs, cut from `original`, as binaries its routines include."""
+    for run in moved_runs(name):
+        path = tree.bins / MOVED_DIR / run.file
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(original[run.source:run.source + run.length])
+
+
+def with_moved(name: str, pieces: list[tuple[int, Piece]], original: bytes) -> list[tuple[int, Piece]]:
+    """`pieces` with each moved run, found inside a piece of ZORA's own bytes, as an Original piece."""
+    for run in moved_runs(name):
+        data = original[run.source:run.source + run.length]
+        for index, (offset, piece) in enumerate(pieces):
+            if isinstance(piece, bytes) and (at := piece.find(data)) >= 0:
+                split = [(offset, piece[:at]), (offset + at, Original(run.source, run.length)),
+                         (offset + at + run.length, piece[at + run.length:])]
+                pieces[index:index + 1] = [(where, part) for where, part in split
+                                           if isinstance(part, Original) or part]
+                break
+        else:
+            raise SystemExit(f"{name}: moved run {run.file} is not among the patch's bytes")
+    return pieces
+
+
+def writes_kept_bytes(name: str) -> bool:
+    return bool(tomllib.loads((FLAGS2_DIR / name / tool.PATCH_FILE).read_text()).get("write_kept_bytes", True))
+
+
+def without_kept_bytes(pieces: list[tuple[int, Piece]]) -> list[tuple[int, Piece]]:
+    """`pieces` without the Original pieces that keep the game's bytes where they are."""
+    return [(offset, piece) for offset, piece in pieces if not (isinstance(piece, Original) and piece.source == offset)]
+
+
 def load_patch(name: str) -> Any:
     """asm/flags2/NAME/ as a patch (scripts/asm_patches.py's Patch; its data edits apart)."""
     return tool.load_patch(FLAGS2_DIR / name)
@@ -179,6 +247,7 @@ def with_data(image: bytes, name: str, binaries: list[range]) -> bytes:
 
 def patch_image(tree: Any, name: str, binaries: list[range]) -> bytes:
     """The ZORA build in `tree` with patch `name` applied (the tree is changed)."""
+    write_moved(tree, name, tool.verify_base_rom().read_bytes())
     image = bytes(tree.apply(load_patch(name)))
     return with_data(image, name, binaries)
 
@@ -194,7 +263,8 @@ def build_all() -> tuple[bytes, dict[str, list[tuple[int, Piece]]]]:
         tree = base.copy(tool.scratch(f"asm-flags2-{name}"))
         patched = patch_image(tree, name, binaries)
         check_segments(name, zora, patched, tree.src)
-        writes[name] = tool.patch_pieces(zora, patched, original)
+        pieces = with_moved(name, tool.patch_pieces(zora, patched, original), original)
+        writes[name] = pieces if writes_kept_bytes(name) else without_kept_bytes(pieces)
     return zora, writes
 
 
@@ -207,7 +277,7 @@ def placed_space() -> dict[str, FreeSpace]:
 def check_segments(name: str, zora: bytes, patched: bytes, src: Path) -> None:
     """Every segment the patch adds is one of FREE_SPACE's or placed (placed_space), at its start
     and within its range (blank in the ZORA build), and the patch writes no other byte that is
-    blank there."""
+    blank there, but inside its own hooks (an operand $FF it replaces)."""
     config = (src / "Z.cfg").read_text()
     patch = load_patch(name)
     ranges = {**FREE_SPACE, **placed_space()}
@@ -221,6 +291,7 @@ def check_segments(name: str, zora: bytes, patched: bytes, src: Path) -> None:
         if any(zora[offset] != tool.FREE_SPACE_FILL for offset in space.file_range()):
             raise SystemExit(f"{name}: the ZORA build is not blank at {segment.name}'s range")
         spaces.append(space.file_range())
+    spaces += [range(hook.offset, hook.offset + hook.length) for hook in patch.hooks]
     for offset in range(len(zora)):
         if zora[offset] != patched[offset] and zora[offset] == tool.FREE_SPACE_FILL:
             if not any(offset in space for space in spaces):

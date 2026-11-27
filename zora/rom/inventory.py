@@ -25,6 +25,10 @@ MAX_BOMBS = 0x067C                   # MaxBombs
 # The slots TakeItem treats as "complex" (maps, compasses, triforces): never Archipelago items.
 COMPLEX_SLOTS = frozenset({0x10, 0x11, 0x1A, 0x1B})
 RUPEE_SLOTS = frozenset({0x16, 0x1C})          # a rupee, five rupees: RupeesToAdd, not the inventory
+FIVE_RUPEES_SLOT = 0x1C
+RUPEES_TO_ADD = 0x067D                         # RupeesToAdd: the game counts it into InvRupees, one a frame pair
+FIVE_RUPEES = 5                                # Take5Rupees: TakeOneRupee five times, each INC RupeesToAdd
+BYTE_MASK = 0xFF
 HEART_SLOTS = frozenset({0x14, 0x19})          # a fairy, a heart: refills, not the inventory
 
 # PRG0's ItemIdToSlot and ItemIdToDescriptor (Z_01.asm, bank 1), one byte per item code $00-$23,
@@ -76,6 +80,9 @@ def room_flags(level: int) -> int:
     return WORLD_FLAGS + WORLD_FLAGS_SIZE * (1 if level < LEVELS_7_TO_9 else 2)
 
 
+VANILLA_BOMB_UPGRADE_COUNT = 4
+
+
 @dataclass(frozen=True)
 class GiveRules:
     """The seed's flags that change how an item is taken: Progressive Items (fp-prog: the line's
@@ -87,6 +94,9 @@ class GiveRules:
     l4_sword: bool = False
     four_potions: bool = False
     pegasus_boots: bool = False
+    # How far a Bomb Upgrade (code $37, docs/design/archipelago-items.md piece 8) raises MaxBombs: the seed's
+    # upgraders' own count (B12, B90), the game's 4 by default
+    bomb_upgrade_count: int = VANILLA_BOMB_UPGRADE_COUNT
 
 
 def next_level(code: int, ram: Mapping[int, int]) -> int:
@@ -107,10 +117,18 @@ def next_level(code: int, ram: Mapping[int, int]) -> int:
 NO_RULES = GiveRules()
 
 
+def give_bomb_upgrade(ram: Mapping[int, int], count: int) -> dict[int, int]:
+    """A Bomb Upgrade as ap-items' TakeBombUpgrade gives it: MaxBombs rises by `count` and the bombs fill to it.
+    (The game's add has no cap: an upgrade past 255 bombs wraps, as the upgraders' does.)"""
+    most = (ram[MAX_BOMBS] + count) & BYTE_MASK
+    return {MAX_BOMBS: most, ITEMS + BOMB_SLOT: most}
+
+
 def give(item: Item, ram: Mapping[int, int], rules: GiveRules = NO_RULES) -> dict[int, int]:
     """The RAM writes (address -> value) that give `item` as TakeItem does, from `ram`, a snapshot
-    holding at least the inventory ($0657-$067C); empty when the item changes nothing. Ring
-    colors follow at the next palette load, not here (TakeItem also patches the palette)."""
+    holding at least the inventory and RupeesToAdd ($0657-$067D); empty when the item changes
+    nothing. Ring colors follow at the next palette load, not here (TakeItem also patches the
+    palette). Five rupees go into RupeesToAdd, as Take5Rupees does."""
     slots, descriptors = item_slots(), item_descriptors()
     if slots[item] == SWORD_SLOT and ram[ITEMS + SWORD_SLOT] > MAGICAL_SWORD_LEVEL:
         # Add L4 Sword's level 4 is the line's top. (The game's ResolveProgressive runs past it
@@ -118,6 +136,9 @@ def give(item: Item, ram: Mapping[int, int], rules: GiveRules = NO_RULES) -> dic
         return {}
     code = next_level(int(item), ram) if rules.progressive_items else int(item)
     slot, descriptor = slots[code], descriptors[code]
+    if slot == FIVE_RUPEES_SLOT:
+        # Take5Rupees: five INCs of RupeesToAdd, which wrap as the game's do
+        return {RUPEES_TO_ADD: (ram[RUPEES_TO_ADD] + FIVE_RUPEES) & BYTE_MASK}
     if slot in COMPLEX_SLOTS | RUPEE_SLOTS | HEART_SLOTS:
         raise ValueError(f"{item.name}: not an item given through the inventory")
     address, value = ITEMS + slot, descriptor & VALUE_MASK
@@ -157,13 +178,61 @@ TUNE1_REQUEST = 0x0602
 ITEM_APPEARS_SOUND = 0x02             # a room's item appearing; taking the Triforce of Power
 ITEM_TAKEN_SOUND = 0x08               # picking up a floor item; a fairy
 RECEIVE_STATE = (IS_UPDATING_MODE, GAME_MODE, GAME_SUBMODE, PAUSED, MENU_STATE, LINK_STATE, ITEM_LIFT_TIMER)
+# The client's HUD messages (archipelago/client.py hud_write) go through the game's tile buffer, which
+# the NMI copies to the PPU: DynTileBuf's records end in DYN_TILE_BUF_END, at index DynTileBufLen. They
+# are written only while TileBufSelector is 0 (the NMI sends the dynamic buffer), in play, in a cellar
+# (CELLAR_MODE, GameSubmode left at its last init step) or in a cave (CAVE_MODE; CAVE_ROAD_MODE, the
+# take-any road).
+TILE_BUF_SELECTOR = 0x14
+DYN_TILE_BUF_LEN, DYN_TILE_BUF = 0x0301, 0x0302
+DYN_TILE_BUF_END = 0xFF
+# DynTileBuf's size, $0302-$033E: OpenDoorwayMask ($033F) follows. A record is a VRAM address (high byte first),
+# a control byte (bit 6: repeat one tile; the low 6 bits: the count, 0 meaning 64) and its tiles; TransferTileBuf
+# stops at a high byte with bit 7 set. After sending it, TransferCurTileBuf empties the buffer ($FF at its start,
+# DynTileBufLen 0). Cave text types one character a frame as a record of its own with DynTileBufLen left 0.
+DYN_TILE_BUF_SIZE = 0x3D
+TILE_RECORD_HEADER = 3
+TILE_RECORD_REPEAT = 0x40
+TILE_RECORD_COUNT_MASK = 0x3F
+TILE_RECORD_FULL_COUNT = 64
+CELLAR_MODE, CAVE_MODE, CAVE_ROAD_MODE = 0x09, 0x0B, 0x0C
+# Whether the game's frame has finished: CurPpuControl_2000's NMI bit. IsrNmi clears it as it starts and
+# sets it again at @EnableNMI, after UpdateMode; every other store keeps it as it was. All of the game's
+# work runs in the NMI, so with the bit set the CPU is idle and the next thing to run is the NMI, which sends
+# the tile buffer first. A frame that lags (its update still running when the next frame starts, in a room
+# with many sprites) ends with the bit clear: a write then lands in the middle of the update, which may go
+# on to store over it (the status-bar text over a HUD record's end, Link_BeHarmed's HeartValues over a
+# given Heart Container). Every client write is guarded on the value read with the bit set (frame_finished).
+CUR_PPU_CONTROL = 0xFF
+NMI_ENABLED = 0x80
+
+
+def frame_finished(ram: Mapping[int, int]) -> bool:
+    """Whether the game's frame update had finished when `ram` (holding CUR_PPU_CONTROL) was read."""
+    return bool(ram[CUR_PPU_CONTROL] & NMI_ENABLED)
+
+
+def _settled(ram: Mapping[int, int]) -> bool:
+    """The mode's update running, not paused, no item screen, no item lifted overhead, Link not halted."""
+    return (ram[IS_UPDATING_MODE] == 1 and ram[PAUSED] == 0 and ram[MENU_STATE] == 0 and ram[ITEM_LIFT_TIMER] == 0
+            and ram[LINK_STATE] & HALTED_MASK != HALTED)
+
+
+def in_normal_play(ram: Mapping[int, int]) -> bool:
+    """Normal play (mode 5, submode 0), settled (`ram` holds RECEIVE_STATE's addresses): where a DeathLink death is
+    applied."""
+    return ram[GAME_MODE] == PLAY_MODE and ram[GAME_SUBMODE] == 0 and _settled(ram)
 
 
 def may_receive(ram: Mapping[int, int]) -> bool:
-    """Whether a client may write a received item now (`ram` holds RECEIVE_STATE's addresses)."""
-    return (ram[GAME_MODE] == PLAY_MODE and ram[GAME_SUBMODE] == 0 and ram[IS_UPDATING_MODE] == 1
-            and ram[PAUSED] == 0 and ram[MENU_STATE] == 0 and ram[ITEM_LIFT_TIMER] == 0
-            and ram[LINK_STATE] & HALTED_MASK != HALTED)
+    """Whether a client may write a received item now (`ram` holds RECEIVE_STATE's addresses): in normal play, or
+    in a cellar (CELLAR_MODE, whose GameSubmode stays at its last init step) once its update runs (2026-11-23: the
+    emulator check gave every item kind there, the status bar then as if the item had been held before, and Link
+    still took the cellar's own item and climbed out; tests/test_archipelago_hud_caves_emulator.py). Never in a cave,
+    where shops and gift caves choose their wares on entry and the sword caves check hearts: the client shows the
+    line and gives the item on the way out."""
+    in_cellar = ram[GAME_MODE] == CELLAR_MODE and _settled(ram)
+    return in_normal_play(ram) or in_cellar
 
 
 # When the pickup flags (WorldFlags, $067F-$07FE) hold the loaded save file (checks_readable).

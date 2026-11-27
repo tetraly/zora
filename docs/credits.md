@@ -103,9 +103,8 @@ Crump, ultralavos, TheGobOne, Tetra, PDXRex and heccinhayley.
 - **The Archipelago logo sprite** by binarybrain11 (Zachary Gorman), from their Archipelago fork's
   Legend of Zelda world (github.com/binarybrain11/Archipelago, commit c478ba8; MIT license): the
   32 bytes of tile data (half a logo, which their world drew mirrored) from which ZORA makes the
-  16x16 logo an Archipelago game draws another player's item with when its player chooses "Other
-  players' items look like: The Archipelago logo": their half, and its mirror with white and light
-  blue traded (`zora/rom/archipelago_logo.py`).
+  16x16 logo an Archipelago game draws another player's item with, colored by the item's class: their
+  half, and its mirror with white and light blue traded (`zora/rom/archipelago_logo.py`).
 - **Archipelago's The Legend of Zelda world**, for research: how it handles the player's ROM and
   the patch file informed the world's ROM handling. Nothing was copied from it.
 

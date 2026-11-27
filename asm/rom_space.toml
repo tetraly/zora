@@ -456,6 +456,13 @@ what = "Music: Random only: lozft's rewrite of IsrNmi (docs/rom-map.md)"
 [[reserved]]
 owner = "lozft"
 bank = 7
+first = 0xE4B3
+last = 0xE4BC
+what = "Music: Random only: a piece of the game's code lozft moves, after its IsrNmi (since the ap-items claims, 2026-11-22)"
+
+[[reserved]]
+owner = "lozft"
+bank = 7
 first = 0xE62D
 last = 0xE656
 what = "Music: Random only: lozft's hook over the game's code"
@@ -478,8 +485,8 @@ what = "Music: Random only: lozft's hook over the game's code"
 owner = "lozft"
 bank = 7
 first = 0xFF98
-last = 0xFFA5
-what = "Music: Random only: lozft's hook over the game's code"
+last = 0xFFAB
+what = "Music: Random only: lozft's hook over the game's code, and pieces of the game's code it moves"
 
 [[reserved]]
 owner = "lozft"

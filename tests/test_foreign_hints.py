@@ -12,7 +12,7 @@ import pytest
 from tests.archipelago_cases import FLAG_CASES
 from tests.test_assignment import _built, identity
 from zora.generate.acceptance_check import ARROW_LINE
-from zora.generate.finish import FOREIGN, FOREIGN_ITEM, rebuild_tracking, with_tracking
+from zora.generate.finish import FOREIGN, rebuild_tracking, with_tracking, written_item
 from zora.generate.pipeline import Built, finish_world
 from zora.generate.steps.hint_text import (
     FOREIGN_NAME,
@@ -35,6 +35,8 @@ from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
 from zora.rom.text_encoding import CHAR_TO_BYTE
 
+FOREIGN_ITEM = written_item(FOREIGN)           # how FINISH writes another player's filler item
+
 FOREIGN_WORDS = "ANOTHER PLAYER'S ITEM"
 RUPEES_WORDS = "RUPEES"
 APOSTROPHE_TILE = 0x2A
@@ -54,7 +56,7 @@ def base() -> bytes:
 
 def foreign_names(built: Built) -> ItemNames:
     names = PROGRESSIVE_NAMES if built.plan.zora.progressive_items else VANILLA_NAMES
-    return replace(names, foreign_code=FOREIGN_ITEM)
+    return replace(names, foreign_codes=frozenset({FOREIGN_ITEM}))
 
 
 def _says_foreign(lines: list[str]) -> bool:
@@ -154,7 +156,7 @@ def test_the_wording_fits_the_text_box() -> None:
     requirement text naming it keeps the wording whole on one line."""
     assert FOREIGN_NAME == "ANOTHER PLAYER'S ITEM"
     assert not quote_problems([FOREIGN_NAME]) and CHAR_TO_BYTE["'"] == APOSTROPHE_TILE
-    names = replace(VANILLA_NAMES, foreign_code=FOREIGN_ITEM)
+    names = replace(VANILLA_NAMES, foreign_codes=frozenset({FOREIGN_ITEM}))
     for form in ("raft", "recorder", "bracelet", "ladder"):
         for white_sword_cave in (False, True):
             lines = requirement_text(Requirement(form, FOREIGN_ITEM, white_sword_cave=white_sword_cave), names)
@@ -167,6 +169,6 @@ def test_the_apostrophe_is_vanillas_own(base: bytes) -> None:
 
 
 def test_zora_mode_names_are_unchanged() -> None:
-    """Without foreign_code (ZORA mode) the foreign code (a rupee) is named as ever."""
-    assert VANILLA_NAMES.foreign_code is None and PROGRESSIVE_NAMES.foreign_code is None
-    assert VANILLA_NAMES.phrase(FOREIGN_ITEM) == "THE RUPEE"
+    """Without foreign_codes (ZORA mode) a rupee, the foreign code up to piece 5, is named as ever."""
+    assert not VANILLA_NAMES.foreign_codes and not PROGRESSIVE_NAMES.foreign_codes
+    assert VANILLA_NAMES.phrase(Item.ITEM_0x18) == "THE RUPEE"

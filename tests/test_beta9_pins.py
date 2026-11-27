@@ -134,5 +134,19 @@ def test_the_non_heart_place_takes_an_earlier_non_heart_item() -> None:
     heart = Item.HEART_CONTAINER
     pool_items: list[int] = [Item.BOW, heart, Item.RAFT, heart, heart]
     destination = [4, 1, 2, 0, 3]                 # position 3 is to go to place 0, the Non-Heart one
-    _non_heart_from_earlier(destination, pool_items, 3, forced={}, non_heart={0}, rng=_OneDraw(1))
+    _non_heart_from_earlier(destination, pool_items, 3, forced={}, non_heart={0}, rng=_OneDraw(1),
+                            white_sword_position=4)
     assert destination == [4, 1, 0, 2, 3]
+
+
+def test_the_white_sword_cave_at_non_heart_never_takes_a_key() -> None:
+    """The white-sword cave pinned Non-Heart, position 3 standing on it with only heart containers left: of the
+    earlier non-heart items, the key is skipped (PS-ITEM-05's white-sword test; a key there is what Shuffle Minor
+    Dungeon Drops forbids), so the one draw left is the raft's position."""
+    heart = Item.HEART_CONTAINER
+    pool_items: list[int] = [Item.KEY | 0x20, heart, Item.RAFT, heart, heart]     # a room's key byte, $39
+    destination = [4, 1, 2, 0, 3]                 # place 0 is the white-sword cave, pinned Non-Heart
+    _non_heart_from_earlier(destination, pool_items, 3, forced={}, non_heart={0}, rng=_OneDraw(0),
+                            white_sword_position=0)
+    assert destination == [4, 1, 0, 2, 3]
+    assert pool_items[destination.index(0)] == Item.RAFT

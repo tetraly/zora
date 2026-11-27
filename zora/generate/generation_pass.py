@@ -100,6 +100,7 @@ from .steps.expanded_dungeon_locations import (
     apply_deal,
     deal_entries,
     deal_expanded_dungeon_locations,
+    redealt_key,
 )
 from .steps.extra_pool_items import ExtraPoolItems
 from .steps.feature_data import LEVEL_9_SWORD_REFUSAL_TEXT, write_fixed_feature_data
@@ -189,7 +190,7 @@ from .steps.universal_drops_v2 import (
     place_on_drop_square,
     seat_triforces_at_the_center,
 )
-from .steps.wood_sword_behind_blocks import wood_sword_extra_screens
+from .steps.wood_sword_behind_blocks import armos_reached_from_start, wood_sword_extra_screens
 
 # The attempt cap: SH-FLOW-03 (revised spec) says a rebuild must retry, then
 # fail visibly, never ship a half-built dungeon; the cap keeps a
@@ -410,7 +411,7 @@ def item_shuffle_options(context: GenerationContext) -> ItemShuffleOptions:
     price their wares by (steps/shop_prices.py)."""
     alternatives = context.settings.alternatives
     return ItemShuffleOptions(dungeon_hearts=alternatives.item_deal is ItemShuffleScope.FULL,
-                              minor_items=alternatives.minor_dungeon_drops,
+                              minor_items=alternatives.minor_dungeon_drops and alternatives.minor_drops_dealt,
                               set_sources=context.set_sources,
                               armos_item=alternatives.armos_pin, white_sword_item=alternatives.white_sword_pin,
                               coast_item=alternatives.coast_pin, level_9_items=alternatives.level_9_pins,
@@ -587,11 +588,12 @@ def stage_overworld(context: GenerationContext) -> None:
 def expanded_dungeon_locations_step(context: GenerationContext) -> None:
     """Expanded Dungeon Locations (ZORA's own; expanded_dungeon_locations.py): the deal from its own
     stream, on the staged overworld before the overworld monster pass. The start rooms are final
-    here, as at the cave pass (OW-CAVE-03)."""
+    here, as at the cave pass (OW-CAVE-03). A seed still unaccepted after REDEAL_AFTER attempts gets a new deal
+    (redealt_key)."""
     assert context.overworld is not None
     second_quest = context.settings.alternatives.second_quest_overworld
-    deal = deal_expanded_dungeon_locations(context.settings.extras.expanded_dungeon_locations_seed,
-                                           _start_rooms(context.plans, context.sets.levels),
+    key = redealt_key(context.settings.extras.expanded_dungeon_locations_seed, context.result.attempts)
+    deal = deal_expanded_dungeon_locations(key, _start_rooms(context.plans, context.sets.levels),
                                            SECOND_QUEST if second_quest else FIRST_QUEST)
     if second_quest:
         # The second quest's codes and looks first (enroll_caves then only lists them), so the deal
@@ -767,9 +769,10 @@ def shuffle_caves_step(context: GenerationContext) -> None:
     extra = frozenset[int]()
     if context.settings.alternatives.wood_sword_cave_behind_blocks:
         caves = context.item_shuffle_result.caves
-        # OW-CAVE-07 reads the starting inventory (FP-START-04)
-        extra = wood_sword_extra_screens(context.overworld, caves["armos"], caves["coast"],
-                                         frozenset(context.settings.alternatives.start_items))
+        # OW-CAVE-07 reads the starting inventory (FP-START-04); an Armos a gate walls in gives no free item
+        starting = frozenset(context.settings.alternatives.start_items)
+        armos_reached = armos_reached_from_start(context.armos_screen, context.settings.extras.gates, starting)
+        extra = wood_sword_extra_screens(context.overworld, caves["armos"], caves["coast"], starting, armos_reached)
     context.caves = shuffle_caves(context.overworld, context.cave_entries, context.armos_screen,
                                   _start_rooms(context.plans, context.sets.levels), context.rng,
                                   context.settings.steps.shuffle_take_any_road_caves,
@@ -941,7 +944,8 @@ def oops_all_step(context: GenerationContext) -> None:
 
 
 # The ZORA extras join the pool after every pass that reads $03 as "no item"
-# (docs/zora-extras.md section 3); neither is a tracked item.
+# (docs/zora-extras.md section 3); a joined sword is a tracked item whenever the walk counts swords
+# (sword_is_tracked), the letter never.
 
 def level_9_gate_step(context: GenerationContext) -> None:
     """Level 9 Entry (C08; FP-TRIF-02 to FP-TRIF-06): what this attempt's entrance asks for, before
@@ -949,11 +953,20 @@ def level_9_gate_step(context: GenerationContext) -> None:
     context.level_9_gate = draw_level_9_gate(context.settings.alternatives.level_9_entry, context.rng)
 
 
+def sword_is_tracked(context: GenerationContext) -> bool:
+    """Whether a joined sword (Randomize Magical Sword's, Add L4 Sword = Level 2's) gets a tracked record: whenever
+    the walk counts swords (LogicRules.counts_swords: Level 9 Entrance = Level 4 sword, or Offense Item Pacing), as
+    the logic model's Sword line counts it wherever it lies. Until 2.0.2 only the first: under Offense Item Pacing
+    alone the walk never counted the joined sword, so it judged seeds by fewer swords than Link has
+    (check_apworld seed 13, 2026-11-22; FINISH's rebuild_tracking does the same for Archipelago's placements)."""
+    return context.settings.extras.level_9_entrance_sword or context.logic_rules.counts_swords
+
+
 def randomize_magical_sword_step(context: GenerationContext) -> None:
     assert context.overworld is not None
     randomize_magical_sword(context.sets.levels, context.item_shuffle_result, context.extra_pool_items,
                             context.overworld, context.rng, item_shuffle_options(context),
-                            tracked=context.settings.extras.level_9_entrance_sword)
+                            tracked=sword_is_tracked(context))
 
 
 def randomize_letter_step(context: GenerationContext) -> None:
@@ -991,9 +1004,9 @@ def shuffle_blue_potion_step(context: GenerationContext) -> None:
 
 def join_level_2_sword_step(context: GenerationContext) -> None:
     """Add L4 Sword = Level 2 (docs/design/asnb.md section 4): level 2's cellar sword joins the
-    pool, after the other joins; tracked with Level 9 Entrance = Level 4 sword."""
+    pool, after the other joins; tracked whenever the walk counts swords (sword_is_tracked)."""
     join_level_2_sword(context.sets.levels, context.item_shuffle_result, context.extra_pool_items, context.rng,
-                       tracked=context.settings.extras.level_9_entrance_sword, opts=item_shuffle_options(context))
+                       tracked=sword_is_tracked(context), opts=item_shuffle_options(context))
 
 
 def add_l4_sword_step(context: GenerationContext) -> None:
@@ -1207,17 +1220,17 @@ def generate_hint_text_step(context: GenerationContext) -> None:
 
 def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hint_assignment: HintAssignmentResult,
                       rng: Rng, extras: ExtraOptions, alternatives: AlternativeValues,
-                      maze_offers: dict[int, MazeOffer], foreign_code: int | None = None,
+                      maze_offers: dict[int, MazeOffer], foreign_codes: frozenset[int] = frozenset(),
                       foreign_labels: tuple[tuple[int | str, str, str], ...] = ()) -> HintTextResult:
     """The hint text step's work on a shipped world: also FINISH's, on an assigned world
-    (Archipelago Phase 2), which passes foreign_code, the code another player's item is written
-    as, so that a hint naming such a place says so (ItemNames.foreign_code)."""
+    (Archipelago Phase 2), which passes foreign_codes, the codes another player's item is written
+    as, so that a hint naming such a place says so (ItemNames.foreign_codes)."""
     # PI-TEXT-01: with Progressive Items on, the texts name upgrade-line items by their line
     names = PROGRESSIVE_NAMES if extras.progressive_items else VANILLA_NAMES
     if alternatives.wooden_sword_state in BOMB_UPGRADE_STATES:
         names = replace(names, bomb_upgrade=True)       # FP-WOOD-02: item $02 is a bomb upgrade
-    if foreign_code is not None:
-        names = replace(names, foreign_code=foreign_code, foreign_labels=foreign_labels)
+    if foreign_codes:
+        names = replace(names, foreign_codes=foreign_codes, foreign_labels=foreign_labels)
     if extras.pegasus_boots:
         names = replace(names, pegasus_boots=True)      # the boomerangs' items are the boots
     if alternatives.normal_hints:
@@ -1230,7 +1243,8 @@ def compose_hint_text(gw: GameWorld, item_shuffle_result: ItemShuffleResult, hin
     return generate_hint_text(gw, item_shuffle_result, hint_assignment, rng, names, maze_offers,
                               extras.gates, every_helpful_hint=alternatives.show_every_helpful_hint,
                               book_needed=alternatives.book_to_understand_npcs,
-                              deceive=alternatives.deception_hints, mirrored=alternatives.mirror_overworld)
+                              deceive=alternatives.deception_hints, mirrored=alternatives.mirror_overworld,
+                              maps_compasses_pooled=extras.add_maps_compasses_to_pool)
 
 
 def shuffle_dungeon_text_step(context: GenerationContext) -> None:

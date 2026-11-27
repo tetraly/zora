@@ -1,0 +1,372 @@
+# ZORA Archipelago items (docs/design/archipelago-items.md, piece 4): Archipelago games' ROMs only
+# (GameConfig.archipelago_rom). A room's item is six bits (table F bit 3 is bit 5), and item codes $24-$3E
+# are drawn and taken by far routines in bank 6, through two stubs in the fixed bank. The stubs live in
+# 190 bytes of bank 7 ($FD82-$FE3F) freed by moving InitObject's jump table to bank 4; the table is the
+# game's own data, read from the player's ROM ([[moved]]), never stored. asm/README.md and
+# asm/flags2/build.py describe this file.
+
+# The game's bytes between two hooks are not written back: asnb's l4-sword-look rewrites the operand of
+# the JMP DrawItemBySlot between draw-slot and draw-far-descriptor.
+write_kept_bytes = false
+
+[[segment]]
+name = "ZORA_F2_AP_ITEMS_B4"
+bank = 4
+size = 0xE0                 # InitObjectFar and its table (193 bytes); room to grow
+
+[[segment]]
+name = "ZORA_F2_AP_ITEMS_FAR"
+bank = 6                    # the stubs map bank 6 (AP_ITEMS_FAR_BANK in the fixed block)
+size = 0x290                # FarDraw, FarTake, their tables, the digits, the Bomb Upgrade (to $9FFF)
+
+[[segment]]
+name = "ZORA_F2_AP_ITEMS_FAR_GLYPH"
+bank = 6                    # IsrNmi maps bank 6 for the frame update (lozft too: both halves)
+size = 0xA0                 # the frame update's glyph (TransferTileBufAndDigit, WriteDigitGlyph, ShortDynamicBuffer)
+
+[imports]
+bank_01 = ["DescriptorOrExtended", "SellerWare", "SellerPays"]
+bank_04 = ["AnimateItemObjectAndMapBank4", "TryTakeItemAndMapBank4"]
+bank_05 = ["ReadRoomItem6", "IsTriforceRoomItem"]
+bank_06 = ["DrawItemBySlot", "Anim_WriteSpritePair", "Anim_EndWriteSprite", "SpriteOffsets", "TakeBombUpgrade"]
+bank_07 = ["InitObjectFar", "FarDraw", "FarTake", "TryTakeItem", "TransferTileBufAndDigit", "TakeItem",
+           "L_Person_FlagItemTakenAndAdvanceState"]
+
+[exports]
+bank_04 = ["InitObjectFar"]
+bank_01 = ["Anim_WriteSpritePair", "Anim_EndWriteSprite", "TakeItem", "L_Person_FlagItemTakenAndAdvanceState"]
+bank_06 = ["FarDraw", "FarTake", "TransferTileBufAndDigit"]
+bank_07 = ["DescriptorOrExtended", "ReadRoomItem6", "IsTriforceRoomItem", "DrawItemBySlot",
+           "AnimateItemObjectAndMapBank4", "TryTakeItemAndMapBank4", "SellerWare", "SellerPays", "TakeBombUpgrade"]
+
+[[moved]]
+file = "init-object-table.bin"
+source = 0x1FD92
+length = 190
+note = "InitObject_JumpTable, 95 entries, from the fixed bank to InitObjectFar in bank 4."
+
+[[hook]]
+name = "init-object-far"
+offset = 0x1FD8F
+length = 3
+note = "InitObject's JSR TableJump (bank 4 is mapped on every path to it) becomes a JMP to InitObjectFar, which runs the same TableJump on the moved table."
+code = """
+    JMP InitObjectFar
+"""
+
+[[hook]]
+name = "digit-transfer"
+offset = 0x1E4D1
+length = 3
+note = "IsrNmi's JSR TransferCurTileBuf (bank 6 mapped) becomes JSR TransferTileBufAndDigit: the game's transfer, then a waiting digit glyph (piece 6). lozft (Music: Random, MMC3) moves this code into bank 6 and can be on any ROM with this patch (a single-player ROM with Add Triforces or Add Maps/Compasses to the Item Pool, or an Archipelago ROM built with Music: Random): it copies the finished ROM's bytes, this hook included (zora/rom/music/lozft.py moved_piece_bytes; until 2.0.2 it copied the original game's, and the digits never showed)."
+code = """
+    JSR TransferTileBufAndDigit
+"""
+
+[[hook]]
+name = "fixed-block"
+offset = 0x1FD92
+length = 190
+note = "The old table, $FD82-$FE3F: the stubs that reach the far routines and the six-bit room item reads, then blank."
+code = """
+AP_ITEMS_FAR_BANK = 6           ; ZORA_F2_AP_ITEMS_FAR's bank
+AP_ITEMS_HOME_BANK = 1          ; what every caller but bank 4's wrappers expects mapped after a draw or take
+AP_ITEMS_FIRST_EXTENDED = $24   ; item codes from here on are drawn and taken far
+AP_ITEMS_COMPASS = $16         ; the generic codes, far in per-level mode: level 9's compass and map,
+AP_ITEMS_MAP = $17             ; level 8's Triforce piece
+AP_ITEMS_FIRST_TRIFORCE = $38   ; the per-level Triforce codes
+AP_ITEMS_TRIFORCE = $1B         ; the generic Triforce piece
+AP_ITEMS_FIVE_BITS = $1F        ; table E's item bits
+AP_ITEMS_SIX_BITS = $3F         ; a room item's code with table F's bit 3
+AP_ITEMS_ROOM_ITEM_SLOT = $13   ; the room item's object slot, which the "more bombs" man borrows to draw
+AP_ITEMS_OFF = $FF              ; an object slot's state when off (a taken or absent room item)
+AP_ITEMS_RUPEE = $18            ; the item the "more bombs" man shows in the game
+AP_ITEMS_ENDING_MODE = $13      ; GameMode of the ending (the title screen's is 0)
+
+ApItemsFixedBlock:
+
+; Per-level mode (piece 6), written per seed by zora/rom/level_items.py (PER_LEVEL_MODE, this block's
+; first byte): nonzero when the seed's levels' pieces, maps and compasses are pool items.
+ApItemsPerLevelMode:
+    .BYTE $00
+
+; Seller mode (piece 8), written per seed by zora/rom/level_items.py (SELLER_MODE, the second byte): nonzero
+; when the two bomb upgraders are places. A seller's room byte then holds his place's item: he shows it where
+; the game shows his rupee, the room item object stays off (it would lie where Link stands to pay), and paying
+; takes it instead of raising MaxBombs.
+ApItemsSellerMode:
+    .BYTE $00
+
+; The seed's bomb upgrade (piece 8): how far a Bomb Upgrade ($37) raises MaxBombs, the upgraders' own count
+; (B12, B90), written per seed by zora/rom/level_items.py (BOMB_UPGRADE_COUNT, the third byte).
+ApItemsBombUpgradeCount:
+    .BYTE $04
+
+; Params:
+; X: item ID
+;
+; Returns:
+; C: set if the code is drawn and taken far: $24 and up, and in per-level mode the generic compass, map
+;    and Triforce piece (level 9's, level 9's and level 8's), but on the title screen and in the ending
+;
+; Bank 2 draws items only on the title screen (its treasure list: the compass, the map and the Triforce among
+; them) and in the ending (the Triforce over Link and over Zelda), always with the game's own codes, and a far draw
+; returns with bank 1 mapped: back in bank 2's code, the console ran bank 1's bytes (found in testing on 2.0.2's
+; test build, from 907f2286 on). Those two modes draw the generic codes as the game does, with no digit.
+IsFarCode:
+    CPX #AP_ITEMS_FIRST_EXTENDED
+    BCS @Exit
+    LDA ApItemsPerLevelMode
+    BEQ @Plain
+    LDA GameMode
+    BEQ @Plain                  ; the title screen and its story
+    CMP #AP_ITEMS_ENDING_MODE
+    BEQ @Plain
+    CPX #AP_ITEMS_COMPASS
+    BEQ @Exit                   ; equal: C is set
+    CPX #AP_ITEMS_MAP
+    BEQ @Exit
+    CPX #AP_ITEMS_TRIFORCE
+    BEQ @Exit
+
+@Plain:
+    CLC
+
+@Exit:
+    RTS
+
+; Params:
+; X: item ID
+;
+; AnimateItemObject's slot lookup. A far code drops this call's return address and is drawn far:
+; StubDraw returns to AnimateItemObject's caller.
+SlotOrExtended:
+    JSR IsFarCode
+    BCC SlotOfPlainItem
+    PLA
+    PLA
+
+; Params:
+; X: item ID
+; [00], [01]: the sprite position, as Anim_FetchObjPosForSpriteDescriptor left it
+StubDraw:
+    LDA #AP_ITEMS_FAR_BANK
+    JSR SwitchBank
+    JSR FarDraw
+    LDA #AP_ITEMS_HOME_BANK
+    JMP SwitchBank
+
+SlotOfPlainItem:
+    LDA ItemIdToSlot, X
+    RTS
+
+; Params:
+; X: item ID
+;
+; TakeItem's descriptor lookup. A far code (IsFarCode) drops this call's return address and is taken far:
+; StubTake returns to TakeItem's caller.
+DescriptorOrExtended:
+    JSR IsFarCode
+    BCS TakeFar
+    LDA ItemIdToDescriptor, X
+    RTS
+
+TakeFar:
+    PLA
+    PLA
+
+; Params:
+; X: item ID
+StubTake:
+    LDA #AP_ITEMS_FAR_BANK
+    JSR SwitchBank
+    JSR FarTake
+    LDA #AP_ITEMS_HOME_BANK
+    JMP SwitchBank
+
+; Params:
+; Y: room ID
+;
+; Returns:
+; A: LevelBlockAttrsE with bit 5 (a boss sound bit there) replaced by LevelBlockAttrsF's bit 3: the room
+;    item's six bits under the boss sound's other bit and the dark bit
+ReadRoomItem6:
+    LDA LevelBlockAttrsF, Y
+    ASL
+    ASL
+    EOR LevelBlockAttrsE, Y
+    AND #$20
+    EOR LevelBlockAttrsE, Y
+    RTS
+
+; Params:
+; Y: room ID
+;
+; Returns:
+; Z: set if the room item is a Triforce, so CreateRoomObjects moves it 8 pixels left. In a level, a
+;    six-bit code: $1B or a per-level Triforce. On the overworld, the game's own test of table E's five
+;    bits (the coast heart's screen $5F reads a cave price byte there).
+IsTriforceRoomItem:
+    LDA CurLevel
+    BEQ @Overworld
+    JSR ReadRoomItem6
+    AND #AP_ITEMS_SIX_BITS
+    CMP #AP_ITEMS_FIRST_TRIFORCE
+    BCC @Compare
+    LDA #AP_ITEMS_TRIFORCE
+    BNE @Compare
+
+@Overworld:
+    LDA LevelBlockAttrsE, Y
+    AND #AP_ITEMS_FIVE_BITS
+
+@Compare:
+    CMP #AP_ITEMS_TRIFORCE
+    RTS
+
+; Bank 4's item object (UpdateItem: the Armos item, monster drops) draws and takes through these. A far
+; draw or take returns with bank 1 mapped, so the call that maps bank 4 again must run from this bank:
+; a return into bank 4's own code would land in bank 1's bytes. Neither caller needs A afterwards.
+AnimateItemObjectAndMapBank4:
+    JSR AnimateItemObject
+    LDA #$04
+    JMP SwitchBank
+
+TryTakeItemAndMapBank4:
+    JSR TryTakeItem
+    LDA #$04
+    JMP SwitchBank
+
+; Params:
+; (none; the "more bombs" man's update, bank 1 mapped)
+;
+; Returns:
+; A: the item the man shows: his place's item in seller mode, else the game's rupee
+; X: the room item object's slot, as the game's LDX #$13 leaves it
+SellerWare:
+    LDX #AP_ITEMS_ROOM_ITEM_SLOT
+    LDA ApItemsSellerMode
+    BEQ @Rupee
+    LDA #AP_ITEMS_OFF
+    STA ObjState, X             ; the room item object stays off: it would lie where Link stands to pay
+    LDA RoomItemId
+    RTS
+
+@Rupee:
+    LDA #AP_ITEMS_RUPEE
+    RTS
+
+; The "more bombs" man's payment, after the rupees are posted. In seller mode it takes his place's item (bank 1
+; mapped again on return, as every take leaves it) and goes on where the game's payment does; else it is the
+; game's LDA MaxBombs, and the raise follows.
+SellerPays:
+    LDA ApItemsSellerMode
+    BEQ @Bombs
+    PLA
+    PLA
+    LDA RoomItemId
+    JSR TakeItem
+    JMP L_Person_FlagItemTakenAndAdvanceState
+
+@Bombs:
+    LDA MaxBombs
+    RTS
+
+; A Bomb Upgrade ($37), from FarTake: MaxBombs rises by the seed's count and the bombs fill, as the upgraders do.
+TakeBombUpgrade:
+    LDA MaxBombs
+    CLC
+    ADC ApItemsBombUpgradeCount
+    STA MaxBombs
+    STA InvBombs
+    RTS
+
+    .RES 190 - (* - ApItemsFixedBlock), $FF
+"""
+
+[[hook]]
+name = "room-item"
+offset = 0x17859
+length = 5
+note = "CreateRoomObjects' room item (LDA LevelBlockAttrsE, Y / AND #$1F) is six bits: table F bit 3 is bit 5."
+code = """
+    JSR ReadRoomItem6
+    AND #$3F
+"""
+
+[[hook]]
+name = "triforce-shift"
+offset = 0x17886
+length = 11
+note = "CreateRoomObjects' Triforce test, which moves the item 8 pixels left, also takes the per-level Triforces."
+code = """
+    LDY RoomId
+    JSR IsTriforceRoomItem
+    BNE :+
+    .RES 4, $EA
+"""
+
+[[hook]]
+name = "draw-slot"
+offset = 0x1E739
+length = 3
+note = "AnimateItemObject's slot lookup: an extended item code is drawn far (SlotOrExtended)."
+code = """
+    JSR SlotOrExtended
+"""
+
+[[hook]]
+name = "draw-far-descriptor"
+offset = 0x1E741
+length = 4
+note = "AnimateItemObject's dead path for descriptor $30 (LDA #$FF / BNE) draws far: a generic code marked far (piece 6)."
+code = """
+    JMP StubDraw
+    NOP
+"""
+
+[[hook]]
+name = "take-descriptor"
+offset = 0x06C16
+length = 3
+note = "TakeItem's descriptor lookup: an extended code, or a generic one marked far, is taken far (DescriptorOrExtended)."
+code = """
+    JSR DescriptorOrExtended
+"""
+
+[[hook]]
+name = "item-object-draw"
+offset = 0x1311F
+length = 3
+note = "UpdateItem (bank 4) draws through AnimateItemObjectAndMapBank4, in the fixed bank: a far draw leaves bank 1 mapped."
+code = """
+    JSR AnimateItemObjectAndMapBank4
+"""
+
+[[hook]]
+name = "item-object-take"
+offset = 0x13158
+length = 3
+note = "UpdateItem (bank 4) takes through TryTakeItemAndMapBank4, in the fixed bank: a far take leaves bank 1 mapped."
+code = """
+    JSR TryTakeItemAndMapBank4
+"""
+
+[[hook]]
+name = "seller-ware"
+offset = 0x04B3F
+length = 4
+note = "The \"more bombs\" man's LDA #$18 / LDX #$13 before he draws his rupee becomes JSR SellerWare + NOP: in seller mode (piece 8) he shows his place's item, and the room item object stays off."
+code = """
+    JSR SellerWare
+    NOP
+"""
+
+[[hook]]
+name = "seller-pays"
+offset = 0x04B96
+length = 3
+note = "The \"more bombs\" man's LDA MaxBombs after the rupees are posted becomes JSR SellerPays: in seller mode (piece 8) paying takes his place's item; else the game's raise follows, its count operand (0x04B9B, written by ZORA) untouched."
+code = """
+    JSR SellerPays
+"""

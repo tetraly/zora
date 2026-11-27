@@ -19,7 +19,9 @@
      player settings), and a ChecksFinder player;
    - build every ZORA patch into a ROM as a player's machine does (Patch.create_rom_file) from
      the PRG0 ROM, the PRG1 ROM and PRG0 with modified graphics (the organizer generated on
-     PRG0): each ROM must carry its slot's identity and its own release's layout;
+     PRG0): each ROM must carry its slot's identity and its own release's layout, and, when this
+     checkout's zora/ is the .apworld's (the same source hash), the web page's .apzora step
+     (zora_web.apzora.build_rom) must build the same bytes;
    - the world's own tests (its test/ folder, inside the .apworld) and Archipelago's general
      tests scoped to ZORA (AP_TEST_WORLDS=zora).
 Exit status 1 if anything required fails. The first run downloads Archipelago and installs its
@@ -54,7 +56,7 @@ from zora.rom.revision import GRAPHICS_BLOCKS, NES_HEADER_SIZE, Revision, identi
 from zora.rom.slot_identity import MAX_NAME_LENGTH as SLOT_NAME_LENGTH  # noqa: E402
 from zora.rom.slot_identity import SLOT_IDENTITY_ADDRESS, SLOT_IDENTITY_SIZE  # noqa: E402
 from zora_measure.progress import Job, note_step  # noqa: E402
-from zora_web import multiworld  # noqa: E402
+from zora_web import apzora, multiworld  # noqa: E402
 
 WORK = REPO / "temp" / "archipelago-check"
 ARCHIPELAGO_REPO = "https://github.com/ArchipelagoMW/Archipelago.git"
@@ -210,8 +212,9 @@ def host_yaml(tree: Path, rom: Path) -> None:
 # --- the players: the web page's exports -------------------------------------------------------
 
 def random_page_values(rng: random.Random) -> dict[str, int]:
-    """One offered value for each option, as Archipelago's option keys take them."""
-    return {spec.key: rng.choice([value for value, _key in spec.value_keys]) for spec in zora_ap.option_fields()}
+    """One offered value for each option, as Archipelago's option keys take them: never a beta value (not
+    through the logic scan, zora_ap.HELD_BACK), which may fail by design."""
+    return {spec.key: rng.choice(spec.scanned_values) for spec in zora_ap.option_fields()}
 
 
 def random_settings(rng: random.Random) -> dict[str, object]:
@@ -299,15 +302,21 @@ def expected_slot_name(player: int, seed_name: str) -> str:
     return f"ZORA{player}_{seed_name}".encode()[:SLOT_NAME_LENGTH].decode()
 
 
-def bake(python: Path, tree: Path, patches: list[Path], label: str, rom: Path, revision: Revision) -> Result:
+def bake(python: Path, tree: Path, patches: list[Path], label: str, rom: Path, revision: Revision,
+         page_builds: bool = False) -> Result:
     """Every patch built into a ROM from ROM, as each player's machine does; each must carry its
-    slot's login name and have ROM's release's layout."""
+    slot's login name and have ROM's release's layout. page_builds: the web page's .apzora step
+    (zora_web.apzora.build_rom, this checkout's, the .apworld's source hash) must build the same bytes."""
     host_yaml(tree, rom)
     done = run([python, "-c", BAKE, *patches], tree)
     problems = [] if done.returncode == 0 else tail(done)
     for line in done.stdout.splitlines():
         player, _space, target = line.partition(" ")
         baked = Path(target).read_bytes()
+        if page_builds:
+            patch = Path(target).with_suffix(apzora.PATCH_FILE_ENDING)
+            if apzora.build_rom(patch.read_bytes(), rom.read_bytes()) != baked:
+                problems.append(f"{patch.name}: the page's .apzora step builds another ROM than Archipelago's patcher")
         expected = expected_slot_name(int(player), Path(target).name.split("_")[1])
         if slot_name(baked) != expected:
             problems.append(f"{Path(target).name}: slot identity {slot_name(baked)!r}, expected {expected!r}")
@@ -316,7 +325,8 @@ def bake(python: Path, tree: Path, patches: list[Path], label: str, rom: Path, r
         Path(target).unlink()
     if done.returncode == 0 and len(done.stdout.splitlines()) != len(patches):
         problems.append(f"{len(done.stdout.splitlines())} of {len(patches)} patches built")
-    return Result(f"builds all {len(patches)} patches from {label}", not problems, problems)
+    checked = ", the page's .apzora step building the same bytes" if page_builds else ""
+    return Result(f"builds all {len(patches)} patches from {label}{checked}", not problems, problems)
 
 
 def world_tests(python: Path, tree: Path, apworld: Path) -> Result:
@@ -339,7 +349,7 @@ def general_tests(python: Path, tree: Path) -> Result:
 
 
 def check_archipelago(target: Archipelago, apworld: Path, repo: str, players: list[tuple[str, str]],
-                      seed: int, interpreter: str) -> list[Result]:
+                      seed: int, interpreter: str, page_builds: bool = False) -> list[Result]:
     progress(f"Archipelago {target.label}: fetching {target.ref[:12]}...")
     tree, commit = fetch(target, repo)
     progress(f"Archipelago {target.label}: its requirements and pytest (the first time takes several minutes)...")
@@ -359,7 +369,7 @@ def check_archipelago(target: Archipelago, apworld: Path, repo: str, players: li
                 ("PRG0 with modified graphics", modified_graphics_rom(), Revision.PRG0))
         for label, rom, revision in roms:
             progress(f"Archipelago {target.label}: building the patches from {label}...")
-            results.append(bake(python, tree, patches, label, rom, revision))
+            results.append(bake(python, tree, patches, label, rom, revision, page_builds))
     host_yaml(tree, verify_base_rom())
     progress(f"Archipelago {target.label}: the world's tests...")
     results.append(world_tests(python, tree, apworld))
@@ -409,6 +419,9 @@ def main() -> int:
 
 def check(args: argparse.Namespace) -> bool:
     WORK.mkdir(parents=True, exist_ok=True)
+    # The page's .apzora step is compared with Archipelago's patcher when this checkout's zora/ is the
+    # .apworld's (the same source hash: a recipe is rebuilt only by the copy that made it)
+    page_builds = False
     if args.apworld:
         apworld = args.apworld.resolve()
     else:
@@ -416,6 +429,7 @@ def check(args: argparse.Namespace) -> bool:
         built = build_apworld.build(args.rev, args.uncommitted_world, WORK / "zora.apworld")
         for key, value in built.items():
             print(f"build_apworld: {key}: {value}")
+        page_builds = built.get("source hash") == zora_ap.source_hash()
         apworld = WORK / "zora.apworld"
     progress("the release's text checks on the .apworld...")
     passed = report("zora.apworld", text_checks(apworld), required=True)
@@ -430,7 +444,8 @@ def check(args: argparse.Namespace) -> bool:
     warnings = False
     for target in targets:
         try:
-            results = check_archipelago(target, apworld, args.archipelago_repo, players, args.seed, args.python)
+            results = check_archipelago(target, apworld, args.archipelago_repo, players, args.seed, args.python,
+                                        page_builds)
         except (RuntimeError, subprocess.SubprocessError) as failed:
             results = [Result(f"Archipelago {target.label}: could not be set up", False, str(failed).splitlines())]
         heading = f"Archipelago {target.label}" + ("" if target.required else " (a warning only)")

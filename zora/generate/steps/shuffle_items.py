@@ -358,10 +358,11 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None
             destination[position], destination[match] = destination[match], destination[position]
             continue                            # examine this position again
         if target in non_heart and not any(pool_items[other] != Item.HEART_CONTAINER
+                                           and not _key_at_white_sword(target, pool_items[other], white_sword_position)
                                            and destination[other] not in forced for other in range(position, count)):
-            # Every draw would be rejected (only the coast, C12 = 16, gets here): ZORA gives the place
-            # an earlier position's non-heart item (owner ruling, beta 9; docs/deviations.md)
-            _non_heart_from_earlier(destination, pool_items, position, forced, non_heart, rng)
+            # Every draw would be rejected (the coast, C12 = 16, or the white-sword cave pinned Non-Heart): ZORA
+            # gives the place an earlier position's non-heart item (owner ruling, beta 9; docs/deviations.md)
+            _non_heart_from_earlier(destination, pool_items, position, forced, non_heart, rng, white_sword_position)
             position += 1
             continue
         other = position + rng.below(count - position)
@@ -371,10 +372,11 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None
             continue
         if target == white_sword_position and pool_items[other] & KEY_TEST_MASK == Item.KEY:
             continue
-        if (opts.minor_items and destination[other] == white_sword_position
-                and pool_items[position] & KEY_TEST_MASK == Item.KEY):
+        if opts.minor_items and (_key_at_white_sword(destination[other], pool_items[position], white_sword_position)
+                                 or _key_at_white_sword(target, pool_items[other], white_sword_position)):
             # ZORA keeps keys out of the white-sword cave entirely (PS-ITEM-14's MAY, owner ruling
-            # 2026-10-27): PS-ITEM-05's test alone lets a key reach it untested as the partner of an earlier position
+            # 2026-10-27): PS-ITEM-05's test alone lets a key reach it untested as the partner of an earlier position,
+            # or with bit 5 of its room's item byte set ($39), which the test's six bits keep
             continue
         destination[position], destination[other] = destination[other], destination[position]
         position += 1
@@ -392,13 +394,24 @@ def _deal_pool(levels: list[Level], state: ItemShuffleResult, rng: IntRng | None
     return dealt
 
 
+def _key_at_white_sword(target: int, item_byte: int, white_sword_position: int) -> bool:
+    """ZORA's white-sword rule (PS-ITEM-14's MAY, owner ruling 2026-10-27): a key never goes to the white-sword
+    cave. It reads the item's own five bits: a room's item byte may carry bit 5 ($39 is a key), which
+    PS-ITEM-05's six-bit test (KEY_TEST_MASK, kept as the spec has it) does not see as one."""
+    return target == white_sword_position and item_byte & ITEM_MASK == Item.KEY
+
+
 def _non_heart_from_earlier(destination: list[int], pool_items: list[int], position: int, forced: dict[int, int],
-                            non_heart: set[int], rng: IntRng) -> None:
+                            non_heart: set[int], rng: IntRng, white_sword_position: int) -> None:
     """PS-ITEM-12's Non-Heart where the walk stands on its place with only heart containers left: the
     place exchanges destinations with an earlier position holding no heart container, drawn uniformly
     among those whose place takes a heart container (not pinned, not Non-Heart). The spec's walk instead
-    redraws until the budget runs out and leaves the place its heart container (PS-ITEM-07)."""
+    redraws until the budget runs out and leaves the place its heart container (PS-ITEM-07). The exchange
+    keeps the white-sword test: the white-sword cave pinned Non-Heart never takes a key this way (a key
+    there is what B17 forbids, and PS-ITEM-05 rejects)."""
+    target = destination[position]
     earlier = [other for other in range(position) if pool_items[other] != Item.HEART_CONTAINER
+               and not _key_at_white_sword(target, pool_items[other], white_sword_position)
                and destination[other] not in forced and destination[other] not in non_heart]
     assert earlier, "PS-ITEM-12: no earlier non-heart item can take the Non-Heart place"
     other = earlier[rng.below(len(earlier))]

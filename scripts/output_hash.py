@@ -133,6 +133,12 @@ def matrix_jobs(seed_count: int = MATRIX_SEED_COUNT) -> list[MatrixJob]:
                  zora_flags.ZoraFlags(offense_pacing=zora_flags.Pacing.EARLIER))),
              "defense pacing later": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
                  zora_flags.ZoraFlags(defense_pacing=zora_flags.Pacing.LATER))),
+             # Offense Item Pacing with Randomize Magical Sword: the walk counts the joined sword wherever it lies
+             # (generation_pass.sword_is_tracked, 2.0.2)
+             # (its cave asking at most 12 hearts, as Randomize Magical Sword needs on this baseline)
+             "offense pacing earlier, randomize magical sword": (MVP_BASELINE_LEVEL_ENCODING_OFF, zora_flags.encode(
+                 zora_flags.ZoraFlags(offense_pacing=zora_flags.Pacing.EARLIER, randomize_magical_sword=True,
+                                      magical_sword_hearts_highest=12))),
              "recorder warping": (z1r_with(toggles={"B07": ThreeState.ON}), zora_flags.encode(
                  zora_flags.ZoraFlags(recorder_warping=True)))}
     # Universal Drops v2.0 (ZORA version 19): on the baseline (Shuffle Dungeon Drops, B15, on there); with

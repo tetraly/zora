@@ -8,7 +8,8 @@ Archipelago's rules and FINISH's sanity check walk by LOGIC_WALK, whose correcti
   - the ladder crosses a horizontal, double or vertical moat room from any side;
   - the turnstile room ($60) turns from N or S to W and E, from W or E to N and S;
   - a target room may be walked through, to arrive by another side;
-  - level 9's last-boss shutters are open while the Triforce of Power is held."""
+  - level 9's last-boss shutters are open while the Triforce of Power is held;
+  - VA-REJ-18's person row only where the room holds a person (the game's CheckPersonBlocking)."""
 from dataclasses import replace
 from typing import Any
 
@@ -26,11 +27,13 @@ from zora.generate.dungeon_walk import (
     SPEC_WALK,
     TURNSTILE_PUSH_ROW,
     WalkRules,
+    entry_row,
     walk_level,
 )
 from zora.generate.pipeline import build, extra_options, plan
 from zora.generate.steps import add_l4_sword, hint_text, randomize_magical_sword
 from zora.model.enums import Item, RoomType, Side
+from zora.model.rooms import PERSON_LAYOUT_BYTE
 from zora.model.levels import Level
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
@@ -90,7 +93,8 @@ def test_the_defaults() -> None:
     assert acceptance_check.DEFAULT_RULES.walk is SPEC_WALK
     assert logic_walk_rules(LogicRules()).walk is LOGIC_WALK
     assert SPEC_WALK == WalkRules() and not (SPEC_WALK.ladder_moats or SPEC_WALK.measured_turnstile
-                                             or SPEC_WALK.through_target or SPEC_WALK.triforce_of_power_opens)
+                                             or SPEC_WALK.through_target or SPEC_WALK.triforce_of_power_opens
+                                             or SPEC_WALK.persons_only)
 
 
 # --- the corrections ---------------------------------------------------------------------------
@@ -139,3 +143,28 @@ def test_the_target_room_is_walked_through(base: bytes) -> None:
     held = HELD | {Item.LADDER}
     assert not walk_level(level, held, False, True, target=0x45).accepts(level, 0x45)
     assert walk_level(level, held, False, True, walk_rules=LOGIC_WALK).accepts(level, 0x45)
+
+
+# Seed 304083 of the Archipelago items scan (2026-11-21; second quest, Shuffle Minor Dungeon Drops: Random)
+PERSON_BYTE_SEED = ("3f081RcFbNtkf3wsqw4gVnnZCAi8MN7aqgyaPUvj7", 83, "18.1dfELRaMvwAs")
+
+
+def test_only_a_person_blocks_the_way_north(base: bytes) -> None:
+    """Level 4's room $41 is a Black room with the monster flag and a Gleeok list: the person layout byte $A6,
+    so VA-REJ-18 gives it the person row and the spec walk never turns north from its west door; $31, $32,
+    $22, $11, $10 and the Triforce room $00 lie past it. The game stops Link only behind a person object
+    (CheckPersonBlocking, object types $4B-$52); in the emulator he walks from the west door into the north
+    doorway. The logic walk reaches every room, and a room holding a person keeps its row."""
+    world = build(plan(*PERSON_BYTE_SEED), base).world
+    level = next(level for level in world.levels if level.level_num == 4)
+    gleeok_room = level.block.room(0x41)
+    assert gleeok_room.layout_byte == PERSON_LAYOUT_BYTE and not gleeok_room.is_person
+    assert entry_row(gleeok_room, False, True) is not None
+    assert entry_row(gleeok_room, False, True, persons_only=True) is None
+    held = HELD | {Item.LADDER}
+    past = {0x00, 0x10, 0x11, 0x22, 0x31, 0x32}
+    assert not past & walk_level(level, held, False, True, walk_rules=SPEC_WALK).reached.keys()
+    assert set(level.room_nums) <= walk_level(level, held, False, True, walk_rules=LOGIC_WALK).reached.keys()
+    persons = [room for level in world.levels for room in level.rooms if room.is_person]
+    assert persons and all(entry_row(room, False, True, persons_only=True) == entry_row(room, False, True)
+                           for room in persons)

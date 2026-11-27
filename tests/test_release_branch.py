@@ -93,7 +93,7 @@ def test_start_cuts_the_branch_from_the_stamped_commit_with_its_inputs(repo: Pat
     assert (worktree / "private" / "file").exists() and (worktree / "music" / "file").exists()
     assert (worktree / ROTATION).read_text() == '{"next": 32}' and len(list((worktree / STAMPS).glob("*.json"))) == 1
     temp = repo.resolve() / "temp"
-    expected = {"ZORA_CORPORA": "../corpora", LOCK_SETTING: f"{temp}/test-suite.lock", JOBS_SETTING: f"{temp}/jobs"}
+    expected = {"ZORA_CORPORA": "../corpora", JOBS_SETTING: f"{temp}/jobs"}     # the old lock line dropped
     assert settings_of(worktree) == expected
 
 
@@ -127,8 +127,10 @@ def test_status_names_the_branch_and_what_is_left(repo: Path) -> None:
     assert "test stage: none yet" in done.stdout and "promoted: not yet" in done.stdout
 
 
-def test_a_worktrees_verify_env_names_the_lock_and_the_job_list(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Heavy runs and jobs started in a release worktree without the settings on their command line."""
+def test_a_worktrees_verify_env_names_the_job_list_and_not_the_lock(tmp_path: Path,
+                                                                   monkeypatch: pytest.MonkeyPatch) -> None:
+    """Jobs started in a release worktree without the settings on their command line show in main's list; its heavy
+    runs take the machine's lock, whatever an old verify.env says (tests/suite_lock.py)."""
     from tests import suite_lock
     from zora_measure import corpora, progress
     (tmp_path / "verify.env").write_text(f"{LOCK_SETTING}=/main/temp/test-suite.lock\n{JOBS_SETTING}=/main/temp/jobs\n")
@@ -136,7 +138,7 @@ def test_a_worktrees_verify_env_names_the_lock_and_the_job_list(tmp_path: Path, 
     monkeypatch.delenv(JOBS_SETTING, raising=False)
     monkeypatch.setattr(suite_lock, "REPO", tmp_path)
     monkeypatch.setattr(corpora, "SETTINGS_FILE", tmp_path / "verify.env")
-    assert suite_lock.lock_path() == Path("/main/temp/test-suite.lock")
+    assert suite_lock.lock_path() == suite_lock.MACHINE_LOCK
     assert progress.jobs_folder() == Path("/main/temp/jobs")
 
 

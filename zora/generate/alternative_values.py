@@ -73,6 +73,9 @@ class AlternativeValues:
     blackout: bool = False                               # B50, PS-COLOR-04
     extra_bosses: bool = False                           # B79, PS-BOSS-07
     minor_dungeon_drops: bool = False                    # B17, PS-ITEM-14
+    # B17's own deal of the minor items (PS-ITEM-14). An Archipelago build skips it (2026-11-23): the minor items stay
+    # where the dungeon build put them, those rooms are the filler spots, and Archipelago does the shuffling.
+    minor_drops_dealt: bool = True
     change_secret_spots: bool = False                    # B05, OW-ENTR-01
     # The 7e32c5c export's settings, each on (or "?" come up on)
     remove_maps: bool = False                            # B92, FP-MAP-01

@@ -1,7 +1,7 @@
 """Beta flags (zora/flags/beta.py, zora/flags/flags.json; owner rulings, 2026-11-05 and 2026-11-06): the shipped
 file loads; a flag or a single value marked beta (here through the `beta_marked` fixture, never the file), and
 any Random that can resolve to one, reaches the page's metadata and each state's in-use list, while flag
-strings, refusals and output stay exactly as they were. Archipelago offers no beta value."""
+strings, refusals and output stay exactly as they were."""
 import hashlib
 import json
 import shutil
@@ -59,15 +59,24 @@ def test_the_shipped_file_marks_universal_drops_v2_and_loads() -> None:
     assert json.loads(FLAGS_FILE.read_text(encoding="utf-8"))[beta.FLAGS_KEY] == {
         "universal_drops_v2": {beta.BETA_KEY: beta.ALL_VALUES}, "B51": {beta.BETA_KEY: ["Basic", "Medium", "Full"]},
         "wizzrobes_shoot_wallmasters": {beta.BETA_KEY: beta.ALL_VALUES},
-        "item_counter": {beta.BETA_KEY: beta.ALL_VALUES}}
+        "item_counter": {beta.BETA_KEY: beta.ALL_VALUES},
+        # docs/design/archipelago-items.md pieces 7 and 8
+        "triforce_shuffle": {beta.BETA_KEY: beta.ALL_VALUES},
+        "map_compass_shuffle": {beta.BETA_KEY: beta.ALL_VALUES},
+        "bomb_upgrades_in_pool": {beta.BETA_KEY: beta.ALL_VALUES}}
     # Spoiler Log Detail Level (owner rulings, 2026-11-06, and Prompt 660): every level but None, and Random
     levels = {1, flag_form.SPOILER_MEDIUM_CHOICE, flag_form.SPOILER_FULL_CHOICE, 2}
     assert flag_form.beta_values() == {"universal_drops_v2": frozenset({1, 2}), "B51": frozenset(levels),
                                        "wizzrobes_shoot_wallmasters": frozenset({1, 2}),
-                                       "item_counter": frozenset({1, 2})}
+                                       "item_counter": frozenset({1, 2}),
+                                       "triforce_shuffle": frozenset({1, 2}),
+                                       "map_compass_shuffle": frozenset({1, 2}),
+                                       "bomb_upgrades_in_pool": frozenset({1})}
     assert flag_form.metadata()["beta"]["values"] == {"universal_drops_v2": [1, 2], "B51": sorted(levels),
                                                       "wizzrobes_shoot_wallmasters": [1, 2],
-                                                      "item_counter": [1, 2]}
+                                                      "item_counter": [1, 2], "triforce_shuffle": [1, 2],
+                                                      "map_compass_shuffle": [1, 2],
+                                                      "bomb_upgrades_in_pool": [1]}
     assert flag_form.form_state(START)["beta"] == []
 
 
@@ -90,6 +99,8 @@ let form = null;
 const metadata = { beta: { values: { B51: [1] }, warning: "w", inUse: "u" } };
 let betaOn = false;
 let betaTurnedOnByFlags = false;
+const MULTIWORLD = "multiworld";
+let mode = "single";
 const shown = () => [elements["beta-banner"].hidden, elements["beta-warning"].hidden];
 """
 
@@ -202,28 +213,6 @@ def test_a_config_naming_what_the_page_does_not_offer_is_refused() -> None:
         with pytest.raises(beta.BetaConfigError, match=message):
             beta.beta_values({beta.FLAGS_KEY: {HARDER_GANON: entry}}, offered)
     assert beta.beta_values({beta.FLAGS_KEY: {HARDER_GANON: {}}}, offered) == {}      # no "beta": not beta
-
-
-def archipelago_beta_values() -> list[str]:
-    """Every beta value (a Random that can resolve to one included) an Archipelago option offers."""
-    from zora import archipelago
-    marked = flag_form.beta_values()
-    return [f"{spec.key}: {label}" for spec in archipelago.option_fields()
-            for value, label in spec.choices if value in marked.get(spec.id, frozenset())]
-
-
-def test_archipelago_offers_no_beta_value() -> None:
-    """Ruling 2026-11-06: beta flags and values are withheld from Archipelago for now. A flag marked beta in
-    zora/flags/flags.json needs its beta values held back in zora/archipelago.py (HELD_BACK, or the whole
-    flag kept from the world, as universal_drops_v2 is), Random among them when it can resolve to one."""
-    assert archipelago_beta_values() == []
-
-
-def test_the_archipelago_check_finds_an_offered_beta_value(beta_marked: Marker) -> None:
-    """The check itself: Archipelago offers Pegasus Boots On and Random, so marking On beta (and Random with it)
-    shows both."""
-    beta_marked({PEGASUS_BOOTS: ["On"]})
-    assert archipelago_beta_values() == ["pegasus_boots: On", "pegasus_boots: Random"]
 
 
 def test_marking_a_flag_beta_changes_no_rom(beta_marked: Marker) -> None:

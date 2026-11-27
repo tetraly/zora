@@ -710,9 +710,12 @@ def preset_flagset(preset: Preset) -> dict[str, Any]:
 
 
 def presets_flagsets() -> list[dict[str, Any]]:
-    """Every preset with a ZORA string, in PRESET_LIST's order (a preset of a Z1R string alone is the Z1R
-    registry's to list)."""
-    return [preset_flagset(preset) for preset in PRESET_LIST if preset.zora]
+    """Every preset with a ZORA string, then every preset of a Z1R string alone that the page's menu shows
+    (zora ""; revision 2), each group in PRESET_LIST's order: the ZORA presets keep the places they had
+    before the Z1R ones joined. Random% stays out, as it stays off the menu."""
+    with_zora = [preset for preset in PRESET_LIST if preset.zora]
+    z1r_alone = [preset for preset in PRESET_LIST if not preset.zora and not preset.hidden]
+    return [preset_flagset(preset) for preset in with_zora + z1r_alone]
 
 
 def flagsets_digest(flagsets: list[dict[str, Any]]) -> str:

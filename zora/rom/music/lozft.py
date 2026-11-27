@@ -1,12 +1,12 @@
 """lozft, Quantam's FamiTracker driver for The Legend of Zelda, on a finished ZORA ROM.
 
 lozft is built from its pinned source (scripts/lozft_build.py), and the build's writes for each release are
-zora/rom/music/lozft_patch_data.py. The game's code it moves is read from the player's ROM, never its tiles, so
-a ROM with modified graphics takes it as any other (docs/music.md).
+zora/rom/music/lozft_patch_data.py. The game's code it moves is read from the finished ROM (the player's code with
+ZORA's changes to it), never its tiles, so a ROM with modified graphics takes it as any other (docs/music.md).
 """
-from ..base_rom import PlayerRom, piece_bytes, player_rom_of, using_player_rom
+from ..base_rom import Original, Piece, PlayerRom, piece_bytes, player_rom_of, using_player_rom
 from ..player_settings_data import SETTINGS
-from ..revision import Revision, move_of, prg1_offset
+from ..revision import Revision, in_prg0_layout, move_of, prg1_offset
 from ..sword_states import SET_ITEM_VALUE_STORE
 from .importer import BANK_SIZE, HEADER
 from .lozft_patch_data import PATCHES
@@ -51,9 +51,9 @@ def with_lozft_from_source(rom: bytes, base: bytes) -> bytearray:
     """The finished ROM (the player's own release's layout) with lozft built from its source
     (scripts/lozft_build.py, zora/rom/music/lozft_patch_data.py): grown to 256 KB, the fixed bank moved
     to bank 15, banks 7-14 zeroed, then lozft's writes for the player's release, the game's code it
-    moves read from the player's ROM `base` (never its tiles). The ROM must hold the statistics
-    screen's "music" choice, which becomes its "lozft2" one (with_lozft2_statistics): lozft2 replaces
-    the NMI code where the music choice counts frames.
+    moves read from the finished ROM (moved_piece_bytes; never its tiles); `base` is the player's ROM.
+    The ROM must hold the statistics screen's "music" choice, which becomes its "lozft2" one
+    (with_lozft2_statistics): lozft2 replaces the NMI code where the music choice counts frames.
 
     ZORA's code at the fixed bank's $FFC0-$FFD2 moves to $FFC3-$FFD5 (moved_set_item_routines)."""
     if len(rom) != ROM_SIZE:
@@ -63,12 +63,27 @@ def with_lozft_from_source(rom: bytes, base: bytes) -> bytearray:
     rom = with_lozft2_statistics(rom, player)
     fixed = HEADER + FIXED_SOURCE_BANK * BANK_SIZE
     out = bytearray(rom[:fixed]) + bytearray(MUSIC_BANKS * BANK_SIZE) + bytearray(rom[fixed:fixed + BANK_SIZE])
+    finished = in_prg0_layout(rom, player.revision)         # where an Original's source offset is
     with using_player_rom(player):
         for offset, piece in PATCHES[player.revision.value]:
-            data = piece_bytes(piece)
+            data = moved_piece_bytes(finished, piece)
             out[offset:offset + len(data)] = data
     moved_set_item_routines(rom, out)
     return out
+
+
+def moved_piece_bytes(finished: bytes, piece: Piece) -> bytes:
+    """A lozft piece's bytes on the finished ROM `finished`, in PRG0's layout as the player's ROM is read for an
+    Original (revision.in_prg0_layout): its own, or the game's code it moves (an Original) as the
+    finished ROM holds it, so a change ZORA made there moves with the code. Where ZORA changed nothing these
+    are the player's ROM's own bytes. (2.0.2: IsrNmi's JSR TransferTileBufAndDigit, asm/flags2/ap-items, is in
+    the 29 bytes lozft moves from 0x1E4D1; copied from the player's ROM, a Music: Random ROM went back to the
+    game's JSR TransferCurTileBuf, and the level digits beside Triforce pieces, maps and compasses never showed.)
+    The moved code runs where it lands: its JSRs reach the fixed bank (bank 15, the same addresses) or bank 6,
+    which is mapped while it runs."""
+    if isinstance(piece, Original):
+        return finished[piece.source:piece.source + piece.length]
+    return piece_bytes(piece)
 
 
 LOZFT2_STATISTICS = SETTINGS["statistics_screen"]["lozft2"]

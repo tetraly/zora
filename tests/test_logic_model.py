@@ -25,7 +25,6 @@ from zora.generate.logic import (
     CANDLE,
     LETTER_EVENT,
     TRIFORCE_OF_POWER_EVENT,
-    TRUE,
     CountTerm,
     EventTerm,
     HeartsTerm,
@@ -33,6 +32,7 @@ from zora.generate.logic import (
     LogicModel,
     Rule,
     Term,
+    conjoin,
     logic_model,
     rule_of,
     sweep,
@@ -226,14 +226,23 @@ def test_the_wooden_sword_is_never_a_place(base: bytes, case: str) -> None:
 def test_the_armos_item_is_free_and_the_coast_needs_the_ladder(base: bytes, case: str,
                                                               record_property: Callable[[str, object], None]) -> None:
     """Owner decision 2, as ZORA's closure has it: the Armos item needs nothing, wherever Shuffle
-    Armos moved the formation (gated screens included), and the coast exactly the ladder. Recorded
-    as documentation (pytest's junit properties): the seeds whose Armos screen has needs."""
-    gated_armos = []
+    Armos moved the formation, and the coast exactly the ladder. Since 4ab25424 (the 2.0.2 report,
+    seed 3425595242) one exception: an Armos screen a gate walls in needs what walking onto it takes
+    (LogicRules.walk_in_needs: Extra Raft Blocks and $34 need the raft). Recorded as documentation
+    (pytest's junit properties): the seeds whose Armos screen has entrance needs the rule ignores, and
+    those whose screen is walled in."""
+    gated_armos, walled_in_armos = [], []
     for seed in SEEDS:
         built, logic = _built(case, seed), model(case, seed)
-        assert logic.places["Armos"] == TRUE
-        assert logic.places["Coast"] == rule_of(ItemTerm(Item.LADDER))
+        rules = extra_options(built.plan).logic_rules
         armos_screen = next(place for place in built.places if place.name == "Armos").screens[0]
-        if extra_options(built.plan).logic_rules.needs(armos_screen):
+        walk_in = [item for screens, item in rules.walk_in_needs if armos_screen in screens]
+        assert all(item in Item for item in walk_in)          # no Armos screen lies past a maze
+        assert logic.places["Armos"] == conjoin(*(rule_of(ItemTerm(Item(item))) for item in walk_in))
+        assert logic.places["Coast"] == rule_of(ItemTerm(Item.LADDER))
+        if walk_in:
+            walled_in_armos.append(seed)
+        elif rules.needs(armos_screen):
             gated_armos.append(seed)
-    record_property("seeds whose Armos screen has needs the rule ignores", gated_armos)
+    record_property("seeds whose Armos screen has entrance needs the rule ignores", gated_armos)
+    record_property("seeds whose Armos screen is walled in", walled_in_armos)

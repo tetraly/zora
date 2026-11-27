@@ -18,9 +18,10 @@ from collections.abc import Iterable
 from typing import Any
 
 from zora.model.item_names import ITEM_NAMES, PEGASUS_BOOTS_NAMES
+from zora.model.level_items import TRIFORCE_LEVELS, LevelItemKind, level_item_name
 from zora.version import ZORA_VERSION, player_version
 
-from .leveled_log import FULL, LEVEL_NAMES, LEVEL_OWN_ITEMS, SCREEN_COLUMNS, level_facts, spoiler_level
+from .leveled_log import FULL, LEVEL_NAMES, SCREEN_COLUMNS, is_level_own, level_facts, spoiler_level
 from .spoiler_log import L4_SWORD_LABEL, MAJOR_ITEMS, has_pegasus_boots
 from .tracker_hints import PEGASUS_BOOTS, Status, pegasus_boots, start_knowledge
 
@@ -100,7 +101,9 @@ MONSTERS = {
     "BLUE_DARKNUT": "BlueDarknut", "GEL_1": "Gel", "GEL_2": "Gel", "BLUE_KEESE": "Keese", "RED_KEESE": "Keese",
     "DARK_KEESE": "Keese",
 }
-MAJOR_DROPS = {"Heart Container": "Heart", "Triforce": "Triforce"}
+LEVEL_PIECE_NAMES = tuple(level_item_name(LevelItemKind.TRIFORCE, level) for level in TRIFORCE_LEVELS)
+MAJOR_DROPS = {"Heart Container": "Heart", "Triforce": "Triforce",
+               **dict.fromkeys(LEVEL_PIECE_NAMES, "Triforce")}    # per-level mode's pieces
 MINOR_DROPS = {"Key": "Key", "Bombs": "BombPack", "5 Rupees": "FiveRupee", "Map": "Map", "Compass": "Compass"}
 WALL, PASSAGE, LOCKED, SHUTTER = 1, 2, 3, 4
 SIDES = ("north", "east", "south", "west")
@@ -299,8 +302,8 @@ class Writer:
         for room in sorted(level["rooms"], key=lambda room: (room["row"], room["column"])):
             if l4 and (level["number"], room["number"]) == (l4["level"], l4["room"]):
                 items.append(L4_SWORD_LABEL)
-            elif room["item"] and room["item"]["name"] in MAJOR_ITEMS - LEVEL_OWN_ITEMS:
-                items.append(room["item"]["name"])
+            elif room["item"] and (name := room["item"]["name"]) in MAJOR_ITEMS and not is_level_own(name, level):
+                items.append(name)
             stair = room["staircase"]
             if stair and stair["kind"] == "item" and stair["item"] in MAJOR_ITEMS:
                 items.append(stair["item"])

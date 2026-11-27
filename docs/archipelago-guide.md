@@ -142,6 +142,11 @@ pick `connector_bizhawk_generic.lua` from Archipelago's `data/lua` folder. Final
   `ZORA: gave received item #3, Raft`.
 - **Nothing is reported or given** on the title or file-select screens: the client waits until
   you're playing.
+- **DeathLink** (`death_link: true` in your YAML, or DeathLink: On on ZORA's page): when Link runs
+  out of hearts, every other DeathLink player dies too, and when one of them dies, so does Link,
+  as soon as you're in normal play (never in a cave, a scroll or the item screen). A death that
+  arrives on the title or file-select screen, or while Link is already dying, is dropped. With
+  **OHKO** on, DeathLink is harsh, but it works.
 - **To save:** with the default Death-warp setting, open the item screen (Start), then hold Up and
   press A on controller 1. (If you changed Death-warp on ZORA's page, use the buttons you chose.)
   Losing all your hearts also brings up the menu. Choose **SAVE**.

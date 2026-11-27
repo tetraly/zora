@@ -81,7 +81,7 @@ CONSTERNATION_PLUS_FLAGS = "oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUULH"
 
 @dataclass(frozen=True)
 class Preset:
-    """One preset: `key`, its shortcut (lowercase letters and digits; a race bot's command for it); `name`, the
+    """One preset: `key`, its shortcut (lowercase letters, digits and hyphens; a race bot's command for it); `name`, the
     name the page's menu shows; `flags` and `zora`, its Z1R and ZORA flag strings (`zora` empty for none).
     `menu_id` is the page's own id for it (form.presets' "name"), when that differs from `name`; `hidden` keeps
     it off the page's menu."""
@@ -102,21 +102,21 @@ class Preset:
 # Random% (published variant B) stays off the menu (owner, beta 5).
 Z1R_MENU: tuple[Preset, ...] = (
     Preset("consternation", "Consternation", MVP_BASELINE, menu_id="MVP baseline"),
-    Preset("consternationremastered", "Consternation Remastered", PUBLISHED_VARIANT_A,
+    Preset("remastered", "Consternation Remastered", PUBLISHED_VARIANT_A,
            menu_id="Published variant A"),
     Preset("randompercent", "Random%", PUBLISHED_VARIANT_B, menu_id="Published variant B", hidden=True),
     Preset("hopla", "Hopla", PUBLISHED_VARIANT_C, menu_id="Published variant C"),
-    Preset("consternationnoencoding", "Consternation without level encoding", MVP_BASELINE_LEVEL_ENCODING_OFF,
+    Preset("consternation-noenc", "Consternation without level encoding", MVP_BASELINE_LEVEL_ENCODING_OFF,
            menu_id="MVP baseline, level encoding off"),
 )
 # ZORA's own presets and the community flagsets, after the published ones on the menu.
 ZORA_MENU: tuple[Preset, ...] = (
     Preset("asnb", "All Swords No Boards", ASNB_FLAGS, ASNB_ZORA_FLAGS),
     Preset("vanilla", "Vanilla", VANILLA_FLAGS),
-    Preset("ohk0hplaremastered", "OHK0HPla Remastered", OHK0HPLA_REMASTERED_FLAGS),
-    Preset("ttp5mufflerug", "TTP5: Muffle Rug", TTP5_MUFFLE_RUG_FLAGS),
-    Preset("ttp5pick5", "TTP5: Pick 5", TTP5_PICK_5_FLAGS),
-    Preset("ttp5uphillbattle", "TTP5: Uphill Battle", TTP5_UPHILL_BATTLE_FLAGS),
+    Preset("ohk0hpla", "OHK0HPla Remastered", OHK0HPLA_REMASTERED_FLAGS),
+    Preset("mufflerug", "TTP5: Muffle Rug", TTP5_MUFFLE_RUG_FLAGS),
+    Preset("pick5", "TTP5: Pick 5", TTP5_PICK_5_FLAGS),
+    Preset("uphill", "TTP5: Uphill Battle", TTP5_UPHILL_BATTLE_FLAGS),
     Preset("sglive2026", "SGLive Onsite 2026", SGLIVE_ONSITE_FLAGS),
     Preset("zte1", "Zora The Explorer Week 1", ZTE_WEEK_1_2_FLAGS, "10.J2EGOED"),
     Preset("zte2", "Zora The Explorer Week 2", ZTE_WEEK_1_2_FLAGS, "10.J2EkcYg"),

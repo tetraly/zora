@@ -15,7 +15,7 @@ from zora.flags.form import metadata
 from zora.generate.acceptance_check import AcceptanceCheck
 from zora.generate.errors import GenerationFailure
 from zora.generate.pipeline import Built, build, extra_options, finish, plan
-from zora.generate.places import all_place_names, read_item
+from zora.generate.places import SELLER_SUFFIX, all_place_names, read_item
 from zora.generate.rng import Rng
 from zora.generate.steps.cave_entries import RAFT_SCREENS, WOOD_SWORD_SCREENS, CaveShuffle, Entry
 from zora.generate.steps.extra_pool_items import ExtraPoolItems
@@ -139,7 +139,8 @@ def test_the_wood_sword_is_no_longer_held_from_the_start(base: bytes) -> None:
 
 
 def test_the_cave_is_a_place_named_after_every_earlier_place() -> None:
-    names = all_place_names()
+    # only the bomb upgrade sellers (Archipelago items piece 8) come after it
+    names = [name for name in all_place_names() if not name.endswith(SELLER_SUFFIX)]
     assert names[-1] == "Wood Sword Cave" and names.count("Wood Sword Cave") == 1
 
 

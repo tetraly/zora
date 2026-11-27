@@ -34,6 +34,7 @@ from ..acceptance_check import (
     LADDER_LAYOUTS,
     AcceptanceCheck,
     LogicRules,
+    armos_reached,
 )
 from ..dungeon_walk import Walk, is_family_blocked, walk_level
 from ..rng import IntRng
@@ -158,7 +159,7 @@ class AcceptanceHeartReach:
     needs the long items), a room is reached by the inventory walk with the
     family and ladder rules, and an item cellar when the walk enters it.
     A level-9 place also needs level-9 entry (eight dungeons completed), as
-    E1 now asks too (AcceptanceCheck.can_enter)."""
+    E1 now asks too, and every level its Item Pacing counts (AcceptanceCheck.can_enter)."""
     levels: list[Level]
     state: ItemShuffleResult
     extras: ExtraPoolItems
@@ -186,7 +187,11 @@ class AcceptanceHeartReach:
         return self._walks[key]
 
     def _enters(self, level: Level) -> bool:
-        needs = self.rules.needs(self.caves.entry_door(level.level_num))
+        # 2.0.2 (2026-11-22): Offense and Defense Item Pacing gate a level here as they do in
+        # AcceptanceCheck.can_enter and the logic model. Until then the heart check counted heart
+        # containers in levels pacing opens only with more swords than Link held, so a seed could
+        # need a 2-sword level's hearts to reach its second sword.
+        needs = self.rules.needs(self.caves.entry_door(level.level_num)) | self.rules.pacing_needs(level.level_num)
         if level.level_num == LEVEL_9:
             needs |= self.rules.level_9_entry_needs
         return needs <= self.held
@@ -203,7 +208,8 @@ class AcceptanceHeartReach:
             return self._enters(place.level) and place.cellar.room_num in self._walk(place.level, None).cellars
         if isinstance(place, CaveSlotPlace):
             if place.slot == "armos":
-                return True                   # VA-REJ-07: held from the start
+                # VA-REJ-07 holds it from the start; ZORA's gates may wall its screen in
+                return armos_reached(self.overworld, self.rules, self.held)
             if place.slot == "coast":
                 return Item.LADDER in self.held
             screens = self.caves.movable_screens(Destination.WHITE_SWORD_CAVE)

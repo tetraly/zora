@@ -1,12 +1,15 @@
-"""One full suite at a time (tests/suite_lock.py): a second run waits for the first, a slow test
-run without xdist takes the lock too, and a clean copy run without its settings still takes
-its checkout's lock. Each test uses a lock file of its own in tmp_path, never the checkout's
-(the suite running these tests holds that one)."""
+"""One full suite at a time on the machine (tests/suite_lock.py): a second run waits for the first, a
+slow test run without xdist takes the lock too, every checkout and clean copy takes the one machine
+lock whatever its verify.env says, and a run in one checkout waits for a run in another, naming the
+holder's checkout, command and start time. Each test uses a lock file of its own in tmp_path (or a
+home folder of its own), never the machine's (the suite running these tests may hold that one)."""
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import textwrap
 import time
 from pathlib import Path
 
@@ -24,18 +27,20 @@ def _environment(lock: Path | None) -> dict[str, str]:
     """This run's lock settings removed (it holds the checkout's lock), the test's own set. Its job
     settings go too: a waiter here must never mark this pytest run's own job queued."""
     environment = {name: value for name, value in os.environ.items()
-                   if name not in ("ZORA_SUITE_LOCK", "ZORA_SUITE_LOCK_HELD", "ZORA_JOB_ID", "ZORA_JOBS_FOLDER")}
+                   if name not in ("ZORA_TEST_SUITE_LOCK", "ZORA_SUITE_LOCK", "ZORA_SUITE_LOCK_HELD", "ZORA_JOB_ID",
+                                   "ZORA_JOBS_FOLDER")}
     if lock is not None:
-        environment["ZORA_SUITE_LOCK"] = str(lock)
+        environment["ZORA_TEST_SUITE_LOCK"] = str(lock)
     return environment
 
 
-def _hold(lock: Path, done: Path) -> subprocess.Popen[str]:
-    """A run holding the lock until `done`.release exists, then writing the time it ended to `done`."""
+def _hold(lock: Path, done: Path, limit_seconds: float = HOLD_LIMIT_SECONDS) -> subprocess.Popen[str]:
+    """A run holding the lock until `done`.release exists (or LIMIT_SECONDS pass), then writing the time
+    it ended to `done`."""
     release = done.with_suffix(".release")
     holder = subprocess.Popen(
         [sys.executable, str(SUITE_LOCK), sys.executable, "-c",
-         f"import os, time; end = time.monotonic() + {HOLD_LIMIT_SECONDS}\n"
+         f"import os, time; end = time.monotonic() + {limit_seconds}\n"
          f"while not os.path.exists({str(release)!r}) and time.monotonic() < end: time.sleep(0.02)\n"
          f"open({str(done)!r}, 'w').write(str(time.time()))"],
         env=_environment(lock), stderr=subprocess.PIPE, text=True)
@@ -91,7 +96,7 @@ def test_a_serial_slow_run_takes_the_lock(tmp_path: Path) -> None:
     assert f"suite lock: {WAITING}" in output
 
 
-def _targeted_run(lock: Path, *options: str, test: str = "test_lock_path_without_settings_outside_a_copy",
+def _targeted_run(lock: Path, *options: str, test: str = "test_every_checkout_takes_the_machines_lock",
                   inside_the_lock: bool = False) -> str:
     """A pytest run of one test of this file while another run holds `lock` (or, inside_the_lock,
     as that run's own child, the way verify.sh runs pytest); its output."""
@@ -129,25 +134,98 @@ def test_a_light_slow_run_still_takes_the_lock(tmp_path: Path) -> None:
     assert "WARNING" not in output
 
 
-def _lock_path_in(checkout: Path) -> Path:
+def _lock_path_in(checkout: Path, **settings: str) -> Path:
     found = subprocess.run([sys.executable, "-c", "from tests.suite_lock import LOCK_PATH; print(LOCK_PATH)"],
-                           cwd=checkout, env=_environment(None), capture_output=True, text=True, check=True)
+                           cwd=checkout, env=_environment(None) | settings, capture_output=True, text=True, check=True)
     return Path(found.stdout.strip()).resolve()
 
 
-def test_a_copy_without_its_settings_takes_its_checkouts_lock(tmp_path: Path) -> None:
-    checkout = tmp_path / "checkout"
-    copy = checkout / "temp" / "x-copy"
-    for tree in (checkout, copy):
-        (tree / "tests").mkdir(parents=True)
-        shutil.copy2(SUITE_LOCK, tree / "tests" / "suite_lock.py")
-    assert _lock_path_in(copy) == (checkout / "temp" / "test-suite.lock").resolve()
+def _checkout(root: Path, settings: str = "") -> Path:
+    """A checkout holding only tests/suite_lock.py, and a verify.env of SETTINGS."""
+    (root / "tests").mkdir(parents=True)
+    shutil.copy2(SUITE_LOCK, root / "tests" / "suite_lock.py")
+    (root / "verify.env").write_text(settings)
+    return root
 
 
-def test_lock_path_without_settings_outside_a_copy(tmp_path: Path) -> None:
-    (tmp_path / "tests").mkdir()
-    shutil.copy2(SUITE_LOCK, tmp_path / "tests" / "suite_lock.py")
-    assert _lock_path_in(tmp_path) == (tmp_path / "temp" / "test-suite.lock").resolve()
+def test_every_checkout_takes_the_machines_lock(tmp_path: Path) -> None:
+    """A checkout, a clean copy inside one, and a release worktree whose verify.env still names its old lock (as
+    verify.sh exports it) all take the one lock under ~/.cache: a checkout's own lock let two checkouts' suites
+    run together."""
+    from tests.suite_lock import MACHINE_LOCK
+    checkout = _checkout(tmp_path / "checkout")
+    copy = _checkout(checkout / "temp" / "x-copy")
+    worktree = _checkout(tmp_path / "release-worktree", "ZORA_SUITE_LOCK=/main/temp/test-suite.lock\n")
+    assert MACHINE_LOCK == Path.home() / ".cache" / "zora" / "test-suite.lock"
+    found = {_lock_path_in(checkout), _lock_path_in(copy),
+             _lock_path_in(worktree, ZORA_SUITE_LOCK="/main/temp/test-suite.lock")}
+    assert found == {MACHINE_LOCK.resolve()}
+
+
+def test_a_run_in_one_checkout_waits_for_a_run_in_another(tmp_path: Path) -> None:
+    """Neither run names a lock: both take the machine's (here a home folder of the test's own). The waiter
+    names the holder's checkout, its command and when it started."""
+    first, second = _checkout(tmp_path / "checkout"), _checkout(tmp_path / "second-checkout")
+    environment = _environment(None) | {"HOME": str(tmp_path / "home")}
+    lock = tmp_path / "home" / ".cache" / "zora" / "test-suite.lock"
+    release, first_done, second_start = tmp_path / "release", tmp_path / "first", tmp_path / "second"
+    holder = subprocess.Popen(
+        [sys.executable, str(first / "tests" / "suite_lock.py"), sys.executable, "-c",
+         f"import os, time; end = time.monotonic() + {HOLD_LIMIT_SECONDS}\n"
+         f"while not os.path.exists({str(release)!r}) and time.monotonic() < end: time.sleep(0.02)\n"
+         f"open({str(first_done)!r}, 'w').write(str(time.time()))"],
+        env=environment, stderr=subprocess.PIPE, text=True)
+    deadline = time.monotonic() + 10
+    while "pid" not in (lock.read_text() if lock.exists() else ""):
+        assert time.monotonic() < deadline, "the holder never took the machine's lock"
+        time.sleep(0.05)
+    waiter = subprocess.Popen([sys.executable, str(second / "tests" / "suite_lock.py"), sys.executable, "-c",
+                               f"import time; open({str(second_start)!r}, 'w').write(str(time.time()))"],
+                              env=environment, stderr=subprocess.PIPE, text=True)
+    assert waiter.stderr is not None
+    said = ""
+    for line in waiter.stderr:
+        if WAITING in line:
+            said = line
+            release.touch()
+            break
+    release.touch()
+    assert waiter.wait(timeout=30) == 0 and holder.wait(timeout=30) == 0
+    assert f"pid {holder.pid}" in said and f"in {first.resolve()}: " in said, said
+    assert "time.monotonic()" in said                                        # the holder's command
+    assert re.search(r"since \d{4}-\d\d-\d\d \d\d:\d\d:\d\d", said), said
+    assert float(second_start.read_text()) >= float(first_done.read_text())
+
+
+def test_a_nested_run_refuses_its_ancestors_lock_at_once(tmp_path: Path) -> None:
+    """A run started inside the held lock that drops ZORA_SUITE_LOCK_HELD (tests/test_compare_revision.py's copy
+    runs, once) would wait for its own ancestor forever: it stops at once, naming both, and the holder ends."""
+    lock = tmp_path / "lock"
+    nested = textwrap.dedent(f"""
+        import os, subprocess, sys
+        environment = dict(os.environ)
+        environment.pop("ZORA_SUITE_LOCK_HELD")
+        done = subprocess.run([sys.executable, {str(SUITE_LOCK)!r}, sys.executable, "-c", "print('ran')"],
+                              env=environment, capture_output=True, text=True, timeout={HOLD_LIMIT_SECONDS})
+        print("nested exit", done.returncode)
+        print(done.stdout + done.stderr)
+        """)
+    started = time.monotonic()
+    holder = subprocess.run([sys.executable, str(SUITE_LOCK), sys.executable, "-c", nested], env=_environment(lock),
+                            capture_output=True, text=True, timeout=HOLD_LIMIT_SECONDS)
+    assert holder.returncode == 0, holder.stdout + holder.stderr
+    assert time.monotonic() - started < HOLD_LIMIT_SECONDS / 2
+    output = holder.stdout
+    assert "nested exit 1" in output and "\nran\n" not in output, output       # the nested command never ran
+    assert "held by its own ancestor (pid " in output and "would never start" in output, output
+    assert "this run (pid " in output and str(lock) in output, output
+
+
+def test_a_run_beside_the_holder_still_waits(tmp_path: Path) -> None:
+    """Not an ancestor: the guard leaves an ordinary waiter waiting (test_a_second_run_waits_for_the_first)."""
+    from tests import suite_lock
+    assert os.getpid() not in suite_lock.ancestors()
+    assert os.getppid() in suite_lock.ancestors()
 
 
 # --- reports while waiting, and the queue (owner rule, 2026-10-13) ------------------------------
@@ -180,7 +258,7 @@ def test_a_waiting_run_says_who_holds_the_lock_and_its_place(tmp_path: Path) -> 
     done.with_suffix(".release").touch()
     waiter.wait(timeout=30)
     holder.wait(timeout=30)
-    assert f"held by pid {holder.pid}" in report and "since" in report, report
+    assert f"held by pid {holder.pid}" in report and f"in {REPO}: " in report and "since" in report, report
     assert "this run is number 1 of 1 waiting" in report
 
 

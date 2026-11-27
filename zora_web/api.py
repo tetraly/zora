@@ -14,7 +14,7 @@ from zora.flags import form as flag_form
 from zora.flags.zora_flags import SpoilerLevel
 from zora.generate.deadline import GenerationStopped, stop_after
 from zora.generate.pipeline import generate_rom, plan
-from zora.rom import item_sprites, revision
+from zora.rom import code_patches, item_sprites, revision
 from zora.rom.base_rom import EXPECTED_CRC32, EXPECTED_MD5, EXPECTED_SHA1
 from zora.rom.music.library import LibraryFile, MusicError, local_library_songs, read_library
 from zora.rom.music.pin import ASSET_URLS, MusicAssets, MusicAssetsInvalid
@@ -61,6 +61,7 @@ __all__ = [
     "PlayerSettingError",
     "PlayerSettings",
     "SpoilerLogOff",
+    "code_emoji",
     "code_icons",
     "code_text",
     "flag_form",
@@ -98,6 +99,14 @@ def code_icons(rom: bytes) -> list[list[list[int]]]:
     if code_text(rom) is not None:
         return []
     return [[list(row) for row in icon.pixels] for icon in seed_code_icons(rom)]
+
+
+def code_emoji(rom: bytes) -> list[str]:
+    """A finished ROM's seed code as its items' Discord emoji names (zora.rom.code_patches.seed_code_emoji), what
+    the page's "Copy seed code" copies; none when the screen shows the code as text (code_text)."""
+    if code_text(rom) is not None:
+        return []
+    return list(code_patches.seed_code_emoji(rom))          # read as seed_code reads it for the names
 
 
 def code_text(rom: bytes) -> str | None:

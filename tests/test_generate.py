@@ -5,22 +5,21 @@ import pytest
 
 from tests.needs import needs_base_rom
 from zora.flags.codec import decode, encode
-from zora.flags.fields import COAST_PIN, PinnedItem
+from zora.flags.dependencies import RESOLVED_TOGGLES
+from zora.flags.fields import COAST_PIN, TOGGLE_FIELDS, PinnedItem, ThreeState
 from zora.flags.presets import MVP_BASELINE, MVP_BASELINE_LEVEL_ENCODING_OFF
+from zora.flags.support import ENCODE_LEVEL_DATA_RANDOM_NOTICE
+from zora.generate import pipeline
+from zora.generate.generation_pass import generate_shapes
+from zora.generate.pipeline import SEED_LIMIT, FlagsRefused, SeedRefused, build, finish, generate_rom, plan
+from zora.generate.rng import Rng
+from zora.generate.shapes.options import ShapeOptions
 from zora.rom import level_encoding
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom, verify_base_rom
-from zora.flags.dependencies import RESOLVED_TOGGLES
-from zora.flags.fields import TOGGLE_FIELDS, ThreeState
-from zora.flags.support import ENCODE_LEVEL_DATA_RANDOM_NOTICE
 from zora.rom.game_config import GameConfig, HintMode
-from zora.generate import pipeline
-from zora.generate.pipeline import SEED_LIMIT, FlagsRefused, SeedRefused, build, finish, generate_rom, plan
 from zora.rom.parse.rom_file import load_rom, parse_rom
 from zora.rom.player_settings import PlayerSettings, apply_player_settings
 from zora.rom.serialize.rom_file import serialize_to_rom
-from zora.generate.rng import Rng
-from zora.generate.generation_pass import generate_shapes
-from zora.generate.shapes.options import ShapeOptions
 
 
 def _base() -> bytes:
@@ -40,7 +39,9 @@ def test_baseline_flags_give_the_preset_output() -> None:
     base = _base()
     seed = 4
     world = parse_rom(base)
-    generate_shapes(world, Rng(seed), ShapeOptions(), feature_data=True, seed=seed)
+    shapes = generate_shapes(world, Rng(seed), ShapeOptions(), feature_data=True, seed=seed)
+    # SI-PRICE-01's groups run after generation (the baseline has Shuffle Shop Items on, so they reprice its stock)
+    pipeline.price_groups_in(world, shapes, plan(MVP_BASELINE_LEVEL_ENCODING_OFF, seed))
     expected = serialize_to_rom(world, base, config=GameConfig(hint_mode=HintMode.CONSTERNATION,
                                                                features_b10=True, seed_number=seed))
     result = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, seed, base, DEFAULTS)
@@ -125,7 +126,8 @@ def test_level_encoding_keeps_the_guarantees() -> None:
     on = plan(MVP_BASELINE, seed)
     assert on.flag_string == MVP_BASELINE and on.config.level_encoding is not None
     world = parse_rom(base)
-    generate_shapes(world, Rng(on.generation_seed), on.shape_options, feature_data=True, seed=seed)
+    shapes = generate_shapes(world, Rng(on.generation_seed), on.shape_options, feature_data=True, seed=seed)
+    pipeline.price_groups_in(world, shapes, on)      # SI-PRICE-01's groups, as generate_rom runs them
     off_config = GameConfig(hint_mode=HintMode.CONSTERNATION, features_b10=True, seed_number=seed)
     plain = serialize_to_rom(world, base, config=off_config)
     encoded = serialize_to_rom(world, base, config=on.config)

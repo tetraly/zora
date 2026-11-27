@@ -15,6 +15,7 @@ from ...model.enums import (
 from ...model.levels import VANILLA_BOSS_SPRITE_SETS, VANILLA_ENEMY_SPRITE_SETS, Cell, Level, LevelBlock
 from ...model.room_grid import neighbor
 from ...model.rooms import (
+    TRIGGER_ITEM_HIGH_BIT,
     EnemyInfo,
     EnemySpec,
     ItemInfo,
@@ -23,6 +24,7 @@ from ...model.rooms import (
     SecretInfo,
     StaircaseRoom,
     WallSet,
+    room_item_code,
 )
 from ..layout import DUNGEON_NOTHING_CODE, LEVEL_INFO_SIZE, LEVEL_TABLE_SIZE, NUM_TABLES, read_le16
 from .bin_files import RawBinFiles
@@ -70,10 +72,10 @@ def _parse_staircase_room(
         exit_x=exit_x,
         exit_y=exit_y,
         # the "no item" code decodes to the NOTHING meaning, as in rooms
-        item=Item.NOTHING if t4 & 0x1F == nothing_code else Item(t4 & 0x1F),
+        item=Item.NOTHING if room_item_code(t4, t5) == nothing_code else Item(room_item_code(t4, t5)),
         return_dest=t0 & 0x7F,
         return_dest_b=(t1 & 0x7F) if (t1 & 0x7F) != (t0 & 0x7F) else None,
-        t5_raw=t5,
+        t5_raw=t5 & ~TRIGGER_ITEM_HIGH_BIT,       # bit 3 is the item's bit 5
     )
 
 
@@ -101,7 +103,7 @@ def _parse_room(
 
     is_dark    = bool(t4 & 0x80)
     boss_sound = BossSound((t4 >> 5) & 0x03)
-    item_code  = t4 & 0x1F
+    item_code  = room_item_code(t4, t5)
 
     if item_code == nothing_code:
         if nothing_code == Item.TRIFORCE_OF_POWER and enemy_code == Enemy.THE_BEAST:

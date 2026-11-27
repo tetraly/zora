@@ -84,7 +84,7 @@ def test_the_recipe_carries_the_name_and_rebuilds_the_rom(case: str, seed: int) 
     settings = {"music": "off"}
     rom = archipelago.finish(built(case, seed), chosen, received, settings, ap_name=name)
     data = json.loads(json.dumps(archipelago.recipe(built(case, seed), chosen, received, settings, ap_name=name)))
-    assert data["formatVersion"] == archipelago.RECIPE_FORMAT_VERSION == "1.2" and bytes.fromhex(data["apName"]) == name
+    assert data["formatVersion"] == archipelago.RECIPE_FORMAT_VERSION == "1.3" and bytes.fromhex(data["apName"]) == name
     assert archipelago.rom_from_recipe(data, remember_repo_base_rom()) == rom
     without = json.loads(json.dumps(archipelago.recipe(built(case, seed), chosen, received, settings)))
     assert without["apName"] is None

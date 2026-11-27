@@ -82,25 +82,16 @@ def test_normal_keeps_the_pictures_and_the_icons() -> None:
 
 
 @pytest.mark.parametrize("appearance", (1, 2))
-def test_with_the_logo_the_shield_is_no_source_and_no_target(appearance: int) -> None:
-    """With the Archipelago logo (GameConfig.foreign_logo; owner decisions, 2026-10-22) the magical
-    shield's picture is no source and no target, as when the logo was drawn in its tiles, and no write
-    reaches the logo's own background tiles; without it the shield's picture is a source."""
+def test_the_logos_tiles_are_never_written(appearance: int) -> None:
+    """The Archipelago logo has background tiles of its own (archipelago_logo.py), which no draw of
+    Item Sprites writes; since the look setting's retirement (docs/design/archipelago-items.md piece 5)
+    the magical shield's picture is a source and a target in every ROM."""
     image = bytearray(remember_repo_base_rom())
     for address, data in logo_writes():
         image[address:address + len(data)] = data
-    logo = pattern(bytes(image), sprites.SHIELD_PATTERN)
     logo_bytes = range(LOGO_TILES_AT, LOGO_TILES_AT + len(LOGO_TILES))
-    seen_with_logo = set()
     for key in range(40):
-        written = dict(sprites.item_sprite_writes(image, appearance, Rng(key), logo=True))
-        assert sprites.SHIELD_PATTERN not in written
+        written = dict(sprites.item_sprite_writes(image, appearance, Rng(key)))
         assert not any(offset in logo_bytes or offset + len(data) - 1 in logo_bytes
                        for offset, data in written.items())
-        assert set(written) == set(sprites.ITEM_PATTERNS) - {sprites.SHIELD_PATTERN} | {sprites.DEMO_LEFT_ITEMS}
-        seen_with_logo |= set(written.values())
-    assert logo not in seen_with_logo
-    plain = set()
-    for key in range(40):
-        plain |= set(dict(sprites.item_sprite_writes(image, appearance, Rng(key))).values())
-    assert logo in plain
+        assert set(written) == set(sprites.ITEM_PATTERNS) | {sprites.DEMO_LEFT_ITEMS}

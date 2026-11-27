@@ -46,7 +46,8 @@ def read_back(text: str) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]
     document = yaml.safe_load(text)
     block = document[multiworld.GAME]
     setting_keys = {spec.yaml_key for spec in archipelago.player_setting_fields()}
-    return (document, {key: value for key, value in block.items() if key not in setting_keys},
+    own = {multiworld.DEATH_LINK_YAML_KEY}                  # Archipelago's own options
+    return (document, {key: value for key, value in block.items() if key not in setting_keys | own},
             {key: value for key, value in block.items() if key in setting_keys})
 
 
@@ -112,6 +113,20 @@ EXPORT_CASES: dict[str, tuple[str, str, dict[str, Any]]] = {
 }
 
 
+def read_by_archipelago(flag_string: str) -> str:
+    """The page's flag string as Archipelago reads it: a magical-sword heart value above 12 read as 12 (owner rule,
+    2026-11-23; archipelago.SWORD_HEARTS_CLAMPED). The page's preset asks for up to 14."""
+    settings = codec.decode(flag_string)
+    specs = {spec.id: spec for spec in archipelago.option_fields()}
+    read = {field_id: specs[field_id].read_as(int(settings.options[field_id])) for field_id in ("C22", "C23")}
+    return codec.encode(settings.updated(options=read))
+
+
+# The page's note for its preset's Magical Sword Hearts (max) of 14 (multiworld.sword_hearts_notes)
+PRESET_HEARTS_NOTE = ("Magical Sword Hearts (max): 14 is read as 12 in Archipelago: the Magical Sword Cave never asks "
+                      "for more than 12 hearts there.")
+
+
 @pytest.mark.parametrize("case", EXPORT_CASES)
 def test_the_yaml_reads_back_to_the_pages_choices(case: str) -> None:
     flag_string, zora_flag_string, settings = EXPORT_CASES[case]
@@ -124,8 +139,8 @@ def test_the_yaml_reads_back_to_the_pages_choices(case: str) -> None:
     assert list(options) == [spec.key for spec in archipelago.option_fields()]
     assert list(player_settings) == [spec.yaml_key for spec in archipelago.player_setting_fields()]
     assert all(isinstance(value, str) for value in (*options.values(), *player_settings.values()))
-    # Options: the same flag strings as the page's
-    assert archipelago.flag_strings(options) == (codec.canonicalize(flag_string),
+    # Options: the same flag strings as the page's, as Archipelago reads them
+    assert archipelago.flag_strings(options) == (read_by_archipelago(codec.canonicalize(flag_string)),
                                                 zora_flags.encode(zora_flags.decode(zora_flag_string)))
     # Player settings: the page's, every one (a missing one at its default), as the ROM gets them
     defaults = {spec.key: spec.default for spec in archipelago.player_setting_fields()}
@@ -141,7 +156,8 @@ def test_the_worker_glue_exports_the_same_yaml() -> None:
     names: dict[str, Any] = {}
     exec(glue.group(1), names)                   # the page's own glue
     assert json.loads(names["multiworld_metadata"]()) == json.loads(json.dumps(multiworld.metadata()))
-    assert json.loads(names["multiworld_check"](DEFAULT_FLAGS, "", "{}")) == {"ok": True, "reasons": [], "notes": []}
+    assert json.loads(names["multiworld_check"](DEFAULT_FLAGS, "", "{}")) == {"ok": True, "reasons": [], "notes": [],
+                                                                         "beta": [], "ignored": [PRESET_HEARTS_NOTE]}
     assert json.loads(names["player_name_problem"]("")) == "type a player name"
     answer = json.loads(names["export_yaml"](NAME, DEFAULT_FLAGS, "", "{}"))
     assert answer == {"ok": True, **multiworld.export_yaml(NAME, DEFAULT_FLAGS, "", {})}
@@ -150,27 +166,66 @@ def test_the_worker_glue_exports_the_same_yaml() -> None:
 
 
 def test_the_metadata_is_archipelagos_offer() -> None:
-    """Each field's offered values are its option's; the never-offered fields (B82, C06 and Shuffle
-    Wood Sword) name the one value Archipelago uses."""
+    """Each field's offered values are its option's, the beta ones listed apart (Item Counter was one until
+    its logic scan passed, 7192e4c7); no field is held at one value for now (archipelago.NOT_OFFERED_YET is
+    empty); the fields off for good are in neither, so the Multiworld tab leaves them out (owner, 2026-11-21)."""
     meta = multiworld.metadata()
     assert meta["offered"] == {spec.id: list(spec.values) for spec in archipelago.option_fields()}
-    assert meta["fixed"].keys() == archipelago.NOT_OFFERED
-    assert meta["fixed"][ITEM_SHUFFLE]["value"] == int(archipelago.FIXED_OPTIONS[ITEM_SHUFFLE])
-    assert meta["fixed"][ENCODE_LEVEL_DATA]["value"] == ThreeState.OFF
-    assert meta["fixed"]["shuffle_wood_sword"] == {"value": ThreeState.OFF,
-                                                   "reason": archipelago.ZORA_FORCED_OFF["shuffle_wood_sword"]}
+    assert meta["beta"] == {spec.id: list(spec.beta) for spec in archipelago.option_fields() if spec.beta}
+    assert meta["fixed"] == {}
+    assert "item_counter" not in meta["beta"]
+    assert meta["beta"]["universal_drops_v2"] == [ThreeState.ON, ThreeState.POSSIBLE]
+    assert (meta["betaTitle"], meta["betaWarning"]) == (archipelago.MULTIWORLD_BETA_TITLE,
+                                                        archipelago.MULTIWORLD_BETA_WARNING)
     assert meta["nameMaxLength"] == 16
+
+
+PERMANENTLY_OFF = {ENCODE_LEVEL_DATA, ITEM_SHUFFLE, "B51", "shuffle_wood_sword", "disable_custom_music",
+                   "detailed_spoiler_log", "item_shuffle_no_vanilla"}
+
+
+def test_the_settings_off_for_good_are_not_on_the_multiworld_tab() -> None:
+    """Shuffle Wood Sword, Disable Custom Music, Detailed Spoiler Log, Item Shuffle No Vanilla, Print Quest
+    Info, Encode Level Data and Item Shuffle: absent from the tab's data, and the page hides their rows
+    (hiddenInMultiworld) in multiworld mode only."""
+    meta = multiworld.metadata()
+    assert archipelago.PERMANENTLY_OFF == PERMANENTLY_OFF
+    assert not PERMANENTLY_OFF & ({*meta["offered"], *meta["fixed"], *meta["beta"]})
+    ids = [*PERMANENTLY_OFF, "item_counter", SWORDS]
+    answers = run_page_functions(
+        ["hiddenInMultiworld"],
+        f"const metadata = {{multiworld: {json.dumps(meta)}}};\nlet mode = MULTIWORLD;\n"
+        f"const multi = {json.dumps(ids)}.map(hiddenInMultiworld); mode = SINGLE;\n"
+        f"console.log(JSON.stringify([multi, {json.dumps(ids)}.map(hiddenInMultiworld)]));")
+    assert answers == [[True] * len(PERMANENTLY_OFF) + [False, False], [False] * len(ids)]
+    assert re.search(r"\.multiworld-left-out \{ display: none", (REPO / "web" / "zora.css").read_text())
+
+
+IGNORED_CASES = {
+    "Encode level data on": (flags_with(toggles={ENCODE_LEVEL_DATA: ThreeState.ON}), "", "Encode level data: On"),
+    "Item Shuffle not Full": (flags_with(options={ITEM_SHUFFLE: ITEM_ONLY}), "", "Item Shuffle: Item Only"),
+    "Shuffle Wood Sword on": (DEFAULT_FLAGS, zora_with(shuffle_wood_sword=1), "Shuffle Wood Sword: On"),
+}
+
+
+@pytest.mark.parametrize("case", IGNORED_CASES)
+def test_a_value_off_for_good_is_ignored_with_a_note(case: str) -> None:
+    """A shared link or settings file may still set one: the YAML leaves it out (the world uses its value), and
+    the page's note says so, never a refusal."""
+    flag_string, zora_flag_string, named = IGNORED_CASES[case]
+    verdict = multiworld.check(flag_string, zora_flag_string, {})
+    assert verdict["ok"] and verdict["reasons"] == []
+    [note] = [note for note in verdict["ignored"] if note != PRESET_HEARTS_NOTE]
+    assert note.startswith(f"{named} in these flags is ignored.")
+    text = multiworld.export_yaml(NAME, flag_string, zora_flag_string, {})["yaml"]
+    assert text == multiworld.export_yaml(NAME, DEFAULT_FLAGS, "", {})["yaml"]
 
 
 # --- what cannot be exported --------------------------------------------------------------------------
 
 REFUSED_CASES = {
-    "Encode level data on": (flags_with(toggles={ENCODE_LEVEL_DATA: ThreeState.ON}), "", "Always off in Archipelago"),
-    "Item Shuffle not Full": (flags_with(options={ITEM_SHUFFLE: ITEM_ONLY}), "", "Always Full in Archipelago"),
     "an unoffered value": (flags_with(options={SWORDS: SWORDLESS}), "", "not offered in Archipelago yet"),
     "a conflict": (DEFAULT_FLAGS, zora_with(add_l4_sword=1), "Add L4 Sword needs Progressive Items"),
-    "Shuffle Wood Sword on": (DEFAULT_FLAGS, zora_with(shuffle_wood_sword=1),
-                              "Shuffle Wood Sword: Always off in Archipelago"),
 }
 
 
@@ -183,6 +238,20 @@ def test_values_archipelago_does_not_take_cannot_be_exported(case: str) -> None:
     with pytest.raises(multiworld.ExportRefused) as refused:
         multiworld.export_yaml(NAME, flag_string, zora_flag_string, {})
     assert refused.value.reasons == verdict["reasons"]
+
+
+@pytest.mark.parametrize(("page", "written"), [(None, "false"), ("off", "false"), ("on", "true")])
+def test_deathlink_is_archipelagos_own_option(page: str | None, written: str) -> None:
+    """DeathLink (piece 2) is written last as death_link, a string Archipelago's Toggle reads; it
+    is no player setting, so the settings check never sees it."""
+    settings = {} if page is None else {multiworld.DEATH_LINK_KEY: page}
+    text = multiworld.export_yaml(NAME, DEFAULT_FLAGS, "", settings)["yaml"]
+    block = yaml.safe_load(text)[multiworld.GAME]
+    assert block[multiworld.DEATH_LINK_YAML_KEY] == written and list(block)[-1] == multiworld.DEATH_LINK_YAML_KEY
+    assert multiworld.check(DEFAULT_FLAGS, "", settings)["ok"]
+    with pytest.raises(multiworld.ExportRefused, match="DeathLink"):
+        multiworld.export_yaml(NAME, DEFAULT_FLAGS, "", {multiworld.DEATH_LINK_KEY: "maybe"})
+    assert not multiworld.check(DEFAULT_FLAGS, "", {multiworld.DEATH_LINK_KEY: "maybe"})["ok"]
 
 
 def test_a_refused_player_setting_cannot_be_exported() -> None:
@@ -211,6 +280,67 @@ def test_the_pages_offer_disables_what_archipelago_does_not_take() -> None:
         else:
             assert (reason is None) == (value in meta["offered"][field_id])
             assert reason in (None, meta["notOffered"])
+
+
+# --- beta values (owner, 2026-11-21) ----------------------------------------------------------------
+
+def test_a_beta_value_is_choosable_only_with_the_switch_on() -> None:
+    """In multiworld mode a value that waits for its logic scan is offered (multiworldReason passes it) and is
+    locked like a beta setting while Enable Beta Flags is off (betaReason), labeled "(beta)"; with the switch
+    on it can be chosen. Single-player mode never locks it for that. A state using one turns the switch on
+    when loaded, and blocks Export while the switch is off (multiworldBetaBlocking)."""
+    meta = multiworld.metadata()
+    page_beta = flag_form.metadata()["beta"]
+    cases = [[field_id, value] for field_id, values in meta["beta"].items() for value in values]
+    assert cases
+    state = {"fields": {"B79": {"value": int(ThreeState.ON)}}, "zora": {"ok": True, "values": {"harder_ganon": 0}}}
+    script = f"""
+const metadata = {{multiworld: {json.dumps(meta)}, beta: {json.dumps(page_beta)}}};
+const BETA_SUFFIX = " (beta)";
+let mode = MULTIWORLD, betaOn = false, form = {json.dumps(state)};
+const cases = {json.dumps(cases)};
+const ask = () => cases.map(([id, value]) => [multiworldReason(id, value) ?? null, betaReason(id, value) ?? null,
+                                              betaLabel(id, value, "L")]);
+const off = ask(); const blockedOff = multiworldBetaBlocking();
+betaOn = true; const on = ask(); const blockedOn = multiworldBetaBlocking();
+mode = SINGLE; betaOn = false; const single = ask();
+console.log(JSON.stringify({{off, on, single, blockedOff, blockedOn, used: multiworldBetaIn(form)}}));"""
+    done = run_page_functions(["betaValuesOf", "multiworldBetaValuesOf", "stateValue", "multiworldBetaIn",
+                               "multiworldBetaBlocking", "betaReason", "betaLabel", "multiworldReason"], script)
+    file_beta = {(field_id, value) for field_id, values in page_beta["values"].items() for value in values}
+    for (field_id, value), off, on, single in zip(cases, done["off"], done["on"], done["single"], strict=True):
+        assert off == [None, page_beta["locked"], "L (beta)"], (field_id, value)
+        assert on == [None, None, "L (beta)"], (field_id, value)
+        in_file = (field_id, value) in file_beta           # Universal Drops v2.0 is beta in single player too
+        assert single == [None, page_beta["locked"] if in_file else None, "L (beta)" if in_file else "L"]
+    assert (done["used"], done["blockedOff"], done["blockedOn"]) == (["B79"], ["B79"], [])
+    # Loaded strings that use one turn the switch on, in multiworld mode, as the file's beta settings do
+    assert re.search(r"usesBeta = state\.beta\.length > 0 \|\| \(mode === MULTIWORLD && multiworldBetaIn\(state\)",
+                     PAGE_SCRIPT)
+    assert "multiworldBetaBlocking().length === 0" in page_function("canExport")
+
+
+def test_the_yaml_with_a_beta_value_starts_with_the_warning() -> None:
+    """The exported YAML's first lines: the warning, naming each beta value; the check names them for the page's
+    warning; Archipelago reads the YAML as ever."""
+    zora_flag_string = zora_with(universal_drops_v2=1, swap_swords_and_rings=1)
+    verdict = multiworld.check(DEFAULT_FLAGS, zora_flag_string, {})
+    assert verdict["ok"] and verdict["beta"] == ["Universal Drops v2.0: On", "Swap Swords and Rings: On"]
+    text = multiworld.export_yaml(NAME, DEFAULT_FLAGS, zora_flag_string, {})["yaml"]
+    header = text.split("\n\n")[0].splitlines()
+    warning = " ".join(line.removeprefix("#").strip() for line in header[:header.index("#")])
+    assert warning == (f"WARNING: {archipelago.MULTIWORLD_BETA_TITLE}: Universal Drops v2.0: On; Swap Swords and "
+                       f"Rings: On. {archipelago.MULTIWORLD_BETA_WARNING}")
+    assert all(len(line) <= 100 for line in header)
+    _document, options, _settings = read_back(text)
+    assert (options["universal_drops_v2"], options["swap_swords_and_rings"]) == ("on", "on")
+    assert not multiworld.export_yaml(NAME, DEFAULT_FLAGS, "", {})["yaml"].startswith("# WARNING")
+
+
+def test_the_page_shows_the_big_warning() -> None:
+    assert re.search(r'<div id="multiworld-beta-warning" class="mw-beta-warning" role="alert" hidden>', PAGE)
+    shown = page_function("showMultiworldNotes")
+    assert "metadata.multiworld.betaTitle" in shown and "metadata.multiworld.betaWarning" in shown
 
 
 # --- the player name -------------------------------------------------------------------------------

@@ -90,7 +90,7 @@ def page_function(name: str) -> str:
 
 ROM_STEP_FUNCTIONS = ("romStepText", "useRom", "onRomChosen", "browserStore", "storeBaseRom", "forgetBaseRom",
                       "showRememberedRom", "restoreBaseRom", "onForgetRom", "resetRomStep", "canGenerate",
-                      "updateButton", "betaBlocking")
+                      "updateButton", "betaBlocking", "showApzoraStep")
 # The page's constants those functions read, from the page itself
 ROM_STEP_CONSTANTS = "\n".join(
     re.search(rf"^(?:let|const) {name} = .*$", PAGE_SCRIPT, re.MULTILINE).group(0)  # type: ignore[union-attr]
@@ -102,9 +102,12 @@ ROM_STEP_CONSTANTS = "\n".join(
 ROM_STEP_PAGE = """
 const elements = {};
 const $ = (id) => (elements[id] ||= { id, textContent: "", disabled: false, value: "",
-                                       classList: { toggle() {} }, files: [] });
+                                       classList: { toggle() {} }, files: [], replaceChildren() {}, append() {} });
+let apzora = null;                      // the Multiworld tab's .apzora step: no patch chosen
 let ready = true, flagsPending = false, baseRom = null, romIdentity = null;
 let betaOn = false;                     // the Beta settings switch, off as on every page load
+const MULTIWORLD = "multiworld";
+let mode = "single";                    // single-player mode: the ROM step shows
 const showBatchOptions = () => ({ problem: null });   // Number of seeds: 1, no batch problem
 let batch = null;                       // no batch being made
 const form = { zora: { ok: true }, generateRefusals: [] };

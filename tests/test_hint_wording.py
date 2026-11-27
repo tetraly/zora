@@ -20,6 +20,7 @@ import pytest
 from zora.flags.presets import MVP_BASELINE_LEVEL_ENCODING_OFF
 from zora.generate.pipeline import generate_rom
 from zora.generate.steps import hint_text
+from zora.generate.steps.change_sword_hearts import MAGICAL_SWORD_HEARTS, WHITE_SWORD_HEARTS
 from zora.generate.steps.hint_text import (
     FOREIGN_NAME,
     ITEM_VERBS,
@@ -39,7 +40,6 @@ from zora.generate.steps.hint_text import (
     level_location_sentence,
     with_opener,
 )
-from zora.generate.steps.change_sword_hearts import MAGICAL_SWORD_HEARTS, WHITE_SWORD_HEARTS
 from zora.model.enums import Item
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 from zora.rom.parse.rom_file import parse_rom
@@ -54,7 +54,7 @@ def every_sentence() -> list[str]:
     """Every item-location and level-location sentence any seed can write."""
     sentences: set[str] = set()
     for code in ITEM_CODES:
-        for names in (VANILLA_NAMES, PROGRESSIVE_NAMES, ItemNames(foreign_code=code)):
+        for names in (VANILLA_NAMES, PROGRESSIVE_NAMES, ItemNames(foreign_codes=frozenset({code}))):
             sentences.update(item_location_sentence(code, level, names) for level in LEVELS)
     sentences.update(level_location_sentence(level, region) for level in LEVELS for region in REGION_PHRASES)
     return sorted(sentences)
@@ -88,7 +88,7 @@ def test_the_item_sentences() -> None:
                            (Item.RED_CANDLE, "A CANDLE UPGRADE FLICKERS"), (Item.BLUE_RING, "A RING UPGRADE RADIATES"),
                            (Item.MAGICAL_BOOMERANG, "A BOOMERANG UPGRADE BECKONS")):
         assert item_location_sentence(item, 4, PROGRESSIVE_NAMES) == f"{expected} IN LEVEL-4."
-    assert item_location_sentence(FOREIGN_CODE, 5, ItemNames(foreign_code=FOREIGN_CODE)) == \
+    assert item_location_sentence(FOREIGN_CODE, 5, ItemNames(foreign_codes=frozenset({FOREIGN_CODE}))) == \
         f"{FOREIGN_NAME} AWAITS IN LEVEL-5."
     assert item_location_sentence(Item.BLUE_POTION, 6) == "THE BLUE POTION WAITS IN LEVEL-6."
     # The boots' line stands in for the boomerang's in a Pegasus Boots seed, so it is no upgrade line.

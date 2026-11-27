@@ -1021,9 +1021,10 @@ def crop_guide(rom: bytearray, on: bool) -> None:
 SWITCH_WORDS = {"off": False, "on": True}
 # Settings that are gone, by their command-line, YAML and page names: still accepted, with any value,
 # and ignored, so what named them before still reads (the statistics screen, always on since
-# 2026-10-17).
-RETIRED_SETTINGS = frozenset({"statistics_screen"})
-RETIRED_PAGE_SETTINGS = frozenset({"statisticsScreen"})
+# 2026-10-17; Archipelago's "Other players' items look like", retired by docs/design/archipelago-items.md
+# piece 5: another player's item always shows the logo, colored by its class).
+RETIRED_SETTINGS = frozenset({"statistics_screen", "foreign_item_look"})
+RETIRED_PAGE_SETTINGS = frozenset({"statisticsScreen", "foreignItemLook"})
 
 
 def parse_player_settings(pairs: list[str]) -> PlayerSettings:

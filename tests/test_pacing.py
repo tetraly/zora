@@ -26,6 +26,7 @@ from zora.generate.acceptance_check import (
     SWORDS_2,
     AcceptanceCheck,
     logic_rules,
+    logic_walk_rules,
     rings_needed,
     swords_needed,
 )
@@ -211,6 +212,22 @@ def test_hearts_held_counts_the_starting_hearts_and_what_is_reached() -> None:
     nothing = acceptance_check.hearts_held(frozenset(), model)
     held, _ = acceptance_check.closure()
     assert nothing >= 3 and acceptance_check.hearts_held(frozenset(held), model) > nothing
+
+
+@needs_base_rom
+def test_received_heart_containers_count_toward_the_hearts_held() -> None:
+    """Archipelago's FINISH grants the Heart Containers other worlds held (2.0.2, found by check_apworld's seed 13: a
+    game whose six received containers were one item of a set never met its magical-sword cave, and its granted walk
+    refused the fill Archipelago's logic made). Each counts, also in the re-walk E10 makes under other rules."""
+    from zora.generate.acceptance_check import PacingHearts
+    rules = replace(logic_rules(False, False, offense_pacing=Pacing.NORMAL),
+                    pacing_hearts=PacingHearts(starting=3, white_sword=5, magical_sword=12))
+    plain = check(rules)
+    granted = replace(plain, granted=frozenset({int(Item.HEART_CONTAINER)}), granted_heart_containers=6, _walks={})
+    model = PacingHearts(starting=3, white_sword=5, magical_sword=12)
+    assert granted.hearts_held(frozenset(), model) >= plain.hearts_held(frozenset(), model) + 6
+    rewalk = granted._with_rules(logic_walk_rules(rules))
+    assert rewalk is not granted and rewalk.granted_heart_containers == 6
 
 
 def test_the_default_rules_carry_no_heart_model() -> None:

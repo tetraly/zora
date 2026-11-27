@@ -17,6 +17,7 @@ from functools import cache
 
 import pytest
 
+from tests.needs import needs_base_rom
 from tests.test_assignment import identity
 from zora import archipelago
 from zora.flags import zora_flags
@@ -432,3 +433,27 @@ def test_offered_by_archipelago() -> None:
     assert FIELD not in archipelago.HELD_BACK
     offered = next(spec for spec in archipelago.option_fields() if spec.id == FIELD)
     assert offered.values == tuple(int(state) for state in ThreeState)
+
+
+def test_a_seed_keeps_its_deal_until_the_redeal() -> None:
+    """The deal is drawn once per seed; only a seed unaccepted after REDEAL_AFTER attempts gets a new one, so every
+    seed that builds within them keeps its deal and its output."""
+    key = edl.expanded_dungeon_locations_seed(1, "z1r", "zora")
+    assert {edl.redealt_key(key, attempt) for attempt in (1, 2, edl.REDEAL_AFTER)} == {key}
+    first, second = edl.redealt_key(key, edl.REDEAL_AFTER + 1), edl.redealt_key(key, 2 * edl.REDEAL_AFTER + 1)
+    assert len({key, first, second}) == 3
+    assert edl.redealt_key(key, 2 * edl.REDEAL_AFTER) == first
+
+
+# 2.0.2's Archipelago scan (group 1, seed 409315): Offense and Defense Item Pacing: Earlier and a deal giving levels 1-4
+# spots behind the Ladder, the Recorder and the Raft and the open spots to levels 6 and 7. Every one of the 2000
+# attempts kept that deal and E1 rejected them all; with the re-deal it builds (562 attempts).
+UNWINNABLE_DEAL = ("3Amx8Pb6g5k4NQo3vCRCJYMLXG!tHPuLbr35kF6vs", "23.VQL2LkAd9BmYJ", 315)
+
+
+@pytest.mark.slow
+@needs_base_rom
+def test_a_seed_whose_deal_no_item_draw_satisfies_is_redealt() -> None:
+    flag_string, zora_flag_string, seed = UNWINNABLE_DEAL
+    built = archipelago.build_from_strings(flag_string, zora_flag_string, seed, remember_repo_base_rom())
+    assert built.state.result.attempts > edl.REDEAL_AFTER

@@ -627,10 +627,11 @@ function initFlagSummary() {
 // names goes under ZORA_OTHER_GROUP, so none can go missing.
 const ZORA_GROUPS = [
   ["Items", [["progressive_items", "randomize_magical_sword", "randomize_letter", "add_l4_sword", "shuffle_blue_potion",
-              "magical_boomerang_damage", "swap_swords_and_rings", "offense_pacing", "defense_pacing"],
+              "magical_boomerang_damage", "swap_swords_and_rings", "offense_pacing", "defense_pacing",
+              "triforce_shuffle", "bomb_upgrades_in_pool"],
              ["shop_items_in_pool", "magical_sword_hearts_highest", "allow_triforces_in_stairways",
               "shuffle_wood_sword", "four_potion_inventory", "pegasus_boots", "swordlish", "swordlish_lowest",
-              "swordlish_highest"]]],
+              "swordlish_highest", "map_compass_shuffle"]]],
   ["Locations", [["extra_raft_blocks", "randomize_lost_hills", "expanded_dungeon_locations", "level_9_entrance_sword",
                   "recorder_warping"],
                  ["extra_power_bracelet_blocks", "randomize_dead_woods", "do_not_segment_dungeons",
@@ -662,10 +663,16 @@ function buildZoraPanel(panel) {
     const { row, reason, changed } = settingRow(field.label, field.help, controlNode, isBetaFlag(field.name));
     // A hidden field is set from another tab (Item Shuffle's Random (No Vanilla)); its control only carries the value.
     row.hidden = Boolean(field.hidden);
+    // A Multiworld-only field (zora_flags.MULTIWORLD_ONLY_FIELDS) shows only in Multiworld mode
+    // (showMultiworldSettings); a single-player ROM refuses it.
+    if (field.multiworldOnly) {
+      row.classList.add("multiworld-only");
+      row.hidden = mode !== MULTIWORLD;
+    }
     rows.set(field.name, row);
     // tab: where the row shows, ZORA extras or the flag tab it names (flagTab; buildForm moves it there)
     zoraControls.set(field.name, { kind: field.kind === "option" ? "select" : "segments", input, buttons, row,
-                                   reason, changed, value: 0, tab: field.flagTab || ZORA_TAB });
+                                   reason, changed, value: 0, tab: field.flagTab || ZORA_TAB, field });
   }
   const grouped = new Set(ZORA_GROUPS.flatMap(([, columns]) => columns.flat()));
   const flagTabbed = new Set(metadata.zora.fields.filter((field) => field.flagTab).map((field) => field.name));
@@ -763,6 +770,10 @@ function showZoraState(zora, { rewrite }) {
     // Multiworld mode: the values Archipelago does not take yet; single-player mode offers every one.
     const choices = control.kind === "select" ? [...control.input.options] : [...control.buttons.values()];
     const values = control.kind === "select" ? choices.map((option) => Number(option.value)) : [...control.buttons.keys()];
+    if (control.kind === "select") {
+      choices.forEach((option, index) => { option.textContent = betaLabel(name, values[index], labelIn(control.field.values, values[index])); });
+    }
+    control.row.classList.toggle("multiworld-left-out", hiddenInMultiworld(name));
     choices.forEach((choice, index) => {
       const why = values[index] === control.value ? undefined
         : multiworldReason(name, values[index]) ?? betaReason(name, values[index]);
@@ -825,15 +836,19 @@ function showUnavailable(unavailable) {
 }
 
 // Warnings: accepted settings worth a note beside each setting they name, in the plain note color (not
-// red). A setting a conflict names keeps only its red note; a note already shown is not repeated.
+// red). A setting a conflict names keeps only its red note; a note already shown is not repeated. A
+// single-player warning (zora_flags.single_player_warnings) is not shown in multiworld mode; a caution
+// shows in amber, as its own line (the reason's text is reset on every repaint, which removes it).
 function showWarnings(warnings, refused) {
-  for (const { message, fields } of warnings) {
+  for (const { message, fields, singlePlayer, caution } of warnings) {
+    if (singlePlayer && mode === MULTIWORLD) continue;
     const text = plainText(message);
     for (const name of fields) {
       const control = zoraControls.get(name) || controls.get(name);
       if (!control || refused.has(name) || control.reason.textContent.includes(text)) continue;
       control.row.hidden = false;
-      control.reason.textContent = [control.reason.textContent, text].filter(Boolean).join(" ");
+      if (caution) control.reason.append(element("span", { className: "setting-caution", textContent: text }));
+      else control.reason.textContent = [control.reason.textContent, text].filter(Boolean).join(" ");
     }
   }
 }
@@ -1011,16 +1026,16 @@ const COLOR_SLOTS = PLAYER_COLORS.flatMap((group) => group.slots);
 // The Archipelago games' own settings (zora/archipelago.py MULTIWORLD_SETTINGS): shown and sent only
 // in multiworld mode, where the exported YAML carries them; they change nothing in the ROM.
 const MULTIWORLD_CHOICES = [
-  { key: "foreignItemLook", label: "Other players' items look like", default: "rupee",
-    choices: [["rupee", "A rupee"], ["logo", "The Archipelago logo"]],
-    help: "How items for other players look in your game. A rupee: picking one up gives you one rupee. The " +
-          "Archipelago logo: picking one up gives you nothing, and the shops' magical shields become fairies " +
-          "(20 to 40 rupees)." },
   { key: "itemArrivalSound", label: "Sound when an item arrives", default: "item-appears",
     choices: [["item-appears", "Item appears"], ["item-taken", "Item taken"], ["none", "None"]],
     help: "When another player sends you an item, the game plays this sound. Item appears: the sound of an " +
           "item appearing in a room. Item taken: the sound of picking up an item. It plays over the music " +
           "and never stops Link." },
+  // Archipelago's own option, not a ZORA setting: the YAML names it death_link (zora_web/multiworld.py).
+  { key: "deathLink", label: "DeathLink", default: "off", choices: [["off", "Off"], ["on", "On"]],
+    help: "On: when Link dies, every other DeathLink player dies too, and when one of them dies, so does " +
+          "Link. A death that arrives with no file in play, or while Link is already dying, is dropped. " +
+          "With OHKO it is harsh, but it works." },
 ];
 const ALL_CHOICES = [...PLAYER_CHOICES, ...MUSIC_CHOICES, ...MULTIWORLD_CHOICES];
 
@@ -2303,17 +2318,40 @@ function settingsYaml(settings) {
 // Reads the YAML this page writes, and the same edited by hand or saved again by another YAML tool:
 // block maps and lists, values double-quoted, single-quoted or plain (a whole number, 0x hex, null,
 // true or false, else text), comments, and empty {} and []. Anything else is refused with its line.
-function parseSettingsYaml(text) {
+// With `problems` (an array; an Archipelago YAML, loadArchipelagoYaml) nothing is refused: each line it
+// can't read is named there and left out, with the lines indented under it, and the rest is read
+// (null for a file with no settings at all).
+function parseSettingsYaml(text, problems = null) {
   const lines = [];
   text.replace(/^﻿/, "").split(/\r?\n/).forEach((raw, index) => {
     if (/^\s*(#|$)/.test(raw)) return;
-    if (/^ *\t/.test(raw)) throw new SettingsFileError(`Line ${index + 1}: YAML can't be indented with tabs.`);
+    if (/^ *\t/.test(raw)) {
+      const why = `Line ${index + 1}: YAML can't be indented with tabs.`;
+      if (problems) { problems.push(why); return; }
+      throw new SettingsFileError(why);
+    }
     lines.push({ number: index + 1, indent: raw.search(/\S/), text: raw.trim() });
   });
-  if (!lines.length) throw new SettingsFileError(NOT_A_SETTINGS_FILE);
+  if (!lines.length) {
+    if (problems) return null;
+    throw new SettingsFileError(NOT_A_SETTINGS_FILE);
+  }
   let at = 0;
   const fail = (line, why) => { throw new SettingsFileError(`Line ${line.number}: ${why}`); };
   const isItem = (line) => line.text === "-" || line.text.startsWith("- ");
+  // Reads one entry (a map's name: value or a list's item) starting at lines[index]. Without `problems`
+  // a line it can't read stops the reading; with it, the line is named there and skipped, with the lines
+  // indented under it.
+  function entry(index, indent, read) {
+    try {
+      read();
+    } catch (err) {
+      if (!problems || !(err instanceof SettingsFileError)) throw err;
+      problems.push(err.message);
+      at = Math.max(at, index + 1);
+      while (at < lines.length && lines[at].indent > indent) at++;
+    }
+  }
 
   function scalar(written, line) {
     const quoted = /^"(?:[^"\\]|\\.)*"|^'(?:[^']|'')*'/.exec(written);
@@ -2344,12 +2382,15 @@ function parseSettingsYaml(text) {
   function map(indent) {
     const out = {};
     while (at < lines.length && lines[at].indent === indent && !isItem(lines[at])) {
-      const line = lines[at];
-      const match = YAML_KEY.exec(line.text);
-      if (!match) fail(line, "expected name: value.");
-      if (Object.hasOwn(out, match[1])) fail(line, `${match[1]} appears twice.`);
-      at++;
-      out[match[1]] = match[2] === undefined || match[2] === "" ? nested(indent) : scalar(match[2], line);
+      const index = at;
+      entry(index, indent, () => {
+        const line = lines[index];
+        const match = YAML_KEY.exec(line.text);
+        if (!match) fail(line, "expected name: value.");
+        if (Object.hasOwn(out, match[1])) fail(line, `${match[1]} appears twice.`);
+        at++;
+        out[match[1]] = match[2] === undefined || match[2] === "" ? nested(indent) : scalar(match[2], line);
+      });
     }
     return out;
   }
@@ -2357,16 +2398,19 @@ function parseSettingsYaml(text) {
   function list(indent) {
     const out = [];
     while (at < lines.length && lines[at].indent === indent && isItem(lines[at])) {
-      const line = lines[at];
-      const rest = line.text.slice(1).trimStart();
-      if (YAML_KEY.test(rest)) {
-        // "- name: value" opens a map whose other names line up under this first one.
-        lines[at] = { ...line, indent: line.indent + line.text.length - rest.length, text: rest };
-        out.push(map(lines[at].indent));
-      } else {
-        at++;
-        out.push(rest === "" ? nested(indent) : scalar(rest, line));
-      }
+      const index = at;
+      entry(index, indent, () => {
+        const line = lines[index];
+        const rest = line.text.slice(1).trimStart();
+        if (YAML_KEY.test(rest)) {
+          // "- name: value" opens a map whose other names line up under this first one.
+          lines[at] = { ...line, indent: line.indent + line.text.length - rest.length, text: rest };
+          out.push(map(lines[at].indent));
+        } else {
+          at++;
+          out.push(rest === "" ? nested(indent) : scalar(rest, line));
+        }
+      });
     }
     return out;
   }
@@ -2375,8 +2419,21 @@ function parseSettingsYaml(text) {
     return isItem(lines[at]) ? list(indent) : map(indent);
   }
 
-  const settings = block(lines[0].indent);
-  if (at < lines.length) fail(lines[at], "unexpected indentation.");
+  const top = lines[0].indent;
+  const settings = block(top);
+  if (at < lines.length && !problems) fail(lines[at], "unexpected indentation.");
+  // Leniently, a line out of place is named and skipped with the lines under it, and the top level goes on.
+  while (at < lines.length) {
+    const index = at;
+    entry(index, top, () => fail(lines[index], "unexpected indentation."));
+    if (at < lines.length && lines[at].indent === top && !isItem(lines[at]) && !Array.isArray(settings)) {
+      const more = map(top);
+      for (const [name, value] of Object.entries(more)) {
+        if (Object.hasOwn(settings, name)) problems.push(`${name} appears twice: the first one is kept.`);
+        else settings[name] = value;
+      }
+    }
+  }
   return settings;
 }
 
@@ -2462,6 +2519,157 @@ async function loadSettingsFile() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Load an Archipelago YAML (multiworld mode; zora_web.multiworld.read_yaml): a player's YAML back into the
+// page, best effort. The page's reader (parseSettingsYaml, collecting each line it can't read) parses it;
+// Python maps its options, name, player settings and DeathLink to the page's, naming whatever it can't
+// apply. The page then opens on the result as a settings file does (applyPageSettings), and shows the
+// list of problems after the reload (kept for one page load in sessionStorage).
+// ---------------------------------------------------------------------------
+
+const YAML_REPORT_KEY = "zora.archipelagoYamlReport";
+
+function showYamlReport(report) {
+  const problems = report.problems || [];
+  $("yaml-load-note").textContent = !report.loaded ? `${report.file}: nothing was loaded.`
+    : problems.length ? `Loaded ${report.file}. Not loaded (${problems.length}):`
+    : `Loaded ${report.file}: every setting in it.`;
+  $("yaml-load-note").className = `message${problems.length ? " message--error" : ""}`;
+  $("yaml-load-problems").replaceChildren(...problems.map((text) => element("li", { textContent: text })));
+}
+
+function showKeptYamlReport() {
+  let report = null;
+  try {
+    report = JSON.parse(sessionStorage.getItem(YAML_REPORT_KEY) || "null");
+    sessionStorage.removeItem(YAML_REPORT_KEY);
+  } catch { report = null; }
+  if (report && typeof report.file === "string") showYamlReport(report);
+}
+
+async function loadArchipelagoYaml() {
+  const file = $("yaml-load-file").files[0];
+  $("yaml-load-file").value = "";
+  if (!file || !form || !ready) return;
+  const problems = [];
+  let parsed = null;
+  try {
+    parsed = parseSettingsYaml(await file.text(), problems);
+  } catch (err) {
+    if (!(err instanceof SettingsFileError)) throw err;
+    problems.push(err.message);
+  }
+  const answer = await ask("readArchipelagoYaml", { document: parsed });
+  const report = { file: file.name, loaded: answer.loaded, problems: [...problems, ...answer.problems] };
+  if (!answer.loaded) {
+    showYamlReport(report);
+    return;
+  }
+  const settings = { flags: answer.flags, zora_flags: answer.zoraFlags, mode: MULTIWORLD,
+                     player_settings: { ...playerSettings, ...answer.playerSettings } };
+  if (answer.name !== null) settings.player_name = answer.name;
+  try {
+    const address = applyPageSettings(settings);
+    try { sessionStorage.setItem(YAML_REPORT_KEY, JSON.stringify(report)); } catch { /* shown now instead */ }
+    location.replace(address);
+  } catch (err) {
+    if (!(err instanceof SettingsFileError)) throw err;
+    showYamlReport({ ...report, loaded: false, problems: [...report.problems, err.message] });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Multiworld: "Build your ROM from a .apzora" (zora_web/apzora.py; owner decisions, 2026-11-21). A player who
+// gets their .apzora after the host generated builds their ROM here, with the look and feel chosen now: the
+// worker reads the recipe (who it is for, its own look-and-feel settings, or why this page can't build it, an
+// older ZORA's patch with a link to that version's archived page), and builds the ROM with
+// archipelago.rom_from_recipe on a copy of the recipe whose playerSettings are the choices made here. The base
+// ROM is the page's own ROM input (baseRom; step 1 in single player).
+// ---------------------------------------------------------------------------
+
+let apzora = null;         // {bytes, name, info}: the chosen .apzora and what the worker read from it
+let apzoraChoices = {};    // the look-and-feel settings shown, by page key
+
+function apzoraSettingRow(entry) {
+  const label = entry.label;
+  const onChange = (value) => { apzoraChoices[entry.key] = value; };
+  let control;
+  if (entry.kind === "color") {
+    control = element("span");
+    initColorPicker(control, { palette: NES_PALETTE, excluded: EXCLUDED_COLORS, value: entry.value, label,
+                               random: entry.colors.includes(RANDOM_COLOR) ? RANDOM_COLOR : null, onChange });
+  } else if (entry.kind === "word") {
+    const listId = `apzora-${entry.key}-words`;
+    control = element("span", {},
+      element("input", { id: `apzora-${entry.key}`, className: "seed-input level-word-input", type: "text",
+                         value: String(entry.value), spellcheck: false, autocomplete: "off",
+                         maxLength: entry.rule ? entry.rule.max : 8 }),
+      element("datalist", { id: listId }, ...entry.choices.map(([value]) => element("option", { value }))));
+    const input = control.querySelector("input");
+    input.setAttribute("list", listId);
+    input.addEventListener("input", () => onChange(input.value.trim().toUpperCase()));
+  } else {
+    control = selectControl(`apzora-${entry.key}`, label,
+                            entry.choices.map(([value, text]) => ({ value, label: text })),
+                            () => onChange(control.value));
+    control.value = String(entry.value);
+  }
+  apzoraChoices[entry.key] = entry.value;
+  return settingRow(label, "", control).row;
+}
+
+function showApzoraStep() {
+  const info = apzora && apzora.info;
+  $("apzora-label").textContent = apzora ? apzora.name + (info && info.ok && info.playerName
+    ? ` (player ${info.playerName}, slot ${info.player})` : "") : "No file chosen.";
+  $("apzora-rom-label").textContent = baseRom && romIdentity
+    ? `${$("rom-label").textContent} (${romIdentity.revision}${romIdentity.modifiedGraphics ? ", modified graphics" : ""})`
+    : "No ROM chosen.";
+  const error = $("apzora-error");
+  error.replaceChildren();
+  if (info && !info.ok) {
+    error.append(info.reason);
+    if (info.archiveUrl) {
+      error.append(" ", element("a", { href: info.archiveUrl, target: "_blank", rel: "noopener",
+                                       textContent: `ZORA ${info.version}'s page` }));
+    }
+  }
+  $("apzora-build").disabled = !(ready && info && info.ok && baseRom);
+}
+
+async function onApzoraChosen() {
+  const file = $("apzora-file").files[0];
+  $("apzora-file").value = "";
+  if (!file || !ready) return;
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const info = await ask("readApzora", { bytes, name: file.name });
+  apzora = { bytes, name: file.name, info };
+  apzoraChoices = {};
+  $("apzora-download").replaceChildren();
+  $("apzora-settings").replaceChildren(...(info.ok ? info.settings.map(apzoraSettingRow) : []));
+  $("apzora-settings").hidden = !info.ok;
+  showApzoraStep();
+}
+
+async function onApzoraBuild() {
+  if (!apzora || !apzora.info.ok || !baseRom) return;
+  $("apzora-build").disabled = true;
+  $("apzora-download").replaceChildren();
+  status("Building your ROM…");
+  const answer = await ask("buildApzora", { bytes: apzora.bytes, rom: baseRom, playerSettings: apzoraChoices });
+  showApzoraStep();
+  if (!answer.ok) {
+    $("apzora-error").textContent = `Not built: ${answer.reason}`;
+    status(`Not built: ${answer.reason}`, "error");
+    return;
+  }
+  const url = URL.createObjectURL(new Blob([answer.rom], { type: "application/octet-stream" }));
+  const name = apzora.info.romFileName;
+  $("apzora-download").replaceChildren(element("a", { className: "btn btn-teal", href: url, download: name,
+                                                      title: name, textContent: `Download ${name}` }));
+  status(`Built ${name}.`, "ready");
+}
+
 function openPresets() {
   renderCustomPresets();
   $("settings-save").disabled = !form;
@@ -2517,13 +2725,22 @@ function isNotImplemented(control, value) {
 }
 
 // Multiworld mode: why Archipelago does not take this value of a field (a Z1R field's id, a ZORA
-// flag's name), or undefined when it does. Always undefined in single-player mode.
+// flag's name), or undefined when it does. Always undefined in single-player mode, and for a field the
+// Multiworld tab leaves out (hiddenInMultiworld), whose value Archipelago ignores. A beta value
+// (metadata.multiworld.beta) is offered: betaReason locks it while the switch is off.
 function multiworldReason(id, value) {
   if (mode !== MULTIWORLD) return undefined;
   const fixed = metadata.multiworld.fixed[id];
   if (fixed) return value === fixed.value ? undefined : fixed.reason;
   const offered = metadata.multiworld.offered[id];
   return !offered || offered.includes(value) ? undefined : metadata.multiworld.notOffered;
+}
+
+// Multiworld mode: a field off in Archipelago for good (zora/archipelago.py PERMANENTLY_OFF), which the
+// metadata neither offers nor holds: its row is not shown, and a value of it in the strings is ignored
+// (the note under the button says so).
+function hiddenInMultiworld(id) {
+  return mode === MULTIWORLD && !(id in metadata.multiworld.offered) && !(id in metadata.multiworld.fixed);
 }
 
 // ---------------------------------------------------------------------------
@@ -2537,8 +2754,28 @@ function multiworldReason(id, value) {
 let betaOn = false;
 let betaTurnedOnByFlags = false;     // the warning then says why the switch came on
 
-function betaValuesOf(id) {
-  return (metadata.beta && metadata.beta.values[id]) || [];
+// A field's beta values: the file's, and in multiworld mode also Archipelago's (zora/archipelago.py HELD_BACK:
+// values not through ZORA's logic scan for multiworld), which the same switch unlocks.
+function betaValuesOf(id, inMode = mode) {
+  const own = (metadata.beta && metadata.beta.values[id]) || [];
+  const multiworld = inMode === MULTIWORLD ? multiworldBetaValuesOf(id) : [];
+  return multiworld.length ? [...new Set([...own, ...multiworld])] : own;
+}
+
+function multiworldBetaValuesOf(id) {
+  return (metadata.multiworld && metadata.multiworld.beta && metadata.multiworld.beta[id]) || [];
+}
+
+// A field's value in a state from Python (a Z1R field's id, a ZORA flag's name), or undefined.
+function stateValue(state, id) {
+  if (state.fields && state.fields[id]) return state.fields[id].value;
+  return state.zora && state.zora.ok ? state.zora.values[id] : undefined;
+}
+
+// The fields whose value in the state is one of Archipelago's beta values (multiworldBetaValuesOf).
+function multiworldBetaIn(state) {
+  if (!state || !metadata.multiworld || !metadata.multiworld.beta) return [];
+  return Object.keys(metadata.multiworld.beta).filter((id) => multiworldBetaValuesOf(id).includes(stateValue(state, id)));
 }
 
 function isBetaFlag(id) {
@@ -2559,13 +2796,21 @@ function betaReason(id, value) {
   return !betaOn && betaValuesOf(id).includes(value) ? metadata.beta.locked : undefined;
 }
 
-// The beta settings the strings use while the switch is off (each {field, value, text}).
+// The beta settings the strings use while the switch is off (each {field, value, text}); in multiworld mode not
+// the fields the Multiworld tab leaves out (hiddenInMultiworld: ignored there).
 function betaBlocking() {
-  return !betaOn && form && form.beta ? form.beta : [];
+  const used = !betaOn && form && form.beta ? form.beta : [];
+  return mode === MULTIWORLD ? used.filter((entry) => !hiddenInMultiworld(entry.field)) : used;
+}
+
+// Multiworld mode: the fields set to one of Archipelago's beta values while the switch is off (each blocks Export).
+function multiworldBetaBlocking() {
+  return mode === MULTIWORLD && !betaOn ? multiworldBetaIn(form) : [];
 }
 
 function showBetaSwitch() {
-  $("beta-bar").hidden = Object.keys(metadata.beta.values).length === 0;
+  const multiworldBeta = mode === MULTIWORLD && metadata.multiworld && Object.keys(metadata.multiworld.beta || {}).length;
+  $("beta-bar").hidden = Object.keys(metadata.beta.values).length === 0 && !multiworldBeta;
   $("beta-off").setAttribute("aria-pressed", String(!betaOn));
   $("beta-on").setAttribute("aria-pressed", String(betaOn));
   $("beta-warning").hidden = !betaOn;
@@ -2616,6 +2861,7 @@ function showField(id, control, field) {
     if (control.note) control.note.textContent = noteIn(control.field.values, field.value);
     for (const option of control.input.options) {
       const value = Number(option.value);
+      option.textContent = betaLabel(id, value, labelIn(control.field.values, value));    // each mode's beta values
       const why = offer(value);
       option.disabled = why !== undefined;
       option.title = why ? plainText(why) : control.supported.has(value) ? "" : NOT_IMPLEMENTED;
@@ -2638,6 +2884,7 @@ function showField(id, control, field) {
   control.row.classList.toggle("setting--problem", problem);
   // A hidden field shows itself while its value needs changing (a pasted string).
   control.row.hidden = !control.shown && !problem && !field.notice;
+  control.row.classList.toggle("multiworld-left-out", hiddenInMultiworld(id));
   control.reason.textContent = field.problem
     ? (isNotImplemented(control, field.value) ? NOT_IMPLEMENTED : plainText(field.reason))
     : refusedHere !== undefined ? `${refusedHere} Choose another value to export.`
@@ -2678,7 +2925,8 @@ function showState(state, { rewrite, start = false, name = "" }) {
   }
   form = state;
   // Loaded strings (pasted, a preset, a link, a settings file) that use a beta setting turn the switch on.
-  if ((start || startState === null) && state.beta.length > 0 && !betaOn) setBeta(true, { byFlags: true });
+  const usesBeta = state.beta.length > 0 || (mode === MULTIWORLD && multiworldBetaIn(state).length > 0);
+  if ((start || startState === null) && usesBeta && !betaOn) setBeta(true, { byFlags: true });
   if (start || startState === null) setStart(state, name);
   $("flags").classList.remove("flag-bar-input--error");
   $("flags-error").textContent = state.blockedChange ? `Not changed: ${plainText(state.blockedChange)}` : "";
@@ -2709,8 +2957,9 @@ function showProblems() {
   let lines;
   if (mode === MULTIWORLD) {
     const reasons = multiworldVerdict ? multiworldVerdict.reasons : [];
+    const multiworldBeta = multiworldBetaBlocking().map((id) => `${fieldLabelOf(id)}: ${metadata.beta.current}.`);
     lines = [...notes, ...reasons.filter((text) => !form.refusals.some((rule) => text.includes(rule)))
-      .map((text) => `Cannot export: ${plainText(text)}`), ...beta.map((text) => `Cannot export: ${text}`)];
+      .map((text) => `Cannot export: ${plainText(text)}`), ...[...beta, ...multiworldBeta].map((text) => `Cannot export: ${text}`)];
   } else {
     const refusals = form.generateRefusals.filter((text) => !form.refusals.includes(text)
                                                         && !text.startsWith(NOT_PRODUCED_REFUSAL));
@@ -2718,6 +2967,29 @@ function showProblems() {
              ...beta.map((text) => `Cannot generate: ${text}`)];
   }
   $("problems").replaceChildren(...lines.map((text) => element("li", { textContent: text })));
+  showMultiworldNotes();
+}
+
+// A field's name as the page shows it, by its id (Z1R) or name (ZORA extras).
+function fieldLabelOf(id) {
+  const control = controls.get(id);
+  if (control) return fieldName(control.field);
+  const zora = zoraControls.get(id);
+  return zora ? zora.field.label : id;
+}
+
+// Multiworld mode: the big warning while Archipelago's beta values are in use (the exported YAML starts with
+// the same), and a small note for each value the Multiworld tab leaves out and the YAML ignores (both from
+// multiworldVerdict, zora_web.multiworld.check).
+function showMultiworldNotes() {
+  const verdict = mode === MULTIWORLD ? multiworldVerdict : null;
+  const beta = verdict ? verdict.beta || [] : [];
+  $("multiworld-beta-warning").hidden = beta.length === 0;
+  $("multiworld-beta-title").textContent = metadata.multiworld.betaTitle;
+  $("multiworld-beta-list").replaceChildren(...beta.map((text) => element("li", { textContent: text })));
+  $("multiworld-beta-text").textContent = metadata.multiworld.betaWarning;
+  const ignored = verdict ? verdict.ignored || [] : [];
+  $("multiworld-ignored").replaceChildren(...ignored.map((text) => element("li", { textContent: `Note: ${plainText(text)}` })));
 }
 
 let flagsRequest = 0;
@@ -2857,6 +3129,7 @@ function setMode(next) {
   $("export-row").hidden = !multiworld;
   $("player-name-error").hidden = !multiworld;
   showMultiworldSettings();
+  if (metadata) showBetaSwitch();
   $("step-generate-title").textContent = multiworld ? "Export your Archipelago YAML" : "Generate the game";
   // Each mode keeps its own last result: a generated ROM, an exported YAML.
   $("generate-result").hidden = multiworld || !$("download").hasChildNodes();
@@ -2870,6 +3143,22 @@ function setMode(next) {
   }
   if (form) showState(form, { rewrite: false });
   updateLink();
+}
+
+// Switching to multiworld mode (a click, never a shared link's mode) sets each ZORA setting whose Archipelago
+// default differs from the page's (zora_form "multiworldDefault": Triforce Shuffle and Map & Compass Shuffle,
+// Anywhere) to that default, so an exported YAML matches the world's. Switching back leaves them as they are.
+// A default that is a beta value is set only while Enable Beta Flags is on (betaReason): off, it would block Export.
+function applyMultiworldDefaults() {
+  let changed = false;
+  for (const [name, control] of zoraControls) {
+    const value = control.field.multiworldDefault;
+    if (value === undefined || control.kind !== "select" || Number(control.input.value) === value) continue;
+    if (betaReason(name, value) !== undefined) continue;
+    control.input.value = String(value);
+    changed = true;
+  }
+  if (changed) onZoraControlChanged();
 }
 
 // The world's links, or the placeholders until they exist (zora.apworld's once Python has started).
@@ -2924,7 +3213,7 @@ async function checkPlayerName() {
 function canExport() {
   return ready && form && !flagsPending && $("flags-error").textContent === "" && form.zora.ok
     && playerNameProblem === null && multiworldVerdict !== null && multiworldVerdict.ok
-    && betaBlocking().length === 0;
+    && betaBlocking().length === 0 && multiworldBetaBlocking().length === 0;
 }
 
 async function onExport() {
@@ -2975,6 +3264,7 @@ function canGenerate(batchProblem = null) {
 
 function updateButton() {
   $("export").disabled = !canExport();
+  showApzoraStep();          // the .apzora step's base ROM is the page's (useRom calls this)
   $("generate").disabled = !canGenerate(showBatchOptions().problem);
   $("seed").classList.toggle("seed-input--error", !/^\d*$/.test($("seed").value.trim()));
 }
@@ -3116,7 +3406,7 @@ async function generateSeed(seed, flags = form.flags, zoraFlags = form.zora.flag
   window.zoraTimings.seeds.push({ seed: String(seed), ms: result.ms });
   return { bytes: result.rom, ms: result.ms, flags: result.flags, zoraFlags: result.zoraFlags, seed: result.seed,
            encoded: result.encoded, spoilerLevel: result.spoilerLevel || 0, code: result.code,
-           codeIcons: result.codeIcons,
+           codeIcons: result.codeIcons, codeEmoji: result.codeEmoji,
            tracks: result.tracks || null, musicWarnings: result.musicWarnings || [],
            musicLibraries: result.musicLibraries || [], reportBytes: result.reportRom || null };
 }
@@ -3250,10 +3540,12 @@ function addSeedReportButtons(result, encoded) {
 }
 window.zoraViewInVisualizer = viewInVisualizer;
 
-// The seed code as its item names, comma-separated: what "Copy seed code" copies (for a race room
-// such as racetime.gg; owner, 2026-10-17) and the bug report's last line.
-function seedCodeText(code) {
-  return code.join(", ");
+// The seed code as its items' Discord emoji names (zora.rom.code_patches.SEED_CODE_EMOJI; owner, 2026-11-25),
+// comma-separated: what "Copy seed code" copies (for a race room such as racetime.gg; owner, 2026-10-17), the
+// bug report's last line and the race info's. `emoji`: the worker's codeEmoji, one per item; without them (the
+// four characters the screen shows under Item Sprites) the code is copied as it is shown.
+function seedCodeText(code, emoji = []) {
+  return (emoji.length === code.length ? emoji : code).join(", ");
 }
 
 // The seed code as pictures (owner's backlog, 2026-10-18): each item as the player's own ROM draws it
@@ -3295,7 +3587,7 @@ function bugReportText(info) {
   const beta = info.beta.length ? [`BETA SETTINGS IN USE: ${info.beta.join("; ")}`] : [];
   return [`ZORA ${info.version}`, ...beta, `Seed: ${info.seed}`, `Z1R flags: ${info.flags}`,
           `ZORA flags: ${info.zoraFlags || "(none)"}`, `ROM: ${info.identity.revision}${graphics}`,
-          `Seed code: ${info.code.length ? seedCodeText(info.code) : "(none)"}`].join("\n");
+          `Seed code: ${info.code.length ? seedCodeText(info.code, info.codeEmoji) : "(none)"}`].join("\n");
 }
 
 // "Copy race info" (owner, 2026-10-22): a short block for a race channel such as Discord: the
@@ -3312,7 +3604,7 @@ function raceInfoText(info) {
   const race = info.encoded ? RACE_ROM_ON : RACE_ROM_OFF;
   return [`ZORA ${info.version}`, `Seed: ${info.seed}`, `Flags: ${info.flags}`,
           ...(info.zoraFlags ? [`ZORA flags: ${info.zoraFlags}`] : []),
-          ...(info.code.length ? [`Seed code: ${seedCodeText(info.code)}`] : []),
+          ...(info.code.length ? [`Seed code: ${seedCodeText(info.code, info.codeEmoji)}`] : []),
           race, `Spoiler log: ${info.spoilerLevel}`, ...info.notices.map((text) => `Notice: ${text}.`)].join("\n");
 }
 
@@ -3350,7 +3642,8 @@ function addCopyButtons(info) {
                        copyButton("copy-race-info", "Copy race info", raceInfoText(info),
                                   "Race info copied. Paste it into your race channel."));
   if (info.code.length) {
-    $("download").append(copyButton("copy-seed-code", "Copy seed code", seedCodeText(info.code), "Seed code copied."));
+    $("download").append(copyButton("copy-seed-code", "Copy seed code", seedCodeText(info.code, info.codeEmoji),
+                                    "Seed code copied."));
   }
 }
 
@@ -3433,6 +3726,7 @@ async function onGenerate() {
     // The ROM as identified when it was chosen: another chosen later does not change this seed's.
     addCopyButtons({ version: buildLabel(), seed: result.seed, flags: requested.flags,
                      zoraFlags: requested.zoraFlags, identity: romIdentity, code,
+                     codeEmoji: Array.isArray(result.codeEmoji) ? result.codeEmoji : [],
                      encoded: requested.encoded, spoilerLevel: requested.spoilerLevel, notices: requested.notices,
                      beta: requested.beta });
     // The seed code (four items, with their icons), once Python reports one.
@@ -3901,11 +4195,22 @@ for (const button of $("batch-output").querySelectorAll("button")) {
   button.addEventListener("click", () => onBatchOutputPicked(button.dataset.choice));
 }
 $("mode-single").addEventListener("click", () => { if (mode !== SINGLE) setMode(SINGLE); });
-$("mode-multiworld").addEventListener("click", () => { if (mode !== MULTIWORLD) setMode(MULTIWORLD); });
+$("mode-multiworld").addEventListener("click", () => {
+  if (mode === MULTIWORLD) return;
+  setMode(MULTIWORLD);
+  applyMultiworldDefaults();
+});
 $("player-name").value = savedPlayerName();
 $("player-name").addEventListener("input", checkPlayerName);
 $("player-name").addEventListener("blur", () => { nameTouched = true; checkPlayerName(); });
 $("export").addEventListener("click", onExport);
+$("apzora-btn").addEventListener("click", () => $("apzora-file").click());
+$("apzora-file").addEventListener("change", onApzoraChosen);
+$("apzora-rom-btn").addEventListener("click", () => $("rom").click());     // the page's own ROM input
+$("apzora-build").addEventListener("click", onApzoraBuild);
+$("yaml-load").addEventListener("click", () => $("yaml-load-file").click());
+$("yaml-load-file").addEventListener("change", loadArchipelagoYaml);
+showKeptYamlReport();      // what the last load of an Archipelago YAML could not apply
 // The hero graphic comes up out of the water (owner, 2026-10-30): the masthead's waves stretch with the
 // window and the hero is centred, so the water's height under the logo changes with the width. Read the front
 // wave's surface under the logo from its own shape (isPointInFill, in the waves' viewBox) and move the logo

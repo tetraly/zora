@@ -267,8 +267,9 @@ def join_pool(slot: str, levels: list[Level], state: ItemShuffleResult, extras: 
 
     The extra itself is not a tracked item unless `tracked` (it unlocks nothing VA-REJ-07's
     walk models, but the magical sword counts towards level 9's four swords under Level 9
-    Entrance = Level 4 sword, docs/design/asnb.md section 5); the item it displaces keeps its
-    tracked record, moved to the extra's cave."""
+    Entrance = Level 4 sword, docs/design/asnb.md section 5, and towards Offense Item Pacing's
+    swords: generation_pass.sword_is_tracked); the item it displaces keeps its tracked record,
+    moved to the extra's cave."""
     opts = opts or ItemShuffleOptions()
     assert slot not in extras.caves, f"{slot} joined twice"
     places = pool_places(levels, state, extras, opts)

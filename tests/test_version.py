@@ -23,11 +23,11 @@ def test_the_changelog_ends_at_this_version() -> None:
 @pytest.mark.skipif(not BASE_ROM_PATH.exists(), reason="needs the base ROM")
 def test_the_title_screen_shows_the_version() -> None:
     rom = generate_rom(MVP_BASELINE_LEVEL_ENCODING_OFF, 1, verify_base_rom().read_bytes()).rom
-    assert parse_rom(rom).title_version_line == f"ZORA {PLAYER_VERSION}".upper() == "ZORA 2.0.1"
+    assert parse_rom(rom).title_version_line == f"ZORA {PLAYER_VERSION}".upper() == "ZORA 2.0.2"
 
 
 def test_players_read_a_beta_as_beta_n() -> None:
-    assert ZORA_VERSION == "2.0.1" and PLAYER_VERSION == "2.0.1"
+    assert ZORA_VERSION == "2.0.2" and PLAYER_VERSION == "2.0.2"
     assert player_version("2.1.0b12") == "2.1 beta 12" and player_version("2.0.0") == "2.0.0"
     # A patch release's beta keeps its patch digit (2026-11-12); every earlier version reads as before
     assert player_version("2.0.1b1") == "2.0.1 beta 1" and player_version("2.0.10b2") == "2.0.10 beta 2"

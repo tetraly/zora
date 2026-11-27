@@ -122,9 +122,9 @@ def test_heads_interface_is_read(script: ModuleType, tmp_path: Path) -> None:
     found = script.interface("HEAD", tmp_path)
     assert found["options"]["starting_hearts"]["id"] == "C16"
     assert found["player settings"]["green_tunic"]["kind"] == "color"
+    # (Universal Drops v2.0 and Item Counter are real options since 2026-11-21, beta values in Archipelago)
     assert found["hidden options"] == ["detailed_spoiler_log", "disable_custom_music", "gatekeeper_bosses",
-                                       "item_counter", "item_shuffle_no_vanilla", "shuffle_wood_sword",
-                                       "universal_drops_v2", "wizzrobes_shoot_wallmasters"]
+                                       "item_shuffle_no_vanilla", "shuffle_wood_sword"]
     assert found["recipe format"][0] == "zora-ap-recipe"
 
 

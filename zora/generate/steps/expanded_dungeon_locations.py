@@ -183,6 +183,24 @@ def expanded_dungeon_locations_seed(seed: int, z1r_canonical: str, zora_canonica
     return int.from_bytes(digest, "little")
 
 
+# The deal is drawn once per seed and every attempt reuses it, so a deal no item draw can satisfy failed the seed
+# (2.0.2's Archipelago scan: Offense and Defense Item Pacing: Earlier with levels 1-4 behind the Ladder, the Recorder
+# and the Raft and the open spots dealt to levels 6 and 7). After this many attempts the seed gets a new deal; a seed
+# that builds within them keeps its deal and its output.
+REDEAL_AFTER = 500
+REDEAL_STREAM = b"zora expanded re"
+
+
+def redealt_key(key: int, attempt: int) -> int:
+    """The deal's key for a generation attempt (counted from 1): the seed's own key for the first REDEAL_AFTER
+    attempts, then a new key for each further REDEAL_AFTER, derived from it and the re-deal's number."""
+    redeal = (attempt - 1) // REDEAL_AFTER
+    if redeal == 0:
+        return key
+    message = key.to_bytes(SEED_BYTES, "little") + redeal.to_bytes(SEED_BYTES, "little")
+    return int.from_bytes(hashlib.blake2b(message, digest_size=SEED_BYTES, person=REDEAL_STREAM).digest(), "little")
+
+
 @dataclass
 class ExpandedDeal:
     """The deal: each dungeon's spot, what each unchosen open or carrier spot holds, the spots that

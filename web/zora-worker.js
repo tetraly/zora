@@ -7,9 +7,12 @@
 // (a playlist's text)}; musicSongs {id, source ("standard" or "local"), musicLibraries} (the playlist
 // editor's songs); musicAreas {id}; report {id, bytes (the finished ROM), seed,
 // flags, zoraFlags}; multiworldCheck {id, flags, zoraFlags, playerSettings};
-// nameProblem {id, name}; exportYaml {id, name, flags, zoraFlags, playerSettings}.
+// nameProblem {id, name}; exportYaml {id, name, flags, zoraFlags, playerSettings};
+// readArchipelagoYaml {id, document} (a player's YAML as the page's reader parsed it);
+// readApzora {id, bytes, name} (a player's .apzora: who it is for, its look and feel, or why it can't be built);
+// buildApzora {id, bytes, rom, playerSettings} (the player's ROM from it, with those look-and-feel settings).
 // Messages out: ready {ms, python, pyodide, metadata, multiworld}; result
-// {id, ...} (generate's adds code, the seed code's four item names,
+// {id, ...} (generate's adds code, the seed code's four item names, codeEmoji, the same as Discord emoji names,
 // codeIcons, the same as the file-select screen draws them (16 rows of 16 NES
 // palette values each), codeText (the four characters the screen shows instead, under Item
 // Sprites other than normal, or null) and zoraFlags, the canonical ZORA string; with randomized music
@@ -27,7 +30,7 @@
 // native scripts (zora.generate). Results cross to JavaScript as JSON.
 const GLUE = `
 import contextlib, json, sys
-from zora_web.api import code_icons, code_text, flag_form, generate_rom, identify_rom, multiworld, music_asset_urls, music_library_songs, music_playlist_areas, music_rom, player_settings_from_page, seed_report, stop_after
+from zora_web.api import code_emoji, code_icons, code_text, flag_form, generate_rom, identify_rom, multiworld, music_asset_urls, music_library_songs, music_playlist_areas, music_rom, player_settings_from_page, seed_report, stop_after
 
 def identify(data):
     return json.dumps(identify_rom(bytes(data.to_py())))
@@ -71,7 +74,8 @@ def generate(data, seed, flag_string, player_settings, zora_flag_string, library
     info = {"flags": result.flag_string, "zoraFlags": result.zora_flag_string, "seed": str(result.seed),
             "encoded": result.encode_level_data, "spoilerLevel": int(result.spoiler_level),
             "code": [str(name) for name in result.code],
-            "codeIcons": code_icons(result.rom), "codeText": code_text(result.rom)}
+            "codeIcons": code_icons(result.rom), "codeText": code_text(result.rom),
+            "codeEmoji": code_emoji(result.rom)}
     rom = result.rom
     REPORT_ROM = b""
     if settings.randomize_music:
@@ -106,6 +110,27 @@ def export_yaml(name, flag_string, zora_flag_string, player_settings):
                                                                 json.loads(player_settings))})
     except multiworld.ExportRefused as refused:
         return json.dumps({"ok": False, "reasons": refused.reasons})
+
+def read_archipelago_yaml(document):
+    return json.dumps(multiworld.read_yaml(json.loads(document)))
+
+def read_apzora(data, name):
+    from zora_web import apzora
+    return json.dumps(apzora.read_apzora(bytes(data.to_py()), name))
+
+def build_apzora(data, rom, chosen):
+    from zora_web import apzora
+    from zora.archipelago import RecipeNotReproduced
+    from zora.rom.player_settings import PlayerSettingError
+    from zora.rom.revision import RomNotRecognized
+    global LAST_RESULT
+    try:
+        built = apzora.build_rom(bytes(data.to_py()), bytes(rom.to_py()), json.loads(chosen))
+    except (apzora.ApzoraRefused, PlayerSettingError, RomNotRecognized, RecipeNotReproduced) as refused:
+        LAST_RESULT = json.dumps({"ok": False, "reason": str(refused)})
+        return None
+    LAST_RESULT = json.dumps({"ok": True})
+    return built
 
 PYTHON_VERSION = sys.version.split()[0]
 `;
@@ -246,6 +271,29 @@ function exportYaml({ id, name, flags, zoraFlags, playerSettings }) {
                                                        JSON.stringify(playerSettings || {}))) });
 }
 
+// A player's Archipelago YAML back into the page's settings (zora_web.multiworld.read_yaml), best effort.
+function readArchipelagoYaml({ id, document }) {
+  postMessage({ type: "result", id, ...JSON.parse(call("read_archipelago_yaml", JSON.stringify(document ?? null))) });
+}
+
+// The Multiworld tab's "Build your ROM from a .apzora" step (zora_web.apzora).
+function readApzora({ id, bytes, name }) {
+  postMessage({ type: "result", id, ...JSON.parse(call("read_apzora", bytes, name || "")) });
+}
+
+function buildApzora({ id, bytes, rom, playerSettings }) {
+  const t0 = performance.now();
+  const result = call("build_apzora", bytes, rom, JSON.stringify(playerSettings || {}));
+  const answer = JSON.parse(pyodide.globals.get("LAST_RESULT"));
+  if (result === undefined || result === null) {
+    postMessage({ type: "result", id, ...answer });
+    return;
+  }
+  const built = result.toJs();
+  result.destroy();
+  postMessage({ type: "result", id, ...answer, rom: built, ms: performance.now() - t0 }, [built.buffer]);
+}
+
 self.onmessage = async (event) => {
   const message = event.data;
   try {
@@ -261,6 +309,9 @@ self.onmessage = async (event) => {
     else if (message.type === "multiworldCheck") multiworldCheck(message);
     else if (message.type === "nameProblem") nameProblem(message);
     else if (message.type === "exportYaml") exportYaml(message);
+    else if (message.type === "readArchipelagoYaml") readArchipelagoYaml(message);
+    else if (message.type === "readApzora") readApzora(message);
+    else if (message.type === "buildApzora") buildApzora(message);
   } catch (err) {
     postMessage({ type: "error", id: message.id, message: String(err) });
   }

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -56,10 +57,11 @@ def test_every_preset_decodes_with_the_real_decoders() -> None:
 
 
 def test_every_shortcut_and_name_is_its_own() -> None:
-    """Each key is plain lowercase letters and digits, and no key or name reads as another preset's."""
+    """Each key is lowercase letters, digits and hyphens (consternation-noenc), and no key or name reads as
+    another preset's."""
     owner: dict[str, str] = {}
     for preset in PRESET_LIST:
-        assert preset.key == API.reduced(preset.key) != "", preset.key
+        assert re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", preset.key), preset.key
         for text in (preset.key, preset.name):
             assert owner.setdefault(API.reduced(text), preset.name) == preset.name, text
 
@@ -84,11 +86,12 @@ def test_presets_json_passes_every_rule_of_the_bot() -> None:
     datetime.fromisoformat(snapshot["updatedAt"])
 
 
-def test_presets_json_holds_every_preset_with_a_zora_string() -> None:
+def test_presets_json_holds_every_preset_with_a_zora_string_then_the_z1r_ones() -> None:
     snapshot = json.loads(PRESETS_FILE.read_text(encoding="utf-8"))
     assert [(f["name"], f["shortcuts"], [(s["flags"], s["zora"], s["isLatest"]) for s in f["strings"]])
             for f in snapshot["flagsets"]] == [
-        (p.name, [p.key], [(p.flags, p.zora, True)]) for p in PRESET_LIST if p.zora]
+        (p.name, [p.key], [(p.flags, p.zora, True)])
+        for p in [*(p for p in PRESET_LIST if p.zora), *(p for p in PRESET_LIST if not p.zora and not p.hidden)]]
     assert {f["shortcuts"][0] for f in snapshot["flagsets"]} >= {"asnb", "zte1", "zte2", "zte3", "zte4", "zte5",
                                                                   "consternationplus"}
     assert "_" not in PRESETS_FILE.read_text(encoding="utf-8")       # ! is canonical, never _
@@ -145,3 +148,35 @@ def test_the_zora_contracts_valid_files_pass(case: dict[str, Any]) -> None:
 def test_the_zora_contracts_invalid_files_fail(case: dict[str, Any]) -> None:
     reserved = _contract(ZORA_CONTRACT).get("reservedCommands", API.RESERVED_SHORTCUTS)
     assert API.validate_presets(case["snapshot"], reserved) != []
+
+
+# Revision 2 (2026-11-21): the seven ZORA presets as revision 1 had them, then ten of a Z1R string alone, in this
+# order, each with zora "". Written out so a change to the canonical list cannot move the bot's file unseen.
+REVISION_2_FLAGSETS = [
+    ("asnb", "8hq4BeR1JXo7yjOOHjbxryVQW!UJ3A", "4.T9Jvg"),
+    ("zte1", "143oNtDD4PAvB!U8nSk4yS8L09lgT10vRVe7sx", "10.J2EGOED"),
+    ("zte2", "143oNtDD4PAvB!U8nSk4yS8L09lgT10vRVe7sx", "10.J2EkcYg"),
+    ("zte3", "143oNtDD4PAvB!U8nSk4m!DgIQ6oraWI4Me7sx", "10.JpkCdvd"),
+    ("zte4", "143oNtDD4PAvB!U8nSk4mxFW0br2w5YUspe7sx", "10.JpaUYAv"),
+    ("zte5", "143oNtDD4PAvB!U8nSk4mxFW0br2w5YUspe7sx", "13.7Zg4ZxiL"),
+    ("consternationplus", "oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUULH", "18.1DzN7gO9LZ4p"),
+    ("consternation", "oIbnPfPb01Hll3D29Bc2!etrojQOSjJQZUJ3A", ""),
+    ("remastered", "oIbnPfPb01Hll3D295IGDxxjR4UwfEok8P4MD", ""),
+    ("hopla", "oIbnRjuMUKqwdnOXzOMO7PuDtwAvU3boJnaXW", ""),
+    ("consternation-noenc", "8hq4BeR1JXo89BJ2!TFpTP02u8UJ3A", ""),
+    ("vanilla", "CEERPCkLslB6BApr1Him1SiR28Y", ""),
+    ("ohk0hpla", "oIbnRjuQKp1DXiYCys9LwvSpzqZbXk1pRmZzr", ""),
+    ("mufflerug", "2487lt0moGMFLRug1ofQdxPuUBWnJVSsi7d202I", ""),
+    ("pick5", "p8GIOeYEAonHy5131VdG6b94Ts3EMMvBaQoWR", ""),
+    ("uphill", "143oNtDD4Pw3Yw6SRryTCXlqTsRz2fxg4s4pJW", ""),
+    ("sglive2026", "12TDBKH6mxLfnSz4T7ME4bcIaaUe9sE7UVmj7RA", ""),
+]
+
+
+def test_presets_json_has_the_seventeen_flagsets_of_revision_2() -> None:
+    snapshot = json.loads(PRESETS_FILE.read_text(encoding="utf-8"))
+    assert snapshot["schemaVersion"] == 1 and snapshot["revision"] >= 2
+    assert len(snapshot["flagsets"]) == 17
+    assert [(f["shortcuts"], [(s["flags"], s["zora"], s["isLatest"]) for s in f["strings"]], f["description"])
+            for f in snapshot["flagsets"]] == [
+        ([shortcut], [(flags, zora, True)], None) for shortcut, flags, zora in REVISION_2_FLAGSETS]

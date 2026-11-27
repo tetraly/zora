@@ -12,6 +12,7 @@ import textwrap
 from typing import Any
 
 from zora.model.item_names import PEGASUS_BOOTS_NAMES
+from zora.model.level_items import TRIFORCE_LEVELS, LevelItemKind, level_item_name
 from zora.version import player_version
 
 WIDTH = 80
@@ -23,6 +24,8 @@ MAJOR_ITEMS = frozenset({
     "Silver Arrow", "Bow", "Magical Key", "Raft", "Ladder", "Wand", "Book", "Blue Ring", "Red Ring",
     "Power Bracelet", "Letter", "Boomerang", "Magical Boomerang", "Heart Container", "Triforce",
     "Triforce of Power", *PEGASUS_BOOTS_NAMES.values(),
+    # per-level mode's pieces ("Level 3 Triforce"; docs/design/archipelago-items.md piece 6)
+    *(level_item_name(LevelItemKind.TRIFORCE, level) for level in TRIFORCE_LEVELS),
 })
 # A room's own item is its floor item and an item cellar's its room's stairway item, the
 # community's words (owner decision, 2026-10-18; ZORA's code keeps "cellar", the disassembly's).

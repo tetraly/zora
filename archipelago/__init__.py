@@ -11,22 +11,41 @@ Generation needs a The Legend of Zelda (USA) ROM (host.yaml zora_options.rom_fil
 with or without modified graphics (rom.py). Each player's machine bakes from its own.
 """
 import base64
+import logging
 import threading
 from typing import Any, ClassVar, TextIO
 
 from BaseClasses import Item, ItemClassification, Location, MultiWorld, Region, Tutorial
 from worlds.AutoWorld import WebWorld, World
 
+from .classes import (
+    ONE_COPY_ITEMS,
+    PROGRESSION_ITEMS,
+    base_class,
+    is_filler,
+    is_own_filler,
+    pool_classes,
+    progression_copies,
+)
 from .client import ZoraClient  # noqa: F401  registers the BizHawk client
-from .names import (FILLER_ITEMS, GIVEN_AS, HEART_CONTAINER, ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID, ItemNaming,
-                    zora_names)
+from .names import ITEM_NAME_TO_ID, LOCATION_NAME_TO_ID, ItemNaming, kept_home, zora_names
 from .options import ZoraOptions, player_settings, zora_values
 from .rom import GAME, ZoraProcedurePatch, ZoraSettings, base_rom_bytes
 from .rules import state_rule
 from .zora import archipelago as zora_ap
 from .zora.generate.pipeline import SEED_LIMIT
-from .zora.model.item_names import ITEM_NAMES
 from .zora.rom.slot_identity import MAX_NAME_LENGTH as AP_NAME_LENGTH
+
+
+def foreign_value(classification: ItemClassification) -> zora_ap.Foreign:
+    """Another player's item as ZORA takes it, classed from Archipelago's classification
+    (docs/design/archipelago-items.md piece 1): progression if the progression flag is set, else
+    useful if the useful flag is set, else filler. A trap is filler."""
+    if classification & ItemClassification.progression:
+        return zora_ap.Foreign(zora_ap.ItemClass.PROGRESSION)
+    if classification & ItemClassification.useful:
+        return zora_ap.Foreign(zora_ap.ItemClass.USEFUL)
+    return zora_ap.Foreign(zora_ap.ItemClass.FILLER)
 
 
 class ZoraItem(Item):
@@ -64,20 +83,28 @@ class ZoraWorld(World):
         self.rom_name_available = threading.Event()
 
     def generate_early(self) -> None:
-        values = zora_values(self.options)
+        values = zora_values(self.options, self.player_name)
         flag_string, zora_flag_string = zora_ap.flag_strings(values)
+        beta = zora_ap.beta_in_use(values)
+        if beta:
+            logging.warning(f"ZORA ({self.player_name}): {zora_ap.MULTIWORLD_BETA_TITLE}: {'; '.join(beta)}. "
+                            f"{zora_ap.MULTIWORLD_BETA_WARNING}")
         self.settings_values = player_settings(self.options)
         zora_ap.check_player_settings(self.settings_values)    # refused now, not at output
         seed = self.random.randrange(SEED_LIMIT)
         self.built = zora_ap.build_from_strings(flag_string, zora_flag_string, seed, base_rom_bytes(),
                                                  self.settings_values)
         self.places, self.pool = list(self.built.places), list(self.built.pool)
-        self.naming = ItemNaming.of(zora_ap.give_rules(self.built))
+        self.naming = ItemNaming.of(zora_ap.give_rules(self.built), zora_ap.seed_item_names(self.built.state.world))
+        self.progression_copies = progression_copies(self.pool, self.built.logic, self.naming)
         unexpected = sorted({name for name in self.pool if name not in ITEM_NAME_TO_ID})
         if unexpected:
             # receivable() is the item table; ZORA's pools never hold another item (its tests)
             raise RuntimeError(f"ZORA ({self.player_name}): this seed's pool holds {', '.join(unexpected)}, "
                                f"which aren't Archipelago items; please report the YAML to ZORA")
+        # Shuffle Minor Dungeon Drops' keys stay in this world: ZORA's logic never counts keys
+        # (docs/design/archipelago-items.md piece 3)
+        self.options.local_items.value |= kept_home(self.pool)
 
     def create_regions(self) -> None:
         menu = Region(self.origin_region_name, self.player, self.multiworld)
@@ -86,8 +113,12 @@ class ZoraWorld(World):
             location = ZoraLocation(self.player, place.name, LOCATION_NAME_TO_ID[place.name], menu)
             location.access_rule = state_rule(model.places[place.name], self.player, model, self.naming)
             forbidden = frozenset(self.naming.archipelago_name(name) for name in place.forbids)
-            location.item_rule = lambda item, forbidden=forbidden: (
-                item.player != self.player or item.name not in forbidden
+            # a minor place is a filler spot: any world's filler, never anything else; a compass spot (per-level
+            # mode: the room or cellar a level's compass marks) no world's filler; every other place takes anything
+            # but this world's own filler (docs/archipelago.md "Item classes and filler spots")
+            location.item_rule = lambda item, forbidden=forbidden, minor=place.minor, spot=place.compass_spot: (
+                (is_filler(item) if minor else not is_filler(item) if spot else not is_own_filler(item, self.player))
+                and (item.player != self.player or item.name not in forbidden)
             )
             menu.locations.append(location)
         for event, rule in model.events.items():
@@ -103,19 +134,22 @@ class ZoraWorld(World):
         return ZoraItem(name, self.classification(name), ITEM_NAME_TO_ID[name], self.player)
 
     def classification(self, name: str) -> ItemClassification:
-        if name in FILLER_ITEMS:
-            return ItemClassification.filler
+        """A copy made by name (start inventory, plando, an item link): progression if the name has any
+        progression copy in this seed or is always progression, else its base class (classes.py)."""
         if not hasattr(self, "built"):
             # an item-link group's world, which has no build of its own: progression is the safe side
             return ItemClassification.progression
-        progression = {ITEM_NAMES[item] for item in self.built.logic.progression}
-        progression |= {self.naming.archipelago_name(item) for item in progression}
-        if name in progression or GIVEN_AS.get(name) in progression or name == HEART_CONTAINER:
+        always = {self.naming.archipelago_name(item) for item in (*PROGRESSION_ITEMS, *ONE_COPY_ITEMS)}
+        if self.progression_copies[name] or name in always:
             return ItemClassification.progression
-        return ItemClassification.useful
+        return base_class(name)
 
     def create_items(self) -> None:
-        self.multiworld.itempool += [self.create_item(self.naming.archipelago_name(name)) for name in self.pool]
+        """The pool, each copy with its own class: a name's first copies its progression copies."""
+        names = [self.naming.archipelago_name(name) for name in self.pool]
+        self.multiworld.itempool += [ZoraItem(name, item_class, ITEM_NAME_TO_ID[name], self.player)
+                                     for name, item_class in zip(names, pool_classes(names, self.progression_copies),
+                                                                 strict=True)]
 
     def get_filler_item_name(self) -> str:
         return "Blue Potion"
@@ -129,7 +163,7 @@ class ZoraWorld(World):
                 assert item is not None
                 if item.player == self.player:
                     own[place.name] = item.name
-                assignment[place.name] = zora_ap.FOREIGN
+                assignment[place.name] = foreign_value(item.classification)
             received_names = [
                 location.item.name
                 for location in self.multiworld.get_filled_locations()
@@ -174,7 +208,8 @@ class ZoraWorld(World):
     def fill_slot_data(self) -> dict[str, Any]:
         # the player's settings: the client tables carry the ones the client needs at play time
         # (Sound when an item arrives)
-        return {"client_tables": zora_ap.client_tables_to_json(self.built, self.settings_values)}
+        return {"client_tables": zora_ap.client_tables_to_json(self.built, self.settings_values),
+                "death_link": bool(self.options.death_link.value)}
 
     def modify_multidata(self, multidata: dict[str, Any]) -> None:
         self.rom_name_available.wait()

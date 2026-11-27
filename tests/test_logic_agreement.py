@@ -30,7 +30,7 @@ from zora.generate.logic import (
     model_to_json,
     sweep,
 )
-from zora.generate.pipeline import Built, build, extra_options, finish_world, plan
+from zora.generate.pipeline import Built, build, finish_world, plan, shipped_logic_rules
 from zora.model.enums import Item
 from zora.rom.base_rom import BASE_ROM_PATH, remember_repo_base_rom
 
@@ -58,8 +58,9 @@ def strict_acceptance(built: Built, assignment: dict[str, Item | Foreign]) -> bo
     world, finished = finish_world(built, assignment, recompute=False, check=False)
     assert built.result.item_shuffle_result is not None and built.result.overworld is not None
     state = with_tracking(built.result.item_shuffle_result, finished.tracking, world, built.places)
+    # FINISH's own rules (finish.sanity_check): the shipped caves' heart counts and level-9 gate
     check = AcceptanceCheck(world.levels, state, world.overworld, built.result.overworld,
-                            logic_walk_rules(extra_options(built.plan).logic_rules))
+                            logic_walk_rules(shipped_logic_rules(built.plan, world)))
     return check.collects_everything() and check.is_zelda_reachable()
 
 

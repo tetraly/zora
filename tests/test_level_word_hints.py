@@ -81,7 +81,7 @@ def decoded_lines(body: bytes) -> list[str]:
 
 def hint_sentences() -> list[str]:
     """Every location sentence hint_text can compose."""
-    namings = (VANILLA_NAMES, PROGRESSIVE_NAMES, ItemNames(foreign_code=FOREIGN_CODE))
+    namings = (VANILLA_NAMES, PROGRESSIVE_NAMES, ItemNames(foreign_codes=frozenset({FOREIGN_CODE})))
     sentences = {item_location_sentence(code, level, names)
                  for code in range(len(ITEM_NAMES)) for level in LEVELS for names in namings}
     sentences |= {level_location_sentence(level, region) for level in LEVELS for region in REGION_PHRASES}

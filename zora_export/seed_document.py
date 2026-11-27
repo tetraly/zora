@@ -60,6 +60,7 @@ from zora.model.enums import (
 from zora.model.game_world import GameWorld
 from zora.model.item_names import ITEM_NAMES, item_names
 from zora.model.level_9_gate import GateKind, Level9Gate
+from zora.model.level_items import level_item_names
 from zora.model.levels import LEVEL_9, Level
 from zora.model.overworld import (
     DoorRepairCave,
@@ -85,7 +86,7 @@ from zora.version import PLAYER_NAME, ZORA_VERSION
 from zora_export.nes_palette import NES_PALETTE
 
 FORMAT = "z1r-seed"
-FORMAT_VERSION = "1.1"
+FORMAT_VERSION = "1.2"
 PRODUCER = PLAYER_NAME
 
 
@@ -108,6 +109,17 @@ def item_name(item: Item, names: Mapping[Item, str] = ITEM_NAMES) -> str | None:
     if item in NO_ITEMS:
         return None
     return names.get(item) or f"Unknown Item {int(item):02X}"
+
+
+def document_item_names(world: GameWorld, chosen: GenerationPlan) -> Mapping[Item, str]:
+    """The items' names in this seed's document: the boots' with Pegasus Boots on, and with Triforce Shuffle or
+    Map & Compass Shuffle away from Off (per-level mode), each level's own piece, map and compass named by
+    the number its status bar shows ("Level 3 Map", format 1.2; docs/design/archipelago-items.md piece 6).
+    The generic codes are then level 8's piece and level 9's map and compass, so they take those names too."""
+    names = item_names(chosen.zora_resolved.is_on("pegasus_boots"))
+    if not chosen.zora_resolved.per_level_items:
+        return names
+    return {**names, **level_item_names({level.level_num: level.rom_level_num for level in world.levels})}
 
 
 # --- dungeons -------------------------------------------------------------------------------
@@ -636,14 +648,16 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
         chosen = unencoded(chosen)
     world = parse_rom(rom, chosen.config)
     sells_once = chosen.zora.progressive_items or chosen.zora.shop_items_in_pool or chosen.config.potion_shop_in_pool
-    # Pegasus Boots: the boomerangs' items are the boots, the seed code's $1D icon too (as the game draws it)
-    names = item_names(chosen.zora_resolved.is_on("pegasus_boots"))
+    # Pegasus Boots: the boomerangs' items are the boots, the seed code's $1D icon too (as the game draws it).
+    # The seed code and the start items keep the plain names: an icon or an inventory slot, never a level's code
+    plain = item_names(chosen.zora_resolved.is_on("pegasus_boots"))
+    names = document_item_names(world, chosen)
     document = {
         "format": FORMAT,
         "formatVersion": FORMAT_VERSION,
         "producer": {"name": PRODUCER, "version": ZORA_VERSION},
         "seed": {"number": str(chosen.seed), "flags": chosen.flag_string, "zoraFlags": chosen.zora_flag_string,
-                 "code": seed_code_entry(rom, names)},
+                 "code": seed_code_entry(rom, plain)},
         "progressiveItems": chosen.zora.progressive_items,
         "levels": [level_entry(level, selling_levels(world), names)
                    for level in sorted(world.levels, key=lambda level: level.level_num)],
@@ -660,7 +674,7 @@ def seed_document(rom: bytes, chosen: GenerationPlan) -> dict[str, Any]:
         document["zoraExtras"] = extras
     if chosen.spoiler_level is not zora_flags.SpoilerLevel.NONE:
         document["spoiler"] = spoiler_entry(world, chosen.spoiler_level, selling_levels(world),
-                                            [names[item] for item in chosen.alternatives.start_items])
+                                            [plain[item] for item in chosen.alternatives.start_items])
     return document
 
 

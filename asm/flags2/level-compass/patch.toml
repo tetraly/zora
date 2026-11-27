@@ -1,0 +1,42 @@
+# ZORA per-level mode's compass marker (docs/design/archipelago-items.md piece 6): with Add Triforces or Add
+# Maps/Compasses to the Item Pool on, a level's compass still marks its original Triforce room, and its marker
+# blinks until that room's item (or its item cellar's, where the piece stood in one) is taken, not until the
+# level's piece is held: the piece may have been found anywhere, and the room may now hold another item. Written
+# only in per-level mode (zora/rom/final_steps.py), so every other ROM keeps the game's marker. Level 9's marker
+# is the game's: it always blinks. asm/README.md and asm/flags2/build.py describe this file.
+
+[[segment]]
+name = "ZORA_F2_LEVEL_COMPASS"
+bank = 6                    # banks 5 and 7 are full; the marker code runs from battery RAM, so it maps bank 6 itself
+size = 0x40                 # the seed's rooms and the palette choice
+
+[imports]
+bank_01 = ["CompassMarkerPalette", "SwitchBank"]
+
+[exports]
+bank_06 = ["CompassMarkerPalette"]
+bank_07 = ["SwitchBank"]
+
+[[hook]]
+name = "marker-palette"
+offset = 0x06A9E
+length = 9
+note = "UpdatePositionMarker's LDA #$03 / PHA / LDY CurLevel / CPY #$09 / BEQ (the Triforce marker's palette; the game runs this code from its battery-RAM copy of bank 1, with bank 5 mapped by UpdateTriforcePositionMarker) maps bank 6 and jumps to CompassMarkerPalette, which comes back to marker-palette-back with the palette in Y. SwitchBank changes only A, so X (4, the marker's record) holds."
+code = """
+    LDA #$06
+    JSR SwitchBank
+    JMP CompassMarkerPalette
+    NOP
+"""
+
+[[hook]]
+name = "marker-palette-back"
+offset = 0x06AA7
+length = 8
+note = "UpdatePositionMarker's LDA InvTriforce / AND LevelMasks-1, Y / BNE becomes where CompassMarkerPalette comes back (battery RAM $7227, MARKER_PALETTE_BACK there): bank 5 mapped again, then the palette in Y stored by the game's STA Sprites+86, X. The game's blink after it is no longer reached."
+code = """
+    LDA #$05
+    JSR SwitchBank
+    TYA
+    BNE * + 2 + $0D             ; to UpdatePositionMarker's STA Sprites+86, X (the palette is 2 or 3)
+"""

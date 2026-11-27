@@ -32,7 +32,7 @@ SPECS = option_fields()
 SINGLE_VALUES = [(spec.id, value) for spec in SPECS for value in spec.values if value != spec.default]
 # The single changes from the page's preset that a dependency rule refuses, and the rule's words.
 EXPECTED_CONFLICTS = {
-    ("randomize_magical_sword", 1): "Randomize Magical Sword",     # the heart cap, B10 on in the preset
+    # (Randomize Magical Sword alone no longer conflicts: Archipelago reads the preset's 14 hearts as 12, 2026-11-23)
     # Add L4 Sword's three-way control (Off 0, Level 2 1, Level 9 2) needs Progressive Items; Level 9
     # Entrance = Level 4 sword needs Add L4 Sword = Level 2 (docs/design/asnb.md section 2)
     ("add_l4_sword", 1): "Add L4 Sword needs Progressive Items",
@@ -42,6 +42,11 @@ EXPECTED_CONFLICTS = {
     # FL-DEP-01 rule 5: the Bow inside level 9 needs Allow Important Items in 9 (B25), off in the preset
     ("C26", 3): "names the Bow, which needs Allow Important Items in 9 (B25) on",
     ("C27", 3): "names the Bow, which needs Allow Important Items in 9 (B25) on",
+    # The same rule for level 9's beta pins (offered since 2026-11-21, archipelago.HELD_BACK)
+    **{(field_id, int(item)): f"names the {name}, which needs Allow Important Items in 9 (B25) on"
+       for field_id in ("C26", "C27")
+       for item, name in ((PinnedItem.LADDER, "Ladder"), (PinnedItem.POWER_BRACELET, "Power Bracelet"),
+                          (PinnedItem.RAFT, "Raft"), (PinnedItem.RECORDER, "Recorder"))},
 }
 
 
@@ -63,8 +68,17 @@ def value_in(strings: tuple[str, str], spec: OptionSpec) -> int:
 
 
 def test_the_defaults_are_the_pages_preset() -> None:
-    page = flag_form.metadata()
-    assert flag_strings({}) == (canonicalize(page["defaultFlags"]), "")
+    """The page's preset, but its Magical Sword Hearts (max) of 14 read as 12 (owner rule, 2026-11-23: in Archipelago
+    the magical-sword cave never asks for more than 12 hearts; archipelago.SWORD_HEARTS_CLAMPED)."""
+    page = decode(canonicalize(flag_form.metadata()["defaultFlags"]))
+    ours = decode(flag_strings({})[0])
+    # Triforce Shuffle and Map & Compass Shuffle default to Anywhere in Archipelago (owner, 2026-11-25), Off on the page
+    assert zora_flags.decode(flag_strings({})[1]) == zora_flags.ZoraFlags(
+        triforce_shuffle=zora_flags.LevelItemShuffle.ANYWHERE, map_compass_shuffle=zora_flags.LevelItemShuffle.ANYWHERE)
+    assert ours.toggles == page.toggles
+    assert {key: value for key, value in ours.options.items() if key != "C23"} == \
+        {key: value for key, value in page.options.items() if key != "C23"}
+    assert (int(page.options["C23"]), int(ours.options["C23"])) == (0, 2)        # 14 hearts, read as 12
     assert all(spec.default in spec.values for spec in SPECS)
 
 
@@ -79,17 +93,23 @@ def test_encode_level_data_is_never_offered_and_always_off() -> None:
 
 
 def test_only_supported_values_are_offered() -> None:
+    """Every supported value but the ones kept out (NOT_OFFERED_VALUES); the ones that wait for their logic scan
+    (HELD_BACK) are offered as beta values (owner, 2026-11-21), never the default."""
     for spec in SPECS:
         if spec.id in flag_form.FIELDS_BY_ID:
-            held = archipelago.HELD_BACK.get(spec.id, frozenset())
+            kept_out = archipelago.NOT_OFFERED_VALUES.get(spec.id, frozenset()) | {value for value, *_ in spec.clamped}
             assert spec.values == tuple(int(v) for v in flag_form.supported_values(flag_form.FIELDS_BY_ID[spec.id])
-                                        if v not in held)
+                                        if v not in kept_out)
+        assert spec.beta == tuple(value for value in spec.values if value in archipelago.HELD_BACK.get(spec.id, ()))
+        assert spec.default not in spec.beta
+        assert spec.scanned_values == tuple(value for value in spec.values if value not in spec.beta)
     assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} | set(zora_form.FIELD_NAMES)
                                            ) - archipelago.NOT_OFFERED
     assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword", "disable_custom_music",
-                                       "item_shuffle_no_vanilla", "universal_drops_v2", "detailed_spoiler_log",
-                                       "wizzrobes_shoot_wallmasters", "item_counter",
-                                       "B51"}
+                                       "item_shuffle_no_vanilla", "detailed_spoiler_log", "B51"}
+    # Off for good, so the page's Multiworld mode leaves them out (Item Counter, held until 2026-11-21, is a beta value)
+    assert archipelago.NOT_OFFERED_YET == frozenset()
+    assert archipelago.PERMANENTLY_OFF == archipelago.NOT_OFFERED
 
 
 def test_shuffle_wood_sword_is_never_offered_and_always_off() -> None:
@@ -131,17 +151,23 @@ def test_item_shuffle_is_never_offered_and_always_full() -> None:
 # places at the Ladder, the Power Bracelet, the Raft and the Recorder. Coast Item: Non-Heart, level 9's
 # places at the Bow and the Wand and Replace Book Fire with Explosion (B47) passed and are offered.
 HELD_LEVEL_9_PINS = {PinnedItem.LADDER, PinnedItem.POWER_BRACELET, PinnedItem.RAFT, PinnedItem.RECORDER}
-NEW_IN_BETA_11 = ("B79", "B17")      # B92 to B94 (scan on 7e9603c) and B06 offered since 2026-10-28
+NEW_IN_BETA_11 = ("B79",)      # B92 to B94 (scan on 7e9603c) and B06 offered since 2026-10-28, B17 since 2026-11-21
+# The values that wait for their logic scan, offered as beta values since 2026-11-21 (owner)
 HELD_BACK_AFTER_BETA_9 = {**dict.fromkeys(("C26", "C27"), HELD_LEVEL_9_PINS),
-                          # Harder Bosses and Harder Ganon (version 14), until their scan
-                          **dict.fromkeys(("harder_bosses", "harder_ganon"), set(HarderLevel) - {HarderLevel.OFF}),
                           # the 2026-10-28 export's settings, on and Random, until their scan
                           **dict.fromkeys(NEW_IN_BETA_11, {ThreeState.ON, ThreeState.POSSIBLE}),
-                          # BogieSmalls' additions (version 16), held (owner, 2026-10-29), Swordlish's
-                          # range at its defaults (controls count from 0: the piece count less one)
+                          # BogieSmalls' Swap Swords and Rings (version 16), held (owner, 2026-10-29)
                           "swap_swords_and_rings": {ThreeState.ON, ThreeState.POSSIBLE},
-                          "swordlish": {Swordlish.ON, Swordlish.RANDOM},
-                          "swordlish_lowest": set(range(1, 8)), "swordlish_highest": set(range(7))}
+                          # Universal Drops v2.0 (owner ruling 8, 2026-11-05), never offered until 2026-11-21
+                          "universal_drops_v2": {ThreeState.ON, ThreeState.POSSIBLE}}
+# Released on 2026-11-26 once their scan passed (archipelago.HELD_BACK's comment): Harder Bosses and Harder Ganon,
+# every level, and Item Counter, On and Random
+# The values kept out for a reason other than their scan, never offered (not even as beta values)
+KEPT_OUT: dict[str, set[int]] = {"C07": {WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS, WoodenSwordState.RANDOM},
+            # Swordlish gates the wooden sword Archipelago's player starts with (owner, 2026-10-29); its range
+            # at its defaults (controls count from 0: the piece count less one)
+            "swordlish": {Swordlish.ON, Swordlish.RANDOM},
+            "swordlish_lowest": set(range(1, 8)), "swordlish_highest": set(range(7))}
 # Released on 2026-10-22 once their scan passed (archipelago.HELD_BACK's comment)
 BETA_8_RELEASED_TOGGLES = ("B18", "B20", "B32", "B33", "B35", "B07", "B39", "B21", "B37")
 
@@ -182,8 +208,8 @@ def test_values_wait_for_the_logic_scan() -> None:
     released_toggles = ("B41", "B53", "B86", "pegasus_boots", "highlight_no_drop_rooms", "B52", "B68",
                         "allow_triforces_in_stairways", "expanded_dungeon_locations", "B87", "B88",
                         "do_not_segment_dungeons")
-    assert archipelago.HELD_BACK == {"C07": {WoodenSwordState.NO_WOODEN_SWORD, WoodenSwordState.SWORDLESS,
-                                             WoodenSwordState.RANDOM}, **HELD_BACK_AFTER_BETA_9}
+    assert archipelago.HELD_BACK == HELD_BACK_AFTER_BETA_9
+    assert archipelago.NOT_OFFERED_VALUES == KEPT_OUT
     assert offered_values("C08") == tuple(range(13))
     assert offered_values("C14") == (0, 1, 2, 3)
     assert all(offered_values(field_id) == tuple(int(state) for state in ThreeState)
@@ -193,7 +219,7 @@ def test_values_wait_for_the_logic_scan() -> None:
     assert all(offered_values(field_id) == tuple(int(state) for state in ThreeState) for field_id in released_toggles)
     assert offered_values("C09") == offered_values("C10") == tuple(int(change) for change in HitPointChange)
     assert (offered_values("C20"), offered_values("C21"), offered_values("C22"), offered_values("C23")) == (
-        (0, 1, 2), (0, 1, 2), (0, 1, 2, 3, 4), (0, 1, 2, 3, 4))
+        (0, 1, 2), (0, 1, 2), (0, 1, 2), (2, 3, 4))      # the magical sword's 13 and 14 read as 12 (2026-11-23)
     assert offered_values("C18") == tuple(range(10))
     assert offered_values("C24") == offered_values("C25") == tuple(range(9))
     assert offered_values("C16") == tuple(range(17))
@@ -205,13 +231,18 @@ def test_values_wait_for_the_logic_scan() -> None:
     assert offered_values("B91") == tuple(int(state) for state in ThreeState)
     assert offered_values("B02") == tuple(int(state) for state in ThreeState)     # "?": beta 8, OW-CAVE-12
     assert offered_values("C05") == (0, 1, 2, 3, 4)
-    offered = {spec.id: spec.values for spec in SPECS}
+    offered = {spec.id: spec.scanned_values for spec in SPECS}
     assert (offered["oops_all_enemies"], offered["oops_all_bosses"]) == ((0, 1, 2, 3), (0, 1))
     assert "gatekeeper_bosses" not in offered                  # retired 2026-10-29: RETIRED_ZORA_FLAGS
-    assert offered["harder_bosses"] == offered["harder_ganon"] == (HarderLevel.OFF,)
+    assert offered["harder_bosses"] == offered["harder_ganon"] == tuple(HarderLevel)     # since 2026-11-26
+    assert offered["item_counter"] == tuple(ThreeState)                                     # since 2026-11-26
     assert offered["offense_pacing"] == offered["defense_pacing"] == tuple(Pacing)     # offered since 2026-10-28
     assert offered["recorder_warping"] == tuple(ThreeState)[:2]
     assert offered["B29"] == tuple(ThreeState)                 # "?" since beta 9 (FL-DEP-02 rule 4 after its coin)
+    # Released 2026-11-21 after the archipelago-items scan (section 8): B17, and the level items' pool switches
+    assert offered["B17"] == tuple(ThreeState)
+    # Triforce Shuffle and Map & Compass Shuffle (2026-11-25): every value, Archipelago's default Anywhere
+    assert offered["triforce_shuffle"] == offered["map_compass_shuffle"] == (0, 2, 1)
     assert offered["B23"] == tuple(ThreeState)     # off beside merchants since the 2026-10-28 export (PS-MERCH-05)
     # Shop Items in the Item Pool's on, with the bait, passed its scan (2026-10-17)
     assert offered["shop_items_in_pool"] == (ThreeState.OFF, ThreeState.ON)
@@ -221,14 +252,34 @@ def test_values_wait_for_the_logic_scan() -> None:
     assert 1 in offered["C03"]
     assert all(offered[field_id] == tuple(int(state) for state in ThreeState)
                for field_id in ("B81", "B03", "B25", "B26", "B30", "B48", *start_items))
-    for option, values in archipelago.HELD_BACK.items():
+    for option, values in KEPT_OUT.items():
         for value in values:
             with pytest.raises(OptionsConflict, match=option):
                 flag_strings({option: value})
 
 
+def test_values_without_their_scan_are_beta_values() -> None:
+    """Owner (2026-11-21): a value that waits for its logic scan (HELD_BACK) is offered as a beta value. A YAML
+    may name it, by its key or its number: flag_strings takes it (or names a dependency conflict, as for any
+    value), and beta_in_use names it for the warning."""
+    for option, values in archipelago.HELD_BACK.items():
+        spec = next(spec for spec in SPECS if spec.id == option)
+        for value in values:
+            key = dict(spec.value_keys)[value]
+            assert value in spec.values and value in spec.beta and value not in spec.scanned_values
+            try:
+                strings = flag_strings({spec.key: key})
+            except OptionsConflict as conflict:
+                assert EXPECTED_CONFLICTS[(option, value)] in str(conflict)
+                continue
+            assert value_in(strings, spec) == value
+            assert archipelago.beta_in_use({spec.key: key}) == [f"{spec.name}: {dict(spec.choices)[value]}"]
+    assert archipelago.beta_in_use({}) == []
+
+
 def offered_values(field_id: str) -> tuple[int, ...]:
-    return next(spec.values for spec in SPECS if spec.id == field_id)
+    """The values offered that passed their logic scan (the beta values aside)."""
+    return next(spec.scanned_values for spec in SPECS if spec.id == field_id)
 
 
 @pytest.mark.parametrize(("option", "value"), SINGLE_VALUES)
