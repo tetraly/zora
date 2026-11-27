@@ -1,0 +1,7 @@
+# Every text file is checked out with LF line endings, on Windows too (2026-11-26): Git for Windows
+# would otherwise write CRLF, and `sh scripts/verify.sh` stops at the first "\r". Every committed
+# file is LF already, so nothing changes on macOS or Linux.
+* text=auto eol=lf
+# CSV files keep their bytes as committed: scripts/flag_names.py writes docs/flag-names.csv with CRLF
+# line endings on purpose, for spreadsheets.
+*.csv -text

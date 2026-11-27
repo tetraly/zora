@@ -28,12 +28,24 @@ The quick check's selection (--quick; owner decision, 2026-10-16: commit after q
 in batches) is the fast-test files picked as above, but never every test for a change to the
 test-wide setup, capped at QUICK_BUDGET_SECONDS of recorded test time (each test's last passing
 duration, temp/jobs/test-durations.json, written by tests/progress_plugin.py; a file without a
-record counts its tests at the record's median, or UNRECORDED_TEST_SECONDS while it holds too few). Changed test files come first, then the files
+record there counts its seconds in FILE_SECONDS, then its tests at the record's median, or
+UNRECORDED_TEST_SECONDS while it holds too few). Changed test files come first, then the files
 importing a changed module, then those naming a changed file; a file that does not fit is left to
 the batch run and listed, and a smaller one after it may still fit.
+
+FILE_SECONDS (tests/fast_test_seconds.json, committed and released) is each test file's fast tests'
+recorded seconds, for a checkout with no record of its own, such as a contributor's fresh clone
+(2026-11-26: counted at a second per test function there, test_archipelago_recipe.py's 280 cases,
+about 2,200 s, came to 6 s, and a one-line change ran 13 files, 471 tests, past 20 minutes).
+`--write-file-seconds` rewrites it from this checkout's record; a file it doesn't list falls back as
+above, so a stale table only misjudges a file's cost.
+
+    python3 scripts/affected_tests.py --write-file-seconds
 """
 import argparse
 import ast
+import json
+import math
 import os
 import subprocess
 import sys
@@ -52,6 +64,7 @@ IGNORED_FOLDERS = ("temp/",)
 # (docs/design/test-speed.md section 7, "The quick check").
 QUICK_BUDGET_SECONDS = 150.0
 UNRECORDED_TEST_SECONDS = 1.0       # a test's cost while too little is recorded for a median
+FILE_SECONDS = REPO / "tests" / "fast_test_seconds.json"     # each file's fast tests' seconds (above)
 RECORDED_FOR_MEDIAN = 200           # fast tests recorded before their median stands in for the others
 
 
@@ -311,17 +324,57 @@ class QuickSelection:
         return sum(cost for _, cost in self.chosen)
 
 
-def file_costs(files: list[TestFile], record: dict[str, list[object]]) -> dict[str, float]:
+def file_seconds_by_file(record: dict[str, list[object]]) -> dict[str, float]:
+    """Each test file's fast tests' recorded seconds, from RECORD (read_durations)."""
+    seconds: dict[str, float] = {}
+    for test_id, (duration, heavy) in record.items():
+        if not heavy:
+            path = test_id.partition("::")[0]
+            seconds[path] = seconds.get(path, 0.0) + float(str(duration))
+    return seconds
+
+
+def shipped_file_seconds() -> dict[str, float]:
+    """FILE_SECONDS, or {} where it is missing or unreadable."""
+    try:
+        data = json.loads(FILE_SECONDS.read_text())
+    except (OSError, ValueError):
+        return {}
+    return {str(path): float(seconds) for path, seconds in data.items()} if isinstance(data, dict) else {}
+
+
+def file_costs(files: list[TestFile], record: dict[str, list[object]],
+               shipped: dict[str, float] | None = None) -> dict[str, float]:
     """Each file's expected seconds for its fast tests: the recorded ones' durations, or, for a file
-    with nothing recorded, its tests at the record's median."""
+    with nothing recorded, its seconds in SHIPPED (FILE_SECONDS by default), or its tests at the
+    record's median."""
     fast = [float(str(seconds)) for seconds, heavy in record.values() if not heavy]
     typical = sorted(fast)[len(fast) // 2] if len(fast) >= RECORDED_FOR_MEDIAN else UNRECORDED_TEST_SECONDS
+    recorded = file_seconds_by_file(record)
+    shipped = shipped_file_seconds() if shipped is None else shipped
     costs = {}
     for test in files:
-        recorded = [float(str(seconds)) for test_id, (seconds, heavy) in record.items()
-                    if test_id.startswith(f"{test.path}::") and not heavy]
-        costs[test.path] = sum(recorded) if recorded else len(test.tests) * typical
+        if test.path in recorded:
+            costs[test.path] = recorded[test.path]
+        elif test.path in shipped:
+            costs[test.path] = shipped[test.path]
+        else:
+            costs[test.path] = len(test.tests) * typical
     return costs
+
+
+def write_file_seconds(record: dict[str, list[object]]) -> int:
+    """Rewrite FILE_SECONDS from RECORD, each file's seconds rounded up to a whole second."""
+    seconds = {path: math.ceil(total) for path, total in sorted(file_seconds_by_file(record).items())
+               if (REPO / path).exists()}
+    if not seconds:
+        print("affected_tests: no recorded fast tests here (temp/jobs/test-durations.json); nothing written",
+              file=sys.stderr)
+        return 1
+    FILE_SECONDS.write_text(json.dumps(seconds, indent=0, sort_keys=True) + "\n")
+    print(f"affected_tests: wrote {FILE_SECONDS.relative_to(REPO)}: {len(seconds)} test files, "
+          f"{sum(seconds.values())} s in all")
+    return 0
 
 
 def quick_priority(test: TestFile) -> int:
@@ -370,7 +423,13 @@ def main() -> int:
     parser.add_argument("--quick", action="store_true", help="the quick check's capped selection of fast tests")
     parser.add_argument("--budget", type=float, default=QUICK_BUDGET_SECONDS,
                         help="--quick's cap, in recorded seconds of test time")
+    parser.add_argument("--write-file-seconds", action="store_true",
+                        help=f"rewrite {FILE_SECONDS.relative_to(REPO)} from this checkout's record")
     arguments = parser.parse_args()
+    if arguments.write_file_seconds:
+        sys.path.insert(0, str(REPO))
+        from zora_measure.progress import read_durations
+        return write_file_seconds(read_durations())
     slow = not arguments.fast
     changed = sorted(set(arguments.paths)) if arguments.paths else changed_files(arguments.base)
     if not changed:

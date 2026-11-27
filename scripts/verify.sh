@@ -97,6 +97,10 @@ if [ -f verify.env ]; then
     set +a
 fi
 
+# The base ROM first (2026-11-26): without it, or with another file under its name, the run would
+# end in a traceback after the static checks. This names the ROM needed and how to check it.
+python3 scripts/check_base_rom.py || exit 1
+
 # Before the lock: an unknown REV, then any static failure, stops the run in seconds, without
 # queuing behind another session's suite. The full tier ran the static checks before its own
 # lock; this job and folder are marked so its inner run doesn't repeat them.

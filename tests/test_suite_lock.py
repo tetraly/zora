@@ -322,3 +322,40 @@ def test_a_waiting_run_whose_job_has_gone_gives_up(tmp_path: Path) -> None:
     assert waiter.returncode == 1 and "ran" not in waiter.stdout
     assert "not waiting any longer: the job it belongs to (1-gone) has ended" in waiter.stderr
     assert not list((lock.parent / "test-suite-queue").glob("*.json"))
+
+
+# Python as Windows has it, as far as these modules can tell: sys.platform says so, there is no fcntl
+# (an import of it fails) and no SIGHUP. Then the modules every test run and verify.sh load are imported.
+WINDOWS_LIKE = textwrap.dedent("""
+    import importlib.util, os, signal, sys
+    sys.platform = "win32"
+    sys.modules["fcntl"] = None
+    del signal.SIGHUP
+    sys.path.insert(0, sys.argv[1])
+    from tests import suite_lock
+    from zora_measure import progress
+    spec = importlib.util.spec_from_file_location("job", os.path.join(sys.argv[1], "scripts", "job.py"))
+    job = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(job)
+    print("holder:", suite_lock.holder())
+    with suite_lock.suite_lock("a run on Windows"):
+        print("ran inside, held setting:", os.environ.get(suite_lock.HELD_ENV))
+    print("stop signals:", [number.name for number in progress.STOP_SIGNALS])
+    print("forwarded signals:", [number.name for number in job.FORWARDED_SIGNALS])
+""")
+
+
+def test_on_windows_the_lock_is_always_free(tmp_path: Path) -> None:
+    """2026-11-26: fcntl is Unix-only, so a contributor's test run could not start on Windows. There the
+    lock counts as free, even while a run holds it on this machine, and a run never waits for it."""
+    lock, done = tmp_path / "lock", tmp_path / "done"
+    holder = _hold(lock, done)
+    try:
+        run = subprocess.run([sys.executable, "-c", WINDOWS_LIKE, str(REPO)], env=_environment(lock),
+                             capture_output=True, text=True, timeout=60)
+    finally:
+        done.with_suffix(".release").touch()
+        holder.wait(timeout=30)
+    assert run.returncode == 0, run.stderr
+    assert run.stdout.splitlines() == ["holder: None", "ran inside, held setting: None",
+                                       "stop signals: ['SIGTERM']", "forwarded signals: ['SIGTERM', 'SIGINT']"]
