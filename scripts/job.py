@@ -42,7 +42,10 @@ sys.path.insert(0, str(REPO))
 from zora_measure import progress  # noqa: E402
 
 USAGE = __doc__
-FORWARDED_SIGNALS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
+if sys.platform == "win32":           # no SIGHUP and no process groups there: see _signal_group
+    FORWARDED_SIGNALS: tuple[signal.Signals, ...] = (signal.SIGTERM, signal.SIGINT)
+else:
+    FORWARDED_SIGNALS = (signal.SIGTERM, signal.SIGHUP, signal.SIGINT)
 STOP_GRACE_SECONDS = 10          # then the group is killed (SIGKILL)
 SIGNAL_EXIT_BASE = 128
 STOPPED, NOTHING_TO_STOP, NO_SUCH_JOB, REFUSED = 0, 1, 2, 3
@@ -52,11 +55,17 @@ STOP_WAIT_SECONDS = STOP_GRACE_SECONDS + 5   # a `run` job's command gets its gr
 PID_REUSE_SLACK_SECONDS = 1.0
 
 
-def _signal_group(group: int, number: int) -> None:
-    """Signal COMMAND's process group; nothing if it is gone (macOS says EPERM for a group left
-    with only its unreaped leader)."""
+def _signal_group(child: subprocess.Popen[bytes], number: int | None) -> None:
+    """Signal COMMAND's process group (SIGKILL when NUMBER is None); nothing if it is gone (macOS says
+    EPERM for a group left with only its unreaped leader). Windows has neither process groups nor
+    those signals: there COMMAND's own process is ended, and what it started is left to end with it
+    (2026-11-26, so the quick check runs on a contributor's Windows machine)."""
+    if sys.platform == "win32":
+        if child.poll() is None:
+            child.terminate()
+        return
     try:
-        os.killpg(group, number)
+        os.killpg(child.pid, signal.SIGKILL if number is None else number)
     except (ProcessLookupError, PermissionError):
         pass
 
@@ -66,7 +75,7 @@ def run(name: str, command: list[str]) -> int:
     job = progress.Job(name, stream=sys.stdout).start()
     child = subprocess.Popen(command, start_new_session=True)
     received: list[int] = []
-    last_resort = threading.Timer(STOP_GRACE_SECONDS, _signal_group, (child.pid, signal.SIGKILL))
+    last_resort = threading.Timer(STOP_GRACE_SECONDS, _signal_group, (child, None))
     last_resort.daemon = True
 
     def on_signal(number: int, frame: FrameType | None) -> None:
@@ -75,7 +84,7 @@ def run(name: str, command: list[str]) -> int:
         if not received:
             last_resort.start()
         received.append(number)
-        _signal_group(child.pid, number)
+        _signal_group(child, number)
 
     for number in FORWARDED_SIGNALS:          # after the job's own handlers: these take over
         signal.signal(number, on_signal)

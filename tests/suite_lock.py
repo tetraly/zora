@@ -28,8 +28,12 @@ place in the queue, and tells the job it runs in (zora_measure/progress.py) what
 A run whose own ancestor process holds the lock never waits for it (HeldByAncestor): the ancestor waits for
 the run in turn, so it would never start. It stops at once, naming both. A nested run inherits
 ZORA_SUITE_LOCK_HELD; a test's own nested runs that drop it name a lock of their own (ZORA_TEST_SUITE_LOCK).
+
+On Windows there is no lock: it always counts as free, every run starts at once and nothing waits
+(2026-11-26: fcntl, which the lock uses, is Unix-only, so a contributor's test run could not even
+start there). The lock only keeps two full suites on one machine from slowing each other down;
+a contributor runs the quick check, one suite at a time, and correctness never depends on it.
 """
-import fcntl
 import json
 import os
 import subprocess
@@ -39,6 +43,26 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import IO, Any, TypedDict
+
+if sys.platform == "win32":
+    def _try_lock(lock: IO[str]) -> bool:
+        raise RuntimeError("no lock on Windows: suite_lock never takes it there")
+
+    def _unlock(lock: IO[str]) -> None:
+        raise RuntimeError("no lock on Windows: suite_lock never takes it there")
+else:
+    import fcntl
+
+    def _try_lock(lock: IO[str]) -> bool:
+        """Take the lock without waiting: False if another run holds it."""
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+        return True
+
+    def _unlock(lock: IO[str]) -> None:
+        fcntl.flock(lock, fcntl.LOCK_UN)
 
 REPO = Path(__file__).resolve().parent.parent
 CHECKOUT = REPO                     # the checkout, copy or release tree a holder or waiter runs in
@@ -200,22 +224,26 @@ def waiting_runs() -> list[Waiter]:
 
 
 def holder() -> str | None:
-    """Who holds the lock now (its label), or None if nobody does; takes nothing."""
+    """Who holds the lock now (its label), or None if nobody does; takes nothing. Nobody, on Windows."""
+    if sys.platform == "win32":
+        return None
     if not LOCK_PATH.exists():
         return None
     with LOCK_PATH.open("a+") as lock:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
+        if not _try_lock(lock):
             lock.seek(0)
             return lock.read().strip() or "another run"
-        fcntl.flock(lock, fcntl.LOCK_UN)
+        _unlock(lock)
     return None
 
 
 @contextmanager
 def suite_lock(label: str, say: Callable[[str], None] = _say) -> Iterator[None]:
-    """Hold the lock (waiting for it if another suite holds it) while the block runs."""
+    """Hold the lock (waiting for it if another suite holds it) while the block runs. On Windows the block
+    just runs (the module docstring)."""
+    if sys.platform == "win32":
+        yield
+        return
     if os.environ.get(HELD_ENV):
         yield
         return
@@ -232,7 +260,7 @@ def suite_lock(label: str, say: Callable[[str], None] = _say) -> Iterator[None]:
             yield
         finally:
             os.environ.pop(HELD_ENV, None)
-            fcntl.flock(lock, fcntl.LOCK_UN)
+            _unlock(lock)
 
 
 def _take(lock: IO[str], label: str, say: Callable[[str], None]) -> None:
@@ -250,12 +278,8 @@ def _take(lock: IO[str], label: str, say: Callable[[str], None]) -> None:
         while True:
             waiters = waiting_runs()
             first = not waiters or waiters[0]["pid"] == os.getpid()
-            if first:
-                try:
-                    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except BlockingIOError:
-                    pass
+            if first and _try_lock(lock):
+                break
             if not holder_checked:
                 holder_checked = _refuse_an_ancestors_lock(label)
             if ended := _job_ended():

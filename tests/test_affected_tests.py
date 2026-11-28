@@ -120,6 +120,24 @@ def test_heavy_tests_do_not_count_toward_the_cap() -> None:
     assert quick.chosen == [("tests/test_progress.py", 2.0)]
 
 
+def test_a_checkout_without_a_record_costs_files_from_the_shipped_table() -> None:
+    """2026-11-26: a fresh clone has no record of its own, and test_archipelago_recipe.py's 280 cases
+    (about 2,200 s) counted as 6 s there. Its own record wins; the shipped table comes next; a file in
+    neither counts its test functions."""
+    files = helper.select(["zora_measure/progress.py"], slow=False).direct
+    shipped = {"tests/test_progress.py": 2_000.0}
+    costs = helper.file_costs(files, {}, shipped)
+    assert costs["tests/test_progress.py"] == 2_000.0
+    unlisted = next(test for test in files if test.path not in shipped)
+    assert costs[unlisted.path] == len(unlisted.tests) * helper.UNRECORDED_TEST_SECONDS
+    record = _record({"tests/test_progress.py::test_one": 3.0})
+    assert helper.file_costs(files, record, shipped)["tests/test_progress.py"] == 3.0
+    # The committed table holds a whole number of seconds for each test file it lists
+    table = helper.shipped_file_seconds()
+    assert table["tests/test_archipelago_recipe.py"] > helper.QUICK_BUDGET_SECONDS
+    assert all(path.startswith("tests/test_") and seconds == int(seconds) for path, seconds in table.items())
+
+
 def test_a_test_wide_change_does_not_select_every_test_in_the_quick_check() -> None:
     quick = helper.quick_select(["tests/conftest.py"], {}, budget=10_000.0)
     assert quick.chosen == [] and quick.test_wide == ["tests/conftest.py"]
