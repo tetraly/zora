@@ -16,7 +16,7 @@ segment = "ZORA_F2_COMPASS_CHIME_B5"
 owner = "flags2:compass-chime"
 banks = [5]
 start = 0xBD20
-size = 0xA0
+size = 0x89
 
 [[placement]]
 segment = "ZORA_CROP_GUIDE"

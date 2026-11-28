@@ -106,7 +106,7 @@ def test_only_supported_values_are_offered() -> None:
     assert {spec.id for spec in SPECS} == ({field.id for field in flag_form.ALL_FIELDS} | set(zora_form.FIELD_NAMES)
                                            ) - archipelago.NOT_OFFERED
     assert archipelago.NOT_OFFERED == {ENCODE_LEVEL_DATA.id, "C06", "shuffle_wood_sword", "disable_custom_music",
-                                       "item_shuffle_no_vanilla", "detailed_spoiler_log", "B51"}
+                                       "item_shuffle_no_vanilla", "detailed_spoiler_log", "show_item_pickups", "B51"}
     # Off for good, so the page's Multiworld mode leaves them out (Item Counter, held until 2026-11-21, is a beta value)
     assert archipelago.NOT_OFFERED_YET == frozenset()
     assert archipelago.PERMANENTLY_OFF == archipelago.NOT_OFFERED

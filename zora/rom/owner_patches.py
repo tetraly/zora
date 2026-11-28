@@ -53,6 +53,9 @@ PATCHES_BY_FLAG: dict[str, tuple[str, ...]] = {
     # Version 22 (zora_flags.ITEM_COUNTER_FIELDS): the HUD row under the rupees counts the area's places; the seed's
     # table and the chest tile are zora/rom/item_counter.py's.
     "item_counter": ("item-counter",),
+    # Version 24 (zora_flags.ITEM_LINE_FIELDS): the status bar's top row names each item Link takes; the texts are
+    # zora/rom/item_line.py's.
+    "show_item_pickups": ("item-line",),
 }
 # asm/flags2's patches every ROM gets, whatever the flags: auto-show-letter, Auto Show Letter's, a flag
 # up to 2.0 beta 6 (owner, 2026-10-17; zora_flags.RETIRED_FIELDS).

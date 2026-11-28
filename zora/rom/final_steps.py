@@ -36,6 +36,7 @@ from . import (
     harder_bosses,
     hidden_tiles,
     item_counter,
+    item_line,
     item_sprites,
     level_items,
     mirror_overworld,
@@ -116,6 +117,9 @@ def write_code_patches(rom: bytearray, world: GameWorld, settings: FinalSettings
             rom[address:address + len(data)] = data
     for address, data in harder_bosses.harder_writes(config.harder_bosses, config.harder_ganon):
         rom[address:address + len(data)] = data
+    if item_line.ITEM_LINE_FLAG in config.owner_flags:
+        for address, data in item_line.item_line_writes(item_line.PEGASUS_BOOTS_FLAG in config.owner_flags):
+            rom[address:address + len(data)] = data
     if config.item_counter_table:
         for address, data in item_counter.item_counter_writes(config.item_counter_table):
             rom[address:address + len(data)] = data

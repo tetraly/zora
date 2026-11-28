@@ -210,6 +210,8 @@ ZORA_FORCED_OFF = {
     "detailed_spoiler_log": "Not offered in Archipelago: it writes its own spoiler.",
     # (Item Counter, held until 2026-11-21 for want of its table in an Archipelago game's ROM, is a beta value:
     # HELD_BACK.)
+    # Show Item Pickups (ZORA version 24): the client writes the same status bar row (its HUD item messages)
+    "show_item_pickups": "Not offered in Archipelago: its client writes the same status bar row.",
 }
 # The ZORA_FORCED_OFF flags held for now, for a technical reason, rather than off for good: the page shows them,
 # locked at off, with the reason. Every other NOT_OFFERED field is PERMANENTLY_OFF. None since 2026-11-21 (Item

@@ -186,12 +186,20 @@ LEVEL_ITEM_SHUFFLE_FIELDS = (TRIFORCE_SHUFFLE_FIELD, MAP_COMPASS_SHUFFLE_FIELD)
 # and a single-player ROM refuses it). The two bomb upgraders' rooms are places whose item each sells.
 BOMB_UPGRADES_FIELD = "bomb_upgrades_in_pool"
 MULTIWORLD_ONLY_FIELDS = frozenset({BOMB_UPGRADES_FIELD})
+# Version 24: Show Item Pickups, On / Off / ? like version 3's, a "?" decided by the same coins after version 22's.
+# Written by its asm/flags2 patch (zora/rom/owner_patches.py) with the texts of zora/rom/item_line.py: the status
+# bar's blank top row shows "GOT <item>" for each item Link takes. Archipelago holds it back (its client writes
+# the same row).
+ITEM_LINE_FIELD = "show_item_pickups"
+ITEM_LINE_FIELDS = (
+    ITEM_LINE_FIELD,                       # the status bar's top row names each item Link takes
+)
 # Every On / Off / ? field, in payload order: the "?" coins are drawn in this order.
 THREE_STATE_FIELDS = (*OWNER_2_0_FIELDS, *ZORA_1_0_FIELDS, *PEGASUS_BOOTS_FIELDS,
                       *EXPANDED_DUNGEON_LOCATIONS_FIELDS, *HIGHLIGHT_NO_DROP_ROOMS_FIELDS,
                       *DO_NOT_SEGMENT_DUNGEONS_FIELDS, *FULL_HEALTH_FIELDS, *SWAP_SWORDS_AND_RINGS_FIELDS,
                       *COMPASS_CHIME_FIELDS, *UNIVERSAL_DROPS_V2_FIELDS, *WIZZROBE_HAND_FIELDS,
-                      *ITEM_COUNTER_FIELDS)
+                      *ITEM_COUNTER_FIELDS, *ITEM_LINE_FIELDS)
 
 
 
@@ -352,6 +360,9 @@ FIELDS: tuple[ZoraField, ...] = (
     # default, so every older string keeps its meaning and its spelling.
     *(ZoraField(name, len(LevelItemShuffle), version=23) for name in LEVEL_ITEM_SHUFFLE_FIELDS),
     ZoraField(BOMB_UPGRADES_FIELD, 2, version=23),
+    # Version 24: Show Item Pickups (ITEM_LINE_FIELDS), Off by default, so every older string keeps its meaning and
+    # its spelling.
+    *(ZoraField(name, THREE_STATE_SLOTS, version=24) for name in ITEM_LINE_FIELDS),
 )
 CURRENT_VERSION = max(field.version for field in FIELDS)
 VERSION_SEPARATOR = "."
@@ -448,6 +459,8 @@ class ZoraFlags:
         """The ROM's per-level mode: each level's piece, map and compass has its own code (either shuffle away
         from Off)."""
         return any(getattr(self, name) is not LevelItemShuffle.OFF for name in LEVEL_ITEM_SHUFFLE_FIELDS)
+    # Version 24: Show Item Pickups, On / Off / ? (ITEM_LINE_FIELDS).
+    show_item_pickups: ThreeState = ThreeState.OFF
 
     def __post_init__(self) -> None:
         cap = self.magical_sword_hearts_highest
@@ -1330,9 +1343,9 @@ def forced_z1r_values(flags: ZoraFlags) -> list[tuple[str, ThreeState, str]]:
 # refused (FlagsRefused), never ignored.
 PRODUCED_OWNER_FIELDS: frozenset[str] = frozenset((*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS,
                                                    *COMPASS_CHIME_FIELDS, *WIZZROBE_HAND_FIELDS,
-                                                   *ITEM_COUNTER_FIELDS))
+                                                   *ITEM_COUNTER_FIELDS, *ITEM_LINE_FIELDS))
 PATCHED_OWNER_FIELDS = (*OWNER_2_0_FIELDS, *PEGASUS_BOOTS_FIELDS, *FULL_HEALTH_FIELDS, *COMPASS_CHIME_FIELDS,
-                        *WIZZROBE_HAND_FIELDS, *ITEM_COUNTER_FIELDS)
+                        *WIZZROBE_HAND_FIELDS, *ITEM_COUNTER_FIELDS, *ITEM_LINE_FIELDS)
 
 
 # Fields refused on or "?" until their generation is built (none now: Expanded Dungeon Locations'

@@ -3,6 +3,12 @@
 What changed in each release of ZORA. The same version, flags and seed always make the same game,
 apart from the Cosmetic settings.
 
+## Unreleased
+
+### New Features
+
+- **Show Item Pickups** (ZORA extras, Miscellaneous; beta: On, Off or Random; Off by default). Each time Link takes an item, the HUD's empty top row shows GOT and the item's name ("GOT RAFT") for about 6 seconds, or about 3 seconds for bombs, keys, maps and compasses. Rupees, hearts, fairies and clocks show nothing. The game writes the row itself, so it works in any emulator with no script. Works with Item Counter and Pegasus Boots ("GOT PEGASUS BOOTS"). Not offered in Archipelago, whose client writes the same row.
+
 ## 2.0.2 (2026-11-27)
 
 ZORA 2.0.2 brings Archipelago's item messages in the status bar (from TheGobOne), more of the ZORA extras in Archipelago (Bomb Upgrades, Triforce Shuffle and Map & Compass Shuffle, DeathLink, Item Counter, Wizzrobes Shoot Wallmasters), a way to build your Archipelago ROM on the page, shop prices you can afford when items land in shops (with Shuffle Shop Items on the Blue Ring no longer costs 230-270; boomerangs, Triforce pieces, maps and compasses in shops cost 20-40), an Item Counter that counts places rather than items, and fixes for the Raft hidden under an Armos with Extra Raft Blocks, for cave people drawn whole again, for Offense Item Pacing with the joined swords and for Extra Raft Blocks' cave colors (fixed by TheGobOne). Against 2.0.1, 20 of the release check's 40 seed ROMs and all 476 of its matrix ROMs differ, because every ROM shows the new version number and its cave people change; 428 of its 476 seed documents differ (seed documents are format 1.2).
